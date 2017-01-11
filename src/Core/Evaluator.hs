@@ -17,6 +17,7 @@ isValue (env, Const c, pc) = True
 isValue (env, Lam x e, pc) = True
 isValue (env, DCon dc, pc) = True
 isValue (env, Var n, pc) = M.lookup n env == Nothing
+isValue (env, App (Lam n fe) ae, pc) = False
 isValue (env, App fe ae, pc) = isValue (env, fe, pc) && isValue (env, ae, pc)
 isValue (env, Case m as, pc) = isValue (env, m, pc)
 
