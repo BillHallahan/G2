@@ -35,7 +35,7 @@ eval (env, Lam n exp, pc) = [(env, Lam n exp, pc)]
 
 -- Applications
 eval (env, App (Lam n e1) e2, pc) = [(env', e1', pc)]
-  where n'   = fresh n (map (\(k, v) -> k) $ M.toList env)
+  where n'   = fresh n $ M.keys env
         e1'  = replace n n' e1
         env' = M.insert n' e2 env
 
@@ -59,7 +59,7 @@ eval (env, Case m as, pc) = if isValue (env, m, pc)
     then concatMap (\((dc, par), ae) ->
         let (d:args) = unrollApp m
         in if length args == length par && d == DCon dc
-            then let ns  = map (\(k, v) -> k) $ M.toList env
+            then let ns  = M.keys env
                      (ns',par') = foldl (\(cs,r) p -> let p' = fresh p cs
                                           in (p':cs,p':r)) (ns,[]) par
                      ae' = foldl (\e (n,n') -> replace n n' e) ae $ zip par par'
