@@ -1,8 +1,9 @@
 module Main where
 
 import G2.Core.Language
-import G2.Core.Models
+import G2.Core.FOL
 import G2.Core.Evaluator
+import G2.Core.SMT
 
 import qualified G2.Sample.Prog1 as P1
 
@@ -40,4 +41,11 @@ main = do
     let state_5 = head $ eval state_4
 
     putStrLn $ show state_5
+    {-
+    let exp = App (App (Var "a") (Var "b")) (Var "c")
+    let alt = (("Node",2,[TyConApp "Tree" [],TyConApp "Tree" []]),["ba","aa"])
+
+    putStrLn $ show $ translateExpr exp
+    putStrLn $ show $ translateAlt alt
+    -}
 
