@@ -3,7 +3,8 @@ module G2.Core.Evaluator where
 import G2.Core.Language
 import G2.Core.Models
 
-import qualified Data.Map as M
+import qualified Data.List as L
+import qualified Data.Map  as M
 
 -- Values of evaluation:
 -- v = c [p]
@@ -38,8 +39,9 @@ eval (env, Lam n exp, pc) = [(env, Lam n exp, pc)]
 
 -- Applications
 eval (env, App (Lam n e1) e2, pc) = [(env', e1', pc)]
-  where n'   = fresh n $ M.keys env
-        e1'  = replace n n' e1
+  where ns   = M.keys env
+        n'   = fresh n ns
+        e1'  = replace e1 ns n n'
         env' = M.insert n' e2 env
 
 eval (env, App (Case m as) e2, pc) = [(env, Case m as', pc)]
@@ -61,39 +63,18 @@ eval (env, Case (Case m1 as1) as2, pc) = [(env, Case m1 as', pc)]
 eval (env, Case m as, pc) = if isValue (env, m, pc)
     then let (d:args) = unrollApp m
          in case d of
-             Var f   -> undefined
-             DCon md -> concatMap (\((ad, par), ae) ->
-                 if length args == length par && ad == md
-                     then let ns = M.keys env
-                              (ns',par') = foldl (\(cs,r) p ->
-                                                   let p' = fresh p cs
-                                                   in (p':cs,p':r))
-                                                 (ns,[]) par
-                              ae' = foldl (\e (n,n') ->
-                                            replace n n' e)
-                                          ae $ zip par par'
-                          in [(M.union (M.fromList (zip par' args)) env
-                              , ae', (m,(ad,par')):pc)]
-                     else []) as
-             _       -> [(env, BAD, pc)] -- Should not be in this state.
-    else let m_ress = eval(env, m, pc)
-         in [(env', Case m' as, pc') | (env', m', pc') <- m_ress]
-
-{-
-eval (env, Case m as, pc) = if isValue (env, m, pc)
-    then concatMap (\((dc, par), ae) ->
-        let (d:args) = unrollApp m
-        in if length args == length par && d == DCon dc
-            then let ns  = M.keys env
-                     (ns',par') = foldl (\(cs,r) p -> let p' = fresh p cs
-                                          in (p':cs,p':r)) (ns,[]) par
-                     ae' = foldl (\e (n,n') -> replace n n' e) ae $ zip par par'
-                 in [(M.union (M.fromList (zip par' args)) env
-                     , ae', (m,(dc,par')):pc)]
-            else []) as
+            Var f   -> undefined
+            DCon md -> concatMap (\((ad, par), ae) ->
+                if length args == length par && ad == md
+                    then let ns   = M.keys env
+                             par' = freshList par ns
+                             ae'  = replaceList ae ns par par'
+                         in [(M.union (M.fromList (zip par' args)) env
+                             , ae', (m,(ad,par')):pc)]
+                    else []) as
+            _ -> [(env, BAD, pc)] -- Should not be in this state.
     else let m_ress = eval (env, m, pc)
          in [(env', Case m' as, pc') | (env', m', pc') <- m_ress]
--}
 
 -- BAD
 eval (env, BAD, pc) = [(env, BAD, pc)]
@@ -103,21 +84,47 @@ eval (env, UNR, pc) = [(env, UNR, pc)]
 
 ----
 
+-- Generates a fresh name given an old name and a list of invalid names.
 fresh :: Name -> [Name] -> Name
-fresh n ns = foldl (\s c -> if s == c then s ++ "a" else s) n ns
+fresh o ns = foldl (\s c -> if s == c then s ++ "a" else s) o ns
 
-replace :: Name -> Name -> Expr -> Expr
-replace old new exp = case exp of
-    Var a     -> if a == old then Var new else Var a
-    Const c   -> Const c
-    Lam n lex -> if n == old then Lam n lex else Lam n (replace old new lex) 
-    App fe ae -> App (replace old new fe) (replace old new ae)
-    DCon dc   -> DCon dc
-    Case m as -> let r ((d,ar),e) = if old `elem` ar
-                                        then ((d, ar), e)
-                                        else ((d, ar), replace old new e)
-                 in Case m (map r as)
-    
+-- Generates a list of fresh names. Ensures new list does not conflict with old.
+freshList :: [Name] -> [Name] -> [Name]
+freshList os ns = snd $ foldl (\(cs, rs) o -> let o' = fresh o cs
+                                              in (o':cs, o':rs))
+                              (ns ++ os, []) os
+
+-- Replace a single instance of a name with a new one in an Expr.
+replace :: Expr -> [Name] -> Name -> Name -> Expr
+replace (Var n) env old new     = if n == old then Var new else Var n
+replace (Lam n e) env old new   = let fv = freeVars e (n:env)
+                                      cf = fv ++ env ++ [old, new] -- conflicts
+                                      n' = fresh n cf
+                                      e' = replace e cf n n'
+                                  in Lam n' (replace e' (n':env) old new)
+replace (App f a) env old new   = App (replace f env old new)
+                                      (replace a env old new)
+replace (Case m as) env old new = Case (replace m env old new) (map r as)
+    where r ((d,ar),e) = let fv = freeVars e (ar ++ env)
+                             cf = fv ++ env ++ [old, new]
+                             ns = freshList ar cf
+                             e' = replaceList e cf ar ns
+                         in ((d, ns), replace e' (ns ++ env) old new) 
+replace otherwise env old new   = otherwise
+
+-- Replace a whole list of names with new ones in an Expr via folding.
+replaceList :: Expr -> [Name] -> [Name] -> [Name] -> Expr
+replaceList exp env olds news = foldl (\e (n, n') -> replace e env n n')
+                                      exp $ zip olds news
+
+-- Returns the free variables of an expression with respect to bounded vars.
+freeVars :: Expr -> [Name] -> [Name]
+freeVars (Var n) bvs   = if n `elem` bvs then [] else [n]
+freeVars (Const c) bvs = []
+freeVars (Lam n e) bvs = freeVars e (n:bvs)
+freeVars (App f a) bvs = L.nub (freeVars f bvs ++ freeVars a bvs)
+freeVars otherwise bvs = []
+
 unrollApp :: Expr -> [Expr]
 unrollApp (App f a) = unrollApp f ++ [a]
 unrollApp otherwise = [otherwise]
