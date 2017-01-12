@@ -14,6 +14,8 @@ data Expr = Var Name
           | App Expr Expr
           | DCon DataCon
           | Case Expr [(Alt, Expr)]
+          | BAD
+          | UNR
           deriving (Show, Eq)
 
 data Const = CInt Int

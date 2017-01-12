@@ -25,14 +25,18 @@ mkbtree a b c = App (App (DCon node)
                               (App (DCon leaf) b)))
                     (App (DCon leaf) c)
 
-test = (Case (mkbtree (Var "a") (Var "b") (Var "c"))
-             [((node, ["a", "b"]),
-                     Case (Var "a")
-                          [((node, ["a", "b"]), Var "a")
-                          ,((leaf, ["a"]), Var "a")])
-             ,((leaf, ["a"]), Var "a")])
+test1 = (Case (mkbtree (Var "a") (Var "b") (Var "c"))
+              [((node, ["a", "b"]),
+                      Case (Var "a")
+                           [((node, ["a", "b"]), Var "a")
+                           ,((leaf, ["a"]), Var "a")])
+              ,((leaf, ["a"]), Var "a")])
 
+test2 = Case (App (App (Var "a") (Var "b")) (Var "c"))
+             [((node, ["a", "b"]), Var "a")
+             ,((leaf, ["a"]), Var "a")]
 
-e_decls = [("test", test)]
+e_decls = [("test1", test1)
+          ,("test2", test2)]
 e_env = M.fromList e_decls
 

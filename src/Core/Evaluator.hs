@@ -13,13 +13,15 @@ import qualified Data.Map as M
 --   | case (x [p]) of ...
 
 isValue :: State -> Bool
+isValue (env, Var n, pc) = M.lookup n env == Nothing
 isValue (env, Const c, pc) = True
 isValue (env, Lam x e, pc) = True
 isValue (env, DCon dc, pc) = True
-isValue (env, Var n, pc) = M.lookup n env == Nothing
 isValue (env, App (Lam n fe) ae, pc) = False
 isValue (env, App fe ae, pc) = isValue (env, fe, pc) && isValue (env, ae, pc)
 isValue (env, Case m as, pc) = isValue (env, m, pc)
+isValue (env, BAD, pc) = True
+isValue (env, UNR, pc) = True
 
 eval :: State -> [State]
 
@@ -57,6 +59,28 @@ eval (env, Case (Case m1 as1) as2, pc) = [(env, Case m1 as', pc)]
   where as' = map (\((dc, ns), exp) -> ((dc, ns), Case exp as2)) as1
 
 eval (env, Case m as, pc) = if isValue (env, m, pc)
+    then let (d:args) = unrollApp m
+         in case d of
+             Var f   -> undefined
+             DCon md -> concatMap (\((ad, par), ae) ->
+                 if length args == length par && ad == md
+                     then let ns = M.keys env
+                              (ns',par') = foldl (\(cs,r) p ->
+                                                   let p' = fresh p cs
+                                                   in (p':cs,p':r))
+                                                 (ns,[]) par
+                              ae' = foldl (\e (n,n') ->
+                                            replace n n' e)
+                                          ae $ zip par par'
+                          in [(M.union (M.fromList (zip par' args)) env
+                              , ae', (m,(ad,par')):pc)]
+                     else []) as
+             _       -> [(env, BAD, pc)] -- Should not be in this state.
+    else let m_ress = eval(env, m, pc)
+         in [(env', Case m' as, pc') | (env', m', pc') <- m_ress]
+
+{-
+eval (env, Case m as, pc) = if isValue (env, m, pc)
     then concatMap (\((dc, par), ae) ->
         let (d:args) = unrollApp m
         in if length args == length par && d == DCon dc
@@ -69,6 +93,13 @@ eval (env, Case m as, pc) = if isValue (env, m, pc)
             else []) as
     else let m_ress = eval (env, m, pc)
          in [(env', Case m' as, pc') | (env', m', pc') <- m_ress]
+-}
+
+-- BAD
+eval (env, BAD, pc) = [(env, BAD, pc)]
+
+-- UNR
+eval (env, UNR, pc) = [(env, UNR, pc)]
 
 ----
 

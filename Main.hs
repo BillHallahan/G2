@@ -7,7 +7,7 @@ import G2.Core.Evaluator
 import qualified G2.Sample.Prog1 as P1
 
 main = do
-    let entry = "test"
+    let entry = "test1"
     let state = initState P1.e_env entry
     putStrLn $ show state
 
