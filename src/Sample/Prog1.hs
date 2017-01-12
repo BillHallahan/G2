@@ -7,6 +7,10 @@ import qualified Data.Map as M
 leaf = ("Leaf", 1, TyConApp "Tree" [], [TyConApp "Int" []])
 node = ("Node", 2, TyConApp "Tree" [], [TyConApp "Tree" [], TyConApp "Tree" []])
 
+t_decls = [("Tree", TyAlg "Tree" [leaf, node])]
+
+t_env = M.fromList t_decls
+
 simple_btree_1 = App (App (DCon node)
                           (App (DCon leaf) (Const (CInt 1) TyInt)))
                      (App (DCon leaf) (Const (CInt 2) TyInt))

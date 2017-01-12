@@ -7,80 +7,79 @@ import qualified Data.Map  as M
 
 -- Values are where we may return from a program evaluation.
 isVal :: State -> Bool
-isVal (env, Var n t, pc)   = M.lookup n env == Nothing
-isVal (env, Const c t, pc) = True
-isVal (env, Lam n e t, pc) = True
-isVal (env, App (Lam n e t) a, pc) = False
-isVal (env, App f a, pc)   = isVal (env, f, pc) && isVal (env, a, pc)
-isVal (env, DCon dc, pc)   = True
-isVal (env, Case m as t, pc) = isVal (env, m, pc)
-isVal (env, BAD, pc) = True
-isVal (env, UNR, pc) = True
+isVal (tv, env, Var n t, pc)   = M.lookup n env == Nothing
+isVal (tv, env, Const c t, pc) = True
+isVal (tv, env, Lam n e t, pc) = True
+isVal (tv, env, App (Lam n e t) a, pc) = False
+isVal (tv, env, App f a, pc) = isVal (tv, env, f, pc) && isVal (tv, env, a, pc)
+isVal (tv, env, DCon dc, pc) = True
+isVal (tv, env, Case m as t, pc) = isVal (tv, env, m, pc)
+isVal (tv, env, BAD, pc) = True
+isVal (tv, env, UNR, pc) = True
 
 -- Evaluation stuff
 eval :: State -> [State]
 
 -- Variables
-eval (env, Var n t, pc) = case M.lookup n env of
-    Nothing -> [(env, Var n t, pc)]
-    Just ex -> [(env, ex, pc)]
+eval (tv, env, Var n t, pc) = case M.lookup n env of
+    Nothing -> [(tv, env, Var n t, pc)]
+    Just ex -> [(tv, env, ex, pc)]
 
 -- Constants
-eval (env, Const c t, pc) = [(env, Const c t, pc)]
+eval (tv, env, Const c t, pc) = [(tv, env, Const c t, pc)]
 
 -- Lambdas
-eval (env, Lam n e t, pc) = [(env, Lam n e t, pc)]
+eval (tv, env, Lam n e t, pc) = [(tv, env, Lam n e t, pc)]
 
 -- Applications
-eval (env, App (Lam n e1 t) e2, pc) = [(env', e1', pc)]
+eval (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
   where ns   = M.keys env
         n'   = fresh n (ns ++ freeVars e1 (n:ns))
         e1'  = replace e1 ns n n'
         env' = M.insert n' e2 env
 
-eval (env, App (Case m as t) ex, pc) = [(env, Case m as' t', pc)]
+eval (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
   where as' = map (\((dc, pars), ae) -> ((dc, pars), App ae ex)) as
         t'  = let ((dc, pars), ae) = head as' in typeOf ae
 
-
-eval (env, App f a, pc) = if isVal (env, f, pc)
-    then let a_ress = eval (env, a, pc)
-         in [(env', App f a', pc') | (env', a', pc') <- a_ress]
-    else let f_ress = eval (env, f, pc)
-         in [(env', App f' a, pc') | (env', f', pc') <- f_ress]
+eval (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
+    then let a_ress = eval (tv, env, a, pc)
+         in [(tv', env', App f a', pc') | (tv', env', a', pc') <- a_ress]
+    else let f_ress = eval (tv, env, f, pc)
+         in [(tv', env', App f' a, pc') | (tv', env', f', pc') <- f_ress]
 
 -- Data Constructors
-eval (env, DCon dc, pc) = [(env, DCon dc, pc)]
+eval (tv, env, DCon dc, pc) = [(tv, env, DCon dc, pc)]
 
 -- Case
-eval (env, Case (Case m1 as1 t1) as2 t2, pc) = [(env, Case m1 as' t2, pc)]
+eval (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
   where as' = map (\((dc, par), ae) -> ((dc, par), Case ae as2 t2)) as1
 
-eval (env, Case m as t, pc) = if isVal (env, m, pc)
+eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
     then let (d:args) = unrollApp m
         in case d of
             Var f t -> concatMap (\((ad, par), ae) ->
                          let ns   = M.keys env
                              par' = freshList par (ns ++ freeVars ae (par++ns))
                              ae'  = replaceList ae ns par par'
-                         in [(env, ae', (m, (ad, par')):pc)]) as
+                         in [(tv, env, ae', (m, (ad, par')):pc)]) as
             DCon md -> concatMap (\((ad, par), ae) ->
                 if length args == length par && md == ad
                     then let ns   = M.keys env
                              par' = freshList par (ns ++ freeVars ae (par++ns))
                              ae'  = replaceList ae ns par par'
-                         in [(M.union (M.fromList (zip par' args)) env
+                         in [(tv, M.union (M.fromList (zip par' args)) env
                              , ae', (m, (ad, par')):pc)]
                     else []) as
-            _ -> [(env, BAD, pc)]  -- Should not be in this state. Throw error?
-    else let m_ress = eval (env, m, pc)
-         in [(env', Case m' as t, pc') | (env', m', pc') <- m_ress]
+            _ -> [(tv, env, BAD, pc)]  -- Should not be in this state. Error?
+    else let m_ress = eval (tv, env, m, pc)
+         in [(tv', env', Case m' as t, pc') | (tv', env', m', pc') <- m_ress]
 
 -- BAD
-eval (env, BAD, pc) = [(env, BAD, pc)]
+eval (tv, env, BAD, pc) = [(tv, env, BAD, pc)]
 
 -- UNR
-eval (env, UNR, pc) = [(env, UNR, pc)]
+eval (tv, env, UNR, pc) = [(tv, env, UNR, pc)]
 
 ----
 
@@ -96,7 +95,6 @@ typeOf (DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
 typeOf (Case m as t) = t
 typeOf (BAD) = TyBottom
 typeOf (UNR) = TyBottom
-
 
 -- Replace a single instance of a name with a new one in an Expr.
 replace :: Expr -> [Name] -> Name -> Name -> Expr
@@ -158,12 +156,12 @@ unlam (Lam a e t) = let (p, e')   = unlam e
                     in ((a, l):p, e')
 unlam otherwise   = ([], otherwise)
 
-initState :: Env -> Name -> State
-initState env entry = case match of
+initState :: TEnv -> EEnv -> Name -> State
+initState t_env e_env entry = case match of
     Nothing -> error "No matching entry point. Check spelling?"
     Just ex -> let (args, exp) = unlam ex
                    pairs       = map (\a -> (fst a, Var (fst a) (snd a))) args
-                   env'        = M.union (M.fromList pairs) env
-               in (env', exp, [])
-  where match = M.lookup entry env
+                   e_env'      = M.union (M.fromList pairs) e_env
+               in (t_env, e_env', exp, [])
+  where match = M.lookup entry e_env
 

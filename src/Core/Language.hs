@@ -2,11 +2,13 @@ module G2.Core.Language where
 
 import qualified Data.Map as M
 
-type State = (Env, Expr, PC)
+type State = (TEnv, EEnv, Expr, PC)
 
 type PC = [(Expr, Alt)]
 
-type Env = M.Map Name Expr
+type TEnv = M.Map Name Type
+
+type EEnv = M.Map Name Expr
 
 type Name = String
 
