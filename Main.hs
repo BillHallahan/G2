@@ -11,7 +11,7 @@ import qualified G2.Sample.Prog2 as P2
 
 main = do
     let bar = "=============================================="
-    let entry = "test"
+    let entry = "abstract"
     let state = initState P2.t_env P2.e_env entry
     putStrLn $ mkStateStr state
     putStrLn bar

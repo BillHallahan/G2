@@ -50,6 +50,13 @@ outer = Case inner
       NOde a b -> b
 -}
 
+ty_abs_f = TyFun TyInt (TyFun TyInt ty_tree)
+
+abstract = Case (App (App (Var "a" ty_abs_f) (Var "b" TyInt)) (Var "c" TyInt))
+                [((leaf, ["a"]), Const (CInt 123) TyInt)
+                ,((node, ["a", "b"]), Const (CInt 456) TyInt)]
+                TyInt
+
 ty_foo_1 = TyFun TyInt TyInt
 ty_foo_2 = TyFun ty_tree ty_foo_1
 ty_foo_3 = TyFun TyInt ty_foo_2
@@ -78,6 +85,7 @@ test = App (App (App (Var "foo" ty_foo_3)
 
 e_decls = [("inner", inner)
           ,("outer", outer)
-          ,("test", test)]
+          ,("test", test)
+          ,("abstract", abstract)]
 
 e_env = M.fromList e_decls
