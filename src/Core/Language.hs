@@ -16,7 +16,7 @@ data Expr = Var Name Type
           | Const Const Type
           | Lam Name Expr Type
           | App Expr Expr
-          | DCon DataCon
+          | DCon DataCon Type
           | Case Expr [(Alt, Expr)] Type
           | BAD
           | UNR
@@ -33,6 +33,7 @@ type DataCon = (Name, Int, Type, [Type])
 data Type = TyVar Name
           | TyInt | TyReal | TyBool | TyString | TyChar
           | TyFun Type Type
+          | TyApp Type Type
           | TyConApp Name [Type]
           | TyAlg Name [DataCon]
           | TyBottom

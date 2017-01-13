@@ -12,7 +12,7 @@ isVal (tv, env, Const c t, pc) = True
 isVal (tv, env, Lam n e t, pc) = True
 isVal (tv, env, App (Lam n e t) a, pc) = False
 isVal (tv, env, App f a, pc) = isVal (tv, env, f, pc) && isVal (tv, env, a, pc)
-isVal (tv, env, DCon dc, pc) = True
+isVal (tv, env, DCon dc t, pc) = True
 isVal (tv, env, Case m as t, pc) = isVal (tv, env, m, pc)
 isVal (tv, env, BAD, pc) = True
 isVal (tv, env, UNR, pc) = True
@@ -53,27 +53,27 @@ eval (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
          in [(tv', env', App f' a, pc') | (tv', env', f', pc') <- f_ress]
 
 -- Data Constructors
-eval (tv, env, DCon dc, pc) = [(tv, env, DCon dc, pc)]
+eval (tv, env, DCon dc t, pc) = [(tv, env, DCon dc t, pc)]
 
 -- Case
 eval (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
-  where as' = map (\((dc, par), ae) -> ((dc, par), Case ae as2 t2)) as1
+  where as' = map (\((dc, pars), ae) -> ((dc, pars), Case ae as2 t2)) as1
 
 eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
     then let (d:args) = unrollApp m
         in case d of
-            Var f t -> concatMap (\((ad, par), ae) ->
-                         let ns   = M.keys env
-                             par' = freshList par (ns ++ freeVars ae (par++ns))
-                             ae'  = replaceList ae ns par par'
-                         in [(tv, env, ae', (m, (ad, par')):pc)]) as
-            DCon md -> concatMap (\((ad, par), ae) ->
-                if length args == length par && md == ad
-                    then let ns   = M.keys env
-                             par' = freshList par (ns ++ freeVars ae (par++ns))
-                             ae'  = replaceList ae ns par par'
-                         in [(tv, M.union (M.fromList (zip par' args)) env
-                             , ae', (m, (ad, par')):pc)]
+            Var f t -> concatMap (\((ad, pars), ae) ->
+                         let ns    = M.keys env
+                             pars' = freshList pars (ns++ freeVars ae (pars++ns))
+                             ae'   = replaceList ae ns pars pars'
+                         in [(tv, env, ae', (m, (ad, pars')):pc)]) as
+            DCon md t -> concatMap (\((ad, pars), ae) ->
+                if length args == length pars && md == ad
+                    then let ns    = M.keys env
+                             pars' = freshList pars (ns++freeVars ae (pars++ns))
+                             ae'   = replaceList ae ns pars pars'
+                         in [(tv, M.union (M.fromList (zip pars' args)) env
+                             , ae', (m, (ad, pars')):pc)]
                     else []) as
             _ -> [(tv, env, BAD, pc)]  -- Should not be in this state. Error?
     else let m_ress = eval (tv, env, m, pc)
@@ -94,7 +94,8 @@ typeOf (Const c t) = t
 typeOf (Lam n e t) = t
 typeOf (App f a)   = case typeOf f of
                          TyFun l r -> r
-typeOf (DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
+                         t         -> TyApp t (typeOf a)
+typeOf (DCon (n,i,t,a) dt) = let a' = reverse (a ++ [t])
                           in foldl (\a r -> TyFun r a) (head a') (tail a')
 typeOf (Case m as t) = t
 typeOf (BAD) = TyBottom
@@ -111,13 +112,13 @@ replace (Lam n e t) env old new   = let fvs  = freeVars e (n:env)
                                     in Lam n' (replace e' (n':env) old new) t
 replace (App f a) env old new     = App (replace f env old new)
                                         (replace a env old new)
-replace (DCon dc) env old new     = (DCon dc)
+replace (DCon dc t) env old new   = (DCon dc t)
 replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
-  where r ((dc, par), ae) = let fvs  = freeVars ae (par ++ env)
-                                bads = fvs ++ env ++ [old, new]
-                                par' = freshList par bads
-                                ae'  = replaceList ae bads par par'
-                            in ((dc, par'), replace ae' (par' ++ env) old new)
+  where r ((dc, pars), ae) = let fvs   = freeVars ae (pars ++ env)
+                                 bads  = fvs ++ env ++ [old, new]
+                                 pars' = freshList pars bads
+                                 ae'   = replaceList ae bads pars pars'
+                             in ((dc, pars'), replace ae' (pars'++env) old new)
 replace (BAD) env old new         = BAD
 replace (UNR) env old new         = UNR
 
@@ -142,9 +143,9 @@ freeVars (Var n t) bvs     = if n `elem` bvs then [] else [n]
 freeVars (Const c t) bvs   = []
 freeVars (Lam n e t) bvs   = freeVars e (n:bvs)
 freeVars (App f a) bvs     = L.nub (freeVars f bvs ++ freeVars a bvs)
-freeVars (DCon dc) bvs     = []
+freeVars (DCon dc t) bvs   = []
 freeVars (Case m as t) bvs = L.nub (freeVars m bvs ++ as_fvs)
-    where a_fv ((dc, par), ae) = freeVars ae (par ++ bvs)
+    where a_fv ((dc, pars), ae) = freeVars ae (pars ++ bvs)
           as_fvs = L.nub (concatMap a_fv as)
 freeVars (BAD) bvs = []
 freeVars (UNR) bvs = []
