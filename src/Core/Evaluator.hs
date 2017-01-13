@@ -13,7 +13,7 @@ isVal (tv, env, Lam n e t, pc) = True
 isVal (tv, env, App (Lam n e t) a, pc) = False
 isVal (tv, env, App f a, pc) = isVal (tv, env, f, pc) && isVal (tv, env, a, pc)
 isVal (tv, env, DCon dc t, pc) = True
-isVal (tv, env, Case m as t, pc) = isVal (tv, env, m, pc)
+isVal (tv, env, Case m as t, pc) = False  -- isVal (tv, env, m, pc)
 isVal (tv, env, BAD, pc) = True
 isVal (tv, env, UNR, pc) = True
 

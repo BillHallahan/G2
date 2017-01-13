@@ -4,48 +4,71 @@ import G2.Core.Language
 import G2.Core.FOL
 import G2.Core.Evaluator
 import G2.Core.SMT
+import G2.Core.Utils
 
 import qualified G2.Sample.Prog1 as P1
+import qualified G2.Sample.Prog2 as P2
 
 main = do
-    let entry = "test1"
-    let state = initState P1.t_env P1.e_env entry
-    putStrLn $ show state
+    let bar = "=============================================="
+    let entry = "test"
+    let state = initState P2.t_env P2.e_env entry
+    putStrLn $ mkStateStr state
+    putStrLn bar
 
-    putStrLn "======================================"
+    let states_1 = eval state
+    putStrLn "1"
+    putStrLn $ mkStatesStr states_1
+    putStrLn bar
 
-    let state_1 = head $ eval state
+    let states_2 = concatMap eval states_1
+    putStrLn "2"
+    putStrLn $ mkStatesStr states_2
+    putStrLn bar
 
-    putStrLn $ show state_1
+    let states_3 = concatMap eval states_2
+    putStrLn "3"
+    putStrLn $ mkStatesStr states_3
+    putStrLn bar
 
-    putStrLn "======================================"
+    let states_4 = concatMap eval states_3
+    putStrLn "4"
+    putStrLn $ mkStatesStr states_4
+    putStrLn bar
 
-    let state_2 = head $ eval state_1
+    let states_5 = concatMap eval states_4
+    putStrLn "5"
+    putStrLn $ mkStatesStr states_5
+    putStrLn bar
 
-    putStrLn $ show state_2
+    let states_6 = concatMap eval states_5
+    putStrLn "6"
+    putStrLn $ mkStatesStr states_6
+    putStrLn bar
 
-    putStrLn "====================================="
 
-    let state_3 = head $ eval state_2
+    let states_7 = concatMap eval states_6
+    putStrLn "7"
+    putStrLn $ mkStatesStr states_7
+    putStrLn bar
 
-    putStrLn $ show state_3
 
-    putStrLn "====================================="
+    let states_8 = concatMap eval states_7
+    putStrLn "8"
+    putStrLn $ mkStatesStr states_8
+    putStrLn bar
 
-    let state_4 = head $ eval state_3
 
-    putStrLn $ show state_4
+    let states_9 = concatMap eval states_8
+    putStrLn "9"
+    putStrLn $ mkStatesStr states_9
+    putStrLn bar
 
-    putStrLn "====================================="
 
-    let state_5 = head $ eval state_4
+    let states_10 = concatMap eval states_9
+    putStrLn "10"
+    putStrLn $ mkStatesStr states_10
+    putStrLn bar
 
-    putStrLn $ show state_5
-    {-
-    let exp = App (App (Var "a") (Var "b")) (Var "c")
-    let alt = (("Node",2,[TyConApp "Tree" [],TyConApp "Tree" []]),["ba","aa"])
 
-    putStrLn $ show $ translateExpr exp
-    putStrLn $ show $ translateAlt alt
-    -}
-
+    putStrLn "Compiles!"
