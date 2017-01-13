@@ -27,17 +27,17 @@ mkbtree a b c = App (App (DCon node)
 
 test1 = (Case (mkbtree (Var "a" TyInt) (Var "b" TyInt) (Var "c" TyInt))
               [((node, ["a", "b"]),
-                      Case (Var "a" TyInt)
-                           [((node, ["a", "b"]), Var "b" TyInt)
-                           ,((leaf, ["a"]), Var "a" TyInt)]
+                      Case (Var "a" (TyConApp "Tree" []))
+                           [((node, ["a", "b"]), Var "b" (TyConApp "Tree" []))
+                           ,((leaf, ["a"]), Var "a" (TyConApp "Tree" []))]
                            (TyConApp "Tree" []))
               ,((leaf, ["a"]), Var "a" TyInt)]
-              TyInt)
+              (TyConApp "Tree" []))
 
-test2 = Case (App (App (Var "a" TyInt) (Var "b" TyInt)) (Var "c" TyInt))
-             [((node, ["a", "b"]), Var "a" TyInt)
+test2 = Case (App (App (Var "a" (TyFun TyInt (TyFun TyInt (TyConApp "Tree" [])))) (Var "b" TyInt)) (Var "c" TyInt))
+             [((node, ["a", "b"]), Var "a" (TyConApp "Tree" []))
              ,((leaf, ["a"]), Var "a" TyInt)]
-             (TyInt)
+             (TyConApp "Tree" [])
 
 e_decls = [("test1", test1)
           ,("test2", test2)]

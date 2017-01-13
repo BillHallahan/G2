@@ -40,7 +40,11 @@ eval (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
 
 eval (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
   where as' = map (\((dc, pars), ae) -> ((dc, pars), App ae ex)) as
-        t'  = let ((dc, pars), ae) = head as' in typeOf ae
+        t'  = let ((dc, pars), ae') = head as' in typeOf ae'
+
+eval (tv, env, App ex (Case m as t), pc) = [(tv, env, Case m as' t', pc)]
+  where as' = map (\((dc, pars), ae) -> ((dc, pars), App ex ae)) as
+        t'  = let ((dc, pars), ae') = head as' in typeOf ae'
 
 eval (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
     then let a_ress = eval (tv, env, a, pc)
