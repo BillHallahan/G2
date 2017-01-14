@@ -170,3 +170,8 @@ initState t_env e_env entry = case match of
                in (t_env, e_env', exp, [])
   where match = M.lookup entry e_env
 
+runN :: [State] -> Int -> ([State], Int)
+runN states 0 = (states, 0)
+runN [] n     = ([], n - 1)
+runN (s:ss) n = runN (ss ++ eval s) (n - 1)
+
