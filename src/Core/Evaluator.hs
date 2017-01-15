@@ -60,7 +60,7 @@ eval (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
   where as' = map (\((dc, pars), ae) -> ((dc, pars), Case ae as2 t2)) as1
 
 eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
-    then let (d:args) = unrollApp m
+    then let (d:args) = unapp m
         in case d of
             Var f t -> concatMap (\((ad, pars), ae) ->
                          let ns    = M.keys env
@@ -151,9 +151,9 @@ freeVars (BAD) bvs = []
 freeVars (UNR) bvs = []
 
 -- Other auxilliary and preparation functions.
-unrollApp :: Expr -> [Expr]
-unrollApp (App f a) = unrollApp f ++ [a]
-unrollApp otherwise = [otherwise]
+unapp :: Expr -> [Expr]
+unapp (App f a) = unapp f ++ [a]
+unapp otherwise = [otherwise]
 
 unlam :: Expr -> ([(Name, Type)], Expr)
 unlam (Lam a e t) = let (p, e')   = unlam e

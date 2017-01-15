@@ -1,7 +1,6 @@
 module G2.Core.Utils where
 
 import G2.Core.Language
-import G2.Core.SMT
 import G2.Core.Evaluator
 
 import qualified Data.List as L

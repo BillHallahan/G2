@@ -1,9 +1,7 @@
 module Main where
 
 import G2.Core.Language
-import G2.Core.FOL
 import G2.Core.Evaluator
-import G2.Core.SMT
 import G2.Core.Utils
 
 import qualified G2.Sample.Prog1 as P1
