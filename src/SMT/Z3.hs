@@ -35,7 +35,7 @@ data Match = MVar Z3Name
 mkZ3Type :: Type -> Z3Type
 mkZ3Type (TyVar n) = Z3TyVar n
 mkZ3Type TyInt     = Z3TyInt
-mkZ3Type TyBool    = Z3TyBool
+-- mkZ3Type TyBool    = Z3TyBool
 mkZ3Type TyReal    = Z3TyReal
 mkZ3Type otherwise = error $ "Cannot convert type {" ++ show otherwise ++ "}"
 

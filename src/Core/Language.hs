@@ -28,7 +28,7 @@ data Const = CInt Int
 type DataCon = (Name, Int, Type, [Type])
 
 data Type = TyVar Name
-          | TyInt | TyReal | TyChar | TyBool
+          | TyInt | TyReal | TyChar
           | TyFun Type Type
           | TyApp Type Type
           | TyConApp Name [Type]
