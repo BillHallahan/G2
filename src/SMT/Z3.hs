@@ -32,37 +32,91 @@ data Match = MVar Z3Name
 
 -- Core to SMT
 
-forceMkZ3Type :: Type -> Z3Type
-forceMkZ3Type (TyVar n) = Z3TyVar n
-forceMkZ3Type TyInt     = Z3TyInt
-forceMkZ3Type TyBool    = Z3TyBool
-forceMkZ3Type TyReal    = Z3TyReal
-forceMkZ3Type otherwise = error $ "Cannot convert G2 type {" ++
-                                  show otherwise ++ "} to Z3 type"
+mkZ3Type :: Type -> Z3Type
+mkZ3Type (TyVar n) = Z3TyVar n
+mkZ3Type TyInt     = Z3TyInt
+mkZ3Type TyBool    = Z3TyBool
+mkZ3Type TyReal    = Z3TyReal
+mkZ3Type otherwise = error $ "Cannot convert type {" ++ show otherwise ++ "}"
 
 -- We want forced conversions here as ADTs in Z3 can't have higher order args.
 mkZ3DC :: DataCon -> Z3DCon
 mkZ3DC (name, tag, typ, args) = Z3DC name nts
-  where nts = map (\(i, t) -> (name ++ "_" ++ show i, forceMkZ3Type t)) nas
+  where nts = map (\(i, t) -> (name ++ "?D?" ++ show i, mkZ3Type t)) nas
         nas = zip [1..] args
 
 mkZ3ADT :: Type -> Stmt
 mkZ3ADT (TyAlg n dcs) = ADecl n (map mkZ3DC dcs)
 mkZ3ADT otherwise     = error "Not an ADT"
 
--- Flattened M.tolist t_env
-mkDDecls :: [Type] -> [Stmt]
-mkDDecls [] = []
-mkDDecls ((TyAlg n dcs):tv) = mkZ3ADT (TyAlg n dcs) : mkDDecls tv
-mkDDecls (t:tv) = mkDDecls tv
+mkADecls :: [Type] -> [Stmt]
+mkADecls [] = []
+mkADecls ((TyAlg n dcs):tv) = mkZ3ADT (TyAlg n dcs) : mkADecls tv
+mkADecls (t:tv) = mkADecls tv  -- Skip the non-ADTs
 
-mkFDecls :: [Expr] -> [Stmt]
-mkFDecls [] = []
-mkFDecls ((Lam n e t):es) = undefined
+-- Now we want to handle the function declarations
+unTyFun :: Type -> ([Type], Type)
+unTyFun (TyFun l r) = let (as, t) = unTyFun r in (l:as ,t)
+unTyFun otherwise   = ([], otherwise)
+
+cfDeclared :: [Stmt] -> Name -> Bool
+cfDeclared [] n = False
+cfDeclared ((CDecl cn t):ds) n = if cn == n then True else cfDeclared ds n
+cfDeclared ((FDecl fn as t):ds) n = if fn == n then True else cfDeclared ds n
+cfDeclared (d:ds) n = cfDeclared ds n
+
+mkCDecl :: Name -> Type -> Stmt
+mkCDecl n t = CDecl n (mkZ3Type t)
+
+mkFDecl :: Name -> Type -> Stmt
+mkFDecl n t = FDecl n zas zr
+  where (as, r) = unTyFun t
+        zas     = map mkZ3Type as
+        zr      = mkZ3Type r
+
+mkAsrts :: PC -> [Stmt]
+mkAsrts [] = []
+mkAsrts ((exp, (dc, args)):pcs) = e_asrt ++ mkAsrts pcs
+  where (h:args) = unapp exp
+        e_asrt   = case h of
+            Var n t   -> case args of
+                [] -> let cdecl  = mkCDecl n t
+                          cmatch = MVar n
+                          z3dc   = mkZ3DC dc
+                      in [cdecl, MAsrt cmatch z3dc]
+                as -> let fdecl    = mkFDecl n (typeOf exp)
+                          -- argdecls = map (\a -> mkCDecl (n ++ "?" ++ a) (typeOf a)) args
+                          fmatch   = []
+                      in undefined
+            DCon dc t -> []  -- Driven by structure otherwise.
+            otherwise -> []
+
+
+{-
+mkAsrts :: PC -> [Stmt]
+mkAsrts [] = []
+mkAsrts ((exp, alt):pcs) = e_asrt ++ mkAsrts pcs
+  where (h:args) = unapp exp
+        e_asrt   = case h of
+            Var n t   -> []
+            -- Var n t   -> let fname = n ++ "?F?" ++ (show $ length args)
+            --              in 
+            DCon dc t -> [] -- We rely on structure to drive execution.
+            otherwise -> []
+-}
+
+
+{-
+mkCFDecls :: [(Name, Expr)] -> [Stmt]
+mkCFDecls [] = []
+mkCFDecls ((n, (Lam b e t)):ev) = undefined
+mkCFDecls ((n, e):ev) = CDecl n (mkZ3Type $ typeOf e) : mkCFDecls ev
+-}
 
 mkSMTModels :: State -> [Stmt]
-mkSMTModels (tv, ev, ex, pc) = undefined
-  where ddecls = mkDDecls $ M.elems tv
+mkSMTModels (tv, ev, ex, pc) = ddecls ++ fdecls
+  where ddecls = mkADecls $ M.elems tv
+        fdecls = undefined
 
 -- SMT to String
 
