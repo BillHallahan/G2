@@ -4,13 +4,11 @@ import qualified Data.Map as M
 
 type State = (TEnv, EEnv, Expr, PC)
 
-type PC = [(Expr, Alt)]
+type Name = String
 
 type TEnv = M.Map Name Type
 
 type EEnv = M.Map Name Expr
-
-type Name = String
 
 data Expr = Var Name Type
           | Const Const Type
@@ -24,7 +22,6 @@ data Expr = Var Name Type
 
 data Const = CInt Int
            | CReal Rational
-           | CString String
            | CChar Char
            deriving (Show, Eq)
 
@@ -40,4 +37,6 @@ data Type = TyVar Name
           deriving (Show, Eq)
 
 type Alt = (DataCon, [Name])
+
+type PC = [(Expr, Alt)]
 
