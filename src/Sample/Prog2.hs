@@ -16,11 +16,11 @@ t_decls = [("Tree", TyAlg "Tree" [leaf, node])]
 
 t_env = M.fromList t_decls
 
-join a b = App (App (DCon node ty_tree) a) b
+join a b = App (App (DCon node) a) b
 
-intLeaf a = App (DCon leaf ty_tree) (Const (CInt a) TyInt)
+intLeaf a = App (DCon leaf) (Const (CInt a))
 
-varLeaf a = App (DCon leaf ty_tree) (Var a TyInt)
+varLeaf a = App (DCon leaf) (Var a TyInt)
 
 tree_1 = join (join (varLeaf "a") (varLeaf "b")) (varLeaf "c")
 
@@ -53,8 +53,8 @@ outer = Case inner
 ty_abs_f = TyFun TyInt (TyFun TyInt ty_tree)
 
 abstract = Case (App (App (Var "a" ty_abs_f) (Var "b" TyInt)) (Var "c" TyInt))
-                [((leaf, ["a"]), Const (CInt 123) TyInt)
-                ,((node, ["a", "b"]), Const (CInt 456) TyInt)]
+                [((leaf, ["a"]), Const (CInt 123))
+                ,((node, ["a", "b"]), Const (CInt 456))]
                 TyInt
 
 ty_foo_1 = TyFun TyInt TyInt
@@ -65,7 +65,7 @@ ty_foo_n = TyFun TyInt (TyFun ty_tree (TyFun TyInt TyInt))
 foo = Lam "inner"
           (Lam "outer"
               (Lam "foo"
-                   (Const (CInt 9999) TyInt)
+                   (Const (CInt 9999))
                    ty_foo_1)
               ty_foo_2)
           ty_foo_3
@@ -75,9 +75,9 @@ foo = Lam "inner"
 -}
 
 test = App (App (App (Var "foo" ty_foo_3)
-                     (Const (CInt 123) TyInt))
+                     (Const (CInt 123)))
                 (Var "outer" ty_tree))
-           (Const (CInt 456) TyInt)
+           (Const (CInt 456))
 
 {-
   test = foo 123 outer 456

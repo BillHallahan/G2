@@ -88,7 +88,7 @@ mkAsrts ((exp, (dc, args)):pcs) = e_asrt ++ mkAsrts pcs
                           -- argdecls = map (\a -> mkCDecl (n ++ "?" ++ a) (typeOf a)) args
                           fmatch   = []
                       in undefined
-            DCon dc t -> []  -- Driven by structure otherwise.
+            DCon dc   -> []  -- Driven by structure otherwise.
             otherwise -> []
 
 

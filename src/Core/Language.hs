@@ -11,10 +11,10 @@ type TEnv = M.Map Name Type
 type EEnv = M.Map Name Expr
 
 data Expr = Var Name Type
-          | Const Const Type
+          | Const Const
           | Lam Name Expr Type
           | App Expr Expr
-          | DCon DataCon Type
+          | DCon DataCon
           | Case Expr [(Alt, Expr)] Type
           | BAD
           | UNR

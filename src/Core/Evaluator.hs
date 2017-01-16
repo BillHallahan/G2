@@ -8,11 +8,11 @@ import qualified Data.Map  as M
 -- Values are where we may return from a program evaluation.
 isVal :: State -> Bool
 isVal (tv, env, Var n t, pc)   = M.lookup n env == Nothing
-isVal (tv, env, Const c t, pc) = True
+isVal (tv, env, Const c, pc)   = True
 isVal (tv, env, Lam n e t, pc) = True
 isVal (tv, env, App (Lam n e t) a, pc) = False
 isVal (tv, env, App f a, pc) = isVal (tv, env, f, pc) && isVal (tv, env, a, pc)
-isVal (tv, env, DCon dc t, pc) = True
+isVal (tv, env, DCon dc, pc) = True
 isVal (tv, env, Case m as t, pc) = False  -- isVal (tv, env, m, pc)
 isVal (tv, env, BAD, pc) = True
 isVal (tv, env, UNR, pc) = True
@@ -26,7 +26,7 @@ eval (tv, env, Var n t, pc) = case M.lookup n env of
     Just ex -> [(tv, env, ex, pc)]
 
 -- Constants
-eval (tv, env, Const c t, pc) = [(tv, env, Const c t, pc)]
+eval (tv, env, Const c, pc) = [(tv, env, Const c, pc)]
 
 -- Lambdas
 eval (tv, env, Lam n e t, pc) = [(tv, env, Lam n e t, pc)]
@@ -53,7 +53,7 @@ eval (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
          in [(tv', env', App f' a, pc') | (tv', env', f', pc') <- f_ress]
 
 -- Data Constructors
-eval (tv, env, DCon dc t, pc) = [(tv, env, DCon dc t, pc)]
+eval (tv, env, DCon dc, pc) = [(tv, env, DCon dc, pc)]
 
 -- Case
 eval (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
@@ -67,7 +67,7 @@ eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
                              pars' = freshList pars (ns++ freeVars ae (pars++ns))
                              ae'   = replaceList ae ns pars pars'
                          in [(tv, env, ae', (m, (ad, pars')):pc)]) as
-            DCon md t -> concatMap (\((ad, pars), ae) ->
+            DCon md -> concatMap (\((ad, pars), ae) ->
                 if length args == length pars && md == ad
                     then let ns    = M.keys env
                              pars' = freshList pars (ns++freeVars ae (pars++ns))
@@ -89,13 +89,15 @@ eval (tv, env, UNR, pc) = [(tv, env, UNR, pc)]
 
 -- Type determination. We need types for some SMT stuff.
 typeOf :: Expr -> Type
-typeOf (Var n t)   = t
-typeOf (Const c t) = t
+typeOf (Var n t) = t
+typeOf (Const (CInt i))  = TyInt
+typeOf (Const (CReal r)) = TyReal
+typeOf (Const (CChar c)) = TyChar
 typeOf (Lam n e t) = t
 typeOf (App f a)   = case typeOf f of
                          TyFun l r -> r
                          t         -> TyApp t (typeOf a)
-typeOf (DCon (n,i,t,a) dt) = let a' = reverse (a ++ [t])
+typeOf (DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
                           in foldl (\a r -> TyFun r a) (head a') (tail a')
 typeOf (Case m as t) = t
 typeOf (BAD) = TyBottom
@@ -104,7 +106,7 @@ typeOf (UNR) = TyBottom
 -- Replace a single instance of a name with a new one in an Expr.
 replace :: Expr -> [Name] -> Name -> Name -> Expr
 replace (Var n t) env old new     = if n == old then Var new t else Var n t
-replace (Const c t) env old new   = (Const c t)
+replace (Const c) env old new     = Const c
 replace (Lam n e t) env old new   = let fvs  = freeVars e (n:env)
                                         bads = fvs ++ env ++ [old, new]
                                         n'   = fresh n bads
@@ -112,7 +114,7 @@ replace (Lam n e t) env old new   = let fvs  = freeVars e (n:env)
                                     in Lam n' (replace e' (n':env) old new) t
 replace (App f a) env old new     = App (replace f env old new)
                                         (replace a env old new)
-replace (DCon dc t) env old new   = (DCon dc t)
+replace (DCon dc) env old new     = DCon dc
 replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
   where r ((dc, pars), ae) = let fvs   = freeVars ae (pars ++ env)
                                  bads  = fvs ++ env ++ [old, new]
@@ -140,10 +142,10 @@ freshList os ns = snd $ foldl (\(bads, ress) o -> let o' = fresh o bads
 -- Returns free variables of an expression with respect to list of bounded vars.
 freeVars :: Expr -> [Name] -> [Name]
 freeVars (Var n t) bvs     = if n `elem` bvs then [] else [n]
-freeVars (Const c t) bvs   = []
+freeVars (Const c) bvs     = []
 freeVars (Lam n e t) bvs   = freeVars e (n:bvs)
 freeVars (App f a) bvs     = L.nub (freeVars f bvs ++ freeVars a bvs)
-freeVars (DCon dc t) bvs   = []
+freeVars (DCon dc) bvs     = []
 freeVars (Case m as t) bvs = L.nub (freeVars m bvs ++ as_fvs)
     where a_fv ((dc, pars), ae) = freeVars ae (pars ++ bvs)
           as_fvs = L.nub (concatMap a_fv as)
