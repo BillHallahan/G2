@@ -20,5 +20,5 @@ test1 = Case (Var "a" p_ty_int)
 
 e_decls = [("a", a)
           ,("b", b)
-          ,("test1", test1)]
+          ,("test", test1)]
 

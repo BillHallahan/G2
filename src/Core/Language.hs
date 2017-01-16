@@ -23,6 +23,7 @@ data Expr = Var Name Type
 data Const = CInt Int
            | CReal Rational
            | CChar Char
+           | COp Name Type
            deriving (Show, Eq)
 
 type DataCon = (Name, Int, Type, [Type])

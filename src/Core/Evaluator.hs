@@ -93,6 +93,7 @@ typeOf (Var n t) = t
 typeOf (Const (CInt i))  = TyInt
 typeOf (Const (CReal r)) = TyReal
 typeOf (Const (CChar c)) = TyChar
+typeOf (Const (COp n t)) = t
 typeOf (Lam n e t) = t
 typeOf (App f a)   = case typeOf f of
                          TyFun l r -> r
