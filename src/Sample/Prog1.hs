@@ -1,7 +1,8 @@
 module G2.Sample.Prog1 where
 
 import G2.Core.Language
-import G2.Core.Prelude
+
+import G2.Haskell.Prelude
 
 import qualified Data.Map as M
 
