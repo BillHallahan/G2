@@ -14,7 +14,7 @@ test1 = Case (Var "a" p_ty_int)
           [((p_d_int, ["a"])
             ,Case (Var "b" p_ty_int)
                   [((p_d_int, ["b"])
-                    ,App (DCon p_d_int) (Var "a" TyInt))]
+                    ,App (DCon p_d_int) (Var "a" TyRawInt))]
                   (TyConApp "Int" []))]
           (TyConApp "Int" [])
 

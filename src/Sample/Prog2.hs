@@ -5,7 +5,7 @@ import G2.Core.Language
 import qualified Data.Map as M
 
 ty_tree = TyConApp "Tree" []
-leaf = ("Leaf", 1, ty_tree, [TyInt])
+leaf = ("Leaf", 1, ty_tree, [TyRawInt])
 node = ("Node", 2, ty_tree, [ty_tree, ty_tree])
 
 {-
@@ -20,7 +20,7 @@ join a b = App (App (DCon node) a) b
 
 intLeaf a = App (DCon leaf) (Const (CInt a))
 
-varLeaf a = App (DCon leaf) (Var a TyInt)
+varLeaf a = App (DCon leaf) (Var a TyRawInt)
 
 tree_1 = join (join (varLeaf "a") (varLeaf "b")) (varLeaf "c")
 
@@ -50,18 +50,18 @@ outer = Case inner
       NOde a b -> b
 -}
 
-ty_abs_f = TyFun TyInt (TyFun TyInt ty_tree)
+ty_abs_f = TyFun TyRawInt (TyFun TyRawInt ty_tree)
 
-abstract = Case (App (App (Var "a" ty_abs_f) (Var "b" TyInt)) (Var "c" TyInt))
+abstract = Case (App (App (Var "a" ty_abs_f) (Var "b" TyRawInt)) (Var "c" TyRawInt))
                 [((leaf, ["a"]), Const (CInt 123))
                 ,((node, ["a", "b"]), Const (CInt 456))]
-                TyInt
+                TyRawInt
 
-ty_foo_1 = TyFun TyInt TyInt
+ty_foo_1 = TyFun TyRawInt TyRawInt
 ty_foo_2 = TyFun ty_tree ty_foo_1
-ty_foo_3 = TyFun TyInt ty_foo_2
+ty_foo_3 = TyFun TyRawInt ty_foo_2
 
-ty_foo_n = TyFun TyInt (TyFun ty_tree (TyFun TyInt TyInt))
+ty_foo_n = TyFun TyRawInt (TyFun ty_tree (TyFun TyRawInt TyRawInt))
 foo = Lam "inner"
           (Lam "outer"
               (Lam "foo"

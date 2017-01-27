@@ -5,7 +5,11 @@ import G2.Core.Language
 import qualified Data.List as L
 import qualified Data.Map  as M
 
--- Values are where we may return from a program evaluation.
+{- Values
+
+We need to return values from evaluation and this is it. Only oddity may be
+that we are able to return lambda expressions during evaluation.
+-}
 isVal :: State -> Bool
 isVal (tv, env, Var n t, pc)   = M.lookup n env == Nothing
 isVal (tv, env, Const c, pc)   = True
@@ -17,35 +21,64 @@ isVal (tv, env, Case m as t, pc) = False  -- isVal (tv, env, m, pc)
 isVal (tv, env, BAD, pc) = True
 isVal (tv, env, UNR, pc) = True
 
--- Evaluation stuff
+{- Evaluation
+
+The evaluation function takes a state and returns potentially more states if
+it runs into branching statements.
+-}
 eval :: State -> [State]
 
--- Variables
+{- Var
+
+We treat unbound variables as symbolic values during execution.
+-}
 eval (tv, env, Var n t, pc) = case M.lookup n env of
     Nothing -> [(tv, env, Var n t, pc)]
     Just ex -> [(tv, env, ex, pc)]
 
--- Constants
+-- Const
 eval (tv, env, Const c, pc) = [(tv, env, Const c, pc)]
 
--- Lambdas
+
+-- Lambda
 eval (tv, env, Lam n e t, pc) = [(tv, env, Lam n e t, pc)]
 
--- Applications
+{- App -- Special case of lambda application.
+
+If we apply to a Lambda, we must make sure that we do not get naming conflicts
+within the body of the lambda function before we bind the argument to the
+environment.
+
+Note: Our environment grows larger during execution. Probably not a problem.
+-}
 eval (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
   where ns   = M.keys env
         n'   = fresh n (ns ++ freeVars e1 (n:ns))
         e1'  = replace e1 ns n n'
         env' = M.insert n' e2 env
 
+{- App -- Special case of application on the right of a case.
+  
+Apply commuting conversions to shove the RHS of the App inside the case.
+-}
 eval (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
   where as' = map (\((dc, pars), ae) -> ((dc, pars), App ae ex)) as
         t'  = let ((dc, pars), ae') = head as' in typeOf ae'
 
+{- App -- Special case of application on the left of a case.
+
+Apply commuting conversions to shove the LHS of the App inside the case.
+-}
 eval (tv, env, App ex (Case m as t), pc) = [(tv, env, Case m as' t', pc)]
   where as' = map (\((dc, pars), ae) -> ((dc, pars), App ex ae)) as
         t'  = let ((dc, pars), ae') = head as' in typeOf ae'
 
+
+{- App
+
+To preserve lazy evaluation semantics we want to evalute the LHS of the App
+as much as possible before performing evaluation on the RHS.
+-}
 eval (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
     then let a_ress = eval (tv, env, a, pc)
          in [(tv', env', App f a', pc') | (tv', env', a', pc') <- a_ress]
@@ -55,16 +88,41 @@ eval (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
 -- Data Constructors
 eval (tv, env, DCon dc, pc) = [(tv, env, DCon dc, pc)]
 
--- Case
+{- Case -- Special case of nested case statements
+
+In nested case statements, we apply more commuting conversions to shove it.
+-}
 eval (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
   where as' = map (\((dc, pars), ae) -> ((dc, pars), Case ae as2 t2)) as1
 
+{- Case
+
+Consider the expression:
+
+    case A b c of
+        K1 b c   -> ...
+        K2 b c d -> ...
+
+There are two possible things that A may be:
+
+1. A is a data constructor: We just continue along the branch that it can
+   performs a match on. Note that we need to, as usual, bind the variables to
+   the arguments, and make sure there are fresh names.
+
+2. A is an unbound variable: Thus A must be a function that can return an ADT
+   to match one of the data constructors (might be unsat though), and hence
+   we must match it to every single data constructor that we come along.
+   Furthermore, because A's return result may be completely arbitrary, it does
+   not make sense for the parameters of some data constructor that it matches
+   to have bindings to an expression. Rather, they also continue on as unbound
+   free variables that would also more or less be symbolics.
+-}
 eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
     then let (d:args) = unapp m
         in case d of
             Var f t -> concatMap (\((ad, pars), ae) ->
                          let ns    = M.keys env
-                             pars' = freshList pars (ns++ freeVars ae (pars++ns))
+                             pars' = freshList pars (ns++freeVars ae (pars++ns))
                              ae'   = replaceList ae ns pars pars'
                          in [(tv, env, ae', (m, (ad, pars')):pc)]) as
             DCon md -> concatMap (\((ad, pars), ae) ->
@@ -85,14 +143,23 @@ eval (tv, env, BAD, pc) = [(tv, env, BAD, pc)]
 -- UNR
 eval (tv, env, UNR, pc) = [(tv, env, UNR, pc)]
 
-----
+------------------
 
--- Type determination. We need types for some SMT stuff.
+{- Type judgement
+
+Really the only two cases here worth mentioning are App and DCon.
+
+App: We must consider the possibility that the LHS is a function type, or not,
+and pop off whatever we need as necessary, or wrap it in TyApp to not fuck up.
+
+DCon: We reconstruct the function type that data constructors truly represent.
+-}
 typeOf :: Expr -> Type
 typeOf (Var n t) = t
-typeOf (Const (CInt i))  = TyInt
-typeOf (Const (CReal r)) = TyReal
-typeOf (Const (CChar c)) = TyChar
+typeOf (Const (CInt i))  = TyRawInt
+typeOf (Const (CFloat f)) = TyRawFloat
+typeOf (Const (CDouble d)) = TyRawDouble
+typeOf (Const (CChar c)) = TyRawChar
 typeOf (Const (COp n t)) = t
 typeOf (Lam n e t) = t
 typeOf (App f a)   = case typeOf f of
@@ -153,26 +220,38 @@ freeVars (Case m as t) bvs = L.nub (freeVars m bvs ++ as_fvs)
 freeVars (BAD) bvs = []
 freeVars (UNR) bvs = []
 
--- Other auxilliary and preparation functions.
+-- Unroll the App spine.
 unapp :: Expr -> [Expr]
 unapp (App f a) = unapp f ++ [a]
 unapp otherwise = [otherwise]
 
+-- Unroll cascading lambda expressions.
 unlam :: Expr -> ([(Name, Type)], Expr)
 unlam (Lam a e t) = let (p, e')   = unlam e
                         TyFun l r = t
                     in ((a, l):p, e')
 unlam otherwise   = ([], otherwise)
 
+{- Initialization
+
+We create our starting state by giving the initState function our type and
+expression environment as well as the entrypoint function name. If our entry
+point is a function with arguments (in the form of cascading lambdas), we need
+to strip out all the parameters and ensure that they are now free variables
+within the body of the first non-immediately cascading lambda expression.
+-}
 initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry = case match of
     Nothing -> error "No matching entry point. Check spelling?"
     Just ex -> let (args, exp) = unlam ex
-                   pairs       = map (\a -> (fst a, Var (fst a) (snd a))) args
-                   e_env'      = M.union (M.fromList pairs) e_env
-               in (t_env, e_env', exp, [])
+                   ns          = M.keys e_env
+                   nfs         = map fst args
+                   nfs'        = freshList nfs (ns++(freeVars exp (ns ++ nfs)))
+                   exp'        = replaceList exp ns nfs nfs'
+               in (t_env, e_env, exp', [])
   where match = M.lookup entry e_env
 
+-- Count the number of times we call eval as a way of limiting runs.
 runN :: [State] -> Int -> ([State], Int)
 runN states 0 = (states, 0)
 runN [] n     = ([], n - 1)

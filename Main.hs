@@ -13,9 +13,9 @@ import qualified Data.Map  as M
 
 main = do
     let bar = "=============================================="
-    let entry = "abstract"
-    let t_env = M.fromList (prelude_t_decls ++ P2.t_decls)
-    let e_env = M.fromList (prelude_e_decls ++ P2.e_decls)
+    let entry = "test"
+    let t_env = M.fromList (prelude_t_decls ++ P1.t_decls)
+    let e_env = M.fromList (prelude_e_decls ++ P1.e_decls)
     let state = initState t_env e_env entry
     putStrLn $ mkStateStr state
     putStrLn bar
