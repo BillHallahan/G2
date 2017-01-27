@@ -2,16 +2,16 @@ module G2.Haskell.Prelude where
 
 import G2.Core.Language
 
--- Some custom stuff for handling datatypes and primitives.
 
--- Types
+{- Types
 
--- In Core2, the tyInt, tyReal, tyChar, and tyBool represent PRIMITIVEs that
--- we then need to wrap around in ADTs (like the way GHC) does if we want to
--- perform pattern matching on them, as our Core language definition only
--- permits matching on data constructors.
+In Core2, TyRawInt, TyRawFloat, TyRawDouble, TyRawChar, and tyBool represent
+PRIMITIVEs that we then need to wrap around in ADTs (like the way GHC) does if
+we want to perform pattern matching on them, as our Core language definition
+only permits matching on data constructors.
 
--- Internally GHC uses #, but we use ! here to more smoothly go into SMT land.
+Internally GHC uses #, but we use ! here to more smoothly go into SMT land.
+-}
 
 -- Int
 p_ty_int = TyConApp "Int" []
