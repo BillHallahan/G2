@@ -101,6 +101,7 @@ data Type = TyVar Name
           | TyApp Type Type
           | TyConApp Name [Type]
           | TyAlg Name [DataCon]
+          | TyForAll Name Type
           | TyBottom
           deriving (Show, Eq)
 

@@ -88,7 +88,7 @@ mkType (TyVarTy var)    = G2.TyVar (mkName $ tyVarName var)
 mkType (AppTy t1 t2)    = G2.TyApp (mkType t1) (mkType t2)
 mkType (TyConApp tc kt) = G2.TyConApp (mkName $ tyConName tc) (map mkType kt)
 mkType (FunTy t1 t2)    = G2.TyFun (mkType t1) (mkType t2)
-mkType (ForAllTy v t)   = G2.TyVar "forall"
+mkType (ForAllTy v t)   = G2.TyForAll (mkName $ Var.varName v) (mkType t)
 mkType (LitTy tl)       = error "Literal types are sketchy?"
 
 -------
