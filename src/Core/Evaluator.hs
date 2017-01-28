@@ -18,6 +18,7 @@ isVal (tv, env, App (Lam n e t) a, pc) = False
 isVal (tv, env, App f a, pc) = isVal (tv, env, f, pc) && isVal (tv, env, a, pc)
 isVal (tv, env, DCon dc, pc) = True
 isVal (tv, env, Case m as t, pc) = False  -- isVal (tv, env, m, pc)
+isVal (tv, env, Type t, pc) = True
 isVal (tv, env, BAD, pc) = True
 isVal (tv, env, UNR, pc) = True
 
@@ -137,6 +138,9 @@ eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
     else let m_ress = eval (tv, env, m, pc)
          in [(tv', env', Case m' as t, pc') | (tv', env', m', pc') <- m_ress]
 
+-- Type
+eval (tv, env, Type t, pc) = [(tv, env, Type t, pc)]
+
 -- BAD
 eval (tv, env, BAD, pc) = [(tv, env, BAD, pc)]
 
@@ -156,10 +160,11 @@ DCon: We reconstruct the function type that data constructors truly represent.
 -}
 typeOf :: Expr -> Type
 typeOf (Var n t) = t
-typeOf (Const (CInt i))  = TyRawInt
-typeOf (Const (CFloat f)) = TyRawFloat
+typeOf (Const (CInt i))    = TyRawInt
+typeOf (Const (CFloat f))  = TyRawFloat
 typeOf (Const (CDouble d)) = TyRawDouble
-typeOf (Const (CChar c)) = TyRawChar
+typeOf (Const (CChar c))   = TyRawChar
+typeOf (Const (CString s)) = TyRawString
 typeOf (Const (COp n t)) = t
 typeOf (Lam n e t) = t
 typeOf (App f a)   = case typeOf f of
@@ -168,8 +173,9 @@ typeOf (App f a)   = case typeOf f of
 typeOf (DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
                           in foldl (\a r -> TyFun r a) (head a') (tail a')
 typeOf (Case m as t) = t
-typeOf (BAD) = TyBottom
-typeOf (UNR) = TyBottom
+typeOf (Type t) = t
+typeOf BAD = TyBottom
+typeOf UNR = TyBottom
 
 -- Replace a single instance of a name with a new one in an Expr.
 replace :: Expr -> [Name] -> Name -> Name -> Expr
@@ -189,8 +195,9 @@ replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
                                  pars' = freshList pars bads
                                  ae'   = replaceList ae bads pars pars'
                              in ((dc, pars'), replace ae' (pars'++env) old new)
-replace (BAD) env old new         = BAD
-replace (UNR) env old new         = UNR
+replace (Type t) env old new = Type t
+replace BAD env old new = BAD
+replace UNR env old new = UNR
 
 -- Replace a whole list of names with new ones in an Expr via folding.
 replaceList :: Expr -> [Name] -> [Name] -> [Name] -> Expr
@@ -217,8 +224,9 @@ freeVars (DCon dc) bvs     = []
 freeVars (Case m as t) bvs = L.nub (freeVars m bvs ++ as_fvs)
     where a_fv ((dc, pars), ae) = freeVars ae (pars ++ bvs)
           as_fvs = L.nub (concatMap a_fv as)
-freeVars (BAD) bvs = []
-freeVars (UNR) bvs = []
+freeVars (Type t) bvs = []
+freeVars BAD bvs = []
+freeVars UNR bvs = []
 
 -- Unroll the App spine.
 unapp :: Expr -> [Expr]

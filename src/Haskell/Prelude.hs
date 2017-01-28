@@ -78,3 +78,8 @@ e_bool_ops_mod = map
 
 prelude_e_decls = e_num_ops_mod ++ e_char_ops_mod ++ e_bool_ops_mod
 
+{- DEFAULT
+
+The DEFAULT data constructor we use in pattern matching.
+-}
+dc_default = ("DEFAULT", 0::Int, TyBottom, [])

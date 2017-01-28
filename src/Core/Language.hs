@@ -39,6 +39,7 @@ data Expr = Var Name Type
           | App Expr Expr
           | DCon DataCon
           | Case Expr [(Alt, Expr)] Type
+          | Type Type
           | BAD
           | UNR
           deriving (Show, Eq)
@@ -46,6 +47,8 @@ data Expr = Var Name Type
 {- Constants
  
 Const reflects Haskell's 4 primitive types: Int, Float, Double, and Char.
+
+We use CString as a way of catching string literals.
 
 We have an additional COp as a way to circumvent Haskell functions such as
 plus (+), which operates on boxed (wrapped) numbers, but delegates calls to
@@ -60,6 +63,7 @@ data Const = CInt Int
            | CFloat Rational
            | CDouble Rational
            | CChar Char
+           | CString String
            | COp Name Type
            deriving (Show, Eq)
 
@@ -92,7 +96,7 @@ the type environment at all during actual symbolic evaluation. However, the
 type environment is crucial for reconstruction during SMT phase.
 -}
 data Type = TyVar Name
-          | TyRawInt | TyRawFloat | TyRawDouble | TyRawChar
+          | TyRawInt | TyRawFloat | TyRawDouble | TyRawChar | TyRawString
           | TyFun Type Type
           | TyApp Type Type
           | TyConApp Name [Type]

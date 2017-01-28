@@ -37,7 +37,7 @@ main = do
     raw_core <- mkRawCore filepath
     let gcore = mkG2Core raw_core
     putStrLn $ show gcore
-
+    -- putStrLn =<< outStr raw_core
 
     putStrLn "Compiles!"
 
