@@ -111,7 +111,7 @@ mkExpr (Lam b e) = let ge = mkExpr e
 mkExpr (Case e b t as) = G2.Case (mkExpr e) (map mkAlt as) (mkType t)
 mkExpr (Cast e c) = mkExpr e
 mkExpr (Tick t e) = mkExpr e
-mkExpr (Type t)   = G2.BAD
+mkExpr (Type t)   = G2.Type (mkType t)
 mkExpr (Let b e)  = error "We should have lifted lets out"
 
 mkLit :: Literal -> G2.Const
@@ -154,6 +154,7 @@ typeOf (G2.App f a)   = case typeOf f of
 typeOf (G2.DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
                              in foldl (\a r -> G2.TyFun r a) (head a') (tail a')
 typeOf (G2.Case m as t) = t
+typeOf (G2.Type t) = t
 typeOf (G2.BAD) = G2.TyBottom
 typeOf (G2.UNR) = G2.TyBottom
 
