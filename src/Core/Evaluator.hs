@@ -211,7 +211,7 @@ fresh o ns = foldl (\s c -> if s == c then s ++ [head c] else s) o ns
 -- Generates a list of fresh names. Ensures no conflict with original old list.
 freshList :: [Name] -> [Name] -> [Name]
 freshList os ns = snd $ foldl (\(bads, ress) o -> let o' = fresh o bads
-                                                  in (o':bads, o':ress))
+                                                  in (o':bads, ress++[o']))
                               (ns ++ os, []) os
 
 -- Returns free variables of an expression with respect to list of bounded vars.
