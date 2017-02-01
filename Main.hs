@@ -33,11 +33,19 @@ main = do
     putStrLn $ mkStatesStr states
     -}
     
-    (filepath:xs) <- getArgs
+    (filepath:entry:xs) <- getArgs
     raw_core <- mkRawCore filepath
-    let gcore = mkG2Core raw_core
-    putStrLn $ show gcore
-    -- putStrLn =<< outStr raw_core
+    let (rt_env, re_env) = mkG2Core raw_core
+    let t_env' = M.union rt_env (M.fromList prelude_t_decls)
+    let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
+    let init_state = initState t_env' e_env' entry
+    putStrLn $ mkStateStr init_state
+    
+    putStrLn "======================="
+
+    let (states, n) = runN [init_state] 20
+    putStrLn $ mkStatesStr states
+
 
     putStrLn "Compiles!"
 

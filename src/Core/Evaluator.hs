@@ -206,7 +206,7 @@ replaceList exp env olds news = foldl (\e (n, n') -> replace e env n n')
 
 -- Generates a fresh name given an old name and a list of INVALID names
 fresh :: Name -> [Name] -> Name
-fresh o ns = foldl (\s c -> if s == c then s ++ "a" else s) o ns
+fresh o ns = foldl (\s c -> if s == c then s ++ [head c] else s) o ns
 
 -- Generates a list of fresh names. Ensures no conflict with original old list.
 freshList :: [Name] -> [Name] -> [Name]
