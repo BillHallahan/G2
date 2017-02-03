@@ -6,10 +6,10 @@ import G2.Core.Evaluator
 import qualified Data.List as L
 
 mkStateStr :: State -> String
-mkStateStr (tv, ev, exp, pc) = L.intercalate "\n" [ts, es, xs, ps]
+mkStateStr (tv, ev, expr, pc) = L.intercalate "\n" [ts, es, xs, ps]
   where ts = show tv
         es = show ev
-        xs = show exp
+        xs = show expr
         ps = show pc
 
 mkStatesStr :: [State] -> String

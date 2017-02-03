@@ -201,8 +201,8 @@ replace UNR env old new = UNR
 
 -- Replace a whole list of names with new ones in an Expr via folding.
 replaceList :: Expr -> [Name] -> [Name] -> [Name] -> Expr
-replaceList exp env olds news = foldl (\e (n, n') -> replace e env n n')
-                                      exp $ zip olds news
+replaceList expr env olds news = foldl (\e (n, n') -> replace e env n n')
+                                      expr $ zip olds news
 
 -- Generates a fresh name given an old name and a list of INVALID names
 fresh :: Name -> [Name] -> Name
@@ -251,12 +251,12 @@ within the body of the first non-immediately cascading lambda expression.
 initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry = case match of
     Nothing -> error "No matching entry point. Check spelling?"
-    Just ex -> let (args, exp) = unlam ex
+    Just ex -> let (args, expr) = unlam ex
                    ns          = M.keys e_env
                    nfs         = map fst args
-                   nfs'        = freshList nfs (ns++(freeVars exp (ns ++ nfs)))
-                   exp'        = replaceList exp ns nfs nfs'
-               in (t_env, e_env, exp', [])
+                   nfs'        = freshList nfs (ns++(freeVars expr (ns ++ nfs)))
+                   expr'       = replaceList expr ns nfs nfs'
+               in (t_env, e_env, expr', [])
   where match = M.lookup entry e_env
 
 -- Count the number of times we call eval as a way of limiting runs.
