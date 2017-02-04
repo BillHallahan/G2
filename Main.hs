@@ -13,6 +13,8 @@ import G2.Core.Utils
 import G2.Haskell.Prelude
 import G2.Haskell.Translator
 
+import G2.SMT.Z3
+
 import qualified G2.Sample.Prog1 as P1
 import qualified G2.Sample.Prog2 as P2
 
@@ -46,6 +48,8 @@ main = do
     let (states, n) = runN [init_state] 20
     putStrLn $ mkStatesStr states
 
+
+    printModel $ states !! 0
 
     putStrLn "Compiles!"
 

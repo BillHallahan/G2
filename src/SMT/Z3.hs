@@ -6,10 +6,37 @@ import G2.Core.Utils
 
 import qualified Data.List as L
 import qualified Data.Map  as M
+import qualified Data.Maybe as MB
+
+import Z3.Monad
+
+--THis function is just kind of a hack for now... might want something else later?
+printModel :: State -> IO ()
+printModel s = do
+    (r, m) <- evalZ3 . stateSolverZ3 $ s
+    m' <- case m of Just m'' -> modelToIOString m''
+                    Nothing -> return ""
+    print r
+    putStrLn m'
+
+modelToIOString :: Model -> IO (String)
+modelToIOString m = evalZ3 . modelToString $ m
+
+stateSolverZ3 :: State -> Z3 (Result, Maybe Model)
+stateSolverZ3 (tv, ev, expr, pc) = do
+    constraintsZ3 pc
+    solverCheckAndGetModel 
+
+constraintsZ3 :: PC -> Z3 ()
+constraintsZ3 ((expr, alt):xs) = constraintsZ3 xs
+constraintsZ3 [] = return ()
+
+exprZ3 :: Expr -> Z3 ()
+exprZ3 e = return ()
 
 -- SMT internal representation
 
-type Z3Name = String
+{-- type Z3Name = String
 
 data Stmt = ADecl Z3Name [Z3DCon]
           | CDecl Z3Name Z3Type
@@ -90,7 +117,7 @@ mkAsrts ((exp, (dc, args)):pcs) = e_asrt ++ mkAsrts pcs
                       in undefined
             DCon dc   -> []  -- Driven by structure otherwise.
             otherwise -> []
-
+--}
 
 {-
 mkAsrts :: PC -> [Stmt]
@@ -113,7 +140,7 @@ mkCFDecls ((n, (Lam b e t)):ev) = undefined
 mkCFDecls ((n, e):ev) = CDecl n (mkZ3Type $ typeOf e) : mkCFDecls ev
 -}
 
-mkSMTModels :: State -> [Stmt]
+{-- mkSMTModels :: State -> [Stmt]
 mkSMTModels (tv, ev, ex, pc) = ddecls ++ fdecls
   where ddecls = mkADecls $ M.elems tv
         fdecls = undefined
@@ -121,4 +148,10 @@ mkSMTModels (tv, ev, ex, pc) = ddecls ++ fdecls
 -- SMT to String
 
 
+--REMOVE THIS
+check :: Z3 ()
+check = do
+  _1 <- mkInteger 1
+  _2 <- mkInteger 2
+  return =<< assert =<< mkLe _1 _2 --}
 

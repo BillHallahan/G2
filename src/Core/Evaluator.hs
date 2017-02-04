@@ -154,7 +154,7 @@ eval (tv, env, UNR, pc) = [(tv, env, UNR, pc)]
 Really the only two cases here worth mentioning are App and DCon.
 
 App: We must consider the possibility that the LHS is a function type, or not,
-and pop off whatever we need as necessary, or wrap it in TyApp to not fuck up.
+and pop off whatever we need as necessary, or wrap it in TyApp to not cause problems.
 
 DCon: We reconstruct the function type that data constructors truly represent.
 -}
