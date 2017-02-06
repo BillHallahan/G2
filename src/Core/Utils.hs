@@ -54,16 +54,16 @@ mkTypeStr :: Type -> Int -> String
 mkTypeStr t i = mkTypeStr' t i False
     where
         mkTypeStr' :: Type -> Int -> Bool -> String
-        mkTypeStr' (TyFun t1 t2) i  b = t' t1 t2 "TyFun" i b 
-        mkTypeStr' (TyApp t1 t2) i  b = t' t1 t2 "TyApp" i b 
+        mkTypeStr' (TyFun t1 t2) i  b = tPat t1 t2 "TyFun" i b 
+        mkTypeStr' (TyApp t1 t2) i  b = tPat t1 t2 "TyApp" i b 
         mkTypeStr' (TyConApp n tx) i b = 
-            let li = L.intercalate ", " . map (\t -> mkTypeStr' t (i + 1) b) $ tx in
-                off i b ++ "TyConApp " ++ show n ++ "[" ++ li ++ "]"
+            let li = L.intercalate ", " . map (\t' -> mkTypeStr' t' (i + 1) b) $ tx in
+                off i b ++ "TyConApp " ++ show n ++ " [" ++ li ++ "]"
         mkTypeStr' (TyForAll n t) i b = off i b ++ "TyForAll " ++ show n ++ "(" ++ mkTypeStr' t (i + 1) b ++ ")"
-        mkTypeStr' t i b = if b then " " else "" ++ show t
+        mkTypeStr' t i b = (if b then " " else "") ++ show t
 
-        t' :: Type -> Type -> String -> Int -> Bool -> String
-        t' t1 t2 s i b= off i b ++ s ++ " (" ++ mkTypeStr' t1 (i + 1) True ++ mkTypeStr' t2 (i + 1) True ++ off i True ++  ")"
+        tPat :: Type -> Type -> String -> Int -> Bool -> String
+        tPat t1 t2 s i b= off i b ++ s ++ " (" ++ mkTypeStr' t1 (i + 1) True ++ mkTypeStr' t2 (i + 1) True ++ off i True ++  ")"
 
         off :: Int -> Bool -> String
         off i b = if b then "\n" ++ duplicate "   " i else ""
