@@ -45,7 +45,7 @@ mkExprStr e = mkExprStr' e 0
 
         mkAltExprStr :: [(Alt, Expr)] -> Int -> String
         mkAltExprStr [] i = ""
-        mkAltExprStr ((a, e):xs) i = off i ++ "(" ++ show a ++ ",\n" ++ mkExprStr' e (i + 1) ++ ")" ++ mkAltExprStr xs i
+        mkAltExprStr ((a, e):xs) i = off i ++ "(" ++ show a ++ ",\n" ++ mkExprStr' e (i + 1) ++ ")\n" ++ mkAltExprStr xs i
 
         off :: Int -> String
         off i = duplicate "   " i
