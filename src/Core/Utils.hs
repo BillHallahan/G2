@@ -63,7 +63,7 @@ mkTypeStr t i = mkTypeStr' t i False
         mkTypeStr' t i b = show t
 
         t' :: Type -> Type -> String -> Int -> Bool -> String
-        t' t1 t2 s i b= off i b ++ s ++ " (" ++ mkTypeStr' t1 (i + 1) True ++ mkTypeStr' t2 (i + 1) True ++ off i True ++  ")"
+        t' t1 t2 s i b= off i b ++ s ++ " (" ++ mkTypeStr' t1 (i + 1) True ++ " " ++ mkTypeStr' t2 (i + 1) True ++ off i True ++  ")"
 
         off :: Int -> Bool -> String
         off i b = if b then "\n" ++ duplicate "   " i else ""
