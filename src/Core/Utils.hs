@@ -60,10 +60,10 @@ mkTypeStr t i = mkTypeStr' t i False
             let li = L.intercalate ", " . map (\t -> mkTypeStr' t (i + 1) b) $ tx in
                 off i b ++ "TyConApp " ++ show n ++ "[" ++ li ++ "]"
         mkTypeStr' (TyForAll n t) i b = off i b ++ "TyForAll " ++ show n ++ "(" ++ mkTypeStr' t (i + 1) b ++ ")"
-        mkTypeStr' t i b = show t
+        mkTypeStr' t i b = if b then " " else "" ++ show t
 
         t' :: Type -> Type -> String -> Int -> Bool -> String
-        t' t1 t2 s i b= off i b ++ s ++ " (" ++ mkTypeStr' t1 (i + 1) True ++ " " ++ mkTypeStr' t2 (i + 1) True ++ off i True ++  ")"
+        t' t1 t2 s i b= off i b ++ s ++ " (" ++ mkTypeStr' t1 (i + 1) True ++ mkTypeStr' t2 (i + 1) True ++ off i True ++  ")"
 
         off :: Int -> Bool -> String
         off i b = if b then "\n" ++ duplicate "   " i else ""
