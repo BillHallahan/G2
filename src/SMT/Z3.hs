@@ -34,6 +34,7 @@ constraintsZ3 [] = return ()
 exprZ3 :: Expr -> Z3 ()
 exprZ3 e = return ()
 
+
 -- SMT internal representation
 
 {-- type Z3Name = String
