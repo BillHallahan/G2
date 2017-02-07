@@ -19,3 +19,6 @@ test a b c = if (a + b < c)
                      then b + c
                      else a + c
 
+high :: (Int -> Int) -> (Int -> Int) -> Int
+high a b = a (b 4)
+

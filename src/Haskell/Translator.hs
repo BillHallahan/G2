@@ -107,7 +107,10 @@ mkExpr (Var id)  = G2.Var (mkName $ Var.varName id) (mkType $ varType id)
 mkExpr (Lit lit) = G2.Const (mkLit lit)
 mkExpr (App f a) = G2.App (mkExpr f) (mkExpr a)
 mkExpr (Lam b e) = let ge = mkExpr e
-                   in G2.Lam (mkName $ Var.varName b) ge (typeOf ge)
+                       et = typeOf ge
+                       an = mkName $ Var.varName b
+                       at = lamArgTy an ge
+                   in G2.Lam an ge (G2.TyFun at et)
 mkExpr (Case e b t as) = G2.Case (mkExpr e) (map mkAlt as) (mkType t)
 mkExpr (Cast e c) = mkExpr e
 mkExpr (Tick t e) = mkExpr e
@@ -157,6 +160,28 @@ typeOf (G2.Case m as t) = t
 typeOf (G2.Type t) = t
 typeOf (G2.BAD) = G2.TyBottom
 typeOf (G2.UNR) = G2.TyBottom
+
+lamArgTy :: G2.Name -> G2.Expr -> G2.Type
+lamArgTy n (G2.Var v t) = if n == v then t else G2.TyBottom
+lamArgTy n (G2.Const (G2.CInt i))    = G2.TyBottom
+lamArgTy n (G2.Const (G2.CFloat f))  = G2.TyBottom
+lamArgTy n (G2.Const (G2.CDouble d)) = G2.TyBottom
+lamArgTy n (G2.Const (G2.CChar c))   = G2.TyBottom
+lamArgTy n (G2.Const (G2.CString s)) = G2.TyBottom
+lamArgTy n (G2.Const (G2.COp o t))   = G2.TyBottom
+lamArgTy n (G2.Lam a e t)   = if n == a then G2.TyBottom else lamArgTy n e
+lamArgTy n (G2.App f a)     = let fr = lamArgTy n f
+                              in if fr == G2.TyBottom then lamArgTy n a else fr
+lamArgTy n (G2.DCon _)      = G2.TyBottom
+lamArgTy n (G2.Case m as t) = case as of
+    []               -> G2.TyBottom
+    (((d,ns), e):tl) -> if n `elem` ns
+                       then lamArgTy n (G2.Case m tl t)
+                       else lamArgTy n e
+lamArgTy n (G2.Type t)      = G2.TyBottom
+lamArgTy n (G2.BAD)         = G2.TyBottom
+lamArgTy n (G2.UNR)         = G2.TyBottom
+
 
 -------------------------------
 
