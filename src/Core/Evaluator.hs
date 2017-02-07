@@ -190,7 +190,8 @@ replace (App f a) env old new     = App (replace f env old new)
                                         (replace a env old new)
 replace (DCon dc) env old new     = DCon dc
 replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
-  where r ((dc, pars), ae) = let fvs   = freeVars ae (pars ++ env)
+  where r :: (Alt, Expr) -> (Alt, Expr)
+        r ((dc, pars), ae) = let fvs   = freeVars ae (pars ++ env)
                                  bads  = fvs ++ env ++ [old, new]
                                  pars' = freshList pars bads
                                  ae'   = replaceList ae bads pars pars'
@@ -222,7 +223,8 @@ freeVars (Lam n e t) bvs   = freeVars e (n:bvs)
 freeVars (App f a) bvs     = L.nub (freeVars f bvs ++ freeVars a bvs)
 freeVars (DCon dc) bvs     = []
 freeVars (Case m as t) bvs = L.nub (freeVars m bvs ++ as_fvs)
-    where a_fv ((dc, pars), ae) = freeVars ae (pars ++ bvs)
+    where a_fv :: (Alt, Expr) -> [Name]
+          a_fv ((dc, pars), ae) = freeVars ae (pars ++ bvs)
           as_fvs = L.nub (concatMap a_fv as)
 freeVars (Type t) bvs = []
 freeVars BAD bvs = []

@@ -6,15 +6,17 @@ import G2.Core.Evaluator
 import qualified Data.List as L
 import qualified Data.Map as M
 
+sp2 = "  "
+sp4 = sp2 ++ sp2
+
 mkStateStr :: State -> String
 mkStateStr (tv, ev, expr, pc) = L.intercalate "\n\n" li
-  where 
-        li = ["Type Env: " ++ ts, "Expr Env: " ++ es
-            , "Curr Expr: " ++ xs, "Path Constraints: " ++ ps]
-        ts = mkTypeEnvStr tv--show tv
+  where li = ["> Type Env:\n" ++ ts,  "> Expr Env:\n" ++ es
+             ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps]
+        ts = mkTypeEnvStr tv
         es = mkExprEnvStr ev
         xs = mkExprStr expr
-        ps = show pc
+        ps = mkPCStr pc
 
 mkStatesStr :: [State] -> String
 mkStatesStr []     = ""
@@ -22,19 +24,16 @@ mkStatesStr (s:[]) = mkStateStr s
 mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
   where divLn = "\n--------------\n"
 
-
 mkTypeEnvStr :: TEnv -> String
-mkTypeEnvStr t = mkTypeEnvStr' . M.toList $ t
-    where
-        mkTypeEnvStr' :: [(Name, Type)] -> String
-        mkTypeEnvStr' t' = L.intercalate "\n" . map show $ t'
-
+mkTypeEnvStr tenv = L.intercalate "\n" (map ntStr (M.toList tenv))
+  where ntStr :: (Name, Type) -> String
+        ntStr (n, t) = n ++ "\n" ++ sp4 ++ show t
 
 mkExprEnvStr :: EEnv -> String
-mkExprEnvStr e = mkExprEnvStr' . M.toList $ e
-    where
-        mkExprEnvStr' :: [(Name, Expr)] -> String
-        mkExprEnvStr' e' = L.intercalate "\n" . map (\(n, e) -> show n ++ ",\n" ++ mkExprStr e) $ e'
+mkExprEnvStr eenv = L.intercalate "\n" (map neStr (M.toList eenv))
+  where neStr :: (Name, Expr) -> String
+        neStr (n, e) = n ++ "\n" ++ sp4 ++ mkExprStr e
+
 
 mkExprStr :: Expr -> String
 mkExprStr e = mkExprStr' e 0
@@ -92,6 +91,12 @@ mkTypeStr t i = mkTypeStr' t i False
         off :: Int -> Bool -> String
         off i b = if b then "\n" ++ duplicate "   " i else ""
 
+
+-- Primitive for now because I'm low on battery.
+mkPCStr :: PC -> String
+mkPCStr []     = ""
+mkPCStr (p:[]) = show p
+mkPCStr (p:ps) = show p ++ "\n--AND--\n" ++ mkPCStr ps
 
 duplicate :: String -> Int -> String
 duplicate s 0 = ""
