@@ -22,11 +22,13 @@ mkStatesStr (s:[]) = mkStateStr s
 mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
   where divLn = "\n--------------\n"
 
+
 mkTypeEnvStr :: TEnv -> String
 mkTypeEnvStr t = mkTypeEnvStr' . M.toList $ t
     where
         mkTypeEnvStr' :: [(Name, Type)] -> String
         mkTypeEnvStr' t' = L.intercalate "\n" . map show $ t'
+
 
 mkExprEnvStr :: EEnv -> String
 mkExprEnvStr e = mkExprEnvStr' . M.toList $ e
@@ -68,6 +70,7 @@ mkExprStr e = mkExprStr' e 0
         off :: Int -> String
         off i = duplicate "   " i
 
+
 mkTypeStr :: Type -> Int -> String
 mkTypeStr t i = mkTypeStr' t i False
     where
@@ -88,6 +91,7 @@ mkTypeStr t i = mkTypeStr' t i False
 
         off :: Int -> Bool -> String
         off i b = if b then "\n" ++ duplicate "   " i else ""
+
 
 duplicate :: String -> Int -> String
 duplicate s 0 = ""
