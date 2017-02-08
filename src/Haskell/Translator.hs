@@ -28,6 +28,8 @@ import qualified G2.Haskell.Prelude as P
 
 import qualified Data.Map as M
 
+import Debug.Trace
+
 {- Raw Core Extraction
 
 This is primarily because we might need to run additional passes of filtering
@@ -109,7 +111,7 @@ mkExpr (App f a) = G2.App (mkExpr f) (mkExpr a)
 mkExpr (Lam b e) = let ge = mkExpr e
                        et = typeOf ge
                        an = mkName $ Var.varName b
-                       at = lamArgTy an ge
+                       at = trace ("Calling an = " ++ an) lamArgTy an ge
                    in G2.Lam an ge (G2.TyFun at et)
 mkExpr (Case e b t as) = G2.Case (mkExpr e) (map mkAlt as) (mkType t)
 mkExpr (Cast e c) = mkExpr e
@@ -173,11 +175,17 @@ lamArgTy n (G2.Lam a e t)   = if n == a then G2.TyBottom else lamArgTy n e
 lamArgTy n (G2.App f a)     = let fr = lamArgTy n f
                               in if fr == G2.TyBottom then lamArgTy n a else fr
 lamArgTy n (G2.DCon _)      = G2.TyBottom
-lamArgTy n (G2.Case m as t) = case as of
-    []               -> G2.TyBottom
-    (((d,ns), e):tl) -> if n `elem` ns
-                       then lamArgTy n (G2.Case m tl t)
-                       else lamArgTy n e
+lamArgTy n (G2.Case m as t) = 
+    case as of
+        []               -> trace "Case 1" G2.TyBottom
+        (((d,ns), e):tl) ->let
+                              mr = lamArgTy n m
+                              fr = if mr == G2.TyBottom then lamArgTy n e else mr
+                           in
+                              if fr == G2.TyBottom then lamArgTy n (G2.Case m tl t) else trace ("fr = " ++ show fr  ++ " e = " ++ show e) fr
+                           --if n `elem` ns
+                           --then lamArgTy n (G2.Case m tl t)
+                           --else lamArgTy n e
 lamArgTy n (G2.Type t)      = G2.TyBottom
 lamArgTy n (G2.BAD)         = G2.TyBottom
 lamArgTy n (G2.UNR)         = G2.TyBottom
