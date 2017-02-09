@@ -23,6 +23,7 @@ import UniqFM
 import UniqSupply
 import Var
 
+import G2.Core.CoreManipulator
 import qualified G2.Core.Language as G2
 import qualified G2.Haskell.Prelude as P
 
@@ -158,32 +159,29 @@ typeOf (G2.DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
                              in foldl (\a r -> G2.TyFun r a) (head a') (tail a')
 typeOf (G2.Case m as t) = t
 typeOf (G2.Type t) = t
-typeOf (G2.BAD) = G2.TyBottom
-typeOf (G2.UNR) = G2.TyBottom
+typeOf (_) = G2.TyBottom
 
 lamArgTy :: G2.Name -> G2.Expr -> G2.Type
-lamArgTy n (G2.Var v t) = if n == v then t else G2.TyBottom
-lamArgTy n (G2.Const (G2.CInt i))    = G2.TyBottom
-lamArgTy n (G2.Const (G2.CFloat f))  = G2.TyBottom
-lamArgTy n (G2.Const (G2.CDouble d)) = G2.TyBottom
-lamArgTy n (G2.Const (G2.CChar c))   = G2.TyBottom
-lamArgTy n (G2.Const (G2.CString s)) = G2.TyBottom
-lamArgTy n (G2.Const (G2.COp o t))   = G2.TyBottom
-lamArgTy n (G2.Lam a e t)   = if n == a then G2.TyBottom else lamArgTy n e
-lamArgTy n (G2.App f a)     = let fr = lamArgTy n f
-                              in if fr == G2.TyBottom then lamArgTy n a else fr
-lamArgTy n (G2.DCon _)      = G2.TyBottom
-lamArgTy n (G2.Case m as t) = 
-    case as of
-        []               -> trace "Case 1" G2.TyBottom
-        (((d,ns), e):tl) ->let
-                              mr = lamArgTy n m
-                              fr = if mr == G2.TyBottom then lamArgTy n e else mr
-                           in
-                              if fr == G2.TyBottom then lamArgTy n (G2.Case m tl t) else trace ("fr = " ++ show fr  ++ " e = " ++ show e) fr
-lamArgTy n (G2.Type t)      = G2.TyBottom
-lamArgTy n (G2.BAD)         = G2.TyBottom
-lamArgTy n (G2.UNR)         = G2.TyBottom
+lamArgTy n e = evalExpr (lamArgTy' n) (\x y -> if x /= G2.TyBottom then x else y) e G2.TyBottom
+    where
+        lamArgTy' :: G2.Name -> G2.Expr -> G2.Type
+        lamArgTy' n (G2.Var v t) = if n == v then t else G2.TyBottom
+        lamArgTy' _ _ = G2.TyBottom
+
+-- lamArgTy :: G2.Name -> G2.Expr -> G2.Type
+-- lamArgTy n (G2.Var v t) = if n == v then t else G2.TyBottom
+-- lamArgTy n (G2.Lam a e t)   = if n == a then G2.TyBottom else lamArgTy n e
+-- lamArgTy n (G2.App f a)     = let fr = lamArgTy n f
+--                               in if fr == G2.TyBottom then lamArgTy n a else fr
+-- lamArgTy n (G2.Case m as t) = 
+--     case as of
+--         []               -> G2.TyBottom
+--         (((d,ns), e):tl) ->let
+--                               mr = lamArgTy n m
+--                               fr = if mr == G2.TyBottom then lamArgTy n e else mr
+--                            in
+--                               if fr == G2.TyBottom then lamArgTy n (G2.Case m tl t) else fr
+-- lamArgTy n (_)         = G2.TyBottom
 
 
 -------------------------------

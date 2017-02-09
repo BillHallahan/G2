@@ -1,5 +1,6 @@
 module G2.Core.Evaluator where
 
+import G2.Core.CoreManipulator
 import G2.Core.Language
 
 import qualified Data.List as L
@@ -54,7 +55,7 @@ Note: Our environment grows larger during execution. Probably not a problem.
 -}
 eval (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
   where ns   = M.keys env
-        n'   = fresh n (ns ++ freeVars e1 (n:ns))
+        n'   = fresh n (ns ++ freeVars (n:ns) e1)
         e1'  = replace e1 ns n n'
         env' = M.insert n' e2 env
 
@@ -123,13 +124,13 @@ eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
         in case d of
             Var f t -> concatMap (\((ad, pars), ae) ->
                          let ns    = M.keys env
-                             pars' = freshList pars (ns++freeVars ae (pars++ns))
+                             pars' = freshList pars (ns++freeVars (pars++ns) ae)
                              ae'   = replaceList ae ns pars pars'
                          in [(tv, env, ae', (m, (ad, pars')):pc)]) as
             DCon md -> concatMap (\((ad, pars), ae) ->
                 if length args == length pars && md == ad
                     then let ns    = M.keys env
-                             pars' = freshList pars (ns++freeVars ae (pars++ns))
+                             pars' = freshList pars (ns++freeVars (pars++ns) ae)
                              ae'   = replaceList ae ns pars pars'
                          in [(tv, M.union (M.fromList (zip pars' args)) env
                              , ae', (m, (ad, pars')):pc)]
@@ -174,14 +175,13 @@ typeOf (DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
                           in foldl (\a r -> TyFun r a) (head a') (tail a')
 typeOf (Case m as t) = t
 typeOf (Type t) = t
-typeOf BAD = TyBottom
-typeOf UNR = TyBottom
+typeOf _ = TyBottom
 
 -- Replace a single instance of a name with a new one in an Expr.
 replace :: Expr -> [Name] -> Name -> Name -> Expr
 replace (Var n t) env old new     = if n == old then Var new t else Var n t
 replace (Const c) env old new     = Const c
-replace (Lam n e t) env old new   = let fvs  = freeVars e (n:env)
+replace (Lam n e t) env old new   = let fvs  = freeVars (n:env) e
                                         bads = fvs ++ env ++ [old, new]
                                         n'   = fresh n bads
                                         e'   = replace e bads n n'
@@ -191,7 +191,7 @@ replace (App f a) env old new     = App (replace f env old new)
 replace (DCon dc) env old new     = DCon dc
 replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
   where r :: (Alt, Expr) -> (Alt, Expr)
-        r ((dc, pars), ae) = let fvs   = freeVars ae (pars ++ env)
+        r ((dc, pars), ae) = let fvs   = freeVars (pars ++ env) ae
                                  bads  = fvs ++ env ++ [old, new]
                                  pars' = freshList pars bads
                                  ae'   = replaceList ae bads pars pars'
@@ -216,19 +216,31 @@ freshList os ns = snd $ foldl (\(bads, ress) o -> let o' = fresh o bads
                               (ns ++ os, []) os
 
 -- Returns free variables of an expression with respect to list of bounded vars.
-freeVars :: Expr -> [Name] -> [Name]
-freeVars (Var n t) bvs     = if n `elem` bvs then [] else [n]
-freeVars (Const c) bvs     = []
-freeVars (Lam n e t) bvs   = freeVars e (n:bvs)
-freeVars (App f a) bvs     = L.nub (freeVars f bvs ++ freeVars a bvs)
-freeVars (DCon dc) bvs     = []
-freeVars (Case m as t) bvs = L.nub (freeVars m bvs ++ as_fvs)
-    where a_fv :: (Alt, Expr) -> [Name]
-          a_fv ((dc, pars), ae) = freeVars ae (pars ++ bvs)
-          as_fvs = L.nub (concatMap a_fv as)
-freeVars (Type t) bvs = []
-freeVars BAD bvs = []
-freeVars UNR bvs = []
+freeVars :: [Name] -> Expr -> [Name]
+freeVars bv e = snd 
+                . evalExpr' (freeVars')
+                    (\(bv1, fv1) (bv2, fv2) -> (L.nub (bv1 ++ bv2), L.nub (fv1 ++ fv2)))
+                    e $ (bv, [])
+    where
+        freeVars' :: ([Name], [Name]) -> Expr -> ([Name], [Name])
+        freeVars' (bv, fr) (Var n' _) = if n' `elem` bv then ([], []) else ([], [n'])
+        freeVars' (bv, fr) (Lam n' _ _) = ([n'], [])
+        freeVars' _ _ = ([], [])
+
+-- Returns free variables of an expression with respect to list of bounded vars.
+-- freeVars :: Expr -> [Name] -> [Name]
+-- freeVars (Var n t) bvs     = if n `elem` bvs then [] else [n]
+-- freeVars (Const c) bvs     = []
+-- freeVars (Lam n e t) bvs   = freeVars e (n:bvs)
+-- freeVars (App f a) bvs     = L.nub (freeVars f bvs ++ freeVars a bvs)
+-- freeVars (DCon dc) bvs     = []
+-- freeVars (Case m as t) bvs = L.nub (freeVars m bvs ++ as_fvs)
+--     where a_fv :: (Alt, Expr) -> [Name]
+--           a_fv ((dc, pars), ae) = freeVars ae (pars ++ bvs)
+--           as_fvs = L.nub (concatMap a_fv as)
+-- freeVars (Type t) bvs = []
+-- freeVars BAD bvs = []
+-- freeVars UNR bvs = []
 
 -- Unroll the App spine.
 unapp :: Expr -> [Expr]
@@ -256,7 +268,7 @@ initState t_env e_env entry = case match of
     Just ex -> let (args, expr) = unlam ex
                    ns          = M.keys e_env
                    nfs         = map fst args
-                   nfs'        = freshList nfs (ns++(freeVars expr (ns ++ nfs)))
+                   nfs'        = freshList nfs (ns++(freeVars (ns ++ nfs) expr))
                    expr'       = replaceList expr ns nfs nfs'
                in (t_env, e_env, expr', [])
   where match = M.lookup entry e_env
