@@ -1,5 +1,6 @@
 module G2.Core.Defunctionalizor where
 
+import G2.Core.CoreManipulator
 import G2.Core.Language
 
 import qualified Data.List as L
@@ -16,11 +17,9 @@ enable a translation to SMT formulas.
 defunctionalize :: Expr -> Expr
 defunctionalize e = e
 
+--evalType :: (Type -> a) -> (a -> a -> a) -> Type -> a -> a
 isHigherOrderFunc :: Type -> Bool
-isHigherOrderFunc (TyFun (TyFun _ _) _) = True
-isHigherOrderFunc (TyFun t1 t2) = (isHigherOrderFunc t1) || (isHigherOrderFunc t2)
-isHigherOrderFunc (TyApp t1 t2) = (isHigherOrderFunc t1) || (isHigherOrderFunc t2)
-isHigherOrderFunc (TyConApp n ts) = or . map (\t' -> isHigherOrderFunc t') $ ts
---isHigherOrderFunc (TyAlg n ts) = or . map (\t' -> isHigherOrderFunc' t' ) $ ts
-isHigherOrderFunc (TyForAll n t) = isHigherOrderFunc t
-isHigherOrderFunc _ = False
+isHigherOrderFunc t = evalType isHigherOrderFunc' (||) t False
+    where
+        isHigherOrderFunc' :: Type -> Bool
+        isHigherOrderFunc' _ = False
