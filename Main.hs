@@ -60,14 +60,11 @@ main = do
     let (t, env, ex, pc) = init_state
     let check = (M.elems env) !! 0
     putStrLn ("check = " ++ (mkExprStr check))
-    putStrLn ">>>>"
-    putStrLn ("countExpr = " ++ show (countExpr check))
-    putStrLn ("countTypes = " ++ show (countType . typeOf $ check))
-    putStrLn ("countTypesInExpr = " ++ show (countTypesInExpr check))
+    putStrLn "===="
+    mapM_ (mapM_ putStrLn . map (mkExprStr) . findLeadingHigherOrderFuncs) . M.elems $ env
 
-    mapM_ putStrLn . map (mkExprStr) . findHigherOrderFuncs $ check
-
-
-    print . length . findHigherOrderFuncs $ (M.elems env) !! 0
-    print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
+    print . countExpr $ check
+    print . countTypesInExpr $ check
+    --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
+    --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
 

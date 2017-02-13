@@ -2,12 +2,12 @@ module G2.Core.Defunctionalizor where
 
 import G2.Core.CoreManipulator
 import G2.Core.Language
+import G2.Core.Utils
 
 import qualified Data.List as L
 import qualified Data.Map  as M
 
 import Debug.Trace
-
 
 {-Defunctionalizor
 
@@ -30,10 +30,10 @@ countExpr :: Expr -> Int
 countExpr e = evalExpr (\_ -> 1) (+) e 0
 
 countTypesInExpr :: Expr -> Int
-countTypesInExpr e = evalTypesInExpr (\_ -> 1) (+) e 0
+countTypesInExpr e = evalType (\_ -> 1) (+) e 0
 
-countType :: Type -> Int
-countType t = evalType (\_ -> 1) (+) t 0
+-- countType :: Type -> Int
+-- countType t = evalType (\_ -> 1) (+) t 0
 
 -- mkApply :: Name -> Name -> Name-> Type -> Type -> (Expr, Type)
 -- mkApply n1 n2 t1 t2 = 
@@ -46,22 +46,25 @@ countType t = evalType (\_ -> 1) (+) t 0
 --         mkApplyFunc 
 
 --         mkApplyDataType :: Name -> Name -> Type
---         mkApplyDataType 
-
-findHigherOrderFuncs :: Expr -> [Expr]
-findHigherOrderFuncs e = evalTypesInExpr' (\e' t -> if isHigherOrderFuncType t then [e'] else []) (++) e []
+--         mkApplyDataType
 
 --Takes e e1 e2.  Replaces all occurences of e1 in e with e2
 replaceExpr :: Expr -> Expr -> Expr -> Expr
-replaceExpr e e1 e2 = modifyExpr (replaceCallingSites' e1 e2) e
-    where
-        replaceCallingSites' :: Expr -> Expr -> Expr -> Expr
-        replaceCallingSites' e1 e2 e = if e1 == e then e2 else e
+replaceExpr e e1 e2 = modifyExpr (\e' -> if e1 == e' then e2 else e') e
+
+--returns all expressions of the form (a -> b) -> c in the given expr
+findLeadingHigherOrderFuncs :: Expr -> [Expr]
+findLeadingHigherOrderFuncs e = filter (isLeadingHigherOrderFuncType . typeOf) (findHigherOrderFuncs e)
+
+--returns all expressions corresponding to higher order functions in the given expr
+findHigherOrderFuncs :: Expr -> [Expr]
+findHigherOrderFuncs e = L.nub . evalTypesInExpr' (\e' t -> if isHigherOrderFuncType t then [e'] else []) (++) e $ []
+
 
 isHigherOrderFuncType :: Type -> Bool
-isHigherOrderFuncType (TyFun t1 t2) = evalType (isHigherOrderFuncType') (||) (TyFun t1 t2) False
-    where
-        isHigherOrderFuncType' :: Type -> Bool
-        isHigherOrderFuncType' (TyFun (TyFun _ _) _) = True
-        isHigherOrderFuncType' _ = False
+isHigherOrderFuncType (TyFun t1 t2) = evalType (isLeadingHigherOrderFuncType) (||) (TyFun t1 t2) False
 isHigherOrderFuncType _ = False
+
+isLeadingHigherOrderFuncType :: Type -> Bool
+isLeadingHigherOrderFuncType (TyFun (TyFun _ _) _) = True
+isLeadingHigherOrderFuncType _ = False
