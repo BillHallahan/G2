@@ -60,6 +60,8 @@ main = do
     let check = (M.elems env) !! 0
     putStrLn ("check = " ++ (mkExprStr check))
     putStrLn ">>>>"
+    putStrLn ("countExpr = " ++ show (countExpr check))
+    putStrLn ("countTypes = " ++ show (countTypes check))
 
     mapM_ putStrLn . map (mkExprStr) . findHigherOrderFuncs $ check
 

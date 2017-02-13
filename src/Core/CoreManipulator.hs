@@ -22,7 +22,7 @@ modify f g e x = let (e', x') = f x e in modify' f g e' x'
             let
                 (e', x') = modify f g e x
             in
-            (Lam n e' t, x')
+            (Lam n e' t, g x x')
         modify' f g (App e1 e2) x =
             let 
                 (e1', x') = modify f g e1 x

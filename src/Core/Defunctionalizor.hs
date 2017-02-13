@@ -23,6 +23,12 @@ defunctionalize :: Expr -> Expr
 defunctionalize e = e
 
 
+countExpr :: Expr -> Int
+countExpr e = evalExpr (\_ -> 1) (+) e 0
+
+countTypes :: Expr -> Int
+countTypes e = evalTypesInExpr (\_ -> 1) (+) e 0
+
 -- mkApply :: Name -> Name -> Name-> Type -> Type -> (Expr, Type)
 -- mkApply n1 n2 t1 t2 = 
 --     let 
