@@ -1,7 +1,7 @@
 module G2.Core.Utils where
 
 import G2.Core.Language
-import G2.Core.Evaluator
+--import G2.Core.Evaluator
 
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -101,3 +101,30 @@ mkPCStr (p:ps) = show p ++ "\n--AND--\n" ++ mkPCStr ps
 duplicate :: String -> Int -> String
 duplicate s 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
+
+{- Type judgement
+
+Really the only two cases here worth mentioning are App and DCon.
+
+App: We must consider the possibility that the LHS is a function type, or not,
+and pop off whatever we need as necessary, or wrap it in TyApp to not cause problems.
+
+DCon: We reconstruct the function type that data constructors truly represent.
+-}
+typeOf :: Expr -> Type
+typeOf (Var n t) = t
+typeOf (Const (CInt i))    = TyRawInt
+typeOf (Const (CFloat f))  = TyRawFloat
+typeOf (Const (CDouble d)) = TyRawDouble
+typeOf (Const (CChar c))   = TyRawChar
+typeOf (Const (CString s)) = TyRawString
+typeOf (Const (COp n t)) = t
+typeOf (Lam n e t) = t
+typeOf (App f a)   = case typeOf f of
+                         TyFun l r -> r
+                         t         -> TyApp t (typeOf a)
+typeOf (DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
+                          in foldl (\a r -> TyFun r a) (head a') (tail a')
+typeOf (Case m as t) = t
+typeOf (Type t) = t
+typeOf _ = TyBottom

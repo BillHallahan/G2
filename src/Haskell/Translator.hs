@@ -26,6 +26,7 @@ import Var
 import G2.Core.CoreManipulator
 import qualified G2.Core.Language as G2
 import qualified G2.Haskell.Prelude as P
+import G2.Core.Utils
 
 import qualified Data.Map as M
 
@@ -142,24 +143,6 @@ mkAlt (ac, args, exp) = ((mkA ac, map (mkName . Var.varName) args), mkExpr exp)
             MachFloat rat  -> P.p_d_float
             MachDouble rat -> P.p_d_double
             otherwise      -> error "Unsupported alt condition."
-
-typeOf :: G2.Expr -> G2.Type
-typeOf (G2.Var n t) = t
-typeOf (G2.Const (G2.CInt i))    = G2.TyRawInt
-typeOf (G2.Const (G2.CFloat f))  = G2.TyRawFloat
-typeOf (G2.Const (G2.CDouble d)) = G2.TyRawDouble
-typeOf (G2.Const (G2.CChar c))   = G2.TyRawChar
-typeOf (G2.Const (G2.CString s)) = G2.TyRawString
-typeOf (G2.Const (G2.COp n t)) = t
-typeOf (G2.Lam n e t) = t
-typeOf (G2.App f a)   = case typeOf f of
-                            G2.TyFun l r -> r
-                            t         -> G2.TyApp t (typeOf a)
-typeOf (G2.DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
-                             in foldl (\a r -> G2.TyFun r a) (head a') (tail a')
-typeOf (G2.Case m as t) = t
-typeOf (G2.Type t) = t
-typeOf (_) = G2.TyBottom
 
 lamArgTy :: G2.Name -> G2.Expr -> G2.Type
 lamArgTy n e = evalExpr (lamArgTy' n) (\x y -> if x /= G2.TyBottom then x else y) e G2.TyBottom

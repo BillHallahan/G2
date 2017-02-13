@@ -11,6 +11,7 @@ import G2.Core.Language
 import G2.Core.Evaluator
 import G2.Core.Utils
 
+
 import G2.Haskell.Prelude
 import G2.Haskell.Translator
 
@@ -61,7 +62,8 @@ main = do
     putStrLn ("check = " ++ (mkExprStr check))
     putStrLn ">>>>"
     putStrLn ("countExpr = " ++ show (countExpr check))
-    putStrLn ("countTypes = " ++ show (countTypes check))
+    putStrLn ("countTypes = " ++ show (countType . typeOf $ check))
+    putStrLn ("countTypesInExpr = " ++ show (countTypesInExpr check))
 
     mapM_ putStrLn . map (mkExprStr) . findHigherOrderFuncs $ check
 

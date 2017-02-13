@@ -6,6 +6,9 @@ import G2.Core.Language
 import qualified Data.List as L
 import qualified Data.Map  as M
 
+import Debug.Trace
+
+
 {-Defunctionalizor
 
 We need to eliminate higher order functions to
@@ -26,8 +29,11 @@ defunctionalize e = e
 countExpr :: Expr -> Int
 countExpr e = evalExpr (\_ -> 1) (+) e 0
 
-countTypes :: Expr -> Int
-countTypes e = evalTypesInExpr (\_ -> 1) (+) e 0
+countTypesInExpr :: Expr -> Int
+countTypesInExpr e = evalTypesInExpr (\_ -> 1) (+) e 0
+
+countType :: Type -> Int
+countType t = evalType (\_ -> 1) (+) t 0
 
 -- mkApply :: Name -> Name -> Name-> Type -> Type -> (Expr, Type)
 -- mkApply n1 n2 t1 t2 = 
