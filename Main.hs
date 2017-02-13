@@ -6,6 +6,7 @@ import HscTypes
 import TyCon
 import GHC
 
+import G2.Core.Defunctionalizor
 import G2.Core.Language
 import G2.Core.Evaluator
 import G2.Core.Utils
@@ -43,6 +44,8 @@ main = do
     let init_state = initState t_env' e_env' entry
     putStrLn $ mkStateStr init_state
     
+    putStrLn $ mkStatesStr [init_state]
+
     putStrLn "======================="
 
     let (states, n) = runN [init_state] 20
@@ -52,4 +55,15 @@ main = do
     printModel $ states !! 0
 
     putStrLn "Compiles!"
+
+    let (t, env, ex, pc) = init_state
+    let check = (M.elems env) !! 0
+    putStrLn ("check = " ++ (mkExprStr check))
+    putStrLn ">>>>"
+
+    mapM_ putStrLn . map (mkExprStr) . findHigherOrderFuncs $ check
+
+
+    print . length . findHigherOrderFuncs $ (M.elems env) !! 0
+    print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
 

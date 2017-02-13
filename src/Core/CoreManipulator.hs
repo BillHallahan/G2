@@ -15,7 +15,7 @@ is then replaced with f e'' x', recursively.
 -}
 
 modify ::(a -> Expr -> (Expr, a)) -> (a -> a -> a) -> Expr -> a -> (Expr, a)
-modify f g e x = let (e', x') = f x e in modify' f g e' (g x x')
+modify f g e x = let (e', x') = f x e in modify' f g e' x'
     where 
         modify' :: (a -> Expr -> (Expr, a)) -> (a -> a -> a) -> Expr -> a -> (Expr, a)
         modify' f g (Lam n e t) x =
@@ -50,19 +50,19 @@ modify f g e x = let (e', x') = f x e in modify' f g e' (g x x')
 This is the equivalent to modify, only it acts on types, rather than Expr
 -}
 modifyT :: (a -> Type -> (Type, a)) -> (a -> a -> a) -> Type -> a -> (Type, a)
-modifyT f g t x = let (t', x') = f x t in modifyT' f g t' (g x x')
+modifyT f g t x = let (t', x') = f x t in modifyT' f g t' x'
     where
         modifyT' :: (a -> Type -> (Type, a)) -> (a -> a -> a) -> Type -> a -> (Type, a)
         modifyT' f g (TyFun t1 t2) x =
             let 
                 (t1', x') = modifyT f g t1 x
-                (t2', x'') = (modifyT f g t2 x) 
+                (t2', x'') = modifyT f g t2 x
             in
             (TyFun t1' t2', g x (g x' x''))
         modifyT' f g (TyApp t1 t2) x =
             let 
                 (t1', x') = modifyT f g t1 x
-                (t2', x'') = (modifyT f g t2 x) 
+                (t2', x'') = modifyT f g t2 x
             in
             (TyApp t1' t2', g x (g x' x''))
         modifyT' f g (TyConApp n ts) x =
@@ -97,28 +97,33 @@ modifyTypesDataCon f g (n, i, t, tx) x =
     ((n, i, t', ftx), x')
 
 --This is similar to modifyTs, but it acts on all Types in a given Expr
-modifyTsInExpr :: (a -> Type -> (Type, a)) -> (a -> a -> a) -> Expr -> a -> (Expr, a)
+modifyTsInExpr :: (Expr -> a -> Type -> (Type, a)) -> (a -> a -> a) -> Expr -> a -> (Expr, a)
 modifyTsInExpr f g e x = modify (f' f g) g e x
     where
-        f' :: (a -> Type -> (Type, a)) -> (a -> a -> a) -> a -> Expr -> (Expr, a)
-        f' f g x (Lam n e t) =
+        f' :: (Expr -> a ->  Type -> (Type, a)) -> (a -> a -> a) -> a -> Expr -> (Expr, a)
+        f' f g x v@(Var n t) =
             let
-                (t', x') = modifyT f g t x
+                (t', x') = modifyT (f v) g t x
+            in
+            (Var n t', x')
+        f' f g x lam@(Lam n e t) =
+            let
+                (t', x') = modifyT (f lam) g t x
             in
             (Lam n e t', x')
-        f' f g x (DCon d) =
+        f' f g x e@(DCon d) =
             let
-                (d', x') = modifyTypesDataCon f g d x
+                (d', x') = modifyTypesDataCon (f e) g d x
             in
             (DCon d', x')
-        f' f g x (Case e ae t) =
+        f' f g x ca@(Case e ae t) =
             let
-                (t', x') = modifyT f g t x
+                (t', x') = modifyT (f ca) g t x
             in
             (Case e ae t', x')
-        f' f g x (Type t) =
+        f' f g x e@(Type t) =
             let
-                (t', x') = modifyT f g t x
+                (t', x') = modifyT (f e) g t x
             in
             (Type t', x')
         f' _ _ x e = (e, x)
@@ -152,13 +157,19 @@ evalType' f g t x = snd . modifyT (\a' t' -> (t', f a' t')) g t $ x
 
 --These are special cases of modifyTsInExpr
 modifyTypesInExpr :: (Type -> Type) -> Expr -> Expr
-modifyTypesInExpr f t = modifyTypesInExpr' (\_ t' -> (f t', ())) (\_ _ -> ()) t ()
+modifyTypesInExpr f e = modifyTypesInExpr' (\_ t' -> f t') e
 
-modifyTypesInExpr' :: (a -> Type -> (Type, a)) -> (a -> a -> a) -> Expr -> a -> Expr
-modifyTypesInExpr' f g t x = fst . modifyTsInExpr f g t $ x
+modifyTypesInExpr' :: (Expr -> Type -> Type) -> Expr -> Expr
+modifyTypesInExpr' f t = modifyTypesInExpr'' (\e _ t' -> (f e t', ())) (\_ _ -> ()) t ()
 
-evalTypesInExpr :: (Type -> a) -> (a -> a -> a) -> Expr -> a -> a
-evalTypesInExpr f g t x = evalTypesInExpr' (\_ t' -> f t') g t x
+modifyTypesInExpr'' ::  (Expr -> a -> Type -> (Type, a)) -> (a -> a -> a) -> Expr -> a -> Expr
+modifyTypesInExpr'' f g t x = fst . modifyTsInExpr f g t $ x
 
-evalTypesInExpr' :: (a -> Type -> a) -> (a -> a -> a) -> Expr -> a -> a
-evalTypesInExpr' f g t x = snd . modifyTsInExpr (\a' t' -> (t', f a' t')) g t $ x
+evalTypesInExpr ::  (Type -> a) -> (a -> a -> a) -> Expr -> a -> a
+evalTypesInExpr f g e x = evalTypesInExpr' (\_ t' -> f t') g e x
+
+evalTypesInExpr' ::  (Expr -> Type -> a) -> (a -> a -> a) -> Expr -> a -> a
+evalTypesInExpr' f g e x = evalTypesInExpr'' (\e' _ t' -> f e' t') g e x
+
+evalTypesInExpr'' :: (Expr -> a -> Type -> a) -> (a -> a -> a) -> Expr -> a -> a
+evalTypesInExpr'' f g e x = snd . modifyTsInExpr (\e' a' t' -> (t', f e' a' t')) g e $ x
