@@ -26,10 +26,10 @@ defunctionalize :: Expr -> Expr
 defunctionalize e = e
 
 
-countExpr :: Expr -> Int
+countExpr :: Manipulatable m => m -> Int
 countExpr e = evalExpr (\_ -> 1) (+) e 0
 
-countTypesInExpr :: Expr -> Int
+countTypesInExpr :: Manipulatable m => m -> Int
 countTypesInExpr e = evalType (\_ -> 1) (+) e 0
 
 -- countType :: Type -> Int

@@ -123,7 +123,7 @@ typeOf (Lam n e t) = t
 typeOf (App f a)   = case typeOf f of
                          TyFun l r -> r
                          t         -> TyApp t (typeOf a)
-typeOf (DCon (n,i,t,a)) = let a' = reverse (a ++ [t])
+typeOf (DCon (DC (n,i,t,a))) = let a' = reverse (a ++ [t])
                           in foldl (\a r -> TyFun r a) (head a') (tail a')
 typeOf (Case m as t) = t
 typeOf (Type t) = t

@@ -5,8 +5,8 @@ import G2.Core.Language
 import qualified Data.Map as M
 
 ty_tree = TyConApp "Tree" []
-leaf = ("Leaf", 1, ty_tree, [TyRawInt])
-node = ("Node", 2, ty_tree, [ty_tree, ty_tree])
+leaf = DC ("Leaf", 1, ty_tree, [TyRawInt])
+node = DC ("Node", 2, ty_tree, [ty_tree, ty_tree])
 
 {-
   data Tree = Leaf Int | Node Tree Tree
@@ -29,8 +29,8 @@ tree_1 = join (join (varLeaf "a") (varLeaf "b")) (varLeaf "c")
 -}
 
 inner = Case tree_1
-             [((leaf, ["a"]), tree_1)
-             ,((node, ["a", "b"]), Var "a" ty_tree)]
+             [(Alt (leaf, ["a"]), tree_1)
+             ,(Alt (node, ["a", "b"]), Var "a" ty_tree)]
              ty_tree
 
 {-
@@ -40,8 +40,8 @@ inner = Case tree_1
 -}
 
 outer = Case inner
-             [((leaf, ["a"]), inner)
-             ,((node, ["a", "b"]), Var "b" ty_tree)]
+             [(Alt (leaf, ["a"]), inner)
+             ,(Alt (node, ["a", "b"]), Var "b" ty_tree)]
              ty_tree
 
 {-
@@ -53,8 +53,8 @@ outer = Case inner
 ty_abs_f = TyFun TyRawInt (TyFun TyRawInt ty_tree)
 
 abstract = Case (App (App (Var "a" ty_abs_f) (Var "b" TyRawInt)) (Var "c" TyRawInt))
-                [((leaf, ["a"]), Const (CInt 123))
-                ,((node, ["a", "b"]), Const (CInt 456))]
+                [(Alt (leaf, ["a"]), Const (CInt 123))
+                ,(Alt (node, ["a", "b"]), Const (CInt 456))]
                 TyRawInt
 
 ty_foo_1 = TyFun TyRawInt TyRawInt

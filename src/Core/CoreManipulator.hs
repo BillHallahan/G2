@@ -3,6 +3,8 @@ module G2.Core.CoreManipulator where
 import G2.Core.Language
 
 import qualified Data.List as L
+import qualified Data.Map as M
+import qualified Data.Monoid as Mon
 
 {-
 modifyE f g e x eases mapping over or evaluating an expression in a tree like manner
@@ -92,7 +94,7 @@ instance Manipulatable Expr where
                 (Lam n e t', x')
             f' _ f g x e@(DCon d) =
                 let
-                    (d', x') = modifyTypesDataCon f g d x
+                    (d', x') = modifyT f g d x
                 in
                 (DCon d', x')
             f' _ f g x ca@(Case e ae t) =
@@ -106,7 +108,6 @@ instance Manipulatable Expr where
                 in
                 (Type t', x')
             f' i _ _ _ e = (e, i)
-    
 
 instance Manipulatable Type where
     modifyE _ _ e x = (e, x)
@@ -135,11 +136,11 @@ instance Manipulatable Type where
                 (TyConApp n ts', x')
             modifyT' f g (TyAlg n d) x =
                 let
-                    d' = map (\dd -> modifyTypesDataCon f g dd x) d
-                    fd = map fst d'
-                    x' = foldr g x . map snd $ d'
+                    (d', x') = modifyT f g d x--map (\dd -> modifyT f g dd x) d
+                    -- fd = map fst d'
+                    -- x' = foldr g x . map snd $ d'
                 in
-                (TyAlg n fd, x')
+                (TyAlg n d', x')
             modifyT' f g (TyForAll n t) x =
                 let
                     (t', x') = modifyT f g t x 
@@ -147,15 +148,116 @@ instance Manipulatable Type where
                 (TyForAll n t', g x x')
             modifyT' _ _ t x = (t, x)
 
-modifyTypesDataCon :: (a -> Type -> (Type, a)) -> (a -> a -> a) -> DataCon -> a -> (DataCon, a)
-modifyTypesDataCon f g (n, i, t, tx) x =
-    let
-        (t', x') = modifyT f g t x
-        tx' = map (\tt -> modifyT f g tt x) tx
-        ftx = map fst tx'
-        x'' = foldr g x' . map snd $ tx'
-    in
-    ((n, i, t', ftx), x')
+instance (Manipulatable a, Manipulatable b) => Manipulatable (a, b) where
+    modifyE f g (t1, t2) x = 
+        let
+            (t1', x1') = modifyE f g t1 x
+            (t2', x2') = modifyE f g t2 x
+        in
+        ((t1', t2'), foldr g x [x1', x2'])
+
+    modifyT f g (t1, t2) x = 
+        let
+            (t1', x1') = modifyT f g t1 x
+            (t2', x2') = modifyT f g t2 x
+        in
+        ((t1', t2'), foldr g x [x1', x2'])
+
+instance (Manipulatable a
+          , Manipulatable b
+          , Manipulatable c) => Manipulatable (a, b, c) where
+    modifyE f g (t1, t2, t3) x = 
+        let
+            (t1', x1') = modifyE f g t1 x
+            (t2', x2') = modifyE f g t2 x
+            (t3', x3') = modifyE f g t3 x
+        in
+        ((t1', t2', t3'), foldr g x [x1', x2', x3'])
+
+    modifyT f g (t1, t2, t3) x = 
+        let
+            (t1', x1') = modifyT f g t1 x
+            (t2', x2') = modifyT f g t2 x
+            (t3', x3') = modifyT f g t3 x
+        in
+        ((t1', t2', t3'), foldr g x [x1', x2', x3'])
+
+instance (Manipulatable a
+          , Manipulatable b
+          , Manipulatable c
+          , Manipulatable d) => Manipulatable (a, b, c, d) where
+    modifyE f g (t1, t2, t3, t4) x = 
+        let
+            (t1', x1') = modifyE f g t1 x
+            (t2', x2') = modifyE f g t2 x
+            (t3', x3') = modifyE f g t3 x
+            (t4', x4') = modifyE f g t4 x
+        in
+        ((t1', t2', t3', t4'), foldr g x [x1', x2', x3', x4'])
+
+    modifyT f g (t1, t2, t3, t4) x = 
+        let
+            (t1', x1') = modifyT f g t1 x
+            (t2', x2') = modifyT f g t2 x
+            (t3', x3') = modifyT f g t3 x
+            (t4', x4') = modifyT f g t4 x
+        in
+        ((t1', t2', t3', t4'), foldr g x [x1', x2', x3', x4'])
+
+instance Manipulatable Alt where
+    modifyE f g (Alt (dc, n)) x =
+        let
+            (dc', x') = modifyE f g dc x
+        in
+        (Alt(dc', n), x')
+
+    modifyT f g (Alt (dc, n)) x =
+        let
+            (dc', x') = modifyT f g dc x
+        in
+        (Alt(dc', n), x')
+
+instance Manipulatable DataCon where
+    modifyE f g dc x = (dc, x)
+
+    modifyT f g (DC (n, i, t, tx)) x = 
+        let
+            (t', x') = modifyT f g t x
+            (tx', x'') = modifyT f g tx x
+            x''' = g x' x''
+        in
+        (DC (n, i, t', tx'), x''')
+
+
+instance Manipulatable a => Manipulatable [a] where
+    modifyE f g e x =
+        let
+            (e', x') = unzip . map (\e'' -> modifyE f g e'' x) $ e
+        in
+        (e', foldr g x x')
+
+    modifyT f g t x =
+        let
+            (t', x') = unzip . map (\t'' -> modifyT f g t'' x) $ t
+        in
+        (t', foldr g x x')
+
+instance Manipulatable v => Manipulatable (M.Map k v) where
+    modifyE f g e x =
+        let
+            res = M.map (\e'' -> modifyE f g e'' x) $ e
+            e' = M.map fst res
+            x' = M.map snd res
+        in
+        (e', foldr g x x')
+
+    modifyT f g e x =
+        let
+            res = M.map (\e'' -> modifyT f g e'' x) $ e
+            e' = M.map fst res
+            x' = M.map snd res
+        in
+        (e', foldr g x x')
 
 --This is similar to modifyTs in the typeclass for expression, but it alllows access to the expression as well
 --This is very similar to that def, might be a neater way to define it?
@@ -175,7 +277,7 @@ modifyTsInExpr f g e x = modifyE (f' x f g) g e x
             (Lam n e t', x')
         f' _ f g x e@(DCon d) =
             let
-                (d', x') = modifyTypesDataCon (f e) g d x
+                (d', x') = modifyT (f e) g d x
             in
             (DCon d', x')
         f' _ f g x ca@(Case e ae t) =

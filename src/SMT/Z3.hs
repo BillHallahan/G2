@@ -29,7 +29,7 @@ stateSolverZ3 (tv, ev, expr, pc) = do
 
 constraintsZ3 :: PC -> Z3 ()
 constraintsZ3 ((expr, alt):xs) = constraintsZ3 xs
-constraintsZ3 [] = return ()
+constraintsZ3 ([]) = return ()
 
 exprZ3 :: Expr -> Z3 ()
 exprZ3 e = return ()

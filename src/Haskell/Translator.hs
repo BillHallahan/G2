@@ -79,7 +79,7 @@ mkADT algtc = (gname, G2.TyAlg gname gdcs)
         gdcs  = map mkDC dcs
 
 mkDC :: DataCon -> G2.DataCon
-mkDC dc = (dcname, dctag, G2.TyConApp tyname [], args)
+mkDC dc = G2.DC (dcname, dctag, G2.TyConApp tyname [], args)
   where tyname = mkName $ tyConName $ dataConTyCon dc
         dcname = mkName $ dataConName dc
         dctag  = dataConTag dc
@@ -132,7 +132,7 @@ mkLit (LitInteger i t) = G2.CInt (fromInteger i)
 mkLit otherwise        = error "No other lits please?"
 
 mkAlt :: CoreAlt -> (G2.Alt, G2.Expr)
-mkAlt (ac, args, exp) = ((mkA ac, map (mkName . Var.varName) args), mkExpr exp)
+mkAlt (ac, args, exp) = (G2.Alt (mkA ac, map (mkName . Var.varName) args), mkExpr exp)
   where mkA (DataAlt dc) = mkDC dc
         mkA DEFAULT      = P.dc_default
         mkA (LitAlt lit) = case lit of

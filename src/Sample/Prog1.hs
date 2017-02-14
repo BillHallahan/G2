@@ -12,9 +12,9 @@ a = App (DCon p_d_int) (Const (CInt 123))
 b = App (DCon p_d_int) (Const (CInt 456))
 
 test1 = Case (Var "a" p_ty_int)
-          [((p_d_int, ["a"])
+          [(Alt (p_d_int, ["a"])
             ,Case (Var "b" p_ty_int)
-                  [((p_d_int, ["b"])
+                  [(Alt (p_d_int, ["b"])
                     ,App (DCon p_d_int) (Var "a" TyRawInt))]
                   (TyConApp "Int" []))]
           (TyConApp "Int" [])

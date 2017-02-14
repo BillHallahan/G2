@@ -71,7 +71,7 @@ data Const = CInt Int
 
 Name, tag (possibly will not be used), ADT's type, argument types
 -}
-type DataCon = (Name, Int, Type, [Type])
+newtype DataCon = DC (Name, Int, Type, [Type]) deriving (Show, Eq)
 
 {- Types
 
@@ -113,7 +113,7 @@ to match on their wrapper data constructors that we define in our prelude.
 
 Here the [Name] refers to the parameters of the data constructor.
 -}
-type Alt = (DataCon, [Name])
+newtype Alt = Alt (DataCon, [Name]) deriving (Eq, Show)
 
 {- Path Constraints
 

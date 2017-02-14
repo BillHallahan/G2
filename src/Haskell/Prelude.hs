@@ -15,24 +15,24 @@ Internally GHC uses #, but we use ! here to more smoothly go into SMT land.
 
 -- Int
 p_ty_int = TyConApp "Int#" []
-p_d_int = ("I#", -1, p_ty_int, [TyRawInt])
+p_d_int = DC ("I#", -1, p_ty_int, [TyRawInt])
 
 -- Float
 p_ty_float = TyConApp "Float#" []
-p_d_float = ("F#", -2, p_ty_float, [TyRawFloat])
+p_d_float = DC ("F#", -2, p_ty_float, [TyRawFloat])
 
 -- Double
 p_ty_double = TyConApp "Double#" []
-p_d_double = ("D#", -3, p_ty_double, [TyRawDouble])
+p_d_double = DC ("D#", -3, p_ty_double, [TyRawDouble])
 
 -- Char
 p_ty_char = TyConApp "Char#" []
-p_d_char = ("C#", -4, p_ty_char, [TyRawChar])
+p_d_char = DC ("C#", -4, p_ty_char, [TyRawChar])
 
 -- Bool
 p_ty_bool = TyConApp "Bool" []
-p_d_true = ("True", -5, p_ty_bool, [])
-p_d_false = ("False", -6, p_ty_bool, [])
+p_d_true = DC ("True", -5, p_ty_bool, [])
+p_d_false = DC ("False", -6, p_ty_bool, [])
 
 prelude_t_decls = [ ("Int",    TyAlg "Int" [p_d_int])
                   , ("Float",  TyAlg "Float" [p_d_float])
@@ -82,4 +82,4 @@ prelude_e_decls = e_num_ops_mod ++ e_char_ops_mod ++ e_bool_ops_mod
 
 The DEFAULT data constructor we use in pattern matching.
 -}
-dc_default = ("DEFAULT", 0::Int, TyBottom, [])
+dc_default = DC ("DEFAULT", 0::Int, TyBottom, [])

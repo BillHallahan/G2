@@ -65,6 +65,22 @@ main = do
 
     print . countExpr $ check
     print . countTypesInExpr $ check
+    print . countExpr $ init_state
+    putStrLn "------"
+
+    print . map (\tt -> case tt of TyAlg _ d -> d) . M.elems $ t
+    print . map countTypesInExpr . map (\tt -> case tt of TyAlg _ d -> d) . M.elems $ t
+
+    print . M.elems $ t
+    print . map countTypesInExpr . M.elems $ t
+
+    print . countTypesInExpr $ t
+    print . countTypesInExpr $ env
+    print . countTypesInExpr $ ex
+    print . countTypesInExpr $ pc
+    print . countTypesInExpr $ init_state
+
+    putStrLn $ mkStateStr init_state
     --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
     --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
 

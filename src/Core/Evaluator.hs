@@ -65,16 +65,16 @@ eval (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
 Apply commuting conversions to shove the RHS of the App inside the case.
 -}
 eval (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
-  where as' = map (\((dc, pars), ae) -> ((dc, pars), App ae ex)) as
-        t'  = let ((dc, pars), ae') = head as' in typeOf ae'
+  where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), App ae ex)) as
+        t'  = let (Alt (dc, pars), ae') = head as' in typeOf ae'
 
 {- App -- Special case of application on the left of a case.
 
 Apply commuting conversions to shove the LHS of the App inside the case.
 -}
 eval (tv, env, App ex (Case m as t), pc) = [(tv, env, Case m as' t', pc)]
-  where as' = map (\((dc, pars), ae) -> ((dc, pars), App ex ae)) as
-        t'  = let ((dc, pars), ae') = head as' in typeOf ae'
+  where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), App ex ae)) as
+        t'  = let (Alt (dc, pars), ae') = head as' in typeOf ae'
 
 
 {- App
@@ -96,7 +96,7 @@ eval (tv, env, DCon dc, pc) = [(tv, env, DCon dc, pc)]
 In nested case statements, we apply more commuting conversions to shove it.
 -}
 eval (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
-  where as' = map (\((dc, pars), ae) -> ((dc, pars), Case ae as2 t2)) as1
+  where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), Case ae as2 t2)) as1
 
 {- Case
 
@@ -123,18 +123,18 @@ There are two possible things that A may be:
 eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
     then let (d:args) = unapp m
         in case d of
-            Var f t -> concatMap (\((ad, pars), ae) ->
+            Var f t -> concatMap (\(Alt (ad, pars), ae) ->
                          let ns    = M.keys env
                              pars' = freshList pars (ns++freeVars (pars++ns) ae)
                              ae'   = replaceList ae ns pars pars'
-                         in [(tv, env, ae', (m, (ad, pars')):pc)]) as
-            DCon md -> concatMap (\((ad, pars), ae) ->
+                         in [(tv, env, ae', (m, Alt (ad, pars')):pc)]) as
+            DCon md -> concatMap (\(Alt (ad, pars), ae) ->
                 if length args == length pars && md == ad
                     then let ns    = M.keys env
                              pars' = freshList pars (ns++freeVars (pars++ns) ae)
                              ae'   = replaceList ae ns pars pars'
                          in [(tv, M.union (M.fromList (zip pars' args)) env
-                             , ae', (m, (ad, pars')):pc)]
+                             , ae', (m, Alt (ad, pars')):pc)]
                     else []) as
             _ -> [(tv, env, BAD, pc)]  -- Should not be in this state. Error?
     else let m_ress = eval (tv, env, m, pc)
@@ -165,11 +165,14 @@ replace (App f a) env old new     = App (replace f env old new)
 replace (DCon dc) env old new     = DCon dc
 replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
   where r :: (Alt, Expr) -> (Alt, Expr)
-        r ((dc, pars), ae) = let fvs   = freeVars (pars ++ env) ae
-                                 bads  = fvs ++ env ++ [old, new]
-                                 pars' = freshList pars bads
-                                 ae'   = replaceList ae bads pars pars'
-                             in ((dc, pars'), replace ae' (pars'++env) old new)
+        r (Alt (dc, pars), ae) =
+            let
+                fvs = freeVars (pars ++ env) ae
+                bads  = fvs ++ env ++ [old, new]
+                pars' = freshList pars bads
+                ae' = replaceList ae bads pars pars'
+            in
+            (Alt (dc, pars'), replace ae' (pars'++env) old new)
 replace (Type t) env old new = Type t
 replace BAD env old new = BAD
 replace UNR env old new = UNR
