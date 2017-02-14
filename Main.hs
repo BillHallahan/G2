@@ -64,23 +64,24 @@ main = do
     mapM_ (mapM_ putStrLn . map (mkExprStr) . findLeadingHigherOrderFuncs) . M.elems $ env
 
     print . countExpr $ check
-    print . countTypesInExpr $ check
+    print . countTypes $ check
     print . countExpr $ init_state
     putStrLn "------"
 
     print . map (\tt -> case tt of TyAlg _ d -> d) . M.elems $ t
-    print . map countTypesInExpr . map (\tt -> case tt of TyAlg _ d -> d) . M.elems $ t
+    print . map countTypes . map (\tt -> case tt of TyAlg _ d -> d) . M.elems $ t
 
     print . M.elems $ t
-    print . map countTypesInExpr . M.elems $ t
+    print . map countTypes . M.elems $ t
 
-    print . countTypesInExpr $ t
-    print . countTypesInExpr $ env
-    print . countTypesInExpr $ ex
-    print . countTypesInExpr $ pc
-    print . countTypesInExpr $ init_state
+    print . countTypes $ t
+    print . countTypes $ env
+    print . countTypes $ ex
+    print . countTypes $ pc
+    print . countTypes $ init_state
 
     putStrLn $ mkStateStr init_state
+    mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ (M.elems env) !! 0)
     --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
     --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
 

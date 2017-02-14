@@ -30,6 +30,8 @@ import G2.Core.Utils
 
 import qualified Data.Map as M
 
+import qualified Data.Monoid as Mon
+
 {- Raw Core Extraction
 
 This is primarily because we might need to run additional passes of filtering
@@ -112,6 +114,7 @@ mkExpr (Lam b e) = let ge = mkExpr e
                        et = typeOf ge
                        an = mkName $ Var.varName b
                        at = lamArgTy an ge
+
                    in G2.Lam an ge (G2.TyFun at et)
 mkExpr (Case e b t as) = G2.Case (mkExpr e) (map mkAlt as) (mkType t)
 mkExpr (Cast e c) = mkExpr e
@@ -145,11 +148,13 @@ mkAlt (ac, args, exp) = (G2.Alt (mkA ac, map (mkName . Var.varName) args), mkExp
             otherwise      -> error "Unsupported alt condition."
 
 lamArgTy :: G2.Name -> G2.Expr -> G2.Type
-lamArgTy n e = evalExpr (lamArgTy' n) (\x y -> if x /= G2.TyBottom then x else y) e G2.TyBottom
+lamArgTy n e = case evalExpr (lamArgTy' n) e of
+                    Mon.First (Just t) -> t
+                    otherwise -> G2.TyBottom 
     where
-        lamArgTy' :: G2.Name -> G2.Expr -> G2.Type
-        lamArgTy' n (G2.Var v t) = if n == v then t else G2.TyBottom
-        lamArgTy' _ _ = G2.TyBottom
+        lamArgTy' :: G2.Name -> G2.Expr -> Mon.First G2.Type
+        lamArgTy' n (G2.Var v t) = Mon.First (if n == v then Just t else Nothing)
+        lamArgTy' _ _ = Mon.First Nothing
 
 -- lamArgTy :: G2.Name -> G2.Expr -> G2.Type
 -- lamArgTy n (G2.Var v t) = if n == v then t else G2.TyBottom

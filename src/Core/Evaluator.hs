@@ -194,10 +194,7 @@ freshList os ns = snd $ foldl (\(bads, ress) o -> let o' = fresh o bads
 
 -- Returns free variables of an expression with respect to list of bounded vars.
 freeVars :: [Name] -> Expr -> [Name]
-freeVars bv e = snd 
-                . evalExpr' (freeVars')
-                    (\(bv1, fv1) (bv2, fv2) -> (L.nub (bv1 ++ bv2), L.nub (fv1 ++ fv2)))
-                    e $ (bv, [])
+freeVars bv e = snd . evalExpr'' (freeVars') e $ (bv, [])
     where
         freeVars' :: ([Name], [Name]) -> Expr -> ([Name], [Name])
         freeVars' (bv, fr) (Var n' _) = if n' `elem` bv then ([], []) else ([], [n'])

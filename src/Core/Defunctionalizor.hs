@@ -7,7 +7,7 @@ import G2.Core.Utils
 import qualified Data.List as L
 import qualified Data.Map  as M
 
-import Debug.Trace
+import qualified Data.Monoid as Mon
 
 {-Defunctionalizor
 
@@ -27,13 +27,10 @@ defunctionalize e = e
 
 
 countExpr :: Manipulatable m => m -> Int
-countExpr e = evalExpr (\_ -> 1) (+) e 0
+countExpr e = Mon.getSum . evalExpr (\_ -> Mon.Sum 1) $ e
 
-countTypesInExpr :: Manipulatable m => m -> Int
-countTypesInExpr e = evalType (\_ -> 1) (+) e 0
-
--- countType :: Type -> Int
--- countType t = evalType (\_ -> 1) (+) t 0
+countTypes :: Manipulatable m => m -> Int
+countTypes e = Mon.getSum . evalType (\_ -> Mon.Sum 1) $ e
 
 -- mkApply :: Name -> Name -> Name-> Type -> Type -> (Expr, Type)
 -- mkApply n1 n2 t1 t2 = 
@@ -58,11 +55,11 @@ findLeadingHigherOrderFuncs e = filter (isLeadingHigherOrderFuncType . typeOf) (
 
 --returns all expressions corresponding to higher order functions in the given expr
 findHigherOrderFuncs :: Expr -> [Expr]
-findHigherOrderFuncs e = L.nub . evalTypesInExpr' (\e' t -> if isHigherOrderFuncType t then [e'] else []) (++) e $ []
+findHigherOrderFuncs e = L.nub . evalTypesInExpr' (\e' t -> if isHigherOrderFuncType t then [e'] else []) e $ []
 
 
 isHigherOrderFuncType :: Type -> Bool
-isHigherOrderFuncType (TyFun t1 t2) = evalType (isLeadingHigherOrderFuncType) (||) (TyFun t1 t2) False
+isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . evalType (Mon.Any . isLeadingHigherOrderFuncType) $ (TyFun t1 t2)
 isHigherOrderFuncType _ = False
 
 isLeadingHigherOrderFuncType :: Type -> Bool
