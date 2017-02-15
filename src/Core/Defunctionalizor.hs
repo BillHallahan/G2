@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module G2.Core.Defunctionalizor where
 
 import G2.Core.CoreManipulator
@@ -26,12 +28,6 @@ defunctionalize :: Expr -> Expr
 defunctionalize e = e
 
 
-countExpr :: Manipulatable m => m -> Int
-countExpr e = Mon.getSum . evalExpr (\_ -> Mon.Sum 1) $ e
-
-countTypes :: Manipulatable m => m -> Int
-countTypes e = Mon.getSum . evalType (\_ -> Mon.Sum 1) $ e
-
 -- mkApply :: Name -> Name -> Name-> Type -> Type -> (Expr, Type)
 -- mkApply n1 n2 t1 t2 = 
 --     let 
@@ -45,9 +41,9 @@ countTypes e = Mon.getSum . evalType (\_ -> Mon.Sum 1) $ e
 --         mkApplyDataType :: Name -> Name -> Type
 --         mkApplyDataType
 
---Takes e e1 e2.  Replaces all occurences of e1 in e with e2
-replaceExpr :: Expr -> Expr -> Expr -> Expr
-replaceExpr e e1 e2 = modifyExpr (\e' -> if e1 == e' then e2 else e') e
+--Takes e e1 e2.  In e, replaces all occurences of e1 with e2
+replaceExpr :: (Manipulatable e m, Eq e) => m -> e -> e -> m
+replaceExpr e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 
 --returns all expressions of the form (a -> b) -> c in the given expr
 findLeadingHigherOrderFuncs :: Expr -> [Expr]
@@ -59,7 +55,7 @@ findHigherOrderFuncs e = L.nub . evalTypesInExpr' (\e' t -> if isHigherOrderFunc
 
 
 isHigherOrderFuncType :: Type -> Bool
-isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . evalType (Mon.Any . isLeadingHigherOrderFuncType) $ (TyFun t1 t2)
+isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . eval'''' (Mon.Any . isLeadingHigherOrderFuncType) $ (TyFun t1 t2)
 isHigherOrderFuncType _ = False
 
 isLeadingHigherOrderFuncType :: Type -> Bool

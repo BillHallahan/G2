@@ -1,3 +1,8 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+
+
 module G2.Core.CoreManipulator where
 
 import G2.Core.Language
@@ -7,116 +12,110 @@ import qualified Data.Map as M
 import qualified Data.Monoid as Mon
 
 {-
-modifyE f g e x eases mapping over or evaluating an expression in a tree like manner
+Manipulatable e m eases eases mapping over or evaluating expressions or types in a tree like manner
+e is either Expr or Type, m is some Type that can contain e, or containers of e.
 
-It allows the passing of information in an arbitrary structure, a, which is initialized
-to the value of x.
+ModifyG is the most general function.
+It takes
+f :: Monoid a => a -> e -> (e, a)
+et :: m
+x :: Monoid a => a
 
-f x e returns a new expression e', and some value of a, x'.  Each expression, e'', in e',
-is then replaced with f e'' x', recursively.
+and returns et', x' :: (m, a)
 
-modifyT f g e x does the same, except it works on Types
+f is applied to et, to obtain (et', x').  Then modifyG f m x' is applied to each m in et'.
+This gives us a list, [(m, a)].  The m's are inserted in the respecitve positions in et',
+and x' and the a's are mconcated' to get x''.  Then, (et', x'') is returned.
+
+Less specifically, this essentially is walking down a tree of Expr or Types.  f is applied to
+each, allowing it's replacement with a new expression or type.  After this replacement,
+the walk down the tree continues.  a allows the passing of data back up the tree.
 -}
 
-class Manipulatable m where
-    modifyE:: Monoid a => (a -> Expr -> (Expr, a)) -> m -> a -> (m, a)
-    modifyExpr :: (Expr -> Expr) -> m -> m
-    modifyExpr' :: Monoid a => (a -> Expr -> (Expr, a)) -> m -> m
-    modifyExpr'' :: Monoid a => (a -> Expr -> (Expr, a)) -> m -> a-> m
+class Manipulatable e m where
+    modifyG :: Monoid a => (a -> e -> (e, a)) -> m -> a -> (m, a)
+    modify :: (e -> e) -> m -> m
+    modify' :: Monoid a => (a -> e -> (e, a)) -> m -> m
+    modify'' :: Monoid a => (a -> e -> (e, a)) -> m -> a -> m
 
-    modifyT :: Monoid a => (a -> Type -> (Type, a)) -> m -> a -> (m, a)
-    modifyType :: (Type -> Type) -> m -> m
-    modifyType' :: Monoid a => (a -> Type -> (Type, a)) -> m -> m
-    modifyType'' :: Monoid a => (a -> Type -> (Type, a)) -> m -> a -> m
-
-    evalExpr :: Monoid a => (Expr -> a) -> m -> a
-    evalExpr' :: Monoid a => (a -> Expr -> a) -> m -> a
-    evalExpr'' :: Monoid a => (a -> Expr -> a) -> m -> a -> a
-
-    evalType :: Monoid a => (Type -> a) -> m -> a
-    evalType' :: Monoid a =>  (a -> Type -> a) -> m -> a
-    evalType'' :: Monoid a =>  (a -> Type -> a) -> m -> a -> a
+    eval'''' :: Monoid a => (e -> a) -> m -> a
+    eval' :: Monoid a => (a -> e -> a) -> m -> a
+    eval'' :: Monoid a => (a -> e -> a) -> m -> a -> a
 
     --default implementations
-    modifyExpr f e = modifyExpr' (\_ e' -> (f e', ())) e
-    modifyExpr' f e = fst . modifyE f e $ mempty
-    modifyExpr'' f e x = fst . modifyE f e $ x
+    modify f e = modify' (\_ e' -> (f e', ())) e
+    modify' f e = modify'' f e $ mempty
+    modify'' f e x = fst . modifyG f e $ x
 
-    modifyType f t = modifyType' (\_ t' -> (f t', ())) t
-    modifyType' f t = fst . modifyT f t $ mempty
-    modifyType'' f e x = fst . modifyT f e $ x
+    eval'''' f e = eval' (\_ e' -> f e') e
+    eval' f e = eval'' f e $ mempty
+    eval'' f e x = snd . modifyG (\a' e' -> (e', f a' e')) e $ x
 
-    evalExpr f e = evalExpr' (\_ e' -> f e') e
-    evalExpr' f e = snd . modifyE (\a' e' -> (e', f a' e')) e $ mempty
-    evalExpr'' f e x = snd . modifyE (\a' e' -> (e', f a' e')) e $ x
-
-    evalType f t = evalType' (\_ t' -> f t') t
-    evalType' f t = snd . modifyT (\a' t' -> (t', f a' t')) t $ mempty
-    evalType'' f t x = snd . modifyT (\a' t' -> (t', f a' t')) t $ x
-
-instance Manipulatable Expr where
-    modifyE f e x =
+instance Manipulatable Expr Expr where
+    modifyG f e x =
         let
             (e', x') = f x e
-            (e'', x'') = modify' f e' (x `mappend` x')
+            (e'', x'') = modifyG' f e' (x `mappend` x')
         in
         (e'', x' `mappend` x'')
         where
-            modify' :: Monoid a => (a -> Expr -> (Expr, a)) -> Expr -> a -> (Expr, a)
-            modify' f (Lam n e t) x =
+            modifyG' :: Monoid a => (a -> Expr -> (Expr, a)) -> Expr -> a -> (Expr, a)
+            modifyG' f (Lam n e t) x =
                 let
-                    (e', x') = modifyE f e x
+                    (e', x') = modifyG f e x
                 in
                 (Lam n e' t, x')
-            modify' f (App e1 e2) x =
+            modifyG' f (App e1 e2) x =
                 let 
-                    (e1', x') = modifyE f e1 x
-                    (e2', x'') = modifyE f e2 x
+                    (e1', x') = modifyG f e1 x
+                    (e2', x'') = modifyG f e2 x
                 in
                 (App e1' e2', x' `mappend` x'')
-            modify' f (Case e ae t) x =
+            modifyG' f (Case e ae t) x =
                 let
-                    (e', x') = modifyE f e x
-                    (ae', x'') = modifyE f ae x
+                    (e', x') = modifyG f e x
+                    (ae', x'') = modifyG f ae x
                 in
                 (Case e' ae' t, x' `mappend` x'')
-            modify' _ e x = (e, mempty)
+            modifyG' _ e x = (e, mempty)
 
+instance Manipulatable Type Expr where
     --This is similar to modifyTs, but it acts on all Types in a given Expr
-    modifyT f e x = modifyE (f' f) e x
+    modifyG f e x = modifyG (f' f) e x
         where
             f' :: Monoid a => (a ->  Type -> (Type, a)) -> a -> Expr -> (Expr, a)
             f' f x (Var n t) =
                 let
-                    (t', x') = modifyT f t x
+                    (t', x') = modifyG f t x
                 in
                 (Var n t', x')
             f' f x (Lam n e t) =
                 let
-                    (t', x') = modifyT f t x
+                    (t', x') = modifyG f t x
                 in
                 (Lam n e t', x')
             f' f x (DCon d) =
                 let
-                    (d', x') = modifyT f d x
+                    (d', x') = modifyG f d x
                 in
                 (DCon d', x')
             f' f x (Case e ae t) =
                 let
-                    (t', x') = modifyT f t x
+                    (t', x') = modifyG f t x
                 in
                 (Case e ae t', x')
             f' f x (Type t) =
                 let
-                    (t', x') = modifyT f t x
+                    (t', x') = modifyG f t x
                 in
                 (Type t', x')
             f' _ _ e = (e, mempty)
 
-instance Manipulatable Type where
-    modifyE _ e x = (e, x)
+instance Manipulatable Expr Type where
+    modifyG _ e x = (e, x)
 
-    modifyT f t x =
+instance Manipulatable Type Type where
+    modifyG f t x =
         let
             (t', x') = f x t
             (t'', x'') = modifyT' f t' x'
@@ -126,174 +125,184 @@ instance Manipulatable Type where
             modifyT' :: Monoid a => (a -> Type -> (Type, a)) -> Type -> a -> (Type, a)
             modifyT' f (TyFun t1 t2) x =
                 let 
-                    (t1', x') = modifyT f t1 x
-                    (t2', x'') = modifyT f t2 x
+                    (t1', x') = modifyG f t1 x
+                    (t2', x'') = modifyG f t2 x
                 in
                 (TyFun t1' t2', x' `mappend` x'')
             modifyT' f (TyApp t1 t2) x =
                 let 
-                    (t1', x') = modifyT f t1 x
-                    (t2', x'') = modifyT f t2 x
+                    (t1', x') = modifyG f t1 x
+                    (t2', x'') = modifyG f t2 x
                 in
                 (TyApp t1' t2', x' `mappend` x'')
             modifyT' f (TyConApp n ts) x =
                 let
-                    tsx = map (\t' -> modifyT f t' x) ts
+                    tsx = map (\t' -> modifyG f t' x) ts
                     ts' = map fst tsx
                     x' = mconcat (map snd tsx)
                 in
                 (TyConApp n ts', x')
             modifyT' f (TyAlg n d) x =
                 let
-                    (d', x') = modifyT f d x
+                    (d', x') = modifyG f d x
                 in
                 (TyAlg n d', x')
             modifyT' f (TyForAll n t) x =
                 let
-                    (t', x') = modifyT f t x 
+                    (t', x') = modifyG f t x 
                 in
                 (TyForAll n t', x `mappend` x')
             modifyT' _ t _ = (t, mempty)
 
-instance (Manipulatable a, Manipulatable b) => Manipulatable (a, b) where
-    modifyE f (t1, t2) x = 
+instance (Manipulatable e a, Manipulatable e b) => Manipulatable e (a, b) where
+    modifyG f (t1, t2) x = 
         let
-            (t1', x1') = modifyE f t1 x
-            (t2', x2') = modifyE f t2 x
+            (t1', x1') = modifyG f t1 x
+            (t2', x2') = modifyG f t2 x
         in
         ((t1', t2'), x1' `mappend` x2')
 
-    modifyT f (t1, t2) x = 
+instance (Manipulatable e a
+          , Manipulatable e b
+          , Manipulatable e c) => Manipulatable e (a, b, c) where
+    modifyG f (t1, t2, t3) x = 
         let
-            (t1', x1') = modifyT f t1 x
-            (t2', x2') = modifyT f t2 x
-        in
-        ((t1', t2'), x1' `mappend` x2')
-
-instance (Manipulatable a
-          , Manipulatable b
-          , Manipulatable c) => Manipulatable (a, b, c) where
-    modifyE f (t1, t2, t3) x = 
-        let
-            (t1', x1') = modifyE f t1 x
-            (t2', x2') = modifyE f t2 x
-            (t3', x3') = modifyE f t3 x
+            (t1', x1') = modifyG f t1 x
+            (t2', x2') = modifyG f t2 x
+            (t3', x3') = modifyG f t3 x
         in
         ((t1', t2', t3'), mconcat[x1', x2', x3'])
 
-    modifyT f (t1, t2, t3) x = 
+instance (Manipulatable e a
+          , Manipulatable e b
+          , Manipulatable e c
+          , Manipulatable e d) => Manipulatable e (a, b, c, d) where
+    modifyG f (t1, t2, t3, t4) x = 
         let
-            (t1', x1') = modifyT f t1 x
-            (t2', x2') = modifyT f t2 x
-            (t3', x3') = modifyT f t3 x
-        in
-        ((t1', t2', t3'), mconcat [x1', x2', x3'])
-
-instance (Manipulatable a
-          , Manipulatable b
-          , Manipulatable c
-          , Manipulatable d) => Manipulatable (a, b, c, d) where
-    modifyE f (t1, t2, t3, t4) x = 
-        let
-            (t1', x1') = modifyE f t1 x
-            (t2', x2') = modifyE f t2 x
-            (t3', x3') = modifyE f t3 x
-            (t4', x4') = modifyE f t4 x
+            (t1', x1') = modifyG f t1 x
+            (t2', x2') = modifyG f t2 x
+            (t3', x3') = modifyG f t3 x
+            (t4', x4') = modifyG f t4 x
         in
         ((t1', t2', t3', t4'), mconcat [x1', x2', x3', x4'])
 
-    modifyT f (t1, t2, t3, t4) x = 
+instance Manipulatable Expr Alt where
+    modifyG f (Alt (dc, n)) x =
         let
-            (t1', x1') = modifyT f t1 x
-            (t2', x2') = modifyT f t2 x
-            (t3', x3') = modifyT f t3 x
-            (t4', x4') = modifyT f t4 x
-        in
-        ((t1', t2', t3', t4'), mconcat [x1', x2', x3', x4'])
-
-instance Manipulatable Alt where
-    modifyE f (Alt (dc, n)) x =
-        let
-            (dc', x') = modifyE f dc x
+            (dc', x') = modifyG f dc x
         in
         (Alt(dc', n), x')
 
-    modifyT f (Alt (dc, n)) x =
+instance Manipulatable Type Alt where
+    modifyG f (Alt (dc, n)) x =
         let
-            (dc', x') = modifyT f dc x
+            (dc', x') = modifyG f dc x
         in
         (Alt(dc', n), x')
 
-instance Manipulatable DataCon where
-    modifyE f dc x = (dc, mempty)
+instance Manipulatable Expr DataCon where
+    modifyG f dc x = (dc, mempty)
 
-    modifyT f (DC (n, i, t, tx)) x = 
+instance Manipulatable Type DataCon where
+    modifyG f (DC (n, i, t, tx)) x = 
         let
-            (t', x') = modifyT f t x
-            (tx', x'') = modifyT f tx x
+            (t', x') = modifyG f t x
+            (tx', x'') = modifyG f tx x
         in
         (DC (n, i, t', tx'), x' `mappend` x'')
 
 
-instance Manipulatable a => Manipulatable [a] where
-    modifyE f e x =
+instance Manipulatable e a => Manipulatable e [a] where
+    modifyG f e x =
         let
-            (e', x') = unzip . map (\e'' -> modifyE f e'' x) $ e
+            (e', x') = unzip . map (\e'' -> modifyG f e'' x) $ e
         in
         (e', mconcat x')
 
-    modifyT f t x =
+instance Manipulatable e v => Manipulatable e (M.Map k v) where
+    modifyG f e x =
         let
-            (t', x') = unzip . map (\t'' -> modifyT f t'' x) $ t
-        in
-        (t', mconcat x')
-
-instance Manipulatable v => Manipulatable (M.Map k v) where
-    modifyE f e x =
-        let
-            res = M.map (\e'' -> modifyE f e'' x) $ e
+            res = M.map (\e'' -> modifyG f e'' x) $ e
             e' = M.map fst res
             x' = map snd . M.elems $ res
         in
         (e', mconcat x')
 
-    modifyT f e x =
-        let
-            res = M.map (\e'' -> modifyT f e'' x) $ e
-            e' = M.map fst res
-            x' = map snd . M.elems $ res
-        in
-        (e', mconcat x')
+--In order to use a function in Manipulatable, e and m must be
+--specifically included in the type signature.  Sometimes, this is
+--difficult to ensure for e.  These special cases ensure that only m
+--must be included.
+modifyGE :: (Manipulatable Expr m, Monoid a) => (a -> Expr -> (Expr, a)) -> m -> a -> (m, a)
+modifyGE f e x = modifyG f e x
+
+modifyE :: (Manipulatable Expr m) => (Expr -> Expr) -> m -> m
+modifyE f e = modify f e
+
+modifyE' :: (Manipulatable Expr m, Monoid a) => (a -> Expr -> (Expr, a)) -> m -> m
+modifyE' f e = modify' f e
+
+modifyE'' :: (Manipulatable Expr m, Monoid a) => (a -> Expr -> (Expr, a)) -> m -> a -> m
+modifyE'' f e x = modify'' f e x
+
+modifyGT :: (Manipulatable Type m, Monoid a) => (a -> Type -> (Type, a)) -> m -> a -> (m, a)
+modifyGT f e x = modifyG f e x
+
+modifyT :: (Manipulatable Type m) => (Type -> Type) -> m -> m
+modifyT f e = modify f e
+
+modifyT' :: (Manipulatable Type m, Monoid a) => (a -> Type -> (Type, a)) -> m -> m
+modifyT' f e = modify' f e
+
+modifyT'' :: (Manipulatable Type m, Monoid a) => (a -> Type -> (Type, a)) -> m -> a -> m
+modifyT'' f e x = modify'' f e x
+
+evalE :: (Manipulatable Expr m, Monoid a) => (Expr -> a) -> m -> a
+evalE f e = eval'''' f e
+
+evalE' :: (Manipulatable Expr m, Monoid a) => (a -> Expr -> a) -> m -> a
+evalE' f e = eval' f e
+
+evalE'' :: (Manipulatable Expr m, Monoid a) => (a -> Expr -> a) -> m -> a -> a
+evalE'' f e x = eval'' f e x
+
+evalT :: (Manipulatable Type m, Monoid a) => (Type -> a) -> m -> a
+evalT f e = eval'''' f e
+
+evalT' :: (Manipulatable Type m, Monoid a) => (a -> Type -> a) -> m -> a
+evalT' f e = eval' f e
+
+evalT'' :: (Manipulatable Type m, Monoid a) => (a -> Type -> a) -> m -> a -> a
+evalT'' f e x = eval'' f e x
 
 --This is similar to modifyTs in the typeclass for expression, but it alllows access to the expression as well
 --This is very similar to that def, might be a neater way to define it?
 modifyTsInExpr :: Monoid a => (Expr -> a -> Type -> (Type, a)) -> Expr -> a -> (Expr, a)
-modifyTsInExpr f e x = modifyE (f' f) e x
+modifyTsInExpr f e x = modifyG (f' f) e x
     where
         f' :: Monoid a => (Expr -> a ->  Type -> (Type, a))-> a -> Expr -> (Expr, a)
         f' f x v@(Var n t) =
             let
-                (t', x') = modifyT (f v) t x
+                (t', x') = modifyG (f v) t x
             in
             (Var n t', x')
         f' f x lam@(Lam n e t) =
             let
-                (t', x') = modifyT (f lam) t x
+                (t', x') = modifyG (f lam) t x
             in
             (Lam n e t', x')
         f' f x e@(DCon d) =
             let
-                (d', x') = modifyT (f e) d x
+                (d', x') = modifyG (f e) d x
             in
             (DCon d', x')
         f' f x ca@(Case e ae t) =
             let
-                (t', x') = modifyT (f ca) t x
+                (t', x') = modifyG (f ca) t x
             in
             (Case e ae t', x')
         f' f x e@(Type t) =
             let
-                (t', x') = modifyT (f e) t x
+                (t', x') = modifyG (f e) t x
             in
             (Type t', x')
         f' _ _ e = (e, mempty)

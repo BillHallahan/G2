@@ -148,7 +148,7 @@ mkAlt (ac, args, exp) = (G2.Alt (mkA ac, map (mkName . Var.varName) args), mkExp
             otherwise      -> error "Unsupported alt condition."
 
 lamArgTy :: G2.Name -> G2.Expr -> G2.Type
-lamArgTy n e = case evalExpr (lamArgTy' n) e of
+lamArgTy n e = case eval'''' (lamArgTy' n) e of
                     Mon.First (Just t) -> t
                     otherwise -> G2.TyBottom 
     where

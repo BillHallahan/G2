@@ -1,10 +1,13 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module G2.Core.Utils where
 
+import G2.Core.CoreManipulator
 import G2.Core.Language
---import G2.Core.Evaluator
 
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Monoid as Mon
 
 sp2 = "  "
 sp4 = sp2 ++ sp2
@@ -128,3 +131,10 @@ typeOf (DCon (DC (n,i,t,a))) = let a' = reverse (a ++ [t])
 typeOf (Case m as t) = t
 typeOf (Type t) = t
 typeOf _ = TyBottom
+
+--Find the number of Expr or Type's in a Manipulatable type.
+countExpr :: Manipulatable Expr m => m -> Int
+countExpr e = Mon.getSum . evalE (\_ -> Mon.Sum 1) $ e
+
+countTypes :: Manipulatable Type m => m -> Int
+countTypes t = Mon.getSum . evalT (\_ -> Mon.Sum 1) $ t
