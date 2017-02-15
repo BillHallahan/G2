@@ -82,6 +82,12 @@ main = do
 
     putStrLn $ mkStateStr init_state
     mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ (M.elems env) !! 0)
+
+    putStrLn "----"
+
+    mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ init_state)
+
+    print . leadingHigherOrderFuncsToApplies $ init_state
     --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
     --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
 

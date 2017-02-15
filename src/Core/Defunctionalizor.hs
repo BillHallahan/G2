@@ -32,19 +32,26 @@ defunctionalize e = e
 replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
 replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 
+leadingHigherOrderFuncsToApplies :: (Manipulatable Expr m) => m -> [(Expr, Name)]
+leadingHigherOrderFuncsToApplies e =
+    let
+        h = findLeadingHigherOrderFuncs e
+        bv = freeVars [] e 
+    in 
+    zip h . freshList (replicate (length h) "apply") $ bv
+
 --returns all expressions of the form (a -> b) -> c in the given expr
-findLeadingHigherOrderFuncs :: Expr -> [Expr]
+findLeadingHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
 findLeadingHigherOrderFuncs e = filter (isLeadingHigherOrderFuncType . typeOf) (findHigherOrderFuncs e)
 
 --returns all expressions corresponding to higher order functions in the given expr
-findHigherOrderFuncs :: Expr -> [Expr]
+findHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
 findHigherOrderFuncs e = L.nub . evalTypesInExpr (\e' t -> if isHigherOrderFuncType t then [e'] else []) e $ []
-
 
 isHigherOrderFuncType :: Type -> Bool
 isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . eval (Mon.Any . isLeadingHigherOrderFuncType) $ (TyFun t1 t2)
 isHigherOrderFuncType _ = False
 
 isLeadingHigherOrderFuncType :: Type -> Bool
-isLeadingHigherOrderFuncType (TyFun (TyFun _ _) _) = True
+isLeadingHigherOrderFuncType t@(TyFun (TyFun _ _) _) = True
 isLeadingHigherOrderFuncType _ = False
