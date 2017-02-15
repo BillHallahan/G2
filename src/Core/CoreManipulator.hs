@@ -38,7 +38,7 @@ class Manipulatable e m where
     modify' :: Monoid a => (a -> e -> (e, a)) -> m -> m
     modify'' :: Monoid a => (a -> e -> (e, a)) -> m -> a -> m
 
-    eval'''' :: Monoid a => (e -> a) -> m -> a
+    eval :: Monoid a => (e -> a) -> m -> a
     eval' :: Monoid a => (a -> e -> a) -> m -> a
     eval'' :: Monoid a => (a -> e -> a) -> m -> a -> a
 
@@ -47,7 +47,7 @@ class Manipulatable e m where
     modify' f e = modify'' f e $ mempty
     modify'' f e x = fst . modifyG f e $ x
 
-    eval'''' f e = eval' (\_ e' -> f e') e
+    eval f e = eval' (\_ e' -> f e') e
     eval' f e = eval'' f e $ mempty
     eval'' f e x = snd . modifyG (\a' e' -> (e', f a' e')) e $ x
 
@@ -257,7 +257,7 @@ modifyT'' :: (Manipulatable Type m, Monoid a) => (a -> Type -> (Type, a)) -> m -
 modifyT'' f e x = modify'' f e x
 
 evalE :: (Manipulatable Expr m, Monoid a) => (Expr -> a) -> m -> a
-evalE f e = eval'''' f e
+evalE f e = eval f e
 
 evalE' :: (Manipulatable Expr m, Monoid a) => (a -> Expr -> a) -> m -> a
 evalE' f e = eval' f e
@@ -266,7 +266,7 @@ evalE'' :: (Manipulatable Expr m, Monoid a) => (a -> Expr -> a) -> m -> a -> a
 evalE'' f e x = eval'' f e x
 
 evalT :: (Manipulatable Type m, Monoid a) => (Type -> a) -> m -> a
-evalT f e = eval'''' f e
+evalT f e = eval f e
 
 evalT' :: (Manipulatable Type m, Monoid a) => (a -> Type -> a) -> m -> a
 evalT' f e = eval' f e
@@ -276,7 +276,7 @@ evalT'' f e x = eval'' f e x
 
 --This is similar to modifyTs in the typeclass for expression, but it alllows access to the expression as well
 --This is very similar to that def, might be a neater way to define it?
-modifyTsInExpr :: Monoid a => (Expr -> a -> Type -> (Type, a)) -> Expr -> a -> (Expr, a)
+modifyTsInExpr :: (Manipulatable Expr m, Monoid a) => (Expr -> a -> Type -> (Type, a)) -> m -> a -> (m, a)
 modifyTsInExpr f e x = modifyG (f' f) e x
     where
         f' :: Monoid a => (Expr -> a ->  Type -> (Type, a))-> a -> Expr -> (Expr, a)
@@ -308,20 +308,14 @@ modifyTsInExpr f e x = modifyG (f' f) e x
         f' _ _ e = (e, mempty)
 
 -- --These are special cases of modifyTsInExpr
-modifyTypesInExpr :: (Type -> Type) -> Expr -> Expr
-modifyTypesInExpr f e = modifyTypesInExpr' (\_ t' -> f t') e
+modifyTypesInExpr :: Manipulatable Expr m => (Expr -> Type -> Type) -> m -> m
+modifyTypesInExpr f t = modifyTypesInExpr' (\e _ t' -> (f e t', ())) t ()
 
-modifyTypesInExpr' :: (Expr -> Type -> Type) -> Expr -> Expr
-modifyTypesInExpr' f t = modifyTypesInExpr'' (\e _ t' -> (f e t', ())) t ()
+modifyTypesInExpr' :: (Manipulatable Expr m, Monoid a) => (Expr -> a -> Type -> (Type, a)) -> m -> a -> m
+modifyTypesInExpr' f t x = fst . modifyTsInExpr f t $ x
 
-modifyTypesInExpr'' :: Monoid a => (Expr -> a -> Type -> (Type, a)) -> Expr -> a -> Expr
-modifyTypesInExpr'' f t x = fst . modifyTsInExpr f t $ x
+evalTypesInExpr ::  (Manipulatable Expr m, Monoid a) => (Expr -> Type -> a) -> m -> a -> a
+evalTypesInExpr f e x = evalTypesInExpr' (\e' _ t' -> f e' t') e x
 
-evalTypesInExpr :: Monoid a => (Type -> a) -> Expr -> a -> a
-evalTypesInExpr f e x = evalTypesInExpr' (\_ t' -> f t') e x
-
-evalTypesInExpr' ::  Monoid a => (Expr -> Type -> a) -> Expr -> a -> a
-evalTypesInExpr' f e x = evalTypesInExpr'' (\e' _ t' -> f e' t') e x
-
-evalTypesInExpr'' ::  Monoid a => (Expr -> a -> Type -> a) -> Expr -> a -> a
-evalTypesInExpr'' f e x = snd . modifyTsInExpr (\e' a' t' -> (t', f e' a' t')) e $ x
+evalTypesInExpr' ::  (Manipulatable Expr m, Monoid a) => (Expr -> a -> Type -> a) -> m -> a -> a
+evalTypesInExpr' f e x = snd . modifyTsInExpr (\e' a' t' -> (t', f e' a' t')) e $ x

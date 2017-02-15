@@ -29,22 +29,22 @@ isVal (tv, env, UNR, pc) = True
 The evaluation function takes a state and returns potentially more states if
 it runs into branching statements.
 -}
-eval :: State -> [State]
+evaluate :: State -> [State]
 
 {- Var
 
 We treat unbound variables as symbolic values during execution.
 -}
-eval (tv, env, Var n t, pc) = case M.lookup n env of
+evaluate (tv, env, Var n t, pc) = case M.lookup n env of
     Nothing -> [(tv, env, Var n t, pc)]
     Just ex -> [(tv, env, ex, pc)]
 
 -- Const
-eval (tv, env, Const c, pc) = [(tv, env, Const c, pc)]
+evaluate (tv, env, Const c, pc) = [(tv, env, Const c, pc)]
 
 
 -- Lambda
-eval (tv, env, Lam n e t, pc) = [(tv, env, Lam n e t, pc)]
+evaluate (tv, env, Lam n e t, pc) = [(tv, env, Lam n e t, pc)]
 
 {- App -- Special case of lambda application.
 
@@ -54,7 +54,7 @@ environment.
 
 Note: Our environment grows larger during execution. Probably not a problem.
 -}
-eval (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
+evaluate (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
   where ns   = M.keys env
         n'   = fresh n (ns ++ freeVars (n:ns) e1)
         e1'  = replace e1 ns n n'
@@ -64,7 +64,7 @@ eval (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
   
 Apply commuting conversions to shove the RHS of the App inside the case.
 -}
-eval (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
+evaluate (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
   where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), App ae ex)) as
         t'  = let (Alt (dc, pars), ae') = head as' in typeOf ae'
 
@@ -72,7 +72,7 @@ eval (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
 
 Apply commuting conversions to shove the LHS of the App inside the case.
 -}
-eval (tv, env, App ex (Case m as t), pc) = [(tv, env, Case m as' t', pc)]
+evaluate (tv, env, App ex (Case m as t), pc) = [(tv, env, Case m as' t', pc)]
   where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), App ex ae)) as
         t'  = let (Alt (dc, pars), ae') = head as' in typeOf ae'
 
@@ -82,20 +82,20 @@ eval (tv, env, App ex (Case m as t), pc) = [(tv, env, Case m as' t', pc)]
 To preserve lazy evaluation semantics we want to evalute the LHS of the App
 as much as possible before performing evaluation on the RHS.
 -}
-eval (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
-    then let a_ress = eval (tv, env, a, pc)
+evaluate (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
+    then let a_ress = evaluate (tv, env, a, pc)
          in [(tv', env', App f a', pc') | (tv', env', a', pc') <- a_ress]
-    else let f_ress = eval (tv, env, f, pc)
+    else let f_ress = evaluate (tv, env, f, pc)
          in [(tv', env', App f' a, pc') | (tv', env', f', pc') <- f_ress]
 
 -- Data Constructors
-eval (tv, env, DCon dc, pc) = [(tv, env, DCon dc, pc)]
+evaluate (tv, env, DCon dc, pc) = [(tv, env, DCon dc, pc)]
 
 {- Case -- Special case of nested case statements
 
 In nested case statements, we apply more commuting conversions to shove it.
 -}
-eval (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
+evaluate (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
   where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), Case ae as2 t2)) as1
 
 {- Case
@@ -120,7 +120,7 @@ There are two possible things that A may be:
    to have bindings to an expression. Rather, they also continue on as unbound
    free variables that would also more or less be symbolics.
 -}
-eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
+evaluate (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
     then let (d:args) = unapp m
         in case d of
             Var f t -> concatMap (\(Alt (ad, pars), ae) ->
@@ -137,45 +137,56 @@ eval (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
                              , ae', (m, Alt (ad, pars')):pc)]
                     else []) as
             _ -> [(tv, env, BAD, pc)]  -- Should not be in this state. Error?
-    else let m_ress = eval (tv, env, m, pc)
+    else let m_ress = evaluate (tv, env, m, pc)
          in [(tv', env', Case m' as t, pc') | (tv', env', m', pc') <- m_ress]
 
 -- Type
-eval (tv, env, Type t, pc) = [(tv, env, Type t, pc)]
+evaluate (tv, env, Type t, pc) = [(tv, env, Type t, pc)]
 
 -- BAD
-eval (tv, env, BAD, pc) = [(tv, env, BAD, pc)]
+evaluate (tv, env, BAD, pc) = [(tv, env, BAD, pc)]
 
 -- UNR
-eval (tv, env, UNR, pc) = [(tv, env, UNR, pc)]
+evaluate (tv, env, UNR, pc) = [(tv, env, UNR, pc)]
 
 ------------------
 
 -- Replace a single instance of a name with a new one in an Expr.
+-- replace :: Expr -> [Name] -> Name -> Name -> Expr
+-- replace (Var n t) env old new     = if n == old then Var new t else Var n t
+-- replace (Lam n e t) env old new   = let fvs  = freeVars (n:env) e
+--                                         bads = fvs ++ env ++ [old, new]
+--                                         n'   = fresh n bads
+--                                         e'   = replace e bads n n'
+--                                     in Lam n' (replace e' (n':env) old new) t
+-- replace (App f a) env old new     = App (replace f env old new)
+--                                         (replace a env old new)
+-- replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
+--   where r :: (Alt, Expr) -> (Alt, Expr)
+--         r (Alt (dc, pars), ae) =
+--             let
+--                 fvs = freeVars (pars ++ env) ae
+--                 bads  = fvs ++ env ++ [old, new]
+--                 pars' = freshList pars bads
+--                 ae' = replaceList ae bads pars pars'
+--             in
+--             (Alt (dc, pars'), replace ae' (pars'++env) old new)
+-- replace t _ _ _ = t
+
 replace :: Expr -> [Name] -> Name -> Name -> Expr
-replace (Var n t) env old new     = if n == old then Var new t else Var n t
-replace (Const c) env old new     = Const c
-replace (Lam n e t) env old new   = let fvs  = freeVars (n:env) e
-                                        bads = fvs ++ env ++ [old, new]
-                                        n'   = fresh n bads
-                                        e'   = replace e bads n n'
-                                    in Lam n' (replace e' (n':env) old new) t
-replace (App f a) env old new     = App (replace f env old new)
-                                        (replace a env old new)
-replace (DCon dc) env old new     = DCon dc
-replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
-  where r :: (Alt, Expr) -> (Alt, Expr)
-        r (Alt (dc, pars), ae) =
-            let
-                fvs = freeVars (pars ++ env) ae
-                bads  = fvs ++ env ++ [old, new]
-                pars' = freshList pars bads
-                ae' = replaceList ae bads pars pars'
+replace e env old new = modify'' (replace' old new) e env
+    where
+        replace' :: Name -> Name -> [Name] -> Expr -> (Expr, [Name])
+        replace' old new env (Var n t) = if n == old then (Var new t, []) else (Var n t, [])
+        replace' old new env (Lam n e t)  =
+            let 
+                fvs  = freeVars (n:env) e
+                bads = fvs ++ env ++ [old, new]
+                n'   = fresh n bads
             in
-            (Alt (dc, pars'), replace ae' (pars'++env) old new)
-replace (Type t) env old new = Type t
-replace BAD env old new = BAD
-replace UNR env old new = UNR
+            (Lam n' e t, bads)
+        replace' _ _ _ t = (t, [])
+
 
 -- Replace a whole list of names with new ones in an Expr via folding.
 replaceList :: Expr -> [Name] -> [Name] -> [Name] -> Expr
@@ -251,5 +262,5 @@ initState t_env e_env entry = case match of
 runN :: [State] -> Int -> ([State], Int)
 runN states 0 = (states, 0)
 runN [] n     = ([], n - 1)
-runN (s:ss) n = runN (ss ++ eval s) (n - 1)
+runN (s:ss) n = runN (ss ++ evaluate s) (n - 1)
 

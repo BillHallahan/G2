@@ -28,22 +28,9 @@ defunctionalize :: Expr -> Expr
 defunctionalize e = e
 
 
--- mkApply :: Name -> Name -> Name-> Type -> Type -> (Expr, Type)
--- mkApply n1 n2 t1 t2 = 
---     let 
---         e = mkApplyFunc
---     in
---     (Lam n e (TyFun t1 t2), )
---     where
---         mkApplyFunc :: Name -> Expr -> Expr
---         mkApplyFunc 
-
---         mkApplyDataType :: Name -> Name -> Type
---         mkApplyDataType
-
 --Takes e e1 e2.  In e, replaces all occurences of e1 with e2
-replaceExpr :: (Manipulatable e m, Eq e) => m -> e -> e -> m
-replaceExpr e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
+replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
+replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 
 --returns all expressions of the form (a -> b) -> c in the given expr
 findLeadingHigherOrderFuncs :: Expr -> [Expr]
@@ -51,11 +38,11 @@ findLeadingHigherOrderFuncs e = filter (isLeadingHigherOrderFuncType . typeOf) (
 
 --returns all expressions corresponding to higher order functions in the given expr
 findHigherOrderFuncs :: Expr -> [Expr]
-findHigherOrderFuncs e = L.nub . evalTypesInExpr' (\e' t -> if isHigherOrderFuncType t then [e'] else []) e $ []
+findHigherOrderFuncs e = L.nub . evalTypesInExpr (\e' t -> if isHigherOrderFuncType t then [e'] else []) e $ []
 
 
 isHigherOrderFuncType :: Type -> Bool
-isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . eval'''' (Mon.Any . isLeadingHigherOrderFuncType) $ (TyFun t1 t2)
+isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . eval (Mon.Any . isLeadingHigherOrderFuncType) $ (TyFun t1 t2)
 isHigherOrderFuncType _ = False
 
 isLeadingHigherOrderFuncType :: Type -> Bool
