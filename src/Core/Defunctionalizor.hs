@@ -32,13 +32,13 @@ defunctionalize e = e
 replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
 replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 
-leadingHigherOrderFuncsToApplies :: (Manipulatable Expr m) => m -> [(Expr, Name)]
+leadingHigherOrderFuncsToApplies :: (Manipulatable Expr m) => m -> [(Type, Name)]
 leadingHigherOrderFuncsToApplies e =
     let
-        h = findLeadingHigherOrderFuncs e
+        h = L.nub . map typeOf . findLeadingHigherOrderFuncs $ e
         bv = freeVars [] e 
     in 
-    zip h . freshList (replicate (length h) "apply") $ bv
+    zip h . numFresh "apply" (length h) $ bv
 
 --returns all expressions of the form (a -> b) -> c in the given expr
 findLeadingHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
@@ -53,5 +53,5 @@ isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . eval (Mon.Any . isLeadingHigh
 isHigherOrderFuncType _ = False
 
 isLeadingHigherOrderFuncType :: Type -> Bool
-isLeadingHigherOrderFuncType t@(TyFun (TyFun _ _) _) = True
+isLeadingHigherOrderFuncType (TyFun (TyFun _ _) _) = True
 isLeadingHigherOrderFuncType _ = False

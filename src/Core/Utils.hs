@@ -132,28 +132,6 @@ typeOf (Case m as t) = t
 typeOf (Type t) = t
 typeOf _ = TyBottom
 
-
--- replace :: Expr -> [Name] -> Name -> Name -> Expr
--- replace (Var n t) env old new     = if n == old then Var new t else Var n t
--- replace (Lam n e t) env old new   = let fvs  = freeVars (n:env) e
---                                         bads = fvs ++ env ++ [old, new]
---                                         n'   = fresh n bads
---                                         e'   = replace e bads n n'
---                                     in Lam n' (replace e' (n':env) old new) t
--- replace (App f a) env old new     = App (replace f env old new)
---                                         (replace a env old new)
--- replace (Case m as t) env old new = Case (replace m env old new) (map r as) t
---   where r :: (Alt, Expr) -> (Alt, Expr)
---         r (Alt (dc, pars), ae) =
---             let
---                 fvs = freeVars (pars ++ env) ae
---                 bads  = fvs ++ env ++ [old, new]
---                 pars' = freshList pars bads
---                 ae' = replaceList ae bads pars pars'
---             in
---             (Alt (dc, pars'), replace ae' (pars'++env) old new)
--- replace t _ _ _ = t
-
 -- Replace a single instance of a name with a new one in an Expr.
 replace :: Expr -> [Name] -> Name -> Name -> Expr
 replace e env old new = modify'' (replace' old new) e env
@@ -177,13 +155,19 @@ replaceList expr env olds news = foldl (\e (n, n') -> replace e env n n')
 
 -- Generates a fresh name given an old name and a list of INVALID names
 fresh :: Name -> [Name] -> Name
-fresh o ns = foldl (\s c -> if s == c then s ++ [head c] else s) o ns
+fresh o ns = let r = foldl (\s c -> if s == c then s ++ [head c] else s) o ns
+             in if r `elem` ns then fresh r ns else r 
 
 -- Generates a list of fresh names. Ensures no conflict with original old list.
 freshList :: [Name] -> [Name] -> [Name]
 freshList os ns = snd $ foldl (\(bads, ress) o -> let o' = fresh o bads
                                                   in (o':bads, ress++[o']))
                               (ns ++ os, []) os
+
+-- Generates a list of fresh names based on a name. Ensuring no conflict with original old list or new names.
+numFresh :: Name -> Int -> [Name] -> [Name]
+numFresh n 0 ns = []
+numFresh n i ns = let f = fresh n ns in f:numFresh n (i - 1) (f:ns) 
 
 -- Returns free variables of an expression with respect to list of bounded vars.
 freeVars :: Manipulatable Expr m => [Name] -> m -> [Name]
@@ -193,21 +177,6 @@ freeVars bv e = snd . eval'' (freeVars') e $ (bv, [])
         freeVars' (bv, fr) (Var n' _) = if n' `elem` bv then ([], []) else ([], [n'])
         freeVars' (bv, fr) (Lam n' _ _) = ([n'], [])
         freeVars' _ _ = ([], [])
-
--- Returns free variables of an expression with respect to list of bounded vars.
--- freeVars :: Expr -> [Name] -> [Name]
--- freeVars (Var n t) bvs     = if n `elem` bvs then [] else [n]
--- freeVars (Const c) bvs     = []
--- freeVars (Lam n e t) bvs   = freeVars e (n:bvs)
--- freeVars (App f a) bvs     = L.nub (freeVars f bvs ++ freeVars a bvs)
--- freeVars (DCon dc) bvs     = []
--- freeVars (Case m as t) bvs = L.nub (freeVars m bvs ++ as_fvs)
---     where a_fv :: (Alt, Expr) -> [Name]
---           a_fv ((dc, pars), ae) = freeVars ae (pars ++ bvs)
---           as_fvs = L.nub (concatMap a_fv as)
--- freeVars (Type t) bvs = []
--- freeVars BAD bvs = []
--- freeVars UNR bvs = []
 
 --Find the number of Expr or Type's in a Manipulatable type.
 countExpr :: Manipulatable Expr m => m -> Int

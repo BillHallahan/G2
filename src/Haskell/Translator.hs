@@ -4,23 +4,18 @@ import ConLike
 import CoreMonad
 import CoreSubst
 import CoreSyn
+import CoreUtils as CU
 import Data.List
 import DataCon
-import DynFlags
-import FloatOut
 import GHC
 import GHC.Paths
 import HscTypes
 import Literal
 import Name
-import OccName
 import Outputable
 import TyCon
 import Type
 import TypeRep
-import Unique
-import UniqFM
-import UniqSupply
 import Var
 
 import G2.Core.CoreManipulator
@@ -110,12 +105,11 @@ mkExpr :: CoreExpr -> G2.Expr
 mkExpr (Var id)  = G2.Var (mkName $ Var.varName id) (mkType $ varType id)
 mkExpr (Lit lit) = G2.Const (mkLit lit)
 mkExpr (App f a) = G2.App (mkExpr f) (mkExpr a)
-mkExpr (Lam b e) = let ge = mkExpr e
-                       et = typeOf ge
-                       an = mkName $ Var.varName b
-                       at = lamArgTy an ge
+mkExpr l@(Lam b e) = let ge = mkExpr e
+                         et = typeOf ge
+                         an = mkName $ Var.varName b
 
-                   in G2.Lam an ge (G2.TyFun at et)
+                   in G2.Lam an ge (mkType . CU.exprType $ l)
 mkExpr (Case e b t as) = G2.Case (mkExpr e) (map mkAlt as) (mkType t)
 mkExpr (Cast e c) = mkExpr e
 mkExpr (Tick t e) = mkExpr e
@@ -146,32 +140,3 @@ mkAlt (ac, args, exp) = (G2.Alt (mkA ac, map (mkName . Var.varName) args), mkExp
             MachFloat rat  -> P.p_d_float
             MachDouble rat -> P.p_d_double
             otherwise      -> error "Unsupported alt condition."
-
-lamArgTy :: G2.Name -> G2.Expr -> G2.Type
-lamArgTy n e = case eval (lamArgTy' n) e of
-                    Mon.First (Just t) -> t
-                    otherwise -> G2.TyBottom 
-    where
-        lamArgTy' :: G2.Name -> G2.Expr -> Mon.First G2.Type
-        lamArgTy' n (G2.Var v t) = Mon.First (if n == v then Just t else Nothing)
-        lamArgTy' _ _ = Mon.First Nothing
-
--- lamArgTy :: G2.Name -> G2.Expr -> G2.Type
--- lamArgTy n (G2.Var v t) = if n == v then t else G2.TyBottom
--- lamArgTy n (G2.Lam a e t)   = if n == a then G2.TyBottom else lamArgTy n e
--- lamArgTy n (G2.App f a)     = let fr = lamArgTy n f
---                               in if fr == G2.TyBottom then lamArgTy n a else fr
--- lamArgTy n (G2.Case m as t) = 
---     case as of
---         []               -> G2.TyBottom
---         (((d,ns), e):tl) ->let
---                               mr = lamArgTy n m
---                               fr = if mr == G2.TyBottom then lamArgTy n e else mr
---                            in
---                               if fr == G2.TyBottom then lamArgTy n (G2.Case m tl t) else fr
--- lamArgTy n (_)         = G2.TyBottom
-
-
--------------------------------
-
-

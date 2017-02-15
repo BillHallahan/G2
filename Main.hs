@@ -36,6 +36,7 @@ main = do
     let (states, n) = runN [state] 10
     putStrLn $ mkStatesStr states
     -}
+    print . fresh "apply" $ ["applya", "apply"]
     
     (filepath:entry:xs) <- getArgs
     raw_core <- mkRawCore filepath
