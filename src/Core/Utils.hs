@@ -178,6 +178,10 @@ freeVars bv e = snd . eval'' (freeVars') e $ (bv, [])
         freeVars' (bv, fr) (Lam n' _ _) = ([n'], [])
         freeVars' _ _ = ([], [])
 
+--Takes e e1 e2.  In e, replaces all occurences of e1 with e2
+replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
+replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
+
 --Find the number of Expr or Type's in a Manipulatable type.
 countExpr :: Manipulatable Expr m => m -> Int
 countExpr e = Mon.getSum . evalE (\_ -> Mon.Sum 1) $ e

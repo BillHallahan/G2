@@ -23,22 +23,39 @@ In short, each call to a higher order functions (a -> b) -> c is identified.
 For each a, b pair, a new datatype A_B, and fresh function, apply_a_b :: A_B -> a -> b, is created.
 -}
 
+type FuncName = Name
+type DataName = Name
+
 
 defunctionalize :: Expr -> Expr
 defunctionalize e = e
 
 
---Takes e e1 e2.  In e, replaces all occurences of e1 with e2
-replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
-replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
+-- appliesFuncsAndTypes :: State -> State
+-- appliesFuncsAndTypes (tv, env, ex, pc) =
+--     let
+--         funcsData = leadingHigherOrderFuncTypesToApplies e
+--     in
 
-leadingHigherOrderFuncsToApplies :: (Manipulatable Expr m) => m -> [(Type, Name)]
-leadingHigherOrderFuncsToApplies e =
+--Returns all Vars with the given Name
+findFuncVar :: (Manipulatable Expr m) => Name -> m -> [Expr]
+findFuncVar n e = eval (findFuncVar' n) e
+    where
+        findFuncVar' :: Name -> Expr -> [Expr]
+        findFuncVar' n v@(Var n' t) = [v]
+        findFuncVar _ _ = []
+
+--This returns a mapping from all higher order function types to
+--names for cooresponding Apply functions and data types
+leadingHigherOrderFuncTypesToApplies :: (Manipulatable Expr m) => m -> [(Type, (FuncName, DataName))]
+leadingHigherOrderFuncTypesToApplies e =
     let
         h = L.nub . map typeOf . findLeadingHigherOrderFuncs $ e
-        bv = freeVars [] e 
+        bv = freeVars [] e
+        funcN = numFresh "apply" (length h) bv
+        funcD = numFresh "apply" (length h) (bv ++ funcN)
     in 
-    zip h . numFresh "apply" (length h) $ bv
+    zip h . zip funcN $ funcD
 
 --returns all expressions of the form (a -> b) -> c in the given expr
 findLeadingHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]

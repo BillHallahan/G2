@@ -114,7 +114,12 @@ mkExpr (Case e b t as) = G2.Case (mkExpr e) (map mkAlt as) (mkType t)
 mkExpr (Cast e c) = mkExpr e
 mkExpr (Tick t e) = mkExpr e
 mkExpr (Type t)   = G2.Type (mkType t)
-mkExpr (Let b e)  = error "We should have lifted lets out"
+mkExpr (Let b e)  = 
+    let
+        b' = mkBind b
+        e' = mkExpr e
+    in--error ("We should have lifted lets out " ++ (show . mkBind $ b) ++ "\n" ++ (mkExprStr . mkExpr $ e))
+    foldr (\(n, ex) ex' -> replaceM ex' (G2.Var n . typeOf $ ex) ex) e' b'
 
 mkLit :: Literal -> G2.Const
 mkLit (MachChar char)  = G2.CChar char

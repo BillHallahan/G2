@@ -35,9 +35,7 @@ main = do
 
     let (states, n) = runN [state] 10
     putStrLn $ mkStatesStr states
-    -}
-    print . fresh "apply" $ ["applya", "apply"]
-    
+    -}    
     (filepath:entry:xs) <- getArgs
     raw_core <- mkRawCore filepath
     let (rt_env, re_env) = mkG2Core raw_core
@@ -88,7 +86,7 @@ main = do
 
     mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ init_state)
 
-    print . leadingHigherOrderFuncsToApplies $ init_state
+    print . leadingHigherOrderFuncTypesToApplies $ init_state
     --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
     --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
 
