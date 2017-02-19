@@ -274,7 +274,7 @@ evalT' f e = eval' f e
 evalT'' :: (Manipulatable Type m, Monoid a) => (a -> Type -> a) -> m -> a -> a
 evalT'' f e x = eval'' f e x
 
---This is similar to modifyTs in the typeclass for expression, but it alllows access to the expression as well
+--This is similar to modifyG on types in the typeclass for expression, but it alows access to the expression as well
 --This is very similar to that def, might be a neater way to define it?
 modifyTsInExpr :: (Manipulatable Expr m, Monoid a) => (Expr -> a -> Type -> (Type, a)) -> m -> a -> (m, a)
 modifyTsInExpr f e x = modifyG (f' f) e x
@@ -307,7 +307,7 @@ modifyTsInExpr f e x = modifyG (f' f) e x
             (Type t', x')
         f' _ _ e = (e, mempty)
 
--- --These are special cases of modifyTsInExpr
+--These are special cases of modifyTsInExpr
 modifyTypesInExpr :: Manipulatable Expr m => (Expr -> Type -> Type) -> m -> m
 modifyTypesInExpr f t = modifyTypesInExpr' (\e _ t' -> (f e t', ())) t ()
 
@@ -319,3 +319,44 @@ evalTypesInExpr f e x = evalTypesInExpr' (\e' _ t' -> f e' t') e x
 
 evalTypesInExpr' ::  (Manipulatable Expr m, Monoid a) => (Expr -> a -> Type -> a) -> m -> a -> a
 evalTypesInExpr' f e x = snd . modifyTsInExpr (\e' a' t' -> (t', f e' a' t')) e $ x
+
+ --This is similar to modifyG on Expr in the typeclass for expression, but it alllows access to the expression above as well
+--This is very similar to that def, might be a neater way to define it?
+modifyEsInExpr :: (Manipulatable Expr m, Monoid a) => (Expr -> a -> Expr -> (Expr, a)) -> m -> a -> (m, a)
+modifyEsInExpr f e x = modifyG (f' f) e x
+    where
+        f' :: Monoid a => (Expr -> a ->  Expr -> (Expr, a))-> a -> Expr -> (Expr, a)
+        f' f x lam@(Lam n e t) =
+            let
+                (e', x') = modifyG (f lam) e x
+            in
+            (Lam n e' t, x')
+        f' f x app@(App e e2) =
+            let
+                (e', x') = modifyG (f app) e x
+                (e2', x'') = modifyG (f app) e2 x
+            in
+            (App e' e2', x' `mappend` x'')
+        f' f x c@(Case e ae t) =
+            let
+                (e', x') = modifyG (f c) e x
+                (ae', x'') = modifyG (f c) ae x
+            in
+            (Case e' ae' t, x' `mappend` x'')
+        f' _ _ e = (e, mempty)
+
+--These are special cases of modifyEsInExpr
+modifyExprsInExpr :: Manipulatable Expr m => (Expr -> Expr -> Expr) -> m -> m
+modifyExprsInExpr f t = modifyExprsInExpr' (\e _ t' -> (f e t', ())) t ()
+
+modifyExprsInExpr' :: (Manipulatable Expr m, Monoid a) => (Expr -> a -> Expr -> (Expr, a)) -> m -> a -> m
+modifyExprsInExpr' f t x = fst . modifyEsInExpr f t $ x
+
+evalExprsInExpr ::  (Manipulatable Expr m, Monoid a) => (Expr -> Expr -> a) -> m -> a
+evalExprsInExpr f e = evalExprsInExpr' f e mempty
+
+evalExprsInExpr' ::  (Manipulatable Expr m, Monoid a) => (Expr -> Expr -> a) -> m -> a -> a
+evalExprsInExpr' f e x = evalExprsInExpr'' (\e' _ t' -> f e' t') e x
+
+evalExprsInExpr'' ::  (Manipulatable Expr m, Monoid a) => (Expr -> a -> Expr -> a) -> m -> a -> a
+evalExprsInExpr'' f e x = snd . modifyEsInExpr (\e' a' t' -> (t', f e' a' t')) e $ x

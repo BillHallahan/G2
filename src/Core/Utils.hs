@@ -8,6 +8,9 @@ import G2.Core.Language
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Monoid as Mon
+import Data.Maybe
+
+import qualified Debug.Trace as T
 
 sp2 = "  "
 sp4 = sp2 ++ sp2
@@ -188,3 +191,44 @@ countExpr e = Mon.getSum . evalE (\_ -> Mon.Sum 1) $ e
 
 countTypes :: Manipulatable Type m => m -> Int
 countTypes t = Mon.getSum . evalT (\_ -> Mon.Sum 1) $ t
+
+--Given a TyFun, returns the number of arguments to completely evaluate
+--Given a different type, returns 0
+typeArgCount :: Type -> Int
+typeArgCount t@(TyFun _ _) = typeArgCount' t
+    where
+        typeArgCount' :: Type -> Int
+        typeArgCount' (TyFun _ t@(TyFun _ _)) = 1 + typeArgCount' t
+        typeArgCount' (TyFun _ _) = 1
+        typeArgCount' _ = 0
+typeArgCount _ = 0
+
+--Given a function name, Expr, and an argument number, i, returns a list of the Expr passed
+--into the ith argument
+--(This is not the most efficient implementation...
+--should search down, then move up, not search down repeatedly from each Expr.
+--Not a top concern right now)
+findIthArg :: (Manipulatable Expr m) => Name -> m -> Int -> [Expr]
+findIthArg n e i = eval (ithArg' n i) e
+    where
+        ithArg' :: Name -> Int -> Expr -> [Expr]
+        ithArg' n i (App e e') =  if varIDown n i e then [e'] else []
+        ithArg' _ _ _ = []
+
+        varIDown :: Name -> Int -> Expr -> Bool
+        varIDown n 0 (Var n' _) = n == n'
+        varIDown n i (App e e') = varIDown n (i - 1) e
+        varIDown _ _ _ = False
+
+findAllCalls :: (Manipulatable Expr m) => Name -> m -> [Expr]
+findAllCalls n e = evalExprsInExpr (findAllCalls' n) e
+    where
+        findAllCalls' :: Name -> Expr -> Expr -> [Expr]
+        findAllCalls' n (App e1 e2) e = if not (varDown n e1) && varDown n e then [e] else []
+        findAllCalls' n x a@(App _ _) = if varDown n a then T.trace (show x ++ "\n----\n" ++ show a ++ "\n") [a] else []
+        findAllCalls' _ _ _ = []
+
+        varDown :: Name -> Expr -> Bool
+        varDown n (Var n' _) = n == n'
+        varDown n (App e e') = varDown n e
+        varDown _ _ = False

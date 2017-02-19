@@ -42,15 +42,23 @@ findFuncVar :: (Manipulatable Expr m) => Name -> m -> [Expr]
 findFuncVar n e = eval (findFuncVar' n) e
     where
         findFuncVar' :: Name -> Expr -> [Expr]
-        findFuncVar' n v@(Var n' t) = [v]
+        findFuncVar' n v@(Var n' t) = if n == n' then [v] else []
         findFuncVar _ _ = []
+
+-- Get the type of all higher order function arguments
+findPassedInFuncs :: (Manipulatable Expr m) => m -> [Type]
+findPassedInFuncs e = L.nub . eval findPassedInFuncs' . map typeOf . findHigherOrderFuncs $ e
+    where
+        findPassedInFuncs' :: Type -> [Type]
+        findPassedInFuncs' (TyFun t@(TyFun _ _) _) = [t]
+        findPassedInFuncs' _ = []
 
 --This returns a mapping from all higher order function types to
 --names for cooresponding Apply functions and data types
 leadingHigherOrderFuncTypesToApplies :: (Manipulatable Expr m) => m -> [(Type, (FuncName, DataName))]
 leadingHigherOrderFuncTypesToApplies e =
     let
-        h = L.nub . map typeOf . findLeadingHigherOrderFuncs $ e
+        h = findPassedInFuncs $ e
         bv = freeVars [] e
         funcN = numFresh "apply" (length h) bv
         funcD = numFresh "apply" (length h) (bv ++ funcN)
@@ -59,7 +67,22 @@ leadingHigherOrderFuncTypesToApplies e =
 
 --returns all expressions of the form (a -> b) -> c in the given expr
 findLeadingHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
-findLeadingHigherOrderFuncs e = filter (isLeadingHigherOrderFuncType . typeOf) (findHigherOrderFuncs e)
+findLeadingHigherOrderFuncs e = filter isLam . findLeadingHigherOrderFuncsAndCalls $ e
+    where
+        isLam :: Expr -> Bool
+        isLam (Lam _ _ _) = True
+        isLam _ = False
+
+findLeadingHigherOrderFuncCalls :: (Manipulatable Expr m) => m -> [Expr]
+findLeadingHigherOrderFuncCalls e = filter isVar . findLeadingHigherOrderFuncsAndCalls $ e
+    where
+        isVar :: Expr -> Bool
+        isVar (Var _ _) = True
+        isVar _ = False
+
+--Returns both lambda functions and calling sites
+findLeadingHigherOrderFuncsAndCalls :: (Manipulatable Expr m) => m -> [Expr]
+findLeadingHigherOrderFuncsAndCalls e = filter (isLeadingHigherOrderFuncType . typeOf) (findHigherOrderFuncs e)
 
 --returns all expressions corresponding to higher order functions in the given expr
 findHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
@@ -71,4 +94,9 @@ isHigherOrderFuncType _ = False
 
 isLeadingHigherOrderFuncType :: Type -> Bool
 isLeadingHigherOrderFuncType (TyFun (TyFun _ _) _) = True
+isLeadingHigherOrderFuncType (TyFun (TyConApp _ t) _) = foldr (||) False . map isTyFun $ t
+    where
+        isTyFun :: Type -> Bool
+        isTyFun (TyFun _ _) = True
+        isTyFun _ = False
 isLeadingHigherOrderFuncType _ = False

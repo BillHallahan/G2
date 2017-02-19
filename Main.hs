@@ -80,13 +80,31 @@ main = do
     print . countTypes $ init_state
 
     putStrLn $ mkStateStr init_state
-    mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ (M.elems env) !! 0)
+    --mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ (M.elems env) !! 0)
 
     putStrLn "----"
 
     mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ init_state)
 
+    putStrLn "???????"
+
+    mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncCalls $ init_state)
+
+    putStrLn "||||||||"
+
     print . leadingHigherOrderFuncTypesToApplies $ init_state
+
+    print . findPassedInFuncs $ init_state
+
+    mapM_ (\(n, e, t) -> putStrLn ((n) ++ "\n" ++ (show t) ++ "\n" ++ (show . typeArgCount $ t)) ) (map (\(n, e) -> (n, e, typeOf e) ) (M.toList  env))
+
+    putStrLn "]]]]]]]"
+    print . findIthArg "t" init_state $ 0
+    print . findIthArg "t" init_state $ 1
+    print . findIthArg "t" init_state $ 2
+
+    putStrLn "######"
+    mapM_ (putStrLn . mkExprStr) (findAllCalls "t" init_state)
     --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
     --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
 
