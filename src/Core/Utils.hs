@@ -220,15 +220,15 @@ findIthArg n e i = eval (ithArg' n i) e
         varIDown n i (App e e') = varIDown n (i - 1) e
         varIDown _ _ _ = False
 
-findAllCalls :: (Manipulatable Expr m) => Name -> m -> [Expr]
-findAllCalls n e = evalExprsInExpr (findAllCalls' n) e
-    where
-        findAllCalls' :: Name -> Expr -> Expr -> [Expr]
-        findAllCalls' n (App e1 e2) e = if not (varDown n e1) && varDown n e then [e] else []
-        findAllCalls' n x a@(App _ _) = if varDown n a then T.trace (show x ++ "\n----\n" ++ show a ++ "\n") [a] else []
-        findAllCalls' _ _ _ = []
+-- findAllCalls :: (Manipulatable Expr m) => Name -> m -> [Expr]
+-- findAllCalls n e = evalExprsInExpr (findAllCalls' n) e
+--     where
+--         findAllCalls' :: Name -> Expr -> Expr -> [Expr]
+--         findAllCalls' n (App e1 e2) e = if not (varDown n e1) && varDown n e then [e] else []
+--         findAllCalls' n x a@(App _ _) = if varDown n a then T.trace (show x ++ "\n----\n" ++ show a ++ "\n") [a] else []
+--         findAllCalls' _ _ _ = []
 
-        varDown :: Name -> Expr -> Bool
-        varDown n (Var n' _) = n == n'
-        varDown n (App e e') = varDown n e
-        varDown _ _ = False
+--         varDown :: Name -> Expr -> Bool
+--         varDown n (Var n' _) = n == n'
+--         varDown n (App e e') = varDown n e
+--         varDown _ _ = False
