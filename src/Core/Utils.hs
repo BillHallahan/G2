@@ -226,7 +226,7 @@ findAllCalls n e = evalUntil (findAllCalls' n) e
         findAllCalls' n a@(App e e') =
             let
                 --We have to go down the right hand side of each expression, in case function called in argument
-                res = fst . findAllCalls' n $ e'
+                res = callOnRight n e ++ findAllCalls n e'
             in
             if varDown n e then (a:res, False) else ([], True)
         findAllCalls' _ e = ([], True)
@@ -235,3 +235,7 @@ findAllCalls n e = evalUntil (findAllCalls' n) e
         varDown n (Var n' _) = n == n'
         varDown n (App e e') = varDown n e
         varDown _ _ = False
+
+        callOnRight :: Name -> Expr -> [Expr]
+        callOnRight n (App _ e) = findAllCalls n e
+        callOnRight n _ = []
