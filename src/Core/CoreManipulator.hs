@@ -11,9 +11,6 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Monoid as Mon
 
-import qualified Debug.Trace as T
-
-
 {-
 Manipulatable e m eases eases mapping over or evaluating expressions or types in a tree like manner
 e is either Expr or Type, m is some Type that can contain e, or containers of e.
@@ -45,15 +42,6 @@ class Manipulatable e m where
     eval' :: Monoid a => (a -> e -> a) -> m -> a
     eval'' :: Monoid a => (a -> e -> a) -> m -> a -> a
 
-    modifyGOnce :: Monoid a => (a -> e -> (e, a)) -> m -> a -> (m, a)
-    modifyOnce :: (e -> e) -> m -> m
-    modifyOnce' :: Monoid a => (a -> e -> (e, a)) -> m -> m
-    modifyOnce'' :: Monoid a => (a -> e -> (e, a)) -> m -> a -> m
-
-    evalOnce :: Monoid a => (e -> a) -> m -> a
-    evalOnce' :: Monoid a => (a -> e -> a) -> m -> a
-    evalOnce'' :: Monoid a => (a -> e -> a) -> m -> a -> a
-
     --default implementations
     modify f e = modify' (\_ e' -> (f e', ())) e
     modify' f e = modify'' f e $ mempty
@@ -62,27 +50,6 @@ class Manipulatable e m where
     eval f e = eval' (\_ e' -> f e') e
     eval' f e = eval'' f e $ mempty
     eval'' f e x = snd . modifyG (\a' e' -> (e', f a' e')) e $ x
-
-    modifyOnce f e = modifyOnce' (\_ e' -> (f e', ())) e
-    modifyOnce' f e = modifyOnce'' f e $ mempty
-    modifyOnce'' f e x = fst . modifyGOnce f e $ x
-
-    evalOnce f e = evalOnce' (\_ e' -> f e') e
-    evalOnce' f e = evalOnce'' f e $ mempty
-    evalOnce'' f e x = snd . modifyGOnce (\a' e' -> (e', f a' e')) e $ x
-
-    modifyGOnce f e x =
-        let
-            (e', (b, x')) = modifyG (f' f) e (Mon.All True, x)
-        in
-        (e', x')
-        where
-            f' :: Monoid a => (a -> e -> (e, a)) -> (Mon.All, a) -> e -> (e, (Mon.All, a))
-            f' f (b, x) e =
-                let
-                    (e', x') = f x e
-                in
-                if Mon.getAll b then T.trace ("HERE") (e', (Mon.All False, x')) else (e, (Mon.All False, mempty))
 
 instance Manipulatable Expr Expr where
     modifyG f e x =
@@ -353,78 +320,69 @@ evalTypesInExpr f e x = evalTypesInExpr' (\e' _ t' -> f e' t') e x
 evalTypesInExpr' ::  (Manipulatable Expr m, Monoid a) => (Expr -> a -> Type -> a) -> m -> a -> a
 evalTypesInExpr' f e x = snd . modifyTsInExpr (\e' a' t' -> (t', f e' a' t')) e $ x
 
- --This is similar to modifyG on Expr in the typeclass for expression, but it alllows access to the expression above as well
---This is very similar to that def, might be a neater way to define it?
--- modifyEsInExpr :: Monoid a => (Maybe Expr -> a -> Expr -> (Expr, a)) -> Expr -> a -> (m, a)
--- modifyEsInExpr f e x = modifyEsInExpr' f Nothing e x
---     where
---         modifyEsInExpr' :: Monoid a => (Maybe Expr -> a -> Expr -> (Expr, a)) -> Maybe Expr -> Expr -> a -> (m, a)
---         modifyEsInExpr' f prevE e x =
---             let
---                 (e', x') = f prevE x e
---                 (e'', x'') = modifyEsInExpr'' f e' (x `mappend` x')
---             in
---             (e'', x' `mappend` x'')
-        
---         modifyEsInExpr'' :: Monoid a => (Maybe Expr -> a -> Expr -> (Expr, a)) -> Expr -> a -> (Expr, a)
---         modifyEsInExpr'' f lam@(Lam n e t) x =
---             let
---                 (e', x') = modifyEsInExpr' f (Just lam) e x
---             in
---             (Lam n e' t, x')
---         modifyEsInExpr'' f app@(App e1 e2) x =
---             let 
---                 (e1', x') = modifyEsInExpr' f (Just app) e1 x
---                 (e2', x'') = modifyEsInExpr' f (Just app) e2 x
---             in
---             (App e1' e2', x' `mappend` x'')
---         modifyEsInExpr'' f c@(Case e ae t) x =
---             let
---                 (e', x') = modifyEsInExpr' f (Just c) e x
---                 (ae', x'') = modifyEsInExpr f (Just c) ae x
---             in
---             (Case e' ae' t, x' `mappend` x'')
---         modifyEsInExpr'' _ e x = (e, mempty)
+modifyGOnce :: (Manipulatable e m, Monoid a) => (a -> e -> (e, a)) -> m -> a -> (m, a)
+modifyGOnce f e x =
+    let
+        (e', (b, x')) = modifyG (f' f) e (Mon.All True, x)
+    in
+    (e', x')
+    where
+        f' :: Monoid a => (a -> e -> (e, a)) -> (Mon.All, a) -> e -> (e, (Mon.All, a))
+        f' f (b, x) e =
+            let
+                (e', x') = f x e
+            in
+            if Mon.getAll b then (e', (Mon.All False, x')) else (e, (Mon.All False, mempty))
 
--- modifyEsInExpr :: (Manipulatable Expr m, Monoid a) => (Expr -> a -> Expr -> (Expr, a)) -> m -> a -> (m, a)
--- modifyEsInExpr f e x = 
---     let
---         f'' = \e' x' e'' -> f e' x' e''
---     in
---     modifyG (f' f'') e x
---     where
---         f' :: Monoid a => (Expr -> a ->  Expr -> (Expr, a))-> a -> Expr -> (Expr, a)
---         f' f x lam@(Lam n e t) =
---             let
---                 (e', x') = modifyG (f lam) e x
---             in
---             (Lam n e' t, x')
---         f' f x app@(App e e2) =
---             let
---                 (e', x') = modifyG (f app) e x
---                 (e2', x'') = modifyG (f app) e2 x
---             in
---             (App e' e2', x' `mappend` x'')
---         f' f x c@(Case e ae t) =
---             let
---                 (e', x') = modifyG (f c) e x
---                 (ae', x'') = modifyG (f c) ae x
---             in
---             (Case e' ae' t, x' `mappend` x'')
---         f' _ _ e = (e, mempty)
+modifyOnce :: Manipulatable e m => (e -> e) -> m -> m
+modifyOnce f e = modifyOnce' (\_ e' -> (f e', ())) e
 
---These are special cases of modifyEsInExpr
--- modifyExprsInExpr :: Manipulatable Expr m => (Expr -> Expr -> Expr) -> m -> m
--- modifyExprsInExpr f t = modifyExprsInExpr' (\e _ t' -> (f e t', ())) t ()
+modifyOnce' :: (Manipulatable e m, Monoid a) => (a -> e -> (e, a)) -> m -> m
+modifyOnce' f e = modifyOnce'' f e $ mempty
 
--- modifyExprsInExpr' :: (Manipulatable Expr m, Monoid a) => (Expr -> a -> Expr -> (Expr, a)) -> m -> a -> m
--- modifyExprsInExpr' f t x = fst . modifyEsInExpr f t $ x
+modifyOnce'' :: (Manipulatable e m, Monoid a) => (a -> e -> (e, a)) -> m -> a -> m
+modifyOnce'' f e x = fst . modifyGOnce f e $ x
 
--- evalExprsInExpr ::  (Manipulatable Expr m, Monoid a) => (Expr -> Expr -> a) -> m -> a
--- evalExprsInExpr f e = evalExprsInExpr' f e mempty
+evalOnce :: (Manipulatable e m, Monoid a) => (e -> a) -> m -> a
+evalOnce f e = evalOnce' (\_ e' -> f e') e
 
--- evalExprsInExpr' ::  (Manipulatable Expr m, Monoid a) => (Expr -> Expr -> a) -> m -> a -> a
--- evalExprsInExpr' f e x = evalExprsInExpr'' (\e' _ t' -> f e' t') e x
+evalOnce' :: (Manipulatable e m, Monoid a) => (a -> e -> a) -> m -> a
+evalOnce' f e = evalOnce'' f e $ mempty
 
--- evalExprsInExpr'' ::  (Manipulatable Expr m, Monoid a) => (Expr -> a -> Expr -> a) -> m -> a -> a
--- evalExprsInExpr'' f e x = snd . modifyEsInExpr (\e' a' t' -> (t', f e' a' t')) e $ x
+evalOnce'' :: (Manipulatable e m, Monoid a) => (a -> e -> a) -> m -> a -> a
+evalOnce'' f e x = snd . modifyGOnce (\a' e' -> (e', f a' e')) e $ x
+
+
+--Modifies m with a function (a -> e -> (e, a, b)), but stops if b is false
+--modifyGOnce could be rewritten in terms of this?
+modifyGUntil :: (Manipulatable e m, Monoid a) => (a -> e -> (e, a, Bool)) -> m -> a -> (m, a)
+modifyGUntil f e x =
+    let
+        (e', (b, x')) = modifyG (f' f) e (Mon.All True, x)
+    in
+    (e', x')
+    where
+        f' :: Monoid a => (a -> e -> (e, a, Bool)) -> (Mon.All, a) -> e -> (e, (Mon.All, a))
+        f' f (b, x) e =
+            let
+                (e', x', b') = if Mon.getAll b then f x e else (e, mempty, Mon.getAll b)
+            in
+            (e', (Mon.All b', x'))
+
+modifyUntil :: Manipulatable e m => (e -> (e, Bool)) -> m -> m
+modifyUntil f e = modifyUntil' (\_ e' -> (fst . f $ e', (), snd . f $ e')) e
+
+modifyUntil' :: (Manipulatable e m, Monoid a) => (a -> e -> (e, a, Bool)) -> m -> m
+modifyUntil' f e = modifyUntil'' f e $ mempty
+
+modifyUntil'' :: (Manipulatable e m, Monoid a) => (a -> e -> (e, a, Bool)) -> m -> a -> m
+modifyUntil'' f e x = fst . modifyGUntil f e $ x
+
+evalUntil :: (Manipulatable e m, Monoid a) => (e -> (a, Bool)) -> m -> a
+evalUntil f e = evalUntil' (\_ e' -> f e') e
+
+evalUntil' :: (Manipulatable e m, Monoid a) => (a -> e -> (a, Bool)) -> m -> a
+evalUntil' f e = evalUntil'' f e $ mempty
+
+evalUntil'' :: (Manipulatable e m, Monoid a) => (a -> e -> (a, Bool)) -> m -> a -> a
+evalUntil'' f e x = snd . modifyGUntil (\a' e' -> (e', fst . f a' $ e', snd . f a' $ e')) e $ x

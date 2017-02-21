@@ -10,8 +10,6 @@ import qualified Data.Map as M
 import qualified Data.Monoid as Mon
 import Data.Maybe
 
-import qualified Debug.Trace as T
-
 sp2 = "  "
 sp4 = sp2 ++ sp2
 
@@ -220,15 +218,20 @@ findIthArg n e i = eval (ithArg' n i) e
         varIDown n i (App e e') = varIDown n (i - 1) e
         varIDown _ _ _ = False
 
--- findAllCalls :: (Manipulatable Expr m) => Name -> m -> [Expr]
--- findAllCalls n e = evalExprsInExpr (findAllCalls' n) e
---     where
---         findAllCalls' :: Name -> Expr -> Expr -> [Expr]
---         findAllCalls' n (App e1 e2) e = if not (varDown n e1) && varDown n e then [e] else []
---         findAllCalls' n x a@(App _ _) = if varDown n a then T.trace (show x ++ "\n----\n" ++ show a ++ "\n") [a] else []
---         findAllCalls' _ _ _ = []
+--Finds and returns a list of each call to a function with the given name, and all associated arguments
+findAllCalls :: (Manipulatable Expr m) => Name -> m -> [Expr]
+findAllCalls n e = evalUntil (findAllCalls' n) e
+    where
+        findAllCalls' :: Name -> Expr -> ([Expr], Bool)
+        findAllCalls' n a@(App e e') =
+            let
+                --We have to go down the right hand side of each expression, in case function called in argument
+                res = fst . findAllCalls' n $ e'
+            in
+            if varDown n e then (a:res, False) else ([], True)
+        findAllCalls' _ e = ([], True)
 
---         varDown :: Name -> Expr -> Bool
---         varDown n (Var n' _) = n == n'
---         varDown n (App e e') = varDown n e
---         varDown _ _ = False
+        varDown :: Name -> Expr -> Bool
+        varDown n (Var n' _) = n == n'
+        varDown n (App e e') = varDown n e
+        varDown _ _ = False

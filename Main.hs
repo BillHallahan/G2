@@ -10,8 +10,6 @@ import G2.Core.Defunctionalizor
 import G2.Core.Language
 import G2.Core.Evaluator
 import G2.Core.Utils
-import G2.Core.CoreManipulator
-
 
 import G2.Haskell.Prelude
 import G2.Haskell.Translator
@@ -23,9 +21,6 @@ import qualified G2.Sample.Prog2 as P2
 
 import qualified Data.List as L
 import qualified Data.Map  as M
-
-import qualified Data.Monoid as Mon
-
 
 main = do
     {-
@@ -108,7 +103,9 @@ main = do
     print . findIthArg "t" init_state $ 2
 
     putStrLn "######"
-    --mapM_ (putStrLn . mkExprStr) (findAllCalls "t" init_state)
+    let foundCalls = findAllCalls "t" init_state
+    mapM_ (putStrLn . mkExprStr) foundCalls
+    print . length $ foundCalls
 
     --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
     --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
