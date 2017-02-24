@@ -11,6 +11,8 @@ import qualified Data.Map  as M
 
 import qualified Data.Monoid as Mon
 
+import qualified Debug.Trace as T
+
 {-Defunctionalizor
 
 We need to eliminate higher order functions to
@@ -24,18 +26,93 @@ For each a, b pair, a new datatype A_B, and fresh function, apply_a_b :: A_B -> 
 -}
 
 type FuncName = Name
-type DataName = Name
+type DataTypeName = Name
+type DataConName = Name
+type AppliesLookUp = [(Type, (FuncName, DataTypeName))]
+type AppliesConLookUp = [(FuncName, DataConName)]
 
 
-defunctionalize :: Expr -> Expr
-defunctionalize e = e
+defunctionalize :: State -> State
+defunctionalize s@(tv, ev, expr, pc) =
+    let
+        applies = higherOrderFuncTypesToApplies s
+        appliesCons = passedInFuncsToApplies s
+    in
+    applyPassedFuncs applies appliesCons . modifyTypesInExpr (applyLamTypeAdj applies) . modifyUntil (applyFuncGen applies) $ s
+    where
+        isAppliesVar :: AppliesLookUp -> Expr -> Bool
+        isAppliesVar a e =
+            let
+                t = typeOf e
+                appNames = map (\(_, (_, d)) -> d) a
+            in
+            case t of TyConApp n [] -> n `elem` appNames
+                      _ -> False
+
+        --adjusts calls to functions to accept apply datatypes rather than
+        --functions
+        applyFuncGen :: AppliesLookUp -> Expr -> (Expr, Bool)
+        applyFuncGen a e@(App (Var n t) app) =
+            let
+                r = lookup t a
+            in
+            case r of Just (f, d) ->
+                                    let
+                                        applyVar = Var f (TyFun (TyConApp d []) t)
+                                        applyType = Var n (TyConApp d [])
+                                    in 
+                                    (App (App applyVar applyType) app, False)
+                      Nothing -> (e, True)
+        applyFuncGen _ e = (e, True)
+
+        --adjusts the types of lambda expressions to account for apply
+        applyLamTypeAdj :: AppliesLookUp -> Expr -> Type -> Type
+        applyLamTypeAdj a e t@(TyFun t'@(TyFun _ _) t'') =
+            let
+                r = lookup t' a    
+            in
+            case r of Just (f, d) -> TyFun (TyConApp d []) t'' 
+                      Nothing -> t
+        applyLamTypeAdj _ _ t = t
+
+        --adjust lambda expressions and functions being passed to
+        --use apply variables rather than higher order functions
+        applyPassedFuncs :: AppliesLookUp -> AppliesConLookUp -> State -> State
+        applyPassedFuncs a a' s =
+            let
+                passed = findPassedInFuncs s
+            in
+            T.trace ("passed = " ++ show passed) applyPassedFuncs' a a' passed s
+            where
+                applyPassedFuncs' :: AppliesLookUp -> AppliesConLookUp -> [(FuncName, Type)] -> State -> State
+                applyPassedFuncs' _ _ [] s = s
+                applyPassedFuncs' a a' ((f, t):fs) s =
+                    let
+                        r = lookup t a
+                        r' = lookup f a'
+                        s' = case (r, r') of
+                                (Just (f', d), Just d') -> replaceM s (Var f t) (App (applyFunc f' d t) (Var d' (TyAlg d [])))
+                                otherwise -> s
+                    in
+                    applyPassedFuncs' a a' fs s'
+                    
+        --creates the actual apply function
+        -- createApplyFuncs :: AppliesLookUp -> AppliesConsLookUp -> State -> State
+        -- createApplyFuncs _ _ s = s
+        -- createApplyFuncs ((t, (f, d)):as) a s =
+        --     let
+        --         --Get fresh variable for lambda
+        --         bv = freeVars [] s
+        --         fr = fresh "a" bv
+
+        --         apply = Lam fr e' t
+        --     in
 
 
--- appliesFuncsAndTypes :: State -> State
--- appliesFuncsAndTypes (tv, env, ex, pc) =
---     let
---         funcsData = leadingHigherOrderFuncTypesToApplies e
---     in
+
+        applyFunc :: Name -> Name -> Type -> Expr
+        applyFunc f d t = Var f (TyFun (TyConApp d []) t) 
+
 
 --Returns all Vars with the given Name
 findFuncVar :: (Manipulatable Expr m) => Name -> m -> [Expr]
@@ -45,20 +122,37 @@ findFuncVar n e = eval (findFuncVar' n) e
         findFuncVar' n v@(Var n' t) = if n == n' then [v] else []
         findFuncVar _ _ = []
 
--- Get the type of all higher order function arguments
-findPassedInFuncs :: (Manipulatable Expr m) => m -> [Type]
-findPassedInFuncs e = L.nub . eval findPassedInFuncs' . map typeOf . findHigherOrderFuncs $ e
+--Returns all functions (either free or from lambdas) being passed into another function
+findPassedInFuncs :: State -> [(FuncName, Type)]
+findPassedInFuncs s = eval (findPassedInFuncs') s
     where
-        findPassedInFuncs' :: Type -> [Type]
-        findPassedInFuncs' (TyFun t@(TyFun _ _) _) = [t]
+        findPassedInFuncs' :: Expr -> [(FuncName, Type)]
+        findPassedInFuncs' (App _ (Var n t@(TyFun _ _))) = [(n, t)]
         findPassedInFuncs' _ = []
+
+-- Get the type of all higher order function arguments
+findPassedInFuncTypes :: (Manipulatable Expr m) => m -> [Type]
+findPassedInFuncTypes e = L.nub . eval findPassedInFuncTypes' . map typeOf . findHigherOrderFuncs $ e
+    where
+        findPassedInFuncTypes' :: Type -> [Type]
+        findPassedInFuncTypes' (TyFun t@(TyFun _ _) _) = [t]
+        findPassedInFuncTypes' _ = []
+
+passedInFuncsToApplies :: State -> AppliesConLookUp
+passedInFuncsToApplies s =
+    let
+        passed = map fst . findPassedInFuncs $ s
+        bv = freeVars [] s
+        fr = numFresh "applyCon" (length passed) bv
+    in
+    zip passed fr
 
 --This returns a mapping from all higher order function types to
 --names for cooresponding Apply functions and data types
-leadingHigherOrderFuncTypesToApplies :: (Manipulatable Expr m) => m -> [(Type, (FuncName, DataName))]
-leadingHigherOrderFuncTypesToApplies e =
+higherOrderFuncTypesToApplies :: (Manipulatable Expr m) => m -> AppliesLookUp
+higherOrderFuncTypesToApplies e =
     let
-        h = findPassedInFuncs $ e
+        h = findPassedInFuncTypes $ e
         bv = freeVars [] e
         funcN = numFresh "apply" (length h) bv
         funcD = numFresh "apply" (length h) (bv ++ funcN)

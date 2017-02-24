@@ -190,6 +190,14 @@ countExpr e = Mon.getSum . evalE (\_ -> Mon.Sum 1) $ e
 countTypes :: Manipulatable Type m => m -> Int
 countTypes t = Mon.getSum . evalT (\_ -> Mon.Sum 1) $ t
 
+--Given an App of Lambda, returns the number of arguments to completely evaluate
+--the top level contained expression
+--Given a different Expr, returns 0
+exprArgCount :: Expr -> Int
+exprCount (Lam _ e _) = exprArgCount e
+exprArgCount (App a _) = 1 + exprArgCount a
+exprArgCount _ = 0
+
 --Given a TyFun, returns the number of arguments to completely evaluate
 --Given a different type, returns 0
 typeArgCount :: Type -> Int
@@ -201,8 +209,10 @@ typeArgCount t@(TyFun _ _) = typeArgCount' t
         typeArgCount' _ = 0
 typeArgCount _ = 0
 
---Given a function name, Expr, and an argument number, i, returns a list of the Expr passed
---into the ith argument
+--
+
+--Given a function name, Expr, and an argument number, i, returns a list of the
+--Expr passed into the ith argument
 --(This is not the most efficient implementation...
 --should search down, then move up, not search down repeatedly from each Expr.
 --Not a top concern right now)
@@ -218,24 +228,33 @@ findIthArg n e i = eval (ithArg' n i) e
         varIDown n i (App e e') = varIDown n (i - 1) e
         varIDown _ _ _ = False
 
---Finds and returns a list of each call to a function with the given name, and all associated arguments
-findAllCalls :: (Manipulatable Expr m) => Name -> m -> [Expr]
-findAllCalls n e = evalUntil (findAllCalls' n) e
+--Finds and returns a list of each call to a function, and all associated arguments
+findAllCalls :: (Manipulatable Expr m) => m -> [Expr]
+findAllCalls e = evalUntil (findAllCalls') e
     where
-        findAllCalls' :: Name -> Expr -> ([Expr], Bool)
-        findAllCalls' n a@(App e e') =
+        findAllCalls' :: Expr -> ([Expr], Bool)
+        findAllCalls' a@(App e e') =
             let
                 --We have to go down the right hand side of each expression, in case function called in argument
-                res = callOnRight n e ++ findAllCalls n e'
+                res = callOnRight e ++ findAllCalls e'
             in
-            if varDown n e then (a:res, False) else ([], True)
-        findAllCalls' _ e = ([], True)
+            if varDown e then (a:res, False) else ([], True)
+        findAllCalls' _ = ([], True)
 
+        varDown :: Expr -> Bool
+        varDown (Var _ _) = True
+        varDown (App e e') = varDown e
+        varDown _ = False
+
+        callOnRight :: Expr -> [Expr]
+        callOnRight (App _ e) = findAllCalls e
+        callOnRight _ = []
+
+--Finds and returns a list of each call to a function with the given name, and all associated arguments
+findAllCallsNamed :: (Manipulatable Expr m) => Name -> m -> [Expr]
+findAllCallsNamed n e = filter (varDown n) . findAllCalls $ e--evalUntil (findAllCallsNamed' n) e
+    where
         varDown :: Name -> Expr -> Bool
         varDown n (Var n' _) = n == n'
         varDown n (App e e') = varDown n e
         varDown _ _ = False
-
-        callOnRight :: Name -> Expr -> [Expr]
-        callOnRight n (App _ e) = findAllCalls n e
-        callOnRight n _ = []

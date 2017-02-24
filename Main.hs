@@ -37,6 +37,7 @@ main = do
     -}    
     (filepath:entry:xs) <- getArgs
     raw_core <- mkRawCore filepath
+    putStrLn =<< outStr raw_core
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
@@ -91,21 +92,25 @@ main = do
 
     putStrLn "||||||||"
 
-    print . leadingHigherOrderFuncTypesToApplies $ init_state
+    print . higherOrderFuncTypesToApplies $ init_state
 
-    print . findPassedInFuncs $ init_state
+    print . findPassedInFuncTypes $ init_state
 
     mapM_ (\(n, e, t) -> putStrLn ((n) ++ "\n" ++ (show t) ++ "\n" ++ (show . typeArgCount $ t)) ) (map (\(n, e) -> (n, e, typeOf e) ) (M.toList  env))
 
-    putStrLn "]]]]]]]"
-    print . findIthArg "t" init_state $ 0
-    print . findIthArg "t" init_state $ 1
-    print . findIthArg "t" init_state $ 2
-
     putStrLn "######"
-    let foundCalls = findAllCalls "t" init_state
+    let foundCalls = findAllCallsNamed "t" init_state
     mapM_ (putStrLn . mkExprStr) foundCalls
     print . length $ foundCalls
 
+    putStrLn "&&&&&&"
+    let init_state'@(t', env', ex', pc') = defunctionalize $ init_state
+    putStrLn . mkStateStr $ init_state'
+
+    print . map fst . findPassedInFuncs $ init_state
     --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
     --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
+    putStrLn "^^^^^^^^^^^^"
+    -- let allCalls = findAllCalls init_state
+    -- let allCalls' = map (\c -> (c, exprArgCount c)) allCalls
+    -- mapM_ (\(c, cc) -> putStrLn (show cc ++ "\n" ++ mkExprStr c)) allCalls'
