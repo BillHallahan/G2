@@ -11,7 +11,7 @@ import qualified Data.Map  as M
 
 import qualified Data.Monoid as Mon
 
-import qualified Debug.Trace as T
+import qualified Data.Semigroup as Semi
 
 {-Defunctionalizor
 
@@ -29,7 +29,7 @@ type FuncName = Name
 type DataTypeName = Name
 type DataConName = Name
 type AppliesLookUp = [(Type, (FuncName, DataTypeName))]
-type AppliesConLookUp = [(FuncName, DataConName)]
+type AppliesConLookUp = [(Type, [(FuncName, DataConName)])]
 
 
 defunctionalize :: State -> State
@@ -38,7 +38,11 @@ defunctionalize s@(tv, ev, expr, pc) =
         applies = higherOrderFuncTypesToApplies s
         appliesCons = passedInFuncsToApplies s
     in
-    applyPassedFuncs applies appliesCons . modifyTypesInExpr (applyLamTypeAdj applies) . modifyUntil (applyFuncGen applies) $ s
+    createApplyFuncs applies appliesCons .
+        createApplyTypes applies appliesCons .
+        applyPassedFuncs applies appliesCons .
+        modifyTypesInExpr (applyLamTypeAdj applies) .
+        modifyUntil (applyFuncGen applies) $ s
     where
         isAppliesVar :: AppliesLookUp -> Expr -> Bool
         isAppliesVar a e =
@@ -82,33 +86,73 @@ defunctionalize s@(tv, ev, expr, pc) =
             let
                 passed = findPassedInFuncs s
             in
-            T.trace ("passed = " ++ show passed) applyPassedFuncs' a a' passed s
+            applyPassedFuncs' a a' passed s
             where
                 applyPassedFuncs' :: AppliesLookUp -> AppliesConLookUp -> [(FuncName, Type)] -> State -> State
                 applyPassedFuncs' _ _ [] s = s
                 applyPassedFuncs' a a' ((f, t):fs) s =
                     let
                         r = lookup t a
-                        r' = lookup f a'
+                        r' = lookup f . L.concat . map snd $ a'
                         s' = case (r, r') of
                                 (Just (f', d), Just d') -> replaceM s (Var f t) (App (applyFunc f' d t) (Var d' (TyAlg d [])))
                                 otherwise -> s
                     in
                     applyPassedFuncs' a a' fs s'
                     
+        --adds the apply data types to the type environment
+        createApplyTypes :: AppliesLookUp -> AppliesConLookUp -> State -> State
+        createApplyTypes _ [] s = s
+        createApplyTypes a ((t, fd):as) (t', env, ex, pc) =
+            let
+                name = snd (case lookup t $ a of
+                            Just n -> n
+                            Nothing -> error "Missing type in createApplyTypes in Defunctionalizor.hs")
+
+                minTag = Semi.getMin . eval (getMinTag) $ t'
+
+                cons = map (\((_, d), m) -> DC (d, m, TyConApp name [], [])) . zip fd $ [minTag - 1, minTag - 2..]
+                d = TyAlg name cons
+                t'' = M.insert name d t'
+            in
+            createApplyTypes a as (t'', env, ex, pc)
+            where
+                getMinTag :: Type -> Semi.Min Int
+                getMinTag (TyAlg _ d) = 
+                    if not . null $ d then
+                        Semi.Min . minimum . map (\(DC (_, i, _, _)) -> i) $ d
+                    else
+                        Semi.Min 0
+                getMinTag _ = Semi.Min 0
+
         --creates the actual apply function
-        -- createApplyFuncs :: AppliesLookUp -> AppliesConsLookUp -> State -> State
-        -- createApplyFuncs _ _ s = s
-        -- createApplyFuncs ((t, (f, d)):as) a s =
-        --     let
-        --         --Get fresh variable for lambda
-        --         bv = freeVars [] s
-        --         fr = fresh "a" bv
+        createApplyFuncs :: AppliesLookUp -> AppliesConLookUp -> State -> State
+        createApplyFuncs [] _ s = s
+        createApplyFuncs ((t@(TyFun _ t2), (f, d)):as) a (t', env, ex, pc) =
+            let
+                --Get fresh variable for lambda
+                bv = freeVars [] s
+                frApply = fresh "a" bv
 
-        --         apply = Lam fr e' t
-        --     in
+                frIn = fresh "i" (frApply:bv)
 
+                c = case lookup t a of Just c' -> c'
+                                       Nothing -> []
 
+                cases = map (genCase (frApply:frIn:bv) frIn (TyConApp d []) t) c
+
+                e' = Case (Var frApply . TyAlg d $ []) cases t2
+
+                apply = Lam frApply (Lam frIn e' t) (TyFun (TyAlg d []) t)
+
+                env' = M.insert f apply env
+            in
+            createApplyFuncs as a (t', env', ex, pc)
+            where
+                genCase :: [Name] -> Name -> Type -> Type -> (FuncName, DataConName) -> (Alt, Expr)
+                genCase a i t t'@(TyFun t'' _) (f, d) = (Alt (DC (d, -1000, t, []), [fresh "new" a]), App (Var f t') (Var i t''))
+                genCase _ _ _ _ _ = error "Second supplied type must be a function."
+        
 
         applyFunc :: Name -> Name -> Type -> Expr
         applyFunc f d t = Var f (TyFun (TyConApp d []) t) 
@@ -123,7 +167,7 @@ findFuncVar n e = eval (findFuncVar' n) e
         findFuncVar _ _ = []
 
 --Returns all functions (either free or from lambdas) being passed into another function
-findPassedInFuncs :: State -> [(FuncName, Type)]
+findPassedInFuncs :: Manipulatable Expr m => m -> [(FuncName, Type)]
 findPassedInFuncs s = eval (findPassedInFuncs') s
     where
         findPassedInFuncs' :: Expr -> [(FuncName, Type)]
@@ -137,15 +181,42 @@ findPassedInFuncTypes e = L.nub . eval findPassedInFuncTypes' . map typeOf . fin
         findPassedInFuncTypes' :: Type -> [Type]
         findPassedInFuncTypes' (TyFun t@(TyFun _ _) _) = [t]
         findPassedInFuncTypes' _ = []
-
 passedInFuncsToApplies :: State -> AppliesConLookUp
-passedInFuncsToApplies s =
+passedInFuncsToApplies s@(t', env, ex, pc) = 
     let
-        passed = map fst . findPassedInFuncs $ s
+        passed = findPassedInFuncs env
+        types = findPassedInFuncTypes s
+
+        lam_vars = eval getLamVars s
+
+        passed' = L.deleteFirstsBy (\n n' -> fst n == fst n') passed lam_vars
+
         bv = freeVars [] s
-        fr = numFresh "applyCon" (length passed) bv
+        fr = numFresh "applyCon" (length passed') bv
+        passed_fr = zip passed' fr
     in
-    zip passed fr
+    passedIn' types passed_fr
+    where
+        passedIn' :: [Type] -> [((FuncName, Type), DataConName)] -> AppliesConLookUp
+        passedIn' (t:ts) ftd =
+            let
+                rel = filter (\((f, t'), d) -> t == t') ftd
+                fd = map (\((f, t'), d) -> (f, d)) rel
+            in
+            (t, fd):passedIn' ts ftd
+        passedIn' _ _ = []
+
+        getLamVars :: Expr -> [(Name, Type)]
+        getLamVars (Lam n _ t) = [(n, t)]
+        getLamVars _ = []
+
+-- passedInFuncsToApplies s =
+--     let
+--         passed = map fst . findPassedInFuncs $ s
+--         bv = freeVars [] s
+--         fr = numFresh "applyCon" (length passed) bv
+--     in
+--     zip passed fr
 
 --This returns a mapping from all higher order function types to
 --names for cooresponding Apply functions and data types
@@ -155,7 +226,7 @@ higherOrderFuncTypesToApplies e =
         h = findPassedInFuncTypes $ e
         bv = freeVars [] e
         funcN = numFresh "apply" (length h) bv
-        funcD = numFresh "apply" (length h) (bv ++ funcN)
+        funcD = numFresh "applyType" (length h) (bv ++ funcN)
     in 
     zip h . zip funcN $ funcD
 
