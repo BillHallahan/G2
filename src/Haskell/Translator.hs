@@ -110,7 +110,12 @@ mkExpr l@(Lam b e) = let ge = mkExpr e
                          an = mkName $ Var.varName b
 
                    in G2.Lam an ge (mkType . CU.exprType $ l)
-mkExpr (Case e b t as) = G2.Case (mkExpr e) (map mkAlt as) (mkType t)
+mkExpr (Case e b t as) = let ex = mkExpr e
+                             ls = map mkAlt as
+                             ty = mkType t
+                         in G2.App (G2.Lam (mkName $ Var.varName b)
+                                           (G2.Case ex ls ty)
+                                           (G2.TyFun (mkType $ CU.exprType (Var b)) ty)) ex
 mkExpr (Cast e c) = mkExpr e
 mkExpr (Tick t e) = mkExpr e
 mkExpr (Type t)   = G2.Type (mkType t)
