@@ -1,4 +1,5 @@
-G_2
+G2
+!src/*
 dist
 dist-*
 cabal-dev
