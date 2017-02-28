@@ -53,4 +53,15 @@ main = do
 
     putStrLn "Compiles!"
 
-    putStrLn . mkStateStr . defunctionalize $ init_state
+
+    let defun = defunctionalize init_state
+    let defun' = defunctionalize defun 
+
+
+    putStrLn . mkStateStr $ defun
+
+    putStrLn "---------"
+
+    putStrLn . mkStateStr $ defun'
+
+    print (defun == defun')

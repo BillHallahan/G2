@@ -47,17 +47,18 @@ defunctionalize s =
         --adjusts calls to functions to accept apply datatypes rather than
         --functions
         applyFuncGen :: AppliesLookUp -> Expr -> (Expr, Bool)
-        applyFuncGen a e@(App (Var n t) app) =
+        applyFuncGen a e@(Var n t) =
             let
                 r = lookup t a
             in
-            case r of Just (f, d) ->
-                                    let
-                                        applyVar = Var f (TyFun (TyConApp d []) t)
-                                        applyType = Var n (TyConApp d [])
-                                    in 
-                                    (App (App applyVar applyType) app, False)
-                      Nothing -> (e, True)
+            case r of
+                Just (f, d) ->
+                            let
+                                applyVar = Var f (TyFun (TyConApp d []) t)
+                                applyType = Var n (TyConApp d [])
+                            in 
+                            (App applyVar applyType, False)
+                Nothing -> (e, True)
         applyFuncGen _ e = (e, True)
 
         --adjusts the types of lambda expressions to account for apply
@@ -154,8 +155,8 @@ findFuncVar :: (Manipulatable Expr m) => Name -> m -> [Expr]
 findFuncVar n e = eval (findFuncVar' n) e
     where
         findFuncVar' :: Name -> Expr -> [Expr]
-        findFuncVar' n v@(Var n' t) = if n == n' then [v] else []
-        findFuncVar _ _ = []
+        findFuncVar' n v@(Var n' _) = if n == n' then [v] else []
+        findFuncVar' _ _ = []
 
 --Returns all functions (either free or from lambdas) being passed into another function
 findPassedInFuncs :: Manipulatable Expr m => m -> [(FuncName, Type)]
@@ -172,8 +173,9 @@ findPassedInFuncTypes e = nub . eval findPassedInFuncTypes' . map typeOf . findH
         findPassedInFuncTypes' :: Type -> [Type]
         findPassedInFuncTypes' (TyFun t@(TyFun _ _) _) = [t]
         findPassedInFuncTypes' _ = []
+        
 passedInFuncsToApplies :: State -> AppliesConLookUp
-passedInFuncsToApplies s@(t', env, ex, pc) = 
+passedInFuncsToApplies s@(_, env, _, _) = 
     let
         passed = findPassedInFuncs env
         types = findPassedInFuncTypes s
@@ -191,8 +193,8 @@ passedInFuncsToApplies s@(t', env, ex, pc) =
         passedIn' :: [Type] -> [((FuncName, Type), DataConName)] -> AppliesConLookUp
         passedIn' (t:ts) ftd =
             let
-                rel = filter (\((f, t'), d) -> t == t') ftd
-                fd = map (\((f, t'), d) -> (f, d)) rel
+                rel = filter (\((_, t'), _) -> t == t') ftd
+                fd = map (\((f, _), d) -> (f, d)) rel
             in
             (t, fd):passedIn' ts ftd
         passedIn' _ _ = []

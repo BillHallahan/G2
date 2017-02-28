@@ -131,7 +131,7 @@ typeOf (App f a)   = case typeOf f of
                          t         -> TyApp t (typeOf a)
 typeOf (DCon (DC (n,_,t,a))) = let a' = reverse (a ++ [t])
                           in foldl1 (\a r -> TyFun r a) a'
-typeOf (Case m as t) = t
+typeOf (Case _ _ t) = t
 typeOf (Type t) = t
 typeOf _ = TyBottom
 
@@ -210,8 +210,6 @@ typeArgCount t@(TyFun _ _) = typeArgCount' t
         typeArgCount' (TyFun _ _) = 1
         typeArgCount' _ = 0
 typeArgCount _ = 0
-
---
 
 --Given a function name, Expr, and an argument number, i, returns a list of the
 --Expr passed into the ith argument
