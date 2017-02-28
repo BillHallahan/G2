@@ -8,9 +8,11 @@ import G2.Core.Language
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Monoid as Mon
-import Data.Maybe
 
+sp2 :: String
 sp2 = "  "
+
+sp4 :: String
 sp4 = sp2 ++ sp2
 
 mkStateStr :: State -> String
@@ -24,7 +26,7 @@ mkStateStr (tv, ev, expr, pc) = L.intercalate "\n\n" li
 
 mkStatesStr :: [State] -> String
 mkStatesStr []     = ""
-mkStatesStr (s:[]) = mkStateStr s
+mkStatesStr [s] = mkStateStr s
 mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
   where divLn = "\n--------------\n"
 
@@ -66,7 +68,7 @@ mkExprStr e = mkExprStr' e 0
 
 
         mkAltExprStr :: [(Alt, Expr)] -> Int -> String
-        mkAltExprStr [] i = ""
+        mkAltExprStr [] _ = ""
         mkAltExprStr ((a, e):xs) i = off i ++ "(" ++ show a ++ ",\n" ++ 
                                         mkExprStr' e (i + 1) ++ ")\n" ++ mkAltExprStr xs i
 
@@ -99,11 +101,11 @@ mkTypeStr t i = mkTypeStr' t i False
 -- Primitive for now because I'm low on battery.
 mkPCStr :: PC -> String
 mkPCStr []     = ""
-mkPCStr (p:[]) = show p
+mkPCStr [p] = show p
 mkPCStr (p:ps) = show p ++ "\n--AND--\n" ++ mkPCStr ps
 
 duplicate :: String -> Int -> String
-duplicate s 0 = ""
+duplicate _ 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
 
 {- Type judgement
@@ -116,19 +118,19 @@ and pop off whatever we need as necessary, or wrap it in TyApp to not cause prob
 DCon: We reconstruct the function type that data constructors truly represent.
 -}
 typeOf :: Expr -> Type
-typeOf (Var n t) = t
-typeOf (Const (CInt i))    = TyRawInt
-typeOf (Const (CFloat f))  = TyRawFloat
-typeOf (Const (CDouble d)) = TyRawDouble
-typeOf (Const (CChar c))   = TyRawChar
-typeOf (Const (CString s)) = TyRawString
-typeOf (Const (COp n t)) = t
-typeOf (Lam n e t) = t
+typeOf (Var _ t) = t
+typeOf (Const (CInt _))    = TyRawInt
+typeOf (Const (CFloat _))  = TyRawFloat
+typeOf (Const (CDouble _)) = TyRawDouble
+typeOf (Const (CChar _))   = TyRawChar
+typeOf (Const (CString _)) = TyRawString
+typeOf (Const (COp _ t)) = t
+typeOf (Lam _ _ t) = t
 typeOf (App f a)   = case typeOf f of
                          TyFun l r -> r
                          t         -> TyApp t (typeOf a)
-typeOf (DCon (DC (n,i,t,a))) = let a' = reverse (a ++ [t])
-                          in foldl (\a r -> TyFun r a) (head a') (tail a')
+typeOf (DCon (DC (n,_,t,a))) = let a' = reverse (a ++ [t])
+                          in foldl1 (\a r -> TyFun r a) a'
 typeOf (Case m as t) = t
 typeOf (Type t) = t
 typeOf _ = TyBottom
@@ -138,7 +140,7 @@ replace :: Expr -> [Name] -> Name -> Name -> Expr
 replace e env old new = modify'' (replace' old new) e env
     where
         replace' :: Name -> Name -> [Name] -> Expr -> (Expr, [Name])
-        replace' old new env (Var n t) = if n == old then (Var new t, []) else (Var n t, [])
+        replace' old new _ (Var n t) = if n == old then (Var new t, []) else (Var n t, [])
         replace' old new env (Lam n e t)  =
             let 
                 fvs  = freeVars (n:env) e
@@ -167,12 +169,12 @@ freshList os ns = snd $ foldl (\(bads, ress) o -> let o' = fresh o bads
 
 -- Generates a list of fresh names based on a name. Ensuring no conflict with original old list or new names.
 numFresh :: Name -> Int -> [Name] -> [Name]
-numFresh n 0 ns = []
+numFresh _ 0 _ = []
 numFresh n i ns = let f = fresh n ns in f:numFresh n (i - 1) (f:ns) 
 
 -- Returns free variables of an expression with respect to list of bounded vars.
 freeVars :: Manipulatable Expr m => [Name] -> m -> [Name]
-freeVars bv e = snd . eval'' (freeVars') e $ (bv, [])
+freeVars bv e = snd . eval'' freeVars' e $ (bv, [])
     where
         freeVars' :: ([Name], [Name]) -> Expr -> ([Name], [Name])
         freeVars' (bv, fr) (Var n' _) = if n' `elem` bv then ([], []) else ([], [n'])
@@ -194,7 +196,7 @@ countTypes t = Mon.getSum . evalT (\_ -> Mon.Sum 1) $ t
 --the top level contained expression
 --Given a different Expr, returns 0
 exprArgCount :: Expr -> Int
-exprCount (Lam _ e _) = exprArgCount e
+exprArgCount (Lam _ e _) = exprArgCount e
 exprArgCount (App a _) = 1 + exprArgCount a
 exprArgCount _ = 0
 
@@ -230,7 +232,7 @@ findIthArg n e i = eval (ithArg' n i) e
 
 --Finds and returns a list of each call to a function, and all associated arguments
 findAllCalls :: (Manipulatable Expr m) => m -> [Expr]
-findAllCalls e = evalUntil (findAllCalls') e
+findAllCalls e = evalUntil findAllCalls' e
     where
         findAllCalls' :: Expr -> ([Expr], Bool)
         findAllCalls' a@(App e e') =

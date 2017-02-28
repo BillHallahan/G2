@@ -33,7 +33,7 @@ type AppliesConLookUp = [(Type, [(FuncName, DataConName)])]
 
 
 defunctionalize :: State -> State
-defunctionalize s@(tv, ev, expr, pc) =
+defunctionalize s =
     let
         applies = higherOrderFuncTypesToApplies s
         appliesCons = passedInFuncsToApplies s
@@ -44,15 +44,6 @@ defunctionalize s@(tv, ev, expr, pc) =
         modifyTypesInExpr (applyLamTypeAdj applies) .
         modifyUntil (applyFuncGen applies) $ s
     where
-        isAppliesVar :: AppliesLookUp -> Expr -> Bool
-        isAppliesVar a e =
-            let
-                t = typeOf e
-                appNames = map (\(_, (_, d)) -> d) a
-            in
-            case t of TyConApp n [] -> n `elem` appNames
-                      _ -> False
-
         --adjusts calls to functions to accept apply datatypes rather than
         --functions
         applyFuncGen :: AppliesLookUp -> Expr -> (Expr, Bool)
@@ -93,10 +84,10 @@ defunctionalize s@(tv, ev, expr, pc) =
                 applyPassedFuncs' a a' ((f, t):fs) s =
                     let
                         r = lookup t a
-                        r' = lookup f . concat . map snd $ a'
+                        r' = lookup f . concatMap snd $ a'
                         s' = case (r, r') of
                                 (Just (f', d), Just d') -> replaceM s (Var f t) (App (applyFunc f' d t) (Var d' (TyAlg d [])))
-                                otherwise -> s
+                                _ -> s
                     in
                     applyPassedFuncs' a a' fs s'
                     
@@ -105,7 +96,7 @@ defunctionalize s@(tv, ev, expr, pc) =
         createApplyTypes _ [] s = s
         createApplyTypes a ((t, fd):as) (t', env, ex, pc) =
             let
-                name = snd (case lookup t $ a of
+                name = snd (case lookup t a of
                             Just n -> n
                             Nothing -> error "Missing type in createApplyTypes in Defunctionalizor.hs")
 
@@ -127,7 +118,6 @@ defunctionalize s@(tv, ev, expr, pc) =
 
         --creates the actual apply function
         createApplyFuncs :: AppliesLookUp -> AppliesConLookUp -> State -> State
-        createApplyFuncs [] _ s = s
         createApplyFuncs ((t@(TyFun _ t2), (f, d)):as) a (t', env, ex, pc) =
             let
                 --Get fresh variable for lambda
@@ -152,6 +142,7 @@ defunctionalize s@(tv, ev, expr, pc) =
                 genCase :: [Name] -> Name -> Type -> Type -> (FuncName, DataConName) -> (Alt, Expr)
                 genCase a i t t'@(TyFun t'' _) (f, d) = (Alt (DC (d, -1000, t, []), [fresh "new" a]), App (Var f t') (Var i t''))
                 genCase _ _ _ _ _ = error "Second supplied type must be a function."
+        createApplyFuncs _ _ s = s
         
 
         applyFunc :: Name -> Name -> Type -> Expr
@@ -168,7 +159,7 @@ findFuncVar n e = eval (findFuncVar' n) e
 
 --Returns all functions (either free or from lambdas) being passed into another function
 findPassedInFuncs :: Manipulatable Expr m => m -> [(FuncName, Type)]
-findPassedInFuncs s = eval (findPassedInFuncs') s
+findPassedInFuncs s = eval findPassedInFuncs' s
     where
         findPassedInFuncs' :: Expr -> [(FuncName, Type)]
         findPassedInFuncs' (App _ (Var n t@(TyFun _ _))) = [(n, t)]
@@ -254,12 +245,12 @@ findHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
 findHigherOrderFuncs e = nub . evalTypesInExpr (\e' t -> if isHigherOrderFuncType t then [e'] else []) e $ []
 
 isHigherOrderFuncType :: Type -> Bool
-isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . eval (Mon.Any . isLeadingHigherOrderFuncType) $ (TyFun t1 t2)
+isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . eval (Mon.Any . isLeadingHigherOrderFuncType) $ TyFun t1 t2
 isHigherOrderFuncType _ = False
 
 isLeadingHigherOrderFuncType :: Type -> Bool
 isLeadingHigherOrderFuncType (TyFun (TyFun _ _) _) = True
-isLeadingHigherOrderFuncType (TyFun (TyConApp _ t) _) = foldr (||) False . map isTyFun $ t
+isLeadingHigherOrderFuncType (TyFun (TyConApp _ t) _) = any isTyFun t
     where
         isTyFun :: Type -> Bool
         isTyFun (TyFun _ _) = True

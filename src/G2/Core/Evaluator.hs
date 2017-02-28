@@ -1,11 +1,11 @@
 module G2.Core.Evaluator where
 
-import G2.Core.CoreManipulator
-import G2.Core.Language
-import G2.Core.Utils
+import           G2.Core.CoreManipulator
+import           G2.Core.Language
+import           G2.Core.Utils
 
-import qualified Data.List as L
-import qualified Data.Map  as M
+import qualified Data.List               as L
+import qualified Data.Map                as M
 
 {- Values
 
@@ -61,7 +61,7 @@ evaluate (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
         env' = M.insert n' e2 env
 
 {- App -- Special case of application on the right of a case.
-  
+
 Apply commuting conversions to shove the RHS of the App inside the case.
 -}
 evaluate (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
