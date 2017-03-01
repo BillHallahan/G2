@@ -1,28 +1,313 @@
+%module Peano (Safe) [rjG :-> Type constructor ‘Peano’,
+                      rlx :-> Data constructor ‘Zero’, rly :-> Data constructor ‘Succ’,
+                      rlz :-> Identifier ‘add’, rlA :-> Identifier ‘pue’,
+                      rlB :-> Identifier ‘eqtest’, ryL :-> Identifier ‘Zero’,
+                      ryO :-> Identifier ‘Succ’]
+eqtest :: forall a a1. (Eq a, Num a, Num a1) => a -> a1
+[GblId, Arity=4, Caf=NoCafRefs, Str=DmdType]
+eqtest =
+  \ (@ a)
+    (@ a1)
+    ($dEq :: Eq a)
+    ($dNum :: Num a)
+    ($dNum1 :: Num a1)
+    (a2 :: a) ->
+    case == @ a $dEq a2 (fromInteger @ a $dNum (__integer 3))
+    of _ [Occ=Dead] {
+      False -> fromInteger @ a1 $dNum1 (__integer 5);
+      True -> fromInteger @ a1 $dNum1 (__integer 2)
+    }
+pue :: Int -> Int
+[GblId, Arity=1, Caf=NoCafRefs, Str=DmdType]
+pue =
+  \ (ds :: Int) ->
+    case ds of wild { I# ds1 ->
+    case ds1 of _ [Occ=Dead] {
+      __DEFAULT -> wild;
+      123 -> I# 0
+    }
+    }
+add [Occ=LoopBreaker] :: Peano -> Peano -> Peano
+[GblId, Arity=2, Caf=NoCafRefs, Str=DmdType]
+add =
+  \ (ds :: Peano) (b :: Peano) ->
+    case ds of _ [Occ=Dead] {
+      Zero -> b;
+      Succ a -> Succ (add a b)
+    };
+(fromList [("Bool",TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])]),("Char",TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])]),("Double",TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])]),("Float",TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])]),("Int",TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])]),("Peano",TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])])],fromList [("add",Lam "ds" (Lam "b" (App (Lam "wild" (Case (Var "ds" (TyConApp "Peano" [])) [(Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),Var "b" (TyConApp "Peano" [])),(Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),App (Var "Succ" (TyFun (TyConApp "Peano" []) (TyConApp "Peano" []))) (App (App (Var "add" (TyFun (TyConApp "Peano" []) (TyFun (TyConApp "Peano" []) (TyConApp "Peano" [])))) (Var "a" (TyConApp "Peano" []))) (Var "b" (TyConApp "Peano" []))))] (TyConApp "Peano" [])) (TyFun (TyConApp "Peano" []) (TyConApp "Peano" []))) (Var "ds" (TyConApp "Peano" []))) (TyFun (TyConApp "Peano" []) (TyConApp "Peano" []))) (TyFun (TyConApp "Peano" []) (TyFun (TyConApp "Peano" []) (TyConApp "Peano" [])))),("eqtest",Lam "a" (Lam "a1" (Lam "$dEq" (Lam "$dNum" (Lam "$dNum1" (Lam "a2" (App (Lam "wild" (Case (App (App (App (App (Var "==" (TyForAll "a" (TyFun (TyConApp "Eq" [TyVar "a"]) (TyFun (TyVar "a") (TyFun (TyVar "a") (TyConApp "Bool" [])))))) (Type (TyVar "a"))) (Var "$dEq" (TyConApp "Eq" [TyVar "a"]))) (Var "a2" (TyVar "a"))) (App (App (App (Var "fromInteger" (TyForAll "a" (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Integer" []) (TyVar "a"))))) (Type (TyVar "a"))) (Var "$dNum" (TyConApp "Num" [TyVar "a"]))) (Const (CInt 3)))) [(Alt (DC ("False",1,TyConApp "Bool" [],[]),[]),App (App (App (Var "fromInteger" (TyForAll "a" (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Integer" []) (TyVar "a"))))) (Type (TyVar "a1"))) (Var "$dNum1" (TyConApp "Num" [TyVar "a1"]))) (Const (CInt 5))),(Alt (DC ("True",2,TyConApp "Bool" [],[]),[]),App (App (App (Var "fromInteger" (TyForAll "a" (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Integer" []) (TyVar "a"))))) (Type (TyVar "a1"))) (Var "$dNum1" (TyConApp "Num" [TyVar "a1"]))) (Const (CInt 2)))] (TyVar "a1")) (TyFun (TyConApp "Bool" []) (TyVar "a1"))) (App (App (App (App (Var "==" (TyForAll "a" (TyFun (TyConApp "Eq" [TyVar "a"]) (TyFun (TyVar "a") (TyFun (TyVar "a") (TyConApp "Bool" [])))))) (Type (TyVar "a"))) (Var "$dEq" (TyConApp "Eq" [TyVar "a"]))) (Var "a2" (TyVar "a"))) (App (App (App (Var "fromInteger" (TyForAll "a" (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Integer" []) (TyVar "a"))))) (Type (TyVar "a"))) (Var "$dNum" (TyConApp "Num" [TyVar "a"]))) (Const (CInt 3))))) (TyFun (TyVar "a") (TyVar "a1"))) (TyFun (TyConApp "Num" [TyVar "a1"]) (TyFun (TyVar "a") (TyVar "a1")))) (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a1"]) (TyFun (TyVar "a") (TyVar "a1"))))) (TyFun (TyConApp "Eq" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a1"]) (TyFun (TyVar "a") (TyVar "a1")))))) (TyForAll "a1" (TyFun (TyConApp "Eq" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a1"]) (TyFun (TyVar "a") (TyVar "a1"))))))) (TyForAll "a" (TyForAll "a1" (TyFun (TyConApp "Eq" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a1"]) (TyFun (TyVar "a") (TyVar "a1")))))))),("pue",Lam "ds" (App (Lam "wild" (Case (Var "ds" (TyConApp "Int" [])) [(Alt (DC ("I#",1,TyConApp "Int" [],[TyConApp "Int#" []]),["ds1"]),Case (App (App (App (App (Var "==" TyBottom) (Type TyBottom)) (Var "$dEq" TyBottom)) (App (DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))) (Var "ds1" (TyConApp "Int#" [])))) (App (DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))) (Const (CInt 123)))) [(Alt (DC ("True",-5,TyConApp "Bool" [],[]),[]),App (Var "I#" (TyFun (TyConApp "Int#" []) (TyConApp "Int" []))) (Const (CInt 0))),(Alt (DC ("False",-6,TyConApp "Bool" [],[]),[]),Var "wild" (TyConApp "Int" []))] (TyConApp "Int" []))] (TyConApp "Int" [])) (TyFun (TyConApp "Int" []) (TyConApp "Int" []))) (Var "ds" (TyConApp "Int" []))) (TyFun (TyConApp "Int" []) (TyConApp "Int" [])))],App (Lam "wild" (Case (Var "dsd" (TyConApp "Peano" [])) [(Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),Var "bb" (TyConApp "Peano" [])),(Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),App (Var "Succ" (TyFun (TyConApp "Peano" []) (TyConApp "Peano" []))) (App (App (Var "add" (TyFun (TyConApp "Peano" []) (TyFun (TyConApp "Peano" []) (TyConApp "Peano" [])))) (Var "a" (TyConApp "Peano" []))) (Var "bb" (TyConApp "Peano" []))))] (TyConApp "Peano" [])) (TyFun (TyConApp "Peano" []) (TyConApp "Peano" []))) (Var "dsd" (TyConApp "Peano" [])),[])
+***************************************
 > Type Env:
 Bool
-    TyAlg "Bool" [("True",-5,TyConApp "Bool" [],[]),("False",-6,TyConApp "Bool" [],[])]
+    TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])]
 Char
-    TyAlg "Char" [("C#",-4,TyConApp "Char#" [],[TyRawChar])]
+    TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])]
 Double
-    TyAlg "Double" [("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
+    TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
 Float
-    TyAlg "Float" [("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
-HugeArgs
-    TyAlg "HugeArgs" [("Go",1,TyConApp "HugeArgs" [],[TyConApp "Int" [],TyConApp "Int" [],TyConApp "Int" [],TyConApp "Int" []])]
+    TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
 Int
-    TyAlg "Int" [("I#",-1,TyConApp "Int#" [],[TyRawInt])]
+    TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])]
 Peano
-    TyAlg "Peano" [("Zero",1,TyConApp "Peano" [],[]),("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
+    TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
 
 > Expr Env:
 add
     Lam ("ds"
    Lam ("b"
-      Case (
+      App (
+         Lam ("wild"
+            Case (
+               Var ds (TyConApp "Peano" [])
+               (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                  Var b (TyConApp "Peano" []))
+               (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+                  App (
+                     Var Succ (TyFun (
+                           TyConApp "Peano" []
+                           TyConApp "Peano" []
+                        ))
+                     App (
+                        App (
+                           Var add (TyFun (
+                                 TyConApp "Peano" []
+                                 TyFun (
+                                    TyConApp "Peano" []
+                                    TyConApp "Peano" []
+                                 )
+                              ))
+                           Var a (TyConApp "Peano" [])
+                        )
+                        Var b (TyConApp "Peano" [])
+                     )
+                  ))
+ TyConApp "Peano" []) TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
          Var ds (TyConApp "Peano" [])
-         ((("Zero",1,TyConApp "Peano" [],[]),[]),
-            Var b (TyConApp "Peano" []))
-         ((("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+      ) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )) TyFun (
+   TyConApp "Peano" []
+   TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )
+))
+eqtest
+    Lam ("a"
+   Lam ("a1"
+      Lam ("$dEq"
+         Lam ("$dNum"
+            Lam ("$dNum1"
+               Lam ("a2"
+                  App (
+                     Lam ("wild"
+                        Case (
+                           App (
+                              App (
+                                 App (
+                                    App (
+                                       Var == (TyForAll "a"(TyFun (
+                                                TyConApp "Eq" [ TyVar "a"]
+                                                TyFun ( TyVar "a"
+                                                   TyFun ( TyVar "a"
+                                                      TyConApp "Bool" []
+                                                   )
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dEq (TyConApp "Eq" [TyVar "a"])
+                                 )
+                                 Var a2 (TyVar "a")
+                              )
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dNum (TyConApp "Num" [TyVar "a"])
+                                 )
+                                 Const (CInt 3)
+                              )
+                           )
+                           (Alt (DC ("False",1,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 5)
+                              ))
+                           (Alt (DC ("True",2,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 2)
+                              ))
+ TyVar "a1") TyFun (
+                        TyConApp "Bool" [] TyVar "a1"
+                     ))
+                     App (
+                        App (
+                           App (
+                              App (
+                                 Var == (TyForAll "a"(TyFun (
+                                          TyConApp "Eq" [ TyVar "a"]
+                                          TyFun ( TyVar "a"
+                                             TyFun ( TyVar "a"
+                                                TyConApp "Bool" []
+                                             )
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dEq (TyConApp "Eq" [TyVar "a"])
+                           )
+                           Var a2 (TyVar "a")
+                        )
+                        App (
+                           App (
+                              App (
+                                 Var fromInteger (TyForAll "a"(TyFun (
+                                          TyConApp "Num" [ TyVar "a"]
+                                          TyFun (
+                                             TyConApp "Integer" [] TyVar "a"
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dNum (TyConApp "Num" [TyVar "a"])
+                           )
+                           Const (CInt 3)
+                        )
+                     )
+                  ) TyFun ( TyVar "a" TyVar "a1"
+               )) TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )) TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )) TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      )) TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))) TyForAll "a"(TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))))
+pue
+    Lam ("ds"
+   App (
+      Lam ("wild"
+         Case (
+            Var ds (TyConApp "Int" [])
+            (Alt (DC ("I#",1,TyConApp "Int" [],[TyConApp "Int#" []]),["ds1"]),
+               Case (
+                  App (
+                     App (
+                        App (
+                           App (
+                              Var == (TyBottom)
+                              Type (TyBottom)
+                           )
+                           Var $dEq (TyBottom)
+                        )
+                        App (
+                           DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                           Var ds1 (TyConApp "Int#" [])
+                        )
+                     )
+                     App (
+                        DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                        Const (CInt 123)
+                     )
+                  )
+                  (Alt (DC ("True",-5,TyConApp "Bool" [],[]),[]),
+                     App (
+                        Var I# (TyFun (
+                              TyConApp "Int#" []
+                              TyConApp "Int" []
+                           ))
+                        Const (CInt 0)
+                     ))
+                  (Alt (DC ("False",-6,TyConApp "Bool" [],[]),[]),
+                     Var wild (TyConApp "Int" []))
+ TyConApp "Int" []))
+ TyConApp "Int" []) TyFun (
+         TyConApp "Int" []
+         TyConApp "Int" []
+      ))
+      Var ds (TyConApp "Int" [])
+   ) TyFun (
+   TyConApp "Int" []
+   TyConApp "Int" []
+))
+
+> Curr Expr:
+App (
+   Lam ("wild"
+      Case (
+         Var dsd (TyConApp "Peano" [])
+         (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+            Var bb (TyConApp "Peano" []))
+         (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
             App (
                Var Succ (TyFun (
                      TyConApp "Peano" []
@@ -39,260 +324,313 @@ add
                         ))
                      Var a (TyConApp "Peano" [])
                   )
-                  Var b (TyConApp "Peano" [])
+                  Var bb (TyConApp "Peano" [])
                )
             ))
  TyConApp "Peano" []) TyFun (
       TyConApp "Peano" []
       TyConApp "Peano" []
-   )) TyFun ( TyBottom
-   TyFun (
-      TyConApp "Peano" []
-      TyConApp "Peano" []
-   )
-))
-fourth
-    Lam ("ds"
-   Case (
-      Var ds (TyConApp "HugeArgs" [])
-      ((("Go",1,TyConApp "HugeArgs" [],[TyConApp "Int" [],TyConApp "Int" [],TyConApp "Int" [],TyConApp "Int" []]),["ds1","ds2","ds3","a"]),
-         Var a (TyConApp "Int" []))
- TyConApp "Int" []) TyFun ( TyBottom
-   TyConApp "Int" []
-))
-high
-    Lam ("a"
-   Lam ("b"
-      App (
-         Var a (TyFun (
-               TyConApp "Int" []
-               TyConApp "Int" []
-            ))
-         App (
-            Var b (TyFun (
-                  TyConApp "Int" []
-                  TyConApp "Int" []
-               ))
-            App (
-               Var I# (TyFun (
-                     TyConApp "Int#" []
-                     TyConApp "Int" []
-                  ))
-               Const (CInt 4)
-            )
-         )
-      ) TyFun (
-      TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      )
-      TyConApp "Int" []
-   )) TyFun (
-   TyFun (
-      TyConApp "Int" []
-      TyConApp "Int" []
-   )
-   TyFun (
-      TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      )
-      TyConApp "Int" []
-   )
-))
-hue
-    App (
-   App (
-      Var head (TyForAll "a"(TyFun (
-               TyConApp "[]" [ TyVar "a"] TyVar "a"
-            )))
-      Type (TyConApp "Integer" [])
-   )
-   App (
-      App (
-         App (
-            Var enumFrom (TyForAll "a"(TyFun (
-                     TyConApp "Enum" [ TyVar "a"]
-                     TyFun ( TyVar "a"
-                        TyConApp "[]" [ TyVar "a"]
-                     )
-                  )))
-            Type (TyConApp "Integer" [])
-         )
-         Var $fEnumInteger (TyConApp "Enum" [TyConApp "Integer" []])
-      )
-      Const (CInt 1)
-   )
+   ))
+   Var dsd (TyConApp "Peano" [])
 )
-test
-    Lam ("a"
+
+> Path Constraints:
+
+> Type Env:
+Bool
+    TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])]
+Char
+    TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])]
+Double
+    TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
+Float
+    TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
+Int
+    TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])]
+Peano
+    TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
+
+> Expr Env:
+add
+    Lam ("ds"
    Lam ("b"
-      Lam ("c"
-         Case (
-            App (
-               App (
+      App (
+         Lam ("wild"
+            Case (
+               Var ds (TyConApp "Peano" [])
+               (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                  Var b (TyConApp "Peano" []))
+               (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
                   App (
+                     Var Succ (TyFun (
+                           TyConApp "Peano" []
+                           TyConApp "Peano" []
+                        ))
                      App (
-                        Var < (TyForAll "a"(TyFun (
-                                 TyConApp "Ord" [ TyVar "a"]
-                                 TyFun ( TyVar "a"
-                                    TyFun ( TyVar "a"
-                                       TyConApp "Bool" []
-                                    )
+                        App (
+                           Var add (TyFun (
+                                 TyConApp "Peano" []
+                                 TyFun (
+                                    TyConApp "Peano" []
+                                    TyConApp "Peano" []
                                  )
-                              )))
-                        Type (TyConApp "Int" [])
+                              ))
+                           Var a (TyConApp "Peano" [])
+                        )
+                        Var b (TyConApp "Peano" [])
                      )
-                     Var $fOrdInt (TyConApp "Ord" [TyConApp "Int" []])
-                  )
+                  ))
+ TyConApp "Peano" []) TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
+         Var ds (TyConApp "Peano" [])
+      ) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )) TyFun (
+   TyConApp "Peano" []
+   TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )
+))
+eqtest
+    Lam ("a"
+   Lam ("a1"
+      Lam ("$dEq"
+         Lam ("$dNum"
+            Lam ("$dNum1"
+               Lam ("a2"
                   App (
+                     Lam ("wild"
+                        Case (
+                           App (
+                              App (
+                                 App (
+                                    App (
+                                       Var == (TyForAll "a"(TyFun (
+                                                TyConApp "Eq" [ TyVar "a"]
+                                                TyFun ( TyVar "a"
+                                                   TyFun ( TyVar "a"
+                                                      TyConApp "Bool" []
+                                                   )
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dEq (TyConApp "Eq" [TyVar "a"])
+                                 )
+                                 Var a2 (TyVar "a")
+                              )
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dNum (TyConApp "Num" [TyVar "a"])
+                                 )
+                                 Const (CInt 3)
+                              )
+                           )
+                           (Alt (DC ("False",1,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 5)
+                              ))
+                           (Alt (DC ("True",2,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 2)
+                              ))
+ TyVar "a1") TyFun (
+                        TyConApp "Bool" [] TyVar "a1"
+                     ))
                      App (
                         App (
                            App (
-                              Var + (TyForAll "a"(TyFun (
-                                       TyConApp "Num" [ TyVar "a"]
-                                       TyFun ( TyVar "a"
-                                          TyFun ( TyVar "a" TyVar "a"
+                              App (
+                                 Var == (TyForAll "a"(TyFun (
+                                          TyConApp "Eq" [ TyVar "a"]
+                                          TyFun ( TyVar "a"
+                                             TyFun ( TyVar "a"
+                                                TyConApp "Bool" []
+                                             )
                                           )
-                                       )
-                                    )))
-                              Type (TyConApp "Int" [])
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dEq (TyConApp "Eq" [TyVar "a"])
                            )
-                           Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
+                           Var a2 (TyVar "a")
                         )
-                        Var a (TyConApp "Int" [])
+                        App (
+                           App (
+                              App (
+                                 Var fromInteger (TyForAll "a"(TyFun (
+                                          TyConApp "Num" [ TyVar "a"]
+                                          TyFun (
+                                             TyConApp "Integer" [] TyVar "a"
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dNum (TyConApp "Num" [TyVar "a"])
+                           )
+                           Const (CInt 3)
+                        )
                      )
-                     Var b (TyConApp "Int" [])
-                  )
+                  ) TyFun ( TyVar "a" TyVar "a1"
+               )) TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
                )
-               Var c (TyConApp "Int" [])
+            )) TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
             )
-            ((("False",1,TyConApp "Bool" [],[]),[]),
+         )) TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      )) TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))) TyForAll "a"(TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))))
+pue
+    Lam ("ds"
+   App (
+      Lam ("wild"
+         Case (
+            Var ds (TyConApp "Int" [])
+            (Alt (DC ("I#",1,TyConApp "Int" [],[TyConApp "Int#" []]),["ds1"]),
                Case (
                   App (
                      App (
                         App (
                            App (
-                              Var < (TyForAll "a"(TyFun (
-                                       TyConApp "Ord" [ TyVar "a"]
-                                       TyFun ( TyVar "a"
-                                          TyFun ( TyVar "a"
-                                             TyConApp "Bool" []
-                                          )
-                                       )
-                                    )))
-                              Type (TyConApp "Int" [])
+                              Var == (TyBottom)
+                              Type (TyBottom)
                            )
-                           Var $fOrdInt (TyConApp "Ord" [TyConApp "Int" []])
+                           Var $dEq (TyBottom)
                         )
-                        Var c (TyConApp "Int" [])
+                        App (
+                           DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                           Var ds1 (TyConApp "Int#" [])
+                        )
                      )
+                     App (
+                        DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                        Const (CInt 123)
+                     )
+                  )
+                  (Alt (DC ("True",-5,TyConApp "Bool" [],[]),[]),
                      App (
                         Var I# (TyFun (
                               TyConApp "Int#" []
                               TyConApp "Int" []
                            ))
-                        Const (CInt 5)
-                     )
-                  )
-                  ((("False",1,TyConApp "Bool" [],[]),[]),
-                     App (
-                        App (
-                           App (
-                              App (
-                                 Var + (TyForAll "a"(TyFun (
-                                          TyConApp "Num" [ TyVar "a"]
-                                          TyFun ( TyVar "a"
-                                             TyFun ( TyVar "a" TyVar "a"
-                                             )
-                                          )
-                                       )))
-                                 Type (TyConApp "Int" [])
-                              )
-                              Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
-                           )
-                           Var a (TyConApp "Int" [])
-                        )
-                        Var c (TyConApp "Int" [])
+                        Const (CInt 0)
                      ))
-                  ((("True",2,TyConApp "Bool" [],[]),[]),
-                     App (
-                        App (
-                           App (
-                              App (
-                                 Var + (TyForAll "a"(TyFun (
-                                          TyConApp "Num" [ TyVar "a"]
-                                          TyFun ( TyVar "a"
-                                             TyFun ( TyVar "a" TyVar "a"
-                                             )
-                                          )
-                                       )))
-                                 Type (TyConApp "Int" [])
-                              )
-                              Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
-                           )
-                           Var b (TyConApp "Int" [])
-                        )
-                        Var c (TyConApp "Int" [])
-                     ))
+                  (Alt (DC ("False",-6,TyConApp "Bool" [],[]),[]),
+                     Var wild (TyConApp "Int" []))
  TyConApp "Int" []))
-            ((("True",2,TyConApp "Bool" [],[]),[]),
-               App (
-                  App (
-                     App (
-                        App (
-                           Var + (TyForAll "a"(TyFun (
-                                    TyConApp "Num" [ TyVar "a"]
-                                    TyFun ( TyVar "a"
-                                       TyFun ( TyVar "a" TyVar "a"
-                                       )
-                                    )
-                                 )))
-                           Type (TyConApp "Int" [])
-                        )
-                        Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
-                     )
-                     Var a (TyConApp "Int" [])
-                  )
-                  Var b (TyConApp "Int" [])
-               ))
  TyConApp "Int" []) TyFun (
          TyConApp "Int" []
          TyConApp "Int" []
-      )) TyFun ( TyBottom
-      TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      )
-   )) TyFun (
+      ))
+      Var ds (TyConApp "Int" [])
+   ) TyFun (
    TyConApp "Int" []
-   TyFun ( TyBottom
-      TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      )
-   )
+   TyConApp "Int" []
 ))
 
 > Curr Expr:
 App (
-   Var aa (TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      ))
-   App (
-      Var bb (TyFun (
-            TyConApp "Int" []
-            TyConApp "Int" []
-         ))
-      App (
-         Var I# (TyFun (
-               TyConApp "Int#" []
-               TyConApp "Int" []
+   Lam ("wild"
+      Case (
+         Var dsd (TyConApp "Peano" [])
+         (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+            Var bb (TyConApp "Peano" []))
+         (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+            App (
+               Var Succ (TyFun (
+                     TyConApp "Peano" []
+                     TyConApp "Peano" []
+                  ))
+               App (
+                  App (
+                     Var add (TyFun (
+                           TyConApp "Peano" []
+                           TyFun (
+                              TyConApp "Peano" []
+                              TyConApp "Peano" []
+                           )
+                        ))
+                     Var a (TyConApp "Peano" [])
+                  )
+                  Var bb (TyConApp "Peano" [])
+               )
             ))
-         Const (CInt 4)
-      )
-   )
+ TyConApp "Peano" []) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   ))
+   Var dsd (TyConApp "Peano" [])
 )
 
 > Path Constraints:
@@ -300,29 +638,1229 @@ App (
 =======================
 > Type Env:
 Bool
-    TyAlg "Bool" [("True",-5,TyConApp "Bool" [],[]),("False",-6,TyConApp "Bool" [],[])]
+    TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])]
 Char
-    TyAlg "Char" [("C#",-4,TyConApp "Char#" [],[TyRawChar])]
+    TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])]
 Double
-    TyAlg "Double" [("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
+    TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
 Float
-    TyAlg "Float" [("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
-HugeArgs
-    TyAlg "HugeArgs" [("Go",1,TyConApp "HugeArgs" [],[TyConApp "Int" [],TyConApp "Int" [],TyConApp "Int" [],TyConApp "Int" []])]
+    TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
 Int
-    TyAlg "Int" [("I#",-1,TyConApp "Int#" [],[TyRawInt])]
+    TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])]
 Peano
-    TyAlg "Peano" [("Zero",1,TyConApp "Peano" [],[]),("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
+    TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
 
 > Expr Env:
 add
     Lam ("ds"
    Lam ("b"
-      Case (
+      App (
+         Lam ("wild"
+            Case (
+               Var ds (TyConApp "Peano" [])
+               (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                  Var b (TyConApp "Peano" []))
+               (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+                  App (
+                     Var Succ (TyFun (
+                           TyConApp "Peano" []
+                           TyConApp "Peano" []
+                        ))
+                     App (
+                        App (
+                           Var add (TyFun (
+                                 TyConApp "Peano" []
+                                 TyFun (
+                                    TyConApp "Peano" []
+                                    TyConApp "Peano" []
+                                 )
+                              ))
+                           Var a (TyConApp "Peano" [])
+                        )
+                        Var b (TyConApp "Peano" [])
+                     )
+                  ))
+ TyConApp "Peano" []) TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
          Var ds (TyConApp "Peano" [])
-         ((("Zero",1,TyConApp "Peano" [],[]),[]),
-            Var b (TyConApp "Peano" []))
-         ((("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+      ) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )) TyFun (
+   TyConApp "Peano" []
+   TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )
+))
+b
+    Var bb (TyConApp "Peano" [])
+ds
+    Var aa (TyConApp "Peano" [])
+eqtest
+    Lam ("a"
+   Lam ("a1"
+      Lam ("$dEq"
+         Lam ("$dNum"
+            Lam ("$dNum1"
+               Lam ("a2"
+                  App (
+                     Lam ("wild"
+                        Case (
+                           App (
+                              App (
+                                 App (
+                                    App (
+                                       Var == (TyForAll "a"(TyFun (
+                                                TyConApp "Eq" [ TyVar "a"]
+                                                TyFun ( TyVar "a"
+                                                   TyFun ( TyVar "a"
+                                                      TyConApp "Bool" []
+                                                   )
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dEq (TyConApp "Eq" [TyVar "a"])
+                                 )
+                                 Var a2 (TyVar "a")
+                              )
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dNum (TyConApp "Num" [TyVar "a"])
+                                 )
+                                 Const (CInt 3)
+                              )
+                           )
+                           (Alt (DC ("False",1,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 5)
+                              ))
+                           (Alt (DC ("True",2,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 2)
+                              ))
+ TyVar "a1") TyFun (
+                        TyConApp "Bool" [] TyVar "a1"
+                     ))
+                     App (
+                        App (
+                           App (
+                              App (
+                                 Var == (TyForAll "a"(TyFun (
+                                          TyConApp "Eq" [ TyVar "a"]
+                                          TyFun ( TyVar "a"
+                                             TyFun ( TyVar "a"
+                                                TyConApp "Bool" []
+                                             )
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dEq (TyConApp "Eq" [TyVar "a"])
+                           )
+                           Var a2 (TyVar "a")
+                        )
+                        App (
+                           App (
+                              App (
+                                 Var fromInteger (TyForAll "a"(TyFun (
+                                          TyConApp "Num" [ TyVar "a"]
+                                          TyFun (
+                                             TyConApp "Integer" [] TyVar "a"
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dNum (TyConApp "Num" [TyVar "a"])
+                           )
+                           Const (CInt 3)
+                        )
+                     )
+                  ) TyFun ( TyVar "a" TyVar "a1"
+               )) TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )) TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )) TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      )) TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))) TyForAll "a"(TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))))
+pue
+    Lam ("ds"
+   App (
+      Lam ("wild"
+         Case (
+            Var ds (TyConApp "Int" [])
+            (Alt (DC ("I#",1,TyConApp "Int" [],[TyConApp "Int#" []]),["ds1"]),
+               Case (
+                  App (
+                     App (
+                        App (
+                           App (
+                              Var == (TyBottom)
+                              Type (TyBottom)
+                           )
+                           Var $dEq (TyBottom)
+                        )
+                        App (
+                           DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                           Var ds1 (TyConApp "Int#" [])
+                        )
+                     )
+                     App (
+                        DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                        Const (CInt 123)
+                     )
+                  )
+                  (Alt (DC ("True",-5,TyConApp "Bool" [],[]),[]),
+                     App (
+                        Var I# (TyFun (
+                              TyConApp "Int#" []
+                              TyConApp "Int" []
+                           ))
+                        Const (CInt 0)
+                     ))
+                  (Alt (DC ("False",-6,TyConApp "Bool" [],[]),[]),
+                     Var wild (TyConApp "Int" []))
+ TyConApp "Int" []))
+ TyConApp "Int" []) TyFun (
+         TyConApp "Int" []
+         TyConApp "Int" []
+      ))
+      Var ds (TyConApp "Int" [])
+   ) TyFun (
+   TyConApp "Int" []
+   TyConApp "Int" []
+))
+wild
+    Var dsd (TyConApp "Peano" [])
+wildw
+    Var ds (TyConApp "Peano" [])
+
+> Curr Expr:
+App (
+   Var Succ (TyFun (
+         TyConApp "Peano" []
+         TyConApp "Peano" []
+      ))
+   Var bb (TyConApp "Peano" [])
+)
+
+> Path Constraints:
+(Var "aa" (TyConApp "Peano" []),Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]))
+--AND--
+(Var "dsd" (TyConApp "Peano" []),Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["aa"]))
+--------------
+> Type Env:
+Bool
+    TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])]
+Char
+    TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])]
+Double
+    TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
+Float
+    TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
+Int
+    TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])]
+Peano
+    TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
+
+> Expr Env:
+add
+    Lam ("ds"
+   Lam ("b"
+      App (
+         Lam ("wild"
+            Case (
+               Var ds (TyConApp "Peano" [])
+               (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                  Var b (TyConApp "Peano" []))
+               (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+                  App (
+                     Var Succ (TyFun (
+                           TyConApp "Peano" []
+                           TyConApp "Peano" []
+                        ))
+                     App (
+                        App (
+                           Var add (TyFun (
+                                 TyConApp "Peano" []
+                                 TyFun (
+                                    TyConApp "Peano" []
+                                    TyConApp "Peano" []
+                                 )
+                              ))
+                           Var a (TyConApp "Peano" [])
+                        )
+                        Var b (TyConApp "Peano" [])
+                     )
+                  ))
+ TyConApp "Peano" []) TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
+         Var ds (TyConApp "Peano" [])
+      ) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )) TyFun (
+   TyConApp "Peano" []
+   TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )
+))
+b
+    Var bb (TyConApp "Peano" [])
+ds
+    Var aa (TyConApp "Peano" [])
+eqtest
+    Lam ("a"
+   Lam ("a1"
+      Lam ("$dEq"
+         Lam ("$dNum"
+            Lam ("$dNum1"
+               Lam ("a2"
+                  App (
+                     Lam ("wild"
+                        Case (
+                           App (
+                              App (
+                                 App (
+                                    App (
+                                       Var == (TyForAll "a"(TyFun (
+                                                TyConApp "Eq" [ TyVar "a"]
+                                                TyFun ( TyVar "a"
+                                                   TyFun ( TyVar "a"
+                                                      TyConApp "Bool" []
+                                                   )
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dEq (TyConApp "Eq" [TyVar "a"])
+                                 )
+                                 Var a2 (TyVar "a")
+                              )
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dNum (TyConApp "Num" [TyVar "a"])
+                                 )
+                                 Const (CInt 3)
+                              )
+                           )
+                           (Alt (DC ("False",1,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 5)
+                              ))
+                           (Alt (DC ("True",2,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 2)
+                              ))
+ TyVar "a1") TyFun (
+                        TyConApp "Bool" [] TyVar "a1"
+                     ))
+                     App (
+                        App (
+                           App (
+                              App (
+                                 Var == (TyForAll "a"(TyFun (
+                                          TyConApp "Eq" [ TyVar "a"]
+                                          TyFun ( TyVar "a"
+                                             TyFun ( TyVar "a"
+                                                TyConApp "Bool" []
+                                             )
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dEq (TyConApp "Eq" [TyVar "a"])
+                           )
+                           Var a2 (TyVar "a")
+                        )
+                        App (
+                           App (
+                              App (
+                                 Var fromInteger (TyForAll "a"(TyFun (
+                                          TyConApp "Num" [ TyVar "a"]
+                                          TyFun (
+                                             TyConApp "Integer" [] TyVar "a"
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dNum (TyConApp "Num" [TyVar "a"])
+                           )
+                           Const (CInt 3)
+                        )
+                     )
+                  ) TyFun ( TyVar "a" TyVar "a1"
+               )) TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )) TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )) TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      )) TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))) TyForAll "a"(TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))))
+pue
+    Lam ("ds"
+   App (
+      Lam ("wild"
+         Case (
+            Var ds (TyConApp "Int" [])
+            (Alt (DC ("I#",1,TyConApp "Int" [],[TyConApp "Int#" []]),["ds1"]),
+               Case (
+                  App (
+                     App (
+                        App (
+                           App (
+                              Var == (TyBottom)
+                              Type (TyBottom)
+                           )
+                           Var $dEq (TyBottom)
+                        )
+                        App (
+                           DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                           Var ds1 (TyConApp "Int#" [])
+                        )
+                     )
+                     App (
+                        DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                        Const (CInt 123)
+                     )
+                  )
+                  (Alt (DC ("True",-5,TyConApp "Bool" [],[]),[]),
+                     App (
+                        Var I# (TyFun (
+                              TyConApp "Int#" []
+                              TyConApp "Int" []
+                           ))
+                        Const (CInt 0)
+                     ))
+                  (Alt (DC ("False",-6,TyConApp "Bool" [],[]),[]),
+                     Var wild (TyConApp "Int" []))
+ TyConApp "Int" []))
+ TyConApp "Int" []) TyFun (
+         TyConApp "Int" []
+         TyConApp "Int" []
+      ))
+      Var ds (TyConApp "Int" [])
+   ) TyFun (
+   TyConApp "Int" []
+   TyConApp "Int" []
+))
+wild
+    Var dsd (TyConApp "Peano" [])
+wildw
+    Var ds (TyConApp "Peano" [])
+
+> Curr Expr:
+App (
+   Var Succ (TyFun (
+         TyConApp "Peano" []
+         TyConApp "Peano" []
+      ))
+   App (
+      Var Succ (TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
+      App (
+         App (
+            Lam ("ds"
+               Lam ("b"
+                  App (
+                     Lam ("wild"
+                        Case (
+                           Var ds (TyConApp "Peano" [])
+                           (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                              Var b (TyConApp "Peano" []))
+                           (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+                              App (
+                                 Var Succ (TyFun (
+                                       TyConApp "Peano" []
+                                       TyConApp "Peano" []
+                                    ))
+                                 App (
+                                    App (
+                                       Var add (TyFun (
+                                             TyConApp "Peano" []
+                                             TyFun (
+                                                TyConApp "Peano" []
+                                                TyConApp "Peano" []
+                                             )
+                                          ))
+                                       Var a (TyConApp "Peano" [])
+                                    )
+                                    Var b (TyConApp "Peano" [])
+                                 )
+                              ))
+ TyConApp "Peano" []) TyFun (
+                        TyConApp "Peano" []
+                        TyConApp "Peano" []
+                     ))
+                     Var ds (TyConApp "Peano" [])
+                  ) TyFun (
+                  TyConApp "Peano" []
+                  TyConApp "Peano" []
+               )) TyFun (
+               TyConApp "Peano" []
+               TyFun (
+                  TyConApp "Peano" []
+                  TyConApp "Peano" []
+               )
+            ))
+            Var aa (TyConApp "Peano" [])
+         )
+         Var b (TyConApp "Peano" [])
+      )
+   )
+)
+
+> Path Constraints:
+(Var "aa" (TyConApp "Peano" []),Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["aa"]))
+--AND--
+(Var "dsd" (TyConApp "Peano" []),Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["aa"]))
+--------------
+> Type Env:
+Bool
+    TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])]
+Char
+    TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])]
+Double
+    TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
+Float
+    TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
+Int
+    TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])]
+Peano
+    TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
+
+> Expr Env:
+add
+    Lam ("ds"
+   Lam ("b"
+      App (
+         Lam ("wild"
+            Case (
+               Var ds (TyConApp "Peano" [])
+               (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                  Var b (TyConApp "Peano" []))
+               (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+                  App (
+                     Var Succ (TyFun (
+                           TyConApp "Peano" []
+                           TyConApp "Peano" []
+                        ))
+                     App (
+                        App (
+                           Var add (TyFun (
+                                 TyConApp "Peano" []
+                                 TyFun (
+                                    TyConApp "Peano" []
+                                    TyConApp "Peano" []
+                                 )
+                              ))
+                           Var a (TyConApp "Peano" [])
+                        )
+                        Var b (TyConApp "Peano" [])
+                     )
+                  ))
+ TyConApp "Peano" []) TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
+         Var ds (TyConApp "Peano" [])
+      ) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )) TyFun (
+   TyConApp "Peano" []
+   TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )
+))
+eqtest
+    Lam ("a"
+   Lam ("a1"
+      Lam ("$dEq"
+         Lam ("$dNum"
+            Lam ("$dNum1"
+               Lam ("a2"
+                  App (
+                     Lam ("wild"
+                        Case (
+                           App (
+                              App (
+                                 App (
+                                    App (
+                                       Var == (TyForAll "a"(TyFun (
+                                                TyConApp "Eq" [ TyVar "a"]
+                                                TyFun ( TyVar "a"
+                                                   TyFun ( TyVar "a"
+                                                      TyConApp "Bool" []
+                                                   )
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dEq (TyConApp "Eq" [TyVar "a"])
+                                 )
+                                 Var a2 (TyVar "a")
+                              )
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dNum (TyConApp "Num" [TyVar "a"])
+                                 )
+                                 Const (CInt 3)
+                              )
+                           )
+                           (Alt (DC ("False",1,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 5)
+                              ))
+                           (Alt (DC ("True",2,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 2)
+                              ))
+ TyVar "a1") TyFun (
+                        TyConApp "Bool" [] TyVar "a1"
+                     ))
+                     App (
+                        App (
+                           App (
+                              App (
+                                 Var == (TyForAll "a"(TyFun (
+                                          TyConApp "Eq" [ TyVar "a"]
+                                          TyFun ( TyVar "a"
+                                             TyFun ( TyVar "a"
+                                                TyConApp "Bool" []
+                                             )
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dEq (TyConApp "Eq" [TyVar "a"])
+                           )
+                           Var a2 (TyVar "a")
+                        )
+                        App (
+                           App (
+                              App (
+                                 Var fromInteger (TyForAll "a"(TyFun (
+                                          TyConApp "Num" [ TyVar "a"]
+                                          TyFun (
+                                             TyConApp "Integer" [] TyVar "a"
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dNum (TyConApp "Num" [TyVar "a"])
+                           )
+                           Const (CInt 3)
+                        )
+                     )
+                  ) TyFun ( TyVar "a" TyVar "a1"
+               )) TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )) TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )) TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      )) TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))) TyForAll "a"(TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))))
+pue
+    Lam ("ds"
+   App (
+      Lam ("wild"
+         Case (
+            Var ds (TyConApp "Int" [])
+            (Alt (DC ("I#",1,TyConApp "Int" [],[TyConApp "Int#" []]),["ds1"]),
+               Case (
+                  App (
+                     App (
+                        App (
+                           App (
+                              Var == (TyBottom)
+                              Type (TyBottom)
+                           )
+                           Var $dEq (TyBottom)
+                        )
+                        App (
+                           DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                           Var ds1 (TyConApp "Int#" [])
+                        )
+                     )
+                     App (
+                        DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                        Const (CInt 123)
+                     )
+                  )
+                  (Alt (DC ("True",-5,TyConApp "Bool" [],[]),[]),
+                     App (
+                        Var I# (TyFun (
+                              TyConApp "Int#" []
+                              TyConApp "Int" []
+                           ))
+                        Const (CInt 0)
+                     ))
+                  (Alt (DC ("False",-6,TyConApp "Bool" [],[]),[]),
+                     Var wild (TyConApp "Int" []))
+ TyConApp "Int" []))
+ TyConApp "Int" []) TyFun (
+         TyConApp "Int" []
+         TyConApp "Int" []
+      ))
+      Var ds (TyConApp "Int" [])
+   ) TyFun (
+   TyConApp "Int" []
+   TyConApp "Int" []
+))
+wild
+    Var dsd (TyConApp "Peano" [])
+
+> Curr Expr:
+Var bb (TyConApp "Peano" [])
+
+> Path Constraints:
+(Var "dsd" (TyConApp "Peano" []),Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]))
+Sat
+
+Compiles!
+check = Lam ("ds"
+   Lam ("b"
+      App (
+         Lam ("wild"
+            Case (
+               Var ds (TyConApp "Peano" [])
+               (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                  Var b (TyConApp "Peano" []))
+               (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+                  App (
+                     Var Succ (TyFun (
+                           TyConApp "Peano" []
+                           TyConApp "Peano" []
+                        ))
+                     App (
+                        App (
+                           Var add (TyFun (
+                                 TyConApp "Peano" []
+                                 TyFun (
+                                    TyConApp "Peano" []
+                                    TyConApp "Peano" []
+                                 )
+                              ))
+                           Var a (TyConApp "Peano" [])
+                        )
+                        Var b (TyConApp "Peano" [])
+                     )
+                  ))
+ TyConApp "Peano" []) TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
+         Var ds (TyConApp "Peano" [])
+      ) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )) TyFun (
+   TyConApp "Peano" []
+   TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )
+))
+====
+15
+25
+105
+------
+[[DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])],[DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])],[DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])],[DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])],[DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])],[DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]]
+[2,2,2,2,2,3]
+[TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])],TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])],TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])],TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])],TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])],TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]]
+[3,3,3,3,3,4]
+19
+183
+17
+0
+219
+> Type Env:
+Bool
+    TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])]
+Char
+    TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])]
+Double
+    TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
+Float
+    TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
+Int
+    TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])]
+Peano
+    TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
+
+> Expr Env:
+add
+    Lam ("ds"
+   Lam ("b"
+      App (
+         Lam ("wild"
+            Case (
+               Var ds (TyConApp "Peano" [])
+               (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                  Var b (TyConApp "Peano" []))
+               (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+                  App (
+                     Var Succ (TyFun (
+                           TyConApp "Peano" []
+                           TyConApp "Peano" []
+                        ))
+                     App (
+                        App (
+                           Var add (TyFun (
+                                 TyConApp "Peano" []
+                                 TyFun (
+                                    TyConApp "Peano" []
+                                    TyConApp "Peano" []
+                                 )
+                              ))
+                           Var a (TyConApp "Peano" [])
+                        )
+                        Var b (TyConApp "Peano" [])
+                     )
+                  ))
+ TyConApp "Peano" []) TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
+         Var ds (TyConApp "Peano" [])
+      ) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )) TyFun (
+   TyConApp "Peano" []
+   TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )
+))
+eqtest
+    Lam ("a"
+   Lam ("a1"
+      Lam ("$dEq"
+         Lam ("$dNum"
+            Lam ("$dNum1"
+               Lam ("a2"
+                  App (
+                     Lam ("wild"
+                        Case (
+                           App (
+                              App (
+                                 App (
+                                    App (
+                                       Var == (TyForAll "a"(TyFun (
+                                                TyConApp "Eq" [ TyVar "a"]
+                                                TyFun ( TyVar "a"
+                                                   TyFun ( TyVar "a"
+                                                      TyConApp "Bool" []
+                                                   )
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dEq (TyConApp "Eq" [TyVar "a"])
+                                 )
+                                 Var a2 (TyVar "a")
+                              )
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dNum (TyConApp "Num" [TyVar "a"])
+                                 )
+                                 Const (CInt 3)
+                              )
+                           )
+                           (Alt (DC ("False",1,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 5)
+                              ))
+                           (Alt (DC ("True",2,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 2)
+                              ))
+ TyVar "a1") TyFun (
+                        TyConApp "Bool" [] TyVar "a1"
+                     ))
+                     App (
+                        App (
+                           App (
+                              App (
+                                 Var == (TyForAll "a"(TyFun (
+                                          TyConApp "Eq" [ TyVar "a"]
+                                          TyFun ( TyVar "a"
+                                             TyFun ( TyVar "a"
+                                                TyConApp "Bool" []
+                                             )
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dEq (TyConApp "Eq" [TyVar "a"])
+                           )
+                           Var a2 (TyVar "a")
+                        )
+                        App (
+                           App (
+                              App (
+                                 Var fromInteger (TyForAll "a"(TyFun (
+                                          TyConApp "Num" [ TyVar "a"]
+                                          TyFun (
+                                             TyConApp "Integer" [] TyVar "a"
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dNum (TyConApp "Num" [TyVar "a"])
+                           )
+                           Const (CInt 3)
+                        )
+                     )
+                  ) TyFun ( TyVar "a" TyVar "a1"
+               )) TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )) TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )) TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      )) TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))) TyForAll "a"(TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))))
+pue
+    Lam ("ds"
+   App (
+      Lam ("wild"
+         Case (
+            Var ds (TyConApp "Int" [])
+            (Alt (DC ("I#",1,TyConApp "Int" [],[TyConApp "Int#" []]),["ds1"]),
+               Case (
+                  App (
+                     App (
+                        App (
+                           App (
+                              Var == (TyBottom)
+                              Type (TyBottom)
+                           )
+                           Var $dEq (TyBottom)
+                        )
+                        App (
+                           DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                           Var ds1 (TyConApp "Int#" [])
+                        )
+                     )
+                     App (
+                        DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                        Const (CInt 123)
+                     )
+                  )
+                  (Alt (DC ("True",-5,TyConApp "Bool" [],[]),[]),
+                     App (
+                        Var I# (TyFun (
+                              TyConApp "Int#" []
+                              TyConApp "Int" []
+                           ))
+                        Const (CInt 0)
+                     ))
+                  (Alt (DC ("False",-6,TyConApp "Bool" [],[]),[]),
+                     Var wild (TyConApp "Int" []))
+ TyConApp "Int" []))
+ TyConApp "Int" []) TyFun (
+         TyConApp "Int" []
+         TyConApp "Int" []
+      ))
+      Var ds (TyConApp "Int" [])
+   ) TyFun (
+   TyConApp "Int" []
+   TyConApp "Int" []
+))
+
+> Curr Expr:
+App (
+   Lam ("wild"
+      Case (
+         Var dsd (TyConApp "Peano" [])
+         (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+            Var bb (TyConApp "Peano" []))
+         (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
             App (
                Var Succ (TyFun (
                      TyConApp "Peano" []
@@ -339,264 +1877,333 @@ add
                         ))
                      Var a (TyConApp "Peano" [])
                   )
-                  Var b (TyConApp "Peano" [])
+                  Var bb (TyConApp "Peano" [])
                )
             ))
  TyConApp "Peano" []) TyFun (
       TyConApp "Peano" []
       TyConApp "Peano" []
-   )) TyFun ( TyBottom
-   TyFun (
-      TyConApp "Peano" []
-      TyConApp "Peano" []
-   )
-))
-fourth
-    Lam ("ds"
-   Case (
-      Var ds (TyConApp "HugeArgs" [])
-      ((("Go",1,TyConApp "HugeArgs" [],[TyConApp "Int" [],TyConApp "Int" [],TyConApp "Int" [],TyConApp "Int" []]),["ds1","ds2","ds3","a"]),
-         Var a (TyConApp "Int" []))
- TyConApp "Int" []) TyFun ( TyBottom
-   TyConApp "Int" []
-))
-high
-    Lam ("a"
-   Lam ("b"
-      App (
-         Var a (TyFun (
-               TyConApp "Int" []
-               TyConApp "Int" []
-            ))
-         App (
-            Var b (TyFun (
-                  TyConApp "Int" []
-                  TyConApp "Int" []
-               ))
-            App (
-               Var I# (TyFun (
-                     TyConApp "Int#" []
-                     TyConApp "Int" []
-                  ))
-               Const (CInt 4)
-            )
-         )
-      ) TyFun (
-      TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      )
-      TyConApp "Int" []
-   )) TyFun (
-   TyFun (
-      TyConApp "Int" []
-      TyConApp "Int" []
-   )
-   TyFun (
-      TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      )
-      TyConApp "Int" []
-   )
-))
-hue
-    App (
-   App (
-      Var head (TyForAll "a"(TyFun (
-               TyConApp "[]" [ TyVar "a"] TyVar "a"
-            )))
-      Type (TyConApp "Integer" [])
-   )
-   App (
-      App (
-         App (
-            Var enumFrom (TyForAll "a"(TyFun (
-                     TyConApp "Enum" [ TyVar "a"]
-                     TyFun ( TyVar "a"
-                        TyConApp "[]" [ TyVar "a"]
-                     )
-                  )))
-            Type (TyConApp "Integer" [])
-         )
-         Var $fEnumInteger (TyConApp "Enum" [TyConApp "Integer" []])
-      )
-      Const (CInt 1)
-   )
+   ))
+   Var dsd (TyConApp "Peano" [])
 )
-test
-    Lam ("a"
+
+> Path Constraints:
+
+----
+???????
+||||||||
+[]
+[]
+add
+TyFun (TyConApp "Peano" []) (TyFun (TyConApp "Peano" []) (TyConApp "Peano" []))
+2
+eqtest
+TyForAll "a" (TyForAll "a1" (TyFun (TyConApp "Eq" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a"]) (TyFun (TyConApp "Num" [TyVar "a1"]) (TyFun (TyVar "a") (TyVar "a1"))))))
+0
+pue
+TyFun (TyConApp "Int" []) (TyConApp "Int" [])
+1
+######
+0
+&&&&&&
+> Type Env:
+Bool
+    TyAlg "Bool" [DC ("True",-5,TyConApp "Bool" [],[]),DC ("False",-6,TyConApp "Bool" [],[])]
+Char
+    TyAlg "Char" [DC ("C#",-4,TyConApp "Char#" [],[TyRawChar])]
+Double
+    TyAlg "Double" [DC ("D#",-3,TyConApp "Double#" [],[TyRawDouble])]
+Float
+    TyAlg "Float" [DC ("F#",-2,TyConApp "Float#" [],[TyRawFloat])]
+Int
+    TyAlg "Int" [DC ("I#",-1,TyConApp "Int#" [],[TyRawInt])]
+Peano
+    TyAlg "Peano" [DC ("Zero",1,TyConApp "Peano" [],[]),DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []])]
+
+> Expr Env:
+add
+    Lam ("ds"
    Lam ("b"
-      Lam ("c"
-         Case (
-            App (
-               App (
+      App (
+         Lam ("wild"
+            Case (
+               Var ds (TyConApp "Peano" [])
+               (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+                  Var b (TyConApp "Peano" []))
+               (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
                   App (
+                     Var Succ (TyFun (
+                           TyConApp "Peano" []
+                           TyConApp "Peano" []
+                        ))
                      App (
-                        Var < (TyForAll "a"(TyFun (
-                                 TyConApp "Ord" [ TyVar "a"]
-                                 TyFun ( TyVar "a"
-                                    TyFun ( TyVar "a"
-                                       TyConApp "Bool" []
-                                    )
+                        App (
+                           Var add (TyFun (
+                                 TyConApp "Peano" []
+                                 TyFun (
+                                    TyConApp "Peano" []
+                                    TyConApp "Peano" []
                                  )
-                              )))
-                        Type (TyConApp "Int" [])
+                              ))
+                           Var a (TyConApp "Peano" [])
+                        )
+                        Var b (TyConApp "Peano" [])
                      )
-                     Var $fOrdInt (TyConApp "Ord" [TyConApp "Int" []])
-                  )
+                  ))
+ TyConApp "Peano" []) TyFun (
+            TyConApp "Peano" []
+            TyConApp "Peano" []
+         ))
+         Var ds (TyConApp "Peano" [])
+      ) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )) TyFun (
+   TyConApp "Peano" []
+   TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   )
+))
+eqtest
+    Lam ("a"
+   Lam ("a1"
+      Lam ("$dEq"
+         Lam ("$dNum"
+            Lam ("$dNum1"
+               Lam ("a2"
                   App (
+                     Lam ("wild"
+                        Case (
+                           App (
+                              App (
+                                 App (
+                                    App (
+                                       Var == (TyForAll "a"(TyFun (
+                                                TyConApp "Eq" [ TyVar "a"]
+                                                TyFun ( TyVar "a"
+                                                   TyFun ( TyVar "a"
+                                                      TyConApp "Bool" []
+                                                   )
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dEq (TyConApp "Eq" [TyVar "a"])
+                                 )
+                                 Var a2 (TyVar "a")
+                              )
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a")
+                                    )
+                                    Var $dNum (TyConApp "Num" [TyVar "a"])
+                                 )
+                                 Const (CInt 3)
+                              )
+                           )
+                           (Alt (DC ("False",1,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 5)
+                              ))
+                           (Alt (DC ("True",2,TyConApp "Bool" [],[]),[]),
+                              App (
+                                 App (
+                                    App (
+                                       Var fromInteger (TyForAll "a"(TyFun (
+                                                TyConApp "Num" [ TyVar "a"]
+                                                TyFun (
+                                                   TyConApp "Integer" [] TyVar "a"
+                                                )
+                                             )))
+                                       Type (TyVar "a1")
+                                    )
+                                    Var $dNum1 (TyConApp "Num" [TyVar "a1"])
+                                 )
+                                 Const (CInt 2)
+                              ))
+ TyVar "a1") TyFun (
+                        TyConApp "Bool" [] TyVar "a1"
+                     ))
                      App (
                         App (
                            App (
-                              Var + (TyForAll "a"(TyFun (
-                                       TyConApp "Num" [ TyVar "a"]
-                                       TyFun ( TyVar "a"
-                                          TyFun ( TyVar "a" TyVar "a"
+                              App (
+                                 Var == (TyForAll "a"(TyFun (
+                                          TyConApp "Eq" [ TyVar "a"]
+                                          TyFun ( TyVar "a"
+                                             TyFun ( TyVar "a"
+                                                TyConApp "Bool" []
+                                             )
                                           )
-                                       )
-                                    )))
-                              Type (TyConApp "Int" [])
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dEq (TyConApp "Eq" [TyVar "a"])
                            )
-                           Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
+                           Var a2 (TyVar "a")
                         )
-                        Var a (TyConApp "Int" [])
+                        App (
+                           App (
+                              App (
+                                 Var fromInteger (TyForAll "a"(TyFun (
+                                          TyConApp "Num" [ TyVar "a"]
+                                          TyFun (
+                                             TyConApp "Integer" [] TyVar "a"
+                                          )
+                                       )))
+                                 Type (TyVar "a")
+                              )
+                              Var $dNum (TyConApp "Num" [TyVar "a"])
+                           )
+                           Const (CInt 3)
+                        )
                      )
-                     Var b (TyConApp "Int" [])
-                  )
+                  ) TyFun ( TyVar "a" TyVar "a1"
+               )) TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
                )
-               Var c (TyConApp "Int" [])
+            )) TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
             )
-            ((("False",1,TyConApp "Bool" [],[]),[]),
+         )) TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      )) TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))) TyForAll "a"(TyForAll "a1"(TyFun (
+         TyConApp "Eq" [ TyVar "a"]
+         TyFun (
+            TyConApp "Num" [ TyVar "a"]
+            TyFun (
+               TyConApp "Num" [ TyVar "a1"]
+               TyFun ( TyVar "a" TyVar "a1"
+               )
+            )
+         )
+      ))))
+pue
+    Lam ("ds"
+   App (
+      Lam ("wild"
+         Case (
+            Var ds (TyConApp "Int" [])
+            (Alt (DC ("I#",1,TyConApp "Int" [],[TyConApp "Int#" []]),["ds1"]),
                Case (
                   App (
                      App (
                         App (
                            App (
-                              Var < (TyForAll "a"(TyFun (
-                                       TyConApp "Ord" [ TyVar "a"]
-                                       TyFun ( TyVar "a"
-                                          TyFun ( TyVar "a"
-                                             TyConApp "Bool" []
-                                          )
-                                       )
-                                    )))
-                              Type (TyConApp "Int" [])
+                              Var == (TyBottom)
+                              Type (TyBottom)
                            )
-                           Var $fOrdInt (TyConApp "Ord" [TyConApp "Int" []])
+                           Var $dEq (TyBottom)
                         )
-                        Var c (TyConApp "Int" [])
+                        App (
+                           DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                           Var ds1 (TyConApp "Int#" [])
+                        )
                      )
+                     App (
+                        DCon (DC ("I#",-1,TyConApp "Int#" [],[TyRawInt]))
+                        Const (CInt 123)
+                     )
+                  )
+                  (Alt (DC ("True",-5,TyConApp "Bool" [],[]),[]),
                      App (
                         Var I# (TyFun (
                               TyConApp "Int#" []
                               TyConApp "Int" []
                            ))
-                        Const (CInt 5)
-                     )
-                  )
-                  ((("False",1,TyConApp "Bool" [],[]),[]),
-                     App (
-                        App (
-                           App (
-                              App (
-                                 Var + (TyForAll "a"(TyFun (
-                                          TyConApp "Num" [ TyVar "a"]
-                                          TyFun ( TyVar "a"
-                                             TyFun ( TyVar "a" TyVar "a"
-                                             )
-                                          )
-                                       )))
-                                 Type (TyConApp "Int" [])
-                              )
-                              Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
-                           )
-                           Var a (TyConApp "Int" [])
-                        )
-                        Var c (TyConApp "Int" [])
+                        Const (CInt 0)
                      ))
-                  ((("True",2,TyConApp "Bool" [],[]),[]),
-                     App (
-                        App (
-                           App (
-                              App (
-                                 Var + (TyForAll "a"(TyFun (
-                                          TyConApp "Num" [ TyVar "a"]
-                                          TyFun ( TyVar "a"
-                                             TyFun ( TyVar "a" TyVar "a"
-                                             )
-                                          )
-                                       )))
-                                 Type (TyConApp "Int" [])
-                              )
-                              Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
-                           )
-                           Var b (TyConApp "Int" [])
-                        )
-                        Var c (TyConApp "Int" [])
-                     ))
+                  (Alt (DC ("False",-6,TyConApp "Bool" [],[]),[]),
+                     Var wild (TyConApp "Int" []))
  TyConApp "Int" []))
-            ((("True",2,TyConApp "Bool" [],[]),[]),
-               App (
-                  App (
-                     App (
-                        App (
-                           Var + (TyForAll "a"(TyFun (
-                                    TyConApp "Num" [ TyVar "a"]
-                                    TyFun ( TyVar "a"
-                                       TyFun ( TyVar "a" TyVar "a"
-                                       )
-                                    )
-                                 )))
-                           Type (TyConApp "Int" [])
-                        )
-                        Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
-                     )
-                     Var a (TyConApp "Int" [])
-                  )
-                  Var b (TyConApp "Int" [])
-               ))
  TyConApp "Int" []) TyFun (
          TyConApp "Int" []
          TyConApp "Int" []
-      )) TyFun ( TyBottom
-      TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      )
-   )) TyFun (
+      ))
+      Var ds (TyConApp "Int" [])
+   ) TyFun (
    TyConApp "Int" []
-   TyFun ( TyBottom
-      TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      )
-   )
+   TyConApp "Int" []
 ))
 
 > Curr Expr:
 App (
-   Var aa (TyFun (
-         TyConApp "Int" []
-         TyConApp "Int" []
-      ))
-   App (
-      Var bb (TyFun (
-            TyConApp "Int" []
-            TyConApp "Int" []
-         ))
-      App (
-         Var I# (TyFun (
-               TyConApp "Int#" []
-               TyConApp "Int" []
+   Lam ("wild"
+      Case (
+         Var dsd (TyConApp "Peano" [])
+         (Alt (DC ("Zero",1,TyConApp "Peano" [],[]),[]),
+            Var bb (TyConApp "Peano" []))
+         (Alt (DC ("Succ",2,TyConApp "Peano" [],[TyConApp "Peano" []]),["a"]),
+            App (
+               Var Succ (TyFun (
+                     TyConApp "Peano" []
+                     TyConApp "Peano" []
+                  ))
+               App (
+                  App (
+                     Var add (TyFun (
+                           TyConApp "Peano" []
+                           TyFun (
+                              TyConApp "Peano" []
+                              TyConApp "Peano" []
+                           )
+                        ))
+                     Var a (TyConApp "Peano" [])
+                  )
+                  Var bb (TyConApp "Peano" [])
+               )
             ))
-         Const (CInt 4)
-      )
-   )
+ TyConApp "Peano" []) TyFun (
+      TyConApp "Peano" []
+      TyConApp "Peano" []
+   ))
+   Var dsd (TyConApp "Peano" [])
 )
 
 > Path Constraints:
 
-Sat
-
-Compiles!
+[]
+^^^^^^^^^^^^

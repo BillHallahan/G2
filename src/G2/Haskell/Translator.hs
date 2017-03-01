@@ -108,14 +108,23 @@ mkExpr (App f a) = G2.App (mkExpr f) (mkExpr a)
 mkExpr l@(Lam b e) = let ge = mkExpr e
                          et = typeOf ge
                          an = mkName $ Var.varName b
-
                    in G2.Lam an ge (mkType . CU.exprType $ l)
+{-
 mkExpr (Case e b t as) = let ex = mkExpr e
                              ls = map mkAlt as
                              ty = mkType t
-                         in G2.App (G2.Lam (mkName $ Var.varName b)
-                                           (G2.Case ex ls ty)
-                                           (G2.TyFun (mkType $ CU.exprType (Var b)) ty)) ex
+             in G2.App (G2.Lam (mkName $ Var.varName b)
+                               (G2.Case ex ls ty)
+                               (G2.TyFun (mkType $ CU.exprType (Var b)) ty)) ex
+-}
+mkExpr (Case e b t as) = let ex = mkExpr e
+                             ty = mkType t
+                         in case recoverCons $ mkType (CU.exprType e) of
+      Nothing -> G2.App (G2.Lam (mkName $ Var.varName b)
+                                (G2.Case ex (map mkAlt as) ty)
+                                (G2.TyFun (mkType $ CU.exprType (Var b)) ty)) ex
+      Just dc -> cascadeAlt ex dc (sortAlt as)
+
 mkExpr (Cast e c) = mkExpr e
 mkExpr (Tick t e) = mkExpr e
 mkExpr (Type t)   = G2.Type (mkType t)
@@ -150,3 +159,33 @@ mkAlt (ac, args, exp) = (G2.Alt (mkA ac, map (mkName . Var.varName) args), mkExp
             MachFloat rat  -> P.p_d_float
             MachDouble rat -> P.p_d_double
             otherwise      -> error "Unsupported alt condition."
+
+sortAlt :: [CoreAlt] -> [CoreAlt]
+sortAlt [] = []
+sortAlt ((ac, args, exp):as) = case ac of
+    DataAlt dc -> (ac, args, exp) : sortAlt as
+    LitAlt lit -> (ac, args, exp) : sortAlt as
+    DEFAULT    -> sortAlt as ++ [(ac, args, exp)]
+
+cascadeAlt :: G2.Expr -> G2.DataCon -> [CoreAlt] -> G2.Expr
+cascadeAlt mx recon [] = G2.BAD
+cascadeAlt mx recon ((ac, args, exp):as) = case ac of
+    DataAlt dc -> error "We should not see non-raw data consturctors here"
+    DEFAULT    -> mkExpr exp
+    LitAlt lit -> G2.Case (G2.App (G2.App (G2.App (G2.App P.op_eq
+                                                          (G2.Type G2.TyBottom))
+                                                  P.d_eq)
+                                          (G2.App (G2.DCon recon) mx))
+                                  (G2.App (G2.DCon recon)
+                                          (G2.Const (mkLit lit))))
+                          [(G2.Alt (P.p_d_true, []), mkExpr exp),
+                           (G2.Alt (P.p_d_false, []), cascadeAlt mx recon as)]
+                          (mkType $ CU.exprType exp)
+
+recoverCons :: G2.Type -> Maybe G2.DataCon
+recoverCons (G2.TyConApp "Int#" [])    = Just P.p_d_int
+recoverCons (G2.TyConApp "Float#" [])  = Just P.p_d_float
+recoverCons (G2.TyConApp "Double#" []) = Just P.p_d_double
+recoverCons (G2.TyConApp "Char#" [])   = Just P.p_d_char
+recoverCons otherwise = Nothing
+

@@ -42,6 +42,11 @@ main = do
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
     let init_state = initState t_env' e_env' entry
+
+    putStrLn $ show init_state
+
+    putStrLn "***************************************"
+
     putStrLn $ mkStateStr init_state
     
     putStrLn $ mkStatesStr [init_state]

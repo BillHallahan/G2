@@ -83,3 +83,6 @@ prelude_e_decls = e_num_ops_mod ++ e_char_ops_mod ++ e_bool_ops_mod
 The DEFAULT data constructor we use in pattern matching.
 -}
 dc_default = DC ("DEFAULT", 0::Int, TyBottom, [])
+
+op_eq = Var "==" TyBottom
+d_eq  = Var "$dEq" TyBottom
