@@ -1,11 +1,10 @@
 module G2.Core.Evaluator where
 
-import G2.Core.CoreManipulator
 import G2.Core.Language
 import G2.Core.Utils
 
 import qualified Data.List as L
-import qualified Data.Map  as M
+import qualified Data.Map as M
 
 {- Values
 
@@ -13,16 +12,11 @@ We need to return values from evaluation and this is it. Only oddity may be
 that we are able to return lambda expressions during evaluation.
 -}
 isVal :: State -> Bool
-isVal (tv, env, Var n t, pc)   = M.lookup n env == Nothing
-isVal (tv, env, Const c, pc)   = True
-isVal (tv, env, Lam n e t, pc) = True
-isVal (tv, env, App (Lam n e t) a, pc) = False
+isVal (_, env, Var n _, _) = M.lookup n env == Nothing
+isVal (_, _, App (Lam _ _ _) _, _) = False
 isVal (tv, env, App f a, pc) = isVal (tv, env, f, pc) && isVal (tv, env, a, pc)
-isVal (tv, env, DCon dc, pc) = True
-isVal (tv, env, Case m as t, pc) = False  -- isVal (tv, env, m, pc)
-isVal (tv, env, Type t, pc) = True
-isVal (tv, env, BAD, pc) = True
-isVal (tv, env, UNR, pc) = True
+isVal (_, _, Case _ _ _, _) = False  -- isVal (tv, env, m, pc)
+isVal _ = True
 
 {- Evaluation
 
@@ -61,7 +55,7 @@ evaluate (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
         env' = M.insert n' e2 env
 
 {- App -- Special case of application on the right of a case.
-  
+
 Apply commuting conversions to shove the RHS of the App inside the case.
 -}
 evaluate (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
@@ -177,7 +171,7 @@ initState t_env e_env entry = case match of
     Just ex -> let (args, expr) = unlam ex
                    ns          = M.keys e_env
                    nfs         = map fst args
-                   nfs'        = freshList nfs (ns++(freeVars (ns ++ nfs) expr))
+                   nfs'        = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
                    expr'       = replaceList expr ns nfs nfs'
                in (t_env, e_env, expr', [])
   where match = M.lookup entry e_env

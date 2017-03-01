@@ -56,66 +56,17 @@ main = do
     let (states, n) = runN [init_state] 20
     putStrLn $ mkStatesStr states
 
-
-    printModel $ states !! 0
-
     putStrLn "Compiles!"
 
-    let (t, env, ex, pc) = init_state
-    let check = (M.elems env) !! 0
-    putStrLn ("check = " ++ (mkExprStr check))
-    putStrLn "===="
-    mapM_ (mapM_ putStrLn . map (mkExprStr) . findLeadingHigherOrderFuncs) . M.elems $ env
 
-    print . countExpr $ check
-    print . countTypes $ check
-    print . countExpr $ init_state
-    putStrLn "------"
+    let defun = defunctionalize init_state
+    let defun' = defunctionalize defun 
 
-    print . map (\tt -> case tt of TyAlg _ d -> d) . M.elems $ t
-    print . map countTypes . map (\tt -> case tt of TyAlg _ d -> d) . M.elems $ t
 
-    print . M.elems $ t
-    print . map countTypes . M.elems $ t
+    putStrLn . mkStateStr $ defun
 
-    print . countTypes $ t
-    print . countTypes $ env
-    print . countTypes $ ex
-    print . countTypes $ pc
-    print . countTypes $ init_state
+    putStrLn "---------"
 
-    putStrLn $ mkStateStr init_state
-    --mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ (M.elems env) !! 0)
+    putStrLn . mkStateStr $ defun'
 
-    putStrLn "----"
-
-    mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncs $ init_state)
-
-    putStrLn "???????"
-
-    mapM_ (putStrLn . mkExprStr)  (findLeadingHigherOrderFuncCalls $ init_state)
-
-    putStrLn "||||||||"
-
-    print . higherOrderFuncTypesToApplies $ init_state
-
-    print . findPassedInFuncTypes $ init_state
-
-    mapM_ (\(n, e, t) -> putStrLn ((n) ++ "\n" ++ (show t) ++ "\n" ++ (show . typeArgCount $ t)) ) (map (\(n, e) -> (n, e, typeOf e) ) (M.toList  env))
-
-    putStrLn "######"
-    let foundCalls = findAllCallsNamed "t" init_state
-    mapM_ (putStrLn . mkExprStr) foundCalls
-    print . length $ foundCalls
-
-    putStrLn "&&&&&&"
-    let init_state'@(t', env', ex', pc') = defunctionalize $ init_state
-    putStrLn . mkStateStr $ init_state'
-
-    print . map fst . findPassedInFuncs $ init_state
-    --print . length . findHigherOrderFuncs $ (M.elems env) !! 0
-    --print . length . L.nub . findHigherOrderFuncs $ (M.elems env) !! 0
-    putStrLn "^^^^^^^^^^^^"
-    -- let allCalls = findAllCalls init_state
-    -- let allCalls' = map (\c -> (c, exprArgCount c)) allCalls
-    -- mapM_ (\(c, cc) -> putStrLn (show cc ++ "\n" ++ mkExprStr c)) allCalls'
+    print (defun == defun')

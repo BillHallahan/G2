@@ -7,7 +7,6 @@ module G2.Core.CoreManipulator where
 
 import G2.Core.Language
 
-import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Monoid as Mon
 
@@ -358,7 +357,7 @@ evalOnce'' f e x = snd . modifyGOnce (\a' e' -> (e', f a' e')) e $ x
 modifyGUntil :: (Manipulatable e m, Monoid a) => (a -> e -> (e, a, Bool)) -> m -> a -> (m, a)
 modifyGUntil f e x =
     let
-        (e', (b, x')) = modifyG (f' f) e (Mon.All True, x)
+        (e', (_, x')) = modifyG (f' f) e (Mon.All True, x)
     in
     (e', x')
     where
