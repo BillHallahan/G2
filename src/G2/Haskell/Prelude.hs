@@ -14,19 +14,19 @@ Internally GHC uses #, but we use ! here to more smoothly go into SMT land.
 -}
 
 -- Int
-p_ty_int = TyConApp "Int#" []
+p_ty_int = TyConApp "Int" []
 p_d_int = DC ("I#", -1, p_ty_int, [TyRawInt])
 
 -- Float
-p_ty_float = TyConApp "Float#" []
+p_ty_float = TyConApp "Float" []
 p_d_float = DC ("F#", -2, p_ty_float, [TyRawFloat])
 
 -- Double
-p_ty_double = TyConApp "Double#" []
+p_ty_double = TyConApp "Double" []
 p_d_double = DC ("D#", -3, p_ty_double, [TyRawDouble])
 
 -- Char
-p_ty_char = TyConApp "Char#" []
+p_ty_char = TyConApp "Char" []
 p_d_char = DC ("C#", -4, p_ty_char, [TyRawChar])
 
 -- Bool

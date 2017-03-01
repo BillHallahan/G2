@@ -22,7 +22,8 @@ This can be done via Defunctionalization, described by Reynolds in
 http://cs.au.dk/~hosc/local/HOSC-11-4-pp363-397.pdf
 
 In short, each call to a higher order functions (a -> b) -> c is identified.
-For each a, b pair, a new datatype A_B, and fresh function, apply_a_b :: A_B -> a -> b, is created.
+For each a, b pair, a new datatype A_B, and fresh function,
+apply_a_b :: A_B -> a -> b, is created.
 -}
 
 type FuncName = Name
@@ -53,11 +54,11 @@ defunctionalize s =
             in
             case r of
                 Just (f, d) ->
-                            let
-                                applyVar = Var f (TyFun (TyConApp d []) t)
-                                applyType = Var n (TyConApp d [])
-                            in 
-                            (App applyVar applyType, False)
+                    let
+                        applyVar = Var f (TyFun (TyConApp d []) t)
+                        applyType = Var n (TyConApp d [])
+                    in 
+                    (App applyVar applyType, False)
                 Nothing -> (e, True)
         applyFuncGen _ e = (e, True)
 
@@ -147,8 +148,7 @@ defunctionalize s =
         
 
         applyFunc :: Name -> Name -> Type -> Expr
-        applyFunc f d t = Var f (TyFun (TyConApp d []) t) 
-
+        applyFunc f d t = Var f (TyFun (TyConApp d []) t)
 
 --Returns all Vars with the given Name
 findFuncVar :: (Manipulatable Expr m) => Name -> m -> [Expr]
@@ -202,14 +202,6 @@ passedInFuncsToApplies s@(_, env, _, _) =
         getLamVars :: Expr -> [(Name, Type)]
         getLamVars (Lam n _ t) = [(n, t)]
         getLamVars _ = []
-
--- passedInFuncsToApplies s =
---     let
---         passed = map fst . findPassedInFuncs $ s
---         bv = freeVars [] s
---         fr = numFresh "applyCon" (length passed) bv
---     in
---     zip passed fr
 
 --This returns a mapping from all higher order function types to
 --names for cooresponding Apply functions and data types

@@ -101,8 +101,8 @@ mkTypeStr t i = mkTypeStr' t i False
 -- Primitive for now because I'm low on battery.
 mkPCStr :: PC -> String
 mkPCStr []     = ""
-mkPCStr [p] = show p
-mkPCStr (p:ps) = show p ++ "\n--AND--\n" ++ mkPCStr ps
+mkPCStr [(e, a)] = mkExprStr e ++ "\n" ++ show a
+mkPCStr ((e, a):ps) = mkExprStr e ++ "\n" ++ show a++ "\n--AND--\n" ++ mkPCStr ps
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
@@ -210,6 +210,20 @@ typeArgCount t@(TyFun _ _) = typeArgCount' t
         typeArgCount' (TyFun _ _) = 1
         typeArgCount' _ = 0
 typeArgCount _ = 0
+
+--Given an app, gets all arguments passed to the function nested in that app as a list.
+--If not an app, returns an empty list
+getAppArgs :: Expr -> [Expr]
+getAppArgs (App a'@(App _ _) a) = a:getAppArgs a'
+getAppArgs (App _ a) = [a]
+getAppArgs _ = []
+
+--Given an app, returns Just the bottomost, leftist contained function
+--Otherwise, returns Nothing
+getAppFunc :: Expr -> Maybe Expr
+getAppFunc (App a@(App _ _) _) = getAppFunc a
+getAppFunc (App a _) = Just a
+getAppFunc _ = Nothing
 
 --Given a function name, Expr, and an argument number, i, returns a list of the
 --Expr passed into the ith argument

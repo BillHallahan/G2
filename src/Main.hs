@@ -37,7 +37,7 @@ main = do
     -}    
     (filepath:entry:xs) <- getArgs
     raw_core <- mkRawCore filepath
-    putStrLn =<< outStr raw_core
+    --putStrLn =<< outStr raw_core
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
@@ -47,26 +47,18 @@ main = do
 
     putStrLn "***************************************"
 
-    putStrLn $ mkStateStr init_state
+
+    let defun_init_state = defunctionalize init_state
+
+    --putStrLn $ mkStateStr init_state
     
-    putStrLn $ mkStatesStr [init_state]
+    putStrLn $ mkStatesStr [defun_init_state]
 
     putStrLn "======================="
 
-    let (states, n) = runN [init_state] 20
+    let (states, n) = runN [defun_init_state] 20
     putStrLn $ mkStatesStr states
 
     putStrLn "Compiles!"
 
-
-    let defun = defunctionalize init_state
-    let defun' = defunctionalize defun 
-
-
-    putStrLn . mkStateStr $ defun
-
-    putStrLn "---------"
-
-    putStrLn . mkStateStr $ defun'
-
-    print (defun == defun')
+    mapM_ printModel states

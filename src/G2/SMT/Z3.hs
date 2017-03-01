@@ -4,11 +4,13 @@ import G2.Core.Language
 import G2.Core.Evaluator
 import G2.Core.Utils
 
-import qualified Data.List as L
+import Data.List
 import qualified Data.Map  as M
 import qualified Data.Maybe as MB
 
 import Z3.Monad
+
+import Data.Ratio
 
 --THis function is just kind of a hack for now... might want something else later?
 printModel :: State -> IO ()
@@ -24,16 +26,60 @@ modelToIOString m = evalZ3 . modelToString $ m
 
 stateSolverZ3 :: State -> Z3 (Result, Maybe Model)
 stateSolverZ3 (tv, ev, expr, pc) = do
+    exprZ3 expr
     constraintsZ3 pc
     solverCheckAndGetModel 
 
 constraintsZ3 :: PC -> Z3 ()
-constraintsZ3 ((expr, alt):xs) = constraintsZ3 xs
+constraintsZ3 ((expr, alt):xs) = do
+    e <- exprZ3 expr
+    a <- altZ3 alt
+
+    assert =<< mkEq e a
+
+    constraintsZ3 xs
 constraintsZ3 ([]) = return ()
 
-exprZ3 :: Expr -> Z3 ()
-exprZ3 e = return ()
+exprZ3 :: Expr -> Z3 AST
+exprZ3 (Var v t) = do
+    v' <- mkStringSymbol v
+    t' <- sortZ3 t
+    mkVar v' t'
+exprZ3 (Const c) = constZ3 c
+exprZ3 a@(App _ _) =
+    let
+        func = MB.fromJust . getAppFunc $ a
+        args = getAppArgs a
+    in
+    handleFunctionsZ3 func args
 
+handleFunctionsZ3 :: Expr -> [Expr] -> Z3 AST
+handleFunctionsZ3 (Var "I#" _) [Const c] = constZ3 c
+handleFunctionsZ3 (Var "F#" _) [Const c] = constZ3 c
+handleFunctionsZ3 (Var "D#" _) [Const c] = constZ3 c
+
+sortZ3 :: Type -> Z3 Sort
+sortZ3 TyRawInt = mkIntSort
+sortZ3 (TyConApp "Int" _) = mkIntSort
+sortZ3 TyRawFloat = mkRealSort
+sortZ3 (TyConApp "Float" _) = mkRealSort
+sortZ3 TyRawDouble = mkRealSort
+sortZ3 (TyConApp "Double" _) = mkRealSort
+sortZ3 (TyConApp "Bool" _) = mkBoolSort
+
+
+constZ3 :: Const -> Z3 AST
+constZ3 (CInt i) = mkInt i =<< mkIntSort
+constZ3 (CFloat r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
+constZ3 (CDouble r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
+
+
+altZ3 :: Alt -> Z3 AST
+altZ3 (Alt (dc, n)) = dataConZ3 dc
+
+dataConZ3 :: DataCon -> Z3 AST
+dataConZ3 (DC ("True", _, TyConApp "Bool" _, _)) = mkBool True
+dataConZ3 (DC ("False", _, TyConApp "Bool" _, _)) = mkBool False
 
 -- SMT internal representation
 
