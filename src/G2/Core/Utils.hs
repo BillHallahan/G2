@@ -214,9 +214,11 @@ typeArgCount _ = 0
 --Given an app, gets all arguments passed to the function nested in that app as a list.
 --If not an app, returns an empty list
 getAppArgs :: Expr -> [Expr]
-getAppArgs (App a'@(App _ _) a) = a:getAppArgs a'
-getAppArgs (App _ a) = [a]
-getAppArgs _ = []
+getAppArgs a = reverse . getAppArgs' $ a
+    where
+        getAppArgs' (App a'@(App _ _) a) = a:getAppArgs' a'
+        getAppArgs' (App _ a) = [a]
+        getAppArgs' _ = []
 
 --Given an app, returns Just the bottomost, leftist contained function
 --Otherwise, returns Nothing

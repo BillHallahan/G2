@@ -54,6 +54,42 @@ exprZ3 a@(App _ _) =
     handleFunctionsZ3 func args
 
 handleFunctionsZ3 :: Expr -> [Expr] -> Z3 AST
+handleFunctionsZ3 (Var ">" _ ) [_, _, a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkGt a' b'
+handleFunctionsZ3 (Var "<" _ ) [_, _, a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkLt a' b'
+handleFunctionsZ3 (Var ">=" _ ) [_, _, a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkGe a' b'
+handleFunctionsZ3 (Var "<=" _ ) [_, _, a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkLe a' b'
+handleFunctionsZ3 (Var "+" _ ) [_, _, a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkAdd [a', b']
+handleFunctionsZ3 (Var "-" _ ) [_, _, a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkSub [a', b']
+handleFunctionsZ3 (Var "*" _ ) [_, _, a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkMul [a', b']
+handleFunctionsZ3 (Var "&&" _ ) [a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkAnd [a', b']
+handleFunctionsZ3 (Var "||" _ ) [a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkOr [a', b']
 handleFunctionsZ3 (Var "I#" _) [Const c] = constZ3 c
 handleFunctionsZ3 (Var "F#" _) [Const c] = constZ3 c
 handleFunctionsZ3 (Var "D#" _) [Const c] = constZ3 c
@@ -66,6 +102,7 @@ sortZ3 (TyConApp "Float" _) = mkRealSort
 sortZ3 TyRawDouble = mkRealSort
 sortZ3 (TyConApp "Double" _) = mkRealSort
 sortZ3 (TyConApp "Bool" _) = mkBoolSort
+sortZ3 t = error ("Unknown sort in sortZ3 " ++ show t)
 
 
 constZ3 :: Const -> Z3 AST
