@@ -3,16 +3,19 @@ module G2.SMT.Z3 where
 import G2.Core.Language
 import G2.Core.Evaluator
 import G2.Core.Utils
+import G2.Haskell.Prelude
 
 import Data.List
 import qualified Data.Map  as M
 import qualified Data.Maybe as MB
 
+import qualified Data.Set as S
+
 import Z3.Monad
 
 import Data.Ratio
 
---THis function is just kind of a hack for now... might want something else later?
+--This function is just kind of a hack for now... might want something else later?
 printModel :: State -> IO ()
 printModel s = do
     (r, m) <- evalZ3 . stateSolverZ3 $ s
@@ -40,6 +43,31 @@ constraintsZ3 ((expr, alt):xs) = do
     constraintsZ3 xs
 constraintsZ3 ([]) = return ()
 
+makeDatatypesZ3 :: TEnv -> M.Map Name (Z3 Sort)
+makeDatatypesZ3 tenv = M.map (MB.fromJust) . M.filter MB.isJust
+                  . M.map (makeDatatypesZ3')
+                  . M.filterWithKey (\k _  -> k `S.member` knownTypes) t
+    where
+        knownTypes = S.fromList . map fst $ prelude_t_decls
+
+        makeDatatypesZ3' :: Type -> Maybe (Z3 Sort)
+        makeDatatypesZ3' (TyAlg n dc) = do
+            n' <- mkStringSymbol n
+            cs <- mapM makeDataCon dc
+            mkDatatype n' cs
+            return Just 
+        makeDatatypesZ3' _ = Nothing
+
+        makeDataCon :: DataCon -> Z3 Constructor
+        makeDataCon (DC (dcn, _, t, ts)) = do
+            dcn' <- mkStringSymbol dcn
+            --Do we need to do something to ensure this accessor is unique?
+            accessor <- mkStringSymbol ("is_" ++ dcn)
+
+            
+
+            mkConstructor dcn' accessor ts'
+
 exprZ3 :: Expr -> Z3 AST
 exprZ3 (Var v t) = do
     v' <- mkStringSymbol v
@@ -54,6 +82,12 @@ exprZ3 a@(App _ _) =
     handleFunctionsZ3 func args
 
 handleFunctionsZ3 :: Expr -> [Expr] -> Z3 AST
+--Mappings fairly directly from Haskell to SMT
+--Need to account for weird user implementations of Num?
+handleFunctionsZ3 (Var "==" _ ) [_, _, a, b] = do
+    a' <- exprZ3 a
+    b' <- exprZ3 b
+    mkEq a' b'
 handleFunctionsZ3 (Var ">" _ ) [_, _, a, b] = do
     a' <- exprZ3 a
     b' <- exprZ3 b
@@ -94,6 +128,7 @@ handleFunctionsZ3 (Var "I#" _) [Const c] = constZ3 c
 handleFunctionsZ3 (Var "F#" _) [Const c] = constZ3 c
 handleFunctionsZ3 (Var "D#" _) [Const c] = constZ3 c
 
+
 sortZ3 :: Type -> Z3 Sort
 sortZ3 TyRawInt = mkIntSort
 sortZ3 (TyConApp "Int" _) = mkIntSort
@@ -104,6 +139,10 @@ sortZ3 (TyConApp "Double" _) = mkRealSort
 sortZ3 (TyConApp "Bool" _) = mkBoolSort
 sortZ3 t = error ("Unknown sort in sortZ3 " ++ show t)
 
+
+-- typeSymbolZ3 :: Type -> Maybe Symbol
+-- typeSymbolZ3 (TyConApp n _) = Just =<< mkStringSymbol n
+-- typeSymbolZ3 _ = Nothing
 
 constZ3 :: Const -> Z3 AST
 constZ3 (CInt i) = mkInt i =<< mkIntSort
