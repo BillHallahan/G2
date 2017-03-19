@@ -37,7 +37,7 @@ main = do
     -}    
     (filepath:entry:xs) <- getArgs
     raw_core <- mkRawCore filepath
-    --putStrLn =<< outStr raw_core
+    putStrLn =<< outStr raw_core
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
@@ -45,7 +45,7 @@ main = do
 
     putStrLn $ show init_state
 
-    putStrLn "***************************************"
+    putStrLn "+++++++++++++++++++++++++"
 
 
     let defun_init_state = defunctionalize init_state

@@ -175,9 +175,9 @@ findPassedInFuncTypes e = nub . eval findPassedInFuncTypes' . map typeOf . findH
         findPassedInFuncTypes' _ = []
         
 passedInFuncsToApplies :: State -> AppliesConLookUp
-passedInFuncsToApplies s@(_, env, _, _) = 
+passedInFuncsToApplies s = 
     let
-        passed = findPassedInFuncs env
+        passed = findPassedInFuncs s
         types = findPassedInFuncTypes s
 
         lam_vars = eval getLamVars s
