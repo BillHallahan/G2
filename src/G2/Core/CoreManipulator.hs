@@ -197,7 +197,7 @@ instance Manipulatable Type Alt where
         let
             (dc', x') = modifyG f dc x
         in
-        (Alt(dc', n), x')
+        (Alt (dc', n), x')
 
 instance Manipulatable Expr DataCon where
     modifyG f dc x = (dc, mempty)
@@ -385,3 +385,50 @@ evalUntil' f e = evalUntil'' f e $ mempty
 
 evalUntil'' :: (Manipulatable e m, Monoid a) => (a -> e -> (a, Bool)) -> m -> a -> a
 evalUntil'' f e x = snd . modifyGUntil (\a' e' -> (e', fst . f a' $ e', snd . f a' $ e')) e $ x
+
+modifyDataConExprG :: (Manipulatable Expr m, Manipulatable Type m, Monoid a) =>
+    (a -> DataCon -> (DataCon, a)) -> m -> a -> (m, a)
+modifyDataConExprG f e x =
+    let
+        (r, x') = modifyG (f' f) e x
+    in
+    modifyDataConTypeG f r x'
+    
+    where
+        f' :: Monoid a => (a -> DataCon -> (DataCon, a)) -> a -> Expr -> (Expr, a)
+        f' f x (DCon d) = let (dc', x') = f x d in (DCon dc', x')
+        f' f x (Case e ae t) =
+            let
+                aex = map (modifyAlt f x) ae
+                (ae', x') = unzip aex
+            in
+            (Case e ae' t, mconcat x')
+        f' _ _ dc = (dc, mempty)
+
+        modifyAlt :: Monoid a => (a -> DataCon -> (DataCon, a)) -> a -> (Alt, Expr) -> ((Alt, Expr), a)
+        modifyAlt f x (Alt (dc, n), e) =
+            let
+                (dc', x') = f x dc
+                a = Alt (dc', n)
+            in
+           ((a, e), x')
+
+modifyDataConExpr :: (Manipulatable Expr m, Manipulatable Type m) => (DataCon -> DataCon) -> m -> m
+modifyDataConExpr f e = modifyDataConExpr' (\_ e' -> (f e', ())) e
+
+modifyDataConExpr' :: (Manipulatable Expr m, Manipulatable Type m, Monoid a) => (a -> DataCon -> (DataCon, a)) -> m -> m
+modifyDataConExpr' f e = modifyDataConExpr'' f e $ mempty
+
+modifyDataConExpr'' :: (Manipulatable Expr m, Manipulatable Type m, Monoid a) => (a -> DataCon -> (DataCon, a)) -> m -> a -> m
+modifyDataConExpr'' f e x = fst . modifyDataConExprG f e $ x
+
+modifyDataConTypeG :: (Manipulatable Type m, Monoid a) => (a -> DataCon -> (DataCon, a)) -> m -> a -> (m, a)
+modifyDataConTypeG f e x = modifyG (f' f) e x
+    where
+        f' :: Monoid a => (a -> DataCon -> (DataCon, a)) -> a -> Type -> (Type, a)
+        f' f x (TyAlg n dc) =
+            let
+                (dc', x') = unzip . map (f x) $ dc
+            in
+            (TyAlg n dc', mconcat x')
+        f' _ _ dc = (dc, mempty)

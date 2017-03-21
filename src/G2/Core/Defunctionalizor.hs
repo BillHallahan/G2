@@ -42,38 +42,49 @@ defunctionalize s =
     createApplyFuncs applies appliesCons .
         createApplyTypes applies appliesCons .
         applyPassedFuncs applies appliesCons .
-        modifyTypesInExpr (applyLamTypeAdj applies) .
-        modifyUntil (applyFuncGen applies) $ s
+        applyDataConAdj applies .
+        modifyTypesInExpr (applyTypeAdj applies) .
+        modify (applyFuncGen applies) $ s
     where
         --adjusts calls to functions to accept apply datatypes rather than
         --functions
-        applyFuncGen :: AppliesLookUp -> Expr -> (Expr, Bool)
-        applyFuncGen a e@(Var n t) =
+        applyFuncGen :: AppliesLookUp -> Expr -> Expr
+        applyFuncGen a app@(App (Var n t) e) =
             let
                 r = lookup t a
             in
             case r of
                 Just (f, d) ->
                     let
-                        applyVar = Var f (TyFun (TyConApp d []) t)
+                        applyVar = (Var f (TyFun (TyConApp d []) t))
                         applyType = Var n (TyConApp d [])
                     in 
-                    (App applyVar applyType, False)
-                Nothing -> (e, True)
-        applyFuncGen _ e = (e, True)
+                    App (App applyVar applyType) e
+                Nothing -> app
+        applyFuncGen _ e = e
 
-        --adjusts the types of lambda expressions to account for apply
-        applyLamTypeAdj :: AppliesLookUp -> Expr -> Type -> Type
-        applyLamTypeAdj a e t@(TyFun t'@(TyFun _ _) t'') =
+        --adjusts the types of expressions to account for apply
+        applyTypeAdj :: AppliesLookUp -> Expr -> Type -> Type
+        applyTypeAdj a e t@(TyFun t'@(TyFun _ _) t'') =
             let
                 r = lookup t' a    
             in
             case r of Just (f, d) -> TyFun (TyConApp d []) t'' 
                       Nothing -> t
-        applyLamTypeAdj _ _ t = t
+        applyTypeAdj _ _ t = t
 
-        --adjust lambda expressions and functions being passed to
-        --use apply variables rather than higher order functions
+        applyDataConAdj :: (Manipulatable Expr m, Manipulatable Type m) => AppliesLookUp -> m -> m
+        applyDataConAdj a e = modifyDataConExpr (applyDataConAdj' a) e
+            where
+                applyDataConAdj' :: AppliesLookUp -> DataCon -> DataCon
+                applyDataConAdj' a (DC (n, i, t, ts)) =
+                    let ts' = map (\t' -> case lookup t' $ a of
+                                                Just (_, t'') -> TyConApp t'' []
+                                                Nothing -> t'
+                                  ) ts in
+                    DC (n, i, t, ts')
+
+        --adjust passed functions, and calls to passed functions, to use apply variables rather than higher order functions
         applyPassedFuncs :: AppliesLookUp -> AppliesConLookUp -> State -> State
         applyPassedFuncs a a' s =
             let
@@ -88,10 +99,33 @@ defunctionalize s =
                         r = lookup t a
                         r' = lookup f . concatMap snd $ a'
                         s' = case (r, r') of
-                                (Just (f', d), Just d') -> replaceM s (Var f t) (App (applyFunc f' d t) (Var d' (TyAlg d [])))
+                                (Just (f', d), Just d') ->
+                                    applyPassedFuncsSnd (Var f t) (Var d' (TyAlg d [])) .
+                                    applyPassedFuncsFst (Var f t) (App (applyFunc f' d t) (Var d' (TyAlg d []))) $ s
                                 _ -> s
                     in
                     applyPassedFuncs' a a' fs s'
+
+                applyPassedFuncs'' :: Expr -> Expr -> Expr -> Expr
+                applyPassedFuncs'' r r' e = applyPassedFuncsSnd r r' . applyPassedFuncsFst r r' $ e
+
+                --A passed function may appear in either position in App
+                --If it appears in the first position, it is being called
+                --If it appears in the second position, it is being passed
+                --We have a seperate function for each case.
+                applyPassedFuncsFst :: (Manipulatable Expr s) => Expr -> Expr -> s -> s
+                applyPassedFuncsFst r r' e = modify (applyPassedFuncsFst' r r') e
+                    where
+                        applyPassedFuncsFst' :: Expr -> Expr -> Expr -> Expr
+                        applyPassedFuncsFst' r r' a@(App e e') = if e == r then App r' e' else a
+                        applyPassedFuncsFst' _ _ e = e
+
+                applyPassedFuncsSnd :: (Manipulatable Expr s) => Expr -> Expr -> s -> s
+                applyPassedFuncsSnd r r' e = modify (applyPassedFuncsSnd' r r') e
+                    where
+                        applyPassedFuncsSnd' :: Expr -> Expr -> Expr -> Expr
+                        applyPassedFuncsSnd' r r' a@(App e e') = if e' == r then App e r' else a
+                        applyPassedFuncsSnd' _ _ e = e
                     
         --adds the apply data types to the type environment
         createApplyTypes :: AppliesLookUp -> AppliesConLookUp -> State -> State
@@ -146,41 +180,30 @@ defunctionalize s =
                 genCase _ _ _ _ _ = error "Second supplied type must be a function."
         createApplyFuncs _ _ s = s
         
-
         applyFunc :: Name -> Name -> Type -> Expr
         applyFunc f d t = Var f (TyFun (TyConApp d []) t)
 
---Returns all Vars with the given Name
-findFuncVar :: (Manipulatable Expr m) => Name -> m -> [Expr]
-findFuncVar n e = eval (findFuncVar' n) e
-    where
-        findFuncVar' :: Name -> Expr -> [Expr]
-        findFuncVar' n v@(Var n' _) = if n == n' then [v] else []
-        findFuncVar' _ _ = []
+--This returns a mapping from all higher order function types to
+--names for cooresponding Apply functions and data types
+higherOrderFuncTypesToApplies :: (Manipulatable Expr m, Manipulatable Type m) => m -> AppliesLookUp
+higherOrderFuncTypesToApplies e =
+    let
+        h = findPassedInFuncTypes e
+        bv = freeVars [] e
+        funcN = numFresh "apply" (length h) bv
+        funcD = numFresh "applyType" (length h) (bv ++ funcN)
+    in 
+    zip h . zip funcN $ funcD
 
---Returns all functions (either free or from lambdas) being passed into another function
-findPassedInFuncs :: Manipulatable Expr m => m -> [(FuncName, Type)]
-findPassedInFuncs s = eval findPassedInFuncs' s
-    where
-        findPassedInFuncs' :: Expr -> [(FuncName, Type)]
-        findPassedInFuncs' (App _ (Var n t@(TyFun _ _))) = [(n, t)]
-        findPassedInFuncs' _ = []
-
--- Get the type of all higher order function arguments
-findPassedInFuncTypes :: (Manipulatable Expr m) => m -> [Type]
-findPassedInFuncTypes e = nub . eval findPassedInFuncTypes' . map typeOf . findHigherOrderFuncs $ e
-    where
-        findPassedInFuncTypes' :: Type -> [Type]
-        findPassedInFuncTypes' (TyFun t@(TyFun _ _) _) = [t]
-        findPassedInFuncTypes' _ = []
-        
+--gets all functions passed in as higher order functions and stores new there types,
+--the name of the function, and a new name for a cooresponding data constructor
 passedInFuncsToApplies :: State -> AppliesConLookUp
 passedInFuncsToApplies s = 
     let
         passed = findPassedInFuncs s
         types = findPassedInFuncTypes s
 
-        lam_vars = eval getLamVars s
+        lam_vars = eval getLamCaseVars s
 
         passed' = deleteFirstsBy (\n n' -> fst n == fst n') passed lam_vars
 
@@ -199,54 +222,51 @@ passedInFuncsToApplies s =
             (t, fd):passedIn' ts ftd
         passedIn' _ _ = []
 
-        getLamVars :: Expr -> [(Name, Type)]
-        getLamVars (Lam n _ t) = [(n, t)]
-        getLamVars _ = []
+        getLamCaseVars :: Expr -> [(FuncName, Type)]
+        getLamCaseVars (Lam n _ t) = [(n, t)]
+        getLamCaseVars (Case a ae t) = concatMap findPassedInFuncsAE ae
+        getLamCaseVars _ = []
 
---This returns a mapping from all higher order function types to
---names for cooresponding Apply functions and data types
-higherOrderFuncTypesToApplies :: (Manipulatable Expr m) => m -> AppliesLookUp
-higherOrderFuncTypesToApplies e =
-    let
-        h = findPassedInFuncTypes e
-        bv = freeVars [] e
-        funcN = numFresh "apply" (length h) bv
-        funcD = numFresh "applyType" (length h) (bv ++ funcN)
-    in 
-    zip h . zip funcN $ funcD
-
---returns all expressions of the form (a -> b) -> c in the given expr
-findLeadingHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
-findLeadingHigherOrderFuncs e = filter isLam . findLeadingHigherOrderFuncsAndCalls $ e
+-- Get the type of all higher order function arguments
+findPassedInFuncTypes :: Manipulatable Type m => m -> [Type]
+findPassedInFuncTypes e = nub . eval findPassedInFuncTypes' $ e
     where
-        isLam :: Expr -> Bool
-        isLam (Lam _ _ _) = True
-        isLam _ = False
+        findPassedInFuncTypes' :: Type -> [Type]
+        findPassedInFuncTypes' (TyAlg _ dc) = concatMap findPassedInFuncTypesDC dc
+        findPassedInFuncTypes' (TyFun t@(TyFun _ _) _) = [t]
+        findPassedInFuncTypes' _ = []
 
-findLeadingHigherOrderFuncCalls :: (Manipulatable Expr m) => m -> [Expr]
-findLeadingHigherOrderFuncCalls e = filter isVar . findLeadingHigherOrderFuncsAndCalls $ e
+        findPassedInFuncTypesDC :: DataCon -> [Type]
+        findPassedInFuncTypesDC (DC (_, _, _, t)) = filter isTyFun t
+
+--Returns all functions (either free, from lambdas, or from pattern matching) being passed into another function
+findPassedInFuncs :: Manipulatable Expr m => m -> [(FuncName, Type)]
+findPassedInFuncs s = nub . eval findPassedInFuncs' $ s
     where
-        isVar :: Expr -> Bool
-        isVar (Var _ _) = True
-        isVar _ = False
+        findPassedInFuncs' :: Expr -> [(FuncName, Type)]
+        findPassedInFuncs' (App _ (Var n t@(TyFun _ _))) = [(n, t)]
+        findPassedInFuncs' (Case e ae t) = concatMap findPassedInFuncsAE ae
+        findPassedInFuncs' _ = []
 
---Returns both lambda functions and calling sites
-findLeadingHigherOrderFuncsAndCalls :: (Manipulatable Expr m) => m -> [Expr]
-findLeadingHigherOrderFuncsAndCalls e = filter (isLeadingHigherOrderFuncType . typeOf) (findHigherOrderFuncs e)
+findPassedInFuncsAE :: (Alt, Expr) -> [(FuncName, Type)]
+findPassedInFuncsAE (Alt (DC (_, _, _, t), n), _) = filter (isTyFun . snd) . zip n $ t
 
 --returns all expressions corresponding to higher order functions in the given expr
 findHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
-findHigherOrderFuncs e = nub . evalTypesInExpr (\e' t -> if isHigherOrderFuncType t then [e'] else []) e $ []
-
-isHigherOrderFuncType :: Type -> Bool
-isHigherOrderFuncType (TyFun t1 t2) = Mon.getAny . eval (Mon.Any . isLeadingHigherOrderFuncType) $ TyFun t1 t2
-isHigherOrderFuncType _ = False
-
-isLeadingHigherOrderFuncType :: Type -> Bool
-isLeadingHigherOrderFuncType (TyFun (TyFun _ _) _) = True
-isLeadingHigherOrderFuncType (TyFun (TyConApp _ t) _) = any isTyFun t
+findHigherOrderFuncs e = nub . evalTypesInExpr (findHigherOrderFuncs') e $ []
     where
-        isTyFun :: Type -> Bool
-        isTyFun (TyFun _ _) = True
-        isTyFun _ = False
-isLeadingHigherOrderFuncType _ = False
+        findHigherOrderFuncs' :: Expr -> Type -> [Expr]
+        findHigherOrderFuncs' e' t = if isHigherOrderFuncType t then [e'] else []
+
+--returns whether the given type is a higher order func type, for example (a -> b) -> a -> b
+isHigherOrderFuncType :: Type -> Bool
+isHigherOrderFuncType t = Mon.getAny . eval (Mon.Any . isHigherOrderFuncType') $ t
+    where
+        isHigherOrderFuncType' :: Type -> Bool
+        isHigherOrderFuncType' (TyFun (TyFun _ _) _) = True
+        isHigherOrderFuncType' (TyFun (TyConApp _ t) _) = any isTyFun t
+        isHigherOrderFuncType' _ = False
+    
+isTyFun :: Type -> Bool
+isTyFun (TyFun _ _) = True
+isTyFun _ = False

@@ -45,6 +45,15 @@ main = do
 
     putStrLn $ show init_state
 
+    let higher = findPassedInFuncTypes init_state
+    let passed = findPassedInFuncs init_state
+
+    putStrLn $ mkStatesStr [init_state]
+
+    putStrLn "HIGHER"
+    print higher
+    print passed
+
     putStrLn "+++++++++++++++++++++++++"
 
 

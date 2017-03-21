@@ -101,6 +101,7 @@ exprZ3 d a@(App _ _) =
         args = getAppArgs a
     in
     handleFunctionsZ3 d func args
+exprZ3 d e = error ("Unknown expression " ++ show e ++ " in exprZ3")
 
 handleFunctionsZ3 :: M.Map Name Sort -> Expr -> [Expr] -> Z3 AST
 --Mappings fairly directly from Haskell to SMT
