@@ -101,8 +101,8 @@ mkTypeStr t i = mkTypeStr' t i False
 -- Primitive for now because I'm low on battery.
 mkPCStr :: PC -> String
 mkPCStr []     = ""
-mkPCStr [(e, a)] = mkExprStr e ++ " = " ++ show a
-mkPCStr ((e, a):ps) = mkExprStr e ++ " = " ++ show a++ "\n--AND--\n" ++ mkPCStr ps
+mkPCStr [(e, a, b)] = mkExprStr e ++ (if b then " = " else " != ") ++ show a
+mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a++ "\n--AND--\n" ++ mkPCStr ps
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""

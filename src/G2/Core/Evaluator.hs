@@ -121,14 +121,14 @@ evaluate (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
                          let ns    = M.keys env
                              pars' = freshList pars (ns++freeVars (pars++ns) ae)
                              ae'   = replaceList ae ns pars pars'
-                         in [(tv, env, ae', (m, Alt (ad, pars')):pc)]) as
+                         in [(tv, env, ae', (m, Alt (ad, pars'), True):pc)]) as
             DCon md -> concatMap (\(Alt (ad, pars), ae) ->
                 if length args == length pars && md == ad
                     then let ns    = M.keys env
                              pars' = freshList pars (ns++freeVars (pars++ns) ae)
                              ae'   = replaceList ae ns pars pars'
                          in [(tv, M.union (M.fromList (zip pars' args)) env
-                             , ae', (m, Alt (ad, pars')):pc)]
+                             , ae', (m, Alt (ad, pars'), True):pc)]
                     else []) as
             _ -> [(tv, env, BAD, pc)]  -- Should not be in this state. Error?
     else let m_ress = evaluate (tv, env, m, pc)

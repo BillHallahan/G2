@@ -132,5 +132,5 @@ However in the case where A is actually an unbound variable, we must treat
 it as a function that returns an ADT, which we will request the SMT to solve
 for based on the information it can reconstruct from the tuple.
 -}
-type PC = [(Expr, Alt)]
+type PC = [(Expr, Alt, Bool)]
 

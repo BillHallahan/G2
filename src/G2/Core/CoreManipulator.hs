@@ -153,6 +153,9 @@ instance Manipulatable Type Type where
                 (TyForAll n t', x `mappend` x')
             modifyT' _ t _ = (t, mempty)
 
+instance Manipulatable e Bool where
+    modifyG _ b x = (b, x)
+
 instance (Manipulatable e a, Manipulatable e b) => Manipulatable e (a, b) where
     modifyG f (t1, t2) x = 
         let

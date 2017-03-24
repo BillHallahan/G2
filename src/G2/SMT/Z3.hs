@@ -40,11 +40,14 @@ stateSolverZ3 (tv, ev, expr, pc) = do
     solverCheckAndGetModel 
 
 constraintsZ3 :: M.Map Name Sort -> PC -> Z3 ()
-constraintsZ3 d ((expr, alt):xs) = do
+constraintsZ3 d ((expr, alt, b):xs) = do
     e <- exprZ3 d expr
     a <- altZ3 d alt
 
-    assert =<< mkEq e a
+    if b then
+        assert =<< mkEq e a
+    else
+        assert =<< mkNot =<< mkEq e a
 
     constraintsZ3 d xs
 constraintsZ3 _ ([]) = return ()
