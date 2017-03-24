@@ -114,25 +114,44 @@ There are two possible things that A may be:
    to have bindings to an expression. Rather, they also continue on as unbound
    free variables that would also more or less be symbolics.
 -}
-evaluate (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
-    then let (d:args) = unapp m
-        in case d of
-            Var f t -> concatMap (\(Alt (ad, pars), ae) ->
-                         let ns    = M.keys env
-                             pars' = freshList pars (ns++freeVars (pars++ns) ae)
-                             ae'   = replaceList ae ns pars pars'
-                         in [(tv, env, ae', (m, Alt (ad, pars'), True):pc)]) as
-            DCon md -> concatMap (\(Alt (ad, pars), ae) ->
-                if length args == length pars && md == ad
-                    then let ns    = M.keys env
-                             pars' = freshList pars (ns++freeVars (pars++ns) ae)
-                             ae'   = replaceList ae ns pars pars'
-                         in [(tv, M.union (M.fromList (zip pars' args)) env
-                             , ae', (m, Alt (ad, pars'), True):pc)]
-                    else []) as
-            _ -> [(tv, env, BAD, pc)]  -- Should not be in this state. Error?
+
+evaluate state@(tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
+    then let non_defaults = filter (not . isDefault) as
+             defaults     = filter isDefault as -- Handle differently
+         in (do_nd (tv, env, Case m non_defaults t, pc)) ++
+            (do_d (tv, env, Case m defaults t, pc) non_defaults)
     else let m_ress = evaluate (tv, env, m, pc)
          in [(tv', env', Case m' as t, pc') | (tv', env', m', pc') <- m_ress]
+  where -- This is behavior we expect to match from the G2 Prelude's default.
+        isDefault (Alt (DC ("DEFAULT", 0, TyBottom, []), _), _) = True
+        isDefault _ = False
+
+        do_nd (tv, env, Case m nds t, pc) =
+          let (d:args) = unapp m
+          in case d of
+            Var f t -> concatMap (\(Alt (ad, pars), ae) ->
+             let ns    = M.keys env
+                 pars' = freshList pars (ns++freeVars (pars++ns) ae)
+                 ae'   = replaceList ae ns pars pars'
+             in [(tv, env, ae', (m, Alt (ad, pars'), True):pc)]) nds
+            DCon md -> concatMap (\(Alt (ad, pars), ae) ->
+              if length args == length pars && md == ad
+                  then let ns    = M.keys env
+                           pars' = freshList pars (ns++freeVars (pars++ns) ae)
+                           ae'   = replaceList ae ns pars pars'
+                       in [(tv, M.union (M.fromList (zip pars' args)) env
+                           , ae', (m, Alt (ad, pars'), True):pc)]
+                  else []) nds
+            _ -> [(tv, env, BAD, pc)]  -- Should not be in this state. Error?
+
+        -- We are technically only supposed to have at most a single DEFAULT
+        -- appear in any given pattern matching. If this is not the case, then
+        -- Core Haskell did something wrong and it's not our problem.
+        do_d (tv, env, Case m ds t, pc) nds =
+          let (d:args) = unapp m
+              neg_alts = map fst nds
+              neg_pcs  = map (\na -> (m, na, False)) neg_alts
+          in map (\(Alt _, ae) -> (tv, env, ae, neg_pcs ++ pc)) ds
 
 -- Type
 evaluate (tv, env, Type t, pc) = [(tv, env, Type t, pc)]
