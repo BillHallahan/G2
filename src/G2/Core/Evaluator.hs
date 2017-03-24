@@ -115,7 +115,7 @@ There are two possible things that A may be:
    free variables that would also more or less be symbolics.
 -}
 
-evaluate state@(tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
+evaluate (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
     then let non_defaults = filter (not . isDefault) as
              defaults     = filter isDefault as -- Handle differently
          in (do_nd (tv, env, Case m non_defaults t, pc)) ++
@@ -123,9 +123,11 @@ evaluate state@(tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
     else let m_ress = evaluate (tv, env, m, pc)
          in [(tv', env', Case m' as t, pc') | (tv', env', m', pc') <- m_ress]
   where -- This is behavior we expect to match from the G2 Prelude's default.
+        isDefault :: (Alt, Expr) -> Bool
         isDefault (Alt (DC ("DEFAULT", 0, TyBottom, []), _), _) = True
         isDefault _ = False
 
+        do_nd :: State -> [State]
         do_nd (tv, env, Case m nds t, pc) =
           let (d:args) = unapp m
           in case d of
@@ -147,6 +149,7 @@ evaluate state@(tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
         -- We are technically only supposed to have at most a single DEFAULT
         -- appear in any given pattern matching. If this is not the case, then
         -- Core Haskell did something wrong and it's not our problem.
+        do_d :: State -> [(Alt, Expr)] -> [State]
         do_d (tv, env, Case m ds t, pc) nds =
           let (d:args) = unapp m
               neg_alts = map fst nds
