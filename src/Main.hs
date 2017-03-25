@@ -69,5 +69,5 @@ main = do
     putStrLn $ mkStatesStr states
 
     putStrLn "Compiles!"
-
+    
     mapM_ printModel states

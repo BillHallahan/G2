@@ -167,7 +167,7 @@ defunctionalize s =
 
                 cases = map (genCase (frApply:frIn:bv) frIn (TyConApp d []) t) c
 
-                e' = Case (Var frApply . TyAlg d $ []) cases t2
+                e' = Case (Var frApply . TyConApp d $ []) cases t2
 
                 apply = Lam frApply (Lam frIn e' t) (TyFun (TyAlg d []) t)
 
