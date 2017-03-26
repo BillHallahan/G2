@@ -18,6 +18,7 @@ import Z3.Monad
 
 import Data.Ratio
 
+import qualified Debug.Trace as T
 --This function is just kind of a hack for now... might want something else later?
 printModel :: State -> IO ()
 printModel s = do
@@ -34,7 +35,7 @@ stateSolverZ3 :: State -> Z3 (Result, Maybe Model)
 stateSolverZ3 (tv, ev, expr, pc) = do
     dtMap <- mkDatatypesZ3 tv
     
-    exprZ3 dtMap expr
+    --exprZ3 dtMap expr
     constraintsZ3 dtMap pc
     solverCheckAndGetModel 
 
@@ -82,13 +83,13 @@ mkDatatypesZ3 tenv = mkSortsZ3 M.empty
 
 mkConstructorZ3 :: M.Map Name Sort -> DataCon -> Z3 Constructor
 --we need to do something to ensure all symbols are unique... adjust
-mkConstructorZ3 d (DC (n, _, _, t)) = do
+mkConstructorZ3 d (DC (n, _, tc, t)) = do
     n' <- mkStringSymbol n
     is_n <- mkStringSymbol ("is_" ++ n)
     s <- mapM mkStringSymbol . numFresh n (length t) $ []
-    t' <- mapM (sortZ3 d) t
+    t' <- mapM (\_t -> if _t /= tc then return .  Just =<< sortZ3 d _t else return  Nothing) t
 
-    mkConstructor n' is_n . map (\(s, t) -> (s, Just t, 0)) . zip s $ t'
+    mkConstructor n' is_n . map (\(s, t) -> (s, t, 0)) . zip s $ t'
 
 exprZ3 :: M.Map Name Sort -> Expr -> Z3 AST
 exprZ3 d (Var v t) = do
