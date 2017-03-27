@@ -23,31 +23,22 @@ import qualified Data.List as L
 import qualified Data.Map  as M
 
 main = do
-    {-
-    let bar = "=============================================="
-    let entry = "test"
-    let t_env = M.fromList (prelude_t_decls ++ P2.t_decls)
-    let e_env = M.fromList (prelude_e_decls ++ P2.e_decls)
-    let state = initState t_env e_env entry
-    putStrLn $ mkStateStr state
-    putStrLn bar
-
-    let (states, n) = runN [state] 10
-    putStrLn $ mkStatesStr states
-    -}    
     (filepath:entry:xs) <- getArgs
     raw_core <- mkRawCore filepath
+    putStrLn "RAW CORE"
     putStrLn =<< outStr raw_core
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
     let init_state = initState t_env' e_env' entry
 
+    putStrLn "INIT STATE"
     putStrLn $ show init_state
 
     let higher = findPassedInFuncTypes init_state
     let passed = findPassedInFuncs init_state
 
+    putStrLn "mkStateStr of INIT STATE"
     putStrLn $ mkStatesStr [init_state]
 
     putStrLn "HIGHER"
@@ -65,8 +56,9 @@ main = do
 
     putStrLn "======================="
 
-    let (states, n) = runN [defun_init_state] 20
-    putStrLn $ mkStatesStr states
+    let (states, n) = runN [defun_init_state] 50
+    putStrLn ("Number of execution states: " ++ (show (length states)))
+    -- putStrLn $ mkStatesStr states
 
     putStrLn "Compiles!\n\n"
     
@@ -74,3 +66,4 @@ main = do
         putStrLn . mkPCStr $ pc
         putStrLn " => "
         printModel s) states
+

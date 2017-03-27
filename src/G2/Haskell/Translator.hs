@@ -189,9 +189,21 @@ cascadeAlt mx recon ((ac, args, exp):as) = case ac of
                           (mkType $ CU.exprType exp)
 
 recoverCons :: G2.Type -> Maybe G2.DataCon
+recoverCons G2.TyRawInt    = Just P.p_d_int
+recoverCons G2.TyRawFloat  = Just P.p_d_float
+recoverCons G2.TyRawDouble = Just P.p_d_double
+recoverCons G2.TyRawChar   = Just P.p_d_char
+recoverCons otherwise      = Nothing
+
+{-
 recoverCons (G2.TyConApp "Int#" [])    = Just P.p_d_int
 recoverCons (G2.TyConApp "Float#" [])  = Just P.p_d_float
 recoverCons (G2.TyConApp "Double#" []) = Just P.p_d_double
 recoverCons (G2.TyConApp "Char#" [])   = Just P.p_d_char
-recoverCons otherwise = Nothing
+recoverCons otherwise = if otherwise `elem` [(G2.TyConApp "Peano" [])
+                                            ,(G2.TyConApp "Bool" [])
+                                            ,(G2.TyConApp "Int" [])]
+                        then Nothing
+                        else error $ "HEREEREREREE: " ++ show otherwise
+-}
 
