@@ -100,7 +100,7 @@ mkTypeStr t i = mkTypeStr' t i False
 
 -- Primitive for now because I'm low on battery.
 mkPCStr :: PC -> String
-mkPCStr []     = ""
+mkPCStr [] = ""
 mkPCStr [(e, a, b)] = mkExprStr e ++ (if b then " = " else " != ") ++ show a
 mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a++ "\n--AND--\n" ++ mkPCStr ps
 

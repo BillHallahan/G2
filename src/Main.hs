@@ -70,4 +70,7 @@ main = do
 
     putStrLn "Compiles!"
     
-    mapM_ printModel states
+    mapM_ (\s@(_, _, _, pc) -> do
+        putStrLn . mkPCStr $ pc
+        putStrLn " => "
+        printModel s) states
