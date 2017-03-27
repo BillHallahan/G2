@@ -68,7 +68,7 @@ main = do
     let (states, n) = runN [defun_init_state] 20
     putStrLn $ mkStatesStr states
 
-    putStrLn "Compiles!"
+    putStrLn "Compiles!\n\n"
     
     mapM_ (\s@(_, _, _, pc) -> do
         putStrLn . mkPCStr $ pc
