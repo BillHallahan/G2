@@ -57,8 +57,8 @@ main = do
     putStrLn "======================="
 
     let (states, n) = runN [defun_init_state] 50
+    putStrLn $ mkStatesStr states
     putStrLn ("Number of execution states: " ++ (show (length states)))
-    -- putStrLn $ mkStatesStr states
 
     putStrLn "Compiles!\n\n"
     

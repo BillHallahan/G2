@@ -36,21 +36,19 @@ stateSolverZ3 (tv, ev, expr, pc) = do
     dtMap <- mkDatatypesZ3 tv
     
     --exprZ3 dtMap expr
-    constraintsZ3 dtMap pc
+    mapM assert =<< constraintsZ3 dtMap pc
     solverCheckAndGetModel 
 
-constraintsZ3 :: M.Map Name Sort -> PC -> Z3 ()
-constraintsZ3 d ((expr, alt, b):xs) = do
-    e <- exprZ3 d expr
-    a <- altZ3 d alt
+constraintsZ3 :: M.Map Name Sort -> PC -> Z3 [AST]
+constraintsZ3 d (pc) = do
+    mapM (constraintsZ3' d) pc
+    where
+        constraintsZ3' :: M.Map Name Sort -> (Expr, Alt, Bool) -> Z3 AST
+        constraintsZ3' d (expr, alt, b) = do
+            e <- exprZ3 d expr
+            a <- altZ3 d alt
 
-    if b then
-        assert =<< mkEq e a
-    else
-        assert =<< mkNot =<< mkEq e a
-
-    constraintsZ3 d xs
-constraintsZ3 _ ([]) = return ()
+            if b then mkEq e a else mkNot =<< mkEq e a
 
 mkDatatypesZ3 :: TEnv -> Z3 (M.Map Name Sort)
 mkDatatypesZ3 tenv = mkSortsZ3 M.empty
@@ -92,6 +90,8 @@ mkConstructorZ3 d (DC (n, _, tc, t)) = do
     mkConstructor n' is_n . map (\(s, t) -> (s, t, 0)) . zip s $ t'
 
 exprZ3 :: M.Map Name Sort -> Expr -> Z3 AST
+exprZ3 _ (Var "True" _) = mkTrue
+exprZ3 _ (Var "False" _) = mkFalse
 exprZ3 d (Var v t) = do
     v' <- mkStringSymbol v
     t' <- sortZ3 d t
@@ -170,6 +170,7 @@ handleFunctionsZ3 d (Var "||" _ ) [a, b] = do
     a' <- exprZ3 d a
     b' <- exprZ3 d b
     mkOr [a', b']
+--Constructors for built in datatypes
 handleFunctionsZ3 _ (Var "I#" _) [Const c] = constZ3 c
 handleFunctionsZ3 d (Var "I#" _) [e] = exprZ3 d e
 handleFunctionsZ3 _ (Var "F#" _) [Const c] = constZ3 c
