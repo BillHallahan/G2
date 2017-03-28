@@ -175,18 +175,23 @@ sortAlt ((ac, args, exp):as) = case ac of
 
 cascadeAlt :: G2.Expr -> G2.DataCon -> [CoreAlt] -> G2.Expr
 cascadeAlt mx recon [] = G2.BAD
-cascadeAlt mx recon ((ac, args, exp):as) = case ac of
+cascadeAlt mx recon@(G2.DC (n, _, t, ts)) ((ac, args, exp):as) = case ac of
     DataAlt dc -> error "We should not see non-raw data consturctors here"
     DEFAULT    -> mkExpr exp
     LitAlt lit -> G2.Case (G2.App (G2.App (G2.App (G2.App P.op_eq
                                                           (G2.Type G2.TyBottom))
                                                   P.d_eq)
-                                          (G2.App (G2.DCon recon) mx))
-                                  (G2.App (G2.DCon recon)
+                                          (G2.App (G2.Var n . toTyFun ts $ t) mx))--(G2.App (G2.DCon recon) mx))
+                                  (G2.App (G2.Var n . toTyFun ts $ t)--(G2.App (G2.DCon recon)
                                           (G2.Const (mkLit lit))))
                           [(G2.Alt (P.p_d_true, []), mkExpr exp),
                            (G2.Alt (P.p_d_false, []), cascadeAlt mx recon as)]
                           (mkType $ CU.exprType exp)
+    where
+        toTyFun :: [G2.Type] -> G2.Type -> G2.Type
+        toTyFun [] t' = t'
+        toTyFun (t:[]) t' = G2.TyFun t t'
+        toTyFun (t:ts) t' = G2.TyFun t (toTyFun ts t')
 
 recoverCons :: G2.Type -> Maybe G2.DataCon
 recoverCons G2.TyRawInt    = Just P.p_d_int

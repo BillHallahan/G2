@@ -171,8 +171,11 @@ handleFunctionsZ3 d (Var "||" _ ) [a, b] = do
     b' <- exprZ3 d b
     mkOr [a', b']
 handleFunctionsZ3 _ (Var "I#" _) [Const c] = constZ3 c
+handleFunctionsZ3 d (Var "I#" _) [e] = exprZ3 d e
 handleFunctionsZ3 _ (Var "F#" _) [Const c] = constZ3 c
+handleFunctionsZ3 d (Var "F#" _) [e] = exprZ3 d e
 handleFunctionsZ3 _ (Var "D#" _) [Const c] = constZ3 c
+handleFunctionsZ3 d (Var "D#" _) [e] = exprZ3 d e
 handleFunctionsZ3 d (Var n t1) e = do
     n' <- mkStringSymbol n
 
