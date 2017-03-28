@@ -22,7 +22,7 @@ import qualified Debug.Trace as T
 --This function is just kind of a hack for now... might want something else later?
 printModel :: State -> IO ()
 printModel s = do
-    (r, m) <- evalZ3 . stateSolverZ3 $ s
+    (r, m) <- evalZ3 . reachabilitySolverZ3 $ s
     m' <- case m of Just m'' -> modelToIOString m''
                     Nothing -> return ""
     print r
@@ -31,13 +31,25 @@ printModel s = do
 modelToIOString :: Model -> IO (String)
 modelToIOString m = evalZ3 . modelToString $ m
 
-stateSolverZ3 :: State -> Z3 (Result, Maybe Model)
-stateSolverZ3 (tv, ev, expr, pc) = do
+--Use the SMT solver to find inputs that will reach the given state
+--(or determine that it is not possible to reach the state)
+reachabilitySolverZ3 :: State -> Z3 (Result, Maybe Model)
+reachabilitySolverZ3 (tv, ev, expr, pc) = do
     dtMap <- mkDatatypesZ3 tv
     
-    --exprZ3 dtMap expr
     mapM assert =<< constraintsZ3 dtMap pc
     solverCheckAndGetModel 
+
+--Use the SMT solver to attempt to find inputs that will result in output
+--satisfying the given condition
+outputSolverZ3 :: State -> AST -> Z3 (Result, Maybe Model)
+outputSolverZ3 (tv, ev, expr, pc) cond = do
+    dtMap <- mkDatatypesZ3 tv
+
+    e <- exprZ3 dtMap expr
+    cons <- constraintsZ3 dtMap pc
+
+    solverCheckAndGetModel
 
 constraintsZ3 :: M.Map Name Sort -> PC -> Z3 [AST]
 constraintsZ3 d (pc) = do
