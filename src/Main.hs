@@ -23,27 +23,23 @@ import qualified Data.List as L
 import qualified Data.Map  as M
 
 main = do
-    (filepath:entry:xs) <- getArgs
+    (num:xs) <- getArgs
+    let filepath:entry:xs' = xs
     raw_core <- mkRawCore filepath
     putStrLn "RAW CORE"
     putStrLn =<< outStr raw_core
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
-    let init_state = initState t_env' e_env' entry
+    let init_state = if num == "1" then initState t_env' e_env' entry else initStateWithPredicate t_env' e_env' entry (xs' !! 0)
 
     putStrLn "INIT STATE"
     putStrLn $ show init_state
-
-    let higher = findPassedInFuncTypes init_state
-    let passed = findPassedInFuncs init_state
 
     putStrLn "mkStateStr of INIT STATE"
     putStrLn $ mkStatesStr [init_state]
 
     putStrLn "HIGHER"
-    print higher
-    print passed
 
     putStrLn "+++++++++++++++++++++++++"
 
@@ -62,8 +58,16 @@ main = do
 
     putStrLn "Compiles!\n\n"
     
-    mapM_ (\s@(_, _, _, pc) -> do
-        putStrLn . mkPCStr $ pc
-        putStrLn " => "
-        printModel s) states
+    if num == "1" then
+        mapM_ (\s@(_, _, expr, pc) -> do
+            putStrLn . mkExprStr $ expr
+            putStrLn . mkPCStr $ pc
+            putStrLn " => "
+            printModel reachabilitySolverZ3 s) states
+    else
+        mapM_ (\s@(_, _, expr, pc) -> do
+            putStrLn . mkExprStr $ expr
+            putStrLn . mkPCStr $ pc
+            putStrLn " => "
+            printModel outputSolverZ3 s) states
 

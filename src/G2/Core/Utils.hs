@@ -181,6 +181,27 @@ freeVars bv e = snd . eval'' freeVars' e $ (bv, [])
         freeVars' (bv, fr) (Lam n' _ _) = ([n'], [])
         freeVars' _ _ = ([], [])
 
+--Returns all names used in a State
+names :: State -> [Name]
+names s@(tenv, eenv, curr_expr, pc) =
+    L.nub (eval (exprNames) s ++ eval (typeNames) s ++ evalDataConExpr dataConNames s)
+    where
+        exprNames :: Expr -> [Name]
+        exprNames (Var n _) = [n]
+        exprNames (Lam n _ _) = [n]
+        exprNames (Case _ ae _) = L.concatMap (\(Alt (d, n)) -> n) . map fst $ ae
+        exprNames _ = []
+
+        typeNames :: Type -> [Name]
+        typeNames (TyVar n) = [n]
+        typeNames (TyConApp n _) = [n]
+        typeNames (TyAlg n _) = [n]
+        typeNames (TyForAll n _) = [n]
+        typeNames _ = []
+
+        dataConNames :: DataCon -> [Name]
+        dataConNames (DC (n, _, _, _)) = [n]
+
 --Takes e e1 e2.  In e, replaces all occurences of e1 with e2
 replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
 replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e

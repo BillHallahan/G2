@@ -20,9 +20,9 @@ import Data.Ratio
 
 import qualified Debug.Trace as T
 --This function is just kind of a hack for now... might want something else later?
-printModel :: State -> IO ()
-printModel s = do
-    (r, m) <- evalZ3 . reachabilitySolverZ3 $ s
+printModel :: (State -> Z3 (Result, Maybe Model)) -> State -> IO ()
+printModel f s = do
+    (r, m) <- evalZ3 . f $ s
     m' <- case m of Just m'' -> modelToIOString m''
                     Nothing -> return ""
     print r
@@ -41,13 +41,13 @@ reachabilitySolverZ3 (tv, ev, expr, pc) = do
     solverCheckAndGetModel 
 
 --Use the SMT solver to attempt to find inputs that will result in output
---satisfying the given condition
-outputSolverZ3 :: State -> AST -> Z3 (Result, Maybe Model)
-outputSolverZ3 (tv, ev, expr, pc) cond = do
+--satisfying the given curr expr
+outputSolverZ3 :: State -> Z3 (Result, Maybe Model)
+outputSolverZ3 (tv, ev, expr, pc)  = do
     dtMap <- mkDatatypesZ3 tv
 
-    e <- exprZ3 dtMap expr
-    cons <- constraintsZ3 dtMap pc
+    assert =<< exprZ3 dtMap expr
+    mapM assert =<< constraintsZ3 dtMap pc
 
     solverCheckAndGetModel
 

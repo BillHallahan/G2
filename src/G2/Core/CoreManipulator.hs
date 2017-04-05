@@ -425,6 +425,15 @@ modifyDataConExpr' f e = modifyDataConExpr'' f e $ mempty
 modifyDataConExpr'' :: (Manipulatable Expr m, Manipulatable Type m, Monoid a) => (a -> DataCon -> (DataCon, a)) -> m -> a -> m
 modifyDataConExpr'' f e x = fst . modifyDataConExprG f e $ x
 
+evalDataConExpr :: (Manipulatable Expr m, Manipulatable Type m, Monoid a) => (DataCon -> a) -> m -> a
+evalDataConExpr f e = evalDataConExpr' (\_ e' -> f e') e
+
+evalDataConExpr' :: (Manipulatable Expr m, Manipulatable Type m, Monoid a) => (a -> DataCon -> a) -> m -> a
+evalDataConExpr' f e = evalDataConExpr'' f e $ mempty
+
+evalDataConExpr'' :: (Manipulatable Expr m, Manipulatable Type m, Monoid a) => (a -> DataCon -> a) -> m -> a -> a
+evalDataConExpr'' f e x = snd . modifyDataConExprG (\a e' -> (e', f a e')) e $ x
+
 modifyDataConTypeG :: (Manipulatable Type m, Monoid a) => (a -> DataCon -> (DataCon, a)) -> m -> a -> (m, a)
 modifyDataConTypeG f e x = modifyG (f' f) e x
     where

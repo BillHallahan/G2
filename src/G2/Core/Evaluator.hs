@@ -179,6 +179,15 @@ unlam (Lam a e t) = let (p, e')   = unlam e
                     in ((a, l):p, e')
 unlam otherwise   = ([], otherwise)
 
+replaceVars :: EEnv -> Expr -> Expr
+replaceVars e_env ex = 
+    let 
+        (args, expr) = unlam ex
+        ns = M.keys e_env
+        nfs = map fst args
+        nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
+     in
+     replaceList expr ns nfs nfs'
 {- Initialization
 
 We create our starting state by giving the initState function our type and
@@ -186,17 +195,26 @@ expression environment as well as the entrypoint function name. If our entry
 point is a function with arguments (in the form of cascading lambdas), we need
 to strip out all the parameters and ensure that they are now free variables
 within the body of the first non-immediately cascading lambda expression.
+
+initStateWithPred is similar, but allows passing in a predicate function
+to constrain the desired values of current expression
 -}
 initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry = case match of
     Nothing -> error "No matching entry point. Check spelling?"
-    Just ex -> let (args, expr) = unlam ex
-                   ns          = M.keys e_env
-                   nfs         = map fst args
-                   nfs'        = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
-                   expr'       = replaceList expr ns nfs nfs'
+    Just ex -> let
+                    expr' = replaceVars e_env ex
                in (t_env, e_env, expr', [])
-  where match = M.lookup entry e_env
+    where match = M.lookup entry e_env
+
+initStateWithPredicate :: TEnv -> EEnv -> Name -> Name -> State
+initStateWithPredicate t_env e_env pre entry = case match of
+    (Just pre_ex, Just ex) -> let
+                    pre_type = typeOf pre_ex
+                    expr' = replaceVars e_env ex
+               in (t_env, e_env, (App (Var pre pre_type) expr'), [])
+    otherwise -> error "No matching entry points. Check spelling?"
+    where match = (M.lookup pre e_env, M.lookup entry e_env)
 
 -- Count the number of times we call eval as a way of limiting runs.
 runN :: [State] -> Int -> ([State], Int)
