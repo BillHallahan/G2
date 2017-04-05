@@ -6,6 +6,8 @@ import G2.Core.Utils
 import qualified Data.List as L
 import qualified Data.Map as M
 
+import qualified Debug.Trace as T
+
 {- Values
 
 We need to return values from evaluation and this is it. Only oddity may be
@@ -128,18 +130,18 @@ evaluate (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
         isDefault _ = False
 
         do_nd :: State -> [State]
-        do_nd (tv, env, Case m nds t, pc) =
+        do_nd s@(tv, env, Case m nds t, pc) =
           let (d:args) = unapp m
           in case d of
             Var f t -> concatMap (\(Alt (ad, pars), ae) ->
              let ns    = M.keys env
-                 pars' = freshList pars (ns++freeVars (pars++ns) ae)
+                 pars' = freshList pars (ns ++ names s)--(ns++freeVars (pars++ns) ae)
                  ae'   = replaceList ae ns pars pars'
              in [(tv, env, ae', (m, Alt (ad, pars'), True):pc)]) nds
             DCon md -> concatMap (\(Alt (ad, pars), ae) ->
               if length args == length pars && md == ad
-                  then let ns    = M.keys env
-                           pars' = freshList pars (ns++freeVars (pars++ns) ae)
+                  then let ns = M.keys env
+                           pars' = freshList pars (ns ++ names s)--(ns ++ freeVars (pars++ns) ae)
                            ae'   = replaceList ae ns pars pars'
                        in [(tv, M.union (M.fromList (zip pars' args)) env
                            , ae', (m, Alt (ad, pars'), True):pc)]
