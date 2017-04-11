@@ -206,6 +206,13 @@ names s@(tenv, eenv, curr_expr, pc) =
 replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
 replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 
+-- Unroll cascading lambda expressions.
+unlam :: Expr -> ([(Name, Type)], Expr)
+unlam (Lam a e t) = let (p, e')   = unlam e
+                        TyFun l r = t
+                    in ((a, l):p, e')
+unlam e   = ([], e)
+
 --Find the number of Expr or Type's in a Manipulatable type.
 countExpr :: Manipulatable Expr m => m -> Int
 countExpr e = Mon.getSum . evalE (\_ -> Mon.Sum 1) $ e
@@ -220,6 +227,13 @@ exprArgCount :: Expr -> Int
 exprArgCount (Lam _ e _) = exprArgCount e
 exprArgCount (App a _) = 1 + exprArgCount a
 exprArgCount _ = 0
+
+--Given a TyFun, returns the ith argument
+--If not ith argument, or not a TyFun, errors
+ithArgType :: Type -> Int -> Type
+ithArgType (TyFun t _) 1 = t
+ithArgType (TyFun _ t) n = ithArgType t (n - 1) 
+ithArgType t i = error ("Type " ++ show t ++ " passed to TyFun") 
 
 --Given a TyFun, returns the number of arguments to completely evaluate
 --Given a different type, returns 0

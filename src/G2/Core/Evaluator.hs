@@ -172,14 +172,7 @@ evaluate (tv, env, UNR, pc) = [(tv, env, UNR, pc)]
 -- Unroll the App spine.
 unapp :: Expr -> [Expr]
 unapp (App f a) = unapp f ++ [a]
-unapp otherwise = [otherwise]
-
--- Unroll cascading lambda expressions.
-unlam :: Expr -> ([(Name, Type)], Expr)
-unlam (Lam a e t) = let (p, e')   = unlam e
-                        TyFun l r = t
-                    in ((a, l):p, e')
-unlam otherwise   = ([], otherwise)
+unapp e = [e]
 
 replaceVars :: EEnv -> Expr -> Expr
 replaceVars e_env ex = 
@@ -190,6 +183,7 @@ replaceVars e_env ex =
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
      in
      replaceList expr ns nfs nfs'
+
 {- Initialization
 
 We create our starting state by giving the initState function our type and
