@@ -130,7 +130,7 @@ defunctionalize s =
         --adds the apply data types to the type environment
         createApplyTypes :: AppliesLookUp -> AppliesConLookUp -> State -> State
         createApplyTypes _ [] s = s
-        createApplyTypes a ((t, fd):as) (t', env, ex, pc) =
+        createApplyTypes a ((t, fd):as) s@State{tEnv = t'} =
             let
                 name = snd (case lookup t a of
                             Just n -> n
@@ -142,7 +142,7 @@ defunctionalize s =
                 d = TyAlg name cons
                 t'' = M.insert name d t'
             in
-            createApplyTypes a as (t'', env, ex, pc)
+            createApplyTypes a as (s {tEnv = t''})
             where
                 getMinTag :: Type -> Semi.Min Int
                 getMinTag (TyAlg _ d) = 
@@ -154,7 +154,7 @@ defunctionalize s =
 
         --creates the actual apply function
         createApplyFuncs :: AppliesLookUp -> AppliesConLookUp -> State -> State
-        createApplyFuncs ((t@(TyFun _ t2), (f, d)):as) a (t', env, ex, pc) =
+        createApplyFuncs ((t@(TyFun _ t2), (f, d)):as) a s@State {eEnv = env}=
             let
                 --Get fresh variable for lambda
                 bv = freeVars [] s
@@ -173,7 +173,7 @@ defunctionalize s =
 
                 env' = M.insert f apply env
             in
-            createApplyFuncs as a (t', env', ex, pc)
+            createApplyFuncs as a (s {eEnv = env'})
             where
                 genCase :: [Name] -> Name -> Type -> Type -> (FuncName, DataConName) -> (Alt, Expr)
                 genCase a i t t'@(TyFun t'' _) (f, d) = (Alt (DC (d, -1000, t, []), [fresh "new" a]), App (Var f t') (Var i t''))

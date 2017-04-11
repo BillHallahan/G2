@@ -16,13 +16,13 @@ sp4 :: String
 sp4 = sp2 ++ sp2
 
 mkStateStr :: State -> String
-mkStateStr (tv, ev, expr, pc) = L.intercalate "\n\n" li
+mkStateStr s = L.intercalate "\n\n" li
   where li = ["> Type Env:\n" ++ ts,  "> Expr Env:\n" ++ es
              ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps]
-        ts = mkTypeEnvStr tv
-        es = mkExprEnvStr ev
-        xs = mkExprStr expr
-        ps = mkPCStr pc
+        ts = mkTypeEnvStr . tEnv $ s
+        es = mkExprEnvStr . eEnv $ s
+        xs = mkExprStr . cExpr $ s
+        ps = mkPCStr . pc $ s
 
 mkStatesStr :: [State] -> String
 mkStatesStr []     = ""
@@ -183,7 +183,7 @@ freeVars bv e = snd . eval'' freeVars' e $ (bv, [])
 
 --Returns all names used in a State
 names :: State -> [Name]
-names s@(tenv, eenv, curr_expr, pc) =
+names s =
     L.nub (eval (exprNames) s ++ eval (typeNames) s ++ evalDataConExpr dataConNames s)
     where
         exprNames :: Expr -> [Name]

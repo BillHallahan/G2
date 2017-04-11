@@ -17,7 +17,13 @@ Our execution state consists of 4 things we need to keep track of:
 
 4. Path Constraint: Keeps track of which alt branching we have taken.
 -}
-type State = (TEnv, EEnv, Expr, PC)
+--type State = (TEnv, EEnv, Expr, PC)
+
+data State = State { tEnv :: TEnv
+                   , eEnv :: EEnv
+                   , cExpr :: Expr
+                   , pc :: PC
+                   } deriving (Show, Eq)
 
 type Name = String
 

@@ -48,12 +48,12 @@ modelToIOString m = evalZ3 . modelToString $ m
 --Use the SMT solver to find inputs that will reach the given state
 --(or determine that it is not possible to reach the state)
 reachabilitySolverZ3 :: State -> Z3 (Result, Maybe Model)
-reachabilitySolverZ3 s@(tv, ev, expr, pc) = do
+reachabilitySolverZ3 s@State {tEnv = tv, pc = pc'} = do
     dtMap <- mkDatatypesZ3 tv
     
     handleExprEnv dtMap s
 
-    mapM assert =<< constraintsZ3 dtMap pc
+    mapM assert =<< constraintsZ3 dtMap pc'
 
     setASTPrintMode Z3_PRINT_SMTLIB2_COMPLIANT
     s' <- solverToString
@@ -62,13 +62,13 @@ reachabilitySolverZ3 s@(tv, ev, expr, pc) = do
 --Use the SMT solver to attempt to find inputs that will result in output
 --satisfying the given curr expr
 outputSolverZ3 :: State -> Z3 (Result, Maybe Model)
-outputSolverZ3 s@(tv, ev, expr, pc)  = do
+outputSolverZ3 s@State{tEnv = tv, cExpr = expr, pc = pc'}  = do
     dtMap <- mkDatatypesZ3 tv
 
     handleExprEnv dtMap s
 
     assert =<< exprZ3 dtMap expr
-    mapM assert =<< constraintsZ3 dtMap pc
+    mapM assert =<< constraintsZ3 dtMap pc'
 
     setASTPrintMode Z3_PRINT_SMTLIB2_COMPLIANT
     s' <- solverToString
@@ -89,9 +89,9 @@ constraintsZ3 d (pc) = do
 --for references to the expression enviroment
 --If any exist, sets variables accordingly
 handleExprEnv :: TypeMaps -> State -> Z3 ()
-handleExprEnv d (_, eexpr, curr_expr, pc) = do
+handleExprEnv d State {eEnv = eexpr, cExpr = curr_expr, pc = pc'} = do
     getMon . Man.eval (handleExprEnv' d eexpr) $ curr_expr
-    getMon . Man.eval (handleExprEnv' d eexpr) $ pc
+    getMon . Man.eval (handleExprEnv' d eexpr) $ pc'
     where
         handleExprEnv' :: TypeMaps -> EEnv -> Expr -> Mon Z3 ()
         handleExprEnv' d eenv (Var n t) =

@@ -14,10 +14,10 @@ We need to return values from evaluation and this is it. Only oddity may be
 that we are able to return lambda expressions during evaluation.
 -}
 isVal :: State -> Bool
-isVal (_, env, Var n _, _) = M.lookup n env == Nothing
-isVal (_, _, App (Lam _ _ _) _, _) = False
-isVal (tv, env, App f a, pc) = isVal (tv, env, f, pc) && isVal (tv, env, a, pc)
-isVal (_, _, Case _ _ _, _) = False  -- isVal (tv, env, m, pc)
+isVal State {eEnv = env, cExpr = Var n _} = M.lookup n env == Nothing
+isVal State {cExpr = App (Lam _ _ _) _} = False
+isVal s@State {cExpr = App f a} = isVal (s {cExpr = f}) && isVal (s {cExpr = a})
+isVal State {cExpr = Case _ _ _} = False  -- isVal (tv, env, m, pc)
 isVal _ = True
 
 {- Evaluation
@@ -31,16 +31,16 @@ evaluate :: State -> [State]
 
 We treat unbound variables as symbolic values during execution.
 -}
-evaluate (tv, env, Var n t, pc) = case M.lookup n env of
-    Nothing -> [(tv, env, Var n t, pc)]
-    Just ex -> [(tv, env, ex, pc)]
+evaluate s@State{cExpr = Var n t} = case M.lookup n (eEnv s) of
+    Nothing -> [s]
+    Just ex -> [s {cExpr = ex}]
 
 -- Const
-evaluate (tv, env, Const c, pc) = [(tv, env, Const c, pc)]
+evaluate s@State{cExpr = Const c} = [s]
 
 
 -- Lambda
-evaluate (tv, env, Lam n e t, pc) = [(tv, env, Lam n e t, pc)]
+evaluate s@State{cExpr = Lam n e t} = [s]
 
 {- App -- Special case of lambda application.
 
@@ -50,7 +50,7 @@ environment.
 
 Note: Our environment grows larger during execution. Probably not a problem.
 -}
-evaluate (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
+evaluate s@State{eEnv = env, cExpr = App (Lam n e1 t) e2} = [s {eEnv = env', cExpr = e1'}]
   where ns   = M.keys env
         n'   = fresh n (ns ++ freeVars (n:ns) e1)
         e1'  = replace e1 ns n n'
@@ -60,7 +60,7 @@ evaluate (tv, env, App (Lam n e1 t) e2, pc) = [(tv, env', e1', pc)]
 
 Apply commuting conversions to shove the RHS of the App inside the case.
 -}
-evaluate (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
+evaluate s@State {cExpr = App (Case m as t) ex} = [s {cExpr = Case m as' t'}]
   where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), App ae ex)) as
         t'  = let (Alt (dc, pars), ae') = head as' in typeOf ae'
 
@@ -68,7 +68,7 @@ evaluate (tv, env, App (Case m as t) ex, pc) = [(tv, env, Case m as' t', pc)]
 
 Apply commuting conversions to shove the LHS of the App inside the case.
 -}
-evaluate (tv, env, App ex (Case m as t), pc) = [(tv, env, Case m as' t', pc)]
+evaluate s@State {cExpr = App ex (Case m as t)} = [s {cExpr = Case m as' t'}]
   where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), App ex ae)) as
         t'  = let (Alt (dc, pars), ae') = head as' in typeOf ae'
 
@@ -78,20 +78,25 @@ evaluate (tv, env, App ex (Case m as t), pc) = [(tv, env, Case m as' t', pc)]
 To preserve lazy evaluation semantics we want to evalute the LHS of the App
 as much as possible before performing evaluation on the RHS.
 -}
-evaluate (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
-    then let a_ress = evaluate (tv, env, a, pc)
-         in [(tv', env', App f a', pc') | (tv', env', a', pc') <- a_ress]
-    else let f_ress = evaluate (tv, env, f, pc)
-         in [(tv', env', App f' a, pc') | (tv', env', f', pc') <- f_ress]
+evaluate s@State{cExpr = App f a} = if isVal (s {cExpr = f})
+    then let a_ress = evaluate (s {cExpr = a})
+         in [s' {cExpr = App f a'} | s'@State {cExpr = a'} <- a_ress]
+    else let f_ress = evaluate (s {cExpr = f})
+         in [s' {cExpr = App f' a} | s'@State {cExpr = f'} <- f_ress]
+-- evaluate (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
+--     then let a_ress = evaluate (tv, env, a, pc)
+--          in [(tv', env', App f a', pc') | (tv', env', a', pc') <- a_ress]
+--     else let f_ress = evaluate (tv, env, f, pc)
+--          in [(tv', env', App f' a, pc') | (tv', env', f', pc') <- f_ress]
 
 -- Data Constructors
-evaluate (tv, env, DCon dc, pc) = [(tv, env, DCon dc, pc)]
+evaluate s@State{cExpr =  DCon dc} = [s]
 
 {- Case -- Special case of nested case statements
 
 In nested case statements, we apply more commuting conversions to shove it.
 -}
-evaluate (tv, env, Case (Case m1 as1 t1) as2 t2, pc) = [(tv,env,Case m1 as' t2,pc)]
+evaluate s@State{cExpr = Case (Case m1 as1 t1) as2 t2} = [s{cExpr = Case m1 as' t2}]
   where as' = map (\(Alt (dc, pars), ae) -> (Alt (dc, pars), Case ae as2 t2)) as1
 
 {- Case
@@ -117,55 +122,55 @@ There are two possible things that A may be:
    free variables that would also more or less be symbolics.
 -}
 
-evaluate (tv, env, Case m as t, pc) = if isVal (tv, env, m, pc)
+evaluate s@State {cExpr = Case m as t} = if isVal (s {cExpr = m})
     then let non_defaults = filter (not . isDefault) as
              defaults     = filter isDefault as -- Handle differently
-         in (do_nd (tv, env, Case m non_defaults t, pc)) ++
-            (do_d (tv, env, Case m defaults t, pc) non_defaults)
-    else let m_ress = evaluate (tv, env, m, pc)
-         in [(tv', env', Case m' as t, pc') | (tv', env', m', pc') <- m_ress]
+         in (do_nd (s {cExpr = Case m non_defaults t}) ++
+            (do_d (s {cExpr = Case m defaults t}) non_defaults))
+    else let m_ress = evaluate s {cExpr = m}
+         in [s' {cExpr = Case m' as t} | s'@State {cExpr = m'} <- m_ress]
   where -- This is behavior we expect to match from the G2 Prelude's default.
         isDefault :: (Alt, Expr) -> Bool
         isDefault (Alt (DC ("DEFAULT", 0, TyBottom, []), _), _) = True
         isDefault _ = False
 
         do_nd :: State -> [State]
-        do_nd s@(tv, env, Case m nds t, pc) =
+        do_nd s@State {eEnv = env, cExpr = Case m nds t, pc = pc'} =
           let (d:args) = unapp m
           in case d of
             Var f t -> concatMap (\(Alt (ad, pars), ae) ->
              let ns    = M.keys env
                  pars' = freshList pars (ns ++ names s)--(ns++freeVars (pars++ns) ae)
                  ae'   = replaceList ae ns pars pars'
-             in [(tv, env, ae', (m, Alt (ad, pars'), True):pc)]) nds
+             in [s {cExpr = ae', pc = (m, Alt (ad, pars'), True):pc'}]) nds
             DCon md -> concatMap (\(Alt (ad, pars), ae) ->
               if length args == length pars && md == ad
                   then let ns = M.keys env
                            pars' = freshList pars (ns ++ names s)--(ns ++ freeVars (pars++ns) ae)
                            ae'   = replaceList ae ns pars pars'
-                       in [(tv, M.union (M.fromList (zip pars' args)) env
-                           , ae', (m, Alt (ad, pars'), True):pc)]
+                       in [s {eEnv = M.union (M.fromList (zip pars' args)) env
+                           , cExpr = ae', pc = (m, Alt (ad, pars'), True):pc'}]
                   else []) nds
-            _ -> [(tv, env, BAD, pc)]  -- Should not be in this state. Error?
+            _ -> [s {cExpr = BAD}]  -- Should not be in this state. Error?
 
         -- We are technically only supposed to have at most a single DEFAULT
         -- appear in any given pattern matching. If this is not the case, then
         -- Core Haskell did something wrong and it's not our problem.
         do_d :: State -> [(Alt, Expr)] -> [State]
-        do_d (tv, env, Case m ds t, pc) nds =
+        do_d s@State {cExpr = Case m ds t, pc = pc'} nds =
           let (d:args) = unapp m
               neg_alts = map fst nds
               neg_pcs  = map (\na -> (m, na, False)) neg_alts
-          in map (\(Alt _, ae) -> (tv, env, ae, neg_pcs ++ pc)) ds
+          in map (\(Alt _, ae) -> s {cExpr = ae, pc = neg_pcs ++ pc'}) ds
 
 -- Type
-evaluate (tv, env, Type t, pc) = [(tv, env, Type t, pc)]
+evaluate s@State {cExpr = Type t} = [s]
 
 -- BAD
-evaluate (tv, env, BAD, pc) = [(tv, env, BAD, pc)]
+evaluate s@State {cExpr = BAD} = [s]
 
 -- UNR
-evaluate (tv, env, UNR, pc) = [(tv, env, UNR, pc)]
+evaluate s@State {cExpr = UNR} = [s]
 
 ------------------
 
@@ -200,7 +205,7 @@ initState t_env e_env entry = case match of
     Nothing -> error "No matching entry point. Check spelling?"
     Just ex -> let
                     expr' = replaceVars e_env ex
-               in (t_env, e_env, expr', [])
+               in State t_env e_env expr' []
     where match = M.lookup entry e_env
 
 initStateWithPredicate :: TEnv -> EEnv -> Name -> Name -> State
@@ -208,7 +213,7 @@ initStateWithPredicate t_env e_env pre entry = case match of
     (Just pre_ex, Just ex) -> let
                     pre_type = typeOf pre_ex
                     expr' = replaceVars e_env ex
-               in (t_env, e_env, (App (Var pre pre_type) expr'), [])
+               in State t_env e_env (App (Var pre pre_type) expr') []
     otherwise -> error "No matching entry points. Check spelling?"
     where match = (M.lookup pre e_env, M.lookup entry e_env)
 

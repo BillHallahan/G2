@@ -59,15 +59,15 @@ main = do
     putStrLn "Compiles!\n\n"
     
     if num == "1" then
-        mapM_ (\s@(_, _, expr, pc) -> do
+        mapM_ (\s@State {cExpr = expr, pc = pc'} -> do
             putStrLn . mkExprStr $ expr
-            putStrLn . mkPCStr $ pc
+            putStrLn . mkPCStr $ pc'
             putStrLn " => "
             printModel reachabilitySolverZ3 s) states
     else
-        mapM_ (\s@(_, _, expr, pc) -> do
+        mapM_ (\s@State {cExpr = expr, pc = pc'} -> do
             putStrLn . mkExprStr $ expr
-            putStrLn . mkPCStr $ pc
+            putStrLn . mkPCStr $ pc'
             putStrLn " => "
             printModel outputSolverZ3 s) states
 

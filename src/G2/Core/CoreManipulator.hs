@@ -153,6 +153,28 @@ instance Manipulatable Type Type where
                 (TyForAll n t', x `mappend` x')
             modifyT' _ t _ = (t, mempty)
 
+instance Manipulatable Expr State where
+    modifyG f s x =
+        let
+            (tEnv', x1') = modifyG f (tEnv s) x
+            (eEnv', x2') = modifyG f (eEnv s) x
+            (currExpr', x3') = modifyG f (cExpr s) x
+            (pc', x4') = modifyG f (pc s) x
+        in
+        (State {tEnv = tEnv', eEnv = eEnv', cExpr = currExpr', pc = pc'}
+            , mconcat [x1', x2', x3', x4'])
+
+instance Manipulatable Type State where
+    modifyG f s x =
+        let
+            (tEnv', x1') = modifyG f (tEnv s) x
+            (eEnv', x2') = modifyG f (eEnv s) x
+            (currExpr', x3') = modifyG f (cExpr s) x
+            (pc', x4') = modifyG f (pc s) x
+        in
+        (State {tEnv = tEnv', eEnv = eEnv', cExpr = currExpr', pc = pc'}
+            , mconcat [x1', x2', x3', x4'])
+
 instance Manipulatable e Bool where
     modifyG _ b x = (b, x)
 
