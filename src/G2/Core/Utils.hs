@@ -211,17 +211,14 @@ replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 sltLookup :: Name -> SymLinkTable -> Maybe Name
 sltLookup = M.lookup
 
-sltBackLookup :: Name -> SymLinkTable -> Maybe Name
-sltBackLookup bkey slt = sltLookup bkey $ M.fromList $ reverseTups $ M.toList slt
-  where reverseTups lst = map (\x -> (snd x, fst x)) lst
+sltBackLookup :: Name -> SymLinkTable -> [Name]
+sltBackLookup old slt = map fst $ filter (\(n, o) -> old == o) $ M.toList slt
 
 updateSymLinkTable :: Name -> Name -> SymLinkTable -> SymLinkTable
-updateSymLinkTable key val slt = case sltBackLookup val slt of
-    Nothing -> M.insert key val slt
-    Just n -> M.insert n val slt
+updateSymLinkTable new old slt = M.insert new old slt
 
 updateSymLinkTableList :: [Name] -> [Name] -> SymLinkTable -> SymLinkTable
-updateSymLinkTableList keys vals slt = foldl (\s (k, v) -> updateSymLinkTable k v s) slt (zip keys vals)
+updateSymLinkTableList news olds slt = foldl (\s (k, v) -> updateSymLinkTable k v s) slt (zip news olds)
 
 -- Unroll cascading lambda expressions.
 unlam :: Expr -> ([(Name, Type)], Expr)

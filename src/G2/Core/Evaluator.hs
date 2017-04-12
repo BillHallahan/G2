@@ -55,7 +55,7 @@ evaluate s@State{eEnv = env, cExpr = App (Lam n e1 t) e2, slt = slt} = [s {eEnv 
         n'   = fresh n (ns ++ freeVars (n:ns) e1)
         e1'  = replace e1 ns n n'
         env' = M.insert n' e2 env
-        slt' = updateSymLinkTable n n' slt
+        slt' = updateSymLinkTable n' n slt
 
 {- App -- Special case of application on the right of a case.
 
@@ -143,14 +143,14 @@ evaluate s@State {cExpr = Case m as t} = if isVal (s {cExpr = m})
              let ns    = M.keys env
                  pars' = freshList pars (ns ++ names s)--(ns++freeVars (pars++ns) ae)
                  ae'   = replaceList ae ns pars pars'
-                 slt'  = updateSymLinkTableList pars pars' slt
+                 slt'  = updateSymLinkTableList pars' pars slt
              in [s {cExpr = ae', pc = (m, Alt (ad, pars'), True):pc', slt = slt'}]) nds
             DCon md -> concatMap (\(Alt (ad, pars), ae) ->
               if length args == length pars && md == ad
                   then let ns = M.keys env
                            pars' = freshList pars (ns ++ names s)--(ns ++ freeVars (pars++ns) ae)
                            ae'   = replaceList ae ns pars pars'
-                           slt'  = updateSymLinkTableList pars pars' slt
+                           slt'  = updateSymLinkTableList pars' pars slt
                        in [s {eEnv = M.union (M.fromList (zip pars' args)) env
                            , cExpr = ae', pc = (m, Alt (ad, pars'), True):pc', slt = slt'}]
                   else []) nds
@@ -189,7 +189,7 @@ replaceVars e_env ex =
         ns = M.keys e_env
         nfs = map fst args
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
-        slt  = updateSymLinkTableList nfs nfs' (M.empty)
+        slt  = updateSymLinkTableList nfs' nfs (M.empty)
      in
      (replaceList expr ns nfs nfs', slt)
 

@@ -16,6 +16,8 @@ Our execution state consists of 4 things we need to keep track of:
 3. Current Expression: The thing we are evaluating.
 
 4. Path Constraint: Keeps track of which alt branching we have taken.
+
+5. Symbolic Link Table: Maps renamed things to their original ones.
 -}
 --type State = (TEnv, EEnv, Expr, PC)
 
