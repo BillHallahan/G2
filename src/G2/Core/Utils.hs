@@ -136,6 +136,7 @@ typeOf (Type t) = t
 typeOf _ = TyBottom
 
 -- Replace a single instance of a name with a new one in an Expr.
+-- Replace a single instance of a name with a new one in an Expr.
 replace :: Expr -> [Name] -> Name -> Name -> Expr
 replace e env old new = modify'' (replace' old new) e env
     where
@@ -150,7 +151,6 @@ replace e env old new = modify'' (replace' old new) e env
             (Lam n' e t, bads)
         replace' _ _ _ t = (t, [])
 
-
 -- Replace a whole list of names with new ones in an Expr via folding.
 replaceList :: Expr -> [Name] -> [Name] -> [Name] -> Expr
 replaceList expr env olds news = foldl (\e (n, n') -> replace e env n n')
@@ -163,8 +163,9 @@ fresh o ns = let r = foldl (\s c -> if s == c then s ++ [head c] else s) o ns
 
 -- Generates a list of fresh names. Ensures no conflict with original old list.
 freshList :: [Name] -> [Name] -> [Name]
-freshList os ns = snd $ foldl (\(bads, ress) o -> let o' = fresh o bads
-                                                  in (o':bads, ress++[o']))
+freshList os ns = snd $ foldl (\(bads, ress) o ->
+                                    let o' = fresh o bads
+                                    in (o':bads, ress++[o']))
                               (ns ++ os, []) os
 
 -- Generates a list of fresh names based on a name. Ensuring no conflict with original old list or new names.
@@ -205,6 +206,23 @@ names s =
 --Takes e e1 e2.  In e, replaces all occurences of e1 with e2
 replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
 replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
+
+-- Symbolic Link Table functions:
+sltLookup :: Name -> SymLinkTable -> Maybe Name
+sltLookup key [] = Nothing
+sltLookup key ((n,v):ns) = if key == n then Just v else sltLookup key ns
+
+sltBackLookup :: Name -> SymLinkTable -> Maybe Name
+sltBackLookup bkey [] = Nothing
+sltBackLookup bkey ((n,v):ns) = if bkey == v then Just n else sltBackLookup bkey ns
+
+updateSymLinkTable :: Name -> Name -> SymLinkTable -> SymLinkTable
+updateSymLinkTable key val [] = [(key, val)]
+updateSymLinkTable key val ((n,v):ns) =
+    if key == n then (n, val):ns else (n,v):(updateSymLinkTable key val ns)
+
+updateSymLinkTableList :: [Name] -> [Name] -> SymLinkTable -> SymLinkTable
+updateSymLinkTableList keys vals slt = foldl (\s (k, v) -> updateSymLinkTable k v s) slt (zip keys vals)
 
 -- Unroll cascading lambda expressions.
 unlam :: Expr -> ([(Name, Type)], Expr)

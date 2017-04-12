@@ -19,10 +19,11 @@ Our execution state consists of 4 things we need to keep track of:
 -}
 --type State = (TEnv, EEnv, Expr, PC)
 
-data State = State { tEnv :: TEnv
-                   , eEnv :: EEnv
+data State = State { tEnv  :: TEnv
+                   , eEnv  :: EEnv
                    , cExpr :: Expr
-                   , pc :: PC
+                   , pc    :: PC
+                   , slt   :: SymLinkTable
                    } deriving (Show, Eq)
 
 type Name = String
@@ -30,6 +31,8 @@ type Name = String
 type TEnv = M.Map Name Type
 
 type EEnv = M.Map Name Expr
+
+type SymLinkTable = [(Name, Name)]
 
 {- Expressions
   

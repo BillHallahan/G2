@@ -50,11 +50,12 @@ environment.
 
 Note: Our environment grows larger during execution. Probably not a problem.
 -}
-evaluate s@State{eEnv = env, cExpr = App (Lam n e1 t) e2} = [s {eEnv = env', cExpr = e1'}]
+evaluate s@State{eEnv = env, cExpr = App (Lam n e1 t) e2, slt = slt} = [s {eEnv = env', cExpr = e1', slt = slt'}]
   where ns   = M.keys env
         n'   = fresh n (ns ++ freeVars (n:ns) e1)
         e1'  = replace e1 ns n n'
         env' = M.insert n' e2 env
+        slt' = updateSymLinkTable n n' slt
 
 {- App -- Special case of application on the right of a case.
 
@@ -135,21 +136,23 @@ evaluate s@State {cExpr = Case m as t} = if isVal (s {cExpr = m})
         isDefault _ = False
 
         do_nd :: State -> [State]
-        do_nd s@State {eEnv = env, cExpr = Case m nds t, pc = pc'} =
+        do_nd s@State {eEnv = env, cExpr = Case m nds t, pc = pc', slt = slt} =
           let (d:args) = unapp m
           in case d of
             Var f t -> concatMap (\(Alt (ad, pars), ae) ->
              let ns    = M.keys env
                  pars' = freshList pars (ns ++ names s)--(ns++freeVars (pars++ns) ae)
                  ae'   = replaceList ae ns pars pars'
-             in [s {cExpr = ae', pc = (m, Alt (ad, pars'), True):pc'}]) nds
+                 slt'  = updateSymLinkTableList pars pars' slt
+             in [s {cExpr = ae', pc = (m, Alt (ad, pars'), True):pc', slt = slt'}]) nds
             DCon md -> concatMap (\(Alt (ad, pars), ae) ->
               if length args == length pars && md == ad
                   then let ns = M.keys env
                            pars' = freshList pars (ns ++ names s)--(ns ++ freeVars (pars++ns) ae)
                            ae'   = replaceList ae ns pars pars'
+                           slt'  = updateSymLinkTableList pars pars' slt
                        in [s {eEnv = M.union (M.fromList (zip pars' args)) env
-                           , cExpr = ae', pc = (m, Alt (ad, pars'), True):pc'}]
+                           , cExpr = ae', pc = (m, Alt (ad, pars'), True):pc', slt = slt'}]
                   else []) nds
             _ -> [s {cExpr = BAD}]  -- Should not be in this state. Error?
 
@@ -179,15 +182,16 @@ unapp :: Expr -> [Expr]
 unapp (App f a) = unapp f ++ [a]
 unapp e = [e]
 
-replaceVars :: EEnv -> Expr -> Expr
+replaceVars :: EEnv -> Expr -> (Expr, SymLinkTable)
 replaceVars e_env ex = 
     let 
         (args, expr) = unlam ex
         ns = M.keys e_env
         nfs = map fst args
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
+        slt  = updateSymLinkTableList nfs nfs' []
      in
-     replaceList expr ns nfs nfs'
+     (replaceList expr ns nfs nfs', slt)
 
 {- Initialization
 
@@ -203,17 +207,16 @@ to constrain the desired values of current expression
 initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry = case match of
     Nothing -> error "No matching entry point. Check spelling?"
-    Just ex -> let
-                    expr' = replaceVars e_env ex
-               in State t_env e_env expr' []
+    Just ex -> let (expr', slt) = replaceVars e_env ex
+               in State t_env e_env expr' [] slt
     where match = M.lookup entry e_env
 
 initStateWithPredicate :: TEnv -> EEnv -> Name -> Name -> State
 initStateWithPredicate t_env e_env pre entry = case match of
     (Just pre_ex, Just ex) -> let
                     pre_type = typeOf pre_ex
-                    expr' = replaceVars e_env ex
-               in State t_env e_env (App (Var pre pre_type) expr') []
+                    (expr', slt) = replaceVars e_env ex
+               in State t_env e_env (App (Var pre pre_type) expr') [] slt
     otherwise -> error "No matching entry points. Check spelling?"
     where match = (M.lookup pre e_env, M.lookup entry e_env)
 
