@@ -189,7 +189,7 @@ replaceVars e_env ex =
         ns = M.keys e_env
         nfs = map fst args
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
-        slt  = updateSymLinkTableList nfs nfs' []
+        slt  = updateSymLinkTableList nfs nfs' (M.empty)
      in
      (replaceList expr ns nfs nfs', slt)
 

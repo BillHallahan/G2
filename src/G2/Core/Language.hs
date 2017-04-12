@@ -32,7 +32,7 @@ type TEnv = M.Map Name Type
 
 type EEnv = M.Map Name Expr
 
-type SymLinkTable = [(Name, Name)]
+type SymLinkTable = M.Map Name Name
 
 {- Expressions
   

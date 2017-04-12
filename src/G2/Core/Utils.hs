@@ -209,17 +209,16 @@ replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 
 -- Symbolic Link Table functions:
 sltLookup :: Name -> SymLinkTable -> Maybe Name
-sltLookup key [] = Nothing
-sltLookup key ((n,v):ns) = if key == n then Just v else sltLookup key ns
+sltLookup = M.lookup
 
 sltBackLookup :: Name -> SymLinkTable -> Maybe Name
-sltBackLookup bkey [] = Nothing
-sltBackLookup bkey ((n,v):ns) = if bkey == v then Just n else sltBackLookup bkey ns
+sltBackLookup bkey slt = sltLookup bkey $ M.fromList $ reverseTups $ M.toList slt
+  where reverseTups lst = map (\x -> (snd x, fst x)) lst
 
 updateSymLinkTable :: Name -> Name -> SymLinkTable -> SymLinkTable
-updateSymLinkTable key val [] = [(key, val)]
-updateSymLinkTable key val ((n,v):ns) =
-    if key == n then (n, val):ns else (n,v):(updateSymLinkTable key val ns)
+updateSymLinkTable key val slt = case sltBackLookup val slt of
+    Nothing -> M.insert key val slt
+    Just n -> M.insert n val slt
 
 updateSymLinkTableList :: [Name] -> [Name] -> SymLinkTable -> SymLinkTable
 updateSymLinkTableList keys vals slt = foldl (\s (k, v) -> updateSymLinkTable k v s) slt (zip keys vals)
