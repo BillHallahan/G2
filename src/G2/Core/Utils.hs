@@ -18,11 +18,13 @@ sp4 = sp2 ++ sp2
 mkStateStr :: State -> String
 mkStateStr s = L.intercalate "\n\n" li
   where li = ["> Type Env:\n" ++ ts,  "> Expr Env:\n" ++ es
-             ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps]
+             ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps
+             ,"> Sym Link Table:\n" ++ sl]
         ts = mkTypeEnvStr . tEnv $ s
         es = mkExprEnvStr . eEnv $ s
         xs = mkExprStr . cExpr $ s
         ps = mkPCStr . pc $ s
+        sl = mkSLTStr . slt $ s
 
 mkStatesStr :: [State] -> String
 mkStatesStr []     = ""
@@ -103,6 +105,9 @@ mkPCStr :: PC -> String
 mkPCStr [] = ""
 mkPCStr [(e, a, b)] = mkExprStr e ++ (if b then " = " else " != ") ++ show a
 mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a++ "\n--AND--\n" ++ mkPCStr ps
+
+mkSLTStr :: SymLinkTable -> String
+mkSLTStr = show
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
@@ -214,15 +219,17 @@ sltLookup = M.lookup
 sltBackLookup :: Name -> SymLinkTable -> [(Name, Maybe Int)]
 sltBackLookup old slt = map snd $ filter (\(n,(o,i)) -> old == o) $ M.toList slt
 
-updateSymLinkTable :: Name -> Name -> SymLinkTable -> SymLinkTable
-updateSymLinkTable new old slt = case sltBackLookup old slt of
-    [] -> M.insert new (old, Nothing) slt
-    xs -> M.insert new (head xs) slt
+updateSymLinkTable :: Name -> (Name, Maybe Int)-> SymLinkTable -> SymLinkTable
+updateSymLinkTable = M.insert
 
 -- M.insert new old slt
 
 updateSymLinkTableList :: [Name] -> [Name] -> SymLinkTable -> SymLinkTable
-updateSymLinkTableList news olds slt = foldl (\s (k, v) -> updateSymLinkTable k v s) slt (zip news olds)
+updateSymLinkTableList news olds slt = foldl (\s (k, v) -> updateSymLinkTable k v s) slt (zip news modEntries)
+    where oldsLookup = map (\o -> sltLookup o slt) olds -- entries exist?
+          modEntries = map (\(o, r) -> case r of
+                                Nothing -> (o, Nothing) -- First insertion
+                                Just p  -> p) (zip olds oldsLookup)
 
 -- Unroll cascading lambda expressions.
 unlam :: Expr -> ([(Name, Type)], Expr)

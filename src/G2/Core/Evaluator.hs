@@ -55,7 +55,7 @@ evaluate s@State{eEnv = env, cExpr = App (Lam n e1 t) e2, slt = slt} = [s {eEnv 
         n'   = fresh n (ns ++ freeVars (n:ns) e1)
         e1'  = replace e1 ns n n'
         env' = M.insert n' e2 env
-        slt' = updateSymLinkTable n' n slt
+        slt' = updateSymLinkTableList [n'] [n] slt
 
 {- App -- Special case of application on the right of a case.
 
