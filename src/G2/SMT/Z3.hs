@@ -1,12 +1,16 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.SMT.Z3 where
+module G2.SMT.Z3 ( printModel
+                 , modelToIOString
+                 , reachabilitySolverZ3
+                 , outputSolverZ3) where
 
 import G2.Core.CoreManipulator as Man
 import G2.Core.Language
 import G2.Core.Evaluator
-import G2.Core.Utils
+import qualified G2.Core.Utils as Utils
 import G2.Haskell.Prelude
+import G2.SMT.Z3Types
 
 import Control.Monad
 
@@ -24,13 +28,6 @@ import Z3.Monad
 import Data.Ratio
 
 import qualified Debug.Trace as T
-
-type ConsFuncDecl = FuncDecl
-type RecognizerFuncDecl = FuncDecl
-type AccessorFuncDecl = FuncDecl
-
-
-type TypeMaps = (M.Map Name Sort, M.Map Name (ConsFuncDecl, RecognizerFuncDecl))
 
 --This function is just kind of a hack for now... might want something else later?
 printModel :: (State -> Z3 (Result, Maybe Model)) -> State -> IO ()
@@ -57,7 +54,7 @@ reachabilitySolverZ3 s@State {tEnv = tv, pc = pc'} = do
 
     setASTPrintMode Z3_PRINT_SMTLIB2_COMPLIANT
     s' <- solverToString
-    T.trace (s') solverCheckAndGetModel 
+    T.trace s' solverCheckAndGetModel 
 
 --Use the SMT solver to attempt to find inputs that will result in output
 --satisfying the given curr expr
@@ -67,12 +64,12 @@ outputSolverZ3 s@State{tEnv = tv, cExpr = expr, pc = pc'}  = do
 
     handleExprEnv dtMap s
 
-    assert =<< exprZ3 dtMap expr
+    assert =<< exprZ3 dtMap M.empty expr
     mapM assert =<< constraintsZ3 dtMap pc'
 
     setASTPrintMode Z3_PRINT_SMTLIB2_COMPLIANT
     s' <- solverToString
-    T.trace (s') solverCheckAndGetModel
+    T.trace s' solverCheckAndGetModel
 
 constraintsZ3 :: TypeMaps -> PC -> Z3 [AST]
 constraintsZ3 d (pc) = do
@@ -80,8 +77,8 @@ constraintsZ3 d (pc) = do
     where
         constraintsZ3' :: TypeMaps -> (Expr, Alt, Bool) -> Z3 AST
         constraintsZ3' d (expr, alt, b) = do
-            e <- exprZ3 d expr
-            a <- altZ3 d alt
+            e <- exprZ3 d M.empty expr
+            a <- altZ3 d M.empty alt
 
             if b then mkEq e a else mkNot =<< mkEq e a
 
@@ -96,197 +93,163 @@ handleExprEnv d State {eEnv = eexpr, cExpr = curr_expr, pc = pc'} = do
         handleExprEnv' :: TypeMaps -> EEnv -> Expr -> Mon Z3 ()
         handleExprEnv' d eenv (Var n t) =
             case M.lookup n eenv of
-                Just e -> if length (fst . unlam $ e) > 0 then Mon . createEnvFunc d n t $ e else return ()
+                Just e -> if length (fst . Utils.unlam $ e) > 0 then Mon . createEnvFunc d n t $ e else return ()
                 Nothing -> return ()
         handleExprEnv' _ _ _ = return ()
 
         createEnvFunc :: TypeMaps -> Name -> Type -> Expr -> Z3 ()
         createEnvFunc d n t e = do
-            let (nt, e') = unlam e
+            let (nt, e') = Utils.unlam e
             
-            n' <- T.trace (n ++ "   " ++ show nt) mapM (mkStringSymbol . fst) nt
+            n' <- mapM (mkStringSymbol . fst) nt
             t' <- mapM (sortZ3 d . snd) nt
 
-            n'' <- mapM (\(_n, _t) -> exprZ3 d (Var _n _t)) nt
+            n'' <- mapM (\(_n, _t) -> exprZ3 d M.empty (Var _n _t)) nt
 
             fd <- mkFuncDeclZ3 d n t
 
-            app <- T.trace ("createEnvFunc e' = " ++ show e') mkApp fd n''
+            app <- mkApp fd n''
             
-            eq <- mkEq app =<< exprZ3 d e'
+            eq <- mkEq app =<< exprZ3 d M.empty e'
             assert =<< mkForall [] n' t' eq
 
-mkDatatypesZ3 :: TEnv -> Z3 TypeMaps
-mkDatatypesZ3 tenv = mkSortsZ3 M.empty M.empty
-                     . M.toList
-                     . M.filterWithKey (\k _  -> not (k `S.member` knownTypes)) $ tenv
-    where
-        knownTypes = S.fromList . map fst $ prelude_t_decls
-
-        requires :: Type -> [Name]
-        requires (TyAlg n1 t1) = 
-            catMaybes . map names . concat . map (\(DC (_, _, _, t')) -> t') $ t1
-        requires _ = error "Must only pass TyAlg's to requires in mkDatatypesZ3"
-
-        names :: Type -> Maybe Name
-        names (TyConApp n _) = Just n 
-        names _ = Nothing
-
-        mkSortsZ3 :: M.Map Name Sort -> M.Map Name (ConsFuncDecl, RecognizerFuncDecl) -> [(Name, Type)] -> Z3 TypeMaps
-        mkSortsZ3 d c ((n, t@(TyAlg n' dcs)):xs) = do
-            let r = requires t
-
-            let (s, s') = partition (\(n'', _) -> n'' `elem` r) xs
-            (d', c') <- mkSortsZ3 d c s
-
-            cons <- mapM (mkConstructorZ3 (d', c')) dcs
-            nSymb <- mkStringSymbol n
-            da <- mkDatatype nSymb (map (fst . snd) cons)
-           
-            cons' <- getDatatypeSortConstructors da
-            rec <- getDatatypeSortRecognizers da
-            let funcDecls = zip (map fst cons) (zip cons' rec)
-
-            let c'' = M.union c' (M.fromList $ funcDecls)
-
-            mkSortsZ3 (M.insert n da d') c'' s'
-        mkSortsZ3 d c [] = return (d, c)
-
-mkConstructorZ3 :: TypeMaps -> DataCon -> Z3 (Name, (Constructor, [Symbol]))
---we need to do something to ensure all symbols are unique... adjust
-mkConstructorZ3 d (DC (n, _, tc, t)) = do
-    n' <- mkStringSymbol n
-    is_n <- mkStringSymbol ("is_" ++ n)
-    s <- mapM mkStringSymbol . numFresh n (length t) $ []
-    t' <- mapM (\_t -> if _t /= tc then return .  Just =<< sortZ3 d _t else return  Nothing) t
-
-    cons <- mkConstructor n' is_n . map (\(s, t) -> (s, t, 0)) . zip s $ t'
-
-    return (n, (cons, s))
-
-exprZ3 :: TypeMaps -> Expr -> Z3 AST
-exprZ3 _ (Var "True" _) = mkTrue
-exprZ3 _ (Var "False" _) = mkFalse
-exprZ3 d (Var v t) =
-    case M.lookup v (snd d) of
-            Just (c, _) -> do
-                mkApp c []
-            Nothing -> do
-                v' <- mkStringSymbol v
-                t' <- sortZ3 d t
-                mkVar v' t'
-exprZ3 _ (Const c) = constZ3 c
-exprZ3 d a@(App _ _) =
+exprZ3 :: TypeMaps -> M.Map Name AST -> Expr -> Z3 AST
+exprZ3 _ _ (Var "True" _) = mkTrue
+exprZ3 _ _ (Var "False" _) = mkFalse
+exprZ3 d m (Var v t)
+    | Just c <- M.lookup v (consFuncs d) = mkApp c []
+    | Just a <- M.lookup v m = return a
+    | otherwise = do
+                    v' <- mkStringSymbol v
+                    t' <- sortZ3 d t
+                    mkVar v' t'
+exprZ3 _ _ (Const c) = constZ3 c
+exprZ3 d m a@(App _ _) =
     let
-        func = fromJust . getAppFunc $ a
-        args = getAppArgs a
+        func = fromJust . Utils.getAppFunc $ a
+        args = Utils.getAppArgs a
     in
-    handleFunctionsZ3 d func args
-exprZ3 d c@(Case e ae t) = do
-    e' <- exprZ3 d e
-    --exprZ3AltExpr d e' ae
-    r <- mkFreshConst "case" =<< sortZ3 d t
+    handleFunctionsZ3 d m func args
+exprZ3 d m c@(Case e ae t) = do
+    e' <- exprZ3 d m e
 
-    assert =<< mkAnd =<< mapM (exprZ3AltExpr'' d e' r) ae
-    return r
+    mkIteAltExpr =<< mapM (exprZ3AltExpr d m e') ae
     where
         {- TypeMaps
+            -> Functions
             -> the expression being evaluated
-            -> the expression to store result
-            -> alt, expr pairs
-            -> the implies
+            -> an alt, expr pair
+            -> (a recognizer, an expression for if that recognizer is true)
         -}
-        -- exprZ3AltExpr :: TypeMaps -> AST -> [(Alt, Expr)] -> Z3 AST
-        -- exprZ3AltExpr d e (ae:[]) = exprZ3AltExpr' d e ae
-        -- exprZ3AltExpr d e (ae@(Alt (DC (n, _, _, _)), e'):es) = do
-        --     let rec = snd . M.lookup n d
+        exprZ3AltExpr :: TypeMaps -> M.Map Name AST -> AST -> (Alt, Expr) -> Z3 (AST, AST)
+        exprZ3AltExpr tm m e ae@(alt@(Alt (DC (n, _, t, ts), n')), e') = do
+            accApp <- case M.lookup n . accessorFuncs $ tm of
+                                Just a -> mapM (\a' -> mkApp a' [e]) a --a
+                                Nothing -> accDefault n e alt
 
-        --     recApp <- mkApp rec e
+            if length accApp == length n' then
+                do
+                    recApp <- case M.lookup n . recFuncs $ tm of
+                                Just r -> mkApp r [e]
+                                Nothing -> recDefault n e alt
 
-        --     mkIte recApp =<< exprZ3AltExpr' d e ae =<< exprZ3AltExpr d e es
+                    --accApp <- mapM (\a -> mkApp a [e]) acc
 
-        -- exprZ3AltExpr' :: TypeMaps -> AST -> (Alt, Expr) -> Z3 AST
-        -- exprZ3AltExpr' d e (alt, e') = mkTrue
+                    let accAppMap = M.fromList . zip n' $ accApp
+                    e'' <- exprZ3 tm (M.union accAppMap m) e'
 
+                    return (recApp, e'')
+            else
+                error ("Too many arguments in case with " ++ show ae)
 
+        mkIteAltExpr :: [(AST, AST)] -> Z3 AST
+        mkIteAltExpr ((_, e):[]) = return e
+        mkIteAltExpr ((r, e):es) = mkIte r e =<< mkIteAltExpr es
 
-        exprZ3AltExpr'' :: TypeMaps -> AST -> AST -> (Alt, Expr) -> Z3 AST
-        exprZ3AltExpr'' d expr_eq case_eq (_a, _e) = do
-            _a' <- altZ3 d _a
-            _a_eq <- mkEq _a' expr_eq
+        accDefault :: Name -> AST -> Alt -> Z3 [AST]
+        accDefault _ e (Alt (DC ("True", _, _, _), _)) = return []
+        accDefault _ e (Alt (DC ("False", _, _, _), _)) = return []
+        accDefault _ e (Alt (DC ("D#", _, _, _), [d])) = return [e]
+        accDefault _ e (Alt (DC ("F#", _, _, _), [f])) = return [e]
+        accDefault _ e (Alt (DC ("I#", _, _, _), [i])) = return [e]
+        accDefault n _ _ = error ("No accessor functions for " ++ n ++ " in exprZ3AltExpr")
 
-            _e' <- exprZ3 d _e
-            _e_eq <- mkEq _e' case_eq
+        recDefault :: Name -> AST -> Alt -> Z3 AST
+        recDefault _ e (Alt (DC ("True", _, _, _), _)) = mkEq e =<< mkTrue
+        recDefault _ e (Alt (DC ("False", _, _, _), _)) = mkEq e =<< mkFalse
+        recDefault _ e (Alt (DC ("D#", _, _, _), _)) = mkTrue
+        recDefault _ e (Alt (DC ("F#", _, _, _), _)) = mkTrue
+        recDefault _ e (Alt (DC ("I#", _, _, _), _)) = mkTrue
+        recDefault n _ _ = error ("No recognizer functions for " ++ n ++ " in exprZ3AltExpr")
 
-            mkImplies _a_eq _e_eq
-exprZ3 d e = error ("Unknown expression " ++ show e ++ " in exprZ3")
+exprZ3 _ _ e = error ("Unknown expression " ++ show e ++ " in exprZ3")
 
-handleFunctionsZ3 :: TypeMaps -> Expr -> [Expr] -> Z3 AST
+handleFunctionsZ3 :: TypeMaps -> M.Map Name AST -> Expr -> [Expr] -> Z3 AST
 --Mappings fairly directly from Haskell to SMT
 --Need to account for weird user implementations of Num?
-handleFunctionsZ3 d (Var "==" _ ) [_, _, a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var "==" _ ) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkEq a' b'
-handleFunctionsZ3 d (Var ">" _ ) [_, _, a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var ">" _ ) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkGt a' b'
-handleFunctionsZ3 d (Var "<" _ ) [_, _, a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var "<" _ ) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkLt a' b'
-handleFunctionsZ3 d (Var ">=" _ ) [_, _, a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var ">=" _ ) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkGe a' b'
-handleFunctionsZ3 d (Var "<=" _ ) [_, _, a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var "<=" _ ) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkLe a' b'
-handleFunctionsZ3 d (Var "+" _ ) [_, _, a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var "+" _ ) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkAdd [a', b']
-handleFunctionsZ3 d (Var "-" _ ) [_, _, a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var "-" _ ) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkSub [a', b']
-handleFunctionsZ3 d (Var "*" _ ) [_, _, a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var "*" _ ) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkMul [a', b']
-handleFunctionsZ3 d (Var "&&" _ ) [a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var "&&" _ ) [a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkAnd [a', b']
-handleFunctionsZ3 d (Var "||" _ ) [a, b] = do
-    a' <- exprZ3 d a
-    b' <- exprZ3 d b
+handleFunctionsZ3 d m (Var "||" _ ) [a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
     mkOr [a', b']
 --Constructors for built in datatypes
-handleFunctionsZ3 _ (Var "I#" _) [Const c] = constZ3 c
-handleFunctionsZ3 d (Var "I#" _) [e] = exprZ3 d e
-handleFunctionsZ3 _ (Var "F#" _) [Const c] = constZ3 c
-handleFunctionsZ3 d (Var "F#" _) [e] = exprZ3 d e
-handleFunctionsZ3 _ (Var "D#" _) [Const c] = constZ3 c
-handleFunctionsZ3 d (Var "D#" _) [e] = exprZ3 d e
-handleFunctionsZ3 d (Var n t1) e = do
-    f <- case M.lookup n (snd d) of
-                Just (c, _) -> return c
-                Nothing -> mkFuncDeclZ3 d n t1
+handleFunctionsZ3 _ _ (Var "I#" _) [Const c] = constZ3 c
+handleFunctionsZ3 d m (Var "I#" _) [e] = exprZ3 d m e
+handleFunctionsZ3 _ _ (Var "F#" _) [Const c] = constZ3 c
+handleFunctionsZ3 d m (Var "F#" _) [e] = exprZ3 d m e
+handleFunctionsZ3 _ _ (Var "D#" _) [Const c] = constZ3 c
+handleFunctionsZ3 d m (Var "D#" _) [e] = exprZ3 d m e
+handleFunctionsZ3 tm m (Var n t1) e = do
+    f <- case M.lookup n (consFuncs tm) of
+                Just c -> return c
+                Nothing -> mkFuncDeclZ3 tm n t1
     
-    e' <- mapM (exprZ3 d) e
+    e' <- mapM (exprZ3 tm m) e
     mkApp f e'
-handleFunctionsZ3 d (Lam n e t) [e'] = do
-    n' <- T.trace ("Lam " ++ n) mkStringSymbol n
-    t' <- sortZ3 d . ithArgType t $ 1
+handleFunctionsZ3 d m (Lam n e t) [e'] = do
+    n' <- mkStringSymbol n
+    t' <- sortZ3 d . Utils.ithArgType t $ 1
     v <- mkVar n' t'
-    e'' <- T.trace ("t = " ++ show t ++ " e' = " ++ show e') exprZ3 d e'
+    e'' <- exprZ3 d m e'
     --Possibly patterns could speed this up?
     assert =<< mkEq v e''--mkForall [] [n'] [t'] =<< exprZ3 d e
-    exprZ3 d e
-handleFunctionsZ3 _ e _ = error ("Unknown expression " ++ show e ++ " in handleFunctionsZ3")
+    exprZ3 d m e
+handleFunctionsZ3 _ _ e _ = error ("Unknown expression " ++ show e ++ " in handleFunctionsZ3")
 
 
 mkFuncDeclZ3 :: TypeMaps -> Name -> Type -> Z3 FuncDecl
@@ -307,42 +270,16 @@ mkFuncDeclZ3 d n t = do
             (x:fl, fl')
         frontLast [] = error "Empty list passed to frontLast in mkFuncDeclZ3."
 
-sortFuncZ3 :: TypeMaps -> Type -> Z3 [Sort]
-sortFuncZ3 d (TyFun t1 t2) = do
-    t1' <- sortFuncZ3 d t1
-    t2' <- sortFuncZ3 d t2
-    return (t1' ++ t2')
-sortFuncZ3 d t = do
-    t' <- sortZ3 d t
-    return [t']
-
-sortZ3 :: TypeMaps -> Type -> Z3 Sort
-sortZ3 _ TyRawInt = mkIntSort
-sortZ3 _ (TyConApp "Int" _) = mkIntSort
-sortZ3 _ TyRawFloat = mkRealSort
-sortZ3 _ (TyConApp "Float" _) = mkRealSort
-sortZ3 _ TyRawDouble = mkRealSort
-sortZ3 _ (TyConApp "Double" _) = mkRealSort
-sortZ3 _ (TyConApp "Bool" _) = mkBoolSort
-sortZ3 (d, _) t@(TyConApp n _) =
-    let
-        r = M.lookup n $ d
-    in
-    case r of (Just r') -> return r'
-              Nothing -> error ("Unknown sort in sortZ3 " ++ show t)
-sortZ3 _ t = error ("Unknown sort in sortZ3 " ++ show t)
-
-
 constZ3 :: Const -> Z3 AST
 constZ3 (CInt i) = mkInt i =<< mkIntSort
 constZ3 (CFloat r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
 constZ3 (CDouble r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
 
 
-altZ3 :: TypeMaps -> Alt -> Z3 AST
-altZ3 _ (Alt (DC ("True", _, TyConApp "Bool" _, _), _)) = mkBool True
-altZ3 _ (Alt (DC ("False", _, TyConApp "Bool" _, _), _)) = mkBool False
-altZ3 _ (Alt (DC ("I#", _, TyConApp "Int" _, _), i)) = do
+altZ3 :: TypeMaps -> M.Map Name AST -> Alt -> Z3 AST
+altZ3 _ _ (Alt (DC ("True", _, TyConApp "Bool" _, _), _)) = mkBool True
+altZ3 _ _ (Alt (DC ("False", _, TyConApp "Bool" _, _), _)) = mkBool False
+altZ3 _ _ (Alt (DC ("I#", _, TyConApp "Int" _, _), i)) = do
     intSort <- mkIntSort
     case i of
         [i'] -> do
@@ -350,8 +287,8 @@ altZ3 _ (Alt (DC ("I#", _, TyConApp "Int" _, _), i)) = do
             mkVar s intSort
         otherwise -> mkFreshConst "intCase" intSort
     
-altZ3 (d, c) (Alt (DC (x, _, TyConApp n _, ts), ns)) = do
-    let sort = case M.lookup n d of
+altZ3 tm m (Alt (DC (x, _, TyConApp n _, ts), ns)) = do
+    let sort = case M.lookup n (types tm) of
                     Just s -> s
                     Nothing -> error ("Type " ++ x ++ " not recognized.")
     cons <- getDatatypeSortConstructors sort
@@ -359,7 +296,7 @@ altZ3 (d, c) (Alt (DC (x, _, TyConApp n _, ts), ns)) = do
     rel_cons <- filterM (getRelevantCon x) cons
     let rel_con = rel_cons !! 0
 
-    ex <- mapM (exprZ3 (d, c)) . map (\(n', t') -> Var n' t') . zip ns $ ts
+    ex <- mapM (exprZ3 tm m) . map (\(n', t') -> Var n' t') . zip ns $ ts
 
     mkApp rel_con ex
     where
@@ -368,4 +305,4 @@ altZ3 (d, c) (Alt (DC (x, _, TyConApp n _, ts), ns)) = do
             n' <- mkStringSymbol n
             f' <- getDeclName f
             return (n' == f')
-altZ3 _ e = error ("Case of " ++ show e ++ " not handled in altZ3.")
+altZ3 _ _ e = error ("Case of " ++ show e ++ " not handled in altZ3.")

@@ -65,9 +65,10 @@ main = do
             putStrLn " => "
             printModel reachabilitySolverZ3 s) states
     else
-        mapM_ (\s@State {cExpr = expr, pc = pc'} -> do
+        mapM_ (\s@State {cExpr = expr, pc = pc', slt = slt'} -> do
             putStrLn . mkExprStr $ expr
             putStrLn . mkPCStr $ pc'
+            print . M.toList $ slt'
             putStrLn " => "
             printModel outputSolverZ3 s) states
 

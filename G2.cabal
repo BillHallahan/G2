@@ -17,7 +17,7 @@ cabal-version:       >=1.10
 
 executable G2
   main-is:             Main.hs
-  -- other-modules:       
+  -- other-modules:   
   -- other-extensions:    
   build-depends:       base >=4.8 && <4.9
                        , containers >=0.5 && <0.6
@@ -25,7 +25,7 @@ executable G2
                        , ghc
                        , reducers
                        , semigroups
-                       , z3
+                       , z3 >=4.1.1
   hs-source-dirs:      src
 
   -- exposed-modules:     
