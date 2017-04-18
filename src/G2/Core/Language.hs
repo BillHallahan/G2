@@ -34,7 +34,7 @@ type TEnv = M.Map Name Type
 
 type EEnv = M.Map Name Expr
 
-type SymLinkTable = M.Map Name Name
+type SymLinkTable = M.Map Name (Name, Maybe Int)
 
 {- Expressions
   

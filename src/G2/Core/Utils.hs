@@ -208,14 +208,18 @@ replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
 replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 
 -- Symbolic Link Table functions:
-sltLookup :: Name -> SymLinkTable -> Maybe Name
+sltLookup :: Name -> SymLinkTable -> Maybe (Name, Maybe Int)
 sltLookup = M.lookup
 
-sltBackLookup :: Name -> SymLinkTable -> [Name]
-sltBackLookup old slt = map fst $ filter (\(n, o) -> old == o) $ M.toList slt
+sltBackLookup :: Name -> SymLinkTable -> [(Name, Maybe Int)]
+sltBackLookup old slt = map snd $ filter (\(n,(o,i)) -> old == o) $ M.toList slt
 
 updateSymLinkTable :: Name -> Name -> SymLinkTable -> SymLinkTable
-updateSymLinkTable new old slt = M.insert new old slt
+updateSymLinkTable new old slt = case sltBackLookup old slt of
+    [] -> M.insert new (old, Nothing) slt
+    xs -> M.insert new (head xs) slt
+
+-- M.insert new old slt
 
 updateSymLinkTableList :: [Name] -> [Name] -> SymLinkTable -> SymLinkTable
 updateSymLinkTableList news olds slt = foldl (\s (k, v) -> updateSymLinkTable k v s) slt (zip news olds)
