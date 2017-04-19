@@ -140,6 +140,26 @@ typeOf (Case _ _ t) = t
 typeOf (Type t) = t
 typeOf _ = TyBottom
 
+--Returns if e1, e2 are equal up to renaming of all variables
+exprEqUpToName :: Expr -> Expr -> Bool
+exprEqUpToName (Var _ t) (Var _ t') = t == t'
+exprEqUpToName (Const c) (Const c') = c == c'
+exprEqUpToName (Lam _ e _) (Lam _ e' _) = exprEqUpToName e e'
+exprEqUpToName (App e1 e2) (App e1' e2') = exprEqUpToName e1 e1' && exprEqUpToName e2 e2'
+exprEqUpToName (DCon dc) (DCon dc') = dcEqUpToName dc dc'
+exprEqUpToName (Case e ae t) (Case e' ae' t') = exprEqUpToName e e' && aeEqUpToName ae ae' && t == t'
+    where
+        aeEqUpToName :: [(Alt, Expr)] -> [(Alt, Expr)] -> Bool
+        aeEqUpToName [] [] = True
+        aeEqUpToName ((Alt (dc, n), e):ae) ((Alt (dc', n'), e'):ae') =  dcEqUpToName dc dc' && length n == length n'
+        aeEqUpToName _ _ = False
+exprEqUpToName (Type t) (Type t') = t== t'
+exprEqUpToName e1 e2 = e1 == e2
+
+dcEqUpToName :: DataCon -> DataCon -> Bool
+dcEqUpToName (DC (_, _, t, ts)) (DC (_, _, t', ts')) = t == t' && ts == ts'
+
+
 -- Replace a single instance of a name with a new one in an Expr.
 -- Replace a single instance of a name with a new one in an Expr.
 replace :: Expr -> [Name] -> Name -> Name -> Expr
@@ -332,5 +352,5 @@ findAllCallsNamed n e = filter (varDown n) . findAllCalls $ e--evalUntil (findAl
     where
         varDown :: Name -> Expr -> Bool
         varDown n (Var n' _) = n == n'
-        varDown n (App e e') = varDown n e
+        varDown n (App e _) = varDown n e
         varDown _ _ = False

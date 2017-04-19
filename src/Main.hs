@@ -51,8 +51,9 @@ main = do
     putStrLn $ mkStatesStr [defun_init_state]
 
     putStrLn "======================="
+    let (states, n) = runN [defun_init_state] 100
+    --let states = stackN defun_init_state 10
 
-    let (states, n) = runN [defun_init_state] 50
     putStrLn $ mkStatesStr states
     putStrLn ("Number of execution states: " ++ (show (length states)))
 

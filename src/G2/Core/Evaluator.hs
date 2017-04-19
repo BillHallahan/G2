@@ -16,6 +16,7 @@ that we are able to return lambda expressions during evaluation.
 isVal :: State -> Bool
 isVal State {eEnv = env, cExpr = Var n _} = M.lookup n env == Nothing
 isVal State {cExpr = App (Lam _ _ _) _} = False
+isVal State {cExpr = App (Case _ _ _) _} = False
 isVal s@State {cExpr = App f a} = isVal (s {cExpr = f}) && isVal (s {cExpr = a})
 isVal State {cExpr = Case _ _ _} = False  -- isVal (tv, env, m, pc)
 isVal _ = True
@@ -227,3 +228,20 @@ runN states 0 = (states, 0)
 runN [] n     = ([], n - 1)
 runN (s:ss) n = runN (ss ++ evaluate s) (n - 1)
 
+-- Attempt to count the number of function applications, and use them to limit runs... not working currently
+stackN :: State -> Int -> [State]
+stackN s 0 = [s]
+stackN s@State {cExpr = cExpr'} i
+    | leadVar cExpr' = concatMap (\s' -> stackN s' (i - 1)) (evaluate s)
+    | otherwise = 
+        let
+            evS = evaluate s
+            (evSF, evSC) = L.partition (exprEqUpToName (cExpr s) . cExpr) evS
+        in
+        evSF ++ (concatMap (\s' -> T.trace ("i = " ++ (show i) ++ "\n" ++ (show . cExpr $ s) ++ "\n=/=\n" ++ (show . cExpr $ s') ++ "\n") stackN s' i) evSC)
+    --concatMap (\s' -> if (not (exprEqUpToName (cExpr s) $ (cExpr s'))) then T.trace ((show i) ++ "\n" ++ (show . cExpr $ s) ++ "\n=/=\n" ++ (show . cExpr $ s') ++ "\n\n") stackN s' i else [s']) (evaluate s)
+    where
+        leadVar :: Expr -> Bool
+        leadVar (App e _) = T.trace ("lead") leadVar e
+        leadVar (Var _ _) = T.trace ("var") True
+        leadVar _ = False
