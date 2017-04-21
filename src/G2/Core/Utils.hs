@@ -5,6 +5,7 @@ module G2.Core.Utils where
 import G2.Core.CoreManipulator
 import G2.Core.Language
 
+import Data.Char
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Monoid as Mon
@@ -183,9 +184,15 @@ replaceList expr env olds news = foldl (\e (n, n') -> replace e env n n')
                                       expr $ zip olds news
 
 -- Generates a fresh name given an old name and a list of INVALID names
-fresh :: Name -> [Name] -> Name
-fresh o ns = let r = foldl (\s c -> if s == c then s ++ [head c] else s) o ns
-             in if r `elem` ns then fresh r ns else r 
+fresh n bads = let maxnum = L.maximum $ map getnum bads
+               in n ++ show (maxnum + 1)
+  where getnum str = let raw = filter isDigit str
+                     in case raw of
+                         [] -> 0
+                         xs -> read xs :: Int
+-- fresh :: Name -> [Name] -> Name
+-- fresh o ns = let r = foldl (\s c -> if s == c then s ++ [head c] else s) o ns
+--              in if r `elem` ns then fresh r ns else r 
 
 -- Generates a list of fresh names. Ensures no conflict with original old list.
 freshList :: [Name] -> [Name] -> [Name]
