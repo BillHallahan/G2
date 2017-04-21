@@ -190,7 +190,7 @@ fresh n bads = let maxnum = L.maximum $ map getnum bads
   where getnum str = let raw = filter isDigit str
                      in case raw of
                          [] -> 0
-                         xs -> read xs :: Int
+                         xs -> read xs :: Integer
 -- fresh :: Name -> [Name] -> Name
 -- fresh o ns = let r = foldl (\s c -> if s == c then s ++ [head c] else s) o ns
 --              in if r `elem` ns then fresh r ns else r 

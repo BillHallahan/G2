@@ -82,9 +82,9 @@ as much as possible before performing evaluation on the RHS.
 -}
 evaluate s@State{cExpr = App f a} = if isVal (s {cExpr = f})
     then let a_ress = evaluate (s {cExpr = a})
-         in [s' {cExpr = App f a'} | s'@State {cExpr = a'} <- a_ress]
+         in [s' {tEnv = tv', eEnv = ev', cExpr = App f a'} | s'@State {tEnv = tv', eEnv = ev', cExpr = a'} <- a_ress]
     else let f_ress = evaluate (s {cExpr = f})
-         in [s' {cExpr = App f' a} | s'@State {cExpr = f'} <- f_ress]
+         in [s' {tEnv = tv', eEnv = ev', cExpr = App f' a} | s'@State {tEnv = tv', eEnv = ev', cExpr = f'} <- f_ress]
 -- evaluate (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
 --     then let a_ress = evaluate (tv, env, a, pc)
 --          in [(tv', env', App f a', pc') | (tv', env', a', pc') <- a_ress]

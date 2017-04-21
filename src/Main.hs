@@ -56,7 +56,7 @@ main = do
 
     putStrLn "======================="
 
-    testThis 0 [defun_init_state]
+    -- testThis [(defun_init_state, 0)]
 
     -- foldM (\s i -> do
     --     putStrLn ( "*******" ++ show i)
@@ -66,11 +66,10 @@ main = do
     --     return ((evaluate s) !! 0)) defun_init_state [0..5000]
 
     let (states, n) = runN [defun_init_state] 5000
-    --let states = stackN defun_init_state 10
 
-    --temporary
+    -- temporary
     let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
-    --temporary
+    -- temporary
 
     putStrLn $ mkStatesStr states
     putStrLn ("Number of execution states: " ++ (show (length states')))
@@ -103,16 +102,19 @@ main = do
     print . funcSlt $ (states !! 0)
 
 
-testThis :: Int -> [State] -> IO ()
-testThis x s = do
-    let _s = concatMap (evaluate) s
+testThis :: [(State, Int)] -> IO ()
+testThis s = do
+    let _s = concatMap (\__s -> map (\sss -> (sss, snd __s)) (evaluate . fst $ __s) ) s
+
+    let x = (L.maximum . map snd $ s) + 1
+
     let s' = zip _s [x..]
-    mapM_ ((\(s'', i) -> do
-                putStrLn ( "*******" ++ show i)
+    mapM_ ((\((s'', j), i) -> do
+                putStrLn ( "*******" ++ show i ++ " from " ++ show j)
                 putStrLn . mkExprEnvStr . eEnv $ s''
                 putStrLn . mkExprStr . cExpr $ s''
                 putStrLn . mkPCStr . pc $ s''
                 putStrLn "-----")) s'
 
-    if x < 5000 then testThis (x + length s') _s else return ()
+    if x < 100 then testThis (map (\((__s, _), k) -> (__s, k)) s') else return ()
 
