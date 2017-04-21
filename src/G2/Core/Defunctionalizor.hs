@@ -104,8 +104,8 @@ defunctionalize s =
                         r' = lookup f . concatMap snd $ a'
                         s' = case (r, r') of
                                 (Just (f', d), Just d') ->
-                                    applyPassedFuncsSnd (Var f t) (Var d' (TyAlg d [])) .
-                                    applyPassedFuncsFst (Var f t) (App (applyFunc f' d t) (Var d' (TyAlg d []))) $ s
+                                    applyPassedFuncsSnd (Var f t) (Var d' (TyConApp d [])) .
+                                    applyPassedFuncsFst (Var f t) (App (applyFunc f' d t) (Var d' (TyConApp d []))) $ s
                                 _ -> s
                     in
                     applyPassedFuncs' a a' fs s'
@@ -175,7 +175,7 @@ defunctionalize s =
 
                 e' = App (Lam frWild (Case (Var frApply . TyConApp d $ []) cases t2) (TyBottom)) (Var frApply . TyConApp d $ [])
 
-                apply = Lam frApply (Lam frIn e' t) (TyFun (TyAlg d []) t)
+                apply = Lam frApply (Lam frIn e' t) (TyFun (TyConApp d []) t)
 
                 env' = M.insert f apply env
             in

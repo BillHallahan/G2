@@ -22,6 +22,8 @@ import qualified G2.Sample.Prog2 as P2
 import qualified Data.List as L
 import qualified Data.Map  as M
 
+import Control.Monad
+
 import Z3.Monad
 
 main = do
@@ -53,6 +55,14 @@ main = do
     putStrLn $ mkStatesStr [defun_init_state]
 
     putStrLn "======================="
+
+    foldM (\s i -> do
+        putStrLn ( "*******" ++ show i)
+        putStrLn . mkExprEnvStr . eEnv $ s
+        putStrLn . mkExprStr . cExpr $ s
+        putStrLn "-----"
+        return ((evaluate s) !! 0)) defun_init_state [0..200]
+
     let (states, n) = runN [defun_init_state] 5000
     --let states = stackN defun_init_state 10
 
@@ -70,7 +80,7 @@ main = do
     if num == "1" then
         mapM_ (\s@State {cExpr = expr, pc = pc'} -> do
             rm@(r, m) <- evalZ3 . reachabilitySolverZ3 $ s
-            if r == Sat || r == Unsat then do
+            if r == Sat then do
                 putStrLn . mkExprStr $ expr
                 putStrLn . mkPCStr $ pc'
                 putStrLn " => "

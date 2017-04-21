@@ -9,6 +9,8 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Monoid as Mon
 
+import qualified Debug.Trace as T
+
 sp2 :: String
 sp2 = "  "
 
@@ -160,8 +162,7 @@ dcEqUpToName :: DataCon -> DataCon -> Bool
 dcEqUpToName (DC (_, _, t, ts)) (DC (_, _, t', ts')) = t == t' && ts == ts'
 
 
--- Replace a single instance of a name with a new one in an Expr.
--- Replace a single instance of a name with a new one in an Expr.
+-- Replace a name with a new one in an Expr.
 replace :: Expr -> [Name] -> Name -> Name -> Expr
 replace e env old new = modify'' (replace' old new) e env
     where
@@ -173,7 +174,7 @@ replace e env old new = modify'' (replace' old new) e env
                 bads = fvs ++ env ++ [old, new]
                 n'   = fresh n bads
             in
-            (Lam n' e t, bads)
+            (Lam n' (replace e bads n n') t, bads)
         replace' _ _ _ t = (t, [])
 
 -- Replace a whole list of names with new ones in an Expr via folding.
@@ -199,13 +200,29 @@ numFresh _ 0 _ = []
 numFresh n i ns = let f = fresh n ns in f:numFresh n (i - 1) (f:ns) 
 
 -- Returns free variables of an expression with respect to list of bounded vars.
+-- freeVars :: [Name] -> Expr -> [Name]
+-- freeVars bvs (Var n t)     = if n `elem` bvs then [] else [n]
+-- freeVars bvs (Const c)     = []
+-- freeVars bvs (Lam n e t)   = freeVars (n:bvs) e
+-- freeVars bvs (App f a)     = L.nub (freeVars bvs f ++ freeVars bvs a)
+-- freeVars bvs (DCon dc)     = []
+-- freeVars bvs (Case m as t) = L.nub (freeVars bvs m ++ as_fvs)
+--     where a_fv (Alt (dc, pars), ae) = freeVars (pars ++ bvs) ae
+--           as_fvs = L.nub (concatMap a_fv as)
+-- freeVars bvs (Type t) = []
+-- freeVars bvs BAD = []
+-- freeVars bvs UNR = []
+
 freeVars :: Manipulatable Expr m => [Name] -> m -> [Name]
-freeVars bv e = snd . eval'' freeVars' e $ (bv, [])
+freeVars bv e = snd . evalUntil'' freeVars' e $ (bv, [])
     where
-        freeVars' :: ([Name], [Name]) -> Expr -> ([Name], [Name])
-        freeVars' (bv, fr) (Var n' _) = if n' `elem` bv then ([], []) else ([], [n'])
-        freeVars' (bv, fr) (Lam n' _ _) = ([n'], [])
-        freeVars' _ _ = ([], [])
+        freeVars' :: ([Name], [Name]) -> Expr -> (([Name], [Name]), Bool)
+        freeVars' (bv, fr) (Var n' _) = if n' `elem` bv then (([], []), True) else (([], [n']), True)
+        freeVars' (bv, fr) (Lam n' _ _) = (([n'], []), True)
+        freeVars' (bv, fr) (Case m as t) = (([], L.nub (freeVars bv m ++ as_fvs)), False)
+            where a_fv (Alt (dc, pars), ae) = freeVars (pars ++ bv) ae
+                  as_fvs = L.nub (concatMap a_fv as)
+        freeVars' _ _ = (([], []), True)
 
 --Returns all names used in a State
 names :: State -> [Name]
