@@ -30,9 +30,8 @@ import Data.Ratio
 import qualified Debug.Trace as T
 
 --This function is just kind of a hack for now... might want something else later?
-printModel :: (State -> Z3 (Result, Maybe Model)) -> State -> IO ()
-printModel f s = do
-    (r, m) <- evalZ3 . f $ s
+printModel :: (Result, Maybe Model) -> IO ()
+printModel (r, m) = do
     m' <- case m of Just m'' -> modelToIOString m''
                     Nothing -> return ""
 

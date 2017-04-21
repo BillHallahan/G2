@@ -22,6 +22,8 @@ import qualified G2.Sample.Prog2 as P2
 import qualified Data.List as L
 import qualified Data.Map  as M
 
+import Z3.Monad
+
 main = do
     (num:xs) <- getArgs
     let filepath:entry:xs' = xs
@@ -51,25 +53,39 @@ main = do
     putStrLn $ mkStatesStr [defun_init_state]
 
     putStrLn "======================="
-    let (states, n) = runN [defun_init_state] 100
+    let (states, n) = runN [defun_init_state] 5000
     --let states = stackN defun_init_state 10
 
+    --temporary
+    let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
+    --temporary
+
     putStrLn $ mkStatesStr states
-    putStrLn ("Number of execution states: " ++ (show (length states)))
+    putStrLn ("Number of execution states: " ++ (show (length states')))
 
     putStrLn "Compiles!\n\n"
+
+
     
     if num == "1" then
         mapM_ (\s@State {cExpr = expr, pc = pc'} -> do
-            putStrLn . mkExprStr $ expr
-            putStrLn . mkPCStr $ pc'
-            putStrLn " => "
-            printModel reachabilitySolverZ3 s) states
+            rm@(r, m) <- evalZ3 . reachabilitySolverZ3 $ s
+            if r == Sat || r == Unsat then do
+                putStrLn . mkExprStr $ expr
+                putStrLn . mkPCStr $ pc'
+                putStrLn " => "
+                printModel rm
+            else return ()) states'
     else
         mapM_ (\s@State {cExpr = expr, pc = pc', slt = slt'} -> do
-            putStrLn . mkExprStr $ expr
-            putStrLn . mkPCStr $ pc'
-            print . M.toList $ slt'
-            putStrLn " => "
-            printModel outputSolverZ3 s) states
+            rm@(r, m) <- evalZ3 . outputSolverZ3 $ s
+            if r == Sat then do
+                putStrLn . mkExprStr $ expr
+                putStrLn . mkPCStr $ pc'
+                print . M.toList $ slt'
+                putStrLn " => "
+                printModel rm
+            else return ()) states'
+
+    print . funcSlt $ (states !! 0)
 

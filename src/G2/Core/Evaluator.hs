@@ -210,7 +210,7 @@ initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry = case match of
     Nothing -> error "No matching entry point. Check spelling?"
     Just ex -> let (expr', slt) = replaceVars e_env ex
-               in State t_env e_env expr' [] slt
+               in State t_env e_env expr' [] slt M.empty
     where match = M.lookup entry e_env
 
 initStateWithPredicate :: TEnv -> EEnv -> Name -> Name -> State
@@ -218,7 +218,7 @@ initStateWithPredicate t_env e_env pre entry = case match of
     (Just pre_ex, Just ex) -> let
                     pre_type = typeOf pre_ex
                     (expr', slt) = replaceVars e_env ex
-               in State t_env e_env (App (Var pre pre_type) expr') [] slt
+               in State t_env e_env (App (Var pre pre_type) expr') [] slt M.empty
     otherwise -> error "No matching entry points. Check spelling?"
     where match = (M.lookup pre e_env, M.lookup entry e_env)
 

@@ -18,6 +18,10 @@ Our execution state consists of 4 things we need to keep track of:
 4. Path Constraint: Keeps track of which alt branching we have taken.
 
 5. Symbolic Link Table: Maps renamed variables to their original names.
+If they are a renamed input variable, we store there input position
+as Just [Int], otherwise this is Nothing.
+
+6. Function Symbolic Link Table: Maps apply constructors to the function names
 -}
 --type State = (TEnv, EEnv, Expr, PC)
 
@@ -26,6 +30,7 @@ data State = State { tEnv  :: TEnv
                    , cExpr :: Expr
                    , pc    :: PC
                    , slt   :: SymLinkTable
+                   , funcSlt :: FuncSymLinkTable
                    } deriving (Show, Eq)
 
 type Name = String
@@ -35,6 +40,8 @@ type TEnv = M.Map Name Type
 type EEnv = M.Map Name Expr
 
 type SymLinkTable = M.Map Name (Name, Maybe Int)
+
+type FuncSymLinkTable = M.Map Name Name
 
 {- Expressions
   

@@ -354,3 +354,18 @@ findAllCallsNamed n e = filter (varDown n) . findAllCalls $ e--evalUntil (findAl
         varDown n (Var n' _) = n == n'
         varDown n (App e _) = varDown n e
         varDown _ _ = False
+
+containsFunctions :: (Manipulatable Type m) => m -> Bool
+containsFunctions = Mon.getAny . eval (Mon.Any .  containsFunctions')
+    where
+        containsFunctions' :: Type -> Bool
+        containsFunctions' (TyFun _ _) = True
+        containsFunctions' _ = False
+
+--Contains functions that are not just type constructors
+containsNonConsFunctions :: (Manipulatable Expr m) => TEnv -> m -> Bool
+containsNonConsFunctions tenv = Mon.getAny . eval (Mon.Any .  containsFunctions' tenv)
+    where
+        containsFunctions' :: TEnv -> Expr -> Bool
+        containsFunctions' tenv (App (Var n _) _) = n `elem` (M.keys tenv) 
+        containsFunctions' _ _ = False

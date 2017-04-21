@@ -44,24 +44,28 @@ defunctionalize s =
         applyPassedFuncs applies appliesCons .
         applyDataConAdj applies .
         modifyTypesInExpr (applyTypeAdj applies) .
-        modify (applyFuncGen applies) $ s
+        applyFuncGen applies $ s {funcSlt = M.fromList . concatMap snd $ appliesCons}
     where
         --adjusts calls to functions to accept apply datatypes rather than
         --functions
-        applyFuncGen :: AppliesLookUp -> Expr -> Expr
-        applyFuncGen a app@(App (Var n t) e) =
-            let
-                r = lookup t a
-            in
-            case r of
-                Just (f, d) ->
+        applyFuncGen :: AppliesLookUp -> State -> State
+        applyFuncGen applies' s = fst . modifyG (applyFuncGen' applies' (M.keys . eEnv $ s)) s $ []
+            where
+                applyFuncGen' :: AppliesLookUp -> [Name] -> [Name] -> Expr -> (Expr, [Name])
+                applyFuncGen' _ _ _ e@(Lam n _ _) = (e, [n])
+                applyFuncGen' a envNames lamNames app@(App (Var n t) e) =
                     let
-                        applyVar = (Var f (TyFun (TyConApp d []) t))
-                        applyType = Var n (TyConApp d [])
-                    in 
-                    App (App applyVar applyType) e
-                Nothing -> app
-        applyFuncGen _ e = e
+                        r = if n `elem` lamNames || not (n `elem` envNames) then lookup t a else Nothing
+                    in
+                    case r of
+                        Just (f, d) ->
+                            let
+                                applyVar = (Var f (TyFun (TyConApp d []) t))
+                                applyType = Var n (TyConApp d [])
+                            in 
+                            (App (App applyVar applyType) e, [])
+                        Nothing -> (app, [])
+                applyFuncGen' _ _ _ e = (e, [])
 
         --adjusts the types of expressions to account for apply
         applyTypeAdj :: AppliesLookUp -> Expr -> Type -> Type
@@ -167,7 +171,9 @@ defunctionalize s =
 
                 cases = map (genCase (frApply:frIn:bv) frIn (TyConApp d []) t) c
 
-                e' = Case (Var frApply . TyConApp d $ []) cases t2
+                frWild = fresh "wild" bv
+
+                e' = App (Lam frWild (Case (Var frApply . TyConApp d $ []) cases t2) (TyBottom)) (Var frApply . TyConApp d $ [])
 
                 apply = Lam frApply (Lam frIn e' t) (TyFun (TyAlg d []) t)
 
@@ -176,7 +182,7 @@ defunctionalize s =
             createApplyFuncs as a (s {eEnv = env'})
             where
                 genCase :: [Name] -> Name -> Type -> Type -> (FuncName, DataConName) -> (Alt, Expr)
-                genCase a i t t'@(TyFun t'' _) (f, d) = (Alt (DC (d, -1000, t, []), [fresh "new" a]), App (Var f t') (Var i t''))
+                genCase a i t t'@(TyFun t'' _) (f, d) = (Alt (DC (d, -1000, t, []), []), App (Var f t') (Var i t''))
                 genCase _ _ _ _ _ = error "Second supplied type must be a function."
         createApplyFuncs _ _ s = s
         
