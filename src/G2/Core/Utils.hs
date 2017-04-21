@@ -184,8 +184,9 @@ replaceList expr env olds news = foldl (\e (n, n') -> replace e env n n')
                                       expr $ zip olds news
 
 -- Generates a fresh name given an old name and a list of INVALID names
+fresh :: Name -> [Name] -> Name
 fresh n bads = let maxnum = L.maximum $ map getnum bads
-               in n ++ show (maxnum + 1)
+               in filter (not . isDigit) n ++ show (maxnum + 1)
   where getnum str = let raw = filter isDigit str
                      in case raw of
                          [] -> 0

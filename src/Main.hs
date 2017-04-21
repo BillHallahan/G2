@@ -56,12 +56,14 @@ main = do
 
     putStrLn "======================="
 
-    foldM (\s i -> do
-        putStrLn ( "*******" ++ show i)
-        putStrLn . mkExprEnvStr . eEnv $ s
-        putStrLn . mkExprStr . cExpr $ s
-        putStrLn "-----"
-        return ((evaluate s) !! 0)) defun_init_state [0..200]
+    testThis 0 [defun_init_state]
+
+    -- foldM (\s i -> do
+    --     putStrLn ( "*******" ++ show i)
+    --     putStrLn . mkExprEnvStr . eEnv $ s
+    --     putStrLn . mkExprStr . cExpr $ s
+    --     putStrLn "-----"
+    --     return ((evaluate s) !! 0)) defun_init_state [0..5000]
 
     let (states, n) = runN [defun_init_state] 5000
     --let states = stackN defun_init_state 10
@@ -78,11 +80,12 @@ main = do
 
     
     if num == "1" then
-        mapM_ (\s@State {cExpr = expr, pc = pc'} -> do
+        mapM_ (\s@State {cExpr = expr, pc = pc', slt = slt'} -> do
             rm@(r, m) <- evalZ3 . reachabilitySolverZ3 $ s
             if r == Sat then do
                 putStrLn . mkExprStr $ expr
                 putStrLn . mkPCStr $ pc'
+                print slt'
                 putStrLn " => "
                 printModel rm
             else return ()) states'
@@ -98,4 +101,18 @@ main = do
             else return ()) states'
 
     print . funcSlt $ (states !! 0)
+
+
+testThis :: Int -> [State] -> IO ()
+testThis x s = do
+    let _s = concatMap (evaluate) s
+    let s' = zip _s [x..]
+    mapM_ ((\(s'', i) -> do
+                putStrLn ( "*******" ++ show i)
+                putStrLn . mkExprEnvStr . eEnv $ s''
+                putStrLn . mkExprStr . cExpr $ s''
+                putStrLn . mkPCStr . pc $ s''
+                putStrLn "-----")) s'
+
+    if x < 5000 then testThis (x + length s') _s else return ()
 
