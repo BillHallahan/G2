@@ -185,7 +185,7 @@ replaceList expr env olds news = foldl (\e (n, n') -> replace e env n n')
 
 -- Generates a fresh name given an old name and a list of INVALID names
 fresh :: Name -> [Name] -> Name
-fresh n bads = let maxnum = L.maximum $ map getnum bads
+fresh n bads = let maxnum = L.maximum $ 0:(map getnum bads)
                in filter (not . isDigit) n ++ show (maxnum + 1)
   where getnum str = let raw = filter isDigit str
                      in case raw of
@@ -258,13 +258,13 @@ replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m
 replaceM e e1 e2 = modify (\e' -> if e1 == e' then e2 else e') e
 
 -- Symbolic Link Table functions:
-sltLookup :: Name -> SymLinkTable -> Maybe (Name, Maybe Int)
+sltLookup :: Name -> SymLinkTable -> Maybe (Name, Type, Maybe Int)
 sltLookup = M.lookup
 
-sltBackLookup :: Name -> SymLinkTable -> [(Name, Maybe Int)]
-sltBackLookup old slt = map snd $ filter (\(n,(o,i)) -> old == o) $ M.toList slt
+sltBackLookup :: Name -> SymLinkTable -> [(Name, Type, Maybe Int)]
+sltBackLookup old slt = map snd $ filter (\(n,(o, _, _)) -> old == o) $ M.toList slt
 
-updateSymLinkTable :: Name -> (Name, Maybe Int)-> SymLinkTable -> SymLinkTable
+updateSymLinkTable :: Name -> (Name, Type, Maybe Int) -> SymLinkTable -> SymLinkTable
 updateSymLinkTable = M.insert
 
 -- M.insert new old slt
@@ -273,7 +273,7 @@ updateSymLinkTableList :: [Name] -> [Name] -> SymLinkTable -> SymLinkTable
 updateSymLinkTableList news olds slt = foldl (\s (k, v) -> updateSymLinkTable k v s) slt (zip news modEntries)
     where oldsLookup = map (\o -> sltLookup o slt) olds -- entries exist?
           modEntries = map (\(o, r) -> case r of
-                                Nothing -> (o, Nothing) -- First insertion
+                                Nothing -> (o, TyBottom, Nothing) -- First insertion
                                 Just p  -> p) (zip olds oldsLookup)
 
 -- Unroll cascading lambda expressions.
@@ -392,5 +392,5 @@ containsNonConsFunctions :: (Manipulatable Expr m) => TEnv -> m -> Bool
 containsNonConsFunctions tenv = Mon.getAny . eval (Mon.Any .  containsFunctions' tenv)
     where
         containsFunctions' :: TEnv -> Expr -> Bool
-        containsFunctions' tenv (App (Var n _) _) = n `elem` (M.keys tenv) 
+        containsFunctions' tenv (App (Var n _) _) = not (n `elem` (M.keys tenv))
         containsFunctions' _ _ = False

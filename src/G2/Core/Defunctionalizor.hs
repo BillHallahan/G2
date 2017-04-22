@@ -8,6 +8,7 @@ import G2.Core.Utils
 
 import Data.List
 import qualified Data.Map  as M
+import Data.Tuple as Tuple
 
 import qualified Data.Monoid as Mon
 
@@ -44,7 +45,7 @@ defunctionalize s =
         applyPassedFuncs applies appliesCons .
         applyDataConAdj applies .
         modifyTypesInExpr (applyTypeAdj applies) .
-        applyFuncGen applies $ s {funcSlt = M.fromList . concatMap snd $ appliesCons}
+        applyFuncGen applies $ s {funcSlt = M.fromList . map Tuple.swap . concatMap (snd) $ appliesCons}
     where
         --adjusts calls to functions to accept apply datatypes rather than
         --functions

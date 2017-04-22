@@ -189,9 +189,10 @@ replaceVars e_env ex =
         (args, expr) = unlam ex
         ns = M.keys e_env
         nfs = map fst args
+        types = map snd args
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
         -- slt  = updateSymLinkTableList nfs' nfs (M.empty)
-        slt = M.fromList $ zip nfs' $ zip nfs $ map Just [1..]
+        slt = M.fromList $ zip nfs' $ zip3 nfs types $ map Just [1..]
      in
      (replaceList expr ns nfs nfs', slt)
 
