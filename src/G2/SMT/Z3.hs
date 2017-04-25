@@ -1,5 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 
+--Converting Core2 to an SMT formula
+--This is mostly pretty straightforward, just requires care to make sure types/dfunctions don't get mixed up...
+--Always check for existence of a Var in both environements!
+
 module G2.SMT.Z3 ( printModel
                  , modelToIOString
                  , reachabilitySolverZ3
@@ -27,7 +31,6 @@ import Z3.Monad
 
 import Data.Ratio
 
-import qualified Debug.Trace as T
 
 --This function is just kind of a hack for now... might want something else later?
 printModel :: (Result, Maybe Model) -> IO ()
@@ -41,9 +44,11 @@ printModel (r, m) = do
 modelToIOString :: Model -> IO (String)
 modelToIOString m = evalZ3 . modelToString $ m
 
+
+
 --Use the SMT solver to find inputs that will reach the given state
 --(or determine that it is not possible to reach the state)
-reachabilitySolverZ3 :: State -> Z3 (Result, Maybe Model)
+reachabilitySolverZ3 :: State -> Z3 (Result, [Maybe Expr])
 reachabilitySolverZ3 s@State {tEnv = tv, pc = pc'} = do
     dtMap <- mkDatatypesZ3 tv
     
@@ -51,13 +56,11 @@ reachabilitySolverZ3 s@State {tEnv = tv, pc = pc'} = do
 
     mapM assert =<< constraintsZ3 dtMap pc'
 
-    setASTPrintMode Z3_PRINT_SMTLIB2_COMPLIANT
-    s' <- solverToString
-    T.trace s' solverCheckAndGetModel 
+    runSolverToExpr dtMap s
 
 --Use the SMT solver to attempt to find inputs that will result in output
 --satisfying the given curr expr
-outputSolverZ3 :: State -> Z3 (Result, Maybe Model)
+outputSolverZ3 :: State -> Z3 (Result, [Maybe Expr])
 outputSolverZ3 s@State{tEnv = tv, cExpr = expr, pc = pc'}  = do
     dtMap <- mkDatatypesZ3 tv
 
@@ -66,9 +69,72 @@ outputSolverZ3 s@State{tEnv = tv, cExpr = expr, pc = pc'}  = do
     assert =<< exprZ3 dtMap M.empty expr
     mapM assert =<< constraintsZ3 dtMap pc'
 
-    setASTPrintMode Z3_PRINT_SMTLIB2_COMPLIANT
-    s' <- solverToString
-    T.trace s' solverCheckAndGetModel
+    runSolverToExpr dtMap s
+    
+
+runSolverToExpr :: TypeMaps -> State -> Z3 (Result, [Maybe Expr])
+runSolverToExpr dtMap s = do
+    (r, m) <- solverCheckAndGetModel
+    inExpr <- case m of 
+                    Just m' -> modelToExpr dtMap m' s
+                    Nothing -> return []
+    return (r, inExpr)
+
+--Takes a model and a state, and finds the Expr that coorespond to each argument in symbolic link table
+modelToExpr :: TypeMaps -> Model -> State -> Z3 [Maybe Expr]
+modelToExpr tm m s =
+    mapM toExpr . sortOn (fromJust . thrd . snd) . M.toList .  M.filter (isJust . thrd) . slt $ s
+    where
+        toExpr :: (Name, (Name, Type, Maybe Int)) -> Z3 (Maybe Expr)
+        toExpr (n, (_, TyFun _ _, _)) = error "TyFun in modelToExpr - should be eliminated by defunctionalization"
+        toExpr (n, (_, t, _)) = do
+            e <- exprZ3 tm M.empty (Var n t)
+            ev <- modelEval m e True
+            case ev of Just x -> return . Just =<< toExpr' t x
+                       Nothing -> return  Nothing
+
+        toExpr' :: Type -> AST -> Z3 Expr
+        toExpr' TyRawInt a = return . Const . CInt . fromInteger =<< getInt a
+        toExpr' (TyConApp "Int" _) a = return . Const . CInt . fromInteger =<< getInt a
+        toExpr' TyRawFloat a = return . Const . CFloat =<< getReal a
+        toExpr' (TyConApp "Float" _) a = return . Const . CFloat =<< getReal a
+        toExpr' TyRawDouble a = return . Const . CDouble =<< getReal a
+        toExpr' (TyConApp "Double" _) a = return . Const . CDouble =<< getReal a
+        toExpr' t'@(TyConApp n' _) a = do
+            --This is for ADT's
+            --We have to figure out what constructor we have...
+            let recog = M.toList .  M.filter ((==) n'. fst) . recNamesFuncs $ tm
+            relRec' <- mapM (\(rn, (tn, r)) -> do 
+                                                app <- mkApp r [a]
+                                                me <- modelEval m app True
+                                                me' <- case me of
+                                                            Just b -> getBool b
+                                                            Nothing -> error "modelEval failed in modelToExpr"
+                                                return (rn, me')) recog
+
+            let relRec = filter (snd) relRec'
+
+            -- ...then recursively go down levels by looking at accessors
+            case relRec of
+                [(rn, _)] -> do
+                    let acc = case accessorFuncs tm rn of
+                                        Just acc' -> acc'
+                                        Nothing -> error "Could not find accessor functions in modelToExpr"
+                    return (Var rn t')
+                    let types = case M.lookup n' (tEnv s) of
+                                        Just (TyAlg _ ts) -> 
+                                            case find (\(DC (n'', _, _, _)) -> rn == n'') ts of
+                                                Just (DC (_, _, _, ts)) -> ts
+                                                Nothing -> error "Encountered unrecognized type in modelToExpr."
+                                        Nothing -> error "Encountered unrecognized type in modelToExpr."
+
+                    foldM (\v (acc', t'') -> do
+                                                app <- mkApp acc' [a]
+                                                return . App v =<< (toExpr' t'' app)) (Var rn t') (zip acc types)
+                otherwise -> error "More than one recognizer matched in modelToExpr"
+
+        thrd (_, _, c) = c
+
 
 constraintsZ3 :: TypeMaps -> PC -> Z3 [AST]
 constraintsZ3 d (pc) = do
@@ -116,7 +182,7 @@ exprZ3 :: TypeMaps -> M.Map Name AST -> Expr -> Z3 AST
 exprZ3 _ _ (Var "True" _) = mkTrue
 exprZ3 _ _ (Var "False" _) = mkFalse
 exprZ3 d m (Var v t)
-    | Just c <- M.lookup v (consFuncs d) = mkApp c []
+    | Just c <- consFuncs d v = mkApp c []
     | Just a <- M.lookup v m = return a
     | otherwise = do
                     v' <- mkStringSymbol v
@@ -142,13 +208,13 @@ exprZ3 d m c@(Case e ae t) = do
         -}
         exprZ3AltExpr :: TypeMaps -> M.Map Name AST -> AST -> (Alt, Expr) -> Z3 (AST, AST)
         exprZ3AltExpr tm m e ae@(alt@(Alt (DC (n, _, t, ts), n')), e') = do
-            accApp <- case M.lookup n . accessorFuncs $ tm of
+            accApp <- case accessorFuncs tm n of
                                 Just a -> mapM (\a' -> mkApp a' [e]) a --a
                                 Nothing -> accDefault n e alt
 
             if length accApp == length n' then
                 do
-                    recApp <- case M.lookup n . recFuncs $ tm of
+                    recApp <- case recFuncs tm n of
                                 Just r -> mkApp r [e]
                                 Nothing -> recDefault n e alt
 
@@ -234,7 +300,7 @@ handleFunctionsZ3 d m (Var "F#" _) [e] = exprZ3 d m e
 handleFunctionsZ3 _ _ (Var "D#" _) [Const c] = constZ3 c
 handleFunctionsZ3 d m (Var "D#" _) [e] = exprZ3 d m e
 handleFunctionsZ3 tm m (Var n t1) e = do
-    f <- case M.lookup n (consFuncs tm) of
+    f <- case consFuncs tm n of
                 Just c -> return c
                 Nothing -> mkFuncDeclZ3 tm n t1
     
@@ -273,7 +339,6 @@ constZ3 :: Const -> Z3 AST
 constZ3 (CInt i) = mkInt i =<< mkIntSort
 constZ3 (CFloat r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
 constZ3 (CDouble r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
-
 
 altZ3 :: TypeMaps -> M.Map Name AST -> Alt -> Z3 AST
 altZ3 _ _ (Alt (DC ("True", _, TyConApp "Bool" _, _), _)) = mkBool True

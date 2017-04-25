@@ -239,8 +239,7 @@ stackN s@State {cExpr = cExpr'} i
             evS = evaluate s
             (evSF, evSC) = L.partition (exprEqUpToName (cExpr s) . cExpr) evS
         in
-        evSF ++ (concatMap (\s' -> T.trace ("i = " ++ (show i) ++ "\n" ++ (show . cExpr $ s) ++ "\n=/=\n" ++ (show . cExpr $ s') ++ "\n") stackN s' i) evSC)
-    --concatMap (\s' -> if (not (exprEqUpToName (cExpr s) $ (cExpr s'))) then T.trace ((show i) ++ "\n" ++ (show . cExpr $ s) ++ "\n=/=\n" ++ (show . cExpr $ s') ++ "\n\n") stackN s' i else [s']) (evaluate s)
+        evSF ++ (concatMap (\s' -> stackN s' i) evSC)
     where
         leadVar :: Expr -> Bool
         leadVar (App e _) = T.trace ("lead") leadVar e

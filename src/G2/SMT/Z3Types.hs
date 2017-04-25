@@ -13,17 +13,30 @@ import Z3.Monad
 
 import qualified Debug.Trace as T
 
+type TypeName = Name
 type ConsFuncDecl = FuncDecl
 type RecognizerFuncDecl = FuncDecl
 type AccessorFuncDecl = FuncDecl
 
-data TypeMaps = TypeMaps { types :: M.Map Name Sort
-                   , consFuncs :: M.Map Name ConsFuncDecl
-                   , recFuncs :: M.Map Name RecognizerFuncDecl
-                   , accessorFuncs :: M.Map Name [AccessorFuncDecl] }
+data TypeMaps = TypeMaps { types :: M.Map TypeName Sort
+                   , consNamesFuncs :: M.Map Name (TypeName, ConsFuncDecl)
+                   , recNamesFuncs :: M.Map Name (TypeName, RecognizerFuncDecl)
+                   , accessorNamesFuncs :: M.Map Name (TypeName, [AccessorFuncDecl]) }
 
+
+consFuncs :: TypeMaps -> TypeName -> Maybe ConsFuncDecl
+consFuncs t n = return . snd =<< M.lookup n (consNamesFuncs t)
+
+
+recFuncs :: TypeMaps -> TypeName -> Maybe RecognizerFuncDecl
+recFuncs t n = return . snd =<< M.lookup n (recNamesFuncs t)
+
+accessorFuncs :: TypeMaps -> TypeName -> Maybe [AccessorFuncDecl]
+accessorFuncs t n = return . snd =<< M.lookup n (accessorNamesFuncs t)
+
+--This needs to be adjusted to support mutually recursive datatypes
 mkDatatypesZ3 :: TEnv -> Z3 TypeMaps
-mkDatatypesZ3 tenv = mkSortsZ3 (TypeMaps {types = M.empty, consFuncs = M.empty, recFuncs = M.empty, accessorFuncs = M.empty})
+mkDatatypesZ3 tenv = mkSortsZ3 (TypeMaps {types = M.empty, consNamesFuncs = M.empty, recNamesFuncs = M.empty, accessorNamesFuncs = M.empty})
                      . M.toList
                      . M.filterWithKey (\k _  -> not (k `S.member` knownTypes)) $ tenv
     where
@@ -39,16 +52,16 @@ mkDatatypesZ3 tenv = mkSortsZ3 (TypeMaps {types = M.empty, consFuncs = M.empty, 
         names _ = Nothing
 
         mkSortsZ3 :: TypeMaps -> [(Name, Type)] -> Z3 TypeMaps
-        mkSortsZ3 tm@TypeMaps {types = d, consFuncs = c, recFuncs = r, accessorFuncs = a} ((n, t@(TyAlg n' dcs)):xs) = do
+        mkSortsZ3 tm@TypeMaps {types = d, consNamesFuncs = c, recNamesFuncs = r, accessorNamesFuncs = a} ((n, t@(TyAlg n' dcs)):xs) = do
             let req = requires t
 
             let (s, s') = partition (\(n'', _) -> n'' `elem` req) xs
             tm' <- mkSortsZ3 tm s
 
             let d' = types tm'
-            let c' = consFuncs tm'
-            let r' = recFuncs tm'
-            let a' = accessorFuncs tm'
+            let c' = consNamesFuncs tm'
+            let r' = recNamesFuncs tm'
+            let a' = accessorNamesFuncs tm'
 
             cons <- mapM (mkConstructorZ3 tm') dcs
             nSymb <- mkStringSymbol n
@@ -58,15 +71,16 @@ mkDatatypesZ3 tenv = mkSortsZ3 (TypeMaps {types = M.empty, consFuncs = M.empty, 
             recog <- getDatatypeSortRecognizers da
             accs <- getDatatypeSortConstructorAccessors da            
 
-            let consFuncDecls = zip (map (\(c, _, _) -> c) cons) cons'
-            let recsFuncDecls = zip (map (\(c, _, _) -> c) cons) recog
-            let accessorFuncDecls = zip (map (\(c, _, _) -> c) cons) accs
+            let consFuncDecls = zip (map (\(c, _, _) -> c) cons) (map (\c -> (n, c)) cons')
+            let recsFuncDecls = zip (map (\(c, _, _) -> c) cons) (map (\r -> (n, r)) recog)
+            let accessorFuncDecls = zip (map (\(c, _, _) -> c) cons) (map (\a -> (n, a)) accs)
 
             let c'' = M.union c' (M.fromList $ consFuncDecls)
             let r'' = M.union r' (M.fromList $ recsFuncDecls)
             let a'' = M.union a' (M.fromList $ accessorFuncDecls)
 
-            T.trace (show a'') mkSortsZ3 TypeMaps {types = (M.insert n da d'), consFuncs = c'', recFuncs = r'', accessorFuncs = a''} s'
+            --T.trace (show r'' ++ "\n" ++ show a'')
+            mkSortsZ3 TypeMaps {types = (M.insert n da d'), consNamesFuncs = c'', recNamesFuncs = r'', accessorNamesFuncs = a''} s'
         mkSortsZ3 tm [] = return tm
 
         getAccessors :: TypeMaps -> Sort -> [(Symbol, Sort)] -> Z3 [FuncDecl]

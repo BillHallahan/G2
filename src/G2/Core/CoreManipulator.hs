@@ -160,9 +160,10 @@ instance Manipulatable Expr State where
             (eEnv', x2') = modifyG f (eEnv s) x
             (currExpr', x3') = modifyG f (cExpr s) x
             (pc', x4') = modifyG f (pc s) x
+            (slt', x5') = modifyG f (slt s) x
         in
-        (s {tEnv = tEnv', eEnv = eEnv', cExpr = currExpr', pc = pc'}
-            , mconcat [x1', x2', x3', x4'])
+        (s {tEnv = tEnv', eEnv = eEnv', cExpr = currExpr', pc = pc', slt = slt'}
+            , mconcat [x1', x2', x3', x4', x5'])
 
 instance Manipulatable Type State where
     modifyG f s x =
@@ -171,12 +172,19 @@ instance Manipulatable Type State where
             (eEnv', x2') = modifyG f (eEnv s) x
             (currExpr', x3') = modifyG f (cExpr s) x
             (pc', x4') = modifyG f (pc s) x
+            (slt', x5') = modifyG f (slt s) x
         in
-        (s {tEnv = tEnv', eEnv = eEnv', cExpr = currExpr', pc = pc'}
-            , mconcat [x1', x2', x3', x4'])
+        (s {tEnv = tEnv', eEnv = eEnv', cExpr = currExpr', pc = pc', slt = slt'}
+            , mconcat [x1', x2', x3', x4', x5'])
 
 instance Manipulatable e Bool where
     modifyG _ b x = (b, x)
+
+instance Manipulatable e Char where
+    modifyG _ c x = (c, x)
+
+instance Manipulatable e Int where
+    modifyG _ i x = (i, x)
 
 instance (Manipulatable e a, Manipulatable e b) => Manipulatable e (a, b) where
     modifyG f (t1, t2) x = 
@@ -251,6 +259,14 @@ instance Manipulatable e v => Manipulatable e (M.Map k v) where
             x' = map snd . M.elems $ res
         in
         (e', mconcat x')
+
+instance Manipulatable e a => Manipulatable e (Maybe a) where
+    modifyG f (Just e) x =
+        let
+            (e', x') = modifyG f e x
+        in
+        (Just e', x')
+    modifyG _ Nothing x = (Nothing, x)
 
 --In order to use a function in Manipulatable, e and m must be
 --specifically included in the type signature.  Sometimes, this is
@@ -455,6 +471,15 @@ evalDataConExpr' f e = evalDataConExpr'' f e $ mempty
 
 evalDataConExpr'' :: (Manipulatable Expr m, Manipulatable Type m, Monoid a) => (a -> DataCon -> a) -> m -> a -> a
 evalDataConExpr'' f e x = snd . modifyDataConExprG (\a e' -> (e', f a e')) e $ x
+
+evalDataConType :: (Manipulatable Type m, Monoid a) => (DataCon -> a) -> m -> a
+evalDataConType f t = evalDataConType' (\_ t' -> f t') t
+
+evalDataConType' :: (Manipulatable Type m, Monoid a) => (a -> DataCon -> a) -> m -> a
+evalDataConType' f t = evalDataConType'' f t $ mempty
+
+evalDataConType'' :: (Manipulatable Type m, Monoid a) => (a -> DataCon -> a) -> m -> a -> a
+evalDataConType'' f t x = snd . modifyDataConTypeG (\a t' -> (t', f a t')) t $ x
 
 modifyDataConTypeG :: (Manipulatable Type m, Monoid a) => (a -> DataCon -> (DataCon, a)) -> m -> a -> (m, a)
 modifyDataConTypeG f e x = modifyG (f' f) e x

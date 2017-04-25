@@ -110,7 +110,41 @@ mkPCStr [(e, a, b)] = mkExprStr e ++ (if b then " = " else " != ") ++ show a
 mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a++ "\n--AND--\n" ++ mkPCStr ps
 
 mkSLTStr :: SymLinkTable -> String
-mkSLTStr = show
+mkSLTStr = L.intercalate "\n" . map (\(k, (n, t, i)) -> 
+                                                k ++ " <- " ++ n ++ "  (" ++ show t ++ ")"
+                                                ++ case i of
+                                                        Just x -> "  " ++ show x
+                                                        Nothing -> "") . M.toList
+
+mkExprHaskell :: Expr -> String
+mkExprHaskell e = mkExprHaskell' e 0
+    where 
+        mkExprHaskell' :: Expr -> Int -> String
+        mkExprHaskell' (Var n _) _ = n
+        mkExprHaskell' (Const c) _ = mkConstHaskell c
+        mkExprHaskell' (Lam n e _) i = "\\" ++ n ++ " -> " ++ mkExprHaskell' e i
+        mkExprHaskell' (App e1 e2@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' e2 i ++ ")"
+        mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
+        mkExprHaskell' (DCon (DC (n, _, _, _))) _ = n
+        mkExprHaskell' (Case e ae _) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
+                                        ++ L.intercalate "\n" (map (mkAltExprHaskell (i + 2)) ae)
+        mkExprHaskell' (Type _) _ = ""
+        mkExprHaskell' BAD _ = "BAD"
+        mkExprHaskell' UNR _ = "UNR"
+
+        mkAltExprHaskell :: Int -> (Alt, Expr) -> String
+        mkAltExprHaskell i (Alt (DC (n, _, _, _), n'), e) = off i ++ n ++ " " ++ L.intercalate " " n' ++ " -> " ++ mkExprHaskell' e i
+
+        off :: Int -> String
+        off i = duplicate "   " i
+
+mkConstHaskell :: Const -> String
+mkConstHaskell (CInt i) = show i
+mkConstHaskell (CFloat r) = show r
+mkConstHaskell (CDouble r) = show r
+mkConstHaskell (CChar c) = [c]
+mkConstHaskell (CString s) = s
+mkConstHaskell (COp n _) = n
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
@@ -142,6 +176,9 @@ typeOf (DCon (DC (n,_,t,a))) = let a' = reverse (a ++ [t])
 typeOf (Case _ _ t) = t
 typeOf (Type t) = t
 typeOf _ = TyBottom
+
+constructors :: TEnv -> [Name]
+constructors = evalDataConType (\(DC (n, _, _, _)) -> [n])
 
 --Returns if e1, e2 are equal up to renaming of all variables
 exprEqUpToName :: Expr -> Expr -> Bool
@@ -389,8 +426,8 @@ containsFunctions = Mon.getAny . eval (Mon.Any .  containsFunctions')
 
 --Contains functions that are not just type constructors
 containsNonConsFunctions :: (Manipulatable Expr m) => TEnv -> m -> Bool
-containsNonConsFunctions tenv = Mon.getAny . eval (Mon.Any .  containsFunctions' tenv)
+containsNonConsFunctions tenv = Mon.getAny . eval (Mon.Any . containsFunctions' tenv)
     where
         containsFunctions' :: TEnv -> Expr -> Bool
-        containsFunctions' tenv (App (Var n _) _) = not (n `elem` (M.keys tenv))
+        containsFunctions' tenv (Var n _) = n `notElem` (constructors tenv)
         containsFunctions' _ _ = False
