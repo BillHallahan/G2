@@ -44,8 +44,8 @@ defunctionalize s =
         createApplyTypes applies appliesCons .
         applyPassedFuncs applies appliesCons .
         applyDataConAdj applies .
-        modifyTypesInExpr (applyTypeAdj applies) .
-        applyFuncGen applies $ s {funcSlt = M.fromList . map Tuple.swap . concatMap (snd) $ appliesCons}
+        modify (applyTypeAdj applies) .
+        applyFuncGen applies $ s {slt = modify (applyTypeAdjSLT applies) (slt s), funcSlt = M.fromList . map Tuple.swap . concatMap (snd) $ appliesCons}
     where
         --adjusts calls to functions to accept apply datatypes rather than
         --functions
@@ -69,14 +69,25 @@ defunctionalize s =
                 applyFuncGen' _ _ _ e = (e, [])
 
         --adjusts the types of expressions to account for apply
-        applyTypeAdj :: AppliesLookUp -> Expr -> Type -> Type
-        applyTypeAdj a e t@(TyFun t'@(TyFun _ _) t'') =
+        applyTypeAdj :: AppliesLookUp -> Type -> Type
+        applyTypeAdj a t@(TyFun t'@(TyFun _ _) t'') =
             let
                 r = lookup t' a    
             in
             case r of Just (f, d) -> TyFun (TyConApp d []) t'' 
                       Nothing -> t
-        applyTypeAdj _ _ t = t
+        applyTypeAdj _ t = t
+
+        --adjusts the types of expressions in the SLT to account for apply
+        applyTypeAdjSLT :: AppliesLookUp -> Type -> Type
+        applyTypeAdjSLT a t@(TyFun _ _) =
+            let
+                r = lookup t a    
+            in
+            case r of Just (f, d) -> TyConApp d []
+                      Nothing -> t
+        applyTypeAdjSLT _ t = t
+
 
         applyDataConAdj :: (Manipulatable Expr m, Manipulatable Type m) => AppliesLookUp -> m -> m
         applyDataConAdj a e = modifyDataConExpr (applyDataConAdj' a) e

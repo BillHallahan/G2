@@ -244,19 +244,19 @@ numFresh :: Name -> Int -> [Name] -> [Name]
 numFresh _ 0 _ = []
 numFresh n i ns = let f = fresh n ns in f:numFresh n (i - 1) (f:ns) 
 
--- Returns free variables of an expression with respect to list of bounded vars.
--- freeVars :: [Name] -> Expr -> [Name]
--- freeVars bvs (Var n t)     = if n `elem` bvs then [] else [n]
--- freeVars bvs (Const c)     = []
--- freeVars bvs (Lam n e t)   = freeVars (n:bvs) e
--- freeVars bvs (App f a)     = L.nub (freeVars bvs f ++ freeVars bvs a)
--- freeVars bvs (DCon dc)     = []
--- freeVars bvs (Case m as t) = L.nub (freeVars bvs m ++ as_fvs)
---     where a_fv (Alt (dc, pars), ae) = freeVars (pars ++ bvs) ae
---           as_fvs = L.nub (concatMap a_fv as)
--- freeVars bvs (Type t) = []
--- freeVars bvs BAD = []
--- freeVars bvs UNR = []
+--Switches every occurence of a Var in the Func SLT from datatype to function
+replaceFuncSLT :: Manipulatable Expr m => State -> m -> m
+replaceFuncSLT s e = modify (replaceFuncSLT' (funcSlt s)) e
+    where
+        replaceFuncSLT' :: FuncSymLinkTable -> Expr -> Expr
+        replaceFuncSLT' slt v@(Var n t) =
+            let
+                n' = M.lookup n slt
+            in
+            case n' of
+                    Just n'' -> Var n'' TyBottom
+                    Nothing -> v
+        replaceFuncSLT' _ e = e
 
 freeVars :: Manipulatable Expr m => [Name] -> m -> [Name]
 freeVars bv e = snd . evalUntil'' freeVars' e $ (bv, [])

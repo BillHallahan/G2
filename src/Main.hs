@@ -68,16 +68,15 @@ main = do
     --     putStrLn "-----"
     --     return ((evaluate s) !! 0)) defun_init_state [0..5000]
 
-    let (states, n) = T.trace (mkStateStr defun_init_state) runN [defun_init_state] 5000
+    let (states, n) = runN [defun_init_state] 5000
 
-    -- temporary
+    -- temporary?
     let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
-    -- temporary
+    -- temporary?
 
     putStrLn $ mkStatesStr states
     putStrLn ("Number of execution states: " ++ (show (length states')))
-
-    putStrLn "Compiles!\n\n"
+    --putStrLn "Compiles!\n\n"
     
     if num == "1" then
         mapM_ (\s@State {cExpr = expr, pc = pc', slt = slt'} -> do
@@ -88,7 +87,7 @@ main = do
                 -- putStrLn . mkSLTStr $ slt'
                 -- putStrLn " => "
                 if Nothing `notElem` m then
-                    mapM_ (putStrLn . mkExprHaskell . fromJust) m
+                    putStrLn . mkExprHaskell . foldl1 (\a a' -> App a a') . replaceFuncSLT s . map (fromJust) $ m
                 else
                     print "Error"
             else return ()) states'
@@ -101,27 +100,9 @@ main = do
                 -- putStrLn . mkSLTStr $ slt'
                 -- putStrLn " => "
                 if Nothing `notElem` m then
-                    mapM_ (putStrLn . mkExprHaskell . fromJust) m
+                    putStrLn . mkExprHaskell .  foldl1 (\a a' -> App a a') . replaceFuncSLT s .map (fromJust) $ m
                 else
                     print "Error"
             else return ()) states'
 
     print . funcSlt $ (states !! 0)
-
-
-testThis :: [(State, Int)] -> IO ()
-testThis s = do
-    let _s = concatMap (\__s -> map (\sss -> (sss, snd __s)) (evaluate . fst $ __s) ) s
-
-    let x = (L.maximum . map snd $ s) + 1
-
-    let s' = zip _s [x..]
-    mapM_ ((\((s'', j), i) -> do
-                putStrLn ( "*******" ++ show i ++ " from " ++ show j)
-                putStrLn . mkExprEnvStr . eEnv $ s''
-                putStrLn . mkExprStr . cExpr $ s''
-                putStrLn . mkPCStr . pc $ s''
-                putStrLn "-----")) s'
-
-    if x < 100 then testThis (map (\((__s, _), k) -> (__s, k)) s') else return ()
-
