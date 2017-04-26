@@ -10,8 +10,6 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Monoid as Mon
 
-import qualified Debug.Trace as T
-
 sp2 :: String
 sp2 = "  "
 
@@ -177,6 +175,9 @@ typeOf (Case _ _ t) = t
 typeOf (Type t) = t
 typeOf _ = TyBottom
 
+functionType :: State -> Name -> Maybe Type
+functionType s n = typeOf <$> M.lookup n (eEnv s)
+
 constructors :: TEnv -> [Name]
 constructors = evalDataConType (\(DC (n, _, _, _)) -> [n])
 
@@ -246,17 +247,19 @@ numFresh n i ns = let f = fresh n ns in f:numFresh n (i - 1) (f:ns)
 
 --Switches every occurence of a Var in the Func SLT from datatype to function
 replaceFuncSLT :: Manipulatable Expr m => State -> m -> m
-replaceFuncSLT s e = modify (replaceFuncSLT' (funcSlt s)) e
+replaceFuncSLT s e = modify replaceFuncSLT' e
     where
-        replaceFuncSLT' :: FuncSymLinkTable -> Expr -> Expr
-        replaceFuncSLT' slt v@(Var n t) =
+        replaceFuncSLT' :: Expr -> Expr
+        replaceFuncSLT' v@(Var n t) =
             let
-                n' = M.lookup n slt
+                n' = M.lookup n (funcSlt s)
             in
             case n' of
-                    Just n'' -> Var n'' TyBottom
+                    Just n'' -> Var n'' (case functionType s n'' of
+                                                Just t -> t
+                                                Nothing -> TyBottom)
                     Nothing -> v
-        replaceFuncSLT' _ e = e
+        replaceFuncSLT' e = e
 
 freeVars :: Manipulatable Expr m => [Name] -> m -> [Name]
 freeVars bv e = snd . evalUntil'' freeVars' e $ (bv, [])
@@ -429,5 +432,7 @@ containsNonConsFunctions :: (Manipulatable Expr m) => TEnv -> m -> Bool
 containsNonConsFunctions tenv = Mon.getAny . eval (Mon.Any . containsFunctions' tenv)
     where
         containsFunctions' :: TEnv -> Expr -> Bool
-        containsFunctions' tenv (Var n _) = n `notElem` (constructors tenv)
+        containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv) && n `notElem` handledFunctions
         containsFunctions' _ _ = False
+
+        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "&&", "||"]

@@ -27,8 +27,6 @@ import Control.Monad
 
 import Z3.Monad
 
-import qualified Debug.Trace as T
-
 main = do
     (num:xs) <- getArgs
     let filepath:entry:xs' = xs
@@ -68,7 +66,7 @@ main = do
     --     putStrLn "-----"
     --     return ((evaluate s) !! 0)) defun_init_state [0..5000]
 
-    let (states, n) = runN [defun_init_state] 5000
+    let (states, n) = runN [defun_init_state] 150
 
     -- temporary?
     let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
@@ -87,7 +85,7 @@ main = do
                 -- putStrLn . mkSLTStr $ slt'
                 -- putStrLn " => "
                 if Nothing `notElem` m then
-                    putStrLn . mkExprHaskell . foldl1 (\a a' -> App a a') . replaceFuncSLT s . map (fromJust) $ m
+                    putStrLn . mkExprHaskell . foldl (\a a' -> App a a') (Var entry TyBottom) . replaceFuncSLT s . map (fromJust) $ m
                 else
                     print "Error"
             else return ()) states'
@@ -100,9 +98,7 @@ main = do
                 -- putStrLn . mkSLTStr $ slt'
                 -- putStrLn " => "
                 if Nothing `notElem` m then
-                    putStrLn . mkExprHaskell .  foldl1 (\a a' -> App a a') . replaceFuncSLT s .map (fromJust) $ m
+                    putStrLn . mkExprHaskell . foldl (\a a' -> App a a') (Var (xs' !! 0) TyBottom) . replaceFuncSLT s .map (fromJust) $ m
                 else
                     print "Error"
             else return ()) states'
-
-    print . funcSlt $ (states !! 0)

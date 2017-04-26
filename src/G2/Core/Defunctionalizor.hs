@@ -218,18 +218,22 @@ higherOrderFuncTypesToApplies e =
 passedInFuncsToApplies :: State -> AppliesConLookUp
 passedInFuncsToApplies s = 
     let
-        passed = findPassedInFuncs s
         types = findPassedInFuncTypes s
+
+        passed = findPassedInFuncs s
+        other = concatMap (\t' -> zip (findFunctionInEEnv (eEnv s) t') (repeat t')) types
+
+        use = nub (passed ++ other)
 
         lam_vars = eval getLamCaseVars s
 
-        passed' = deleteFirstsBy (\n n' -> fst n == fst n') passed lam_vars
+        use' = deleteFirstsBy (\n n' -> fst n == fst n') use lam_vars
 
         bv = freeVars [] s
-        fr = numFresh "applyCon" (length passed') bv
-        passed_fr = zip passed' fr
+        fr = numFresh "applyCon" (length use') bv
+        use_fr = zip use' fr
     in
-    passedIn' types passed_fr
+    passedIn' types use_fr
     where
         passedIn' :: [Type] -> [((FuncName, Type), DataConName)] -> AppliesConLookUp
         passedIn' (t:ts) ftd =
@@ -269,22 +273,9 @@ findPassedInFuncs s = nub . eval findPassedInFuncs' $ s
 findPassedInFuncsAE :: (Alt, Expr) -> [(FuncName, Type)]
 findPassedInFuncsAE (Alt (DC (_, _, _, t), n), _) = filter (isTyFun . snd) . zip n $ t
 
---returns all expressions corresponding to higher order functions in the given expr
-findHigherOrderFuncs :: (Manipulatable Expr m) => m -> [Expr]
-findHigherOrderFuncs e = nub . evalTypesInExpr (findHigherOrderFuncs') e $ []
-    where
-        findHigherOrderFuncs' :: Expr -> Type -> [Expr]
-        findHigherOrderFuncs' e' t = if isHigherOrderFuncType t then [e'] else []
+findFunctionInEEnv :: EEnv -> Type -> [FuncName]
+findFunctionInEEnv eenv t = M.keys . M.filter (\f -> typeOf f == t) $ eenv
 
---returns whether the given type is a higher order func type, for example (a -> b) -> a -> b
-isHigherOrderFuncType :: Type -> Bool
-isHigherOrderFuncType t = Mon.getAny . eval (Mon.Any . isHigherOrderFuncType') $ t
-    where
-        isHigherOrderFuncType' :: Type -> Bool
-        isHigherOrderFuncType' (TyFun (TyFun _ _) _) = True
-        isHigherOrderFuncType' (TyFun (TyConApp _ t) _) = any isTyFun t
-        isHigherOrderFuncType' _ = False
-    
 isTyFun :: Type -> Bool
 isTyFun (TyFun _ _) = True
 isTyFun _ = False

@@ -11,8 +11,6 @@ import qualified Data.Set as S
 
 import Z3.Monad
 
-import qualified Debug.Trace as T
-
 type TypeName = Name
 type ConsFuncDecl = FuncDecl
 type RecognizerFuncDecl = FuncDecl
@@ -79,7 +77,6 @@ mkDatatypesZ3 tenv = mkSortsZ3 (TypeMaps {types = M.empty, consNamesFuncs = M.em
             let r'' = M.union r' (M.fromList $ recsFuncDecls)
             let a'' = M.union a' (M.fromList $ accessorFuncDecls)
 
-            --T.trace (show r'' ++ "\n" ++ show a'')
             mkSortsZ3 TypeMaps {types = (M.insert n da d'), consNamesFuncs = c'', recNamesFuncs = r'', accessorNamesFuncs = a''} s'
         mkSortsZ3 tm [] = return tm
 

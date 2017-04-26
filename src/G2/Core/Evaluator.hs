@@ -6,8 +6,6 @@ import G2.Core.Utils
 import qualified Data.List as L
 import qualified Data.Map as M
 
-import qualified Debug.Trace as T
-
 {- Values
 
 We need to return values from evaluation and this is it. Only oddity may be
@@ -227,7 +225,7 @@ initStateWithPredicate t_env e_env pre entry = case match of
 runN :: [State] -> Int -> ([State], Int)
 runN states 0 = (states, 0)
 runN [] n     = ([], n - 1)
-runN (s:ss) n = runN (ss ++ evaluate s) (n - 1)
+runN states n = runN (concatMap (\s -> evaluate s) states) (n - 1)
 
 -- Attempt to count the number of function applications, and use them to limit runs... not working currently
 stackN :: State -> Int -> [State]
@@ -242,6 +240,6 @@ stackN s@State {cExpr = cExpr'} i
         evSF ++ (concatMap (\s' -> stackN s' i) evSC)
     where
         leadVar :: Expr -> Bool
-        leadVar (App e _) = T.trace ("lead") leadVar e
-        leadVar (Var _ _) = T.trace ("var") True
+        leadVar (App e _) = leadVar e
+        leadVar (Var _ _) = True
         leadVar _ = False
