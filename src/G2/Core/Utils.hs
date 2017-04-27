@@ -20,12 +20,14 @@ mkStateStr :: State -> String
 mkStateStr s = L.intercalate "\n\n" li
   where li = ["> Type Env:\n" ++ ts,  "> Expr Env:\n" ++ es
              ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps
-             ,"> Sym Link Table:\n" ++ sl]
+             ,"> Sym Link Table:\n" ++ sl
+             ,"> Func Sym Link Table:\n" ++ fl]
         ts = mkTypeEnvStr . tEnv $ s
         es = mkExprEnvStr . eEnv $ s
         xs = mkExprStr . cExpr $ s
         ps = mkPCStr . pc $ s
         sl = mkSLTStr . slt $ s
+        fl = mkFuncSLTStr . funcSlt $ s
 
 mkStatesStr :: [State] -> String
 mkStatesStr []     = ""
@@ -113,6 +115,9 @@ mkSLTStr = L.intercalate "\n" . map (\(k, (n, t, i)) ->
                                                 ++ case i of
                                                         Just x -> "  " ++ show x
                                                         Nothing -> "") . M.toList
+
+mkFuncSLTStr :: FuncSymLinkTable -> String
+mkFuncSLTStr = L.intercalate "\n" . map (\(k, (n, i)) -> k ++ " <- " ++ n ++ "  " ++ show i) . M.toList
 
 mkExprHaskell :: Expr -> String
 mkExprHaskell e = mkExprHaskell' e 0
@@ -255,7 +260,7 @@ replaceFuncSLT s e = modify replaceFuncSLT' e
                 n' = M.lookup n (funcSlt s)
             in
             case n' of
-                    Just n'' -> Var n'' (case functionType s n'' of
+                    Just (n'', _) -> Var n'' (case functionType s n'' of
                                                 Just t -> t
                                                 Nothing -> TyBottom)
                     Nothing -> v

@@ -36,7 +36,7 @@ main = do
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
-    let init_state = if num == "1" then initState t_env' e_env' entry else initStateWithPredicate t_env' e_env' entry (xs' !! 0)
+    let init_state = if num == "1" then initState t_env' e_env' entry else initStateWithPost t_env' e_env' entry (xs' !! 0)
 
     putStrLn "INIT STATE"
     putStrLn $ show init_state
@@ -66,7 +66,7 @@ main = do
     --     putStrLn "-----"
     --     return ((evaluate s) !! 0)) defun_init_state [0..5000]
 
-    let (states, n) = runN [defun_init_state] 150
+    let (states, n) = runN [defun_init_state] 200
 
     -- temporary?
     let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states

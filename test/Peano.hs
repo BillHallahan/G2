@@ -21,7 +21,7 @@ fromInt x
     | otherwise = Zero
 
 equalsFour :: Peano -> Bool
-equalsFour p = toInt p == 2
+equalsFour p = toInt p == 4
 
 equalsFive :: Peano -> Bool
 equalsFive p = toInt p == 5

@@ -189,10 +189,36 @@ replaceVars e_env ex =
         nfs = map fst args
         types = map snd args
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
-        -- slt  = updateSymLinkTableList nfs' nfs (M.empty)
-        slt = M.fromList $ zip nfs' $ zip3 nfs types $ map Just [1..]
+        slt = M.fromList . zip nfs' . zip3 nfs types $ map Just [1..]
      in
      (replaceList expr ns nfs nfs', slt)
+
+lamBinding :: EEnv -> Expr -> (Expr, SymLinkTable)
+lamBinding e_env ex = 
+    let 
+        args = leadingLams ex
+        ns = M.keys e_env
+        nfs = map fst args
+        types = map snd args
+        nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) ex))
+        nfs'' = freshList nfs (ns ++ nfs' ++ (freeVars (ns ++ nfs) ex))
+        slt = M.fromList . zip nfs'' . zip3 nfs types $ map Just [1..]
+
+        env = ns ++ nfs' ++ nfs'' ++ (freeVars (ns ++ nfs) ex)
+     in
+     (insertLams ex env (zip3 nfs' nfs'' types), slt)--foldl (\ex' (n, t) -> App ex' (Var n t)) ex (reverse . zip nfs' $ types)--(replaceList expr ns nfs nfs', slt)
+     where
+        leadingLams :: Expr -> [(Name, Type)]
+        leadingLams (Lam n e (TyFun t _)) = (n, t):leadingLams e
+        leadingLams _ = []
+
+        insertLams :: Expr -> [Name] -> [(Name, Name, Type)] -> Expr
+        insertLams e _ [] = e
+        insertLams (Lam n e t) env ((n', n'', t'):xs) =
+            let
+                e' = replace e env n n'
+            in
+            App (Lam n' (insertLams e' env xs) t) (Var n'' t')
 
 {- Initialization
 
@@ -202,30 +228,37 @@ point is a function with arguments (in the form of cascading lambdas), we need
 to strip out all the parameters and ensure that they are now free variables
 within the body of the first non-immediately cascading lambda expression.
 
-initStateWithPred is similar, but allows passing in a predicate function
-to constrain the desired values of current expression
+initStateWithPost is similar, but allows passing in a post condition
 -}
 initState :: TEnv -> EEnv -> Name -> State
-initState t_env e_env entry = case match of
-    Nothing -> error "No matching entry point. Check spelling?"
-    Just ex -> let (expr', slt) = replaceVars e_env ex
-               in State t_env e_env expr' [] slt M.empty
+initState t_env e_env entry =
+    case match of
+        Nothing -> error "No matching entry point. Check spelling?"
+        Just ex -> let (expr', slt) = replaceVars e_env ex
+                   in State t_env e_env expr' [] slt M.empty
     where match = M.lookup entry e_env
 
-initStateWithPredicate :: TEnv -> EEnv -> Name -> Name -> State
-initStateWithPredicate t_env e_env pre entry = case match of
-    (Just pre_ex, Just ex) -> let
-                    pre_type = typeOf pre_ex
-                    (expr', slt) = replaceVars e_env ex
-               in State t_env e_env (App (Var pre pre_type) expr') [] slt M.empty
-    otherwise -> error "No matching entry points. Check spelling?"
-    where match = (M.lookup pre e_env, M.lookup entry e_env)
+initStateWithPost :: TEnv -> EEnv -> Name -> Name -> State
+initStateWithPost t_env e_env post entry =
+    case match of
+        (Just post_ex, Just ex) -> let
+                        post_type = typeOf post_ex
+                        --(expr', slt) = replaceVars e_env ex
+                        (expr', slt) = lamBinding e_env ex
+                   in State t_env e_env (App (Var post post_type) expr') [] slt M.empty
+        otherwise -> error "No matching entry points. Check spelling?"
+    where match = (M.lookup post e_env, M.lookup entry e_env)
 
 -- Count the number of times we call eval as a way of limiting runs.
 runN :: [State] -> Int -> ([State], Int)
 runN states 0 = (states, 0)
 runN [] n     = ([], n - 1)
 runN states n = runN (concatMap (\s -> evaluate s) states) (n - 1)
+
+-- runN :: [State] -> Int -> ([State], Int)
+-- runN states 0 = (states, 0)
+-- runN [] n     = ([], n - 1)
+-- runN (s:ss) n = runN (ss ++ evaluate s) (n - 1)
 
 -- Attempt to count the number of function applications, and use them to limit runs... not working currently
 stackN :: State -> Int -> [State]

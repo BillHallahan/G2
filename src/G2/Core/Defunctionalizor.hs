@@ -45,7 +45,7 @@ defunctionalize s =
         applyPassedFuncs applies appliesCons .
         applyDataConAdj applies .
         modify (applyTypeAdj applies) .
-        applyFuncGen applies $ s {slt = modify (applyTypeAdjSLT applies) (slt s), funcSlt = M.fromList . map Tuple.swap . concatMap (snd) $ appliesCons}
+        applyFuncGen applies $ s {slt = modify (applyTypeAdjSLT applies) (slt s), funcSlt = appliesConLookUpToFuncSLT appliesCons}
     where
         --adjusts calls to functions to accept apply datatypes rather than
         --functions
@@ -99,6 +99,13 @@ defunctionalize s =
                                                 Nothing -> t'
                                   ) ts in
                     DC (n, i, t, ts')
+
+        appliesConLookUpToFuncSLT :: AppliesConLookUp -> FuncSymLinkTable
+        appliesConLookUpToFuncSLT = M.fromList . appliesConLookUpToFuncSLT' . concatMap (snd)
+            where
+                appliesConLookUpToFuncSLT' :: [(FuncName, DataConName)] -> [(FuncName, (DataConName, Interpretation))]
+                appliesConLookUpToFuncSLT' [] = []
+                appliesConLookUpToFuncSLT' ((f, d):xs) = (d, (f, StandardInterp)):appliesConLookUpToFuncSLT' xs
 
         --adjust passed functions, and calls to passed functions, to use apply variables rather than higher order functions
         applyPassedFuncs :: AppliesLookUp -> AppliesConLookUp -> State -> State
@@ -209,7 +216,7 @@ higherOrderFuncTypesToApplies e =
         h = findPassedInFuncTypes e
         bv = freeVars [] e
         funcN = numFresh "apply" (length h) bv
-        funcD = numFresh "applyType" (length h) (bv ++ funcN)
+        funcD = numFresh "ApplyType" (length h) (bv ++ funcN)
     in 
     zip h . zip funcN $ funcD
 
@@ -230,7 +237,7 @@ passedInFuncsToApplies s =
         use' = deleteFirstsBy (\n n' -> fst n == fst n') use lam_vars
 
         bv = freeVars [] s
-        fr = numFresh "applyCon" (length use') bv
+        fr = numFresh "ApplyCon" (length use') bv
         use_fr = zip use' fr
     in
     passedIn' types use_fr
