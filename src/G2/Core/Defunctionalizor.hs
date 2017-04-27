@@ -44,6 +44,7 @@ defunctionalize s =
         createApplyTypes applies appliesCons .
         applyPassedFuncs applies appliesCons .
         applyDataConAdj applies .
+        modify (applyTypeAdjLam applies) .
         modify (applyTypeAdj applies) .
         applyFuncGen applies $ s {slt = modify (applyTypeAdjSLT applies) (slt s), funcSlt = appliesConLookUpToFuncSLT appliesCons}
     where
@@ -77,6 +78,15 @@ defunctionalize s =
             case r of Just (f, d) -> TyFun (TyConApp d []) t'' 
                       Nothing -> t
         applyTypeAdj _ t = t
+
+        applyTypeAdjLam :: AppliesLookUp -> Expr -> Expr
+        applyTypeAdjLam a e@(App l (Var n t@(TyFun _ _))) =
+            let
+                r = lookup t a    
+            in
+            case r of Just (f, d) -> App l (Var n (TyConApp d []))
+                      Nothing -> e
+        applyTypeAdjLam _ e = e 
 
         --adjusts the types of expressions in the SLT to account for apply
         applyTypeAdjSLT :: AppliesLookUp -> Type -> Type
@@ -273,7 +283,12 @@ findPassedInFuncs :: Manipulatable Expr m => m -> [(FuncName, Type)]
 findPassedInFuncs s = nub . eval findPassedInFuncs' $ s
     where
         findPassedInFuncs' :: Expr -> [(FuncName, Type)]
-        findPassedInFuncs' (App _ (Var n t@(TyFun _ _))) = [(n, t)]
+        findPassedInFuncs' (App e (Var n t@(TyFun _ _))) = if leadsToLam e then [] else [(n, t)]
+            where
+                leadsToLam :: Expr -> Bool
+                leadsToLam (Lam _ _ _) = True
+                leadsToLam (App e _) = leadsToLam e
+                leadsToLam _ = False
         findPassedInFuncs' (Case e ae t) = concatMap findPassedInFuncsAE ae
         findPassedInFuncs' _ = []
 

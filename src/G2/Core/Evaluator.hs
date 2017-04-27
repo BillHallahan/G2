@@ -206,7 +206,8 @@ lamBinding e_env ex =
 
         env = ns ++ nfs' ++ nfs'' ++ (freeVars (ns ++ nfs) ex)
      in
-     (insertLams ex env (zip3 nfs' nfs'' types), slt)--foldl (\ex' (n, t) -> App ex' (Var n t)) ex (reverse . zip nfs' $ types)--(replaceList expr ns nfs nfs', slt)
+     (foldr (\(n, n', t) ex' -> App ex' (Var n' t)) ex . zip3 nfs' nfs'' $ types, slt)
+     --(insertLams ex env (zip3 nfs' nfs'' types), slt)--foldl (\ex' (n, t) -> App ex' (Var n t)) ex (reverse . zip nfs' $ types)--(replaceList expr ns nfs nfs', slt)
      where
         leadingLams :: Expr -> [(Name, Type)]
         leadingLams (Lam n e (TyFun t _)) = (n, t):leadingLams e
