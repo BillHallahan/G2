@@ -201,25 +201,13 @@ lamBinding e_env ex =
         nfs = map fst args
         types = map snd args
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) ex))
-        nfs'' = freshList nfs (ns ++ nfs' ++ (freeVars (ns ++ nfs) ex))
-        slt = M.fromList . zip nfs'' . zip3 nfs types $ map Just [1..]
-
-        env = ns ++ nfs' ++ nfs'' ++ (freeVars (ns ++ nfs) ex)
+        slt = M.fromList . zip nfs' . zip3 nfs types $ map Just [1..]
      in
-     (foldr (\(n, n', t) ex' -> App ex' (Var n' t)) ex . zip3 nfs' nfs'' $ types, slt)
-     --(insertLams ex env (zip3 nfs' nfs'' types), slt)--foldl (\ex' (n, t) -> App ex' (Var n t)) ex (reverse . zip nfs' $ types)--(replaceList expr ns nfs nfs', slt)
+     (foldl (\ex' (n, t) -> App ex' (Var n t)) ex . zip nfs' $ types, slt)
      where
         leadingLams :: Expr -> [(Name, Type)]
         leadingLams (Lam n e (TyFun t _)) = (n, t):leadingLams e
         leadingLams _ = []
-
-        insertLams :: Expr -> [Name] -> [(Name, Name, Type)] -> Expr
-        insertLams e _ [] = e
-        insertLams (Lam n e t) env ((n', n'', t'):xs) =
-            let
-                e' = replace e env n n'
-            in
-            App (Lam n' (insertLams e' env xs) t) (Var n'' t')
 
 {- Initialization
 

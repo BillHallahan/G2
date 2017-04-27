@@ -72,7 +72,7 @@ main = do
     let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
     -- temporary?
 
-    putStrLn $ mkStatesStr states
+    --putStrLn $ mkStatesStr states
     putStrLn ("Number of execution states: " ++ (show (length states')))
     --putStrLn "Compiles!\n\n"
     
