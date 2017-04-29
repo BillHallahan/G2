@@ -44,8 +44,8 @@ defunctionalize s =
         createApplyTypes applies appliesCons .
         applyPassedFuncs applies appliesCons .
         applyDataConAdj applies .
-        modify (applyTypeAdjLam applies) .
         modify (applyTypeAdj applies) .
+        modify (applyTypeAdjLam applies) .
         applyFuncGen applies $ s {slt = modify (applyTypeAdjSLT applies) (slt s), funcSlt = appliesConLookUpToFuncSLT appliesCons}
     where
         --adjusts calls to functions to accept apply datatypes rather than
@@ -92,7 +92,7 @@ defunctionalize s =
         applyTypeAdjSLT :: AppliesLookUp -> Type -> Type
         applyTypeAdjSLT a t@(TyFun _ _) =
             let
-                r = lookup t a    
+                r = lookup t a
             in
             case r of Just (f, d) -> TyConApp d []
                       Nothing -> t

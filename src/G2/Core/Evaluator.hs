@@ -181,18 +181,6 @@ unapp :: Expr -> [Expr]
 unapp (App f a) = unapp f ++ [a]
 unapp e = [e]
 
-replaceVars :: EEnv -> Expr -> (Expr, SymLinkTable)
-replaceVars e_env ex = 
-    let 
-        (args, expr) = unlam ex
-        ns = M.keys e_env
-        nfs = map fst args
-        types = map snd args
-        nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
-        slt = M.fromList . zip nfs' . zip3 nfs types $ map Just [1..]
-     in
-     (replaceList expr ns nfs nfs', slt)
-
 lamBinding :: EEnv -> Expr -> (Expr, SymLinkTable)
 lamBinding e_env ex = 
     let 
@@ -223,7 +211,7 @@ initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry =
     case match of
         Nothing -> error "No matching entry point. Check spelling?"
-        Just ex -> let (expr', slt) = replaceVars e_env ex
+        Just ex -> let (expr', slt) = lamBinding e_env ex
                    in State t_env e_env expr' [] slt M.empty
     where match = M.lookup entry e_env
 
@@ -231,12 +219,20 @@ initStateWithPost :: TEnv -> EEnv -> Name -> Name -> State
 initStateWithPost t_env e_env post entry =
     case match of
         (Just post_ex, Just ex) -> let
-                        post_type = typeOf post_ex
-                        --(expr', slt) = replaceVars e_env ex
                         (expr', slt) = lamBinding e_env ex
-                   in State t_env e_env (App (Var post post_type) expr') [] slt M.empty
+                        postExpr = Var post (typeOf post_ex)
+                   in State t_env e_env (addPost postExpr expr') [] slt M.empty
         otherwise -> error "No matching entry points. Check spelling?"
-    where match = (M.lookup post e_env, M.lookup entry e_env)
+    where
+        match = (M.lookup post e_env, M.lookup entry e_env)
+
+        --We want to add the post immediately below the binding for input to the function
+        --this allows us to get them, and involve the input in the post condition
+        addPost :: Expr -> Expr -> Expr
+        addPost post (App e e') = App (addPost post e) e'
+        addPost post (Lam n e@(Lam _ _ _) t) = Lam n (addPost post e) t
+        addPost post (Lam n e t) = Lam n (App post e) t
+        addPost post e = App post e
 
 -- Count the number of times we call eval as a way of limiting runs.
 runN :: [State] -> Int -> ([State], Int)
