@@ -66,7 +66,8 @@ main = do
     --     putStrLn "-----"
     --     return ((evaluate s) !! 0)) defun_init_state [0..5000]
 
-    let (states, n) = runN [defun_init_state] 200
+    -- let (states, n) = runN [defun_init_state] 20
+    let (states, n) = fooN [defun_init_state] 20
 
     -- temporary?
     let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states

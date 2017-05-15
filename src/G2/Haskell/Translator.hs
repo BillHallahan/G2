@@ -7,12 +7,14 @@ import CoreSyn
 import CoreUtils as CU
 import Data.List
 import DataCon
+import FastString
 import GHC
 import GHC.Paths
 import HscTypes
 import Literal
 import Name
 import Outputable
+import SrcLoc
 import TyCon
 import Type
 import TypeRep
@@ -57,6 +59,12 @@ mkG2Core core = (mkTEnv core, mkEEnv core)
 ----
 mkName :: Name -> G2.Name
 mkName name = occNameString $ nameOccName name
+-- mkName = mkQualName
+
+mkQualName :: Name -> G2.Name
+mkQualName name = case srcSpanFileName_maybe $ nameSrcSpan name of
+    Just fs -> (occNameString $ nameOccName name)  ++ ".__." ++ (unpackFS fs)
+    Nothing -> occNameString $ nameOccName name
 
 {- Type Extraction
 

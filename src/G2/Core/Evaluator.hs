@@ -82,7 +82,7 @@ evaluate s@State{cExpr = App f a} = if isVal (s {cExpr = f})
     then let a_ress = evaluate (s {cExpr = a})
          in [s' {tEnv = tv', eEnv = ev', cExpr = App f a', pc = pc'} | s'@State {tEnv = tv', eEnv = ev', cExpr = a', pc = pc'} <- a_ress]
     else let f_ress = evaluate (s {cExpr = f})
-         in [s' {tEnv = tv', eEnv = ev', cExpr = App f' a pc = pc'} | s'@State {tEnv = tv', eEnv = ev', cExpr = f', pc = pc'} <- f_ress]
+         in [s' {tEnv = tv', eEnv = ev', cExpr = App f' a, pc = pc'} | s'@State {tEnv = tv', eEnv = ev', cExpr = f', pc = pc'} <- f_ress]
 -- evaluate (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
 --     then let a_ress = evaluate (tv, env, a, pc)
 --          in [(tv', env', App f a', pc') | (tv', env', a', pc') <- a_ress]
@@ -244,6 +244,11 @@ runN states n = runN (concatMap (\s -> evaluate s) states) (n - 1)
 -- runN states 0 = (states, 0)
 -- runN [] n     = ([], n - 1)
 -- runN (s:ss) n = runN (ss ++ evaluate s) (n - 1)
+
+fooN :: [State] -> Int -> ([State], Int)
+fooN states 0 = (states, 0)
+fooN [] n     = ([], n - 1)
+fooN (s:ss) n = fooN (ss ++ evaluate s) (n - 1)
 
 -- Attempt to count the number of function applications, and use them to limit runs... not working currently
 stackN :: State -> Int -> [State]
