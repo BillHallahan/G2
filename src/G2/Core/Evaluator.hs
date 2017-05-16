@@ -209,30 +209,33 @@ initStateWithPost is similar, but allows passing in a post condition
 -}
 initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry =
-    case match of
-        Nothing -> error "No matching entry point. Check spelling?"
-        Just ex -> let (expr', slt) = lamBinding e_env ex
-                   in State t_env e_env expr' [] slt M.empty
-    where match = M.lookup entry e_env
+    case matches of
+        []         -> error "No matching entry point. Check spelling?"
+        ((k,v):ms) -> 
+            let (expr', slt) = lamBinding e_env v
+            in State t_env e_env expr' [] slt M.empty
+    where matches = filter (\(k, v) -> L.isInfixOf entry k) $ M.toList e_env
+    -- where match = M.lookup entry e_env
 
 initStateWithPost :: TEnv -> EEnv -> Name -> Name -> State
 initStateWithPost t_env e_env post entry =
-    case match of
-        (Just post_ex, Just ex) -> let
-                        (expr', slt) = lamBinding e_env ex
-                        postExpr = Var post (typeOf post_ex)
-                   in State t_env e_env (addPost postExpr expr') [] slt M.empty
-        otherwise -> error "No matching entry points. Check spelling?"
-    where
-        match = (M.lookup post e_env, M.lookup entry e_env)
-
-        --We want to add the post immediately below the binding for input to the function
-        --this allows us to get them, and involve the input in the post condition
-        addPost :: Expr -> Expr -> Expr
-        addPost post (App e e') = App (addPost post e) e'
-        addPost post (Lam n e@(Lam _ _ _) t) = Lam n (addPost post e) t
-        addPost post (Lam n e t) = Lam n (App post e) t
-        addPost post e = App post e
+    case (p_matches, e_matches) of
+        ([],_) -> error "No matching post condition. Check spelling?"
+        (_,[]) -> error "No matching entry point. Check spelling?"
+        ((pk,pv):ps,(ek,ev):es) ->
+            let (expr', slt) = lamBinding e_env ev
+                postExpr = Var pk (typeOf pv)
+            in State t_env e_env (addPost postExpr expr') [] slt M.empty
+    where p_matches = filter (\(k, v) -> L.isInfixOf post k) $ M.toList e_env
+          e_matches = filter (\(k, v) -> L.isInfixOf entry k) $ M.toList e_env
+        
+          --We want to add the post immediately below the binding for input to the function
+          --this allows us to get them, and involve the input in the post condition
+          addPost :: Expr -> Expr -> Expr
+          addPost post (App e e') = App (addPost post e) e'
+          addPost post (Lam n e@(Lam _ _ _) t) = Lam n (addPost post e) t
+          addPost post (Lam n e t) = Lam n (App post e) t
+          addPost post e = App post e
 
 -- Count the number of times we call eval as a way of limiting runs.
 runN :: [State] -> Int -> ([State], Int)
@@ -245,10 +248,11 @@ runN states n = runN (concatMap (\s -> evaluate s) states) (n - 1)
 -- runN [] n     = ([], n - 1)
 -- runN (s:ss) n = runN (ss ++ evaluate s) (n - 1)
 
-fooN :: [State] -> Int -> ([State], Int)
-fooN states 0 = (states, 0)
-fooN [] n     = ([], n - 1)
-fooN (s:ss) n = fooN (ss ++ evaluate s) (n - 1)
+fooN :: [State] -> Int -> [([State], Int)]
+fooN states 0 = [(states, 0)]
+fooN [] n = [([], n - 1)]
+fooN states n = let states' = concatMap evaluate states
+                in (states', n) : fooN states' (n - 1)
 
 -- Attempt to count the number of function applications, and use them to limit runs... not working currently
 stackN :: State -> Int -> [State]

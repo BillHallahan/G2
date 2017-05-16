@@ -58,8 +58,8 @@ mkG2Core core = (mkTEnv core, mkEEnv core)
 
 ----
 mkName :: Name -> G2.Name
-mkName name = occNameString $ nameOccName name
--- mkName = mkQualName
+-- mkName name = occNameString $ nameOccName name
+mkName = mkQualName
 
 mkQualName :: Name -> G2.Name
 mkQualName name = case srcSpanFileName_maybe $ nameSrcSpan name of
