@@ -441,3 +441,9 @@ containsNonConsFunctions tenv = Mon.getAny . eval (Mon.Any . containsFunctions' 
         containsFunctions' _ _ = False
 
         handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "&&", "||"]
+
+-- This assumes that all envs are qualified with names and such.
+mergeModuleEnvs :: [(TEnv, EEnv)] -> (TEnv, EEnv)
+mergeModuleEnvs envs = foldl pairjoin (M.empty, M.empty) envs
+    where pairjoin (acc_t, acc_e) (t, e) = (M.union acc_t t, M.union acc_e e)
+
