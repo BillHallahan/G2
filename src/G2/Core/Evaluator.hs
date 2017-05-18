@@ -235,13 +235,8 @@ initState t_env e_env entry =
     case match of
         Nothing -> error "No matching entry point. Check spelling?"
         Just ex -> let
-<<<<<<< HEAD
                         --(expr', slt) = replaceVars e_env ex
                         (expr', slt) = lamBinding e_env ex
-=======
-                        (expr', slt) = replaceVars e_env ex
-                        --(expr', slt) = lamBinding e_env ex
->>>>>>> 7c9b09ddc70e94b94a17d3903f9d363cc1df2e88
                    in State t_env e_env expr' [] slt M.empty
     where match = M.lookup entry e_env
 
