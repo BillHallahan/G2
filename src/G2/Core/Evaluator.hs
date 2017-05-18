@@ -51,7 +51,7 @@ Note: Our environment grows larger during execution. Probably not a problem.
 -}
 evaluate s@State{eEnv = env, cExpr = App (Lam n e1 t) e2, slt = slt} = [s {eEnv = env', cExpr = e1', slt = slt'}]
   where ns   = M.keys env
-        n'   = fresh n (ns ++ freeVars (n:ns) e1)
+        n'   = fresh n (ns ++ freeVars (n:ns) e1 ++ M.keys slt)
         e1'  = replace e1 ns n n'
         env' = M.insert n' e2 env
         slt' = updateSymLinkTableList [n'] [n] slt
@@ -140,14 +140,14 @@ evaluate s@State {cExpr = Case m as t} = if isVal (s {cExpr = m})
           in case d of
             Var f t -> concatMap (\(Alt (ad, pars), ae) ->
              let ns    = M.keys env
-                 pars' = freshList pars (ns ++ names s)--(ns++freeVars (pars++ns) ae)
+                 pars' = freshList pars (ns ++ names s ++ M.keys slt)--(ns++freeVars (pars++ns) ae)
                  ae'   = replaceList ae ns pars pars'
                  slt'  = updateSymLinkTableList pars' pars slt
              in [s {cExpr = ae', pc = (m, Alt (ad, pars'), True):pc', slt = slt'}]) nds
             DCon md -> concatMap (\(Alt (ad, pars), ae) ->
               if length args == length pars && md == ad
                   then let ns = M.keys env
-                           pars' = freshList pars (ns ++ names s)--(ns ++ freeVars (pars++ns) ae)
+                           pars' = freshList pars (ns ++ names s ++ M.keys slt)--(ns ++ freeVars (pars++ns) ae)
                            ae'   = replaceList ae ns pars pars'
                            slt'  = updateSymLinkTableList pars' pars slt
                        in [s {eEnv = M.union (M.fromList (zip pars' args)) env
@@ -198,10 +198,10 @@ lamBinding e_env ex =
     let 
         args = leadingLams ex
         ns = M.keys e_env
-        nfs = map fst args
+        nfs = map fst $ args
         types = map snd args
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) ex))
-        slt = M.fromList . zip nfs' . zip3 nfs types $ map Just [1..]
+        slt = M.fromList . zip nfs' . zip3 (nfs) types $ map Just [1..]
      in
      (foldl (\ex' (n, t) -> App ex' (Var n t)) ex . zip nfs' $ types, slt)
      where
@@ -234,7 +234,14 @@ initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry =
     case match of
         Nothing -> error "No matching entry point. Check spelling?"
-        Just ex -> let (expr', slt) = replaceVars e_env ex
+        Just ex -> let
+<<<<<<< HEAD
+                        --(expr', slt) = replaceVars e_env ex
+                        (expr', slt) = lamBinding e_env ex
+=======
+                        (expr', slt) = replaceVars e_env ex
+                        --(expr', slt) = lamBinding e_env ex
+>>>>>>> 7c9b09ddc70e94b94a17d3903f9d363cc1df2e88
                    in State t_env e_env expr' [] slt M.empty
     where match = M.lookup entry e_env
 
@@ -264,8 +271,8 @@ initStateWithPost t_env e_env post entry =
     case match of
         (Just post_ex, Just ex) -> let
                         post_type = typeOf post_ex
-                        (expr', slt) = replaceVars e_env ex
-                        --(expr', slt) = lamBinding e_env ex
+                        --(expr', slt) = replaceVars e_env ex
+                        (expr', slt) = lamBinding e_env ex
                    in State t_env e_env (App (Var post post_type) expr') [] slt M.empty
         otherwise -> error "No matching entry points. Check spelling?"
     where match = (M.lookup post e_env, M.lookup entry e_env)
