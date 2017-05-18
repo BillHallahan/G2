@@ -181,6 +181,18 @@ unapp :: Expr -> [Expr]
 unapp (App f a) = unapp f ++ [a]
 unapp e = [e]
 
+replaceVars :: EEnv -> Expr -> (Expr, SymLinkTable)
+replaceVars e_env ex = 
+    let 
+        (args, expr) = unlam ex
+        ns = M.keys e_env
+        nfs = map fst args
+        types = map snd args
+        nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) expr))
+        slt = M.fromList . zip nfs' . zip3 nfs types $ map Just [1..]
+     in
+     (replaceList expr ns nfs nfs', slt)
+
 lamBinding :: EEnv -> Expr -> (Expr, SymLinkTable)
 lamBinding e_env ex = 
     let 
@@ -207,35 +219,56 @@ within the body of the first non-immediately cascading lambda expression.
 
 initStateWithPost is similar, but allows passing in a post condition
 -}
+-- initState :: TEnv -> EEnv -> Name -> State
+-- initState t_env e_env entry =
+--     case matches of
+--         []         -> error "No matching entry point. Check spelling?"
+--         ((k,v):ms) -> 
+--             let (expr', slt) = replaceVars e_env v
+--             in State t_env e_env expr' [] slt M.empty
+--     where matches = filter (\(k, v) -> L.isInfixOf entry k) $ M.toList e_env
+--     -- where match = M.lookup entry e_env
+
+
 initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry =
-    case matches of
-        []         -> error "No matching entry point. Check spelling?"
-        ((k,v):ms) -> 
-            let (expr', slt) = lamBinding e_env v
-            in State t_env e_env expr' [] slt M.empty
-    where matches = filter (\(k, v) -> L.isInfixOf entry k) $ M.toList e_env
-    -- where match = M.lookup entry e_env
+    case match of
+        Nothing -> error "No matching entry point. Check spelling?"
+        Just ex -> let (expr', slt) = replaceVars e_env ex
+                   in State t_env e_env expr' [] slt M.empty
+    where match = M.lookup entry e_env
+
+
+-- initStateWithPost :: TEnv -> EEnv -> Name -> Name -> State
+-- initStateWithPost t_env e_env post entry =
+--     case (p_matches, e_matches) of
+--         ([],_) -> error "No matching post condition. Check spelling?"
+--         (_,[]) -> error "No matching entry point. Check spelling?"
+--         ((pk,pv):ps,(ek,ev):es) ->
+--             let (expr', slt) = replaceVars e_env ev
+--                 postExpr = Var pk (typeOf pv)
+--             in State t_env e_env (addPost postExpr expr') [] slt M.empty
+--     where p_matches = filter (\(k, v) -> L.isInfixOf post k) $ M.toList e_env
+--           e_matches = filter (\(k, v) -> L.isInfixOf entry k) $ M.toList e_env
+        
+--           --We want to add the post immediately below the binding for input to the function
+--           --this allows us to get them, and involve the input in the post condition
+--           addPost :: Expr -> Expr -> Expr
+--           addPost post (App e e') = App (addPost post e) e'
+--           addPost post (Lam n e@(Lam _ _ _) t) = Lam n (addPost post e) t
+--           addPost post (Lam n e t) = Lam n (App post e) t
+--           addPost post e = App post e
 
 initStateWithPost :: TEnv -> EEnv -> Name -> Name -> State
 initStateWithPost t_env e_env post entry =
-    case (p_matches, e_matches) of
-        ([],_) -> error "No matching post condition. Check spelling?"
-        (_,[]) -> error "No matching entry point. Check spelling?"
-        ((pk,pv):ps,(ek,ev):es) ->
-            let (expr', slt) = lamBinding e_env ev
-                postExpr = Var pk (typeOf pv)
-            in State t_env e_env (addPost postExpr expr') [] slt M.empty
-    where p_matches = filter (\(k, v) -> L.isInfixOf post k) $ M.toList e_env
-          e_matches = filter (\(k, v) -> L.isInfixOf entry k) $ M.toList e_env
-        
-          --We want to add the post immediately below the binding for input to the function
-          --this allows us to get them, and involve the input in the post condition
-          addPost :: Expr -> Expr -> Expr
-          addPost post (App e e') = App (addPost post e) e'
-          addPost post (Lam n e@(Lam _ _ _) t) = Lam n (addPost post e) t
-          addPost post (Lam n e t) = Lam n (App post e) t
-          addPost post e = App post e
+    case match of
+        (Just post_ex, Just ex) -> let
+                        post_type = typeOf post_ex
+                        (expr', slt) = replaceVars e_env ex
+                        --(expr', slt) = lamBinding e_env ex
+                   in State t_env e_env (App (Var post post_type) expr') [] slt M.empty
+        otherwise -> error "No matching entry points. Check spelling?"
+    where match = (M.lookup post e_env, M.lookup entry e_env)
 
 -- Count the number of times we call eval as a way of limiting runs.
 runN :: [State] -> Int -> ([State], Int)
