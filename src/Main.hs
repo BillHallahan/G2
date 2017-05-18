@@ -13,6 +13,7 @@ import G2.Core.Utils
 
 import G2.Haskell.Prelude
 import G2.Haskell.Translator
+import G2.Core.Printers
 
 import G2.SMT.Z3
 
@@ -42,7 +43,7 @@ main = do
     -- putStrLn $ show init_state
 
     -- putStrLn "mkStateStr of INIT STATE"
-    -- putStrLn $ mkStatesStr [init_state]
+    putStrLn $ mkStatesStr [init_state]
 
     -- putStrLn "HIGHER"
 
@@ -66,7 +67,7 @@ main = do
     --     putStrLn "-----"
     --     return ((evaluate s) !! 0)) defun_init_state [0..5000]
 
-    let (states, n) = runN [defun_init_state] 200
+    let (states, n) = runN [defun_init_state] 150
 
     -- temporary?
     let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
@@ -76,7 +77,7 @@ main = do
     -- putStrLn . mkStatesStr $ states
 
     -- --putStrLn $ mkStatesStr states
-    -- putStrLn ("Number of execution states: " ++ (show (length states')))
+    putStrLn ("Number of execution states: " ++ (show (length states')))
     -- --putStrLn "Compiles!\n\n"
     
     if num == "1" then
