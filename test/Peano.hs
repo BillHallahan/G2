@@ -20,8 +20,14 @@ fromInt x
     | x > 0 = Succ (fromInt (x - 1))
     | otherwise = Zero
 
-equalsFour :: Peano -> Bool
-equalsFour p = toInt p == 4
+equalsFour :: Peano -> Peano -> Peano -> Bool
+equalsFour _ _ p = toInt p == 4
+
+eq :: Peano -> Bool
+eq p = toInt (add p p) == 4
+
+isTrue ::Peano -> Bool -> Bool
+isTrue _ b = b
 
 equalsFive :: Peano -> Bool
 equalsFive p = toInt p == 5
