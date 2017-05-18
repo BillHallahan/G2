@@ -76,7 +76,7 @@ main = do
     -- putStrLn "#############"
     -- putStrLn . mkStatesStr $ states
 
-    -- --putStrLn $ mkStatesStr states
+    putStrLn $ mkStatesStr states
     putStrLn ("Number of execution states: " ++ (show (length states')))
     -- --putStrLn "Compiles!\n\n"
     
@@ -97,12 +97,13 @@ main = do
         mapM_ (\s@State {cExpr = expr, pc = pc', slt = slt'} -> do
             (r, m) <- evalZ3 . outputSolverZ3 $ s
             if r == Sat then do
-                -- putStrLn . mkExprStr $ expr
-                -- putStrLn . mkPCStr $ pc'
-                -- putStrLn . mkSLTStr $ slt'
+                putStrLn "HERE"
+                putStrLn . mkExprStr $ expr
+                putStrLn . mkPCStr $ pc'
+                putStrLn . mkSLTStr $ slt'
                 -- putStrLn " => "
                 if Nothing `notElem` m then
-                    putStrLn . mkExprHaskell . foldl (\a a' -> App a a') (Var (xs' !! 0) TyBottom) . replaceFuncSLT s .map (fromJust) $ m
+                    putStrLn . mkExprHaskell . foldl (\a a' -> App a a') (Var (xs' !! 0) TyBottom) . replaceFuncSLT s . map (fromJust) $ m
                 else
                     print "Error"
             else return ()) states'

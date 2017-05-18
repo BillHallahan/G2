@@ -80,9 +80,14 @@ as much as possible before performing evaluation on the RHS.
 -}
 evaluate s@State{cExpr = App f a} = if isVal (s {cExpr = f})
     then let a_ress = evaluate (s {cExpr = a})
-         in [s' {tEnv = tv', eEnv = ev', cExpr = App f a', pc = pc'} | s'@State {tEnv = tv', eEnv = ev', cExpr = a', pc = pc'} <- a_ress]
+         in [s' {tEnv = tv', eEnv = ev', cExpr = App f a', pc = pc', slt = slt'} | s'@State {tEnv = tv', eEnv = ev', cExpr = a', pc = pc', slt = slt'} <- a_ress]
     else let f_ress = evaluate (s {cExpr = f})
-         in [s' {tEnv = tv', eEnv = ev', cExpr = App f' a, pc = pc'} | s'@State {tEnv = tv', eEnv = ev', cExpr = f', pc = pc'} <- f_ress]
+         in [s' {tEnv = tv', eEnv = ev', cExpr = App f' a, pc = pc', slt = slt'} | s'@State {tEnv = tv', eEnv = ev', cExpr = f', pc = pc', slt = slt'} <- f_ress]
+-- evaluate s@State{cExpr = App f a} = if isVal (s {cExpr = f})
+--     then let a_ress = evaluate (s {cExpr = a})
+--          in [s' {tEnv = tv', eEnv = ev', cExpr = App f a', pc = pc'} | s'@State {tEnv = tv', eEnv = ev', cExpr = a', pc = pc'} <- a_ress]
+--     else let f_ress = evaluate (s {cExpr = f})
+--          in [s' {tEnv = tv', eEnv = ev', cExpr = App f' a, pc = pc'} | s'@State {tEnv = tv', eEnv = ev', cExpr = f', pc = pc'} <- f_ress]
 -- evaluate (tv, env, App f a, pc) = if isVal (tv, env, f, pc)
 --     then let a_ress = evaluate (tv, env, a, pc)
 --          in [(tv', env', App f a', pc') | (tv', env', a', pc') <- a_ress]
