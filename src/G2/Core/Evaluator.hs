@@ -198,10 +198,10 @@ lamBinding e_env ex =
     let 
         args = leadingLams ex
         ns = M.keys e_env
-        nfs = map fst args
+        nfs = map fst $ args
         types = map snd args
         nfs' = freshList nfs (ns ++ (freeVars (ns ++ nfs) ex))
-        slt = M.fromList . zip nfs' . zip3 nfs types $ map Just [1..]
+        slt = M.fromList . zip nfs' . zip3 (nfs) types $ map Just [1..]
      in
      (foldl (\ex' (n, t) -> App ex' (Var n t)) ex . zip nfs' $ types, slt)
      where
@@ -234,7 +234,9 @@ initState :: TEnv -> EEnv -> Name -> State
 initState t_env e_env entry =
     case match of
         Nothing -> error "No matching entry point. Check spelling?"
-        Just ex -> let (expr', slt) = replaceVars e_env ex
+        Just ex -> let
+                        (expr', slt) = replaceVars e_env ex
+                        --(expr', slt) = lamBinding e_env ex
                    in State t_env e_env expr' [] slt M.empty
     where match = M.lookup entry e_env
 

@@ -143,8 +143,8 @@ mkExprHaskell e = mkExprHaskell' e 0
 
 mkConstHaskell :: Const -> String
 mkConstHaskell (CInt i) = show i
-mkConstHaskell (CFloat r) = show r
-mkConstHaskell (CDouble r) = show r
+mkConstHaskell (CFloat r) = "(" ++ show r ++ ")"
+mkConstHaskell (CDouble r) = "(" ++ show r ++ ")"
 mkConstHaskell (CChar c) = [c]
 mkConstHaskell (CString s) = s
 mkConstHaskell (COp n _) = n
