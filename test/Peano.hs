@@ -29,5 +29,5 @@ eq p = toInt (add p p) == 4
 isTrue ::Peano -> Bool -> Bool
 isTrue _ b = b
 
-equalsFive :: Peano -> Bool
-equalsFive p = toInt p == 5
+eqEachOtherAndAddTo4 :: Peano -> Peano -> Peano -> Bool
+eqEachOtherAndAddTo4 p p' p'' = toInt p == toInt p' && toInt p'' == 4

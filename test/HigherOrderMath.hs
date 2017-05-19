@@ -26,5 +26,5 @@ functionSatisfies f g x = if f g then g x else x
 isPositiveAt0 :: (Double -> Double) -> Bool
 isPositiveAt0 f = f 0 > 0
 
-isTrue :: Bool -> Bool
-isTrue b = b
+isTrue :: (Double -> Double) -> Double -> Bool -> Bool
+isTrue _ _ b = b
