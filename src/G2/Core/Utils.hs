@@ -78,6 +78,15 @@ replace e env old new = modify'' (replace' old new) e env
                 n'   = fresh n bads
             in
             (Lam n' (replace e bads n n') t, bads)
+        replace' old new env (Case m as t) =
+            let r (Alt (dc, pars), ae) = let fvs   = freeVars (pars ++ env) ae
+                                             bads  = fvs ++ env ++ [old, new]
+                                             pars' = freshList pars bads
+                                             ae'   = replaceList ae bads pars pars'
+
+                                     in ((Alt (dc, pars'), replace ae' (pars' ++ env) old new), bads)
+                map_res = map r as
+            in (Case (replace m env old new) (map fst map_res) t, concatMap snd map_res)
         replace' _ _ _ t = (t, [])
 
 -- Replace a whole list of names with new ones in an Expr via folding.
