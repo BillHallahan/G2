@@ -247,15 +247,25 @@ initState t_env e_env entry =
 initStateWithPost :: TEnv -> EEnv -> Name -> Name -> State
 initStateWithPost t_env e_env post entry =
     case match of
-        Just post_ex -> 
+        (Just entry_ex, Just post_ex) -> 
                     let
                         newArgs = newArgNames e_env entry
                         (post_ex', slt) = lamBinding e_env post newArgs
+                        entry_type = typeOf entry_ex
                         post_type = typeOf post_ex
                         (expr', slt') = lamBinding e_env entry newArgs
-                   in State t_env e_env (App post_ex' expr') [] slt M.empty
+                    in
+                    if addToBool entry_type == post_type then
+                        State t_env e_env (App post_ex' expr') [] slt M.empty
+                    else
+                        error "Incorrect function types given." 
         otherwise -> error "No matching entry points. Check spelling?"
-    where match = M.lookup post e_env
+    where
+        match = (M.lookup entry e_env, M.lookup post e_env)
+
+        addToBool :: Type -> Type
+        addToBool (TyFun t t') = TyFun t (addToBool t')
+        addToBool t = TyFun t (TyConApp "Bool" [])
 
 -- Count the number of times we call eval as a way of limiting runs.
 runN :: [State] -> Int -> ([State], Int)
