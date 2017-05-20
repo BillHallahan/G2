@@ -6,29 +6,34 @@ import HscTypes
 import TyCon
 import GHC
 
-import G2.Core.Defunctionalizor
+import G2.Translation.Haskell
+
+-- import G2.Core.Defunctionalizor
 import G2.Core.Language
-import G2.Core.Evaluator
-import G2.Core.Utils
+import G2.Core.Transforms
+-- import G2.Core.Evaluator
+-- import G2.Core.Utils
 
-import G2.Haskell.Prelude
-import G2.Haskell.Translator
-import G2.Core.Printers
+-- import G2.Haskell.Prelude
+-- import G2.Haskell.Translator
+-- import G2.Core.Printers
 
-import G2.SMT.Z3
+-- import G2.SMT.Z3
 
-import qualified G2.Sample.Prog1 as P1
-import qualified G2.Sample.Prog2 as P2
+-- import qualified G2.Sample.Prog1 as P1
+-- import qualified G2.Sample.Prog2 as P2
 
-import qualified Data.List as L
-import qualified Data.Map  as M
-import Data.Maybe
+-- import qualified Data.List as L
+-- import qualified Data.Map  as M
+-- import Data.Maybe
 
-import Control.Monad
+-- import Control.Monad
 
-import Z3.Monad
+-- import Z3.Monad
 
 main = do
+    putStrLn "appears to compile!"
+    {-
     (num:xs) <- getArgs
     let filepath:entry:xs' = xs
     raw_core <- mkRawCore filepath
@@ -107,3 +112,5 @@ main = do
                 else
                     print "Error"
             else return ()) states'
+-}
+
