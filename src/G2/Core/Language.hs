@@ -24,12 +24,12 @@ import qualified Data.Map as M
 --
 --     6. Function Interpretation Table: Helps map the Apply data constructors
 --        to their function names. Bill does some magic there.
-data State = State { type_env        :: TEnv
-                   , expr_env        :: EEnv
-                   , curr_expr       :: Expr
-                   , path_cons       :: PathCons
-                   , sym_link_tbl    :: SymLinkTable
-                   , func_interp_tbl :: FuncInterpTable
+data State = State { type_env     :: TEnv
+                   , expr_env     :: EEnv
+                   , curr_expr    :: Expr
+                   , path_cons    :: PathCons
+                   , sym_links    :: SymLinkTable
+                   , func_interps :: FuncInterpTable
                    } deriving (Show, Eq)
 
 type Name = String

@@ -7,9 +7,11 @@
 --   such as expression lookup, bindings, renaming, etc.
 module G2.Core.Transforms where
 
-import qualified Data.Map as M
+import qualified Data.Char as C
+import qualified Data.List as L
+import qualified Data.Map  as M
 
-import           G2.Core.Language
+import G2.Core.Language
 
 
 exprBind :: Name -> Expr -> State -> State
@@ -56,7 +58,7 @@ freeVars state = case curr_expr state of
                in lhs ++ rhs
     
     -- As in the example above, we over approximate freeness in a Case's Alts.
-    Case e as t -> let altFrees ((dc, params), aexp) =
+    Case e as t -> let altFrees ((dc, params), aexp) =  -- Get each Alt's fvs.
                          let binds  = zip params (repeat BAD)
                              state' = state {curr_expr = aexp}  -- Go into Alt.
                          in freeVars (exprBindList binds state')
@@ -64,4 +66,35 @@ freeVars state = case curr_expr state of
 
     -- Const, DCon, Type, BAD
     _ -> []
+
+
+-- | Fresh Name
+--   Generates a fresh name given a state. Default seed is "f$".
+freshName :: State -> Name
+freshName = freshSeededName "f$"
+
+-- | Seeded Fresh Name
+--   Generate a fresh name given a seed. We consider the state's symbolic link
+--   table, the free variables of the current expression, and the keys of the
+--   expression environment as potential members that we must "conflict" with
+--   when we generate a name based on the seed.
+--
+--   The procedure for generating a new name consists of stripping each element
+--   of the conflicts list down to their purely numerical components, and then
+--   finding the maximum value. We then take this value +1 as the new number to
+--   append to our seed value, after stripping the seed of its numbers.
+freshSeededName :: Name -> State -> Name
+freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
+  where slts = concatMap (\(k,(n,t,m)) -> [k,n]) (M.toList $ sym_links state)
+        confs = (M.keys $ expr_env state) ++ (freeVars state) ++ slts
+        max_confs_num = L.maximum $ 0:(map nameNum confs)
+        stripped_seed = filter (not . C.isDigit) seed
+        nameNum name = case filter C.isDigit name of
+                           [] -> 0
+                           xs -> read xs :: Integer
+
+
+
+-- | Rename
+--   Rename all variables of form (Var n) with (Var n').
 
