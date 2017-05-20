@@ -73,7 +73,7 @@ freeVars state = case curr_expr state of
 freshName :: State -> Name
 freshName = freshSeededName "f$"
 
--- | Seeded Fresh Name
+-- | Fresh Seeded Name
 --   Generate a fresh name given a seed. We consider the state's symbolic link
 --   table, the free variables of the current expression, and the keys of the
 --   expression environment as potential members that we must "conflict" with
@@ -93,8 +93,14 @@ freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
                            [] -> 0
                            xs -> read xs :: Integer
 
-
-
+-- | Fresh Seeded Name List
+--   Given a list of seeds, generate a list of freshnames for them.
+freshSeededNameList :: [Name] -> State -> [Name]
+freshSeededNameList seeds state = fst $ foldl freshAndBind ([], state) seeds
+  where freshAndBind (acc, st) sd = let sd'  = freshSeededName sd st
+                                        acc' = acc ++ [sd']
+                                        st'  = exprBind sd' BAD st  -- Conflict
+                                    in (acc', st')
 -- | Rename
 --   Rename all variables of form (Var n) with (Var n').
 
