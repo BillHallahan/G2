@@ -14,59 +14,62 @@ import qualified Data.Map  as M
 import G2.Core.Language
 
 
+-- | Expression Binding
+--   Bind a (Name, Expr) pair into the expression environment of a state.
 exprBind :: Name -> Expr -> State -> State
 exprBind name expr state = state {expr_env = eenv'}
   where eenv' = M.insert name expr (expr_env state)
 
+-- | Expression Binding List
+--   Bind a whole list of them.
 exprBindList :: [(Name, Expr)] -> State -> State
 exprBindList binds state = foldl (\s (n, e) -> exprBind n e s) state binds
 
+-- | Expression Lookup
+--   Did we find???
 exprLookup :: Name -> State -> Maybe Expr
 exprLookup name state = M.lookup name (expr_env state)
 
--- | Free Variables
---   Find the free variables of a particular state's current expression, and
---   return a list of the names that are free.
---
---   Note that we overapproximate the list of free variables we find. Consider:
---
---     Case m_exp
---          [((..., ["a1", "a2"]), alt_expr1)
---          ,((..., ["b1", "b2"]), alt_expr2)]
---          alt_exprs_ty
---
---   It is possible for "b1" and "b2" to be free variables within alt_expr1,
---   and for "a1" and "a2" to be free variables in alt_expr2. This brings us to
---   the question of whether we should over approximate free variables (i.e.
---   consider all ["a1", "a2", "b1", "b2"]) or under approximate (i.e. return
---   only those that are free across all the Alts). Since freeVars will mostly
---   be used to create conflict lists when trying to find fresh variable names,
---   it is thus a better design choice for us to over approximate.
-freeVars :: State -> [Name]
-freeVars state = case curr_expr state of
-    -- If it does not appear in the environment, then it is free.
-    Var n t -> if exprLookup n state == Nothing then [n] else []
+-- | All Names
+--   Returns all the names used in a state. We aggressively over approximate
+--   because this function will mostly be used for conflict listing when making
+--   fresh variable names -- hence it is safe to do so :)
+allNames :: State -> [Name]
+allNames state = L.nub (tenvs ++ eenvs ++ cexps ++ pcs ++ slts ++ fints)
+  where tenvs = concatMap (\(n, t) -> [n] ++ tys t) (M.toList $ type_env state)
+        eenvs = concatMap (\(n, e) -> [n] ++ exs e) (M.toList $ expr_env state)
+        cexps = exs $ curr_expr state
+        pcs   = concatMap (\(e, a, b) -> exs e ++ alts a) (path_cons state)
+        slts  = concatMap (\(a,(b,t,m)) -> [a, b]) (M.toList $ sym_links state)
+        fints = concatMap (\(a,(b,i)) -> [a,b]) (M.toList $ func_interps state)
 
-    -- The lambda's binder is added to the expr_env for this branch of the tree
-    -- traversal; its mapping is arbitrary since we only need it to exist in
-    -- order to demonstrate a lack of freedom for successive appearances of b.
-    Lam b e t -> let state' = exprBind b BAD state  -- BAAAAAAAD practice :)
-                 in freeVars (state' {curr_expr = e})
+        -- Names in a data constructor.
+        dcs (dc_n, _, t, ps) = [dc_n] ++ tys t ++ concatMap tys ps
 
-    App f a -> let lhs = freeVars (state {curr_expr = f})
-                   rhs = freeVars (state {curr_expr = a})
-               in lhs ++ rhs
-    
-    -- As in the example above, we over approximate freeness in a Case's Alts.
-    Case e as t -> let altFrees ((dc, params), aexp) =  -- Get each Alt's fvs.
-                         let binds  = zip params (repeat BAD)
-                             state' = state {curr_expr = aexp}  -- Go into Alt.
-                         in freeVars (exprBindList binds state')
-                   in concatMap altFrees as
+        -- Names in a type.
+        tys (TyVar n) = [n]
+        tys (TyFun t1 t2) = tys t1 ++ tys t2
+        tys (TyApp tf ta) = tys tf ++ tys ta
+        tys (TyConApp n ts) = [n] ++ concatMap tys ts
+        tys (TyAlg n ds) = [n] ++ concatMap dcs ds
+        tys (TyForAll n t) = [n] ++ tys t
+        tys _ = []
 
-    -- Const, DCon, Type, BAD
-    _ -> []
+        -- Names in an alt.
+        alts (dc, params) = dcs dc ++ params
 
+        -- Names in an (Alt, Expr) pair.
+        altxs ((dc, params), aexp) = dcs dc ++ params ++ exs aexp
+
+        -- Names in an expression.
+        exs (Var n t) = [n] ++ tys t
+        exs (Const (COp n t)) = [n] ++ tys t
+        exs (Lam b e t) = [b] ++ exs e ++ tys t
+        exs (App f a) = exs f ++ exs a
+        exs (DCon dc) = dcs dc
+        exs (Case m as t) = exs m ++ concatMap altxs as ++ tys t
+        exs (Type t) = tys t
+        exs _ = []
 
 -- | Fresh Name
 --   Generates a fresh name given a state. Default seed is "f$".
@@ -74,10 +77,7 @@ freshName :: State -> Name
 freshName = freshSeededName "f$"
 
 -- | Fresh Seeded Name
---   Generate a fresh name given a seed. We consider the state's symbolic link
---   table, the free variables of the current expression, and the keys of the
---   expression environment as potential members that we must "conflict" with
---   when we generate a name based on the seed.
+--   We want this new name to be different from all other names in the state.   
 --
 --   The procedure for generating a new name consists of stripping each element
 --   of the conflicts list down to their purely numerical components, and then
@@ -85,9 +85,8 @@ freshName = freshSeededName "f$"
 --   append to our seed value, after stripping the seed of its numbers.
 freshSeededName :: Name -> State -> Name
 freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
-  where slts = concatMap (\(k,(n,t,m)) -> [k,n]) (M.toList $ sym_links state)
-        confs = (M.keys $ expr_env state) ++ (freeVars state) ++ slts
-        max_confs_num = L.maximum $ 0:(map nameNum confs)
+  where conflicts = allNames state
+        max_confs_num = L.maximum $ 0:(map nameNum conflicts)
         stripped_seed = filter (not . C.isDigit) seed
         nameNum name = case filter C.isDigit name of
                            [] -> 0
