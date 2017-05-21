@@ -145,44 +145,52 @@ rename old new state = case curr_expr state of
     -- First we apply a rename on the matching expression.
     --
     -- Then we have a function that makes a new renamed state for each Alt. We
-    -- then of course need to map this function over all the Alts. Internally,
-    -- this function examines whehter or not the old name exists in the params
-    -- of the data constructor. As with in the Lam case, if the old is, we just
-    -- return the state as is. If it is not, and the new is instead one of the
-    -- params, we must perform a renaming of all (or just the one) of the names
-    -- within the rest of the alt expression. This guarantees lack of conflict
-    -- and allows us to recursively call rename again once we have "adjusted"
-    -- the current state accordingly.
+    -- then of course need to fold this function over all the Alts. The reason
+    -- that we fold instead of map is because this allows us to keep track of
+    -- a list of previously processed Alts. Because of this, we can leverage
+    -- those previous Alts to make a conflict lists that guarantees the SLTs of
+    -- each Alt state will be mutually exclusive in terms of new terms added.
+    -- This allows us to union them safely without worry.
+    --
+    -- Internally, this altState function takes a acc history list and the
+    -- current Alt with its expression pair. We construct a state that takes
+    -- into account the previous history (does not matter that the expression
+    -- environment is messed up from this because we do not use the Alts'
+    -- expression environments). From here on, like with the Lam bindings, we
+    -- check if the old exists in the params, and then again for the new (the
+    -- existence of which will warrant the remapping via renameList).
     --
     -- Finally, we must merge together the symbolic links 
-    {-
     Case m as t ->
         let m_state = rename old new (state {curr_expr = m})
-            altState ((dc, params), aexp) =
-              if old `elem` params
-                then state {curr_expr = aexp}
+            altState acc ((dc, params), aexp) =
+              let acc_alls = concatMap allNames acc  -- Super slow :)
+                  c_env = M.fromList $ zip acc_alls (repeat BAD)
+                  alt_st = state { expr_env = M.union (expr_env state) c_env
+                                 , curr_expr = aexp }
+              in if old `elem` params
+                then acc ++ [alt_st]
                 else if new `elem` params
-                  then let params' = freshSeededNameList params state
+                  then let params' = freshSeededNameList params alt_st
                            zipd = zip params params'
-                           ae_st' = renameList zipd (state {curr_expr = aexp})
-                           aexp' = curr_expr ae_st'
-                           sym_links' = sym_links ae_st'
-                       in rename old new (ae_st' { curr_expr = aexp'
-                                                 , sym_links = sym_links' })
-                  else rename old new (state {curr_expr = aexp})
-            alt_states = map altState as
-            alt_state_alts = map (\(((dc, params),_), a_state) ->
-                                    ((dc, params), curr_expr a_state))
+                           alt_st' = renameList zipd alt_st
+                           aexp' = curr_expr alt_st'
+                           slk' = sym_links alt_st'
+                       in acc ++ [rename old new (alt_st' { curr_expr = aexp'
+                                                          , sym_links = slk' })]
+                  else acc ++ [rename old new alt_st]
+            alt_states = foldl altState [] as
+            alt_state_alts = map (\(((dc, params), _), a_state) ->
+                                      ((dc, params), curr_expr a_state))
                                  (zip as alt_states)
-            combslts slts = foldl M.union M.empty slts  -- Technically a bug.
-            slts = combslts $ [sym_links m_state] ++ (map sym_links alt_states)
+            joinSLTs slts = foldl M.union M.empty slts
+            slts = joinSLTs $ [sym_links m_state] ++ (map sym_links alt_states)
         in state { curr_expr = Case (curr_expr m_state) alt_state_alts t
                  , sym_links = slts }
-    -}
     _ -> state
 
 -- | Rename List
 --   Rename, but with a list instead.
 renameList :: [(Name, Name)] -> State -> State
-renameList = undefined
+renameList remaps state = foldl (\s (n, n') -> rename n n' s) state remaps
 
