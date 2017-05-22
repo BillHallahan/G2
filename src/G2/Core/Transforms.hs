@@ -44,9 +44,11 @@ allNames state = L.nub (tenvs ++ eenvs ++ cexps ++ pcs ++ slts ++ fints)
         fints = concatMap (\(a,(b,i)) -> [a,b]) (M.toList $ func_interps state)
 
         -- Names in a data constructor.
+        dcs :: DataCon -> [Name]
         dcs (dc_n, _, t, ps) = [dc_n] ++ tys t ++ concatMap tys ps
 
         -- Names in a type.
+        tys :: Type -> [Name]
         tys (TyVar n) = [n]
         tys (TyFun t1 t2) = tys t1 ++ tys t2
         tys (TyApp tf ta) = tys tf ++ tys ta
@@ -56,12 +58,15 @@ allNames state = L.nub (tenvs ++ eenvs ++ cexps ++ pcs ++ slts ++ fints)
         tys _ = []
 
         -- Names in an alt.
+        alts :: Alt -> [Name]
         alts (dc, params) = dcs dc ++ params
 
         -- Names in an (Alt, Expr) pair.
+        altxs :: (Alt, Expr) -> [Name]
         altxs ((dc, params), aexp) = dcs dc ++ params ++ exs aexp
 
         -- Names in an expression.
+        exs :: Expr -> [Name]
         exs (Var n t) = [n] ++ tys t
         exs (Const (COp n t)) = [n] ++ tys t
         exs (Lam b e t) = [b] ++ exs e ++ tys t
@@ -88,18 +93,22 @@ freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
   where conflicts = allNames state
         max_confs_num = L.maximum $ 0:(map nameNum conflicts)
         stripped_seed = filter (not . C.isDigit) seed
+
+        nameNum :: Name -> Int
         nameNum name = case filter C.isDigit name of
                            [] -> 0
-                           xs -> read xs :: Integer
+                           xs -> read xs :: Int
 
 -- | Fresh Seeded Name List
 --   Given a list of seeds, generate a list of freshnames for them.
 freshSeededNameList :: [Name] -> State -> [Name]
 freshSeededNameList seeds state = fst $ foldl freshAndBind ([], state) seeds
-  where freshAndBind (acc, st) sd = let sd'  = freshSeededName sd st
-                                        acc' = acc ++ [sd']
-                                        st'  = exprBind sd' BAD st  -- Conflict
-                                    in (acc', st')
+  where freshAndBind :: ([Name], State) -> Name -> ([Name], State)
+        freshAndBind (acc, st) sd =
+            let sd'  = freshSeededName sd st
+                acc' = acc ++ [sd']
+                st'  = exprBind sd' BAD st  -- Conflict
+            in (acc', st')
 -- | Rename
 --   Rename all variables of form (Var n) with (Var n').
 rename :: Name -> Name -> State -> State
@@ -160,9 +169,9 @@ rename old new state = case curr_expr state of
     -- check if the old exists in the params, and then again for the new (the
     -- existence of which will warrant the remapping via renameList).
     --
-    -- Finally, we must merge together the symbolic links 
+    -- Finally, we must merge together the symbolic links.
     Case m as t ->
-        let m_state = rename old new (state {curr_expr = m})
+        let altState :: [State] -> (Alt, Expr) -> [State]
             altState acc ((dc, params), aexp) =
               let acc_alls = concatMap allNames acc  -- Super slow :)
                   c_env = M.fromList $ zip acc_alls (repeat BAD)
@@ -179,18 +188,24 @@ rename old new state = case curr_expr state of
                        in acc ++ [rename old new (alt_st' { curr_expr = aexp'
                                                           , sym_links = slk' })]
                   else acc ++ [rename old new alt_st]
+
+            joinSLTs :: [SymLinkTable] -> SymLinkTable
+            joinSLTs slts = foldl M.union M.empty slts
+            
+            m_state = rename old new (state {curr_expr = m})
             alt_states = foldl altState [] as
             alt_state_alts = map (\(((dc, params), _), a_state) ->
                                       ((dc, params), curr_expr a_state))
                                  (zip as alt_states)
-            joinSLTs slts = foldl M.union M.empty slts
             slts = joinSLTs $ [sym_links m_state] ++ (map sym_links alt_states)
         in state { curr_expr = Case (curr_expr m_state) alt_state_alts t
                  , sym_links = slts }
     _ -> state
 
 -- | Rename List
---   Rename, but with a list instead.
+--   Rename, but with a list instead. If we pipe in the input from some fresh
+--   seeded name list, we are guaranteed to have uniqueness at least, such that
+--   the remaps don't step over on each other.
 renameList :: [(Name, Name)] -> State -> State
 renameList remaps state = foldl (\s (n, n') -> rename n n' s) state remaps
 
