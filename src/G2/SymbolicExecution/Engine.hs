@@ -1,3 +1,5 @@
+-- | Engine
+--   The symbolic execution engine. Many hours were spent on improving this.
 module G2.SymbolicExecution.Engine where
 
 import qualified Data.List as L
@@ -5,6 +7,17 @@ import qualified Data.Map  as M
 
 import G2.Core.Language
 import G2.Core.Transforms
+
+-- We return values from evaluations. A value is defined as something that a
+-- program may return from running. The only oddity here may be that we allow
+-- lambda expressions to be returned from evaluation.
+isVal :: State -> Bool
+isVal state = case curr_expr state of
+    Var n _ -> exprLookup n state == Nothing
+    App (Lam _ _ _) _ -> False
+    App f a -> isVal (state {curr_expr = f}) && isVal (state {curr_expr = a})
+    Case _ _ _ -> False
+    _ -> True
 
 -- | Stepper
 --   We run our program in discrete steps.
@@ -109,17 +122,5 @@ step state = case curr_expr state of
 
   -- Const, Lam, DCon, Type, BAD
   _ -> [state]
-
-  where -- We return values from evaluations. A value is defined as something
-        -- that a program may return from running. The only oddity here may be
-        -- that we allow lambda expressions to be returned from evaluation.
-        isVal :: State -> Bool
-        isVal state = case curr_expr state of
-            Var n _ -> exprLookup n state == Nothing
-            App (Lam _ _ _) _ -> False
-            App f a -> isVal (state {curr_expr = f}) &&
-                       isVal (state {curr_expr = a})
-            Case _ _ _ -> False
-            _ -> True
 
 
