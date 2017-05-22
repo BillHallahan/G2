@@ -9,10 +9,10 @@ module G2.SMT.Z3 ( printModel
                  , reachabilitySolverZ3
                  , outputSolverZ3) where
 
-import G2.Core.CoreManipulator as Man
+import G2.Lib.CoreManipulator as Man
 import G2.Core.Language
-import G2.Core.Evaluator
-import qualified G2.Core.Utils as Utils
+import G2.SymbolicExecution.Engine
+import qualified G2.Lib.Deprecated.Utils as Utils
 import G2.Haskell.Prelude
 import G2.SMT.Z3Types
 
@@ -49,25 +49,25 @@ modelToIOString m = evalZ3 . modelToString $ m
 --Use the SMT solver to find inputs that will reach the given state
 --(or determine that it is not possible to reach the state)
 reachabilitySolverZ3 :: State -> Z3 (Result, [Maybe Expr])
-reachabilitySolverZ3 s@State {tEnv = tv, pc = pc'} = do
+reachabilitySolverZ3 s@State {type_env = tv, path_cons = path_cons'} = do
     dtMap <- mkDatatypesZ3 tv
     
     handleExprEnv dtMap s
 
-    mapM assert =<< constraintsZ3 dtMap pc'
+    mapM assert =<< constraintsZ3 dtMap path_cons'
 
     runSolverToExpr dtMap s
 
 --Use the SMT solver to attempt to find inputs that will result in output
 --satisfying the given curr expr
 outputSolverZ3 :: State -> Z3 (Result, [Maybe Expr])
-outputSolverZ3 s@State{tEnv = tv, cExpr = expr, pc = pc'}  = do
+outputSolverZ3 s@State{type_env = tv, curr_expr = expr, path_cons = path_cons'}  = do
     dtMap <- mkDatatypesZ3 tv
 
     handleExprEnv dtMap s
 
     assert =<< exprZ3 dtMap M.empty expr
-    mapM assert =<< constraintsZ3 dtMap pc'
+    mapM assert =<< constraintsZ3 dtMap path_cons'
 
     runSolverToExpr dtMap s
     
@@ -83,7 +83,7 @@ runSolverToExpr dtMap s = do
 --Takes a model and a state, and finds the Expr that coorespond to each argument in symbolic link table
 modelToExpr :: TypeMaps -> Model -> State -> Z3 [Maybe Expr]
 modelToExpr tm m s =
-    mapM toExpr . sortOn (fromJust . thrd . snd) . M.toList .  M.filter (isJust . thrd) . slt $ s
+    mapM toExpr . sortOn (fromJust . thrd . snd) . M.toList .  M.filter (isJust . thrd) . sym_links $ s
     where
         toExpr :: (Name, (Name, Type, Maybe Int)) -> Z3 (Maybe Expr)
         toExpr (n, (_, TyFun _ _, _)) = error "TyFun in modelToExpr - should be eliminated by defunctionalization"
@@ -121,7 +121,7 @@ modelToExpr tm m s =
                                         Just acc' -> acc'
                                         Nothing -> error "Could not find accessor functions in modelToExpr"
                     return (Var rn t')
-                    let types = case M.lookup n' (tEnv s) of
+                    let types = case M.lookup n' (type_env s) of
                                         Just (TyAlg _ ts) -> 
                                             case find (\(DC (n'', _, _, _)) -> rn == n'') ts of
                                                 Just (DC (_, _, _, ts)) -> ts
@@ -136,9 +136,9 @@ modelToExpr tm m s =
         thrd (_, _, c) = c
 
 
-constraintsZ3 :: TypeMaps -> PC -> Z3 [AST]
-constraintsZ3 d (pc) = do
-    mapM (constraintsZ3' d) pc
+constraintsZ3 :: TypeMaps -> PathCons -> Z3 [AST]
+constraintsZ3 d (path_cons) = do
+    mapM (constraintsZ3' d) path_cons
     where
         constraintsZ3' :: TypeMaps -> (Expr, Alt, Bool) -> Z3 AST
         constraintsZ3' d (expr, alt, b) = do
@@ -151,19 +151,19 @@ constraintsZ3 d (pc) = do
 --for references to the expression enviroment
 --If any exist, sets variables accordingly
 handleExprEnv :: TypeMaps -> State -> Z3 ()
-handleExprEnv d State {eEnv = eexpr, cExpr = curr_expr, pc = pc'} = do
+handleExprEnv d State {expr_env = eexpr, curr_expr = curr_expr, path_cons = path_cons'} = do
     getMon . Man.eval (handleExprEnv' d eexpr) $ curr_expr
-    getMon . Man.eval (handleExprEnv' d eexpr) $ pc'
+    getMon . Man.eval (handleExprEnv' d eexpr) $ path_cons'
     where
         handleExprEnv' :: TypeMaps -> EEnv -> Expr -> Mon Z3 ()
         handleExprEnv' d eenv (Var n t) =
             case M.lookup n eenv of
-                Just e -> if length (fst . Utils.unlam $ e) > 0 then Mon . createEnvFunc d n t $ e else return ()
+                Just e -> if length (fst . Utils.unlam $ e) > 0 then Mon . createxpr_envFunc d n t $ e else return ()
                 Nothing -> return ()
         handleExprEnv' _ _ _ = return ()
 
-        createEnvFunc :: TypeMaps -> Name -> Type -> Expr -> Z3 ()
-        createEnvFunc d n t e = do
+        createxpr_envFunc :: TypeMaps -> Name -> Type -> Expr -> Z3 ()
+        createxpr_envFunc d n t e = do
             let (nt, e') = Utils.unlam e
             
             n' <- mapM (mkStringSymbol . fst) nt

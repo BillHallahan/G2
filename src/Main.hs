@@ -8,18 +8,22 @@ import GHC
 
 import G2.Translation.Haskell
 
--- import G2.Core.Defunctionalizor
 import G2.Core.Language
 import G2.Core.Transforms
--- import G2.Core.Evaluator
--- import G2.Core.Utils
+
+import G2.Translation.Haskell
+import G2.Translation.Interface
+
+import G2.Preprocessing.Defunctionalizor
+import G2.Preprocessing.Interface
 
 import G2.SymbolicExecution.Engine
 import G2.SymbolicExecution.Config
 import G2.SymbolicExecution.Interface
--- import G2.Haskell.Prelude
--- import G2.Haskell.Translator
--- import G2.Core.Printers
+
+import G2.SMT.Z3Types
+import G2.SMT.Z3
+import G2.SMT.Interface
 
 -- import G2.SMT.Z3
 

@@ -53,7 +53,7 @@ step state = case curr_expr state of
   -- Case-Case
   Case (Case m1 as1 t1) as2 t2 ->
       let shoveIn :: (Alt, Expr) -> (Alt, Expr)
-          shoveIn ((dc, params), ae) = ((dc, params), Case ae as2 t2)
+          shoveIn (Alt (dc, params), ae) = (Alt (dc, params), Case ae as2 t2)
       in [state {curr_expr = Case m1 (map shoveIn as1) t2}]
 
   -- Case expressions
@@ -63,7 +63,7 @@ step state = case curr_expr state of
           unApp expr = [expr]
 
           isAltxDef :: (Alt, Expr) -> Bool
-          isAltxDef ((("DEFAULT", _, TyBottom, []), []), _) = True
+          isAltxDef (Alt (DC ("DEFAULT", _, TyBottom, []), []), _) = True
           isAltxDef altx = False
 
           -- For each non-default Alt, we return a singleton list if the match
@@ -83,7 +83,7 @@ step state = case curr_expr state of
           --     after renaming the Alt's parameters to ensure uniqueness with
           --     respect to the environment that came before.
           doNondef :: (Alt, Expr) -> [State]
-          doNondef ((dc, params), aexp) =
+          doNondef (Alt (dc, params), aexp) =
               let (d:args) = unApp m
               in case d of
                   Var f t -> let params' = freshSeededNameList params state
@@ -92,11 +92,12 @@ step state = case curr_expr state of
 
                   DCon md -> if length args == length params && dc == md
                       then let params' = freshSeededNameList params state
+                               binds = zip params' args
                                zp = zip params params'
-                               pc' = [(m,(md,params'),True)] ++ path_cons state
+                               pc' = [(m, Alt (md, params'), True)] ++
+                                     path_cons state
                                a_st = renameList zp (state { curr_expr = aexp
                                                            , path_cons = pc' })
-                               binds = zip params' args
                            in [exprBindList binds a_st]
                       else []
 
@@ -107,7 +108,7 @@ step state = case curr_expr state of
           -- to only make sure that we treat a DEFAULT's PC as the negation of
           -- all the non-DEFAULT's matching conditions.
           doDef :: [(Alt, Expr)] -> (Alt, Expr) -> [State]
-          doDef ndfs ((dc, params), aexp) =
+          doDef ndfs (Alt (dc, params), aexp) =
               let neg_alts = map fst ndfs
                   neg_pcs = map (\na -> (m, na, False)) neg_alts
               in [state { curr_expr = aexp

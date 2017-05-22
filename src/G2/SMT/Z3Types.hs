@@ -1,7 +1,7 @@
 module G2.SMT.Z3Types where
 
 import G2.Core.Language
-import G2.Core.Utils
+import G2.Lib.Deprecated.Utils
 import G2.Haskell.Prelude
 
 import Data.List

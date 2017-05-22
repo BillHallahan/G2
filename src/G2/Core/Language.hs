@@ -97,7 +97,7 @@ data Const = CInt Int         -- Int#
 --   However, it would be represented as:
 --
 --     (dc_name, dc_tag, A, [P1, ..., PN])
-type DataCon = (Name, Int, Type, [Type])
+newtype DataCon = DC (Name, Int, Type, [Type]) deriving (Show, Eq)
 
 -- | Types
 --   We need a way of representing types, and so it is done here.
@@ -141,7 +141,7 @@ data Type = TyVar Name
 --   for instance, that we are not able to perform direct matching on numbers,
 --   which Core Haskell appears to be capable of. However, there are ways to
 --   work around this if we are clever with a custom prelude.
-type Alt = (DataCon, [Name])
+newtype Alt = Alt (DataCon, [Name]) deriving (Show, Eq)
 
 -- | Path Constraints
 --   Path constraints are expressed as a 3-tuple consisting of an Expr, an Alt,

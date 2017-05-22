@@ -45,7 +45,7 @@ allNames state = L.nub (tenvs ++ eenvs ++ cexps ++ pcs ++ slts ++ fints)
 
         -- Names in a data constructor.
         dcs :: DataCon -> [Name]
-        dcs (dc_n, _, t, ps) = [dc_n] ++ tys t ++ concatMap tys ps
+        dcs (DC (dc_n, _, t, ps)) = [dc_n] ++ tys t ++ concatMap tys ps
 
         -- Names in a type.
         tys :: Type -> [Name]
@@ -59,11 +59,11 @@ allNames state = L.nub (tenvs ++ eenvs ++ cexps ++ pcs ++ slts ++ fints)
 
         -- Names in an alt.
         alts :: Alt -> [Name]
-        alts (dc, params) = dcs dc ++ params
+        alts (Alt (dc, params)) = dcs dc ++ params
 
         -- Names in an (Alt, Expr) pair.
         altxs :: (Alt, Expr) -> [Name]
-        altxs ((dc, params), aexp) = dcs dc ++ params ++ exs aexp
+        altxs (Alt (dc, params), aexp) = dcs dc ++ params ++ exs aexp
 
         -- Names in an expression.
         exs :: Expr -> [Name]
@@ -172,7 +172,7 @@ rename old new state = case curr_expr state of
     -- Finally, we must merge together the symbolic links.
     Case m as t ->
         let altState :: [State] -> (Alt, Expr) -> [State]
-            altState acc ((dc, params), aexp) =
+            altState acc (Alt (dc, params), aexp) =
               let acc_alls = concatMap allNames acc  -- Super slow :)
                   c_env = M.fromList $ zip acc_alls (repeat BAD)
                   alt_st = state { expr_env = M.union (expr_env state) c_env
@@ -194,8 +194,8 @@ rename old new state = case curr_expr state of
             
             m_state = rename old new (state {curr_expr = m})
             alt_states = foldl altState [] as
-            alt_state_alts = map (\(((dc, params), _), a_state) ->
-                                      ((dc, params), curr_expr a_state))
+            alt_state_alts = map (\((Alt (dc, params), _), a_state) ->
+                                      (Alt (dc, params), curr_expr a_state))
                                  (zip as alt_states)
             slts = joinSLTs $ [sym_links m_state] ++ (map sym_links alt_states)
         in state { curr_expr = Case (curr_expr m_state) alt_state_alts t
