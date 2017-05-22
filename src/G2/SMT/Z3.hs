@@ -49,7 +49,7 @@ modelToIOString m = evalZ3 . modelToString $ m
 --Use the SMT solver to find inputs that will reach the given state
 --(or determine that it is not possible to reach the state)
 reachabilitySolverZ3 :: State -> Z3 (Result, [Maybe Expr])
-reachabilitySolverZ3 s@State {tEnv = tv, pc = pc'} = do
+reachabilitySolverZ3 s@State {tEnv = tv, cExpr = cExpr, pc = pc'} = do
     dtMap <- mkDatatypesZ3 tv
     
     handleExprEnv dtMap s
@@ -57,6 +57,32 @@ reachabilitySolverZ3 s@State {tEnv = tv, pc = pc'} = do
     mapM assert =<< constraintsZ3 dtMap pc'
 
     runSolverToExpr dtMap s
+
+--Use the SMT solver to find inputs that will reach the given state
+--(or determine that it is not possible to reach the state)
+--plus get a value for the current expression
+reachabilityAndOutputSolverZ3 :: State -> Z3 (Result, [Maybe Expr], Maybe Expr)
+reachabilityAndOutputSolverZ3 s@State {tEnv = tv, cExpr = cExpr, pc = pc'} = do
+    dtMap <- mkDatatypesZ3 tv
+    
+    handleExprEnv dtMap s
+
+    cExprSMT <- exprZ3 dtMap M.empty cExpr
+    resSymb <- mkStringSymbol "_____result____"
+    res <- mkVar resSymb =<< sortZ3 dtMap (Utils.typeOf cExpr)
+
+    assert =<< mkEq res cExprSMT
+
+    mapM assert =<< constraintsZ3 dtMap pc'
+
+    (r, m) <- solverCheckAndGetModel
+    (inExpr, res) <- case m of 
+                    Just m' -> do
+                        mte <- modelToExpr dtMap m' s
+                        me <- modelToExpr' dtMap  m' s ("_____result____", ("", Utils.typeOf cExpr, Nothing))
+                        return (mte, me)
+                    Nothing -> return ([], Nothing)
+    return (r, inExpr, res)
 
 --Use the SMT solver to attempt to find inputs that will result in output
 --satisfying the given curr expr
@@ -83,16 +109,18 @@ runSolverToExpr dtMap s = do
 --Takes a model and a state, and finds the Expr that coorespond to each argument in symbolic link table
 modelToExpr :: TypeMaps -> Model -> State -> Z3 [Maybe Expr]
 modelToExpr tm m s =
-    mapM toExpr . sortOn (fromJust . thrd . snd) . M.toList .  M.filter (isJust . thrd) . slt $ s
+    mapM (modelToExpr' tm m s) . sortOn (fromJust . thrd . snd) . M.toList .  M.filter (isJust . thrd) . slt $ s
     where
-        toExpr :: (Name, (Name, Type, Maybe Int)) -> Z3 (Maybe Expr)
-        toExpr (n, (_, TyFun _ _, _)) = error "TyFun in modelToExpr - should be eliminated by defunctionalization"
-        toExpr (n, (_, t, _)) = do
-            e <- exprZ3 tm M.empty (Var n t)
-            ev <- modelEval m e True
-            case ev of Just x -> return . Just =<< toExpr' t x
-                       Nothing -> return  Nothing
+        thrd (_, _, c) = c
 
+modelToExpr' :: TypeMaps -> Model -> State -> (Name, (Name, Type, Maybe Int)) -> Z3 (Maybe Expr)
+modelToExpr' tm m s (n, (_, TyFun _ _, _)) = error "TyFun in modelToExpr - should be eliminated by defunctionalization"
+modelToExpr' tm m s (n, (_, t, _)) = do
+    e <- exprZ3 tm M.empty (Var n t)
+    ev <- modelEval m e True
+    case ev of Just x -> return . Just =<< toExpr' t x
+               Nothing -> return  Nothing
+    where
         toExpr' :: Type -> AST -> Z3 Expr
         toExpr' TyRawInt a = return . Const . CInt . fromInteger =<< getInt a
         toExpr' (TyConApp "Int" _) a = return . Const . CInt . fromInteger =<< getInt a
@@ -132,9 +160,6 @@ modelToExpr tm m s =
                                                 app <- mkApp acc' [a]
                                                 return . App v =<< (toExpr' t'' app)) (Var rn t') (zip acc types)
                 otherwise -> error "More than one recognizer matched in modelToExpr"
-
-        thrd (_, _, c) = c
-
 
 constraintsZ3 :: TypeMaps -> PC -> Z3 [AST]
 constraintsZ3 d (pc) = do
