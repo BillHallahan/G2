@@ -76,7 +76,7 @@ main = do
     -- putStrLn "#############"
     -- putStrLn . mkStatesStr $ states
 
-    putStrLn $ mkStatesStr states
+    putStrLn $ mkStatesStr states'
     putStrLn ("Number of execution states: " ++ (show (length states')))
     -- --putStrLn "Compiles!\n\n"
     

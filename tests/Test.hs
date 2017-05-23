@@ -51,7 +51,7 @@ tests = return . testGroup "Tests"
                             , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
                             , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
-                            -- , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
+                            , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
 
                             , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
                             , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
@@ -79,7 +79,7 @@ checkExprReach filepath entry i reqList = do
     let ch = checkExpr exprs (i + 1) reqList
 
     return . testCase filepath
-        $ assertBool ("Assertion for file " ++ filepath ++ " with function " ++ entry ++ " failed.") ch
+        $ assertBool ("Assertion for file " ++ filepath ++ " with function " ++ entry ++ " failed." ++ show exprs) ch
 
 -- | Checks conditions on given expressions
 --   Helper for checkExprOutput checkExprReach
