@@ -70,7 +70,7 @@ reachabilityAndOutputSolverZ3 s@State {tEnv = tv, cExpr = cExpr, pc = pc'} = do
 
     cExprSMT <- exprZ3 dtMap M.empty cExpr
     resSymb <- mkStringSymbol "_____result____"
-    res <- mkVar resSymb =<< sortZ3 dtMap (Utils.typeOf cExpr)
+    res <- mkVar resSymb =<< sortZ3 dtMap (Utils.tyfunReturnType . Utils.typeOf $ cExpr)
 
     assert =<< mkEq res cExprSMT
 

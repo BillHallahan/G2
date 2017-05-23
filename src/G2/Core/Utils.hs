@@ -216,7 +216,12 @@ exprArgCount _ = 0
 ithArgType :: Type -> Int -> Type
 ithArgType (TyFun t _) 1 = t
 ithArgType (TyFun _ t) n = ithArgType t (n - 1) 
-ithArgType t i = error ("Type " ++ show t ++ " passed to TyFun") 
+ithArgType t i = error ("Type " ++ show t ++ " passed to TyFun")
+
+--Given a TyFun, returns the type that results from fully evaluating that function
+tyfunReturnType :: Type -> Type
+tyfunReturnType (TyFun _ t) = tyfunReturnType t
+tyfunReturnType t = t
 
 --Given a TyFun, returns the number of arguments to completely evaluate
 --Given a different type, returns 0
