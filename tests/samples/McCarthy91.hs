@@ -2,8 +2,8 @@ module McCarthy91 where
 
 mccarthy :: Int -> Int
 mccarthy x
-	| x > 100 = x - 10
-	| otherwise = mccarthy (mccarthy (x + 11))
+    | x > 100 = x - 10
+    | otherwise = mccarthy (mccarthy (x + 11))
 
 lessThan91 :: Int -> Int -> Bool
 lessThan91 x y = x <= 100 && y == 91

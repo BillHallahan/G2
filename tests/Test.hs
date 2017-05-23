@@ -44,13 +44,14 @@ main = do
 
 tests = return . testGroup "Tests"
                     =<< sequence [
-                              checkExprReachability   "tests/samples/IfTest.hs" "f" (\[Const (CInt x), Const (CInt y)] (Const (CInt r)) -> if x == y then r == x + y else r == y)
+                              checkExprReach  "tests/samples/IfTest.hs" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
                             , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
                             , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
                             , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
                             , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                            -- , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
 
                             , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
                             , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
@@ -59,29 +60,41 @@ tests = return . testGroup "Tests"
                     ]
 
 -- | Checks conditions on functions, with pre/post conditions
+--   Also checks that the right number of inputs is found for each function
 checkExprOutput :: String -> String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprOutput filepath prepost entry i reqList = do
     exprs <- testFilePrePost filepath prepost entry
 
-    let argChecksAll = and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
-    let argChecksEx = and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
-    let checkAtLeast = and . map ((>=) (length exprs)) $ [x | AtLeast x <- reqList]
-    let checkAtMost = and . map ((<=) (length exprs)) $ [x | AtMost x <- reqList]
-    let checkExactly = and . map ((==) (length exprs)) $ [x | Exactly x <- reqList]
+    let ch = checkExpr exprs i reqList
 
     return . testCase filepath
-            $ assertBool ("Assertion for file " ++ filepath ++ " with functions " ++ prepost ++ " " ++ entry ++ " failed.")
-            (argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly)
+            $ assertBool ("Assertion for file " ++ filepath ++ " with functions " ++ prepost ++ " " ++ entry ++ " failed.") ch
 
 -- | Checks conditions on functions
-checkExprReachability :: String -> String -> ([Expr] -> Expr -> Bool) -> IO TestTree
-checkExprReachability filepath entry f = do
-    exprs <- testFile filepath entry
+--   Also checks that the right number of inputs is found for each function
+checkExprReach :: String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprReach filepath entry i reqList = do
+    exprs <- return . map (\(e, r) -> e ++ [r]) =<< testFile filepath entry
 
-    let res = and . map (\(e, r) ->  f e r) $ exprs
+    let ch = checkExpr exprs (i + 1) reqList
 
-    return . testCase filepath $ assertBool ("Assertion for file " ++ filepath ++ " with function " ++ entry ++ " failed." ++ show exprs) res
+    return . testCase filepath
+        $ assertBool ("Assertion for file " ++ filepath ++ " with function " ++ entry ++ " failed.") ch
 
+-- | Checks conditions on given expressions
+--   Helper for checkExprOutput checkExprReach
+checkExpr :: [[Expr]] -> Int -> [Reqs] -> Bool
+checkExpr exprs i reqList =
+    let
+        argChecksAll = and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
+        argChecksEx = and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
+        checkAtLeast = and . map ((>=) (length exprs)) $ [x | AtLeast x <- reqList]
+        checkAtMost = and . map ((<=) (length exprs)) $ [x | AtMost x <- reqList]
+        checkExactly = and . map ((==) (length exprs)) $ [x | Exactly x <- reqList]
+
+        checkArgCount = and . map ((==) i . length) $ exprs
+    in
+    argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
 
 testFile :: String -> String -> IO [([Expr], Expr)]
 testFile filepath entry = do
