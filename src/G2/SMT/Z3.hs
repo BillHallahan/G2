@@ -7,6 +7,7 @@
 module G2.SMT.Z3 ( printModel
                  , modelToIOString
                  , reachabilitySolverZ3
+                 , reachabilityAndOutputSolverZ3
                  , outputSolverZ3) where
 
 import G2.Core.CoreManipulator as Man
