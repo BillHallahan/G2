@@ -44,9 +44,9 @@ main = do
 
 tests = return . testGroup "Tests"
                     =<< sequence [
-                              --checkExprReachability   "tests/samples/IfTest.hs" "f" (\[x, y] r -> if x == y then True else True)
+                              checkExprReachability   "tests/samples/IfTest.hs" "f" (\[x, y] r -> if x == y then True else True)
 
-                              checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
+                            , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
                             , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
                             , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
