@@ -220,6 +220,7 @@ ithArgType t i = error ("Type " ++ show t ++ " passed to TyFun")
 
 --Given a TyFun, returns the type that results from fully evaluating that function
 tyfunReturnType :: Type -> Type
+tyfunReturnType (TyApp _ t) = tyfunReturnType t
 tyfunReturnType (TyFun _ t) = tyfunReturnType t
 tyfunReturnType t = t
 
