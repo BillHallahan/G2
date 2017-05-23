@@ -70,9 +70,9 @@ reachabilityAndOutputSolverZ3 s@State {tEnv = tv, cExpr = cExpr, pc = pc'} = do
 
     cExprSMT <- exprZ3 dtMap M.empty cExpr
     resSymb <- mkStringSymbol "_____result____"
-    res <- mkVar resSymb =<< sortZ3 dtMap (Utils.tyfunReturnType . Utils.typeOf $ cExpr)
+    resVar <- mkVar resSymb =<< sortZ3 dtMap (Utils.tyfunReturnType . Utils.typeOf $ cExpr)
 
-    assert =<< mkEq res cExprSMT
+    assert =<< mkEq resVar cExprSMT
 
     mapM assert =<< constraintsZ3 dtMap pc'
 
@@ -80,7 +80,7 @@ reachabilityAndOutputSolverZ3 s@State {tEnv = tv, cExpr = cExpr, pc = pc'} = do
     (inExpr, res) <- case m of 
                     Just m' -> do
                         mte <- modelToExpr dtMap m' s
-                        me <- modelToExpr' dtMap  m' s ("_____result____", ("", Utils.typeOf cExpr, Nothing))
+                        me <- modelToExpr' dtMap  m' s ("_____result____", ("", Utils.tyfunReturnType . Utils.typeOf $ cExpr, Nothing))
                         return (mte, me)
                     Nothing -> return ([], Nothing)
     return (r, inExpr, res)
