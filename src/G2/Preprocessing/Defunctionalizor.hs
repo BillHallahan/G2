@@ -237,7 +237,7 @@ passedInFuncsToApplies s =
     let
         types = findPassedInFuncTypes s
 
-        passed = findPassedInFuncs s
+        passed = findPassedInFuncs (expr_env s)
         other = concatMap (\t' -> zip (findFunctionInEEnv (expr_env s) t') (repeat t')) types
 
         use = nub (passed ++ other)

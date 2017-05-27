@@ -7,6 +7,7 @@
 module G2.SMT.Z3 ( printModel
                  , modelToIOString
                  , reachabilitySolverZ3
+                 , reachabilityAndOutputSolverZ3
                  , outputSolverZ3) where
 
 import G2.Lib.CoreManipulator as Man
@@ -49,12 +50,12 @@ modelToIOString m = evalZ3 . modelToString $ m
 --Use the SMT solver to find inputs that will reach the given state
 --(or determine that it is not possible to reach the state)
 reachabilitySolverZ3 :: State -> Z3 (Result, [Maybe Expr])
-reachabilitySolverZ3 s@State {type_env = tv, curr_expr = curr_expr, path_cons = pc'} = do
+reachabilitySolverZ3 s@State {type_env = tv, curr_expr = curr_expr, path_cons = path_cons'} = do
     dtMap <- mkDatatypesZ3 tv
     
     handleExprEnv dtMap s
 
-    mapM assert =<< constraintsZ3 dtMap pc'
+    mapM assert =<< constraintsZ3 dtMap path_cons'
 
     runSolverToExpr dtMap s
 
@@ -62,24 +63,24 @@ reachabilitySolverZ3 s@State {type_env = tv, curr_expr = curr_expr, path_cons = 
 --(or determine that it is not possible to reach the state)
 --plus get a value for the current expression
 reachabilityAndOutputSolverZ3 :: State -> Z3 (Result, [Maybe Expr], Maybe Expr)
-reachabilityAndOutputSolverZ3 s@State {type_env = tv, curr_expr = curr_expr, path_cons = pc'} = do
+reachabilityAndOutputSolverZ3 s@State {type_env = tv, curr_expr = curr_expr, path_cons = path_cons'} = do
     dtMap <- mkDatatypesZ3 tv
     
     handleExprEnv dtMap s
 
     curr_exprSMT <- exprZ3 dtMap M.empty curr_expr
     resSymb <- mkStringSymbol "_____result____"
-    res <- mkVar resSymb =<< sortZ3 dtMap (Utils.typeOf curr_expr)
+    resVar <- mkVar resSymb =<< sortZ3 dtMap (Utils.tyfunReturnType . Utils.typeOf $ curr_expr)
 
-    assert =<< mkEq res curr_exprSMT
+    assert =<< mkEq resVar curr_exprSMT
 
-    mapM assert =<< constraintsZ3 dtMap pc'
+    mapM assert =<< constraintsZ3 dtMap path_cons'
 
     (r, m) <- solverCheckAndGetModel
     (inExpr, res) <- case m of 
                     Just m' -> do
                         mte <- modelToExpr dtMap m' s
-                        me <- modelToExpr' dtMap  m' s ("_____result____", ("", Utils.typeOf curr_expr, Nothing))
+                        me <- modelToExpr' dtMap  m' s ("_____result____", ("", Utils.tyfunReturnType . Utils.typeOf $ curr_expr, Nothing))
                         return (mte, me)
                     Nothing -> return ([], Nothing)
     return (r, inExpr, res)
@@ -87,13 +88,13 @@ reachabilityAndOutputSolverZ3 s@State {type_env = tv, curr_expr = curr_expr, pat
 --Use the SMT solver to attempt to find inputs that will result in output
 --satisfying the given curr expr
 outputSolverZ3 :: State -> Z3 (Result, [Maybe Expr])
-outputSolverZ3 s@State{type_env = tv, curr_expr = expr, path_cons = pc'}  = do
+outputSolverZ3 s@State{type_env = tv, curr_expr = expr, path_cons = path_cons'}  = do
     dtMap <- mkDatatypesZ3 tv
 
     handleExprEnv dtMap s
 
     assert =<< exprZ3 dtMap M.empty expr
-    mapM assert =<< constraintsZ3 dtMap pc'
+    mapM assert =<< constraintsZ3 dtMap path_cons'
 
     runSolverToExpr dtMap s
     
@@ -162,8 +163,8 @@ modelToExpr' tm m s (n, (_, t, _)) = do
                 otherwise -> error "More than one recognizer matched in modelToExpr"
 
 constraintsZ3 :: TypeMaps -> PathCons -> Z3 [AST]
-constraintsZ3 d (pc) = do
-    mapM (constraintsZ3' d) pc
+constraintsZ3 d (path_cons) = do
+    mapM (constraintsZ3' d) path_cons
     where
         constraintsZ3' :: TypeMaps -> (Expr, Alt, Bool) -> Z3 AST
         constraintsZ3' d (expr, alt, b) = do
@@ -176,9 +177,9 @@ constraintsZ3 d (pc) = do
 --for references to the expression enviroment
 --If any exist, sets variables accordingly
 handleExprEnv :: TypeMaps -> State -> Z3 ()
-handleExprEnv d State {expr_env = eexpr, curr_expr = curr_expr, path_cons = pc'} = do
+handleExprEnv d State {expr_env = eexpr, curr_expr = curr_expr, path_cons = path_cons'} = do
     getMon . Man.eval (handleExprEnv' d eexpr) $ curr_expr
-    getMon . Man.eval (handleExprEnv' d eexpr) $ pc'
+    getMon . Man.eval (handleExprEnv' d eexpr) $ path_cons'
     where
         handleExprEnv' :: TypeMaps -> EEnv -> Expr -> Mon Z3 ()
         handleExprEnv' d eenv (Var n t) =

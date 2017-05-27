@@ -11,14 +11,14 @@ square x = x * x
 fourthPower :: Double -> Double
 fourthPower x = square x * square x
 
-applyTwice :: (Double -> Double) -> Double -> Double
-applyTwice f x = f (f x)
-
 fixed :: (Double -> Double) -> Double -> Bool
-fixed f x = f x == applyTwice f x
+fixed f x = f x == f (f x)
 
 negative :: (Double -> Double) -> Double -> Bool
 negative f x = f x < 0
+
+add1 :: Double -> Double
+add1 x = 1 + x
 
 functionSatisfies :: ((Double -> Double) -> Bool) -> (Double -> Double) -> Double -> Double
 functionSatisfies f g x = if f g then g x else x
