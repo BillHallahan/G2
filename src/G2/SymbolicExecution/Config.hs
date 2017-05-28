@@ -8,6 +8,7 @@ import G2.Core.Language
 import G2.Core.Transforms
 import G2.SymbolicExecution.Engine
 
+{-
 -- | Expression Type
 --   Yields the type of a G2 Core Expression.
 exprType :: Expr -> Type
@@ -24,6 +25,7 @@ exprType (Case _ _ t) = t
 exprType (Type t) = t
 exprType (BAD) = TyBottom
 exprType (App f a) = case exprType f of {TyFun l r->r; t->TyApp t (exprType a)}
+-}
 
 -- | Lambda Arguments
 --   Stripes away the lambda function's arguments.

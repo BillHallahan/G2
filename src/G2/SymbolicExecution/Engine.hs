@@ -19,6 +19,23 @@ isVal state = case curr_expr state of
     Case _ _ _ -> False
     _ -> True
 
+-- | Expression Type
+--   Yields the type of a G2 Core Expression.
+exprType :: Expr -> Type
+exprType (Var _ t) = t
+exprType (Const (CInt _))    = TyRawInt
+exprType (Const (CFloat _))  = TyRawFloat
+exprType (Const (CDouble _)) = TyRawDouble
+exprType (Const (CChar _))   = TyRawChar
+exprType (Const (CString _)) = TyRawString
+exprType (Const (COp _ t))   = t
+exprType (Lam _ _ t) = t
+exprType (DCon (DC (n,_,t,a))) = foldl1 (\b r -> TyFun r b) (reverse a ++ [t])
+exprType (Case _ _ t) = t
+exprType (Type t) = t
+exprType (BAD) = TyBottom
+exprType (App f a) = case exprType f of {TyFun l r->r; t->TyApp t (exprType a)}
+
 -- | Stepper
 --   We run our program in discrete steps.
 step :: State -> [State]
@@ -29,9 +46,20 @@ step state = case curr_expr state of
       Just ex -> [state {curr_expr = ex}]
 
   -- App-Lam expressions are a concrete example of function application.
-  App (Lam b lx t) ax -> let b' = freshSeededName b state
+  App (Lam b lx t) ae -> let b' = freshSeededName b state
                              lx_state = rename b b' (state {curr_expr = lx})
-                         in [exprBind b' ax lx_state]
+                         in [exprBind b' ae lx_state]
+
+  App (Case m as t) ae ->
+      let as' = map (\(Alt (dc, pars), x) -> (Alt (dc, pars), App x ae)) as
+          t'  = exprType $ snd $ head as'
+      in [state {curr_expr = Case m as' t'}]
+
+  App fe (Case m as t) ->
+      let as' = map (\(Alt (dc, pars), x) -> (Alt (dc, pars), App fe x)) as
+          t'  = exprType $ snd $ head as'
+      in [state {curr_expr = Case m as' t'}]
+
 
   -- Favor LHS evaluation during Apps to emulate lazy evaluation.
   -- Caveat: LHS and RHS should have independent environments. The two sides
@@ -88,13 +116,16 @@ step state = case curr_expr state of
               in case d of
                   Var f t -> let params' = freshSeededNameList params state
                                  zipd = zip params params'
-                             in [renameList zipd (state {curr_expr = aexp})]
+                                 pc' = [(m, Alt (dc, params'), True)] ++
+                                       path_cons state
+                             in [renameList zipd (state { curr_expr = aexp
+                                                        , path_cons = pc' })]
 
                   DCon md -> if length args == length params && dc == md
                       then let params' = freshSeededNameList params state
                                binds = zip params' args
                                zp = zip params params'
-                               pc' = [(m, Alt (md, params'), True)] ++
+                               pc' = [(m, Alt (dc, params'), True)] ++
                                      path_cons state
                                a_st = renameList zp (state { curr_expr = aexp
                                                            , path_cons = pc' })

@@ -11,6 +11,25 @@ sp2 = "  "
 sp4 :: String
 sp4 = sp2 ++ sp2
 
+mkRawStateStr :: State -> String
+mkRawStateStr state = L.intercalate "\n" li
+  where tenv_str  = show $ type_env state
+        eenv_str  = show $ expr_env state
+        cexpr_str = show $ curr_expr state
+        pc_str    = show $ path_cons state
+        slt_str   = show $ sym_links state
+        fintp_str = show $ func_interps state
+        dashes = "------"
+        li = [ "BEGIN STATE"
+             , "[type_env]",     tenv_str,  dashes
+             , "[expr_env]",     eenv_str,  dashes
+             , "[curr_expr]",    cexpr_str, dashes
+             , "[path_cons]",    pc_str,    dashes
+             , "[sym_links]",    slt_str,   dashes
+             , "[func_interps]", fintp_str
+             , "END STATE" ]
+
+
 mkStateStr :: State -> String
 mkStateStr s = L.intercalate "\n\n" li
   where li = ["> Type Env:\n" ++ ts,  "> Expr Env:\n" ++ es
