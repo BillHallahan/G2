@@ -20,10 +20,10 @@ import Type
 import TypeRep
 import Var
 
-import G2.Core.CoreManipulator
+import G2.Lib.CoreManipulator
 import qualified G2.Core.Language as G2
 import qualified G2.Haskell.Prelude as P
-import G2.Core.Utils
+import G2.Lib.Deprecated.Utils
 
 import qualified Data.Map as M
 

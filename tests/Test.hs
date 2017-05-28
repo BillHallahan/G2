@@ -5,10 +5,15 @@ import Test.Tasty.HUnit
 
 import GHC
 
-import G2.Core.Defunctionalizor
+import G2.Preprocessing.Defunctionalizor
 import G2.Core.Language
-import G2.Core.Evaluator
-import G2.Core.Utils
+
+import G2.SymbolicExecution.Config
+
+-- import G2.Core.Evaluator
+-- import G2.Core.Utils
+
+import G2.Lib.Deprecated.Utils
 
 import G2.Haskell.Prelude
 import G2.Haskell.Translator
@@ -109,9 +114,9 @@ testFile filepath entry = do
 
     let (states, n) = runN [defun_init_state] 200
 
-    let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
+    let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
-    return . catMaybes =<< mapM (\s@State {cExpr = expr, pc = pc', slt = slt'} -> do
+    return . catMaybes =<< mapM (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
         (r, m, out) <- evalZ3 . reachabilityAndOutputSolverZ3 $ s
         if r == Sat then do
             if Nothing `notElem` m then do
@@ -135,9 +140,9 @@ testFilePrePost filepath prepost entry = do
 
     let (states, n) = runN [defun_init_state] 200
 
-    let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
+    let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
-    return . catMaybes =<< mapM (\s@State {cExpr = expr, pc = pc', slt = slt'} -> do
+    return . catMaybes =<< mapM (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
         (r, m) <- evalZ3 . outputSolverZ3 $ s
         if r == Sat then do
             if Nothing `notElem` m then

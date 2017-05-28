@@ -29,7 +29,7 @@ step state = case curr_expr state of
       Just ex -> [state {curr_expr = ex}]
 
   -- App-Lam expressions are a concrete example of function application.
-  App (Lam b lx t) ax -> let b' = freshSeededName b' state
+  App (Lam b lx t) ax -> let b' = freshSeededName b state
                              lx_state = rename b b' (state {curr_expr = lx})
                          in [exprBind b' ax lx_state]
 

@@ -6,12 +6,24 @@ import HscTypes
 import TyCon
 import GHC
 
-import G2.Translation.Haskell
+import qualified Data.List as L
+import qualified Data.Map  as M
+import Data.Maybe
+
+import Control.Monad
+
+import Z3.Monad
+
+
+import G2.Lib.Utils
+import G2.Lib.Printers
 
 import G2.Core.Language
 import G2.Core.Transforms
 
-import G2.Translation.Haskell
+import G2.Haskell.Translator
+import G2.Haskell.Prelude
+-- import G2.Translation.Haskell
 import G2.Translation.Interface
 
 import G2.Preprocessing.Defunctionalizor
@@ -25,50 +37,39 @@ import G2.SMT.Z3Types
 import G2.SMT.Z3
 import G2.SMT.Interface
 
--- import G2.SMT.Z3
-
--- import qualified G2.Sample.Prog1 as P1
--- import qualified G2.Sample.Prog2 as P2
-
--- import qualified Data.List as L
--- import qualified Data.Map  as M
--- import Data.Maybe
-
--- import Control.Monad
-
--- import Z3.Monad
-
 main = do
     putStrLn "appears to compile!"
-    {-
     (num:xs) <- getArgs
     let filepath:entry:xs' = xs
     raw_core <- mkRawCore filepath
-    -- putStrLn "RAW CORE"
+    putStrLn "RAW CORE"
     -- putStrLn =<< outStr raw_core
     let (rt_env, re_env) = mkG2Core raw_core
+    putStrLn "Before prelude_t_dcls"
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
+    putStrLn "YOOOOO"
     let init_state = if num == "1" then initState t_env' e_env' entry else initStateWithPost t_env' e_env' entry (xs' !! 0)
 
     -- putStrLn "INIT STATE"
     -- putStrLn $ show init_state
 
     -- putStrLn "mkStateStr of INIT STATE"
-    putStrLn $ mkStatesStr [init_state]
 
     -- putStrLn "HIGHER"
 
-    -- putStrLn "+++++++++++++++++++++++++"
+    putStrLn "+++++++++++++++++++++++++"
 
 
     let defun_init_state = defunctionalize init_state
 
+    putStrLn "defunctionalized"
     -- putStrLn $ mkStateStr init_state
     
     -- putStrLn $ mkStatesStr [defun_init_state]
+    putStrLn $ show defun_init_state
 
-    -- putStrLn "======================="
+    putStrLn "======================="
 
     -- testThis [(defun_init_state, 0)]
 
@@ -79,8 +80,16 @@ main = do
     --     putStrLn "-----"
     --     return ((evaluate s) !! 0)) defun_init_state [0..5000]
 
-    let (states, n) = runN [defun_init_state] 150
+    -- let (states, n) = runN [defun_init_state] 15
+    let s1 = step defun_init_state
+    putStrLn $ show $ head s1
 
+    putStrLn "===================================="
+    
+    let s2 = step $ head s1
+    putStrLn $ show $ head s2
+
+    {-
     -- temporary?
     let states' = filter (\s -> not . containsNonConsFunctions (tEnv s) . cExpr $ s) states
     -- temporary?

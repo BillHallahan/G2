@@ -1,4 +1,4 @@
-module G2.Core.Printers where
+module G2.Lib.Printers where
 
 import G2.Core.Language
 
@@ -17,12 +17,12 @@ mkStateStr s = L.intercalate "\n\n" li
              ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps
              ,"> Sym Link Table:\n" ++ sl
              ,"> Func Sym Link Table:\n" ++ fl]
-        ts = mkTypeEnvStr . tEnv $ s
-        es = mkExprEnvStr . eEnv $ s
-        xs = mkExprStr . cExpr $ s
-        ps = mkPCStr . pc $ s
-        sl = mkSLTStr . slt $ s
-        fl = mkFuncSLTStr . funcSlt $ s
+        ts = mkTypexpr_envStr . type_env $ s
+        es = mkExprEnvStr . expr_env $ s
+        xs = mkExprStr . curr_expr $ s
+        ps = mkPCStr . path_cons $ s
+        sl = mkSLTStr . sym_links $ s
+        fl = mkFuncSLTStr . func_interps $ s
 
 mkStatesStr :: [State] -> String
 mkStatesStr []     = ""
@@ -30,8 +30,8 @@ mkStatesStr [s] = mkStateStr s
 mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
   where divLn = "\n--------------\n"
 
-mkTypeEnvStr :: TEnv -> String
-mkTypeEnvStr tenv = L.intercalate "\n" (map ntStr (M.toList tenv))
+mkTypexpr_envStr :: TEnv -> String
+mkTypexpr_envStr tenv = L.intercalate "\n" (map ntStr (M.toList tenv))
   where ntStr :: (Name, Type) -> String
         ntStr (n, t) = n ++ "\n" ++ sp4 ++ show t
 
@@ -99,7 +99,7 @@ mkTypeStr t i = mkTypeStr' t i False
 
 
 -- Primitive for now because I'm low on battery.
-mkPCStr :: PC -> String
+mkPCStr :: PathCons -> String
 mkPCStr [] = ""
 mkPCStr [(e, a, b)] = mkExprStr e ++ (if b then " = " else " != ") ++ show a
 mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a++ "\n--AND--\n" ++ mkPCStr ps
@@ -111,7 +111,7 @@ mkSLTStr = L.intercalate "\n" . map (\(k, (n, t, i)) ->
                                                         Just x -> "  " ++ show x
                                                         Nothing -> "") . M.toList
 
-mkFuncSLTStr :: FuncSymLinkTable -> String
+mkFuncSLTStr :: FuncInterpTable -> String
 mkFuncSLTStr = L.intercalate "\n" . map (\(k, (n, i)) -> k ++ " <- " ++ n ++ "  " ++ show i) . M.toList
 
 mkExprHaskell :: Expr -> String
@@ -128,7 +128,6 @@ mkExprHaskell e = mkExprHaskell' e 0
                                         ++ L.intercalate "\n" (map (mkAltExprHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
         mkExprHaskell' BAD _ = "BAD"
-        mkExprHaskell' UNR _ = "UNR"
 
         mkAltExprHaskell :: Int -> (Alt, Expr) -> String
         mkAltExprHaskell i (Alt (DC (n, _, _, _), n'), e) = off i ++ n ++ " " ++ L.intercalate " " n' ++ " -> " ++ mkExprHaskell' e i

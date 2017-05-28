@@ -13,7 +13,6 @@ import qualified Data.Map  as M
 
 import G2.Core.Language
 
-
 -- | Expression Binding
 --   Bind a (Name, Expr) pair into the expression environment of a state.
 exprBind :: Name -> Expr -> State -> State
