@@ -99,7 +99,7 @@ main = do
     let tenv' = M.union rt_env (M.fromList prelude_t_decls)
     let eenv' = M.insert "p1" BAD re_env-- re_env
     let init_state = defunctionalize $ initState tenv' eenv' entry
-    let runs = 200
+    let runs = 20
     -- let (states, n) = runN [init_state] runs
     let states = histN [init_state] runs
     -- putStrLn $ show states

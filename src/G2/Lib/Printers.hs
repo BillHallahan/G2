@@ -13,10 +13,10 @@ sp4 = sp2 ++ sp2
 
 mkRawStateStr :: State -> String
 mkRawStateStr state = L.intercalate "\n" li
-  where tenv_str  = show $ type_env state
-        eenv_str  = show $ expr_env state
+  where tenv_str  = L.intercalate "\n" $ map show $ M.toList $ type_env state
+        eenv_str  = L.intercalate "\n" $ map show $ M.toList $ expr_env state
         cexpr_str = show $ curr_expr state
-        pc_str    = show $ path_cons state
+        pc_str    = L.intercalate "\n" $ map show $ path_cons state
         slt_str   = show $ sym_links state
         fintp_str = show $ func_interps state
         dashes = "------"

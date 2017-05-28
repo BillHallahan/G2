@@ -63,20 +63,23 @@ step state = case curr_expr state of
 
   -- Favor LHS evaluation during Apps to emulate lazy evaluation.
   -- Caveat: LHS and RHS should have independent environments. The two sides
-  -- should only share the PC, and SLTs.
+  -- should only share the PC, and SLTs. However, this is not a problem for
+  -- us because the renaming is overaggressive.
   App f a -> if isVal (state {curr_expr = f})
       then let asts = step (state {curr_expr = a})
                shares = map (\s -> (curr_expr s,path_cons s,sym_links s)) asts
-           in [state { curr_expr = App f a'
-                     , path_cons = pc'
-                     , sym_links = M.union (sym_links state) slt' } |
-               (a', pc', slt') <- shares]
+           in [ast {curr_expr = App f (curr_expr ast)} | ast <- asts]
+           -- in [state { curr_expr = App f a'
+           --           , path_cons = pc'
+           --           , sym_links = M.union (sym_links state) slt' } |
+           --     (a', pc', slt') <- shares]
       else let fsts = step (state {curr_expr = f})
                shares = map (\s -> (curr_expr s,path_cons s,sym_links s)) fsts
-           in [state { curr_expr = App f' a
-                     , path_cons = pc'
-                     , sym_links = M.union (sym_links state) slt' } |
-               (f', pc', slt') <- shares]
+           in [fst {curr_expr = App (curr_expr fst) a} | fst <- fsts]
+           -- in [state { curr_expr = App f' a
+           --           , path_cons = pc'
+           --           , sym_links = M.union (sym_links state) slt' } |
+           --     (f', pc', slt') <- shares]
 
   -- Case-Case
   Case (Case m1 as1 t1) as2 t2 ->
