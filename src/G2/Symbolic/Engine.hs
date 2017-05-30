@@ -1,6 +1,6 @@
 -- | Engine
 --   The symbolic execution engine. Many hours were spent on improving this.
-module G2.SymbolicExecution.Engine where
+module G2.Symbolic.Engine where
 
 import qualified Data.List as L
 import qualified Data.Map  as M

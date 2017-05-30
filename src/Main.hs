@@ -30,9 +30,9 @@ import G2.Translation.Interface
 import G2.Preprocessing.Defunctionalizor
 import G2.Preprocessing.Interface
 
-import G2.SymbolicExecution.Engine
-import G2.SymbolicExecution.Config
-import G2.SymbolicExecution.Interface
+import G2.Symbolic.Engine
+import G2.Symbolic.Config
+import G2.Symbolic.Interface
 
 import G2.SMT.Z3Types
 import G2.SMT.Z3

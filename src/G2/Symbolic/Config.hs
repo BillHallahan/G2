@@ -1,4 +1,4 @@
-module G2.SymbolicExecution.Config where
+module G2.Symbolic.Config where
 
 import qualified Data.Map as M
 
@@ -6,26 +6,7 @@ import G2.Lib.Utils
 
 import G2.Core.Language
 import G2.Core.Transforms
-import G2.SymbolicExecution.Engine
-
-{-
--- | Expression Type
---   Yields the type of a G2 Core Expression.
-exprType :: Expr -> Type
-exprType (Var _ t) = t
-exprType (Const (CInt _))    = TyRawInt
-exprType (Const (CFloat _))  = TyRawFloat
-exprType (Const (CDouble _)) = TyRawDouble
-exprType (Const (CChar _))   = TyRawChar
-exprType (Const (CString _)) = TyRawString
-exprType (Const (COp _ t))   = t
-exprType (Lam _ _ t) = t
-exprType (DCon (DC (n,_,t,a))) = foldl1 (\b r -> TyFun r b) (reverse a ++ [t])
-exprType (Case _ _ t) = t
-exprType (Type t) = t
-exprType (BAD) = TyBottom
-exprType (App f a) = case exprType f of {TyFun l r->r; t->TyApp t (exprType a)}
--}
+import G2.Symbolic.Engine
 
 -- | Lambda Arguments
 --   Stripes away the lambda function's arguments.

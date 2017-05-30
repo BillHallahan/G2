@@ -12,7 +12,7 @@ module G2.SMT.Z3 ( printModel
 
 import G2.Lib.CoreManipulator as Man
 import G2.Core.Language
-import G2.SymbolicExecution.Engine
+import G2.Symbolic.Engine
 import qualified G2.Lib.Deprecated.Utils as Utils
 import G2.Haskell.Prelude
 import G2.SMT.Z3Types
