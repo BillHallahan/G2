@@ -93,11 +93,11 @@ instance Manipulatable Type Expr where
                     (t', x') = modifyG f t x
                 in
                 (Lam n e t', x')
-            f' f x (DCon d) =
+            f' f x (Data d) =
                 let
                     (d', x') = modifyG f d x
                 in
-                (DCon d', x')
+                (Data d', x')
             f' f x (Case e ae t) =
                 let
                     (t', x') = modifyG f t x
@@ -236,12 +236,12 @@ instance Manipulatable Expr DataCon where
     modifyG f dc x = (dc, mempty)
 
 instance Manipulatable Type DataCon where
-    modifyG f (DC (n, i, t, tx)) x = 
+    modifyG f (DataCon n i t tx) x = 
         let
             (t', x') = modifyG f t x
             (tx', x'') = modifyG f tx x
         in
-        (DC (n, i, t', tx'), x' `mappend` x'')
+        (DataCon n i t' tx', x' `mappend` x'')
 
 
 instance Manipulatable e a => Manipulatable e [a] where
@@ -330,11 +330,11 @@ modifyTsInExpr f e x = modifyG (f' f) e x
                 (t', x') = modifyG (f lam) t x
             in
             (Lam n e t', x')
-        f' f x e@(DCon d) =
+        f' f x e@(Data d) =
             let
                 (d', x') = modifyG (f e) d x
             in
-            (DCon d', x')
+            (Data d', x')
         f' f x ca@(Case e ae t) =
             let
                 (t', x') = modifyG (f ca) t x
@@ -437,7 +437,7 @@ modifyDataConExprG f e x =
     
     where
         f' :: Monoid a => (a -> DataCon -> (DataCon, a)) -> a -> Expr -> (Expr, a)
-        f' f x (DCon d) = let (dc', x') = f x d in (DCon dc', x')
+        f' f x (Data d) = let (dc', x') = f x d in (Data dc', x')
         f' f x (Case e ae t) =
             let
                 aex = map (modifyAlt f x) ae

@@ -152,8 +152,8 @@ modelToExpr' tm m s (n, (_, t, _)) = do
                     return (Var rn t')
                     let types = case M.lookup n' (type_env s) of
                                         Just (TyAlg _ ts) -> 
-                                            case find (\(DC (n'', _, _, _)) -> rn == n'') ts of
-                                                Just (DC (_, _, _, ts)) -> ts
+                                            case find (\(DataCon n'' _ _ _) -> rn == n'') ts of
+                                                Just (DataCon _ _ _ ts) -> ts
                                                 Nothing -> error "Encountered unrecognized type in modelToExpr."
                                         Nothing -> error "Encountered unrecognized type in modelToExpr."
 
@@ -233,7 +233,7 @@ exprZ3 d m c@(Case e ae t) = do
             -> (a recognizer, an expression for if that recognizer is true)
         -}
         exprZ3AltExpr :: TypeMaps -> M.Map Name AST -> AST -> (Alt, Expr) -> Z3 (AST, AST)
-        exprZ3AltExpr tm m e ae@(alt@(Alt (DC (n, _, t, ts), n')), e') = do
+        exprZ3AltExpr tm m e ae@(alt@(Alt (DataCon n _ t ts, n')), e') = do
             accApp <- case accessorFuncs tm n of
                                 Just a -> mapM (\a' -> mkApp a' [e]) a --a
                                 Nothing -> accDefault n e alt
@@ -258,19 +258,19 @@ exprZ3 d m c@(Case e ae t) = do
         mkIteAltExpr ((r, e):es) = mkIte r e =<< mkIteAltExpr es
 
         accDefault :: Name -> AST -> Alt -> Z3 [AST]
-        accDefault _ e (Alt (DC ("True", _, _, _), _)) = return []
-        accDefault _ e (Alt (DC ("False", _, _, _), _)) = return []
-        accDefault _ e (Alt (DC ("D#", _, _, _), [d])) = return [e]
-        accDefault _ e (Alt (DC ("F#", _, _, _), [f])) = return [e]
-        accDefault _ e (Alt (DC ("I#", _, _, _), [i])) = return [e]
+        accDefault _ e (Alt (DataCon "True" _ _ _, _)) = return []
+        accDefault _ e (Alt (DataCon "False" _ _ _, _)) = return []
+        accDefault _ e (Alt (DataCon "D#" _ _ _, [d])) = return [e]
+        accDefault _ e (Alt (DataCon "F#" _ _ _, [f])) = return [e]
+        accDefault _ e (Alt (DataCon "I#" _ _ _, [i])) = return [e]
         accDefault n _ _ = error ("No accessor functions for " ++ n ++ " in exprZ3AltExpr")
 
         recDefault :: Name -> AST -> Alt -> Z3 AST
-        recDefault _ e (Alt (DC ("True", _, _, _), _)) = mkEq e =<< mkTrue
-        recDefault _ e (Alt (DC ("False", _, _, _), _)) = mkEq e =<< mkFalse
-        recDefault _ e (Alt (DC ("D#", _, _, _), _)) = mkTrue
-        recDefault _ e (Alt (DC ("F#", _, _, _), _)) = mkTrue
-        recDefault _ e (Alt (DC ("I#", _, _, _), _)) = mkTrue
+        recDefault _ e (Alt (DataCon "True" _ _ _, _)) = mkEq e =<< mkTrue
+        recDefault _ e (Alt (DataCon "False" _ _ _, _)) = mkEq e =<< mkFalse
+        recDefault _ e (Alt (DataCon "D#" _ _ _, _)) = mkTrue
+        recDefault _ e (Alt (DataCon "F#" _ _ _, _)) = mkTrue
+        recDefault _ e (Alt (DataCon "I#" _ _ _, _)) = mkTrue
         recDefault n _ _ = error ("No recognizer functions for " ++ n ++ " in exprZ3AltExpr")
 
 exprZ3 _ _ e = error ("Unknown expression " ++ show e ++ " in exprZ3")
@@ -367,9 +367,9 @@ constZ3 (CFloat r) = mkReal (fromInteger . numerator $ r) (fromInteger . denomin
 constZ3 (CDouble r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
 
 altZ3 :: TypeMaps -> M.Map Name AST -> Alt -> Z3 AST
-altZ3 _ _ (Alt (DC ("True", _, TyConApp "Bool" _, _), _)) = mkBool True
-altZ3 _ _ (Alt (DC ("False", _, TyConApp "Bool" _, _), _)) = mkBool False
-altZ3 _ _ (Alt (DC ("I#", _, TyConApp "Int" _, _), i)) = do
+altZ3 _ _ (Alt ((DataCon "True" _ (TyConApp "Bool" _) _), _)) = mkBool True
+altZ3 _ _ (Alt ((DataCon "False" _ (TyConApp "Bool" _) _), _)) = mkBool False
+altZ3 _ _ (Alt ((DataCon "I#" _ (TyConApp "Int" _) _), i)) = do
     intSort <- mkIntSort
     case i of
         [i'] -> do
@@ -377,7 +377,7 @@ altZ3 _ _ (Alt (DC ("I#", _, TyConApp "Int" _, _), i)) = do
             mkVar s intSort
         otherwise -> mkFreshConst "intCase" intSort
     
-altZ3 tm m (Alt (DC (x, _, TyConApp n _, ts), ns)) = do
+altZ3 tm m (Alt (DataCon x _ (TyConApp n _) ts, ns)) = do
     let sort = case M.lookup n (types tm) of
                     Just s -> s
                     Nothing -> error ("Type " ++ x ++ " not recognized.")

@@ -168,7 +168,7 @@ mkLit otherwise        = error "No other lits please?"
 mkAlt :: CoreAlt -> (G2.Alt, G2.Expr)
 mkAlt (ac, args, exp) = (G2.Alt (mkA ac, map (mkName . Var.varName) args), mkExpr exp)
   where mkA (DataAlt dc) = mkDC dc
-        mkA DEFAULT      = P.dc_default
+        mkA DEFAULT      = G2.DEFAULT
         mkA (LitAlt lit) = case lit of
             MachChar char  -> P.p_d_char
             MachStr bstr   -> error "Should we even have strings?"

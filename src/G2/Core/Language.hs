@@ -55,14 +55,16 @@ data Interp = StdInterp | UnInterp deriving (Show, Eq)
 --     DCon  -- Data constructors.
 --     Case  -- Case expressions. Type denotes the type of its Alts.
 --     Type  -- A type expression. Unfortuantely we do need this.
+--     Asst  -- Assert. The LHS asserts a condition for the RHS.
 --     BAD   -- Error / filler expression.
 data Expr = Var Name Type
           | Const Const
           | Lam Name Expr Type
           | App Expr Expr
-          | DCon DataCon
+          | Data DataCon
           | Case Expr [(Alt, Expr)] Type
           | Type Type
+          | Asst Expr Expr
           | BAD
           deriving (Show, Eq)
 
@@ -97,7 +99,10 @@ data Const = CInt Int         -- Int#
 --   However, it would be represented as:
 --
 --     (dc_name, dc_tag, A, [P1, ..., PN])
-newtype DataCon = DC (Name, Int, Type, [Type]) deriving (Show, Eq)
+-- newtype DataCon = DC (Name, Int, Type, [Type]) deriving (Show, Eq)
+data DataCon = DataCon Name Int Type [Type]
+             | DEFAULT
+             deriving (Show, Eq)
 
 -- | Types
 --   We need a way of representing types, and so it is done here.

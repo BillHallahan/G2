@@ -5,7 +5,7 @@ import qualified Data.Map as M
 import G2.Lib.Utils
 
 import G2.Core.Language
-import G2.Core.Transforms
+import G2.Core.Utils
 import G2.Symbolic.Engine
 
 -- | Lambda Arguments
@@ -16,7 +16,7 @@ lamArgs _ = []
 
 freshArgNames :: EEnv -> Name -> [(Name, Type)]
 freshArgNames eenv entry = zip arg_names arg_types
-  where entry_expr = batman (exprLookup entry fake_state) "Entry not found."
+  where entry_expr = batman (exprLookup entry eenv) "Entry not found."
         args = lamArgs entry_expr
         arg_names = map fst args
         arg_types = map snd args
@@ -33,7 +33,7 @@ freshArgNames eenv entry = zip arg_names arg_types
 --   entry point name, should it exist in the environment.
 mkSymLinks :: EEnv -> Name -> [(Name, Type)] -> (Expr, SymLinkTable)
 mkSymLinks eenv entry args = (curr_expr, sym_links)
-  where entry_expr = batman (exprLookup entry fake_state) "Entry not found."
+  where entry_expr = batman (exprLookup entry eenv) "Entry not found."
         entry_type = exprType entry_expr
         arg_names  = map fst args
         arg_types  = map snd args
@@ -41,12 +41,6 @@ mkSymLinks eenv entry args = (curr_expr, sym_links)
         sym_links  = M.fromList (zip arg_names slt_rhs)
         curr_expr  = foldl (\acc (n,t) -> App acc (Var n t))
                            (Var entry entry_type) args
-        fake_state = State { expr_env     = eenv
-                           , type_env     = M.empty
-                           , curr_expr    = curr_expr
-                           , path_cons    = []
-                           , sym_links    = M.empty
-                           , func_interps = M.empty }
 
 {-
 -- Just in case I, Anton, fucked something up when refactoring the above.

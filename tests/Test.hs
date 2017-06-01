@@ -8,7 +8,7 @@ import GHC
 import G2.Preprocessing.Defunctionalizor
 import G2.Core.Language
 
-import G2.SymbolicExecution.Config
+import G2.Symbolic.Config
 
 -- import G2.Core.Evaluator
 -- import G2.Core.Utils

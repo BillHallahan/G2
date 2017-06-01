@@ -20,7 +20,7 @@ import G2.Lib.Deprecated.Utils
 import G2.Lib.Printers
 
 import G2.Core.Language
-import G2.Core.Transforms
+import G2.Core.Utils
 
 import G2.Haskell.Translator
 import G2.Haskell.Prelude

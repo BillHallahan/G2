@@ -33,7 +33,7 @@ typeOf (Lam _ _ t) = t
 typeOf (App f a)   = case typeOf f of
                          TyFun l r -> r
                          t         -> TyApp t (typeOf a)
-typeOf (DCon (DC (n,_,t,a))) = let a' = reverse (a ++ [t])
+typeOf (Data (DataCon n _ t a)) = let a' = reverse (a ++ [t])
                           in foldl1 (\a r -> TyFun r a) a'
 typeOf (Case _ _ t) = t
 typeOf (Type t) = t
@@ -43,7 +43,7 @@ functionType :: State -> Name -> Maybe Type
 functionType s n = typeOf <$> M.lookup n (expr_env s)
 
 constructors :: TEnv -> [Name]
-constructors = evalDataConType (\(DC (n, _, _, _)) -> [n])
+constructors = evalDataConType (\(DataCon n _ _ _) -> [n])
 
 --Returns if e1, e2 are equal up to renaming of all variables
 exprEqUpToName :: Expr -> Expr -> Bool
@@ -51,7 +51,7 @@ exprEqUpToName (Var _ t) (Var _ t') = t == t'
 exprEqUpToName (Const c) (Const c') = c == c'
 exprEqUpToName (Lam _ e _) (Lam _ e' _) = exprEqUpToName e e'
 exprEqUpToName (App e1 e2) (App e1' e2') = exprEqUpToName e1 e1' && exprEqUpToName e2 e2'
-exprEqUpToName (DCon dc) (DCon dc') = dcEqUpToName dc dc'
+exprEqUpToName (Data dc) (Data dc') = dcEqUpToName dc dc'
 exprEqUpToName (Case e ae t) (Case e' ae' t') = exprEqUpToName e e' && aeEqUpToName ae ae' && t == t'
     where
         aeEqUpToName :: [(Alt, Expr)] -> [(Alt, Expr)] -> Bool
@@ -62,7 +62,7 @@ exprEqUpToName (Type t) (Type t') = t== t'
 exprEqUpToName e1 e2 = e1 == e2
 
 dcEqUpToName :: DataCon -> DataCon -> Bool
-dcEqUpToName (DC (_, _, t, ts)) (DC (_, _, t', ts')) = t == t' && ts == ts'
+dcEqUpToName (DataCon _ _ t ts) (DataCon _ _ t' ts') = t == t' && ts == ts'
 
 
 -- Replace a name with a new one in an Expr.
@@ -164,7 +164,7 @@ names s =
         typeNames _ = []
 
         dataConNames :: DataCon -> [Name]
-        dataConNames (DC (n, _, _, _)) = [n]
+        dataConNames (DataCon n _ _ _) = [n]
 
 --Takes e e1 e2.  In e, replaces all occurences of e1 with e2
 replaceM :: (Manipulatable e m, Eq e) => m -> e -> e -> m

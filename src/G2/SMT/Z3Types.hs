@@ -42,7 +42,7 @@ mkDatatypesZ3 tenv = mkSortsZ3 (TypeMaps {types = M.empty, consNamesFuncs = M.em
 
         requires :: Type -> [Name]
         requires (TyAlg n1 t1) = 
-            catMaybes . map names . concat . map (\(DC (_, _, _, t')) -> t') $ t1
+            catMaybes . map names . concat . map (\(DataCon _ _ _ t') -> t') $ t1
         requires _ = error "Must only pass TyAlg's to requires in mkDatatypesZ3"
 
         names :: Type -> Maybe Name
@@ -89,7 +89,7 @@ mkDatatypesZ3 tenv = mkSortsZ3 (TypeMaps {types = M.empty, consNamesFuncs = M.em
 
 mkConstructorZ3 :: TypeMaps -> DataCon -> Z3 (Name, Constructor, [Symbol])
 --we need to do something to ensure all symbols are unique... adjust
-mkConstructorZ3 d (DC (n, _, tc, t)) = do
+mkConstructorZ3 d (DataCon n _ tc t) = do
     n' <- mkStringSymbol n
     is_n <- mkStringSymbol ("is_" ++ n)
     accs <- mapM mkStringSymbol . numFresh ("acc_" ++ n) (length t) $ []

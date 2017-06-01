@@ -84,7 +84,7 @@ mkADT algtc = (gname, G2.TyAlg gname gdcs)
         gdcs  = map mkDC dcs
 
 mkDC :: DataCon -> G2.DataCon
-mkDC dc = G2.DC (dcname, dctag, G2.TyConApp tyname [], args)
+mkDC dc = G2.DataCon dcname dctag (G2.TyConApp tyname []) args
   where tyname = mkName $ tyConName $ dataConTyCon dc
         dcname = mkName $ dataConName dc
         dctag  = dataConTag dc
@@ -164,7 +164,7 @@ mkLit otherwise        = error "No other lits please?"
 mkAlt :: CoreAlt -> (G2.Alt, G2.Expr)
 mkAlt (ac, args, exp) = (G2.Alt (mkA ac, map (mkName . Var.varName) args), mkExpr exp)
   where mkA (DataAlt dc) = mkDC dc
-        mkA DEFAULT      = P.dc_default
+        mkA DEFAULT      = G2.DEFAULT
         mkA (LitAlt lit) = case lit of
             MachChar char  -> P.p_d_char
             MachStr bstr   -> error "Should we even have strings?"
@@ -183,7 +183,7 @@ sortAlt ((ac, args, exp):as) = case ac of
 
 cascadeAlt :: G2.Expr -> G2.DataCon -> [CoreAlt] -> G2.Expr
 cascadeAlt mx recon [] = G2.BAD
-cascadeAlt mx recon@(G2.DC (n, _, t, ts)) ((ac, args, exp):as) = case ac of
+cascadeAlt mx recon@(G2.DataCon n _ t ts) ((ac, args, exp):as) = case ac of
     DataAlt dc -> error "We should not see non-raw data consturctors here"
     DEFAULT    -> mkExpr exp
     LitAlt lit -> G2.Case (G2.App (G2.App (G2.App (G2.App P.op_eq

@@ -103,12 +103,12 @@ defunctionalize s =
         applyDataConAdj a e = modifyDataConExpr (applyDataConAdj' a) e
             where
                 applyDataConAdj' :: AppliesLookUp -> DataCon -> DataCon
-                applyDataConAdj' a (DC (n, i, t, ts)) =
+                applyDataConAdj' a (DataCon n i t ts) =
                     let ts' = map (\t' -> case lookup t' $ a of
                                                 Just (_, t'') -> TyConApp t'' []
                                                 Nothing -> t'
                                   ) ts in
-                    DC (n, i, t, ts')
+                    DataCon n i t ts'
 
         appliesConLookUpToFuncSLT :: AppliesConLookUp -> FuncInterpTable
         appliesConLookUpToFuncSLT = M.fromList . appliesConLookUpToFuncSLT' . concatMap (snd)
@@ -171,7 +171,7 @@ defunctionalize s =
 
                 minTag = Semi.getMin . eval getMinTag $ t'
 
-                cons = map (\((_, d), m) -> DC (d, m, TyConApp name [], [])) . zip fd $ [minTag - 1, minTag - 2..]
+                cons = map (\((_, d), m) -> DataCon d m (TyConApp name []) []) . zip fd $ [minTag - 1, minTag - 2..]
                 d = TyAlg name cons
                 t'' = M.insert name d t'
             in
@@ -180,7 +180,7 @@ defunctionalize s =
                 getMinTag :: Type -> Semi.Min Int
                 getMinTag (TyAlg _ d) = 
                     if not . null $ d then
-                        Semi.Min . minimum . map (\(DC (_, i, _, _)) -> i) $ d
+                        Semi.Min . minimum . map (\(DataCon _ i _ _) -> i) $ d
                     else
                         mempty
                 getMinTag _ = mempty
@@ -211,7 +211,7 @@ defunctionalize s =
             createApplyFuncs as a (s {expr_env = env'})
             where
                 genCase :: [Name] -> Name -> Type -> Type -> (FuncName, DataConName) -> (Alt, Expr)
-                genCase a i t t'@(TyFun t'' _) (f, d) = (Alt (DC (d, -1000, t, []), []), App (Var f t') (Var i t''))
+                genCase a i t t'@(TyFun t'' _) (f, d) = (Alt (DataCon d (-1000) t [], []), App (Var f t') (Var i t''))
                 genCase _ _ _ _ _ = error "Second supplied type must be a function."
         createApplyFuncs _ _ s = s
         
@@ -271,12 +271,12 @@ findPassedInFuncTypes :: Manipulatable Type m => m -> [Type]
 findPassedInFuncTypes e = nub . eval findPassedInFuncTypes' $ e
     where
         findPassedInFuncTypes' :: Type -> [Type]
-        findPassedInFuncTypes' (TyAlg _ dc) = concatMap findPassedInFuncTypesDC dc
+        findPassedInFuncTypes' (TyAlg _ dc) = concatMap findPassedInFuncTypesDataCon dc
         findPassedInFuncTypes' (TyFun t@(TyFun _ _) _) = [t]
         findPassedInFuncTypes' _ = []
 
-        findPassedInFuncTypesDC :: DataCon -> [Type]
-        findPassedInFuncTypesDC (DC (_, _, _, t)) = filter isTyFun t
+        findPassedInFuncTypesDataCon :: DataCon -> [Type]
+        findPassedInFuncTypesDataCon (DataCon _ _ _ t) = filter isTyFun t
 
 --Returns all functions (either free, from lambdas, or from pattern matching) being passed into another function
 findPassedInFuncs :: Manipulatable Expr m => m -> [(FuncName, Type)]
@@ -293,7 +293,7 @@ findPassedInFuncs s = nub . eval findPassedInFuncs' $ s
         findPassedInFuncs' _ = []
 
 findPassedInFuncsAE :: (Alt, Expr) -> [(FuncName, Type)]
-findPassedInFuncsAE (Alt (DC (_, _, _, t), n), _) = filter (isTyFun . snd) . zip n $ t
+findPassedInFuncsAE (Alt (DataCon _ _ _ t, n), _) = filter (isTyFun . snd) . zip n $ t
 
 findFunctionInEEnv :: EEnv -> Type -> [FuncName]
 findFunctionInEEnv eenv t = M.keys . M.filter (\f -> typeOf f == t) $ eenv
