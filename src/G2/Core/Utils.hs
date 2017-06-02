@@ -78,7 +78,7 @@ allNames state = L.nub (tenvs ++ eenvs ++ cexps ++ pcs ++ slts ++ fints)
         exs (Data dc) = dcs dc
         exs (Case m as t) = exs m ++ concatMap altxs as ++ tys t
         exs (Type t) = tys t
-        exs (Asst c e) = exs c ++ exs e
+        exs (Spec c e) = exs c ++ exs e
         exs _ = []
 
 -- | Fresh Name
@@ -192,11 +192,11 @@ rename old new state = case curr_expr state of
                , sym_links = slts }
 
   -- Rename the LHS, then RHS. Similar to App.
-  Asst cond exp -> let state_c = rename old new (state {curr_expr = cond})
+  Spec cond exp -> let state_c = rename old new (state {curr_expr = cond})
                        state_e = rename old new (state_c {curr_expr = exp})
                        cond' = curr_expr state_c
                        exp'  = curr_expr state_e
-                  in state_e {curr_expr = Asst cond' exp'}
+                  in state_e {curr_expr = Spec cond' exp'}
 
   -- Everything else.
   _ -> state
@@ -224,6 +224,6 @@ exprType (Data (DataCon n _ t a)) = L.foldl1 (\b r->TyFun r b) (reverse a++[t])
 exprType (Data DEFAULT) = TyBottom
 exprType (Case _ _ t) = t
 exprType (Type t) = t
-exprType (Asst c e) = exprType e
+exprType (Spec c e) = exprType e
 exprType (BAD) = TyBottom
 

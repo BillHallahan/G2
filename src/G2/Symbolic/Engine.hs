@@ -17,7 +17,7 @@ isVal state = case curr_expr state of
     App (Lam _ _ _) _ -> False
     App f a -> isVal (state {curr_expr = f}) && isVal (state {curr_expr = a})
     Case _ _ _ -> False
-    Asst _ _ -> False
+    Spec _ _ -> False
     _ -> True
 
 -- | Stepper
@@ -129,11 +129,11 @@ step state = case curr_expr state of
 
   -- Assertions have two flavors: Either the LHS that denotes the predicate has
   -- been applied, or it is not, and still a lambda. We consider the latter.
-  Asst cond exp -> if isVal (state {curr_expr = exp})
+  Spec cond exp -> if isVal (state {curr_expr = exp})
       then case cond of
           -- If the LHS is a Lam, then we apply it, and later on continue left
           -- derivation of the expression until it hits a value term.
-          Lam b c t -> [state {curr_expr = Asst (App cond exp) exp}]
+          Lam b c t -> [state {curr_expr = Spec (App cond exp) exp}]
 
           -- If the LHS has already been saturated, evaluate it until value.
           otherwise -> if isVal (state {curr_expr = cond})
@@ -141,9 +141,9 @@ step state = case curr_expr state of
                           , path_cons = [(cond, Alt (DEFAULT, []), True)] ++
                                         path_cons state }]
               else let csts = step (state {curr_expr = cond})
-                   in [cst{curr_expr = Asst (curr_expr cst) exp} | cst <- csts]
+                   in [cst{curr_expr = Spec (curr_expr cst) exp} | cst <- csts]
       else let ests = step (state {curr_expr = exp})
-           in [est {curr_expr = Asst cond (curr_expr est)} | est <- ests]
+           in [est {curr_expr = Spec cond (curr_expr est)} | est <- ests]
 
   -- Const, Lam, DCon, Type, BAD
   _ -> [state]
