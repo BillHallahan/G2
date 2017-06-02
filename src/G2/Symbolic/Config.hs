@@ -16,7 +16,7 @@ lamArgs _ = []
 
 freshArgNames :: EEnv -> Name -> [(Name, Type)]
 freshArgNames eenv entry = zip arg_names arg_types
-  where entry_expr = batman (exprLookup entry eenv) "Entry not found."
+  where entry_expr = batman (lookupExpr entry eenv) "Entry not found."
         args = lamArgs entry_expr
         arg_names = map fst args
         arg_types = map snd args
@@ -33,7 +33,7 @@ freshArgNames eenv entry = zip arg_names arg_types
 --   entry point name, should it exist in the environment.
 mkSymLinks :: EEnv -> Name -> [(Name, Type)] -> (Expr, SymLinkTable)
 mkSymLinks eenv entry args = (curr_expr, sym_links)
-  where entry_expr = batman (exprLookup entry eenv) "Entry not found."
+  where entry_expr = batman (lookupExpr entry eenv) "Entry not found."
         entry_type = exprType entry_expr
         arg_names  = map fst args
         arg_types  = map snd args
