@@ -108,13 +108,13 @@ freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
 --   Given a list of seeds, generate a list of freshnames for them. We apply a
 --   fold operation in order to keep track of a "history".
 freshSeededNameList :: [Name] -> State -> [Name]
-freshSeededNameList seeds state = fst $ foldl freshAndBind ([], state) seeds
-  where freshAndBind :: ([Name], State) -> Name -> ([Name], State)
-        freshAndBind (acc, st) sd =
-            let sd'  = freshSeededName sd st
-                acc' = acc ++ [sd']
-                st'  = exprBind sd' BAD st  -- Conflict
-            in (acc', st')
+freshSeededNameList [] _ = []
+freshSeededNameList (n:ns) s =
+    let
+        n' = freshSeededName n s
+        s' = exprBind n' BAD s  -- Conflict
+    in
+    n':freshSeededNameList ns s'
 
 -- | Rename
 --   Rename all variables of form (Var n) with (Var n').

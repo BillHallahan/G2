@@ -38,7 +38,7 @@ import G2.SMT.Z3Types
 import G2.SMT.Z3
 import G2.SMT.Interface
 
-{-
+
 main = do
     (num:xs) <- getArgs
     let filepath:entry:xs' = xs
@@ -52,13 +52,16 @@ main = do
 
     let defun_init_state = defunctionalize init_state
 
+    putStrLn $ mkStateStr init_state
+    putStrLn $ mkStateStr defun_init_state
+
     let (states, n) = runN [defun_init_state] 250
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
-    putStrLn $ mkStatesStr states'
+    putStrLn $ mkStatesStr states
     putStrLn ("Number of execution states: " ++ (show (length states')))
-    -- --putStrLn "Compiles!\n\n"
+    --putStrLn "Compiles!\n\n"
     
     if num == "1" then
         mapM_ (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
@@ -87,25 +90,25 @@ main = do
                 else
                     print "Error"
             else return ()) states'
--}
 
-main = do
-    (filepath:prepost:entry:args) <- getArgs
-    putStrLn "Thank you for using G2! We appear to compile, but does it work?"
-    (filepath:prepost:entry:args) <- getArgs
-    raw_core <- mkRawCore filepath
 
-    let (rt_env, re_env) = mkG2Core raw_core
-    let tenv' = M.union rt_env (M.fromList prelude_t_decls)
-    let eenv' = M.insert "p1" BAD re_env-- re_env
-    let init_state = defunctionalize $ initState tenv' eenv' entry
-    let runs = 20
-    -- let (states, n) = runN [init_state] runs
-    let states = histN [init_state] runs
-    -- putStrLn $ show states
-    mapM (\(ss, n) -> do
-             putStrLn $ show (runs - n)
-             -- putStrLn $ (show $ length ss) ++ "\n")
-             mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
-         (init states)
+-- main = do
+--     (filepath:prepost:entry:args) <- getArgs
+--     putStrLn "Thank you for using G2! We appear to compile, but does it work?"
+--     (filepath:prepost:entry:args) <- getArgs
+--     raw_core <- mkRawCore filepath
+
+--     let (rt_env, re_env) = mkG2Core raw_core
+--     let tenv' = M.union rt_env (M.fromList prelude_t_decls)
+--     let eenv' = M.insert "p1" BAD re_env-- re_env
+--     let init_state = defunctionalize $ initState tenv' eenv' entry
+--     let runs = 20
+--     -- let (states, n) = runN [init_state] runs
+--     let states = histN [init_state] runs
+--     -- putStrLn $ show states
+--     mapM (\(ss, n) -> do
+--              putStrLn $ show (runs - n)
+--              -- putStrLn $ (show $ length ss) ++ "\n")
+--              mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
+--          (init states)
 

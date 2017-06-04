@@ -47,7 +47,7 @@ main :: IO ()
 main = do
     defaultMain =<< tests
 
-tests = return . testGroup "Tests"
+tests = return . testGroup "Samples"
                     =<< sequence [
                               checkExprReach  "tests/samples/IfTest.hs" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
