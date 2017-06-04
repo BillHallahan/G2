@@ -13,10 +13,11 @@ import G2.Core.Utils
 -- lambda expressions to be returned from evaluation.
 isVal :: State -> Bool
 isVal state = case curr_expr state of
-    Var n _ -> exprLookup n (expr_env state) == Nothing
+    Var n _ -> lookupExpr n (expr_env state) == Nothing
     App (Lam _ _ _) _ -> False
     App f a -> isVal (state {curr_expr = f}) && isVal (state {curr_expr = a})
     Case _ _ _ -> False
+    Spec _ _ -> False
     _ -> True
 
 -- | Stepper
@@ -24,14 +25,15 @@ isVal state = case curr_expr state of
 step :: State -> [State]
 step state = case curr_expr state of
   -- We treat unbounded free variables as symbolic during evaluation.
-  Var n t -> case exprLookup n (expr_env state) of
+  Var n t -> case lookupExpr n (expr_env state) of
       Nothing -> [state]
       Just ex -> [state {curr_expr = ex}]
 
   -- App-Lam expressions are a concrete example of function application.
-  App (Lam b lx t) ae -> let b' = freshSeededName b state
-                             lx_state = rename b b' (state {curr_expr = lx})
-                         in [exprBind b' ae lx_state]
+  App (Lam b lx t) ae ->
+      let b' = freshSeededName b state
+          lx_state = rename b b' (state {curr_expr = lx})
+      in [bindExpr b' ae lx_state]
 
   -- App-Cases are most likely not necessary and can be commented out.
   App (Case m as t) ae ->
@@ -49,10 +51,8 @@ step state = case curr_expr state of
   -- our fresh variable finder is overly aggressive, and so this is okay.
   App f a -> if isVal (state {curr_expr = f})
       then let asts = step (state {curr_expr = a})
-               shares = map (\s -> (curr_expr s,path_cons s,sym_links s)) asts
            in [ast {curr_expr = App f (curr_expr ast)} | ast <- asts]
       else let fsts = step (state {curr_expr = f})
-               shares = map (\s -> (curr_expr s,path_cons s,sym_links s)) fsts
            in [fst {curr_expr = App (curr_expr fst) a} | fst <- fsts]
 
   -- Case-Case conversions.
@@ -100,7 +100,7 @@ step state = case curr_expr state of
                                      path_cons state
                                a_st = renameList zp (state { curr_expr = aexp
                                                            , path_cons = pc' })
-                           in [exprBindList binds a_st]
+                           in [bindExprList binds a_st]
 
                       -- Structural matching failed.
                       else []
@@ -125,6 +125,25 @@ step state = case curr_expr state of
           then (concatMap doNondef nondefs) ++ (concatMap (doDef nondefs) defs)
           else let msts = step (state {curr_expr = m})
                in [mst {curr_expr = Case (curr_expr mst) as t} | mst <- msts]
+
+
+  -- Assertions have two flavors: Either the LHS that denotes the predicate has
+  -- been applied, or it is not, and still a lambda. We consider the latter.
+  Spec cond exp -> if isVal (state {curr_expr = exp})
+      then case cond of
+          -- If the LHS is a Lam, then we apply it, and later on continue left
+          -- derivation of the expression until it hits a value term.
+          Lam b c t -> [state {curr_expr = Spec (App cond exp) exp}]
+
+          -- If the LHS has already been saturated, evaluate it until value.
+          otherwise -> if isVal (state {curr_expr = cond})
+              then [state { curr_expr = exp
+                          , path_cons = [(cond, Alt (DEFAULT, []), True)] ++
+                                        path_cons state }]
+              else let csts = step (state {curr_expr = cond})
+                   in [cst{curr_expr = Spec (curr_expr cst) exp} | cst <- csts]
+      else let ests = step (state {curr_expr = exp})
+           in [est {curr_expr = Spec cond (curr_expr est)} | est <- ests]
 
   -- Const, Lam, DCon, Type, BAD
   _ -> [state]

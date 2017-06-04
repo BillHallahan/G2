@@ -52,10 +52,10 @@ data Interp = StdInterp | UnInterp deriving (Show, Eq)
 --     Const -- Constants, such as Int#, +#, and others.
 --     Lam   -- Lambda functions. Its type is a TyFun.
 --     App   -- Expression (function) application.
---     DCon  -- Data constructors.
+--     Data  -- Data constructors.
 --     Case  -- Case expressions. Type denotes the type of its Alts.
 --     Type  -- A type expression. Unfortuantely we do need this.
---     Asst  -- Assert. The LHS asserts a condition for the RHS.
+--     Spec  -- Assert. The LHS asserts a condition for the RHS.
 --     BAD   -- Error / filler expression.
 data Expr = Var Name Type
           | Const Const
@@ -64,7 +64,7 @@ data Expr = Var Name Type
           | Data DataCon
           | Case Expr [(Alt, Expr)] Type
           | Type Type
-          | Asst Expr Expr
+          | Spec Expr Expr
           | BAD
           deriving (Show, Eq)
 
