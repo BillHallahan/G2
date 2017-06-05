@@ -129,9 +129,7 @@ rename old new state = case curr_expr state of
           then let b' = freshSeededName b state  -- b' /= new
                    state' = rename b b' (state {curr_expr = e})
                    e' = curr_expr state'
-                   sym_links' = sym_links state'
-               in rename old new (state' { curr_expr = Lam b' e' t
-                                         , sym_links = sym_links' })
+               in rename old new (state' {curr_expr = Lam b' e' t})
           -- Can safely proceed!
           else let state' = rename old new (state {curr_expr = e})
                in state' {curr_expr = Lam b (curr_expr state') t}
