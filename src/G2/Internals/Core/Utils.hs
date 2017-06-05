@@ -74,6 +74,7 @@ allNames state = L.nub (tenvs ++ eenvs ++ cexps ++ pcs ++ slts ++ fints)
         exs (Var n t) = [n] ++ tys t
         exs (Const (COp n t)) = [n] ++ tys t
         exs (Lam b e t) = [b] ++ exs e ++ tys t
+        exs (Let bs e) = (concatMap (\(n, e) -> [n] ++ exs e) bs) ++ exs e
         exs (App f a) = exs f ++ exs a
         exs (Data dc) = dcs dc
         exs (Case m as t) = exs m ++ concatMap altxs as ++ tys t
@@ -113,34 +114,90 @@ freshSeededNameList (n:ns) s = n':freshSeededNameList ns s'
 rename :: Name -> Name -> State -> State
 rename old new state = case curr_expr state of
   -- If it matches, we update, and add an entry to the symbolic link table.
-  Var n t -> let sym_links' = M.insert new (old,t,Nothing) (sym_links state) 
-             in if n == old
-               then state { curr_expr = Var new t, sym_links = sym_links'}
-               else state
+  Var n t ->
+      let sym_links' = M.insert new (old,t,Nothing) (sym_links state) 
+      in if n == old
+          then state { curr_expr = Var new t, sym_links = sym_links' }
+          else state
 
   -- Must check for cases where the lambda's binder might be old or new.
   Lam b e t -> if old == b
-                 -- We are unable to continue due to variable shadowing.
-                 then state
-                 else if new == b
-                   -- We must change the binder to something else.
-                   then let b' = freshSeededName b state  -- b' /= new
-                            state' = rename b b' (state {curr_expr = e})
-                            e' = curr_expr state'
-                            sym_links' = sym_links state'
-                        in rename old new (state' { curr_expr = Lam b' e' t
-                                                  , sym_links = sym_links' })
-                   -- Can safely proceed!
-                   else let state' = rename old new (state {curr_expr = e})
-                        in state { curr_expr = Lam b (curr_expr state') t
-                                 , sym_links = sym_links state' }
+      -- We are unable to continue due to variable shadowing.
+      then state
+      else if new == b
+          -- We must change the binder to something else.
+          then let b' = freshSeededName b state  -- b' /= new
+                   state' = rename b b' (state {curr_expr = e})
+                   e' = curr_expr state'
+                   sym_links' = sym_links state'
+               in rename old new (state' { curr_expr = Lam b' e' t
+                                         , sym_links = sym_links' })
+          -- Can safely proceed!
+          else let state' = rename old new (state {curr_expr = e})
+               in state' {curr_expr = Lam b (curr_expr state') t}
+
+  -- Let expressions. A huge mess apparently.
+  Let bs e ->
+      let b_lhs = map fst bs
+          b_rhs = map snd bs
+          -- When we bind let statements, we have to be aware of potentially
+          -- changing symbolic link tables, which is why we fold over states
+          -- in order to ensure disjointness when renaming. Only call if old
+          -- and new both do not appear in lhs! Super important!! >:(
+          rawFoldFunRHS :: [(Name, State)] -> (Name, Expr) -> [(Name, State)]
+          rawFoldFunRHS acc (n, bexp) =
+              let acc_alls = map fst acc ++ (concatMap allNames (map snd acc))
+                  c_env = M.fromList $ zip acc_alls (repeat BAD)
+                  b_st = state { expr_env = M.union (expr_env state) c_env
+                               , curr_expr = bexp }
+              in acc ++ [(n, rename old new b_st)]
+          -- Go through the binds and rename them directly. Again, need to keep
+          -- track of SLTs. This goes in a super fold. Fuck fuck fuck.
+          -- I am so sorry, Simon Peyton Jones.
+          rawRenameBinds :: [((Name, Name, Name), State)] ->
+                            ((Name, Name, Name), Expr) ->
+                            [((Name, Name, Name), State)]
+          rawRenameBinds acc ((old', new', key), rhs) =
+              let acc_alls = concatMap (\((a,b,c),s) -> [a,b,c] ++
+                                                        allNames s) acc
+                  c_env = M.fromList $ zip acc_alls (repeat BAD)
+                  b_st = state { expr_env = M.union (expr_env state) c_env
+                               , curr_expr = rhs }
+              in if key == old'
+                  then acc ++ [((old', new', old'), rename old' new' b_st)]
+                  else acc ++ [((old', new', key), rename old' new' b_st)]
+          -- Can only safely join them if their new entries are disjoint!!
+          joinSLTs :: [SymLinkTable] -> SymLinkTable
+          joinSLTs slts = foldl M.union M.empty slts
+      in if old `elem` b_lhs
+          then state
+          else if new `elem` b_lhs
+              then let new' = freshSeededName new state
+                       e_state = rename new new' (state {curr_expr = e})
+                       b_sts = tail $ foldl rawRenameBinds
+                                            [((new, new', "_"), e_state)]
+                                            (map (\(n,e)->((new,new',n),e)) bs)
+                       slts = joinSLTs $ [sym_links e_state] ++
+                                         map (\((a,b,c),s)->sym_links s) b_sts
+                       b_norm = map (\((a, b, n), s) -> (n, curr_expr s)) b_sts
+                   in rename old new
+                            (state { curr_expr = Let b_norm (curr_expr e_state)
+                                   , sym_links = slts })
+              else let e_state = rename old new (state {curr_expr = e})
+                       b_sts = tail $ foldl rawFoldFunRHS [("_", e_state)] bs
+                       slts = joinSLTs $ [sym_links e_state] ++
+                                         map (sym_links . snd) b_sts
+                       b_norm = map (\(n, s) -> (n, curr_expr s)) b_sts
+                   in state { curr_expr = Let b_norm (curr_expr e_state)
+                            , sym_links = slts }
 
   -- This is more straightforward than Lam. Branch and union the sym links.
-  App f a -> let state_f = rename old new (state {curr_expr = f})
-                 state_a = rename old new (state_f {curr_expr = a})
-                 f' = curr_expr state_f
-                 a' = curr_expr state_a
-             in state_a {curr_expr = App f' a'}
+  App f a ->
+      let state_f = rename old new (state {curr_expr = f})
+          state_a = rename old new (state_f {curr_expr = a})
+          f' = curr_expr state_f
+          a' = curr_expr state_a
+      in state_a {curr_expr = App f' a'}
 
   -- Hooooly fuck this is complicated.
   Case m as t ->
@@ -189,11 +246,12 @@ rename old new state = case curr_expr state of
                , sym_links = slts }
 
   -- Rename the LHS, then RHS. Similar to App.
-  Spec cond exp -> let state_c = rename old new (state {curr_expr = cond})
-                       state_e = rename old new (state_c {curr_expr = exp})
-                       cond' = curr_expr state_c
-                       exp'  = curr_expr state_e
-                  in state_e {curr_expr = Spec cond' exp'}
+  Spec cond exp ->
+      let state_c = rename old new (state {curr_expr = cond})
+          state_e = rename old new (state_c {curr_expr = exp})
+          cond' = curr_expr state_c
+          exp'  = curr_expr state_e
+      in state_e {curr_expr = Spec cond' exp'}
 
   -- Everything else.
   _ -> state
