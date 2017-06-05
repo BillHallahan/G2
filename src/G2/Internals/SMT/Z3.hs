@@ -4,18 +4,18 @@
 --This is mostly pretty straightforward, just requires care to make sure types/dfunctions don't get mixed up...
 --Always check for existence of a Var in both environements!
 
-module G2.SMT.Z3 ( printModel
-                 , modelToIOString
-                 , reachabilitySolverZ3
-                 , reachabilityAndOutputSolverZ3
-                 , outputSolverZ3) where
+module G2.Internals.SMT.Z3 ( printModel
+                           , modelToIOString
+                           , reachabilitySolverZ3
+                           , reachabilityAndOutputSolverZ3
+                           , outputSolverZ3) where
 
 import G2.Lib.CoreManipulator as Man
-import G2.Core.Language
-import G2.Symbolic.Engine
+import G2.Internals.Core.Language
+import G2.Internals.Symbolic.Engine
 import qualified G2.Lib.Deprecated.Utils as Utils
-import G2.Haskell.Prelude
-import G2.SMT.Z3Types
+import G2.Internals.Translation.Prelude
+import G2.Internals.SMT.Z3Types
 
 import Control.Monad
 

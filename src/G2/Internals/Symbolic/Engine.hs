@@ -1,12 +1,12 @@
 -- | Engine
 --   The symbolic execution engine. Many hours were spent on improving this.
-module G2.Symbolic.Engine where
+module G2.Internals.Symbolic.Engine where
 
 import qualified Data.List as L
 import qualified Data.Map  as M
 
-import G2.Core.Language
-import G2.Core.Utils
+import G2.Internals.Core.Language
+import G2.Internals.Core.Utils
 
 -- We return values from evaluations. A value is defined as something that a
 -- program may return from running. The only oddity here may be that we allow

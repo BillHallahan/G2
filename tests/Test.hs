@@ -5,20 +5,20 @@ import Test.Tasty.HUnit
 
 import GHC
 
-import G2.Preprocessing.Defunctionalizor
-import G2.Core.Language
+import G2.Internals.Preprocessing.Defunctionalizor
+import G2.Internals.Core.Language
 
-import G2.Symbolic.Config
+import G2.Internals.Symbolic.Config
 
 -- import G2.Core.Evaluator
 -- import G2.Core.Utils
 
 import G2.Lib.Deprecated.Utils
 
-import G2.Haskell.Prelude
-import G2.Haskell.Translator
+import G2.Internals.Translation.Prelude
+import G2.Internals.Translation.Haskell
 
-import G2.SMT.Z3
+import G2.Internals.SMT.Z3
 
 import Data.List
 import qualified Data.Map  as M

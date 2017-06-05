@@ -19,24 +19,19 @@ import G2.Lib.Utils
 import G2.Lib.Deprecated.Utils
 import G2.Lib.Printers
 
-import G2.Core.Language
-import G2.Core.Utils
+import G2.Internals.Core.Language
+import G2.Internals.Core.Utils
 
-import G2.Haskell.Translator
-import G2.Haskell.Prelude
--- import G2.Translation.Haskell
-import G2.Translation.Interface
+import G2.Internals.Translation.Haskell
+import G2.Internals.Translation.Prelude
 
-import G2.Preprocessing.Defunctionalizor
-import G2.Preprocessing.Interface
+import G2.Internals.Preprocessing.Defunctionalizor
 
-import G2.Symbolic.Engine
-import G2.Symbolic.Config
-import G2.Symbolic.Interface
+import G2.Internals.Symbolic.Engine
+import G2.Internals.Symbolic.Config
 
-import G2.SMT.Z3Types
-import G2.SMT.Z3
-import G2.SMT.Interface
+import G2.Internals.SMT.Z3Types
+import G2.Internals.SMT.Z3
 
 
 main = do

@@ -1,7 +1,7 @@
 -- | Language
 --   Provides the language definition of G2. Should not be confused with Core
 --   Haskell, although design imitates Core Haskell closely.
-module G2.Core.Language where
+module G2.Internals.Core.Language where
 
 import qualified Data.Map as M
 
@@ -60,6 +60,7 @@ data Interp = StdInterp | UnInterp deriving (Show, Eq)
 data Expr = Var Name Type
           | Const Const
           | Lam Name Expr Type
+          | Let [(Name, Expr)] Expr
           | App Expr Expr
           | Data DataCon
           | Case Expr [(Alt, Expr)] Type

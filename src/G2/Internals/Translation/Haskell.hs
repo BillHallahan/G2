@@ -1,4 +1,4 @@
-module G2.Haskell.Translator where
+module G2.Internals.Translation.Haskell where
 
 import ConLike
 import CoreMonad
@@ -21,8 +21,8 @@ import TypeRep
 import Var
 
 import G2.Lib.CoreManipulator
-import qualified G2.Core.Language as G2
-import qualified G2.Haskell.Prelude as P
+import qualified G2.Internals.Core.Language as G2
+import qualified G2.Internals.Translation.Prelude as P
 import G2.Lib.Deprecated.Utils
 
 import qualified Data.Map as M

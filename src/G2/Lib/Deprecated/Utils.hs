@@ -3,7 +3,7 @@
 module G2.Lib.Deprecated.Utils where
 
 import G2.Lib.CoreManipulator
-import G2.Core.Language
+import G2.Internals.Core.Language
 
 import Data.Char
 import qualified Data.List as L

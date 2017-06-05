@@ -5,7 +5,7 @@
 
 module G2.Lib.CoreManipulator where
 
-import G2.Core.Language
+import G2.Internals.Core.Language
 
 import qualified Data.Map as M
 import qualified Data.Monoid as Mon

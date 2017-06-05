@@ -9,13 +9,13 @@
 --   In general, transformations and mutations are defined as operations such
 --   as environment binding, and renaming, which produce an altered version of
 --   one of the inputs that was passed in.
-module G2.Core.Utils where
+module G2.Internals.Core.Utils where
 
 import qualified Data.Char as C
 import qualified Data.List as L
 import qualified Data.Map  as M
 
-import G2.Core.Language
+import G2.Internals.Core.Language
 
 -- | Expression Lookup
 --   Did we find???
@@ -104,12 +104,9 @@ freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
 --   fold operation in order to keep track of a "history".
 freshSeededNameList :: [Name] -> State -> [Name]
 freshSeededNameList [] _ = []
-freshSeededNameList (n:ns) s =
-    let
-        n' = freshSeededName n s
+freshSeededNameList (n:ns) s = n':freshSeededNameList ns s'
+  where n' = freshSeededName n s
         s' = bindExpr n' BAD s  -- Conflict
-    in
-    n':freshSeededNameList ns s'
 
 -- | Rename
 --   Rename all variables of form (Var n) with (Var n').
