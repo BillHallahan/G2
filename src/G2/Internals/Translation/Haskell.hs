@@ -20,10 +20,10 @@ import Type
 import TypeRep
 import Var
 
-import G2.Lib.CoreManipulator
+import G2.Internals.Core.CoreManipulator
 import qualified G2.Internals.Core.Language as G2
+import qualified G2.Internals.Core.Utils as G2CU
 import qualified G2.Internals.Translation.Prelude as P
-import G2.Lib.Deprecated.Utils
 
 import qualified Data.Map as M
 
@@ -120,7 +120,7 @@ mkExpr (Var id)  = G2.Var (mkName $ Var.varName id) (mkType $ varType id)
 mkExpr (Lit lit) = G2.Const (mkLit lit)
 mkExpr (App f a) = G2.App (mkExpr f) (mkExpr a)
 mkExpr l@(Lam b e) = let ge = mkExpr e
-                         et = typeOf ge
+                         et = G2CU.exprType ge
                          an = mkName $ Var.varName b
                    in G2.Lam an ge (mkType . CU.exprType $ l)
 {-

@@ -16,7 +16,6 @@ import Z3.Monad
 
 
 import G2.Lib.Utils
-import G2.Lib.Deprecated.Utils
 import G2.Lib.Printers
 
 import G2.Internals.Core.Language

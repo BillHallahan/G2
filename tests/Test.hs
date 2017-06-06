@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Main where
 
 import Test.Tasty
@@ -6,14 +8,11 @@ import Test.Tasty.HUnit
 import GHC
 
 import G2.Internals.Preprocessing.Defunctionalizor
-import G2.Internals.Core.Language
+import G2.Internals.Core.Language as G2
+import G2.Internals.Core.CoreManipulator as CM
+import G2.Internals.Core.Utils as G2U
 
 import G2.Internals.Symbolic.Config
-
--- import G2.Core.Evaluator
--- import G2.Core.Utils
-
-import G2.Lib.Deprecated.Utils
 
 import G2.Internals.Translation.Prelude
 import G2.Internals.Translation.Haskell
@@ -23,6 +22,7 @@ import G2.Internals.SMT.Z3
 import Data.List
 import qualified Data.Map  as M
 import Data.Maybe
+import qualified Data.Monoid as Mon
 
 import Z3.Monad
 
@@ -154,3 +154,45 @@ testFilePrePost filepath prepost entry = do
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
+
+
+-- Dump from DeprensFunctions :: (Manipulatable Type m) => m -> Bool
+containsFunctions :: (Manipulatable G2.Type m) => m -> Bool
+containsFunctions = Mon.getAny . CM.eval (Mon.Any .  containsFunctions')
+    where
+        containsFunctions' :: G2.Type -> Bool
+        containsFunctions' (G2.TyFun _ _) = True
+        containsFunctions' _ = False
+
+--Contains functions that are not just type constructors
+containsNonConsFunctions :: (Manipulatable Expr m) => TEnv -> m -> Bool
+containsNonConsFunctions tenv = Mon.getAny . CM.eval (Mon.Any . containsFunctions' tenv)
+    where
+        containsFunctions' :: TEnv -> Expr -> Bool
+        containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv) && n `notElem` handledFunctions
+        containsFunctions' _ _ = False
+
+        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "&&", "||"]
+
+--Switches every occurence of a Var in the Func SLT from datatype to function
+replaceFuncSLT :: Manipulatable Expr m => State -> m -> m
+replaceFuncSLT s e = modify replaceFuncSLT' e
+    where
+        replaceFuncSLT' :: Expr -> Expr
+        replaceFuncSLT' v@(Var n t) =
+            let
+                n' = M.lookup n (func_interps s)
+            in
+            case n' of
+                    Just (n'', _) -> Var n'' (case functionType s n'' of
+                                                Just t -> t
+                                                Nothing -> TyBottom)
+                    Nothing -> v
+        replaceFuncSLT' e = e
+
+constructors :: TEnv -> [G2.Name]
+constructors = evalDataConType (\(DataCon n _ _ _) -> [n])
+
+functionType :: State -> G2.Name -> Maybe G2.Type
+functionType s n = G2U.exprType <$> M.lookup n (expr_env s)
+

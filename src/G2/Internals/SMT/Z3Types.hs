@@ -1,11 +1,13 @@
 module G2.Internals.SMT.Z3Types where
 
 import G2.Internals.Core.Language
-import G2.Lib.Deprecated.Utils
+import G2.Internals.Core.Utils
 import G2.Internals.Translation.Prelude
 
 import Data.List
 import qualified Data.Map as M
+import qualified Data.List as L
+import qualified Data.Char as C
 import Data.Maybe
 import qualified Data.Set as S
 
@@ -123,3 +125,15 @@ sortZ3 tm t@(TyConApp n _) =
     case r of (Just r') -> return r'
               Nothing -> error ("Unknown sort in sortZ3 " ++ show t)
 sortZ3 _ t = error ("Unknown sort in sortZ3 " ++ show t)
+
+numFresh :: Name -> Int -> [Name] -> [Name]
+numFresh _ 0 _ = []
+numFresh n i ns = let f = fresh n ns in f:numFresh n (i - 1) (f:ns) 
+
+fresh :: Name -> [Name] -> Name
+fresh n bads = let maxnum = L.maximum $ 0:(map getnum bads)
+               in filter (not . C.isDigit) n ++ show (maxnum + 1)
+  where getnum str = let raw = filter C.isDigit str
+                     in case raw of
+                         [] -> 0
+                         xs -> read xs :: Integer

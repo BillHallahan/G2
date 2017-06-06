@@ -7,7 +7,7 @@ import Data.Maybe
 import G2.Internals.Core.Language
 import G2.Internals.Core.Utils
 
-import G2.Lib.CoreManipulator
+import G2.Internals.Core.CoreManipulator
 
 import qualified Debug.Trace as T
 

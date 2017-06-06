@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 
-module G2.Lib.CoreManipulator where
+module G2.Internals.Core.CoreManipulator where
 
 import G2.Internals.Core.Language
 

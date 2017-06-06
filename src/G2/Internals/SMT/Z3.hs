@@ -10,10 +10,10 @@ module G2.Internals.SMT.Z3 ( printModel
                            , reachabilityAndOutputSolverZ3
                            , outputSolverZ3) where
 
-import G2.Lib.CoreManipulator as Man
+import G2.Internals.Core.CoreManipulator as Man
 import G2.Internals.Core.Language
+import G2.Internals.Core.Utils
 import G2.Internals.Symbolic.Engine
-import qualified G2.Lib.Deprecated.Utils as Utils
 import G2.Internals.Translation.Prelude
 import G2.Internals.SMT.Z3Types
 
@@ -71,7 +71,7 @@ reachabilityAndOutputSolverZ3 s@State {type_env = tv, curr_expr = curr_expr, pat
 
     curr_exprSMT <- exprZ3 dtMap M.empty curr_expr
     resSymb <- mkStringSymbol "_____result____"
-    resVar <- mkVar resSymb =<< sortZ3 dtMap (Utils.tyfunReturnType . Utils.typeOf $ curr_expr)
+    resVar <- mkVar resSymb =<< sortZ3 dtMap (tyfunReturnType . exprType $ curr_expr)
 
     assert =<< mkEq resVar curr_exprSMT
 
@@ -82,7 +82,7 @@ reachabilityAndOutputSolverZ3 s@State {type_env = tv, curr_expr = curr_expr, pat
     (inExpr, res) <- case m of 
                     Just m' -> do
                         mte <- modelToExpr dtMap m' s
-                        me <- modelToExpr' dtMap  m' s ("_____result____", ("", Utils.tyfunReturnType . Utils.typeOf $ curr_expr, Nothing))
+                        me <- modelToExpr' dtMap  m' s ("_____result____", ("", tyfunReturnType . exprType $ curr_expr, Nothing))
                         return (mte, me)
                     Nothing -> return ([], Nothing)
     return (r, inExpr, res)
@@ -186,13 +186,13 @@ handleExprEnv d State {expr_env = eexpr, curr_expr = curr_expr, path_cons = path
         handleExprEnv' :: TypeMaps -> EEnv -> Expr -> Mon Z3 ()
         handleExprEnv' d eenv (Var n t) =
             case M.lookup n eenv of
-                Just e -> if length (fst . Utils.unlam $ e) > 0 then Mon . createxpr_envFunc d n t $ e else return ()
+                Just e -> if length (fst . unlam $ e) > 0 then Mon . createxpr_envFunc d n t $ e else return ()
                 Nothing -> return ()
         handleExprEnv' _ _ _ = return ()
 
         createxpr_envFunc :: TypeMaps -> Name -> Type -> Expr -> Z3 ()
         createxpr_envFunc d n t e = do
-            let (nt, e') = Utils.unlam e
+            let (nt, e') = unlam e
             
             n' <- mapM (mkStringSymbol . fst) nt
             t' <- mapM (sortZ3 d . snd) nt
@@ -219,8 +219,8 @@ exprZ3 d m (Var v t)
 exprZ3 _ _ (Const c) = constZ3 c
 exprZ3 d m a@(App _ _) =
     let
-        func = fromJust . Utils.getAppFunc $ a
-        args = Utils.getAppArgs a
+        func = fromJust . getAppFunc $ a
+        args = getAppArgList a
     in
     handleFunctionsZ3 d m func args
 exprZ3 d m c@(Case e ae t) = do
@@ -340,7 +340,7 @@ handleFunctionsZ3 tm m (Var n t1) e = do
     mkApp f e'
 handleFunctionsZ3 d m (Lam n e t) [e'] = do
     n' <- mkStringSymbol n
-    t' <- sortZ3 d . Utils.ithArgType t $ 1
+    t' <- sortZ3 d . ithArgType t $ 1
     v <- mkVar n' t'
     e'' <- exprZ3 d m e'
     --Possibly patterns could speed this up?
@@ -402,3 +402,57 @@ altZ3 tm m (Alt (DataCon x _ (TyConApp n _) ts, ns)) = do
             f' <- getDeclName f
             return (n' == f')
 altZ3 _ _ e = error ("Case of " ++ show e ++ " not handled in altZ3.")
+
+
+tyfunReturnType :: Type -> Type
+tyfunReturnType (TyApp _ t) = tyfunReturnType t
+tyfunReturnType (TyFun _ t) = tyfunReturnType t
+tyfunReturnType t = t
+
+
+unlam :: Expr -> ([(Name, Type)], Expr)
+unlam (Lam a e t) = let (p, e')   = unlam e
+                        TyFun l r = t
+                    in ((a, l):p, e')
+unlam e   = ([], e)
+
+--Given an app, gets all arguments passed to the function nested in that app as a list.
+--If not an app, returns an empty list
+getAppArgList :: Expr -> [Expr]
+getAppArgList a = reverse . getAppArgList' $ a
+    where
+        getAppArgList' (App a'@(App _ _) a) = a:getAppArgList' a'
+        getAppArgList' (App _ a) = [a]
+        getAppArgList' _ = []
+
+--Given an app, returns Just the bottomost, leftist contained function
+--Otherwise, returns Nothing
+getAppFunc :: Expr -> Maybe Expr
+getAppFunc (App a@(App _ _) _) = getAppFunc a
+getAppFunc (App a _) = Just a
+getAppFunc _ = Nothing
+
+--Given a function name, Expr, and an argument number, i, returns a list of the
+--Expr passed into the ith argument
+--(This is not the most efficient implementation...
+--should search down, then move up, not search down repeatedly from each Expr.
+--Not a top concern right now)
+findIthArg :: (Manipulatable Expr m) => Name -> m -> Int -> [Expr]
+findIthArg n e i = Man.eval (ithArg' n i) e
+    where
+        ithArg' :: Name -> Int -> Expr -> [Expr]
+        ithArg' n i (App e e') =  if varIDown n i e then [e'] else []
+        ithArg' _ _ _ = []
+
+        varIDown :: Name -> Int -> Expr -> Bool
+        varIDown n 0 (Var n' _) = n == n'
+        varIDown n i (App e e') = varIDown n (i - 1) e
+        varIDown _ _ _ = False
+
+
+--Given a TyFun, returns the ith argument
+--If not ith argument, or not a TyFun, errors
+ithArgType :: Type -> Int -> Type
+ithArgType (TyFun t _) 1 = t
+ithArgType (TyFun _ t) n = ithArgType t (n - 1) 
+ithArgType t i = error ("Type " ++ show t ++ " passed to TyFun")
