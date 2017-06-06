@@ -9,6 +9,8 @@ import G2.Internals.Core.Utils
 
 import G2.Lib.CoreManipulator
 
+import qualified Debug.Trace as T
+
 {-Defunctionalizor
 
 We need to eliminate higher order functions to
@@ -21,6 +23,9 @@ In short, each call to a higher order functions (a -> b) -> c is identified.
 For each a, b pair, a new datatype A_B, and fresh function,
 apply_a_b :: A_B -> a -> b, is created.
 -}
+
+type FuncName = Name
+type ApplyTypeName = Name
 
 defunctionalize :: State -> State
 defunctionalize s =
@@ -51,7 +56,7 @@ useApplyType s (t@(TyFun _ _)) =
 
         --function
         applyFuncName = freshSeededName "applyFunc" s
-        applyFunc = createFunc args applyTypeName namesToFuncs s
+        applyFunc = createApplyFunc args applyTypeName namesToFuncs s
         applyFuncType = TyFun applyTypeCon t
 
         --adjustment
@@ -67,7 +72,7 @@ useApplyType s (t@(TyFun _ _)) =
                                                     Var n t -> Just (a, (n, StdInterp))
                                                     otherwise -> Nothing) $ namesToFuncs
 
-        s' = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncType applyFuncName e a) s higherNameExprArgs
+        s' = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) s higherNameExprArgs
 
         s'' = modify (applyTypeReplace t applyTypeCon) (s' {curr_expr = newCurr_expr})
 
@@ -78,77 +83,58 @@ useApplyType s (t@(TyFun _ _)) =
         , func_interps = M.union newFuncs_interps (func_interps s'')
     }
     where
-        --This creates the apply function
-        createFunc :: [Type] -> Name -> [(Name, Expr)] -> State -> Expr
-        createFunc ts applyTypeName namesToFuncs s =
-            let
-                ret_type = head . reverse $ ts
-
-                new_names = freshSeededNameList (repeat "apply_match") s
-                apply_arg = freshSeededName "apply_" s
-                args = freshSeededNameList (replicate (length ts - 1) "i") s
-                args_vars = map (\(a, t) -> Var a t) (zip args ts)
-
-                case_expr = Var apply_arg (TyConApp applyTypeName [])
-                case_matches = map (\((n, e), new) ->
-                                (Alt ((DataCon n (-1) (TyConApp applyTypeName []) []), [new])
-                                    , foldr (\i' e' -> App e' i') e args_vars))
-                                (zip namesToFuncs new_names)
-                case_final = Case case_expr case_matches ret_type
-
-                arg_lams = foldr (\(a, t) e -> Lam a e (TyFun t (exprType e))) case_final (zip args ts)
-            in
-            Lam apply_arg arg_lams (TyFun (TyConApp applyTypeName []) (exprType arg_lams))
-
         argList :: Type -> [Type]
         argList (TyFun t t') = t:argList t'
         argList t = [t]
 
-        updateArgRefs :: Name -> Type -> Type -> Type -> Name -> Expr -> [(Name, Type)] -> State -> State
-        updateArgRefs n t t' ft fn e ns s =
+        updateArgRefs :: FuncName -> Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> State -> State
+        updateArgRefs n t t' fn e ns s =
             let
-                e' = updateArgRefs' t t' ft fn e ns
-                newExpr_env = M.insert n e' (expr_env s)
+                e' = updateArgRefs' t t' fn e ns
             in
-            s {expr_env = newExpr_env}
+            s {expr_env = M.insert n e' (expr_env s)}
 
-        updateArgRefs' :: Type -> Type -> Type -> Name -> Expr -> [(Name, Type)] -> Expr
-        updateArgRefs' _ _ _ _ e [] = e
-        updateArgRefs' t at ft fn e ((n, t'):ns) =
+        updateArgRefs' :: Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> Expr
+        updateArgRefs' _ _ _ e [] = e
+        updateArgRefs' t at fn e ((n, t'):ns) =
             let
-                e' = fstAppReplace ft fn (Var n t') e
-                e'' = sndAppReplace (Var n t') (Var n at) e'
+                funcType = TyFun at t
+
+                e' = fstAppReplace funcType fn n t' e
+                e'' = sndAppReplace n t' at e'
             in
-            if t == t' then updateArgRefs' t at ft fn e'' ns else updateArgRefs' t at ft fn e ns
+            if t == t' then updateArgRefs' t at fn e'' ns else updateArgRefs' t at fn e ns
 
         -- This adjusts for when the function with the given name is in the first position in an app
         -- This means that the function is being called
-        fstAppReplace :: Type -> Name -> Expr -> Expr -> Expr
-        fstAppReplace tn fn eOld (Lam n e t) = Lam n (fstAppReplace tn fn eOld e) t
-        fstAppReplace tn fn eOld (App e e') =
-            if e == eOld then
-                App (fstAppReplace tn fn eOld (App (Var fn tn) e)) (fstAppReplace tn fn eOld e')
+        -- We change the call to the function, to a call to the apply function, and pass in the correct constructor
+        fstAppReplace :: Type -> FuncName -> FuncName -> Type -> Expr -> Expr
+        fstAppReplace tn fn n t (Lam n' e t') = Lam n' (fstAppReplace tn fn n t e) t'
+        fstAppReplace tn fn n t (App e e') =
+            if e == Var n t then
+                App (fstAppReplace tn fn n t (App (Var fn tn) e)) (fstAppReplace tn fn n t e')
             else
-                App (fstAppReplace tn fn eOld e) (fstAppReplace tn fn eOld e')
-        fstAppReplace tn fn eOld (Case e ae t) =
-            Case (fstAppReplace tn fn eOld e) (map (\(a, e) -> (a, fstAppReplace tn fn eOld e)) ae) t
-        fstAppReplace _ _ _ e = e
+                App (fstAppReplace tn fn n t e) (fstAppReplace tn fn n t e')
+        fstAppReplace tn fn n t (Case e ae t') =
+            Case (fstAppReplace tn fn n t e) (map (\(a, e) -> (a, fstAppReplace tn fn n t e)) ae) t'
+        fstAppReplace _ _ _ _ e = e
 
         -- This adjusts for when the function with the given name is in the second position in an app
         -- This means that the function is being passed
-        sndAppReplace :: Expr -> Expr -> Expr -> Expr
-        sndAppReplace eOld eNew (Lam n e t) = Lam n (sndAppReplace eOld eNew e) t
-        sndAppReplace eOld eNew a@(App e e') =
-            if e' == eOld then
-                App (sndAppReplace eOld eNew e) (sndAppReplace eOld eNew eNew )
+        -- It simply swaps the type of the function, from a function type to an applytype
+        sndAppReplace :: FuncName -> Type -> Type -> Expr -> Expr
+        sndAppReplace n t at (Lam n' e t') = Lam n' (sndAppReplace n t at e) t'
+        sndAppReplace n t at a@(App e e') =
+            if e' == Var n t then
+                App (sndAppReplace n t at e) (sndAppReplace n t at (Var n at))
             else
-                App (sndAppReplace eOld eNew e) (sndAppReplace eOld eNew e')
-        sndAppReplace eOld eNew (Case e ae t) =
-            Case (sndAppReplace eOld eNew e) (map (\(a, e) -> (a, sndAppReplace eOld eNew e)) ae) t
-        sndAppReplace _ _ e = e
+                App (sndAppReplace n t at e) (sndAppReplace n t at e')
+        sndAppReplace n t at (Case e ae t') =
+            Case (sndAppReplace n t at e) (map (\(a, e) -> (a, sndAppReplace n t at e)) ae) t'
+        sndAppReplace _ _ _ e = e
 
         -- Gets the names of all functions in the symbolic link table, that are of the given type
-        funcsInSymLink :: Type -> SymLinkTable -> [Name]
+        funcsInSymLink :: Type -> SymLinkTable -> [FuncName]
         funcsInSymLink t = M.keys . M.filter (\(_, t', _) -> t == t')
 
         -- In the symbolic link table, changes all Types rt to Type at
@@ -156,6 +142,28 @@ useApplyType s (t@(TyFun _ _)) =
         adjustSymLinks rt at = M.map (\(n, t, i) -> (n, if t == rt then at else t, i))
 
 useApplyType _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
+
+--Creates the apply function
+createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> State -> Expr
+createApplyFunc ts applyTypeName namesToFuncs s =
+    let
+        ret_type = head . reverse $ ts
+
+        new_names = freshSeededNameList (repeat "apply_match") s
+        apply_arg = freshSeededName "apply_" s
+        args = freshSeededNameList (replicate (length ts - 1) "i") s
+        args_vars = map (\(a, t) -> Var a t) (zip args ts)
+
+        case_expr = Var apply_arg (TyConApp applyTypeName [])
+        case_matches = map (\((n, e), new) ->
+                        (Alt ((DataCon n (-1) (TyConApp applyTypeName []) []), [new])
+                            , foldr (\i' e' -> App e' i') e args_vars))
+                        (zip namesToFuncs new_names)
+        case_final = Case case_expr case_matches ret_type
+
+        arg_lams = foldr (\(a, t) e -> Lam a e (TyFun t (exprType e))) case_final (zip args ts)
+    in
+    Lam apply_arg arg_lams (TyFun (TyConApp applyTypeName []) (exprType arg_lams))
 
 -- In e, replaces all eOld with eNew
 exprReplace :: Expr -> Expr -> Expr -> Expr
@@ -216,7 +224,7 @@ passedToHigherOrder eenv t =
 
 -- Given an expression environment, gets the names and expressions of all higher order functions
 -- that accept the given type
-higherOrderOfTypeFuncNames :: EEnv -> Type -> [(Name, Expr)]
+higherOrderOfTypeFuncNames :: EEnv -> Type -> [(FuncName, Expr)]
 higherOrderOfTypeFuncNames eenv t =
     nub . filter (\(n, e) -> t `elem` functionsAccepted e) . M.toList $ eenv
     where
@@ -231,13 +239,13 @@ higherOrderOfTypeFuncNames eenv t =
                 functionsAccepted' _ = []
 
 -- Given a higher order function, returns the names and types of all higher order arguments
-higherOrderArgs :: Expr -> [(Name, Type)]
+higherOrderArgs :: Expr -> [(FuncName, Type)]
 higherOrderArgs (Lam n e (TyFun t@(TyFun _ _) _)) = (n, t):higherOrderArgs e
 higherOrderArgs (Lam _ e _) = higherOrderArgs e
 higherOrderArgs _ = []
 
 -- Returns all function names of the given type
-functionNamesOfType :: EEnv -> Type -> [Name]
+functionNamesOfType :: EEnv -> Type -> [FuncName]
 functionNamesOfType eenv t =
     map fst . filter (\(_, e') -> exprType e' == t) . M.assocs $ eenv
 
