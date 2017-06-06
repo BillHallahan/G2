@@ -1,6 +1,6 @@
 module HigherOrderMathTest where
 
-import G2.Core.Language
+import G2.Internals.Core.Language
 
 abs2 = Var "abs2" (TyFun (TyConApp "Double" []) (TyConApp "Double" []))
 square = Var "square" (TyFun (TyConApp "Double" []) (TyConApp "Double" []))

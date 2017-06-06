@@ -29,30 +29,28 @@ add1 x = 1 + x
 pythagorean :: Double -> Double -> Double
 pythagorean a b = approxSqrt (a * a + b * b) 0.01
 
---Computes the square root of x to a precision of at least e
+-- Computes the square root of x to a precision of at least e
 -- using the Babylonian method
 approxSqrt :: Double -> Double -> Double
 approxSqrt x eAllowed = bab x (x / 4) eAllowed
+    where
+        -- starting :: Double -> Int -> Double
+        -- starting x y
+        --     | x > 100 = starting (x / 100) (y + 1)
+        --     | x < 10 = 2 * (10 `power` (y / 2))
+        --     | otherwise = 6 * (10 `power` (y / 2))
 
---HELPERS FOR approxSqrt
--- starting :: Double -> Int -> Double
--- starting x y
---     | x > 100 = starting (x / 100) (y + 1)
---     | x < 10 = 2 * (10 `power` (y / 2))
---     | otherwise = 6 * (10 `power` (y / 2))
+        bab :: Double -> Double -> Double -> Double
+        bab orig x eAllowed =
+            let
+                guess = ((orig / x) + x) / 2
+                e = abs2((orig - guess * guess) / (2 * guess))--err orig guess
+            in
+            if e <= eAllowed then guess else bab orig guess eAllowed
 
-bab :: Double -> Double -> Double -> Double
-bab orig x eAllowed =
-    let
-        guess = ((orig / x) + x) / 2
-        e = err orig guess
-    in
-    if e <= eAllowed then guess else bab orig guess eAllowed
-
---Calculate the error
-err :: Double -> Double -> Double
-err orig guess = abs2((orig - guess * guess) / (2 * guess))
---END OF HELPERS FOR approxSqrt
+        --Calculate the error
+        err :: Double -> Double -> Double
+        err orig guess = abs2((orig - guess * guess) / (2 * guess))
 
 sameDoubleArgLarger :: (Double -> Double -> Double) -> Double -> Bool
 sameDoubleArgLarger f x = f x x > x
@@ -66,5 +64,5 @@ isPositiveAt0 f = f 0 > 0
 isTrue :: (Double -> Double) -> Double -> Bool -> Bool
 isTrue _ _ b = b
 
-isTrue2 :: (Double -> Double -> Double) -> Double -> Bool -> Bool
-isTrue2 _ _ b = b
+-- isTrue2 :: (Double -> Double -> Double) -> Double -> Bool -> Bool
+-- isTrue2 _ _ b = b

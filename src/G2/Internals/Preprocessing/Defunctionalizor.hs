@@ -1,11 +1,11 @@
-module G2.Preprocessing.Defunctionalizor (defunctionalize) where
+module G2.Internals.Preprocessing.Defunctionalizor (defunctionalize) where
 
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import G2.Core.Language
-import G2.Core.Utils
+import G2.Internals.Core.Language
+import G2.Internals.Core.Utils
 
 import G2.Lib.CoreManipulator
 

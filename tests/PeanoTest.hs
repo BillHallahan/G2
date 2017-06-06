@@ -1,6 +1,6 @@
 module PeanoTest where
 
-import G2.Core.Language
+import G2.Internals.Core.Language
 
 import Data.List
 

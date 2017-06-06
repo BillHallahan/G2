@@ -1,12 +1,12 @@
-module G2.Symbolic.Config where
+module G2.Internals.Symbolic.Config where
 
 import qualified Data.Map as M
 
 import G2.Lib.Utils
 
-import G2.Core.Language
-import G2.Core.Utils
-import G2.Symbolic.Engine
+import G2.Internals.Core.Language
+import G2.Internals.Core.Utils
+import G2.Internals.Symbolic.Engine
 
 -- | Lambda Arguments
 --   Stripes away the lambda function's arguments.

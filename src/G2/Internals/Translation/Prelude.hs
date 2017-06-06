@@ -1,6 +1,6 @@
-module G2.Haskell.Prelude where
+module G2.Internals.Translation.Prelude where
 
-import G2.Core.Language
+import G2.Internals.Core.Language
 
 
 {- Types

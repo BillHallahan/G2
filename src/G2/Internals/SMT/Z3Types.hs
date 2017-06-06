@@ -1,8 +1,8 @@
-module G2.SMT.Z3Types where
+module G2.Internals.SMT.Z3Types where
 
-import G2.Core.Language
+import G2.Internals.Core.Language
 import G2.Lib.Deprecated.Utils
-import G2.Haskell.Prelude
+import G2.Internals.Translation.Prelude
 
 import Data.List
 import qualified Data.Map as M

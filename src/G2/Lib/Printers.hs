@@ -1,6 +1,6 @@
 module G2.Lib.Printers where
 
-import G2.Core.Language
+import G2.Internals.Core.Language
 
 import qualified Data.List as L
 import qualified Data.Map as M
