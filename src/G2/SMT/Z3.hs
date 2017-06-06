@@ -32,6 +32,7 @@ import Z3.Monad
 
 import Data.Ratio
 
+import qualified Debug.Trace as T
 
 --This function is just kind of a hack for now... might want something else later?
 printModel :: (Result, Maybe Model) -> IO ()
@@ -75,6 +76,7 @@ reachabilityAndOutputSolverZ3 s@State {type_env = tv, curr_expr = curr_expr, pat
     assert =<< mkEq resVar curr_exprSMT
 
     mapM assert =<< constraintsZ3 dtMap path_cons'
+
 
     (r, m) <- solverCheckAndGetModel
     (inExpr, res) <- case m of 
@@ -278,43 +280,47 @@ exprZ3 _ _ e = error ("Unknown expression " ++ show e ++ " in exprZ3")
 handleFunctionsZ3 :: TypeMaps -> M.Map Name AST -> Expr -> [Expr] -> Z3 AST
 --Mappings fairly directly from Haskell to SMT
 --Need to account for weird user implementations of Num?
-handleFunctionsZ3 d m (Var "==" _ ) [_, _, a, b] = do
+handleFunctionsZ3 d m (Var "==" _) [_, _, a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkEq a' b'
-handleFunctionsZ3 d m (Var ">" _ ) [_, _, a, b] = do
+handleFunctionsZ3 d m (Var ">" _) [_, _, a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkGt a' b'
-handleFunctionsZ3 d m (Var "<" _ ) [_, _, a, b] = do
+handleFunctionsZ3 d m (Var "<" _) [_, _, a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkLt a' b'
-handleFunctionsZ3 d m (Var ">=" _ ) [_, _, a, b] = do
+handleFunctionsZ3 d m (Var ">=" _) [_, _, a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkGe a' b'
-handleFunctionsZ3 d m (Var "<=" _ ) [_, _, a, b] = do
+handleFunctionsZ3 d m (Var "<=" _) [_, _, a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkLe a' b'
-handleFunctionsZ3 d m (Var "+" _ ) [_, _, a, b] = do
+handleFunctionsZ3 d m (Var "+" _) [_, _, a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkAdd [a', b']
-handleFunctionsZ3 d m (Var "-" _ ) [_, _, a, b] = do
+handleFunctionsZ3 d m (Var "-" _) [_, _, a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkSub [a', b']
-handleFunctionsZ3 d m (Var "*" _ ) [_, _, a, b] = do
+handleFunctionsZ3 d m (Var "*" _) [_, _, a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkMul [a', b']
-handleFunctionsZ3 d m (Var "&&" _ ) [a, b] = do
+handleFunctionsZ3 d m (Var "/" _) [_, _, a, b] = do
+    a' <- exprZ3 d m a
+    b' <- exprZ3 d m b
+    mkDiv a' b'
+handleFunctionsZ3 d m (Var "&&" _) [a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkAnd [a', b']
-handleFunctionsZ3 d m (Var "||" _ ) [a, b] = do
+handleFunctionsZ3 d m (Var "||" _) [a, b] = do
     a' <- exprZ3 d m a
     b' <- exprZ3 d m b
     mkOr [a', b']

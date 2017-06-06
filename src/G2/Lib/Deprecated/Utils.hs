@@ -314,7 +314,7 @@ containsNonConsFunctions tenv = Mon.getAny . eval (Mon.Any . containsFunctions' 
         containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv) && n `notElem` handledFunctions
         containsFunctions' _ _ = False
 
-        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "&&", "||"]
+        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]
 
 -- This assumes that all envs are qualified with names and such.
 mergeModulexpr_envs :: [(TEnv, EEnv)] -> (TEnv, EEnv)

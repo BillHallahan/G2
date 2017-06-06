@@ -1,4 +1,4 @@
-module G2.Preprocessing.Defunctionalizor where
+module G2.Preprocessing.Defunctionalizor (defunctionalize) where
 
 import Data.List
 import qualified Data.Map as M
@@ -8,10 +8,6 @@ import G2.Core.Language
 import G2.Core.Utils
 
 import G2.Lib.CoreManipulator
-
-import qualified Debug.Trace as T
-import G2.Lib.Printers
-
 
 {-Defunctionalizor
 
