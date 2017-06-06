@@ -29,6 +29,7 @@ step state = case curr_expr state of
       Nothing -> [state]
       Just ex -> [state {curr_expr = ex}]
 
+  -- Thankfully this is fairly simple :)
   Let bs e -> [bindExprList bs (state {curr_expr = e})]
 
   -- App-Lam expressions are a concrete example of function application.

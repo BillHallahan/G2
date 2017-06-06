@@ -272,6 +272,7 @@ exprType (Const (CChar _))   = TyRawChar
 exprType (Const (CString _)) = TyRawString
 exprType (Const (COp _ t))   = t
 exprType (Lam _ _ t) = t
+exprType (Let _ e) = exprType e
 exprType (App f a) = case exprType f of {TyFun l r->r; t->TyApp t (exprType a)}
 exprType (Data (DataCon n _ t a)) = L.foldl1 (\b r->TyFun r b) (reverse a++[t])
 exprType (Data DEFAULT) = TyBottom

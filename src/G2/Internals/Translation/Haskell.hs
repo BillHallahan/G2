@@ -142,12 +142,7 @@ mkExpr (Case e b t as) = let ex = mkExpr e
 mkExpr (Cast e c) = mkExpr e
 mkExpr (Tick t e) = mkExpr e
 mkExpr (Type t)   = G2.Type (mkType t)
-mkExpr (Let b e)  = 
-    let
-        b' = mkBind b
-        e' = mkExpr e
-    in--error ("We should have lifted lets out " ++ (show . mkBind $ b) ++ "\n" ++ (mkExprStr . mkExpr $ e))
-    foldr (\(n, ex) ex' -> replaceM ex' (G2.Var n . typeOf $ ex) ex) e' b'
+mkExpr (Let  bs e) = G2.Let (mkBind bs) (mkExpr e)
 
 mkLit :: Literal -> G2.Const
 mkLit (MachChar char)  = G2.CChar char
