@@ -16,6 +16,7 @@ isVal state = case curr_expr state of
     Var n _ -> lookupExpr n (expr_env state) == Nothing
     App (Lam _ _ _) _ -> False
     App f a -> isVal (state {curr_expr = f}) && isVal (state {curr_expr = a})
+    Let _ _ -> False
     Case _ _ _ -> False
     Spec _ _ -> False
     _ -> True
