@@ -1,10 +1,12 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Main where
 
 import System.Environment
 
 import HscTypes
 import TyCon
-import GHC
+import GHC hiding (Name, Type, exprType)
 
 import qualified Data.List as L
 import qualified Data.Map  as M
@@ -32,7 +34,12 @@ import G2.Internals.Symbolic.Config
 import G2.Internals.SMT.Z3Types
 import G2.Internals.SMT.Z3
 
-{-
+
+--FOR containsNonConsFunctions AND replaceFuncSLT
+import qualified Data.Monoid as Mon
+import qualified G2.Internals.Core.CoreManipulator as CM
+--END
+
 main = do
     (num:xs) <- getArgs
     let filepath:entry:xs' = xs
@@ -84,25 +91,55 @@ main = do
                 else
                     print "Error"
             else return ()) states'
--}
 
 
-main = do
-    (filepath:prepost:entry:args) <- getArgs
-    putStrLn "Thank you for using G2! We appear to compile, but does it work?"
-    raw_core <- mkRawCore filepath
+-- main = do
+--     (filepath:prepost:entry:args) <- getArgs
+--     putStrLn "Thank you for using G2! We appear to compile, but does it work?"
+--     raw_core <- mkRawCore filepath
 
-    let (rt_env, re_env) = mkG2Core raw_core
-    let tenv' = M.union rt_env (M.fromList prelude_t_decls)
-    let eenv' = M.insert "p1" BAD re_env-- re_env
-    let init_state = defunctionalize $ initState tenv' eenv' entry
-    let runs = 20
-    -- let (states, n) = runN [init_state] runs
-    let states = histN [init_state] runs
-    -- putStrLn $ show states
-    mapM (\(ss, n) -> do
-             putStrLn $ show (runs - n)
-             -- putStrLn $ (show $ length ss) ++ "\n")
-             mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
-         (init states)
+--     let (rt_env, re_env) = mkG2Core raw_core
+--     let tenv' = M.union rt_env (M.fromList prelude_t_decls)
+--     let eenv' = M.insert "p1" BAD re_env-- re_env
+--     let init_state = defunctionalize $ initState tenv' eenv' entry
+--     let runs = 20
+--     -- let (states, n) = runN [init_state] runs
+--     let states = histN [init_state] runs
+--     -- putStrLn $ show states
+--     mapM (\(ss, n) -> do
+--              putStrLn $ show (runs - n)
+--              -- putStrLn $ (show $ length ss) ++ "\n")
+--              mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
+--          (init states)
 
+--Switches every occurence of a Var in the Func SLT from datatype to function
+replaceFuncSLT :: CM.Manipulatable Expr m => State -> m -> m
+replaceFuncSLT s e = CM.modify replaceFuncSLT' e
+    where
+        replaceFuncSLT' :: Expr -> Expr
+        replaceFuncSLT' v@(Var n t) =
+            let
+                n' = M.lookup n (func_interps s)
+            in
+            case n' of
+                    Just (n'', _) -> Var n'' (case functionType s n'' of
+                                                Just t -> t
+                                                Nothing -> TyBottom)
+                    Nothing -> v
+        replaceFuncSLT' e = e
+
+        functionType :: State -> Name -> Maybe Type
+        functionType s n = exprType <$> M.lookup n (expr_env s)
+
+--Contains functions that are not just type constructors
+containsNonConsFunctions :: (CM.Manipulatable Expr m) => TEnv -> m -> Bool
+containsNonConsFunctions tenv = Mon.getAny . CM.eval (Mon.Any . containsFunctions' tenv)
+    where
+        containsFunctions' :: TEnv -> Expr -> Bool
+        containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv) && n `notElem` handledFunctions
+        containsFunctions' _ _ = False
+
+        constructors :: TEnv -> [Name]
+        constructors = CM.evalDataConType (\(DataCon n _ _ _) -> [n])
+
+        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "&&", "||"]

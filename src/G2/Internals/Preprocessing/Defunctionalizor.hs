@@ -110,6 +110,8 @@ useApplyType s (t@(TyFun _ _)) =
         -- We change the call to the function, to a call to the apply function, and pass in the correct constructor
         fstAppReplace :: Type -> FuncName -> FuncName -> Type -> Expr -> Expr
         fstAppReplace tn fn n t (Lam n' e t') = Lam n' (fstAppReplace tn fn n t e) t'
+        fstAppReplace tn fn n t (Let ne e) =
+            Let (map (\(n, e') -> (n, fstAppReplace tn fn n t e')) ne) (fstAppReplace tn fn n t e)
         fstAppReplace tn fn n t (App e e') =
             if e == Var n t then
                 App (fstAppReplace tn fn n t (App (Var fn tn) e)) (fstAppReplace tn fn n t e')
@@ -124,6 +126,8 @@ useApplyType s (t@(TyFun _ _)) =
         -- It simply swaps the type of the function, from a function type to an applytype
         sndAppReplace :: FuncName -> Type -> Type -> Expr -> Expr
         sndAppReplace n t at (Lam n' e t') = Lam n' (sndAppReplace n t at e) t'
+        sndAppReplace n t at (Let ne e) =
+            Let (map (\(n, e') -> (n, sndAppReplace n t at e')) ne) (sndAppReplace n t at e)
         sndAppReplace n t at a@(App e e') =
             if e' == Var n t then
                 App (sndAppReplace n t at e) (sndAppReplace n t at (Var n at))
@@ -171,6 +175,8 @@ exprReplace eOld eNew e = if e == eOld then exprReplace' eOld eNew eNew else exp
     where
         exprReplace' :: Expr -> Expr -> Expr -> Expr
         exprReplace' eOld eNew (Lam n e t) = Lam n (exprReplace eOld eNew e) t
+        exprReplace' eOld eNew (Let ne e) =
+            Let (map (\(n, e') -> (n, exprReplace eOld eNew e')) ne) (exprReplace eOld eNew e)
         exprReplace' eOld eNew (App e e') = App (exprReplace eOld eNew e) (exprReplace eOld eNew e')
         exprReplace' eOld eNew (Case e ae t) =
             Case (exprReplace eOld eNew e) (map (\(a, e) -> (a, exprReplace eOld eNew e)) ae) t

@@ -70,6 +70,11 @@ mkExprStr e = mkExprStr' e 0
                 e' = mkExprStr' e (i + 1)
             in
             off i ++  "Lam (" ++ show n ++ "\n" ++ e' ++ " " ++ mkTypeStr t i ++")"
+        mkExprStr' (Let ne e) i =
+            let
+                ne' = concatMap (\(n, e') -> n ++ " =\n" ++ mkExprStr' e' (i + 1)) ne
+            in
+            off i ++ "Let (\n" ++ off (i + 1) ++ ne' ++ ")" ++ mkExprStr' e (i + 1)
         mkExprStr' (App e1 e2) i = 
             let
                 e1' = mkExprStr' e1 (i + 1)

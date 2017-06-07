@@ -64,6 +64,12 @@ instance Manipulatable Expr Expr where
                     (e', x') = modifyG f e x
                 in
                 (Lam n e' t, x')
+            modifyG' f (Let ne e) x =
+                let
+                    (ne', x') = modifyG f ne x
+                    (e', x'') = modifyG f e x
+                in
+                (Let ne' e', x' `mappend` x'')
             modifyG' f (App e1 e2) x =
                 let 
                     (e1', x') = modifyG f e1 x

@@ -55,7 +55,9 @@ tests = return . testGroup "Samples"
                             , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
                             , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
-                            , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                            , checkExprOutput  "tests/samples/HigherOrderMath.hs" "isTrue0" "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
+                            , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue1" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                            , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue2" "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
                             , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
 
                             , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
@@ -73,7 +75,7 @@ checkExprOutput filepath prepost entry i reqList = do
     let ch = checkExpr exprs i reqList
 
     return . testCase filepath
-            $ assertBool ("Assertion for file " ++ filepath ++ " with functions " ++ prepost ++ " " ++ entry ++ " failed.") ch
+            $ assertBool ("Assertion for file " ++ filepath ++ " with functions " ++ prepost ++ " " ++ entry ++ " failed.\n" ++ show exprs) ch
 
 -- | Checks conditions on functions
 --   Also checks that the right number of inputs is found for each function
@@ -84,7 +86,7 @@ checkExprReach filepath entry i reqList = do
     let ch = checkExpr exprs (i + 1) reqList
 
     return . testCase filepath
-        $ assertBool ("Assertion for file " ++ filepath ++ " with function " ++ entry ++ " failed." ++ show exprs) ch
+        $ assertBool ("Assertion for file " ++ filepath ++ " with function " ++ entry ++ " failed.\n" ++ show exprs) ch
 
 -- | Checks conditions on given expressions
 --   Helper for checkExprOutput checkExprReach

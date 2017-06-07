@@ -8,6 +8,9 @@ abs2 x
 square :: Double -> Double
 square x = x * x
 
+negativeSquare :: Double -> Double
+negativeSquare x = 0 - square x
+
 fourthPower :: Double -> Double
 fourthPower x = square x * square x
 
@@ -20,26 +23,23 @@ negative f x = f x < 0
 add1 :: Double -> Double
 add1 x = 1 + x
 
--- power :: Double -> Int -> Double
--- power x y
---     | y == 0 = 1
---     | y > 0 = x * power x (y - 1)
---     | otherwise = 1 / (power x (0 - y))
+sub1 :: Double -> Double
+sub1 x = x - 1
+
+add :: Double -> Double -> Double
+add x y = x + y
+
+sub :: Double -> Double -> Double
+sub x y = x - y
 
 pythagorean :: Double -> Double -> Double
-pythagorean a b = approxSqrt (a * a + b * b) 0.01
+pythagorean a b = approxSqrt (a * a + b * b) 0.0001
 
 -- Computes the square root of x to a precision of at least e
 -- using the Babylonian method
 approxSqrt :: Double -> Double -> Double
 approxSqrt x eAllowed = bab x (x / 4) eAllowed
     where
-        -- starting :: Double -> Int -> Double
-        -- starting x y
-        --     | x > 100 = starting (x / 100) (y + 1)
-        --     | x < 10 = 2 * (10 `power` (y / 2))
-        --     | otherwise = 6 * (10 `power` (y / 2))
-
         bab :: Double -> Double -> Double -> Double
         bab orig x eAllowed =
             let
@@ -58,11 +58,22 @@ sameDoubleArgLarger f x = f x x > x
 functionSatisfies :: ((Double -> Double) -> Bool) -> (Double -> Double) -> Double -> Double
 functionSatisfies f g x = if f g then g x else x
 
-isPositiveAt0 :: (Double -> Double) -> Bool
-isPositiveAt0 f = f 0 > 0
+notNegativeAt0 :: (Double -> Double) -> Bool
+notNegativeAt0 f = f 0 >= 0
 
-isTrue :: (Double -> Double) -> Double -> Bool -> Bool
-isTrue _ _ b = b
+notNegativeAt0NegativeAt1 :: (Double -> Double) -> Bool
+notNegativeAt0NegativeAt1 f =
+    let
+        at0 = notNegativeAt0 f
+        at1 = f 1
+    in
+    at0 && at1 < 0
 
--- isTrue2 :: (Double -> Double -> Double) -> Double -> Bool -> Bool
--- isTrue2 _ _ b = b
+isTrue0 :: (Double -> Double) -> Bool -> Bool
+isTrue0 _ b = b
+
+isTrue1 :: (Double -> Double) -> Double -> Bool -> Bool
+isTrue1 _ _ b = b
+
+isTrue2 :: (Double -> Double -> Double) -> Double -> Bool -> Bool
+isTrue2 _ _ b = b
