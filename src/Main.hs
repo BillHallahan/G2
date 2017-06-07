@@ -61,7 +61,8 @@ main = do
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
     putStrLn $ mkStatesStr states
-    putStrLn ("Number of execution states: " ++ (show (length states')))
+    putStrLn ("Number of execution states: " ++ (show (length states)))
+    putStrLn ("Number of execution states after pruning: " ++ (show (length states')))
     --putStrLn "Compiles!\n\n"
     
     if num == "1" then
@@ -142,4 +143,4 @@ containsNonConsFunctions tenv = Mon.getAny . CM.eval (Mon.Any . containsFunction
         constructors :: TEnv -> [Name]
         constructors = CM.evalDataConType (\(DataCon n _ _ _) -> [n])
 
-        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "&&", "||"]
+        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]

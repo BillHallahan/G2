@@ -33,7 +33,7 @@ sub :: Double -> Double -> Double
 sub x y = x - y
 
 pythagorean :: Double -> Double -> Double
-pythagorean a b = approxSqrt (a * a + b * b) 0.0001
+pythagorean a b = approxSqrt (a * a + b * b) 0.01
 
 -- Computes the square root of x to a precision of at least e
 -- using the Babylonian method
