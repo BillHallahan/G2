@@ -150,7 +150,7 @@ rename old new state = case curr_expr state of
                                , curr_expr = bexp }
               in acc ++ [(n, rename old new b_st)]
           -- Go through the binds and rename them directly. Again, need to keep
-          -- track of SLTs. This goes in a super fold. Fuck fuck fuck.
+          -- track of SLTs. This goes in a super fold.
           -- I am so sorry, Simon Peyton Jones.
           rawRenameBinds :: [((Name, Name, Name), State)] ->
                             ((Name, Name, Name), Expr) ->
@@ -197,7 +197,6 @@ rename old new state = case curr_expr state of
           a' = curr_expr state_a
       in state_a {curr_expr = App f' a'}
 
-  -- Hooooly fuck this is complicated.
   Case m as t ->
           -- Function that allows us to express each Alt as a separate State
           -- that we can then later merge. We keep a list of previous States

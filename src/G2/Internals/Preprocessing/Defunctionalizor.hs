@@ -11,6 +11,8 @@ import G2.Internals.Core.CoreManipulator
 
 import qualified Debug.Trace as T
 
+import qualified G2.Internals.Core.ASTHandler as ASTH
+
 {-Defunctionalizor
 
 We need to eliminate higher order functions to

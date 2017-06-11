@@ -22,8 +22,10 @@ import qualified Data.Map as M
 --        If they are a renamed input variable, we store their input position as
 --        Just Int, otherwise stored as Nothing.
 --
---     6. Function Interpretation Table: Helps map the Apply data constructors
---        to their function names. Bill does some magic there.
+--     6. Function Interpretation Table: Maps the Apply data constructors
+--        to their function names.  Interp distinguishes between functions that
+--        exist in the expression environment (StdInterp) and those that should be
+--        treated as uninterpreted functions (UnInterp)
 data State = State { type_env     :: TEnv
                    , expr_env     :: EEnv
                    , curr_expr    :: Expr

@@ -11,6 +11,7 @@ sub1 = Var "sub1" (TyFun (TyConApp "Double" []) (TyConApp "Double" []))
 
 add = Var "add" (TyFun (TyConApp "Double" []) (TyFun (TyConApp "Double" []) (TyConApp "Double" [])))
 sub = Var "sub" (TyFun (TyConApp "Double" []) (TyFun (TyConApp "Double" []) (TyConApp "Double" [])))
+pythagorean = Var "pythagorean" (TyFun (TyConApp "Double" []) (TyFun (TyConApp "Double" []) (TyConApp "Double" [])))
 
 notNegativeAt0 = Var "notNegativeAt0" (TyFun (TyFun (TyConApp "Double" []) (TyConApp "Double" [])) (TyConApp "Bool" []))
 notNegativeAt0NegativeAt1 = Var "notNegativeAt0NegativeAt1" (TyFun (TyFun (TyConApp "Double" []) (TyConApp "Double" [])) (TyConApp "Bool" []))
@@ -40,6 +41,9 @@ addRes [f, (Const (CDouble x))] = f == add && x > 0
 
 subRes :: [Expr] -> Bool
 subRes [f, (Const (CDouble x))] = f == sub && x < 0
+
+pythagoreanRes :: [Expr] -> Bool
+pythagoreanRes [f, (Const (CDouble x))] = f == pythagorean && x /= 0
 
 functionSatisfiesRes :: [Expr] -> Bool
 functionSatisfiesRes (Var "notNegativeAt0" _:Var "add1" _:ex) = True

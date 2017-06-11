@@ -26,6 +26,8 @@ import qualified Data.Monoid as Mon
 
 import Z3.Monad
 
+import UnitTests
+
 import PeanoTest
 import HigherOrderMathTest
 
@@ -47,24 +49,32 @@ main :: IO ()
 main = do
     defaultMain =<< tests
 
-tests = return . testGroup "Samples"
-                    =<< sequence [
-                              checkExprReach  "tests/samples/IfTest.hs" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
+tests = return . testGroup "Tests"
+    =<< sequence [
+          --  sampleTests
+           unitTests
+        ]
 
-                            , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
-                            , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
-                            , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
+sampleTests =
+    return . testGroup "Samples"
+        =<< sequence [
+                  checkExprReach  "tests/samples/IfTest.hs" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
-                            , checkExprOutput  "tests/samples/HigherOrderMath.hs" "isTrue0" "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
-                            , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue1" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
-                            , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue2" "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
-                            , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
+                , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
+                , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
+                , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
-                            , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
-                            , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
-                            , checkExprOutput "tests/samples/McCarthy91.hs" "lessThanNot91" "mccarthy" 1 [Exactly 0]
-                            , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThanNot10Less" "mccarthy" 1 [Exactly 0]
-                    ]
+                , checkExprOutput  "tests/samples/HigherOrderMath.hs" "isTrue0" "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
+                , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue1" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue2" "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, {- RExists pythagoreanRes, -} AtLeast 2]
+                                --------------------GET THE ABOVE REXISTS WORKING EVENTUALLY!!!!!!!!!
+                , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
+
+                , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "lessThanNot91" "mccarthy" 1 [Exactly 0]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThanNot10Less" "mccarthy" 1 [Exactly 0]
+        ]
 
 -- | Checks conditions on functions, with pre/post conditions
 --   Also checks that the right number of inputs is found for each function

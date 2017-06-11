@@ -34,7 +34,6 @@ import G2.Internals.Symbolic.Config
 import G2.Internals.SMT.Z3Types
 import G2.Internals.SMT.Z3
 
-
 --FOR containsNonConsFunctions AND replaceFuncSLT
 import qualified Data.Monoid as Mon
 import qualified G2.Internals.Core.CoreManipulator as CM
