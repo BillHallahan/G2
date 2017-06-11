@@ -51,8 +51,8 @@ main = do
 
 tests = return . testGroup "Tests"
     =<< sequence [
-          --  sampleTests
-           unitTests
+          sampleTests
+        , unitTests
         ]
 
 sampleTests =
