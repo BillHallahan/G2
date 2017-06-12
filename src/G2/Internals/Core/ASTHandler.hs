@@ -109,42 +109,42 @@ class AST t => ASTContainer c t where
     --   Gets all the ASTs that are recursively contained in the container.
     getASTs :: c -> [t]
     -- | Modify ASTs
-    --   Calls the function recursively on all ASTs in the container.
-    modifyASTs :: (t -> t) -> c -> c
+    --   Calls the function on all ASTs in the container.
+    modifyChildASTs :: (t -> t) -> c -> c
 
 -- | Modify Container
 --   Runs modify on all the ASTs in the container.
-modifyContainer :: ASTContainer t e => (e -> e) -> t -> t
-modifyContainer f = modifyASTs (modify f)
+modifyASTs :: ASTContainer t e => (e -> e) -> t -> t
+modifyASTs f = modifyChildASTs (modify f)
 
 -- | Monoidic Modify Container
 --   Runs modifyM on all the ASTs in the container.
-modifyContainerM :: (ASTContainer t e, Monoid a) => (a -> e -> (e,a)) -> t -> t
-modifyContainerM f = modifyASTs (modifyM f)
+modifyASTsM :: (ASTContainer t e, Monoid a) => (a -> e -> (e,a)) -> t -> t
+modifyASTsM f = modifyChildASTs (modifyM f)
 
 -- | Modify Container Fixed Point
 --   Runs modifyFix on all the ASTs in the container.
-modifyContainerFix :: (ASTContainer t e, Eq e) => (e -> e) -> t -> t
-modifyContainerFix f = modifyASTs (modifyFix f)
+modifyASTsFix :: (ASTContainer t e, Eq e) => (e -> e) -> t -> t
+modifyASTsFix f = modifyChildASTs (modifyFix f)
 
 -- | Evaluate Container with Function
 --   Runs a function on all the ASTs in the container, and uses mappend to
 --   combine the results.
-evalContainerF :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
-evalContainerF f = mconcat . map f . getASTs
+evalChildASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
+evalChildASTs f = mconcat . map f . getASTs
 
 -- | Evaluate Container ASTs
 --   Runs eval on all the ASTs in the container, and uses mappend to combine
 --   the results.
-evalContainerASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
-evalContainerASTs f = evalContainerF (eval f)
+evalASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
+evalASTs f = evalChildASTs (eval f)
 
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
 instance AST t => ASTContainer t t where
     getASTs t = [t]
-    modifyASTs f t = f t
+    modifyChildASTs f t = f t
 
 instance ASTContainer Expr Type where
     getASTs = eval go
@@ -155,16 +155,18 @@ instance ASTContainer Expr Type where
             go (Type t)      = [t]
             go _ = []
 
-    modifyASTs f (Var n t)     = Var n (f t)
-    modifyASTs f (Lam b e t)   = Lam b e (f t)
-    modifyASTs f (Data dc)     = Data (modifyASTs f dc)
-    modifyASTs f (Case m as t) = Case m as (f t)
-    modifyASTs f (Type t)      = Type (f t)
-    modifyASTs f e = e
+    modifyChildASTs f = modify (modifyChildASTs' f)
+        where
+            modifyChildASTs' f (Var n t)     = Var n (f t)
+            modifyChildASTs' f (Lam b e t)   = Lam b e (f t)
+            modifyChildASTs' f (Data dc)     = Data (modifyChildASTs f dc)
+            modifyChildASTs' f (Case m as t) = Case m as (f t)
+            modifyChildASTs' f (Type t)      = Type (f t)
+            modifyChildASTs' f e = e
 
 instance ASTContainer Type Expr where
     getASTs _ = []
-    modifyASTs _ t = t
+    modifyChildASTs _ t = t
 
 instance ASTContainer State Expr where
     getASTs s = ((getASTs . type_env) s) ++
@@ -173,7 +175,7 @@ instance ASTContainer State Expr where
                 ((getASTs . path_cons) s) ++
                 ((getASTs  . sym_links) s)
 
-    modifyASTs f s = s { type_env  = (modifyASTs f . type_env) s
+    modifyChildASTs f s = s { type_env  = (modifyASTs f . type_env) s
                        , expr_env  = (modifyASTs f . expr_env) s
                        , curr_expr = (modifyASTs f . curr_expr) s
                        , path_cons = (modifyASTs f . path_cons) s
@@ -186,49 +188,49 @@ instance ASTContainer State Type where
                 ((getASTs . path_cons) s) ++
                 ((getASTs . sym_links) s)
 
-    modifyASTs f s = s { type_env  = (modifyASTs f . type_env) s
-                       , expr_env  = (modifyASTs f . expr_env) s
-                       , curr_expr = (modifyASTs f . curr_expr) s
-                       , path_cons = (modifyASTs f . path_cons) s
-                       , sym_links = (modifyASTs f . sym_links) s }
+    modifyChildASTs f s = s { type_env  = (modifyASTs f . type_env) s
+                            , expr_env  = (modifyASTs f . expr_env) s
+                            , curr_expr = (modifyASTs f . curr_expr) s
+                            , path_cons = (modifyASTs f . path_cons) s
+                            , sym_links = (modifyASTs f . sym_links) s }
 
 instance ASTContainer DataCon Type where
     getASTs (DataCon _ _ t ts) = getASTs (t:ts)
     getASTs _ = []
 
-    modifyASTs f (DataCon n i t ts) = DataCon n i (f t) (map f ts)
-    modifyASTs _ dc = dc
+    modifyChildASTs f (DataCon n i t ts) = DataCon n i (f t) (map f ts)
+    modifyChildASTs _ dc = dc
 
 instance ASTContainer Alt Expr where
     getASTs _ = []
-    modifyASTs _ a = a
+    modifyChildASTs _ a = a
 
 instance ASTContainer Alt Type where
     getASTs (Alt x) = (getASTs . fst) x
-    modifyASTs f (Alt (dc, n)) = Alt (modifyASTs f dc, n)
+    modifyChildASTs f (Alt (dc, n)) = Alt (modifyChildASTs f dc, n)
 
 instance ASTContainer c t => ASTContainer [c] t where
     getASTs = concatMap getASTs
-    modifyASTs f = map (modifyASTs f)
+    modifyChildASTs f = map (modifyChildASTs f)
 
 instance ASTContainer c t => ASTContainer (M.Map k c) t where
     getASTs = concatMap getASTs . M.elems
-    modifyASTs f = M.map (modifyASTs f)
+    modifyChildASTs f = M.map (modifyChildASTs f)
 
 instance (ASTContainer c1 t, ASTContainer c2 t) => ASTContainer (c1, c2) t where
     getASTs (x, y) = getASTs x ++ getASTs y
-    modifyASTs f (x, y) = (modifyASTs f x, modifyASTs f y)
+    modifyChildASTs f (x, y) = (modifyChildASTs f x, modifyChildASTs f y)
 
 instance (ASTContainer a e, ASTContainer b e, ASTContainer c e) => ASTContainer (a, b, c) e where
     getASTs (x, y, z) = getASTs x ++ getASTs y ++ getASTs z
-    modifyASTs f (x, y, z) = (modifyASTs f x, modifyASTs f y, modifyASTs f z)
+    modifyChildASTs f (x, y, z) = (modifyChildASTs f x, modifyChildASTs f y, modifyChildASTs f z)
 
 instance (ASTContainer t e) => ASTContainer (Maybe t) e where
     getASTs (Just x) = getASTs x
     getASTs Nothing = []
 
-    modifyASTs f (Just x) = Just (modifyASTs f x)
-    modifyASTs _ Nothing = Nothing
+    modifyChildASTs f (Just x) = Just (modifyChildASTs f x)
+    modifyChildASTs _ Nothing = Nothing
 
 -- | Miscellaneous Instances
 --   These instances exist so that we can use them in other types that contain
@@ -236,25 +238,25 @@ instance (ASTContainer t e) => ASTContainer (Maybe t) e where
 --   should be an ASTContainer.
 instance ASTContainer Bool Expr where
     getASTs _ = []
-    modifyASTs _ s = s
+    modifyChildASTs _ s = s
 
 instance ASTContainer Bool Type where
     getASTs _ = []
-    modifyASTs _ s = s
+    modifyChildASTs _ s = s
 
 instance ASTContainer Char Expr where
     getASTs _ = []
-    modifyASTs _ s = s
+    modifyChildASTs _ s = s
 
 instance ASTContainer Char Type where
     getASTs _ = []
-    modifyASTs _ s = s
+    modifyChildASTs _ s = s
 
 instance ASTContainer Int Expr where
     getASTs _ = []
-    modifyASTs _ s = s
+    modifyChildASTs _ s = s
 
 instance ASTContainer Int Type where
     getASTs _ = []
-    modifyASTs _ s = s
+    modifyChildASTs _ s = s
 

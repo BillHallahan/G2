@@ -7,11 +7,9 @@ import Data.Maybe
 import G2.Internals.Core.Language
 import G2.Internals.Core.Utils
 
-import G2.Internals.Core.CoreManipulator
-
 import qualified Debug.Trace as T
 
-import qualified G2.Internals.Core.ASTHandler as ASTH
+import G2.Internals.Core.ASTHandler
 
 {-Defunctionalizor
 
@@ -76,7 +74,7 @@ useApplyType s (t@(TyFun _ _)) =
 
         s' = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) s higherNameExprArgs
 
-        s'' = modify (applyTypeReplace t applyTypeCon) (s' {curr_expr = newCurr_expr})
+        s'' = T.trace (show t) modifyASTs (applyTypeReplace t applyTypeCon) (s' {curr_expr = newCurr_expr})
 
     in
     s'' { expr_env = M.insert applyFuncName applyFunc (expr_env s'')
@@ -188,12 +186,9 @@ exprReplace eOld eNew e = if e == eOld then exprReplace' eOld eNew eNew else exp
 applyTypeReplace :: Type -> Type -> Type -> Type
 applyTypeReplace tOld tNew t@(TyFun t'@(TyFun _ _) t'') =
     if t' == tOld then
-        applyTypeReplace tOld tNew (TyFun tNew t'')
+        TyFun tNew t''
     else
-        TyFun (applyTypeReplace tOld tNew t') (applyTypeReplace tOld tNew t'')
-applyTypeReplace tOld tNew (TyApp t t') = TyApp (applyTypeReplace tOld tNew t) (applyTypeReplace tOld tNew t')
-applyTypeReplace tOld tNew (TyConApp n ts) = TyConApp n (map (applyTypeReplace tOld tNew) ts)
-applyTypeReplace tOld tNew (TyForAll n t) = TyForAll n (applyTypeReplace tOld tNew t)
+        t
 applyTypeReplace _ _ t = t
 
 -- Get all function types that are passed into any function

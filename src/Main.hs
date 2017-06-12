@@ -36,10 +36,10 @@ import G2.Internals.SMT.Z3
 
 --FOR containsNonConsFunctions AND replaceFuncSLT
 import qualified Data.Monoid as Mon
-import qualified G2.Internals.Core.CoreManipulator as CM
+import qualified G2.Internals.Core.ASTHandler as ASTH
 --END
 
-{-
+
 main = do
     (num:xs) <- getArgs
     let filepath:mod:entry:xs' = xs
@@ -60,7 +60,7 @@ main = do
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
-    putStrLn $ mkStatesStr states
+    -- putStrLn $ mkStatesStr states
     putStrLn ("Number of execution states: " ++ (show (length states)))
     putStrLn ("Number of execution states after pruning: " ++ (show (length states')))
     --putStrLn "Compiles!\n\n"
@@ -92,33 +92,33 @@ main = do
                 else
                     print "Error"
             else return ()) states'
--}
 
-main = do
-    (filepath:mod:prepost:entry:args) <- getArgs
-    putStrLn "Thank you for using G2! We appear to compile, but does it work?"
-    raw_core <- mkRawCore filepath
 
-    let (rt_env, re_env) = mkG2Core raw_core
-    let tenv' = M.union rt_env (M.fromList prelude_t_decls)
-    let eenv' = M.insert "p1" BAD re_env-- re_env
-    let init_state = defunctionalize $ initState tenv' eenv' mod entry
+-- main = do
+--     (filepath:mod:prepost:entry:args) <- getArgs
+--     putStrLn "Thank you for using G2! We appear to compile, but does it work?"
+--     raw_core <- mkRawCore filepath
 
-    putStrLn $ mkRawStateStr init_state
+--     let (rt_env, re_env) = mkG2Core raw_core
+--     let tenv' = M.union rt_env (M.fromList prelude_t_decls)
+--     let eenv' = M.insert "p1" BAD re_env-- re_env
+--     let init_state = defunctionalize $ initState tenv' eenv' mod entry
+
+--     putStrLn $ mkRawStateStr init_state
     
-    let runs = 0 -- 20
-    -- let (states, n) = runN [init_state] runs
-    let states = histN [init_state] runs
-    -- putStrLn $ show states
-    mapM (\(ss, n) -> do
-             putStrLn $ show (runs - n)
-             -- putStrLn $ (show $ length ss) ++ "\n")
-             mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
-         (init states)
+--     let runs = 0 -- 20
+--     -- let (states, n) = runN [init_state] runs
+--     let states = histN [init_state] runs
+--     -- putStrLn $ show states
+--     mapM (\(ss, n) -> do
+--              putStrLn $ show (runs - n)
+--              -- putStrLn $ (show $ length ss) ++ "\n")
+--              mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
+--          (init states)
 
 --Switches every occurence of a Var in the Func SLT from datatype to function
-replaceFuncSLT :: CM.Manipulatable Expr m => State -> m -> m
-replaceFuncSLT s e = CM.modify replaceFuncSLT' e
+replaceFuncSLT :: ASTH.ASTContainer m Expr => State -> m -> m
+replaceFuncSLT s e = ASTH.modifyASTs replaceFuncSLT' e
     where
         replaceFuncSLT' :: Expr -> Expr
         replaceFuncSLT' v@(Var n t) =
@@ -136,14 +136,17 @@ replaceFuncSLT s e = CM.modify replaceFuncSLT' e
         functionType s n = exprType <$> M.lookup n (expr_env s)
 
 --Contains functions that are not just type constructors
-containsNonConsFunctions :: (CM.Manipulatable Expr m) => TEnv -> m -> Bool
-containsNonConsFunctions tenv = Mon.getAny . CM.eval (Mon.Any . containsFunctions' tenv)
+containsNonConsFunctions :: (ASTH.ASTContainer m Expr) => TEnv -> m -> Bool
+containsNonConsFunctions tenv = Mon.getAny . ASTH.evalASTs (Mon.Any . containsFunctions' tenv)
     where
         containsFunctions' :: TEnv -> Expr -> Bool
         containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv) && n `notElem` handledFunctions
         containsFunctions' _ _ = False
 
         constructors :: TEnv -> [Name]
-        constructors = CM.evalDataConType (\(DataCon n _ _ _) -> [n])
+        constructors = ASTH.evalASTs constructors'
+            where
+                constructors' :: Type -> [Name]
+                constructors' (TyAlg _ dc) = [n | (DataCon n _ _ _) <- dc]
 
         handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]

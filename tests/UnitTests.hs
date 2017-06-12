@@ -11,12 +11,16 @@ import qualified Data.Monoid as Mon
 import G2.Internals.Core.Language
 import G2.Internals.Core.ASTHandler
 
+import G2.Internals.Preprocessing.Defunctionalizor
+
 unitTests :: IO TestTree
 unitTests =
     return . testGroup "Unit" $
         [ testCase "removeLams" (expr4NoLams @=? removeLams expr4)
         , testCase "removeLamsFixed" (expr4NoLams @=? removeLamsFixed expr4)
         , testCase "concatNames" (expr4Concatted @=? concatNames expr4)
+        , testCase "typeReplace" (tyfunsA @=? typeReplace tyConAppXFun tyA tyfuns)
+        , testCase "typeReplace2" (ex2 @=? typeReplace tyConAppDouble tyA ex)
         , testCase "countExpr1" (1 @=? countExpr expr1)
         , testCase "countExpr2" (4 @=? countExpr expr2)
         , testCase "countExpr3" (11 @=? countExpr expr3)
@@ -30,7 +34,7 @@ unitTests =
 -- (note: bounding is not performed.  The point is to test modify, not
 -- to perform an actually useful operation.)
 removeLams :: (ASTContainer t Expr) => t -> t
-removeLams = modifyContainer removeLams'
+removeLams = modifyASTs removeLams'
     where
         removeLams' :: Expr -> Expr
         -- removeLams' recursively removes all Lams from the beginning of the expression
@@ -43,14 +47,14 @@ removeLams = modifyContainer removeLams'
 -- The same as removeLams, but by using modifyContainerFix, we avoid having to write
 -- removeLams' recursively
 removeLamsFixed :: (ASTContainer t Expr) => t -> t
-removeLamsFixed = modifyContainerFix removeLams'
+removeLamsFixed = modifyASTsFix removeLams'
     where
         removeLams' :: Expr -> Expr
         removeLams' (Lam _ e _) = e
         removeLams' e = e
 
 concatNames :: (ASTContainer t Expr) => t -> t
-concatNames = modifyContainerM concatNames'
+concatNames = modifyASTsM concatNames'
     where
         concatNames' :: [Name] -> Expr -> (Expr, [Name])
         concatNames' ns (Var n t) =
@@ -59,16 +63,27 @@ concatNames = modifyContainerM concatNames'
             let n' = (mconcat ns) ++ n in (Lam n' e t, [n])
         concatNames' _ e = (e, [])
 
+typeReplace :: (ASTContainer c Type) => Type -> Type -> c -> c
+typeReplace tOld tNew = modifyASTs (typeReplace' tOld tNew)
+    where
+        typeReplace' :: Type -> Type -> Type -> Type
+        typeReplace' tOld tNew t@(TyFun t'@(TyFun _ _) t'') =
+            if t' == tOld then
+                TyFun tNew t''
+            else
+                t
+        typeReplace' _ _ t = t
+
 -- Counts the number of expressions that are nested in a given expression container
 countExpr :: (ASTContainer t Expr) => t -> Int
-countExpr = Mon.getSum . evalContainerASTs (countExpr')
+countExpr = Mon.getSum . evalASTs (countExpr')
     where
         countExpr' :: Expr -> Mon.Sum Int
         countExpr' _ = Mon.Sum 1
 
 -- Counts the number of types that are nested in a given type container
 countType :: (ASTContainer t Type) => t -> Int
-countType = Mon.getSum . evalContainerASTs (countType')
+countType = Mon.getSum . evalASTs (countType')
     where
         countType' :: Type -> Mon.Sum Int
         countType' _ = Mon.Sum 1
@@ -123,3 +138,36 @@ expr4Concatted =
     (TyConApp "X" [])
 
 exprMap = M.fromList [("expr1", expr1), ("expr2", expr2), ("expr3", expr3)]
+
+tyA = TyConApp "A" []
+tyConAppDouble = TyFun (TyConApp "Double" []) (TyConApp "Double" [])
+tyConAppXFun = TyFun (TyConApp "X" []) (TyConApp "X" [])
+tyfuns = TyFun (TyFun (TyFun tyConAppXFun TyBottom) TyBottom) TyBottom
+tyfunsA = TyFun (TyFun (TyFun tyA TyBottom) TyBottom) TyBottom
+
+ex =  
+    (Lam "A"
+     (Var "functionSatisfies"
+           (TyFun 
+              (TyFun 
+                 (TyConApp "Double" [])
+                 (TyConApp "Double" [])
+              )
+              (TyConApp "Bool" [])
+           )
+           
+        )
+     TyBottom
+    )
+
+ex2 =  
+          (Lam "A"
+             (Var "functionSatisfies" 
+                                (TyFun
+                                   tyA
+                                   (TyConApp "Bool" [])
+                                )
+                                
+                             )
+             TyBottom
+          )
