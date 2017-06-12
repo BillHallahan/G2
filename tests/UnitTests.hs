@@ -30,7 +30,7 @@ unitTests =
 -- (note: bounding is not performed.  The point is to test modify, not
 -- to perform an actually useful operation.)
 removeLams :: (ASTContainer t Expr) => t -> t
-removeLams = modifyContains removeLams'
+removeLams = modifyContainer removeLams'
     where
         removeLams' :: Expr -> Expr
         -- removeLams' recursively removes all Lams from the beginning of the expression
@@ -40,17 +40,17 @@ removeLams = modifyContains removeLams'
         removeLams' (Lam _ e _) = removeLams' e
         removeLams' e = e
 
--- The same as removeLams, but by using modifyContainsFixed, we avoid having to write
+-- The same as removeLams, but by using modifyContainerFix, we avoid having to write
 -- removeLams' recursively
 removeLamsFixed :: (ASTContainer t Expr) => t -> t
-removeLamsFixed = modifyContainsFixed removeLams'
+removeLamsFixed = modifyContainerFix removeLams'
     where
         removeLams' :: Expr -> Expr
         removeLams' (Lam _ e _) = e
         removeLams' e = e
 
 concatNames :: (ASTContainer t Expr) => t -> t
-concatNames = modifyContains' concatNames'
+concatNames = modifyContainerM concatNames'
     where
         concatNames' :: [Name] -> Expr -> (Expr, [Name])
         concatNames' ns (Var n t) =
@@ -61,14 +61,14 @@ concatNames = modifyContains' concatNames'
 
 -- Counts the number of expressions that are nested in a given expression container
 countExpr :: (ASTContainer t Expr) => t -> Int
-countExpr = Mon.getSum . evalContains (countExpr')
+countExpr = Mon.getSum . evalContainerASTs (countExpr')
     where
         countExpr' :: Expr -> Mon.Sum Int
         countExpr' _ = Mon.Sum 1
 
 -- Counts the number of types that are nested in a given type container
 countType :: (ASTContainer t Type) => t -> Int
-countType = Mon.getSum . evalContains (countType')
+countType = Mon.getSum . evalContainerASTs (countType')
     where
         countType' :: Type -> Mon.Sum Int
         countType' _ = Mon.Sum 1

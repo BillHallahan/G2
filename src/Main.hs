@@ -39,16 +39,17 @@ import qualified Data.Monoid as Mon
 import qualified G2.Internals.Core.CoreManipulator as CM
 --END
 
+{-
 main = do
     (num:xs) <- getArgs
-    let filepath:entry:xs' = xs
+    let filepath:mod:entry:xs' = xs
     raw_core <- mkRawCore filepath
     -- putStrLn "RAW CORE"
     -- putStrLn =<< outStr raw_core
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
-    let init_state = if num == "1" then initState t_env' e_env' entry else initStateWithPost t_env' e_env' entry (xs' !! 0)
+    let init_state = if num == "1" then initState t_env' e_env' mod entry else initStateWithPost t_env' e_env' mod entry (xs' !! 0)
 
     let defun_init_state = defunctionalize init_state
 
@@ -91,26 +92,29 @@ main = do
                 else
                     print "Error"
             else return ()) states'
+-}
 
+main = do
+    (filepath:mod:prepost:entry:args) <- getArgs
+    putStrLn "Thank you for using G2! We appear to compile, but does it work?"
+    raw_core <- mkRawCore filepath
 
--- main = do
---     (filepath:prepost:entry:args) <- getArgs
---     putStrLn "Thank you for using G2! We appear to compile, but does it work?"
---     raw_core <- mkRawCore filepath
+    let (rt_env, re_env) = mkG2Core raw_core
+    let tenv' = M.union rt_env (M.fromList prelude_t_decls)
+    let eenv' = M.insert "p1" BAD re_env-- re_env
+    let init_state = defunctionalize $ initState tenv' eenv' mod entry
 
---     let (rt_env, re_env) = mkG2Core raw_core
---     let tenv' = M.union rt_env (M.fromList prelude_t_decls)
---     let eenv' = M.insert "p1" BAD re_env-- re_env
---     let init_state = defunctionalize $ initState tenv' eenv' entry
---     let runs = 20
---     -- let (states, n) = runN [init_state] runs
---     let states = histN [init_state] runs
---     -- putStrLn $ show states
---     mapM (\(ss, n) -> do
---              putStrLn $ show (runs - n)
---              -- putStrLn $ (show $ length ss) ++ "\n")
---              mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
---          (init states)
+    putStrLn $ mkRawStateStr init_state
+    
+    let runs = 0 -- 20
+    -- let (states, n) = runN [init_state] runs
+    let states = histN [init_state] runs
+    -- putStrLn $ show states
+    mapM (\(ss, n) -> do
+             putStrLn $ show (runs - n)
+             -- putStrLn $ (show $ length ss) ++ "\n")
+             mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
+         (init states)
 
 --Switches every occurence of a Var in the Func SLT from datatype to function
 replaceFuncSLT :: CM.Manipulatable Expr m => State -> m -> m
