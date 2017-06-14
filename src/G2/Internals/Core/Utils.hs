@@ -260,6 +260,19 @@ rename old new state = case curr_expr state of
 renameList :: [(Name, Name)] -> State -> State
 renameList remaps state = foldl (\s (n, n') -> rename n n' s) state remaps
 
+-- | Fresh Renaming
+--   Given a seed, apply fresh renaming on a state.
+freshSeededRename :: Name -> State -> (Name, State)
+freshSeededRename seed state = (name', rename seed name' state)
+  where name' = freshSeededName seed state
+
+-- | Fresh Rename List
+--   Given a list of seeds, apply fresh renaming on a state.
+freshSeededRenameList :: [Name] -> State -> ([Name], State)
+freshSeededRenameList seeds state = (names', renameList pairs state)
+  where names' = freshSeededNameList seeds state
+        pairs  = zip seeds names'
+
 -- | Expression Type
 --   Gets the type of an expression.
 exprType :: Expr -> Type

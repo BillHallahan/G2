@@ -35,8 +35,7 @@ step state = case curr_expr state of
 
   -- App-Lam expressions are a concrete example of function application.
   App (Lam b lx t) ae ->
-      let b' = freshSeededName b state
-          lx_state = rename b b' (state {curr_expr = lx})
+      let (b', lx_state) = freshSeededRename b (state {curr_expr = lx})
       in [bindExpr b' ae lx_state]
 
   -- App-Cases are most likely not necessary and can be commented out.
@@ -86,27 +85,23 @@ step state = case curr_expr state of
                   -- it as a symbolic function, which means that it returns
                   -- symbolic results, and consequently, the data constructor's
                   -- parameters must now be set to free variables.
-                  Var f t -> let params' = freshSeededNameList params state
-                                 zipd = zip params params'
-                                 pc' = [(m, Alt (dc, params'), True)] ++
-                                       path_cons state
-                             in [renameList zipd (state { curr_expr = aexp
-                                                        , path_cons = pc' })]
+                  Var f t -> let ast = state {curr_expr = aexp}
+                                 (ps',ast') = freshSeededRenameList params ast
+                                 pc' = [(m, Alt (dc, ps'), True)] ++
+                                       path_cons ast'
+                             in [ast' {path_cons = pc'}]
 
                   -- If the matching expression is a data constructor that can
                   -- successfully perform structural matching, then we do the
                   -- usual stuff like updating PC's, and environment binding.
-                  Data md -> if length args == length params && dc == md
-                      then let params' = freshSeededNameList params state
-                               binds = zip params' args
-                               zp = zip params params'
-                               pc' = [(m, Alt (dc, params'), True)] ++
-                                     path_cons state
-                               a_st = renameList zp (state { curr_expr = aexp
-                                                           , path_cons = pc' })
-                           in [bindExprList binds a_st]
 
-                      -- Structural matching failed.
+                  Data md -> if length args == length params && dc == md
+                      then let (ps', st') = freshSeededRenameList params state
+                               binds = zip ps' args
+                               pc' = [(m, Alt (dc, ps'), True)] ++
+                                     path_cons st'
+                           in [bindExprList binds (st' {path_cons = pc'})]
+                      -- Structural matching failed!
                       else []
 
                   -- NUH UH NUH!!
