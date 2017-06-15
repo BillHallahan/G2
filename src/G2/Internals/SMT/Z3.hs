@@ -10,10 +10,9 @@ module G2.Internals.SMT.Z3 ( printModel
                            , reachabilityAndOutputSolverZ3
                            , outputSolverZ3) where
 
+import G2.Internals.Core
 import G2.Internals.Core.CoreManipulator as Man
-import G2.Internals.Core.Language
-import G2.Internals.Core.TypeChecker
-import G2.Internals.Symbolic.Engine
+import G2.Internals.Symbolic
 import G2.Internals.Translation.Prelude
 import G2.Internals.SMT.Z3Types
 
@@ -28,7 +27,7 @@ import Data.Ord
 
 import qualified Data.Set as S
 
-import Z3.Monad
+import Z3.Monad as Z3M
 
 import Data.Ratio
 
@@ -124,7 +123,7 @@ modelToExpr' tm m s (n, (_, t, _)) = do
     case ev of Just x -> return . Just =<< toExpr' t x
                Nothing -> return  Nothing
     where
-        toExpr' :: Type -> AST -> Z3 Expr
+        toExpr' :: Type -> Z3M.AST -> Z3 Expr
         toExpr' TyRawInt a = return . Const . CInt . fromInteger =<< getInt a
         toExpr' (TyConApp "Int" _) a = return . Const . CInt . fromInteger =<< getInt a
         toExpr' TyRawFloat a = return . Const . CFloat =<< getReal a
@@ -164,11 +163,11 @@ modelToExpr' tm m s (n, (_, t, _)) = do
                                                 return . App v =<< (toExpr' t'' app)) (Var rn t') (zip acc types)
                 otherwise -> error "More than one recognizer matched in modelToExpr"
 
-constraintsZ3 :: TypeMaps -> PathCons -> Z3 [AST]
+constraintsZ3 :: TypeMaps -> PathCons -> Z3 [Z3M.AST]
 constraintsZ3 d (path_cons) = do
     mapM (constraintsZ3' d) path_cons
     where
-        constraintsZ3' :: TypeMaps -> (Expr, Alt, Bool) -> Z3 AST
+        constraintsZ3' :: TypeMaps -> (Expr, Alt, Bool) -> Z3 Z3M.AST
         constraintsZ3' d (expr, alt, b) = do
             e <- exprZ3 d M.empty expr
             a <- altZ3 d M.empty alt
@@ -206,7 +205,7 @@ handleExprEnv d State {expr_env = eexpr, curr_expr = curr_expr, path_cons = path
             eq <- mkEq app =<< exprZ3 d M.empty e'
             assert =<< mkForall [] n' t' eq
 
-exprZ3 :: TypeMaps -> M.Map Name AST -> Expr -> Z3 AST
+exprZ3 :: TypeMaps -> M.Map Name Z3M.AST -> Expr -> Z3 Z3M.AST
 exprZ3 _ _ (Var "True" _) = mkTrue
 exprZ3 _ _ (Var "False" _) = mkFalse
 exprZ3 d m (Var v t)
@@ -234,7 +233,7 @@ exprZ3 d m c@(Case e ae t) = do
             -> an alt, expr pair
             -> (a recognizer, an expression for if that recognizer is true)
         -}
-        exprZ3AltExpr :: TypeMaps -> M.Map Name AST -> AST -> (Alt, Expr) -> Z3 (AST, AST)
+        exprZ3AltExpr :: TypeMaps -> M.Map Name Z3M.AST -> Z3M.AST -> (Alt, Expr) -> Z3 (Z3M.AST, Z3M.AST)
         exprZ3AltExpr tm m e ae@(alt@(Alt (DataCon n _ t ts, n')), e') = do
             accApp <- case accessorFuncs tm n of
                                 Just a -> mapM (\a' -> mkApp a' [e]) a --a
@@ -255,11 +254,11 @@ exprZ3 d m c@(Case e ae t) = do
             else
                 error ("Too many arguments in case with " ++ show ae)
 
-        mkIteAltExpr :: [(AST, AST)] -> Z3 AST
+        mkIteAltExpr :: [(Z3M.AST, Z3M.AST)] -> Z3 Z3M.AST
         mkIteAltExpr ((_, e):[]) = return e
         mkIteAltExpr ((r, e):es) = mkIte r e =<< mkIteAltExpr es
 
-        accDefault :: Name -> AST -> Alt -> Z3 [AST]
+        accDefault :: Name -> Z3M.AST -> Alt -> Z3 [Z3M.AST]
         accDefault _ e (Alt (DataCon "True" _ _ _, _)) = return []
         accDefault _ e (Alt (DataCon "False" _ _ _, _)) = return []
         accDefault _ e (Alt (DataCon "D#" _ _ _, [d])) = return [e]
@@ -267,7 +266,7 @@ exprZ3 d m c@(Case e ae t) = do
         accDefault _ e (Alt (DataCon "I#" _ _ _, [i])) = return [e]
         accDefault n _ _ = error ("No accessor functions for " ++ n ++ " in exprZ3AltExpr")
 
-        recDefault :: Name -> AST -> Alt -> Z3 AST
+        recDefault :: Name -> Z3M.AST -> Alt -> Z3 Z3M.AST
         recDefault _ e (Alt (DataCon "True" _ _ _, _)) = mkEq e =<< mkTrue
         recDefault _ e (Alt (DataCon "False" _ _ _, _)) = mkEq e =<< mkFalse
         recDefault _ e (Alt (DataCon "D#" _ _ _, _)) = mkTrue
@@ -277,7 +276,7 @@ exprZ3 d m c@(Case e ae t) = do
 
 exprZ3 _ _ e = error ("Unknown expression " ++ show e ++ " in exprZ3")
 
-handleFunctionsZ3 :: TypeMaps -> M.Map Name AST -> Expr -> [Expr] -> Z3 AST
+handleFunctionsZ3 :: TypeMaps -> M.Map Name Z3M.AST -> Expr -> [Expr] -> Z3 Z3M.AST
 --Mappings fairly directly from Haskell to SMT
 --Need to account for weird user implementations of Num?
 handleFunctionsZ3 d m (Var "==" _) [_, _, a, b] = do
@@ -367,12 +366,12 @@ mkFuncDeclZ3 d n t = do
             (x:fl, fl')
         frontLast [] = error "Empty list passed to frontLast in mkFuncDeclZ3."
 
-constZ3 :: Const -> Z3 AST
+constZ3 :: Const -> Z3 Z3M.AST
 constZ3 (CInt i) = mkInt i =<< mkIntSort
 constZ3 (CFloat r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
 constZ3 (CDouble r) = mkReal (fromInteger . numerator $ r) (fromInteger . denominator $ r)
 
-altZ3 :: TypeMaps -> M.Map Name AST -> Alt -> Z3 AST
+altZ3 :: TypeMaps -> M.Map Name Z3M.AST -> Alt -> Z3 Z3M.AST
 altZ3 _ _ (Alt ((DataCon "True" _ (TyConApp "Bool" _) _), _)) = mkBool True
 altZ3 _ _ (Alt ((DataCon "False" _ (TyConApp "Bool" _) _), _)) = mkBool False
 altZ3 _ _ (Alt ((DataCon "I#" _ (TyConApp "Int" _) _), i)) = do

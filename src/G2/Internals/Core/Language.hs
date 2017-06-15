@@ -8,24 +8,24 @@ import qualified Data.Map as M
 -- | Execution State
 --   Our execution state consists of several things that we keep track of:
 --     1. Type Environment: Contains things such as algebraic data types and
---        functions. We primarily need this to reconstruct data for SMT solvers.
+--        functions. We mostly need this to reconstruct data for SMT solvers.
 --
 --     2. Expression Environment: Maps names (strings) to their corresponding
---        expressions. Functions after currying are represented as a sequence of
---        cascading lambda expressions.
+--        expressions. Functions after currying are represented as a sequence
+--        of cascading lambda expressions.
 --
 --     3. Current Expression: The expression we are trying to evaluate:
 --
 --     4. Path Constraints: Keep track of which Alt branchings we have taken.
 --
 --     5. Symbolic Link Table: Maps renamed variables to their original names.
---        If they are a renamed input variable, we store their input position as
---        Just Int, otherwise stored as Nothing.
+--        If they are a renamed input variable, we store their input position
+--        as Just Int, otherwise stored as Nothing.
 --
 --     6. Function Interpretation Table: Maps the Apply data constructors
 --        to their function names.  Interp distinguishes between functions that
---        exist in the expression environment (StdInterp) and those that should be
---        treated as uninterpreted functions (UnInterp)
+--        exist in the expression environment (StdInterp) and those that should
+--        be treated as uninterpreted functions (UnInterp)
 data State = State { type_env     :: TEnv
                    , expr_env     :: EEnv
                    , curr_expr    :: Expr

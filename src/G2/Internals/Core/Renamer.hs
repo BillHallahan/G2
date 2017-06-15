@@ -6,6 +6,8 @@
 --   must be careful to avoid accidentally capturing free variables.
 module G2.Internals.Core.Renamer where
 
+import G2.Internals.Core.AST
+import G2.Internals.Core.Environment
 import G2.Internals.Core.Language
 
 import qualified Data.Char as C
@@ -17,44 +19,28 @@ import qualified Data.Map  as M
 --   because this function will mostly be used for conflict listing when making
 --   fresh variable names -- hence it is safe to do so :)
 allNames :: State -> [Name]
-allNames state = L.nub (tenvs ++ eenvs ++ cexps ++ pcs ++ slts ++ fints)
-  where tenvs = concatMap (\(n, t) -> [n] ++ tys t) (M.toList $ type_env state)
-        eenvs = concatMap (\(n, e) -> [n] ++ exs e) (M.toList $ expr_env state)
-        cexps = exs $ curr_expr state
-        pcs   = concatMap (\(e, a, b) -> exs e ++ alts a) (path_cons state)
-        slts  = concatMap (\(a,(b,t,m)) -> [a, b]) (M.toList $ sym_links state)
-        fints = concatMap (\(a,(b,i)) -> [a,b]) (M.toList $ func_interps state)
-        -- Names in a data constructor.
-        dcs :: DataCon -> [Name]
-        dcs (DataCon dcn _ t ps) = [dcn] ++ tys t ++ concatMap tys ps
-        dcs DEFAULT = []
-        -- Names in a type.
-        tys :: Type -> [Name]
-        tys (TyVar n) = [n]
-        tys (TyFun t1 t2) = tys t1 ++ tys t2
-        tys (TyApp tf ta) = tys tf ++ tys ta
-        tys (TyConApp n ts) = [n] ++ concatMap tys ts
-        tys (TyAlg n ds) = [n] ++ concatMap dcs ds
-        tys (TyForAll n t) = [n] ++ tys t
-        tys _ = []
-        -- Names in an alt.
-        alts :: Alt -> [Name]
-        alts (Alt (dc, params)) = dcs dc ++ params
-        -- Names in an (Alt, Expr) pair.
-        altxs :: (Alt, Expr) -> [Name]
-        altxs (Alt (dc, params), aexp) = dcs dc ++ params ++ exs aexp
-        -- Names in an expression.
+allNames state = L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_keys)
+  where expr_names = evalASTs exs state
+        type_names = evalASTs tys state
+        eenv_keys = (M.keys . expr_env) state
+        tenv_keys = (M.keys . type_env) state
+
+        -- Names from an Expr.
         exs :: Expr -> [Name]
-        exs (Var n t) = [n] ++ tys t
-        exs (Const (COp n t)) = [n] ++ tys t
-        exs (Lam b e t) = [b] ++ exs e ++ tys t
-        exs (Let bs e) = (concatMap (\(n, e) -> [n] ++ exs e) bs) ++ exs e
-        exs (App f a) = exs f ++ exs a
-        exs (Data dc) = dcs dc
-        exs (Case m as t) = exs m ++ concatMap altxs as ++ tys t
-        exs (Type t) = tys t
-        exs (Spec c e) = exs c ++ exs e
+        exs (Var n t)     = [n]
+        exs (Const (COp n t)) = [n]
+        exs (Lam b e t)   = [b]
+        exs (Let bs e)    = map fst bs
+        exs (Case m as t) = concatMap (\(Alt (_, ps), _) -> ps) as
         exs _ = []
+
+        -- Names from a Type.
+        tys :: Type -> [Name]
+        tys (TyVar n)   = [n]
+        tys (TyConApp n _) = [n]
+        tys (TyAlg n _) = [n]
+        tys (TyForAll n _) = [n]
+        tys _ = []
 
 -- | Fresh Seeded Name
 --   We want this new name to be different from all other names in the state.   
@@ -63,6 +49,7 @@ freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
   where conflicts = allNames state
         max_confs_num = L.maximum $ 0:(map nameNum conflicts)
         stripped_seed = filter (not . C.isDigit) seed
+
         -- Highest number sequence in a name, ignoring characters.
         nameNum :: Name -> Int
         nameNum name = case filter C.isDigit name of
@@ -76,11 +63,14 @@ freshSeededNameList :: [Name] -> State -> [Name]
 freshSeededNameList [] _ = []
 freshSeededNameList (n:ns) s = n':freshSeededNameList ns s'
   where n' = freshSeededName n s
-        s' = s {expr_env = M.insert n' BAD (expr_env s)}  -- Conflict
-        -- s' = bindExpr n' BAD s  -- Conflict
+        s' = bindExpr n' BAD s  -- Conflict
 
 -- | Rename
---   Rename all variables of form (Var n) with (Var n').
+--   Rename all variables of form (Var n) with (Var n'). We make the assumption
+--   that the new name passed in is fresh with respect to the current state.
+--   This allows us to prevent checking to see if the new name happens to equal
+--   one of the names in a binder (cf Lam, Case, Let), and thus saves us the
+--   effort of having to perform sub-expression renaming.
 rename :: Name -> Name -> State -> State
 rename old new state = case curr_expr state of
   -- If it matches, we update, and add an entry to the symbolic link table.
@@ -92,22 +82,15 @@ rename old new state = case curr_expr state of
 
   -- Must check for cases where the lambda's binder might be old or new.
   Lam b e t -> if old == b
-      -- We are unable to continue due to variable shadowing.
       then state
-      else if new == b
-          -- We must change the binder to something else.
-          then let b' = freshSeededName b state  -- b' /= new
-                   state' = rename b b' (state {curr_expr = e})
-                   e' = curr_expr state'
-               in rename old new (state' {curr_expr = Lam b' e' t})
-          -- Can safely proceed!
-          else let state' = rename old new (state {curr_expr = e})
-               in state' {curr_expr = Lam b (curr_expr state') t}
+      else let state' = rename old new (state {curr_expr = e})
+           in state' {curr_expr = Lam b (curr_expr state') t}
 
   -- Let expressions. A huge mess apparently.
   Let bs e ->
       let b_lhs = map fst bs
           b_rhs = map snd bs
+
           -- When we bind let statements, we have to be aware of potentially
           -- changing symbolic link tables, which is why we fold over states
           -- in order to ensure disjointness when renaming. Only call if old
@@ -119,45 +102,19 @@ rename old new state = case curr_expr state of
                   b_st = state { expr_env = M.union (expr_env state) c_env
                                , curr_expr = bexp }
               in acc ++ [(n, rename old new b_st)]
-          -- Go through the binds and rename them directly. Again, need to keep
-          -- track of SLTs. This goes in a super fold.
-          -- I am so sorry, Simon Peyton Jones.
-          rawRenameBinds :: [((Name, Name, Name), State)] ->
-                            ((Name, Name, Name), Expr) ->
-                            [((Name, Name, Name), State)]
-          rawRenameBinds acc ((old', new', key), rhs) =
-              let acc_alls = concatMap (\((a,b,c),s) -> [a,b,c] ++
-                                                        allNames s) acc
-                  c_env = M.fromList $ zip acc_alls (repeat BAD)
-                  b_st = state { expr_env = M.union (expr_env state) c_env
-                               , curr_expr = rhs }
-              in if key == old'
-                  then acc ++ [((old', new', old'), rename old' new' b_st)]
-                  else acc ++ [((old', new', key), rename old' new' b_st)]
+
           -- Can only safely join them if their new entries are disjoint!!
           joinSLTs :: [SymLinkTable] -> SymLinkTable
           joinSLTs slts = foldl M.union M.empty slts
       in if old `elem` b_lhs
           then state
-          else if new `elem` b_lhs
-              then let new' = freshSeededName new state
-                       e_state = rename new new' (state {curr_expr = e})
-                       b_sts = tail $ foldl rawRenameBinds
-                                            [((new, new', "_"), e_state)]
-                                            (map (\(n,e)->((new,new',n),e)) bs)
-                       slts = joinSLTs $ [sym_links e_state] ++
-                                         map (\((a,b,c),s)->sym_links s) b_sts
-                       b_norm = map (\((a, b, n), s) -> (n, curr_expr s)) b_sts
-                   in rename old new
-                            (state { curr_expr = Let b_norm (curr_expr e_state)
-                                   , sym_links = slts })
-              else let e_state = rename old new (state {curr_expr = e})
-                       b_sts = tail $ foldl rawFoldFunRHS [("_", e_state)] bs
-                       slts = joinSLTs $ [sym_links e_state] ++
-                                         map (sym_links . snd) b_sts
-                       b_norm = map (\(n, s) -> (n, curr_expr s)) b_sts
-                   in state { curr_expr = Let b_norm (curr_expr e_state)
-                            , sym_links = slts }
+          else let e_state = rename old new (state {curr_expr = e})
+                   b_sts = tail $ foldl rawFoldFunRHS [("_", e_state)] bs
+                   slts = joinSLTs $ [sym_links e_state] ++
+                                     map (sym_links . snd) b_sts
+                   b_norm = map (\(n, s) -> (n, curr_expr s)) b_sts
+               in state { curr_expr = Let b_norm (curr_expr e_state)
+                        , sym_links = slts }
 
   -- This is more straightforward than Lam. Branch and union the sym links.
   App f a ->
@@ -178,25 +135,16 @@ rename old new state = case curr_expr state of
                 alt_st = state { expr_env = M.union (expr_env state) c_env
                                , curr_expr = aexp }
             in if old `elem` params
-              -- We have achieved variable shadowing.
-              then acc ++ [alt_st]
-              else if new `elem` params
-                -- We must rename the existing datacon params.
-                then let params' = freshSeededNameList params alt_st
-                         zipd = zip params params'
-                         alt_st' = renameList zipd alt_st
-                         aexp' = curr_expr alt_st'
-                         slk' = sym_links alt_st'
-                     in acc ++ [rename old new (alt_st' { curr_expr = aexp'
-                                                        , sym_links = slk' })]
-                -- Okay to rename!
+                then acc ++ [alt_st]
                 else acc ++ [rename old new alt_st]
+
           -- Fold over the slt's to join them. It is only safe to do so if we
           -- can guarantee some level of mutual exclusion in terms of the
           -- names added, hence why altState requires the previous states in
           -- order to make an effective conflict list.
           joinSLTs :: [SymLinkTable] -> SymLinkTable
           joinSLTs slts = foldl M.union M.empty slts
+
           -- Renaming the matching expression while we can.
           m_state = rename old new (state {curr_expr = m})
           -- Create the alt states that we can use for merging later. Make

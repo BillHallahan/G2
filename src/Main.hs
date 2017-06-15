@@ -20,20 +20,11 @@ import Z3.Monad
 import G2.Lib.Utils
 import G2.Lib.Printers
 
-import G2.Internals.Core.Language
-import G2.Internals.Core.TypeChecker
-import G2.Internals.Core.AST
-
-import G2.Internals.Translation.Haskell
-import G2.Internals.Translation.Prelude
-
-import G2.Internals.Preprocessing.Defunctionalizor
-
-import G2.Internals.Symbolic.Engine
-import G2.Internals.Symbolic.Config
-
-import G2.Internals.SMT.Z3Types
-import G2.Internals.SMT.Z3
+import G2.Internals.Core
+import G2.Internals.Translation
+import G2.Internals.Preprocessing
+import G2.Internals.Symbolic
+import G2.Internals.SMT
 
 --FOR containsNonConsFunctions AND replaceFuncSLT
 import qualified Data.Monoid as Mon

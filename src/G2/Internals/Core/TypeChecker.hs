@@ -3,6 +3,7 @@
 module G2.Internals.Core.TypeChecker where
 
 import G2.Internals.Core.Language
+
 import qualified Data.List as L
 
 -- | Expression Type
@@ -26,7 +27,7 @@ exprType (Spec c e) = exprType e
 exprType (BAD) = TyBottom
 
 -- | Type Check a State
--- Check that a given State is valid.
+--   Check that a given State is valid.
 typeCheck :: State -> Bool
 typeCheck state = undefined
 

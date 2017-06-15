@@ -1,9 +1,6 @@
 module G2.Internals.Preprocessing.Defunctionalizor (defunctionalize) where
 
-import G2.Internals.Core.Language
-import G2.Internals.Core.TypeChecker
-import G2.Internals.Core.AST
-import G2.Internals.Core.Renamer
+import G2.Internals.Core
 
 import Data.List
 import Data.Maybe

@@ -172,7 +172,7 @@ instance ASTContainer State Expr where
                       ((containedASTs . expr_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_cons) s) ++
-                      ((containedASTs  . sym_links) s)
+                      ((containedASTs . sym_links) s)
 
     modifyContainedASTs f s = s { type_env  = (modifyASTs f . type_env) s
                                 , expr_env  = (modifyASTs f . expr_env) s
