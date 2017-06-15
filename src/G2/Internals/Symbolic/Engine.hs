@@ -6,7 +6,8 @@ import qualified Data.List as L
 import qualified Data.Map  as M
 
 import G2.Internals.Core.Language
-import G2.Internals.Core.Utils
+import G2.Internals.Core.TypeChecker
+import G2.Internals.Symbolic.Utils
 
 -- We return values from evaluations. A value is defined as something that a
 -- program may return from running. The only oddity here may be that we allow

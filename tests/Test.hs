@@ -9,8 +9,8 @@ import GHC
 
 import G2.Internals.Preprocessing.Defunctionalizor
 import G2.Internals.Core.Language as G2
-import G2.Internals.Core.ASTHandler
-import G2.Internals.Core.Utils as G2U
+import G2.Internals.Core.AST
+import G2.Internals.Core.TypeChecker as G2TC
 
 import G2.Internals.Symbolic.Config
 
@@ -210,11 +210,11 @@ replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
         replaceFuncSLT' e = e
 
         functionType :: State -> G2.Name -> Maybe G2.Type
-        functionType s n = G2U.exprType <$> M.lookup n (expr_env s)
+        functionType s n = G2TC.exprType <$> M.lookup n (expr_env s)
 
 -- constructors :: TEnv -> [G2.Name]
 -- constructors = evalDataConType (\(DataCon n _ _ _) -> [n])
 
 functionType :: State -> G2.Name -> Maybe G2.Type
-functionType s n = G2U.exprType <$> M.lookup n (expr_env s)
+functionType s n = G2TC.exprType <$> M.lookup n (expr_env s)
 

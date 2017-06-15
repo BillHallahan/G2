@@ -3,9 +3,10 @@ module G2.Internals.Symbolic.Config where
 import qualified Data.Map as M
 
 import G2.Lib.Utils
+import G2.Internals.Symbolic.Utils
 
 import G2.Internals.Core.Language
-import G2.Internals.Core.Utils
+import G2.Internals.Core.TypeChecker
 import G2.Internals.Symbolic.Engine
 
 -- | Lambda Arguments

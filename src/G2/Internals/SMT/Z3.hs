@@ -12,7 +12,7 @@ module G2.Internals.SMT.Z3 ( printModel
 
 import G2.Internals.Core.CoreManipulator as Man
 import G2.Internals.Core.Language
-import G2.Internals.Core.Utils
+import G2.Internals.Core.TypeChecker
 import G2.Internals.Symbolic.Engine
 import G2.Internals.Translation.Prelude
 import G2.Internals.SMT.Z3Types

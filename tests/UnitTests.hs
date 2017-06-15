@@ -9,7 +9,7 @@ import qualified Data.Map as M
 import qualified Data.Monoid as Mon
 
 import G2.Internals.Core.Language
-import G2.Internals.Core.ASTHandler
+import G2.Internals.Core.AST
 
 import G2.Internals.Preprocessing.Defunctionalizor
 
