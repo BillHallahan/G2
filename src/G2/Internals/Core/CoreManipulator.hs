@@ -497,3 +497,25 @@ modifyDataConTypeG f e x = modifyG (f' f) e x
             in
             (TyAlg n dc', mconcat x')
         f' _ _ dc = (dc, mempty)
+
+instance Manipulatable Expr PathCond where
+    modifyG f (CondAlt e a b) x =
+        let
+            (e', x') = modifyG f e x
+            (a', x'') = modifyG f a x
+        in
+        (CondAlt e' a' b,  x' `mappend` x'')
+    modifyG f (CondExt e b) x =
+        let (e', x') = modifyG f e x
+        in (CondExt e' b, x')
+
+instance Manipulatable Type PathCond where
+    modifyG f (CondAlt e a b) x =
+        let
+            (e', x') = modifyG f e x
+            (a', x'') = modifyG f a x
+        in
+        (CondAlt e' a' b,  x' `mappend` x'')
+    modifyG f (CondExt e b) x =
+        let (e', x') = modifyG f e x
+        in (CondExt e' b, x')

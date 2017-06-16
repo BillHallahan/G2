@@ -1,4 +1,4 @@
--- | AST
+-- | Abstract Syntax Tree
 --   Defines typeclasses and functions for ease of AST manipulation.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -113,14 +113,16 @@ instance AST Expr where
     children (Let bs e)    = (map snd bs) ++ [e]
     children (App f a)     = [f, a]
     children (Case m as _) = m:(map snd as)
-    children (Spec c e)    = [c, e]
+    children (Assume c e)  = [c, e]
+    children (Assert c e)  = [c, e]
     children _ = []
 
     modifyChildren f (Lam b e t)   = Lam b (f e) t
     modifyChildren f (Let bs e)    = Let (map (\(k, v) -> (k, f v)) bs) (f e)
     modifyChildren f (App l r)     = App (f l) (f r)
     modifyChildren f (Case m as t) = Case (f m) (map (\(a,e) -> (a,f e)) as) t
-    modifyChildren f (Spec c e)    = Spec (f c) (f e)
+    modifyChildren f (Assume c e)  = Assume (f c) (f e)
+    modifyChildren f (Assert c e)  = Assert (f c) (f e)
     modifyChildren f e = e
 
 instance AST Type where
@@ -207,6 +209,22 @@ instance ASTContainer Alt Expr where
 instance ASTContainer Alt Type where
     containedASTs (Alt x) = (containedASTs . fst) x
     modifyContainedASTs f (Alt (dc, n)) = Alt (modifyContainedASTs f dc, n)
+
+instance ASTContainer PathCond Expr where
+    containedASTs (CondExt e b)   = containedASTs e
+    containedASTs (CondAlt e a b) = containedASTs e
+
+    modifyContainedASTs f (CondExt e b)   = CondExt (modifyContainedASTs f e) b
+    modifyContainedASTs f (CondAlt e a b) =
+        CondAlt (modifyContainedASTs f e) a b
+
+instance ASTContainer PathCond Type where
+    containedASTs (CondExt e b)   = containedASTs e
+    containedASTs (CondAlt e a b) = containedASTs e ++ containedASTs a
+
+    modifyContainedASTs f (CondExt e b)   = CondExt (modifyContainedASTs f e) b
+    modifyContainedASTs f (CondAlt e a b) =
+        CondAlt (modifyContainedASTs f e) (modifyContainedASTs f a) b
 
 instance ASTContainer c t => ASTContainer [c] t where
     containedASTs = concatMap containedASTs

@@ -124,9 +124,12 @@ mkTypeStr t i = mkTypeStr' t i False
 
 -- Primitive for now because I'm low on battery.
 mkPCStr :: PathCons -> String
+mkPCStr pcs = L.intercalate "\n" $ map show pcs
+{-
 mkPCStr [] = ""
 mkPCStr [(e, a, b)] = mkExprStr e ++ (if b then " = " else " != ") ++ show a
 mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a++ "\n--AND--\n" ++ mkPCStr ps
+-}
 
 mkSLTStr :: SymLinkTable -> String
 mkSLTStr = L.intercalate "\n" . map (\(k, (n, t, i)) -> 
