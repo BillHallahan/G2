@@ -4,6 +4,10 @@
 --This is mostly pretty straightforward, just requires care to make sure types/dfunctions don't get mixed up...
 --Always check for existence of a Var in both environements!
 
+
+module G2.Internals.SMT.Z3 where
+
+{-
 module G2.Internals.SMT.Z3 ( printModel
                            , modelToIOString
                            , reachabilitySolverZ3
@@ -455,3 +459,5 @@ ithArgType :: Type -> Int -> Type
 ithArgType (TyFun t _) 1 = t
 ithArgType (TyFun _ t) n = ithArgType t (n - 1) 
 ithArgType t i = error ("Type " ++ show t ++ " passed to TyFun")
+-}
+

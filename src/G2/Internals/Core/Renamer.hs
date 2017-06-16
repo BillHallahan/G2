@@ -161,12 +161,20 @@ rename old new state = case curr_expr state of
                , sym_links = slts }
 
   -- Rename the LHS, then RHS. Similar to App.
-  Spec cond exp ->
+  Assume cond exp ->
       let state_c = rename old new (state {curr_expr = cond})
           state_e = rename old new (state_c {curr_expr = exp})
           cond' = curr_expr state_c
           exp'  = curr_expr state_e
-      in state_e {curr_expr = Spec cond' exp'}
+      in state_e {curr_expr = Assume cond' exp'}
+
+  -- Just like Assume, which is just like App :)
+  Assert cond exp ->
+      let state_c = rename old new (state {curr_expr = cond})
+          state_e = rename old new (state_c {curr_expr = exp})
+          cond' = curr_expr state_c
+          exp'  = curr_expr state_e
+      in state_e {curr_expr = Assert cond' exp'}
 
   -- Everything else.
   _ -> state

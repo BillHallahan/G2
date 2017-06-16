@@ -31,6 +31,7 @@ import qualified Data.Monoid as Mon
 --END
 
 
+{-
 main = do
     (num:xs) <- getArgs
     let filepath:mod:entry:xs' = xs
@@ -83,29 +84,29 @@ main = do
                 else
                     print "Error"
             else return ()) states'
+-}
 
+main = do
+    (filepath:mod:prepost:entry:args) <- getArgs
+    putStrLn "We appear to compile, but does it work?"
+    raw_core <- mkRawCore filepath
 
--- main = do
---     (filepath:mod:prepost:entry:args) <- getArgs
---     putStrLn "Thank you for using G2! We appear to compile, but does it work?"
---     raw_core <- mkRawCore filepath
+    let (rt_env, re_env) = mkG2Core raw_core
+    let tenv' = M.union rt_env (M.fromList prelude_t_decls)
+    let eenv' = M.insert "p1" BAD re_env-- re_env
+    let init_state = defunctionalize $ initState tenv' eenv' mod entry
 
---     let (rt_env, re_env) = mkG2Core raw_core
---     let tenv' = M.union rt_env (M.fromList prelude_t_decls)
---     let eenv' = M.insert "p1" BAD re_env-- re_env
---     let init_state = defunctionalize $ initState tenv' eenv' mod entry
-
---     putStrLn $ mkRawStateStr init_state
+    putStrLn $ mkRawStateStr init_state
     
---     let runs = 0 -- 20
---     -- let (states, n) = runN [init_state] runs
---     let states = histN [init_state] runs
---     -- putStrLn $ show states
---     mapM (\(ss, n) -> do
---              putStrLn $ show (runs - n)
---              -- putStrLn $ (show $ length ss) ++ "\n")
---              mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
---          (init states)
+    let runs = 0 -- 20
+    -- let (states, n) = runN [init_state] runs
+    let states = histN [init_state] runs
+    -- putStrLn $ show states
+    mapM (\(ss, n) -> do
+             putStrLn $ show (runs - n)
+             -- putStrLn $ (show $ length ss) ++ "\n")
+             mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
+         (init states)
 
 --Switches every occurence of a Var in the Func SLT from datatype to function
 replaceFuncSLT :: ASTContainer m Expr => State -> m -> m

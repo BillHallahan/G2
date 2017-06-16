@@ -50,15 +50,16 @@ data Interp = StdInterp | UnInterp deriving (Show, Eq)
 --   We annotate our expressions with types. The reason we do this is because
 --   type information is needed to reconstruct statements for SMT solvers.
 --
---     Var   -- Variables.
---     Const -- Constants, such as Int#, +#, and others.
---     Lam   -- Lambda functions. Its type is a TyFun.
---     App   -- Expression (function) application.
---     Data  -- Data constructors.
---     Case  -- Case expressions. Type denotes the type of its Alts.
---     Type  -- A type expression. Unfortuantely we do need this.
---     Spec  -- Assert. The LHS asserts a condition for the RHS.
---     BAD   -- Error / filler expression.
+--     Var    -- Variables.
+--     Const  -- Constants, such as Int#, +#, and others.
+--     Lam    -- Lambda functions. Its type is a TyFun.
+--     App    -- Expression (function) application.
+--     Data   -- Data constructors.
+--     Case   -- Case expressions. Type denotes the type of its Alts.
+--     Type   -- A type expression. Unfortuantely we do need this.
+--     Assume -- Assume. The LHS assumes a condition for the RHS.
+--     Assert -- Assert. The LHS asserts a condition for the RHS.
+--     BAD    -- Error / filler expression.
 data Expr = Var Name Type
           | Const Const
           | Lam Name Expr Type
@@ -67,7 +68,6 @@ data Expr = Var Name Type
           | Data DataCon
           | Case Expr [(Alt, Expr)] Type
           | Type Type
-          | Spec Expr Expr
           | Assume Expr Expr
           | Assert Expr Expr
           | BAD

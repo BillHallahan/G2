@@ -23,7 +23,8 @@ exprType (Data (DataCon _ _ t a)) = L.foldl1 (\b r->TyFun r b) (reverse a++[t])
 exprType (Data DEFAULT) = TyBottom
 exprType (Case _ _ t) = t
 exprType (Type t) = t
-exprType (Spec c e) = exprType e
+exprType (Assume c e) = exprType e
+exprType (Assert c e) = exprType e
 exprType (BAD) = TyBottom
 
 -- | Type Check a State
