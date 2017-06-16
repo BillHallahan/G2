@@ -31,8 +31,10 @@ import G2.Internals.Preprocessing.Defunctionalizor
 import G2.Internals.Symbolic.Engine
 import G2.Internals.Symbolic.Config
 
-import G2.Internals.SMT.Z3Types
-import G2.Internals.SMT.Z3
+--import G2.Internals.SMT.Z3Types
+import G2.Internals.SMT.SMT2
+import G2.Internals.SMT.Converter
+--
 
 --FOR containsNonConsFunctions AND replaceFuncSLT
 import qualified Data.Monoid as Mon
