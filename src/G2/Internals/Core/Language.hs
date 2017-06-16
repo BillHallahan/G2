@@ -68,6 +68,8 @@ data Expr = Var Name Type
           | Case Expr [(Alt, Expr)] Type
           | Type Type
           | Spec Expr Expr
+          | Assume Expr Expr
+          | Assert Expr Expr
           | BAD
           deriving (Show, Eq)
 
@@ -151,8 +153,18 @@ data Type = TyVar Name
 --   work around this if we are clever with a custom prelude.
 newtype Alt = Alt (DataCon, [Name]) deriving (Show, Eq)
 
+-- | Path Condition
+--   A single decision point in program execution.
+--
+--   CondAlt denotes structural matching as a result of Case/Alt statements.
+--
+--   CondExt denotes external specification derived from Assume/Assert.
+data PathCond = CondAlt Expr Alt Bool
+              | CondExt Expr Bool
+              deriving (Show, Eq)
+
 -- | Path Constraints
 --   Path constraints are expressed as a 3-tuple consisting of an Expr, an Alt,
 --   and a Bool indicating whether or not the Expr should match the Alt.
-type PathCons = [(Expr, Alt, Bool)]
+type PathCons = [PathCond]
 
