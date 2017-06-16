@@ -1,12 +1,9 @@
-module G2.Internals.Symbolic.Config where
+module G2.Internals.Symbolic.Configuration where
+
+import G2.Internals.Core
+import G2.Internals.Symbolic.Engine
 
 import qualified Data.Map as M
-
-import G2.Lib.Utils
-
-import G2.Internals.Core.Language
-import G2.Internals.Core.Utils
-import G2.Internals.Symbolic.Engine
 
 -- | Lambda Arguments
 --   Stripes away the lambda function's arguments.
@@ -14,9 +11,13 @@ lamArgs :: Expr -> [(Name, Type)]
 lamArgs (Lam n e (TyFun t _)) = (n, t):lamArgs e
 lamArgs _ = []
 
+-- | Fresh Argument Names
+--   Gets fresh argument names based on the expression environment.
 freshArgNames :: EEnv -> Name -> [(Name, Type)]
 freshArgNames eenv entry = zip arg_names arg_types
-  where entry_expr = batman (lookupExpr entry eenv) "Entry not found."
+  where entry_expr = case (lookupExpr entry eenv) of
+            Just ex -> ex
+            Nothing -> error "Entry not found"
         args = lamArgs entry_expr
         arg_names = map fst args
         arg_types = map snd args
@@ -33,7 +34,9 @@ freshArgNames eenv entry = zip arg_names arg_types
 --   entry point name, should it exist in the environment.
 mkSymLinks :: EEnv -> Name -> [(Name, Type)] -> (Expr, SymLinkTable)
 mkSymLinks eenv entry args = (curr_expr, sym_links)
-  where entry_expr = batman (lookupExpr entry eenv) "Entry not found."
+  where entry_expr = case (lookupExpr entry eenv) of
+            Just ex -> ex
+            Nothing -> error "Entry not found"
         entry_type = exprType entry_expr
         arg_names  = map fst args
         arg_types  = map snd args
@@ -41,22 +44,6 @@ mkSymLinks eenv entry args = (curr_expr, sym_links)
         sym_links  = M.fromList (zip arg_names slt_rhs)
         curr_expr  = foldl (\acc (n,t) -> App acc (Var n t))
                            (Var entry entry_type) args
-
-{-
--- Just in case I, Anton, messed something up when refactoring the above.
-mkSymLinks :: EEnv -> Name -> [(Name, Type)] -> (Expr, SymLinkTable)
-mkSymLinks e_env n nfs = 
-    let 
-        ex = case M.lookup n e_env of
-                    Nothing -> error "No matching entry point. Check spelling?"
-                    Just ex' -> ex'
-        ty = exprType ex
-        nfs' = map fst nfs
-        types = map snd nfs
-        slt = M.fromList . zip nfs' . zip3 nfs' types $ map Just [1..]
-     in
-     (foldl (\ex' (n, t) -> App ex' (Var n t)) (Var n ty) . zip nfs' $ types, slt)
--}
 
 -- | Initialize State
 --   Initialize an execution state given its type environment, expression
@@ -74,6 +61,10 @@ initState tenv eenv mod entry =
              , sym_links    = slt
              , func_interps = M.empty }
 
+-- | Initialize State with Conditionals
+--   Initialize an execution state given its type environment, expression
+--   environment, and entry point name in addition to pre/post conditional
+--   functions that return boolean values.
 initStateWithPost :: TEnv -> EEnv -> Name -> Name -> Name -> State
 initStateWithPost t_env e_env mod post entry = case match of
     (Just entry_ex, Just post_ex) -> 
@@ -96,11 +87,15 @@ initStateWithPost t_env e_env mod post entry = case match of
         addToBool (TyFun t t') = TyFun t (addToBool t')
         addToBool t = TyFun t (TyConApp "Bool" [])
 
+-- | Run n Times
+--   Run a state n times through the power of concatMap.
 runN :: [State] -> Int -> ([State], Int)
 runN states 0 = (states, 0)
 runN [] n     = ([], n - 1)
 runN states n = runN (concatMap (\s -> step s) states) (n - 1)
 
+-- | History n Times
+--   Run a state n times, while keeping track of its history as a list.
 histN :: [State] -> Int -> [([State], Int)]
 histN states 0 = [(states, 0)]
 histN [] n     = [([], n - 1)]

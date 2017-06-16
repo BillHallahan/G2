@@ -1,7 +1,7 @@
 module G2.Internals.SMT.Z3Types where
 
 import G2.Internals.Core.Language
-import G2.Internals.Core.Utils
+-- import G2.Internals.Core.Utils
 import G2.Internals.Translation.Prelude
 
 import Data.List

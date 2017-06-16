@@ -1,16 +1,14 @@
--- | ASTHandler
---   This module provides two type classes and several higher order functions
---   to ease the handling of ASTs, in particular, Expr and Types.
---   See tests/UnitTests.hs for examples.
+-- | AST
+--   Defines typeclasses and functions for ease of AST manipulation.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module G2.Internals.Core.ASTHandler where
-
-import qualified Data.Map as M
+module G2.Internals.Core.AST where
 
 import G2.Internals.Core.Language
+
+import qualified Data.Map as M
 
 -- | Abstract Syntax Tree
 --   Describes the data types that can be represented in a tree format.
@@ -71,38 +69,6 @@ eval f t = (f t) `mappend` (evalChildren (eval f) t)
 evalChildren :: (AST t, Monoid a) => (t -> a) -> t -> a
 evalChildren f = mconcat . (map f) . children
 
--- | Instance Expr of AST
-instance AST Expr where
-    children (Lam _ e _)   = [e]
-    children (Let bs e)    = (map snd bs) ++ [e]
-    children (App f a)     = [f, a]
-    children (Case m as _) = m:(map snd as)
-    children (Spec c e)    = [c, e]
-    children _ = []
-
-    modifyChildren f (Lam b e t)   = Lam b (f e) t
-    modifyChildren f (Let bs e)    = Let (map (\(k, v) -> (k, f v)) bs) (f e)
-    modifyChildren f (App l r)     = App (f l) (f r)
-    modifyChildren f (Case m as t) = Case (f m) (map (\(a,e) -> (a,f e)) as) t
-    modifyChildren f (Spec c e)    = Spec (f c) (f e)
-    modifyChildren f e = e
-
-instance AST Type where
-    children (TyFun tf ta)   = [tf, ta]
-    children (TyApp tf ta)   = [tf, ta]
-    children (TyConApp _ ts) = ts
-    children (TyAlg _ dcs)   = containedASTs dcs
-    children (TyForAll _ t)  = [t]
-    children _ = []
-
-    modifyChildren f (TyFun tf ta)   = TyFun (f tf) (f ta)
-    modifyChildren f (TyApp tf ta)   = TyApp (f tf) (f ta)
-    modifyChildren f (TyConApp n ts) = TyConApp n (map f ts)
-    modifyChildren f (TyAlg n dcs)   =
-        TyAlg n (map (\(DataCon n i t ts) -> DataCon n i (f t) (map f ts)) dcs)
-    modifyChildren f (TyForAll n t)  = TyForAll n (f t)
-    modifyChildren f e = e
-
 -- | AST Container
 --   For types that contain ASTs, but that are not ASTs themselves. Such types
 --   may include environments, state, and the like.
@@ -141,6 +107,38 @@ evalASTs f = evalContainedASTs (eval f)
 evalContainedASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
 evalContainedASTs f = mconcat . map f . containedASTs
 
+-- | Instance Expr of AST
+instance AST Expr where
+    children (Lam _ e _)   = [e]
+    children (Let bs e)    = (map snd bs) ++ [e]
+    children (App f a)     = [f, a]
+    children (Case m as _) = m:(map snd as)
+    children (Spec c e)    = [c, e]
+    children _ = []
+
+    modifyChildren f (Lam b e t)   = Lam b (f e) t
+    modifyChildren f (Let bs e)    = Let (map (\(k, v) -> (k, f v)) bs) (f e)
+    modifyChildren f (App l r)     = App (f l) (f r)
+    modifyChildren f (Case m as t) = Case (f m) (map (\(a,e) -> (a,f e)) as) t
+    modifyChildren f (Spec c e)    = Spec (f c) (f e)
+    modifyChildren f e = e
+
+instance AST Type where
+    children (TyFun tf ta)   = [tf, ta]
+    children (TyApp tf ta)   = [tf, ta]
+    children (TyConApp _ ts) = ts
+    children (TyAlg _ dcs)   = containedASTs dcs
+    children (TyForAll _ t)  = [t]
+    children _ = []
+
+    modifyChildren f (TyFun tf ta)   = TyFun (f tf) (f ta)
+    modifyChildren f (TyApp tf ta)   = TyApp (f tf) (f ta)
+    modifyChildren f (TyConApp n ts) = TyConApp n (map f ts)
+    modifyChildren f (TyAlg n dcs)   =
+        TyAlg n (map (\(DataCon n i t ts) -> DataCon n i (f t) (map f ts)) dcs)
+    modifyChildren f (TyForAll n t)  = TyForAll n (f t)
+    modifyChildren f e = e
+
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
@@ -174,7 +172,7 @@ instance ASTContainer State Expr where
                       ((containedASTs . expr_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_cons) s) ++
-                      ((containedASTs  . sym_links) s)
+                      ((containedASTs . sym_links) s)
 
     modifyContainedASTs f s = s { type_env  = (modifyASTs f . type_env) s
                                 , expr_env  = (modifyASTs f . expr_env) s

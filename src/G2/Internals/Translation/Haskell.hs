@@ -8,6 +8,9 @@
 --   this module heavily depends on the GHC version we are working with.
 module G2.Internals.Translation.Haskell where
 
+import qualified G2.Internals.Core as G2
+import qualified G2.Internals.Translation.Prelude as P
+
 import ConLike
 import CoreMonad
 import CoreSubst
@@ -31,10 +34,6 @@ import Var
 import qualified Data.Map    as M
 import qualified Data.Monoid as Mon
 
-import G2.Internals.Core.CoreManipulator
-import qualified G2.Internals.Core.Language       as G2
-import qualified G2.Internals.Core.Utils          as G2CU
-import qualified G2.Internals.Translation.Prelude as P
 
 -- | Make Raw Core
 --   Make a raw GHC Core given a FilePath (String).
@@ -151,7 +150,7 @@ mkExpr (Lit lit)   = G2.Const (mkLit lit)
 mkExpr (App f a)   = G2.App (mkExpr f) (mkExpr a)
 mkExpr l@(Lam b e) =
     let ge = mkExpr e
-        et = G2CU.exprType ge
+        et = G2.exprType ge
         an = mkName $ Var.varName b
     in G2.Lam an ge ((mkType . CU.exprType) l)
 mkExpr (Case e b t as) =

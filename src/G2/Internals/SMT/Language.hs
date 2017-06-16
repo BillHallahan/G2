@@ -9,7 +9,7 @@ module G2.Internals.SMT.Language ( module G2.Internals.SMT.Language
 import qualified Control.Monad.State.Strict as Mon
 
 import G2.Internals.Core.Language
-import G2.Internals.Core.ASTHandler 
+import G2.Internals.Core.AST
 
 data SMTHeader = Assert SMTAST
                | SortDecl [(Name, [Sort])]
@@ -84,10 +84,21 @@ data SMTConverter ast out =
         , sortName :: Name -> ast
     }
 
-type SMT ast out = Mon.StateT (SMTConverter ast out)
+converterToMonad1 :: ((SMTConverter ast out) -> ast -> ast) -> ast -> Mon.State (SMTConverter ast out) ast
+converterToMonad1 f x = do
+    con <- Mon.get
+    return $ f con x
 
-f :: [SMTHeader] -> (SMT String String)
-f (Assert ast:xs) = return . assert $ ""
+converterToMonad2 :: ((SMTConverter ast out) -> ast -> ast -> ast) -> ast -> ast -> Mon.State (SMTConverter ast out) ast
+converterToMonad2 f x y = do
+    con <- Mon.get
+    return $ f con x y
+
+assert' :: ast -> Mon.State (SMTConverter ast out) out
+assert' x = do
+    con <- Mon.get
+    return $ Mon.put (merge con (assert con x) con)
+    
 
 instance AST SMTAST where
     children (x :>= y) = [x, y]

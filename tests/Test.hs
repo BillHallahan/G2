@@ -7,17 +7,11 @@ import Test.Tasty.HUnit
 
 import GHC
 
-import G2.Internals.Preprocessing.Defunctionalizor
-import G2.Internals.Core.Language as G2
-import G2.Internals.Core.ASTHandler
-import G2.Internals.Core.Utils as G2U
-
-import G2.Internals.Symbolic.Config
-
-import G2.Internals.Translation.Prelude
-import G2.Internals.Translation.Haskell
-
-import G2.Internals.SMT.Z3
+import G2.Internals.Core as G2
+import G2.Internals.Translation
+import G2.Internals.Preprocessing
+import G2.Internals.Symbolic
+import G2.Internals.SMT
 
 import Data.List
 import qualified Data.Map  as M
@@ -210,11 +204,11 @@ replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
         replaceFuncSLT' e = e
 
         functionType :: State -> G2.Name -> Maybe G2.Type
-        functionType s n = G2U.exprType <$> M.lookup n (expr_env s)
+        functionType s n = G2.exprType <$> M.lookup n (expr_env s)
 
 -- constructors :: TEnv -> [G2.Name]
 -- constructors = evalDataConType (\(DataCon n _ _ _) -> [n])
 
 functionType :: State -> G2.Name -> Maybe G2.Type
-functionType s n = G2U.exprType <$> M.lookup n (expr_env s)
+functionType s n = G2.exprType <$> M.lookup n (expr_env s)
 

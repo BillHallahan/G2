@@ -20,25 +20,20 @@ import Z3.Monad
 import G2.Lib.Utils
 import G2.Lib.Printers
 
-import G2.Internals.Core.Language
-import G2.Internals.Core.Utils
-
-import G2.Internals.Translation.Haskell
-import G2.Internals.Translation.Prelude
-
-import G2.Internals.Preprocessing.Defunctionalizor
-
-import G2.Internals.Symbolic.Engine
-import G2.Internals.Symbolic.Config
 
 --import G2.Internals.SMT.Z3Types
 import G2.Internals.SMT.SMT2
 import G2.Internals.SMT.Converter
 --
 
+import G2.Internals.Core
+import G2.Internals.Translation
+import G2.Internals.Preprocessing
+import G2.Internals.Symbolic
+import G2.Internals.SMT
+
 --FOR containsNonConsFunctions AND replaceFuncSLT
 import qualified Data.Monoid as Mon
-import qualified G2.Internals.Core.ASTHandler as ASTH
 --END
 
 
@@ -119,8 +114,8 @@ main = do
 --          (init states)
 
 --Switches every occurence of a Var in the Func SLT from datatype to function
-replaceFuncSLT :: ASTH.ASTContainer m Expr => State -> m -> m
-replaceFuncSLT s e = ASTH.modifyASTs replaceFuncSLT' e
+replaceFuncSLT :: ASTContainer m Expr => State -> m -> m
+replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
     where
         replaceFuncSLT' :: Expr -> Expr
         replaceFuncSLT' v@(Var n t) =
@@ -138,15 +133,15 @@ replaceFuncSLT s e = ASTH.modifyASTs replaceFuncSLT' e
         functionType s n = exprType <$> M.lookup n (expr_env s)
 
 --Contains functions that are not just type constructors
-containsNonConsFunctions :: (ASTH.ASTContainer m Expr) => TEnv -> m -> Bool
-containsNonConsFunctions tenv = Mon.getAny . ASTH.evalASTs (Mon.Any . containsFunctions' tenv)
+containsNonConsFunctions :: (ASTContainer m Expr) => TEnv -> m -> Bool
+containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctions' tenv)
     where
         containsFunctions' :: TEnv -> Expr -> Bool
         containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv) && n `notElem` handledFunctions
         containsFunctions' _ _ = False
 
         constructors :: TEnv -> [Name]
-        constructors = ASTH.evalASTs constructors'
+        constructors = evalASTs constructors'
             where
                 constructors' :: Type -> [Name]
                 constructors' (TyAlg _ dc) = [n | (DataCon n _ _ _) <- dc]

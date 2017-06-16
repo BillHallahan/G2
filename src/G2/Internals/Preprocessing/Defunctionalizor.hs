@@ -1,15 +1,12 @@
 module G2.Internals.Preprocessing.Defunctionalizor (defunctionalize) where
 
+import G2.Internals.Core
+
 import Data.List
-import qualified Data.Map as M
 import Data.Maybe
-
-import G2.Internals.Core.Language
-import G2.Internals.Core.Utils
-
+import qualified Data.Map as M
 import qualified Debug.Trace as T
 
-import G2.Internals.Core.ASTHandler
 
 {-Defunctionalizor
 
