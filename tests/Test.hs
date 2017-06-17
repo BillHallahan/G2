@@ -112,7 +112,7 @@ checkExpr exprs i reqList =
 
 testFile :: String -> String -> String -> IO [([Expr], Expr)]
 testFile filepath mod entry = do
-    raw_core <- mkRawCore filepath
+    raw_core <- mkGHCCore filepath
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env
@@ -138,11 +138,11 @@ testFile filepath mod entry = do
 
 testFilePrePost :: String -> String -> String -> String -> IO [[Expr]]
 testFilePrePost filepath mod prepost entry = do
-    raw_core <- mkRawCore filepath
+    raw_core <- mkGHCCore filepath
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env
-    let init_state = initStateWithPost t_env' e_env' mod prepost entry
+    let init_state = initStateCond t_env' e_env' mod prepost entry
 
 
     let defun_init_state = defunctionalize init_state

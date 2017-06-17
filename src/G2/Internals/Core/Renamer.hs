@@ -48,7 +48,7 @@ allNames state = L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_keys)
         tenv_keys = (M.keys . type_env) state
 
 -- | Name to Number
--- Highest number sequence in a name, ignoring characters.
+--   Highest number sequence in a name, ignoring characters.
 nameNum :: Name -> Int
 nameNum name = case filter C.isDigit name of
     [] -> 0
@@ -59,7 +59,7 @@ nameNum name = case filter C.isDigit name of
 freshSeededName :: Name -> State -> Name
 freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
   where conflicts = allNames state
-        max_confs_num = L.maximum $ 0:(map nameNum conflicts)
+        max_confs_num = L.maximum $ [0] ++ (map nameNum conflicts)
         stripped_seed = filter (not . C.isDigit) seed
 
 -- | Fresh Seeded Name List
@@ -67,17 +67,17 @@ freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
 --   fold operation in order to keep track of a "history".
 freshSeededNameList :: [Name] -> State -> [Name]
 freshSeededNameList [] _ = []
-freshSeededNameList (n:ns) s = n':freshSeededNameList ns s'
+freshSeededNameList (n:ns) s = [n'] ++ freshSeededNameList ns s'
   where n' = freshSeededName n s
         s' = bindExpr n' BAD s  -- Conflict
 
 -- | Join Symbolic Link Tables
--- Can only safely join them if their new entries are disjoint!!
+--   Can only safely join them if their new entries are disjoint!!
 joinSLTs :: [SymLinkTable] -> SymLinkTable
 joinSLTs slts = foldl M.union M.empty slts
  
 -- | Rename Var
--- If it matches, we update, and add an entry to the symbolic link table.
+--   If it matches, we update, and add an entry to the symbolic link table.
 renameVar :: Name -> Name -> State -> State
 renameVar old new state = if n == old
     then state {curr_expr = cexpr', sym_links = slt'}
@@ -87,7 +87,7 @@ renameVar old new state = if n == old
         cexpr' = Var new t
 
 -- | Rename Lam
--- Must check for cases where the lambda's binder might be old or new.
+--   Must check for cases where the lambda's binder might be old or new.
 renameLam :: Name -> Name -> State -> State
 renameLam old new state = if b == old
     then state  -- Shadowing occurs
@@ -159,6 +159,7 @@ renameAssert old new state = e_st {curr_expr = cexpr'}
         e' = curr_expr e_st
         cexpr' = Assert c' e'
 
+-- | Rename
 --   Rename all variables of form (Var n) to (Var n'). We make an (aggressive)
 --   assumption that the `new` passed in is fresh with respect to the current
 --   state. This allows us to prevent checking to see if the new name happens

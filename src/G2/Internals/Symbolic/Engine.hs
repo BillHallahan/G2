@@ -78,10 +78,10 @@ stepCaseCase :: State -> [State]
 stepCaseCase state = [state {curr_expr = Case m1 (map (shoveIn state) as1) t2}]
   where Case (Case m1 as1 t1) as2 t2 = curr_expr state
 
--- | UnApp Spine
-unApp :: Expr -> [Expr]
-unApp (App f a) = unApp f ++ [a]
-unApp otherwise = [otherwise]
+-- | Flatten App Spine
+flattenApp :: Expr -> [Expr]
+flattenApp (App f a) = flattenApp f ++ [a]
+flattenApp otherwise = [otherwise]
 
 -- | Is Alt DEFAULT Data Constructor
 isAltDefault :: (Alt, Expr) -> Bool
@@ -107,7 +107,7 @@ doNDef state (Alt (dc, params), aexp) = case d of
     -- NUH UH NUH!! We can only perform Alt matching based on structure or Var!
     _ -> [state {curr_expr = BAD}]
   where Case m as t = curr_expr state
-        (d:args) = unApp m
+        (d:args) = flattenApp m
         params'  = freshSeededNameList params state
         p_zip    = zip params params'  -- RHS guaranteed to be fresh :)
         pcs'     = [CondAlt m (Alt (dc, params')) True] ++ path_cons state

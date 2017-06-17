@@ -1,8 +1,7 @@
 module G2.Internals.SMT.Old.Z3Types where
 
-import G2.Internals.Core.Language
--- import G2.Internals.Core.Utils
-import G2.Internals.Translation.Prelude
+import G2.Internals.Core
+import G2.Internals.Translation
 
 import Data.List
 import qualified Data.Map as M
