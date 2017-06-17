@@ -5,10 +5,10 @@
 --Always check for existence of a Var in both environements!
 
 
-module G2.Internals.SMT.Z3 where
+-- module G2.Internals.SMT.Old.Z3 where
 
-{-
-module G2.Internals.SMT.Z3 ( printModel
+
+module G2.Internals.SMT.Old.Z3 ( printModel
                            , modelToIOString
                            , reachabilitySolverZ3
                            , reachabilityAndOutputSolverZ3
@@ -18,7 +18,7 @@ import G2.Internals.Core
 import G2.Internals.Core.CoreManipulator as Man
 import G2.Internals.Symbolic
 import G2.Internals.Translation.Prelude
-import G2.Internals.SMT.Z3Types
+import G2.Internals.SMT.Old.Z3Types
 
 import Control.Monad
 
@@ -171,8 +171,8 @@ constraintsZ3 :: TypeMaps -> PathCons -> Z3 [Z3M.AST]
 constraintsZ3 d (path_cons) = do
     mapM (constraintsZ3' d) path_cons
     where
-        constraintsZ3' :: TypeMaps -> (Expr, Alt, Bool) -> Z3 Z3M.AST
-        constraintsZ3' d (expr, alt, b) = do
+        constraintsZ3' :: TypeMaps -> PathCond -> Z3 Z3M.AST
+        constraintsZ3' d (CondAlt expr alt b) = do
             e <- exprZ3 d M.empty expr
             a <- altZ3 d M.empty alt
 
@@ -459,5 +459,3 @@ ithArgType :: Type -> Int -> Type
 ithArgType (TyFun t _) 1 = t
 ithArgType (TyFun _ t) n = ithArgType t (n - 1) 
 ithArgType t i = error ("Type " ++ show t ++ " passed to TyFun")
--}
-

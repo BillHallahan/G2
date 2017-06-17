@@ -11,7 +11,10 @@ import G2.Internals.Core as G2
 import G2.Internals.Translation
 import G2.Internals.Preprocessing
 import G2.Internals.Symbolic
-import G2.Internals.SMT
+--import G2.Internals.SMT
+import G2.Internals.SMT.Old.Z3
+import G2.Internals.SMT.Old.Z3Types
+
 
 import Data.List
 import qualified Data.Map  as M
