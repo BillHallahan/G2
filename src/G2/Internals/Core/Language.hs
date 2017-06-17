@@ -1,7 +1,8 @@
 -- | Language
 --   Provides the language definition of G2. Should not be confused with Core
 --   Haskell, although design imitates Core Haskell closely.
-module G2.Internals.Core.Language where
+module G2.Internals.Core.Language
+    ( module G2.Internals.Core.Language ) where
 
 import qualified Data.Map as M
 

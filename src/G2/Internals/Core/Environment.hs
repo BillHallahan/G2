@@ -1,6 +1,10 @@
 -- | Environment
 --   Performs environment bindings and manipulations on State.
-module G2.Internals.Core.Environment where
+module G2.Internals.Core.Environment
+    ( lookupExpr
+    , lookupType
+    , bindExpr
+    , bindExprList ) where
 
 import G2.Internals.Core.Language
 
