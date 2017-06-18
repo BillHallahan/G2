@@ -6,10 +6,17 @@
 --   In particular, we have to do some faking with Haskell's primitive types
 --   such as Int# and Double#, which means that the implementation of this
 --   this module heavily depends on the GHC version we are working with.
-module G2.Internals.Translation.Haskell where
+module G2.Internals.Translation.Haskell
+    ( mkGHCCore
+    , mkMultiGHCCore
+    , mkG2Core
+    , mkMultiG2Core
+    , combineG2Cores
+    , hsksToG2
+    , mod_sep        ) where
 
 import qualified G2.Internals.Core as G2
-import qualified G2.Internals.Translation.Prelude as P
+import qualified G2.Internals.Translation.HaskellPrelude as P
 
 import ConLike
 import CoreMonad
@@ -34,20 +41,29 @@ import Var
 import qualified Data.Map    as M
 import qualified Data.Monoid as Mon
 
+-- | Haskell Sources to G2 Core
+--   Streamline the process of converting a list of files into G2 Core.
+hsksToG2 :: [FilePath] -> IO (G2.TEnv, G2.EEnv)
+hsksToG2 filepaths = do
+    ghc_cores <- mkMultiGHCCore filepaths
+    return (combineG2Cores $ mkMultiG2Core ghc_cores)
+
+mod_sep :: String
+mod_sep = ".__."
 
 -- | Make Raw Core
 --   Make a raw GHC Core given a FilePath (String).
 --   Alternate the last two lines to let GHC perform optimizations, or not!
-mkRawCore :: FilePath -> IO CoreModule
-mkRawCore filepath = runGhc (Just libdir) $ do
+mkGHCCore :: FilePath -> IO CoreModule
+mkGHCCore filepath = runGhc (Just libdir) $ do
     setSessionDynFlags =<< getSessionDynFlags
     compileToCoreSimplified filepath  -- Optimizations on.
     -- compileToCoreModule filepath  -- No optimizations.
 
 -- | Make Multiple Cores
 --   Make multiple GHC Cores given a list of FilePaths.
-mkMultiCore :: [FilePath] -> IO [CoreModule]
-mkMultiCore filepaths = mapM mkRawCore filepaths
+mkMultiGHCCore :: [FilePath] -> IO [CoreModule]
+mkMultiGHCCore filepaths = mapM mkGHCCore filepaths
 
 -- | Outputable to String
 --   Basic printing capabilities for converting an Outputable into a String.
@@ -79,11 +95,10 @@ mkName name = occNameString $ nameOccName name
 -- | Make Qualified Name
 --   From a GHC Name, make a qualified G2 Name.
 mkQualName :: Name -> G2.Name
-mkQualName name = let raw_name = occNameString $ nameOccName name
-                  in case nameModule_maybe name of
-                      Nothing -> raw_name
-                      Just md -> (moduleNameString $ moduleName md) ++
-                                 ".__." ++ raw_name
+mkQualName name = case nameModule_maybe name of
+    Nothing -> raw_name
+    Just md -> (moduleNameString $ moduleName md) ++ mod_sep ++ raw_name
+  where raw_name = occNameString $ nameOccName name
 
 --  mkQualName name = case srcSpanFileName_maybe $ nameSrcSpan name of
 --     Just fs -> (occNameString $ nameOccName name)  ++ ".__." ++ (unpackFS fs)
@@ -123,11 +138,11 @@ mkType (FunTy t1 t2)    = G2.TyFun (mkType t1) (mkType t2)
 mkType (ForAllTy v t)   = G2.TyForAll (mkName $ Var.varName v) (mkType t)
 mkType (LitTy tl)       = error "Literal types are sketchy?"
 mkType (TyConApp tc kt) = case mkName . tyConName $ tc of 
-    "Int#" -> G2.TyRawInt
-    "Float#" -> G2.TyRawFloat
+    "Int#"    -> G2.TyRawInt
+    "Float#"  -> G2.TyRawFloat
     "Double#" -> G2.TyRawDouble
-    "Char#" -> G2.TyRawChar
-    n -> G2.TyConApp n (map mkType kt)
+    "Char#"   -> G2.TyRawChar
+    otherwise -> G2.TyConApp otherwise (map mkType kt)
 
 -- | Make Expression Environment
 --   Make the expression environment given a GHC Core.

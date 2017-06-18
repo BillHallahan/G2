@@ -4,7 +4,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module G2.Internals.Core.AST where
+module G2.Internals.Core.AST
+    ( module G2.Internals.Core.AST ) where
 
 import G2.Internals.Core.Language
 

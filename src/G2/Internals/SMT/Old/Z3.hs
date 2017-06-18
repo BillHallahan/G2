@@ -17,7 +17,7 @@ module G2.Internals.SMT.Old.Z3 ( printModel
 import G2.Internals.Core
 import G2.Internals.Core.CoreManipulator as Man
 import G2.Internals.Symbolic
-import G2.Internals.Translation.Prelude
+-- import G2.Internals.Translation.Prelude
 import G2.Internals.SMT.Old.Z3Types
 
 import Control.Monad

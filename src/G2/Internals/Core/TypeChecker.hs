@@ -1,6 +1,8 @@
 -- | Type Checker
 --   Provides type checking capabilities over G2 Core.
-module G2.Internals.Core.TypeChecker where
+module G2.Internals.Core.TypeChecker
+    ( exprType
+    , typeCheck ) where
 
 import G2.Internals.Core.Language
 

@@ -3,8 +3,8 @@
 module G2.Internals.Translation
     ( module G2.Internals.Translation
     , module G2.Internals.Translation.Haskell
-    , module G2.Internals.Translation.Prelude ) where
+    , module G2.Internals.Translation.HaskellPrelude ) where
 
 import G2.Internals.Translation.Haskell
-import G2.Internals.Translation.Prelude
+import G2.Internals.Translation.HaskellPrelude
 

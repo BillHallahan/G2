@@ -43,13 +43,13 @@ import qualified Data.Monoid as Mon
 main = do
     (num:xs) <- getArgs
     let filepath:mod:entry:xs' = xs
-    raw_core <- mkRawCore filepath
+    raw_core <- mkGHCCore filepath
     -- putStrLn "RAW CORE"
     -- putStrLn =<< outStr raw_core
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env  -- M.union re_env (M.fromList prelude_e_decls)
-    let init_state = if num == "1" then initState t_env' e_env' mod entry else initStateWithPost t_env' e_env' mod entry (xs' !! 0)
+    let init_state = if num == "1" then initState t_env' e_env' mod entry else initStateCond t_env' e_env' mod entry (xs' !! 0)
 
     let defun_init_state = defunctionalize init_state
 
@@ -97,7 +97,7 @@ main = do
 main = do
     (filepath:mod:prepost:entry:args) <- getArgs
     putStrLn "We appear to compile, but does it work?"
-    raw_core <- mkRawCore filepath
+    raw_core <- mkGHCCore filepath
 
     let (rt_env, re_env) = mkG2Core raw_core
     let tenv' = M.union rt_env (M.fromList prelude_t_decls)
