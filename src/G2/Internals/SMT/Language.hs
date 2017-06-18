@@ -11,9 +11,14 @@ module G2.Internals.SMT.Language ( module G2.Internals.SMT.Language
 import G2.Internals.Core.Language
 import G2.Internals.Core.AST
 
+-- | SMTHeader
+-- These define the two kinds of top level calls we give to the SMT solver.
+-- An assertion says the given SMTAST is true
+-- A sort decl declares a new sort.
 data SMTHeader = Assert SMTAST
                | SortDecl [(Name, [Sort])]
 
+-- | SMTAST
 -- These coorespond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
 -- Its use should be confined to interactions with G2.Internals.SMT.* 
 data SMTAST = (:>=) SMTAST SMTAST

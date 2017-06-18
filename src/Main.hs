@@ -30,9 +30,9 @@ import G2.Internals.Core
 import G2.Internals.Translation
 import G2.Internals.Preprocessing
 import G2.Internals.Symbolic
---import G2.Internals.SMT
-import G2.Internals.SMT.Old.Z3
-import G2.Internals.SMT.Old.Z3Types
+import G2.Internals.SMT
+-- import G2.Internals.SMT.Old.Z3
+-- import G2.Internals.SMT.Old.Z3Types
 
 --FOR containsNonConsFunctions AND replaceFuncSLT
 import qualified Data.Monoid as Mon
