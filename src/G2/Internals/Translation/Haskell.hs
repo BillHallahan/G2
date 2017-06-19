@@ -8,12 +8,14 @@
 --   this module heavily depends on the GHC version we are working with.
 module G2.Internals.Translation.Haskell
     ( mkGHCCore
+    , mkGHCCore'
     , mkMultiGHCCore
     , mkG2Core
     , mkMultiG2Core
     , combineG2Cores
-    , hsksToG2
-    , mod_sep        ) where
+    , hskToG2
+    , mod_sep        
+    , getDependencies ) where
 
 import qualified G2.Internals.Core as G2
 import qualified G2.Internals.Translation.HaskellPrelude as P
@@ -38,18 +40,20 @@ import Type
 import TypeRep
 import Var
 
-import qualified Data.Map    as M
-import qualified Data.Monoid as Mon
+import qualified Data.List  as L
+import qualified Data.Map   as M
+import qualified Data.Maybe as B
 
--- | Haskell Sources to G2 Core
---   Streamline the process of converting a list of files into G2 Core.
-hsksToG2 :: [FilePath] -> IO (G2.TEnv, G2.EEnv)
-hsksToG2 filepaths = do
-    ghc_cores <- mkMultiGHCCore filepaths
-    return (combineG2Cores $ mkMultiG2Core ghc_cores)
-
+-- | Module Separator
 mod_sep :: String
-mod_sep = ".__."
+mod_sep = "@"
+
+-- | Haskell Source to G2 Core
+--   Streamline the process of converting a list of files into G2 Core.
+hskToG2 :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv)
+hskToG2 proj src = do
+    ghc_cores <- mkMultiGHCCore proj src
+    return (combineG2Cores $ mkMultiG2Core ghc_cores)
 
 -- | Make Raw Core
 --   Make a raw GHC Core given a FilePath (String).
@@ -60,17 +64,36 @@ mkGHCCore filepath = runGhc (Just libdir) $ do
     compileToCoreSimplified filepath  -- Optimizations on.
     -- compileToCoreModule filepath  -- No optimizations.
 
--- | Make Multiple Cores
---   Make multiple GHC Cores given a list of FilePaths.
-mkMultiGHCCore :: [FilePath] -> IO [CoreModule]
-mkMultiGHCCore filepaths = mapM mkGHCCore filepaths
+-- | Make Raw Core
+--   Make a raw GHC Core give na FilePath (String).
+--   Alternate the last two lines to let GHC perform optimizations, or not!
+mkGHCCore' :: FilePath -> FilePath -> IO CoreModule
+mkGHCCore' proj src = runGhc (Just libdir) $ do
+        dflags <- getSessionDynFlags
+        setSessionDynFlags (dflags {importPaths = [proj]})
+        compileToCoreSimplified src
+        -- compileToCoreModule src
 
--- | Outputable to String
---   Basic printing capabilities for converting an Outputable into a String.
-outStr :: (Outputable a) => a -> IO String
-outStr obj = runGhc (Just libdir) $ do
-    flags <- getSessionDynFlags
-    return $ showPpr flags obj
+-- | Make Multiple Cores
+--   Make multiple GHC Cores based on import stuff.
+mkMultiGHCCore :: FilePath -> FilePath -> IO [CoreModule]
+mkMultiGHCCore proj src = do
+    deps  <- getDependencies proj src
+    cores <- sequence $ map (mkGHCCore' proj) deps
+    return cores
+
+-- | Get Dependency List
+--   Gets the list of dependencies for the module graph given a single module.
+getDependencies :: FilePath -> FilePath -> IO [FilePath]
+getDependencies proj src = do
+    mod_graph <- runGhc (Just libdir) $ do
+        dflags <- getSessionDynFlags
+        setSessionDynFlags (dflags {importPaths = [proj]})
+        target <- guessTarget src Nothing
+        setTargets [target]
+        load LoadAllTargets
+        getModuleGraph
+    return $ map (B.fromMaybe "" . ml_hs_file . ms_location) mod_graph
 
 -- | Make G2 Core
 --   Given a GHC Core, we convert it into a G2 Core.
@@ -86,6 +109,16 @@ combineG2Cores :: [(G2.TEnv, G2.EEnv)] -> (G2.TEnv, G2.EEnv)
 combineG2Cores cores = foldl pairjoin (M.empty, M.empty) cores
   where pairjoin (acc_t, acc_e) (t, e) = (M.union acc_t t, M.union acc_e e)
 
+-- | Get Module Name
+--   Get Name of module in a file.
+getModuleName = undefined
+
+-- | Outputable to String
+--   Basic printing capabilities for converting an Outputable into a String.
+outStr :: (Outputable a) => a -> IO String
+outStr obj = runGhc (Just libdir) $ do
+    flags <- getSessionDynFlags
+    return $ showPpr flags obj
 -- | Make Name
 --   From a GHC Name, make a raw G2 Name.
 mkName :: Name -> G2.Name

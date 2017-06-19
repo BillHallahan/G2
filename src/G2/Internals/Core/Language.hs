@@ -27,8 +27,8 @@ import qualified Data.Map as M
 --        to their function names.  Interp distinguishes between functions that
 --        exist in the expression environment (StdInterp) and those that should
 --        be treated as uninterpreted functions (UnInterp)
-data State = State { type_env     :: TEnv
-                   , expr_env     :: EEnv
+data State = State { expr_env     :: EEnv
+                   , type_env     :: TEnv
                    , curr_expr    :: Expr
                    , path_cons    :: PathCons
                    , sym_links    :: SymLinkTable

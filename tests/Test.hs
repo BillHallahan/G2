@@ -55,29 +55,29 @@ tests = return . testGroup "Tests"
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  checkExprReach  "tests/samples/IfTest.hs" "IfTest" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
+                  checkExprReach  "tests/samples/IfTest.hs" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
-                , checkExprOutput "tests/samples/Peano.hs" "Peano" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
-                , checkExprOutput "tests/samples/Peano.hs" "Peano" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
-                , checkExprOutput "tests/samples/Peano.hs" "Peano" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
+                , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
+                , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
+                , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
-                , checkExprOutput  "tests/samples/HigherOrderMath.hs" "HigherOrderMath" "isTrue0" "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
-                , checkExprOutput "tests/samples/HigherOrderMath.hs" "HigherOrderMath" "isTrue1" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                , checkExprOutput  "tests/samples/HigherOrderMath.hs" "isTrue0" "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
+                , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue1" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
                 --, checkExprOutput "tests/samples/HigherOrderMath.hs" "HigherOrderMath" "isTrue2" "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
                                 --------------------GET THE ABOVE REXISTS WORKING EVENTUALLY!!!!!!!!!
-                , checkExprReach  "tests/samples/HigherOrderMath.hs" "HigherOrderMath" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
+                , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
 
-                , checkExprOutput "tests/samples/McCarthy91.hs" "McCarthy91" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
-                , checkExprOutput "tests/samples/McCarthy91.hs" "McCarthy91" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
-                , checkExprOutput "tests/samples/McCarthy91.hs" "McCarthy91" "lessThanNot91" "mccarthy" 1 [Exactly 0]
-                , checkExprOutput "tests/samples/McCarthy91.hs" "McCarthy91" "greaterThanNot10Less" "mccarthy" 1 [Exactly 0]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "lessThanNot91" "mccarthy" 1 [Exactly 0]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThanNot10Less" "mccarthy" 1 [Exactly 0]
         ]
 
 -- | Checks conditions on functions, with pre/post conditions
 --   Also checks that the right number of inputs is found for each function
-checkExprOutput :: String -> String -> String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprOutput filepath mod prepost entry i reqList = do
-    exprs <- testFilePrePost filepath mod prepost entry
+checkExprOutput :: String -> String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprOutput filepath prepost entry i reqList = do
+    exprs <- testFilePrePost filepath prepost entry
 
     let ch = checkExpr exprs i reqList
 
@@ -86,9 +86,9 @@ checkExprOutput filepath mod prepost entry i reqList = do
 
 -- | Checks conditions on functions
 --   Also checks that the right number of inputs is found for each function
-checkExprReach :: String -> String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprReach filepath mod entry i reqList = do
-    exprs <- return . map (\(e, r) -> e ++ [r]) =<< testFile filepath mod entry
+checkExprReach :: String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprReach filepath entry i reqList = do
+    exprs <- return . map (\(e, r) -> e ++ [r]) =<< testFile filepath entry
 
     let ch = checkExpr exprs (i + 1) reqList
 
@@ -110,13 +110,13 @@ checkExpr exprs i reqList =
     in
     argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
 
-testFile :: String -> String -> String -> IO [([Expr], Expr)]
-testFile filepath mod entry = do
+testFile :: String -> String -> IO [([Expr], Expr)]
+testFile filepath entry = do
     raw_core <- mkGHCCore filepath
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env
-    let init_state = initState t_env' e_env' mod entry
+    let init_state = initState t_env' e_env' "blank" entry
 
 
     let defun_init_state = defunctionalize init_state
@@ -136,13 +136,13 @@ testFile filepath mod entry = do
             return Nothing) states'
 
 
-testFilePrePost :: String -> String -> String -> String -> IO [[Expr]]
-testFilePrePost filepath mod prepost entry = do
+testFilePrePost :: String -> String -> String -> IO [[Expr]]
+testFilePrePost filepath prepost entry = do
     raw_core <- mkGHCCore filepath
     let (rt_env, re_env) = mkG2Core raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env
-    let init_state = initStateCond t_env' e_env' mod prepost entry
+    let init_state = initStateCond t_env' e_env' "blank" prepost entry
 
 
     let defun_init_state = defunctionalize init_state
