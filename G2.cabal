@@ -25,6 +25,7 @@ executable G2
                        , ghc
                        , mtl
                        , reducers
+                       , process
                        , semigroups
                        , z3 >=4.1.1
   hs-source-dirs:      src

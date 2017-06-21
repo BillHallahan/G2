@@ -21,25 +21,19 @@ import G2.Lib.Utils
 import G2.Lib.Printers
 
 
---import G2.Internals.SMT.Z3Types
-import G2.Internals.SMT.SMT2
-import G2.Internals.SMT.Converters
---
-
 import G2.Internals.Core
 import G2.Internals.Translation
 import G2.Internals.Preprocessing
 import G2.Internals.Symbolic
 import G2.Internals.SMT
--- import G2.Internals.SMT.Old.Z3
--- import G2.Internals.SMT.Old.Z3Types
+import G2.Internals.SMT.Old.Z3
+import G2.Internals.SMT.Old.Z3Types
 
 --FOR containsNonConsFunctions AND replaceFuncSLT
 import qualified Data.Monoid as Mon
 --END
 
 
-{-
 main = do
     (num:xs) <- getArgs
     let filepath:mod:entry:xs' = xs
@@ -92,8 +86,14 @@ main = do
                 else
                     print "Error"
             else return ()) states'
--}
 
+    mapM_ (\s -> do
+        let headers = toSMTHeaders s
+        let solver = toSolver smt2 headers
+        putStrLn solver
+        print =<< checkSat smt2 solver
+        ) states'
+{-
 main = do
     (filepath:mod:prepost:entry:args) <- getArgs
     putStrLn "We appear to compile, but does it work?"
@@ -115,6 +115,7 @@ main = do
              -- putStrLn $ (show $ length ss) ++ "\n")
              mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
          (init states)
+-}
 
 --Switches every occurence of a Var in the Func SLT from datatype to function
 replaceFuncSLT :: ASTContainer m Expr => State -> m -> m
@@ -148,5 +149,6 @@ containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctio
             where
                 constructors' :: Type -> [Name]
                 constructors' (TyAlg _ dc) = [n | (DataCon n _ _ _) <- dc]
+                constructors' _ = []
 
         handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]

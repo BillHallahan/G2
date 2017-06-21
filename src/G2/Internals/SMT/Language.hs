@@ -4,19 +4,23 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Internals.SMT.Language ( module G2.Internals.SMT.Language
+                                 , module G2.Internals.Core.AST
                                  , Name) where
 
 -- import qualified Control.Monad.State.Strict as Mon
 
-import G2.Internals.Core.Language
+import G2.Internals.Core.Language hiding (Assert)
 import G2.Internals.Core.AST
+
 
 -- | SMTHeader
 -- These define the two kinds of top level calls we give to the SMT solver.
 -- An assertion says the given SMTAST is true
 -- A sort decl declares a new sort.
 data SMTHeader = Assert SMTAST
-               | SortDecl [(Name, [Sort])]
+               | SortDecl [(Name, [DC])]
+               | VarDecl Name Sort
+               deriving (Show, Eq)
 
 -- | SMTAST
 -- These coorespond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
@@ -41,16 +45,27 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Ite SMTAST SMTAST SMTAST
 
             | VInt Int
-            | VFloat Float
-            | VDouble Double
+            | VFloat Rational
+            | VDouble Rational
             | VBool Bool
+            | Cons Name [SMTAST] Sort
+
             | V Name Sort
+            deriving (Show, Eq)
 
 data Sort = SortInt
           | SortFloat
           | SortDouble
           | SortBool
-          | Sort Name
+          | Sort Name [Sort]
+          deriving (Show, Eq)
+
+data DC = DC Name [Sort] deriving (Show, Eq)
+
+data Result = SAT
+            | UNSAT
+            | Unknown
+            deriving (Show, Eq)
 
 -- This data type is used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
@@ -59,8 +74,11 @@ data SMTConverter ast out =
     SMTConverter {
           empty :: out
         , merge :: out -> out -> out
+        , checkSat :: out -> IO Result
 
         , assert :: ast -> out
+        , sortDecl :: [(Name, [DC])] -> out
+        , varDecl :: Name -> ast -> out
 
         , (.>=) :: ast -> ast -> ast
         , (.>) :: ast -> ast -> ast
@@ -82,33 +100,27 @@ data SMTConverter ast out =
         , ite :: ast -> ast -> ast -> ast
 
         , int :: Int -> ast
-        , float :: Float -> ast
-        , double :: Double -> ast
+        , float :: Rational -> ast
+        , double :: Rational -> ast
         , bool :: Bool -> ast
+        , cons :: Name -> [ast] -> Sort -> ast
         , var :: Name -> ast -> ast
 
         , sortInt :: ast
         , sortFloat :: ast
         , sortDouble :: ast
         , sortBool :: ast
-        , sortName :: Name -> ast
+        , sortADT :: Name -> [Sort] -> ast
+
+        , varName :: Name -> Sort -> ast
     }
 
--- converterToMonad1 :: ((SMTConverter ast out) -> ast -> ast) -> ast -> Mon.State (SMTConverter ast out) ast
--- converterToMonad1 f x = do
---     con <- Mon.get
---     return $ f con x
-
--- converterToMonad2 :: ((SMTConverter ast out) -> ast -> ast -> ast) -> ast -> ast -> Mon.State (SMTConverter ast out) ast
--- converterToMonad2 f x y = do
---     con <- Mon.get
---     return $ f con x y
-
--- assert' :: ast -> Mon.State (SMTConverter ast out) out
--- assert' x = do
---     con <- Mon.get
---     return $ Mon.put (merge con (assert con x) con)
-    
+sortName :: SMTConverter ast out -> Sort -> ast
+sortName con SortInt = sortInt con
+sortName con SortFloat = sortFloat con
+sortName con SortDouble = sortDouble con
+sortName con SortBool = sortBool con
+sortName con (Sort n s) = sortADT con n s
 
 instance AST SMTAST where
     children (x :>= y) = [x, y]
@@ -129,6 +141,8 @@ instance AST SMTAST where
     children (Neg x) = [x]
 
     children (Ite x x' x'') = [x, x', x'']
+
+    children (Cons _ x _) = x
 
     children _ = []
 
@@ -151,15 +165,30 @@ instance AST SMTAST where
 
     modifyChildren f (Ite x x' x'') = Ite (f x) (f x') (f x'')
 
+    modifyChildren f (Cons n x s) = Cons n (map f x) s
+
     modifyChildren _ e = e
 
 instance AST Sort where
+    children (Sort _ s) = s
     children _ = []
-    modifyChildren s = s
+
+    modifyChildren f (Sort n s) = Sort n (map f s) 
+    modifyChildren f s = s
+
+
+instance ASTContainer SMTHeader SMTAST where
+    containedASTs (Assert a) = [a]
+    containedASTs _ = []
+
+    modifyContainedASTs f (Assert a) = Assert (f a)
+    modifyContainedASTs _ s = s
 
 instance ASTContainer SMTAST Sort where
+    containedASTs (Cons _ _ s) = [s]
     containedASTs (V _ s) = [s]
     containedASTs x = eval containedASTs x
 
+    modifyContainedASTs f (Cons n x s) = Cons n x (modify f s)
     modifyContainedASTs f (V n s) = V n (modify f s)
     modifyContainedASTs f x = modify (modifyContainedASTs f) x
