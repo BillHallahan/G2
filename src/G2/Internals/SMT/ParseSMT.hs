@@ -29,7 +29,7 @@ smtParser :: Parser SMTAST
 smtParser = whiteSpace >> sExpr
 
 sExpr :: Parser SMTAST
-sExpr = parens sExpr <|> letExpr <|> consExpr 
+sExpr = parens sExpr <|> letExpr <|> consExpr <|> intExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -47,11 +47,16 @@ identExprTuple = do
 consExpr :: Parser SMTAST
 consExpr = do
     n <- identifier
-    l <- optionMaybe (many1 (consExpr <|> parens consExpr))
+    l <- optionMaybe (many1 sExpr)
     let l' = case l of 
                 Just l'' -> l''
                 Nothing -> []
     return $ Cons n l' (Sort "" [])
+
+intExpr :: Parser SMTAST
+intExpr = do
+    i <- return . fromIntegral =<< integer
+    return (VInt i)
 
 parseSMT :: String -> SMTAST
 parseSMT s = case parse smtParser "" s of

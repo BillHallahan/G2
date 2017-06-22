@@ -24,6 +24,8 @@ smt2 = SMTConverter {
         , checkSat = \formula -> do
             (h_in, h_out, p) <- setUpFormula formula
             r <- checkSat' h_in h_out
+            hClose h_in
+            hClose h_out
             terminateProcess p
             return r
 
@@ -31,12 +33,17 @@ smt2 = SMTConverter {
             (h_in, h_out, p) <- setUpFormula formula
             r <- checkSat' h_in h_out
             if r == SAT then do
-                model <- getModel h_in h_out vars
-                putStrLn "\n\n\n\n"
+                model <- return =<< getModel h_in h_out vars
                 putStrLn (show model)
-                let m = parseModel model
+                m <- return . parseModel $ model
+                hClose h_in
+                hClose h_out
+                terminateProcess p
                 return (r, Just m)
-            else
+            else do
+                hClose h_in
+                hClose h_out
+                terminateProcess p
                 return (r, Nothing)
 
         , assert = function1 "assert"
@@ -156,17 +163,19 @@ parseModel :: [(Name, String)] -> Model
 parseModel = foldr (\(n, s) -> M.insert n s) M.empty . map (\(n, s) -> (n, parseModel' s))
     where
         parseModel' :: String -> SMTAST
-        parseModel' s = parseSMT s
-        -- parseModel' (s:s':xs) m =
-        --         let
-        --             m' = M.insert (s ++ s') (Var "n" TyBottom) m
-        --         in
-        --         parseModel' xs m'
+        parseModel' s = modifyFix elimLets $ parseSMT s
+
+        elimLets :: SMTAST -> SMTAST
+        elimLets (SLet (n, a) a') = modifyFix (replaceLets n a) a'
+        elimLets a = a
+
+        replaceLets :: Name -> SMTAST -> SMTAST -> SMTAST
+        replaceLets n a c@(Cons n' _ _) = if n == n' then a else c
+        replaceLets _ _ a = a
 
 getModel :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String)]
 getModel h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
-    -- hPutStr h_in "(get-model)\n"
     getModel' h_in h_out ns
     where
         getModel' :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String)]

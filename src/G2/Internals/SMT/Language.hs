@@ -148,6 +148,7 @@ instance AST SMTAST where
     children (Neg x) = [x]
 
     children (Ite x x' x'') = [x, x', x'']
+    children (SLet (n, x) x') = [x, x']
 
     children (Cons _ x _) = x
 
@@ -171,6 +172,7 @@ instance AST SMTAST where
     modifyChildren f (Neg x) = Neg (f x)
 
     modifyChildren f (Ite x x' x'') = Ite (f x) (f x') (f x'')
+    modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')
 
     modifyChildren f (Cons n x s) = Cons n (map f x) s
 

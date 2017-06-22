@@ -50,7 +50,7 @@ main = do
     putStrLn $ mkStateStr init_state
     putStrLn $ mkStateStr defun_init_state
 
-    let (states, n) = runN [defun_init_state] 250
+    let (states, n) = runN [defun_init_state] 100
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
@@ -59,35 +59,36 @@ main = do
     putStrLn ("Number of execution states after pruning: " ++ (show (length states')))
     --putStrLn "Compiles!\n\n"
     
-    if num == "1" then
-        mapM_ (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
-            (r, m) <- evalZ3 . reachabilitySolverZ3 $ s
-            if r == Sat then do
-                -- putStrLn . mkExprStr $ expr
-                -- putStrLn . mkPCStr $ path_cons'
-                -- putStrLn . mkSLTStr $ sym_links'
-                -- putStrLn " => "
-                if Nothing `notElem` m then
-                    putStrLn . mkExprHaskell . foldl (\a a' -> App a a') (Var entry TyBottom) . replaceFuncSLT s . map (fromJust) $ m
-                else
-                    print "Error"
-            else return ()) states'
-    else
-        mapM_ (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
-            (r, m) <- evalZ3 . outputSolverZ3 $ s
-            if r == Sat then do
-                -- putStrLn "HERE"
-                -- putStrLn . mkExprStr $ expr
-                -- putStrLn . mkPCStr $ path_cons'
-                -- putStrLn . mkSLTStr $ sym_links'
-                -- putStrLn " => "
-                if Nothing `notElem` m then
-                    putStrLn . mkExprHaskell . foldl (\a a' -> App a a') (Var (xs' !! 0) TyBottom) . replaceFuncSLT s . map (fromJust) $ m
-                else
-                    print "Error"
-            else return ()) states'
+    -- if num == "1" then
+    --     mapM_ (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
+    --         (r, m) <- evalZ3 . reachabilitySolverZ3 $ s
+    --         if r == Sat then do
+    --             -- putStrLn . mkExprStr $ expr
+    --             -- putStrLn . mkPCStr $ path_cons'
+    --             -- putStrLn . mkSLTStr $ sym_links'
+    --             -- putStrLn " => "
+    --             if Nothing `notElem` m then
+    --                 putStrLn . mkExprHaskell . foldl (\a a' -> App a a') (Var entry TyBottom) . replaceFuncSLT s . map (fromJust) $ m
+    --             else
+    --                 print "Error"
+    --         else return ()) states'
+    -- else
+    --     mapM_ (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
+    --         (r, m) <- evalZ3 . outputSolverZ3 $ s
+    --         if r == Sat then do
+    --             -- putStrLn "HERE"
+    --             -- putStrLn . mkExprStr $ expr
+    --             -- putStrLn . mkPCStr $ path_cons'
+    --             -- putStrLn . mkSLTStr $ sym_links'
+    --             -- putStrLn " => "
+    --             if Nothing `notElem` m then
+    --                 putStrLn . mkExprHaskell . foldl (\a a' -> App a a') (Var (xs' !! 0) TyBottom) . replaceFuncSLT s . map (fromJust) $ m
+    --             else
+    --                 print "Error"
+    --         else return ()) states'
 
     mapM_ (\s -> do
+        -- putStrLn $ mkStateStr s
         let headers = toSMTHeaders s
         let solver = toSolver smt2 headers
         putStrLn solver
