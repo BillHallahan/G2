@@ -50,7 +50,7 @@ main = do
     putStrLn $ mkStateStr init_state
     putStrLn $ mkStateStr defun_init_state
 
-    let (states, n) = runN [defun_init_state] 100
+    let (states, n) = runN [defun_init_state] 250
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
@@ -95,18 +95,19 @@ main = do
         let vars = varNamesSorts headers
         print =<< checkSatAndGetModel smt2 solver vars
         ) states'
+
 {-
 main = do
-    (filepath:mod:prepost:entry:args) <- getArgs
+    (filepath:prepost:entry:args) <- getArgs
     putStrLn "We appear to compile, but does it work?"
     raw_core <- mkGHCCore filepath
 
     let (rt_env, re_env) = mkG2Core raw_core
     let tenv' = M.union rt_env (M.fromList prelude_t_decls)
     let eenv' = M.insert "p1" BAD re_env-- re_env
-    let init_state = defunctionalize $ initState tenv' eenv' mod entry
+    let init_state = defunctionalize $ initState tenv' eenv' "blank" entry
 
-    putStrLn $ mkRawStateStr init_state
+    -- putStrLn $ mkRawStateStr init_state
     
     let runs = 0 -- 20
     -- let (states, n) = runN [init_state] runs
@@ -118,6 +119,16 @@ main = do
              mapM (\s -> putStrLn $ (mkRawStateStr s) ++ "\n") ss)
          (init states)
 -}
+
+-- main = do
+--     (proj:src:args) <- getArgs
+--     (tenv, eenv) <- hskToG2 proj src
+--     putStrLn "Type Env:"
+--     mapM (putStrLn . show) $ M.toList tenv
+--     putStrLn "-------------"
+--     putStrLn "Expr Env:"
+--     mapM (putStrLn . show) $ M.toList eenv
+
 
 --Switches every occurence of a Var in the Func SLT from datatype to function
 replaceFuncSLT :: ASTContainer m Expr => State -> m -> m
