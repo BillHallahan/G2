@@ -161,8 +161,7 @@ stepAssert state = if isValue (state {curr_expr = exp})
         Lam b c t -> [state {curr_expr = Assert (App cond exp) exp}]
         -- If the LHS has already been saturated, evaluate it until value.
         otherwise -> if isValue (state {curr_expr = cond})
-            then [ state {curr_expr = exp, path_cons = t_pcs}
-                 , state {curr_expr = exp, path_cons = f_pcs} ]
+            then [state {curr_expr = exp, path_cons = f_pcs}]
             else [c_st {curr_expr=Assert (curr_expr c_st) exp} | c_st <- c_sts]
     else [e_st {curr_expr = Assert cond (curr_expr e_st)} | e_st <- e_sts]
   where Assert cond exp = curr_expr state

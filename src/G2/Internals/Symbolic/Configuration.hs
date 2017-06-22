@@ -91,6 +91,7 @@ initStateCond tenv eenv mod cond entry = case match of
             then State { expr_env     = eenv
                        , type_env     = tenv
                        , curr_expr    = (App cond_ex' expr')
+                       -- , curr_expr    = (Assert cond_ex' expr')
                        , path_cons    = []
                        , sym_links    = slt
                        , func_interps = M.empty }
