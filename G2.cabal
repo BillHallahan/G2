@@ -25,6 +25,7 @@ executable G2
                        , ghc
                        , mtl
                        , reducers
+                       , parsec
                        , process
                        , semigroups
                        , z3 >=4.1.1
@@ -48,6 +49,8 @@ test-suite test
                        , ghc-paths >=0.1 && <0.2
                        , ghc
                        , reducers
+                       , parsec
+                       , process
                        , semigroups
                        , z3 >=4.1.1
                        , tasty >= 0.10

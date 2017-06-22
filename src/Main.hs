@@ -91,7 +91,8 @@ main = do
         let headers = toSMTHeaders s
         let solver = toSolver smt2 headers
         putStrLn solver
-        print =<< checkSat smt2 solver
+        let vars = varNamesSorts headers
+        print =<< checkSatAndGetModel smt2 solver vars
         ) states'
 {-
 main = do

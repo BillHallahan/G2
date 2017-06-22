@@ -12,6 +12,8 @@ module G2.Internals.SMT.Language ( module G2.Internals.SMT.Language
 import G2.Internals.Core.Language hiding (Assert)
 import G2.Internals.Core.AST
 
+import qualified Data.Map as M
+
 
 -- | SMTHeader
 -- These define the two kinds of top level calls we give to the SMT solver.
@@ -43,6 +45,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Neg SMTAST --Unary negation
 
             | Ite SMTAST SMTAST SMTAST
+            | SLet (Name, SMTAST) SMTAST
 
             | VInt Int
             | VFloat Rational
@@ -67,6 +70,9 @@ data Result = SAT
             | Unknown
             deriving (Show, Eq)
 
+
+type Model = M.Map Name SMTAST
+
 -- This data type is used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
 -- datatypes, to a form understandable by the solver.
@@ -75,6 +81,7 @@ data SMTConverter ast out =
           empty :: out
         , merge :: out -> out -> out
         , checkSat :: out -> IO Result
+        , checkSatAndGetModel :: out -> [(Name, Sort)] -> IO (Result, Maybe Model)
 
         , assert :: ast -> out
         , sortDecl :: [(Name, [DC])] -> out

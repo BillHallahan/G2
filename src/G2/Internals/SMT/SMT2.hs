@@ -2,9 +2,11 @@ module G2.Internals.SMT.SMT2 where
 
 import G2.Internals.Core.Language
 import G2.Internals.SMT.Language
+import G2.Internals.SMT.ParseSMT
 
 import Control.Exception.Base (evaluate)
 import Data.List
+import qualified Data.Map as M
 import Data.Ratio
 import System.IO
 import System.Process
@@ -21,22 +23,21 @@ smt2 = SMTConverter {
 
         , checkSat = \formula -> do
             (h_in, h_out, p) <- setUpFormula formula
-            hPutStr h_in "(check-sat)\n"
+            r <- checkSat' h_in h_out
+            terminateProcess p
+            return r
 
-            r <- hWaitForInput h_out 10000
-            if r then do
-                out <- hGetLine h_out
-                evaluate (length out)
-                terminateProcess p
-
-                if out == "sat" then
-                    return SAT
-                else if out == "unsat" then
-                    return UNSAT
-                else
-                    return Unknown
-            else do
-                return Unknown
+        , checkSatAndGetModel = \formula vars -> do
+            (h_in, h_out, p) <- setUpFormula formula
+            r <- checkSat' h_in h_out
+            if r == SAT then do
+                model <- getModel h_in h_out vars
+                putStrLn "\n\n\n\n"
+                putStrLn (show model)
+                let m = parseModel model
+                return (r, Just m)
+            else
+                return (r, Nothing)
 
         , assert = function1 "assert"
         , sortDecl = \ns ->
@@ -53,7 +54,8 @@ smt2 = SMTConverter {
                 dcHandler [] = ""
                 dcHandler (DC n s:dc) =
                     let
-                        s' = intercalate " " . map sortN $ s
+                        si = map (\(_s, i) -> (_s, (sortN _s) ++ show i)) $ zip s [0..]
+                        s' = intercalate " " . map (\(_s, i) -> "(_" ++ i ++ " " ++ (sortN _s) ++ ")") $ si
                     in
                     if s /= [] then
                         "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
@@ -131,3 +133,55 @@ setUpFormula form = do
 
     hPutStr h_in form
     return (h_in, h_out, p)
+
+checkSat' :: Handle -> Handle -> IO Result
+checkSat' h_in h_out = do
+    hPutStr h_in "(check-sat)\n"
+
+    r <- hWaitForInput h_out 10000
+    if r then do
+        out <- hGetLine h_out
+        evaluate (length out)
+
+        if out == "sat" then
+            return SAT
+        else if out == "unsat" then
+            return UNSAT
+        else
+            return Unknown
+    else do
+        return Unknown
+
+parseModel :: [(Name, String)] -> Model
+parseModel = foldr (\(n, s) -> M.insert n s) M.empty . map (\(n, s) -> (n, parseModel' s))
+    where
+        parseModel' :: String -> SMTAST
+        parseModel' s = parseSMT s
+        -- parseModel' (s:s':xs) m =
+        --         let
+        --             m' = M.insert (s ++ s') (Var "n" TyBottom) m
+        --         in
+        --         parseModel' xs m'
+
+getModel :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String)]
+getModel h_in h_out ns = do
+    hPutStr h_in "(set-option :model_evaluator.completion true)\n"
+    -- hPutStr h_in "(get-model)\n"
+    getModel' h_in h_out ns
+    where
+        getModel' :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String)]
+        getModel' _ _ [] = return []
+        getModel' h_in h_out ((n, s):ns) = do
+            hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
+            out <- getLinesUntil h_out (not . isPrefixOf "(let")
+            evaluate (length out)
+
+            return . (:) (n, out) =<< getModel' h_in h_out ns
+
+getLinesUntil :: Handle -> (String -> Bool) -> IO String
+getLinesUntil h_out p = do
+    out <- hGetLine h_out
+    if p out then
+        return out
+    else
+        return . (++) (out ++ "\n") =<< getLinesUntil h_out p

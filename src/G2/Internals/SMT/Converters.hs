@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-
 module G2.Internals.SMT.Converters ( toSMTHeaders
                                    , toSolver) where
 
@@ -9,6 +7,7 @@ import qualified Data.Map as M
 import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Core.Language hiding (Assert)
 import G2.Internals.SMT.Language
+import G2.Internals.SMT.Utils
 
 -- | toSMTHeaders
 -- Here we convert from a State, to an SMTHeader.  This SMTHeader can later
@@ -144,15 +143,6 @@ typesToSMTSorts tenv =
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []
 createVarDecls ((n,s):xs) = VarDecl n s:createVarDecls xs
-
--- | varNames
--- Returns a list of all variable names and sorts used in the given SMTAST Container
-varNamesSorts :: ASTContainer m SMTAST => m -> [(Name, Sort)]
-varNamesSorts = nub . evalASTs varNamesSorts'
-    where
-        varNamesSorts' :: SMTAST -> [(Name, Sort)]
-        varNamesSorts' (V n s) = [(n, s)]
-        varNamesSorts' _ = []
 
 -- | toSolver
 toSolver :: SMTConverter ast out -> [SMTHeader] -> out
