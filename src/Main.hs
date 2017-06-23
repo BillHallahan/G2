@@ -87,13 +87,16 @@ main = do
     --                 print "Error"
     --         else return ()) states'
 
+    hhp <- getZ3ProcessHandles
+
     mapM_ (\s -> do
         -- putStrLn $ mkStateStr s
         let headers = toSMTHeaders s
         let solver = toSolver smt2 headers
         putStrLn solver
         let vars = varNamesSorts headers
-        print =<< checkSatAndGetModel smt2 solver vars
+
+        print =<< checkSatAndGetModel smt2 hhp solver vars
         ) states'
 
 {-

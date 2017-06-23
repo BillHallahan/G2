@@ -12,38 +12,24 @@ import System.IO
 import System.Process
 import GHC.IO.Handle
 
-type TypeDecl = String
-type VarDecl = String
-type ASTDecl = String
-
-smt2 :: SMTConverter String String
+smt2 :: SMTConverter String String (Handle, Handle, ProcessHandle)
 smt2 = SMTConverter {
           empty = ""  
         , merge = (++)
 
-        , checkSat = \formula -> do
-            (h_in, h_out, p) <- setUpFormula formula
-            r <- checkSat' h_in h_out
-            hClose h_in
-            hClose h_out
-            terminateProcess p
-            return r
+        , checkSat = \(h_in, h_out, ph) formula -> do
+            setUpFormula h_in h_out formula
+            checkSat' h_in h_out
 
-        , checkSatAndGetModel = \formula vars -> do
-            (h_in, h_out, p) <- setUpFormula formula
+        , checkSatAndGetModel = \(h_in, h_out, ph) formula vars -> do
+            setUpFormula h_in h_out formula
             r <- checkSat' h_in h_out
             if r == SAT then do
                 model <- return =<< getModel h_in h_out vars
                 putStrLn (show model)
                 m <- return . parseModel $ model
-                hClose h_in
-                hClose h_out
-                terminateProcess p
                 return (r, Just m)
             else do
-                hClose h_in
-                hClose h_out
-                terminateProcess p
                 return (r, Nothing)
 
         , assert = function1 "assert"
@@ -127,8 +113,8 @@ function2 f a b = "(" ++ f ++ " " ++ a ++ " " ++ b ++ ")"
 function3 :: String -> String -> String -> String -> String
 function3 f a b c = "(" ++ f ++ " " ++ a ++ " " ++ b ++ " " ++ c ++ ")"
 
-setUpFormula :: String -> IO (Handle, Handle, ProcessHandle)
-setUpFormula form = do
+getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
+getZ3ProcessHandles = do
     (m_h_in, m_h_out, _, p) <- createProcess (proc "z3" ["-smt2", "-in"]) { std_in = CreatePipe, std_out = CreatePipe }
 
     let (h_in, h_out) =
@@ -138,8 +124,12 @@ setUpFormula form = do
 
     hSetBuffering h_in LineBuffering
 
-    hPutStr h_in form
     return (h_in, h_out, p)
+
+setUpFormula :: Handle -> Handle -> String -> IO ()
+setUpFormula h_in h_out form = do
+    hPutStr h_in "(reset)"
+    hPutStr h_in form
 
 checkSat' :: Handle -> Handle -> IO Result
 checkSat' h_in h_out = do

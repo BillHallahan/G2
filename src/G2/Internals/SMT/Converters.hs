@@ -145,7 +145,7 @@ createVarDecls [] = []
 createVarDecls ((n,s):xs) = VarDecl n s:createVarDecls xs
 
 -- | toSolver
-toSolver :: SMTConverter ast out -> [SMTHeader] -> out
+toSolver :: SMTConverter ast out io -> [SMTHeader] -> out
 toSolver con [] = empty con
 toSolver con (Assert ast:xs) = 
     merge con (assert con $ toSolverAST con ast) (toSolver con xs)
@@ -153,7 +153,7 @@ toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver co
 toSolver con (SortDecl ns:xs) = merge con (toSolverSortDecl con ns) (toSolver con xs)
 
 -- | toSolverAST
-toSolverAST :: SMTConverter ast out -> SMTAST -> ast
+toSolverAST :: SMTConverter ast out io -> SMTAST -> ast
 toSolverAST con (x :>= y) = (.>=) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :> y) = (.>) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x := y) = (.=) con (toSolverAST con x) (toSolverAST con y)
@@ -187,15 +187,15 @@ toSolverAST con (Cons n asts s) =
 toSolverAST con (V n s) = varName con n s
 
 -- | toSolverSortDecl
-toSolverSortDecl :: SMTConverter ast out -> [(Name, [DC])] -> out
+toSolverSortDecl :: SMTConverter ast out io -> [(Name, [DC])] -> out
 toSolverSortDecl con = sortDecl con
 
 -- | toSolverVarDecl
-toSolverVarDecl :: SMTConverter ast out -> Name -> Sort -> out
+toSolverVarDecl :: SMTConverter ast out io -> Name -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 -- | toSolverSort
-toSolverSort :: SMTConverter ast out -> Sort -> ast
+toSolverSort :: SMTConverter ast out io -> Sort -> ast
 toSolverSort con SortInt = sortInt con
 toSolverSort con SortFloat = sortFloat con
 toSolverSort con SortDouble = sortDouble con

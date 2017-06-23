@@ -76,12 +76,13 @@ type Model = M.Map Name SMTAST
 -- This data type is used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
 -- datatypes, to a form understandable by the solver.
-data SMTConverter ast out =
+data SMTConverter ast out io =
     SMTConverter {
           empty :: out
         , merge :: out -> out -> out
-        , checkSat :: out -> IO Result
-        , checkSatAndGetModel :: out -> [(Name, Sort)] -> IO (Result, Maybe Model)
+
+        , checkSat :: io -> out -> IO Result
+        , checkSatAndGetModel :: io -> out -> [(Name, Sort)] -> IO (Result, Maybe Model)
 
         , assert :: ast -> out
         , sortDecl :: [(Name, [DC])] -> out
@@ -122,7 +123,7 @@ data SMTConverter ast out =
         , varName :: Name -> Sort -> ast
     }
 
-sortName :: SMTConverter ast out -> Sort -> ast
+sortName :: SMTConverter ast out io -> Sort -> ast
 sortName con SortInt = sortInt con
 sortName con SortFloat = sortFloat con
 sortName con SortDouble = sortDouble con
