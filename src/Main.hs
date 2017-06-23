@@ -50,7 +50,7 @@ main = do
     putStrLn $ mkStateStr init_state
     putStrLn $ mkStateStr defun_init_state
 
-    let (states, n) = runN [defun_init_state] 250
+    let (states, n) = runN [defun_init_state] 150
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
@@ -92,11 +92,21 @@ main = do
     mapM_ (\s -> do
         -- putStrLn $ mkStateStr s
         let headers = toSMTHeaders s
-        let solver = toSolver smt2 headers
-        putStrLn solver
+        let formula = toSolver smt2 headers
+        -- putStrLn solver
         let vars = varNamesSorts headers
 
-        print =<< checkSatAndGetModel smt2 hhp solver vars
+        (res, m) <- checkSatAndGetModel smt2 hhp formula headers vars
+        if res == SAT then do
+            -- putStrLn "----\nPathCons:"
+            -- putStrLn . mkPCStr $ path_cons s
+            -- putStrLn "formula:"
+            -- print formula
+            -- putStrLn "model:"
+            case m of
+                Just m' -> print . replaceFuncSLT s . modelAsExpr $ m'
+                Nothing -> putStrLn "No model found, but SAT returned"
+        else return ()
         ) states'
 
 {-

@@ -116,6 +116,10 @@ useApplyType s (t@(TyFun _ _)) =
                 App (fstAppReplace tn fn n t e) (fstAppReplace tn fn n t e')
         fstAppReplace tn fn n t (Case e ae t') =
             Case (fstAppReplace tn fn n t e) (map (\(a, e) -> (a, fstAppReplace tn fn n t e)) ae) t'
+        fstAppReplace tn fn n t (Assume e e') =
+            Assume (fstAppReplace tn fn n t e) (fstAppReplace tn fn n t e')
+        fstAppReplace tn fn n t (Assert e e') =
+            Assert (fstAppReplace tn fn n t e) (fstAppReplace tn fn n t e')
         fstAppReplace _ _ _ _ e = e
 
         -- This adjusts for when the function with the given name is in the second position in an app
@@ -132,6 +136,10 @@ useApplyType s (t@(TyFun _ _)) =
                 App (sndAppReplace n t at e) (sndAppReplace n t at e')
         sndAppReplace n t at (Case e ae t') =
             Case (sndAppReplace n t at e) (map (\(a, e) -> (a, sndAppReplace n t at e)) ae) t'
+        sndAppReplace n t at (Assume e e') =
+            Assume (sndAppReplace n t at e) (sndAppReplace n t at e')
+        sndAppReplace n t at (Assert e e') =
+            Assert (sndAppReplace n t at e) (sndAppReplace n t at e')
         sndAppReplace _ _ _ e = e
 
         -- Gets the names of all functions in the symbolic link table, that are of the given type
@@ -177,6 +185,10 @@ exprReplace eOld eNew e = if e == eOld then exprReplace' eOld eNew eNew else exp
         exprReplace' eOld eNew (App e e') = App (exprReplace eOld eNew e) (exprReplace eOld eNew e')
         exprReplace' eOld eNew (Case e ae t) =
             Case (exprReplace eOld eNew e) (map (\(a, e) -> (a, exprReplace eOld eNew e)) ae) t
+        exprReplace' eOld eNew (Assume e e') =
+            Assume (exprReplace eOld eNew e) (exprReplace eOld eNew e')
+        exprReplace' eOld eNew (Assert e e') =
+            Assert (exprReplace eOld eNew e) (exprReplace eOld eNew e')
         exprReplace' _ _ e = e
 
 -- Given a TyFun type, an apply type, and a type, replaces all of the TyFun types with the apply type

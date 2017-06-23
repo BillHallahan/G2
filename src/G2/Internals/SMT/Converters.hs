@@ -1,5 +1,8 @@
 module G2.Internals.SMT.Converters ( toSMTHeaders
-                                   , toSolver) where
+                                   , toSolver
+                                   , smtastToExpr
+                                   , sortToType
+                                   , modelAsExpr) where
 
 import Data.List
 import qualified Data.Map as M
@@ -33,11 +36,11 @@ pathConsToSMT (CondAlt e a b) =
         altSMT = altToSMT a
     in
     Assert $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
-toSMTPathCons (CondExt e b) =
+pathConsToSMT (CondExt e b) =
     let
         exprSMT = exprToSMT e
     in
-    Assert $ if b then exprSMT else (:!) exprSMT 
+    Assert $ if b then exprSMT else (:!) exprSMT
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var n t) = V n (typeToSMT t)
@@ -123,6 +126,7 @@ typeToSMT (TyConApp "Double" _) = SortDouble
 typeToSMT (TyConApp "Float" _) = SortFloat
 typeToSMT (TyConApp "Bool" _) = SortBool
 typeToSMT (TyConApp n _) = Sort n []
+typeToSMT e = error ("typeToSMT = " ++ show e)
 
 
 typesToSMTSorts :: TEnv -> [SMTHeader]
@@ -201,3 +205,23 @@ toSolverSort con SortFloat = sortFloat con
 toSolverSort con SortDouble = sortDouble con
 toSolverSort con SortBool = sortBool con
 toSolverSort con (Sort n s) = sortADT con n s
+
+
+-- | smtastToExpr
+smtastToExpr :: SMTAST -> Expr
+smtastToExpr (VInt i) = Const (CInt i)
+smtastToExpr (VFloat f) = Const (CFloat f)
+smtastToExpr (VDouble d) = Const (CDouble d)
+smtastToExpr (VBool b) = Var (if b then "True" else "False") (TyConApp "Bool" [])
+smtastToExpr (Cons n smts s) = foldl (\v a -> App v (smtastToExpr a)) (Var n (sortToType s)) smts
+smtastToExpr (V n s) = Var n (sortToType s)
+
+sortToType :: Sort -> Type
+sortToType (SortInt) = TyConApp "Int" []
+sortToType (SortFloat) = TyConApp "Float" []
+sortToType (SortDouble) = TyConApp "Double" []
+sortToType (SortBool) = TyConApp "Bool" []
+sortToType (Sort n xs) = TyConApp n (map sortToType xs)
+
+modelAsExpr :: Model -> ExprModel
+modelAsExpr = M.map smtastToExpr

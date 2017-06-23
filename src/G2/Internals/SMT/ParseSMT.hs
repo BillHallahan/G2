@@ -2,6 +2,7 @@ module G2.Internals.SMT.ParseSMT (parseSMT) where
 
 import G2.Internals.SMT.Language
 
+import Data.Ratio
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
@@ -13,7 +14,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["let"]}
+             , Token.reservedNames = ["let", "-"]}
 
 ident = ['~', '!', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
 
@@ -22,6 +23,7 @@ smtLexer = Token.makeTokenParser smtDef
 identifier = Token.identifier smtLexer
 reserved = Token.reserved smtLexer
 integer = Token.integer smtLexer
+floatT = Token.float smtLexer
 whiteSpace = Token.whiteSpace smtLexer
 parens = Token.parens smtLexer
 
@@ -29,7 +31,7 @@ smtParser :: Parser SMTAST
 smtParser = whiteSpace >> sExpr
 
 sExpr :: Parser SMTAST
-sExpr = parens sExpr <|> letExpr <|> consExpr <|> intExpr
+sExpr = parens sExpr <|> letExpr <|> consExpr <|> doubleFloatExpr <|> intExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -55,8 +57,20 @@ consExpr = do
 
 intExpr :: Parser SMTAST
 intExpr = do
+    s <- optionMaybe (reserved "-")
     i <- return . fromIntegral =<< integer
-    return (VInt i)
+    case s of
+        Just _ -> return (VInt (-i))
+        Nothing -> return (VInt i)
+
+doubleFloatExpr :: Parser SMTAST
+doubleFloatExpr = do
+    s <- optionMaybe (reserved "-")
+    f <- floatT
+    let r = approxRational f (0.00001)
+    case s of 
+        Just _ -> return (VDouble (-r))
+        Nothing -> return (VDouble r)
 
 parseSMT :: String -> SMTAST
 parseSMT s = case parse smtParser "" s of

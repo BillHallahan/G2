@@ -72,6 +72,7 @@ data Result = SAT
 
 
 type Model = M.Map Name SMTAST
+type ExprModel = M.Map Name Expr
 
 -- This data type is used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
@@ -82,7 +83,7 @@ data SMTConverter ast out io =
         , merge :: out -> out -> out
 
         , checkSat :: io -> out -> IO Result
-        , checkSatAndGetModel :: io -> out -> [(Name, Sort)] -> IO (Result, Maybe Model)
+        , checkSatAndGetModel :: io -> out -> [SMTHeader] -> [(Name, Sort)] -> IO (Result, Maybe Model)
 
         , assert :: ast -> out
         , sortDecl :: [(Name, [DC])] -> out

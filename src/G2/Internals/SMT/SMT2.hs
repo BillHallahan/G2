@@ -21,13 +21,16 @@ smt2 = SMTConverter {
             setUpFormula h_in h_out formula
             checkSat' h_in h_out
 
-        , checkSatAndGetModel = \(h_in, h_out, ph) formula vars -> do
+        , checkSatAndGetModel = \(h_in, h_out, ph) formula headers vars -> do
             setUpFormula h_in h_out formula
             r <- checkSat' h_in h_out
             if r == SAT then do
                 model <- return =<< getModel h_in h_out vars
-                putStrLn (show model)
-                m <- return . parseModel $ model
+                -- putStrLn "======"
+                -- putStrLn (show model)
+                -- putStrLn "======"
+                let m = parseModel headers model
+                -- m <- return . parseModel =<< getModel h_in h_out vars
                 return (r, Just m)
             else do
                 return (r, Nothing)
@@ -149,11 +152,33 @@ checkSat' h_in h_out = do
     else do
         return Unknown
 
-parseModel :: [(Name, String)] -> Model
-parseModel = foldr (\(n, s) -> M.insert n s) M.empty . map (\(n, s) -> (n, parseModel' s))
+parseModel :: [SMTHeader] -> [(Name, String, Sort)] -> Model
+parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty . map (\(n, str, s) -> (n, parseModel' s str))
     where
-        parseModel' :: String -> SMTAST
-        parseModel' s = modifyFix elimLets $ parseSMT s
+        parseModel' :: Sort -> String -> SMTAST
+        parseModel' s = correctTypes s . modifyFix elimLets . parseSMT
+
+        correctTypes :: Sort -> SMTAST -> SMTAST
+        correctTypes (SortFloat) (VDouble r) = VFloat r
+        correctTypes (SortDouble) (VFloat r) = VDouble r
+        correctTypes s c@(Cons _ _ _) = correctConsTypes c
+        correctTypes _ a = a
+
+        correctConsTypes :: SMTAST -> SMTAST
+        correctConsTypes (Cons n smts _) =
+            let
+                sName = M.lookup n consNameToSort
+            in
+            case sName of
+                Just n' -> Cons n (map correctConsTypes smts) n'
+                Nothing -> error ("Sort constructor " ++ (show n) ++ "not found in correctConsTypes")
+
+        consNameToSort :: M.Map Name Sort
+        consNameToSort = 
+            let
+                nameDC = concat [x | (SortDecl x) <- headers]
+            in
+            M.fromList $ concatMap (\(n, dcs) -> [(dcn, Sort n []) | (DC dcn _) <- dcs]) nameDC
 
         elimLets :: SMTAST -> SMTAST
         elimLets (SLet (n, a) a') = modifyFix (replaceLets n a) a'
@@ -163,19 +188,19 @@ parseModel = foldr (\(n, s) -> M.insert n s) M.empty . map (\(n, s) -> (n, parse
         replaceLets n a c@(Cons n' _ _) = if n == n' then a else c
         replaceLets _ _ a = a
 
-getModel :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String)]
+getModel :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String, Sort)]
 getModel h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
     getModel' h_in h_out ns
     where
-        getModel' :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String)]
+        getModel' :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String, Sort)]
         getModel' _ _ [] = return []
         getModel' h_in h_out ((n, s):ns) = do
             hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
             out <- getLinesUntil h_out (not . isPrefixOf "(let")
             evaluate (length out)
 
-            return . (:) (n, out) =<< getModel' h_in h_out ns
+            return . (:) (n, out, s) =<< getModel' h_in h_out ns
 
 getLinesUntil :: Handle -> (String -> Bool) -> IO String
 getLinesUntil h_out p = do

@@ -90,8 +90,8 @@ initStateCond tenv eenv mod cond entry = case match of
         in if (flattenType entry_type) == (init $ flattenType cond_type)
             then State { expr_env     = eenv
                        , type_env     = tenv
-                       , curr_expr    = (App cond_ex' expr')
-                       -- , curr_expr    = (Assert cond_ex' expr')
+                       -- , curr_expr    = (App cond_ex' expr')
+                       , curr_expr    = (Assume cond_ex' expr')
                        , path_cons    = []
                        , sym_links    = slt
                        , func_interps = M.empty }
