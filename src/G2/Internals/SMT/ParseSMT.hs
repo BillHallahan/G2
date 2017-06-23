@@ -31,7 +31,7 @@ smtParser :: Parser SMTAST
 smtParser = whiteSpace >> sExpr
 
 sExpr :: Parser SMTAST
-sExpr = parens sExpr <|> letExpr <|> consExpr <|> doubleFloatExpr <|> intExpr
+sExpr = parens sExpr <|> letExpr <|> consExpr <|> try doubleFloatExpr <|> intExpr
 
 letExpr :: Parser SMTAST
 letExpr = do

@@ -33,7 +33,6 @@ import G2.Internals.SMT.Old.Z3Types
 import qualified Data.Monoid as Mon
 --END
 
-
 main = do
     (num:xs) <- getArgs
     let filepath:mod:entry:xs' = xs
@@ -50,12 +49,13 @@ main = do
     putStrLn $ mkStateStr init_state
     putStrLn $ mkStateStr defun_init_state
 
-    let (states, n) = runN [defun_init_state] 150
+    let (states, n) = runN [defun_init_state] 250
+
+    putStrLn ("Number of execution states: " ++ (show (length states)))
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
 
     -- putStrLn $ mkStatesStr states
-    putStrLn ("Number of execution states: " ++ (show (length states)))
     putStrLn ("Number of execution states after pruning: " ++ (show (length states')))
     --putStrLn "Compiles!\n\n"
     
@@ -94,7 +94,7 @@ main = do
         let headers = toSMTHeaders s
         let formula = toSolver smt2 headers
         -- putStrLn solver
-        let vars = varNamesSorts headers
+        let vars = sltToSMTNameSorts $ sym_links s-- varNamesSorts headers
 
         (res, m) <- checkSatAndGetModel smt2 hhp formula headers vars
         if res == SAT then do
@@ -103,8 +103,20 @@ main = do
             -- putStrLn "formula:"
             -- print formula
             -- putStrLn "model:"
+            -- putStrLn $ show (sym_links s)
             case m of
-                Just m' -> print . replaceFuncSLT s . modelAsExpr $ m'
+                Just m' -> do
+                    let exprM = replaceFuncSLT s . modelAsExpr $ m'
+
+                    -- putStrLn (show exprM)
+                    let inArgN = L.map (\(n, _, _) -> n)
+                               . L.sortOn (\(_, _, x) -> fromJust x)
+                               . L.filter (\(_, _, x) -> isJust x) 
+                               . M.elems $ sym_links s
+
+                    let inArg = map (\n -> fromJust $ M.lookup n exprM) inArgN
+                    putStrLn . mkExprHaskell 
+                        . foldl (\a a' -> App a a') (Var (xs' !! 0) TyBottom) $ inArg
                 Nothing -> putStrLn "No model found, but SAT returned"
         else return ()
         ) states'
