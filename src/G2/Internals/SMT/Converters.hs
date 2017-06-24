@@ -1,6 +1,14 @@
+-- | Converters
+-- This contains functions to switch from
+-- (1) A State/Exprs/Types to SMTHeaders/SMTASTs/Sorts
+-- (2) SMTHeaders/SMTASTs/Sorts to some SMT solver interface
+-- (3) SMTASTs/Sorts to Exprs/Types
 module G2.Internals.SMT.Converters ( toSMTHeaders
                                    , toSolver
                                    , sltToSMTNameSorts
+                                   , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
+                                   , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
+                                   , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
                                    , smtastToExpr
                                    , sortToType
                                    , modelAsExpr) where
@@ -139,7 +147,7 @@ typeToSMT (TyConApp "Double" _) = SortDouble
 typeToSMT (TyConApp "Float" _) = SortFloat
 typeToSMT (TyConApp "Bool" _) = SortBool
 typeToSMT (TyConApp n _) = Sort n []
-typeToSMT e = error ("typeToSMT = " ++ show e)
+typeToSMT e = Sort "" []
 
 typesToSMTSorts :: TEnv -> [SMTHeader]
 typesToSMTSorts tenv =

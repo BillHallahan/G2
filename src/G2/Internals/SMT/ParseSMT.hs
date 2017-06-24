@@ -3,6 +3,10 @@ module G2.Internals.SMT.ParseSMT (parseSMT) where
 import G2.Internals.SMT.Language
 
 import Data.Ratio
+-- | SMT Parser
+-- This is not complete!  It currently only covers the small amount of the SMT
+-- language needed to parse models
+
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token

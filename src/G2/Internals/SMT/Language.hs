@@ -83,7 +83,7 @@ data SMTConverter ast out io =
         , merge :: out -> out -> out
 
         , checkSat :: io -> out -> IO Result
-        , checkSatAndGetModel :: io -> out -> [SMTHeader] -> [(Name, Sort)] -> IO (Result, Maybe Model)
+        , checkSatGetModelGetExpr :: io -> out -> [SMTHeader] -> [(Name, Sort)] -> Expr -> IO (Result, Maybe Model, Maybe SMTAST)
 
         , assert :: ast -> out
         , sortDecl :: [(Name, [DC])] -> out

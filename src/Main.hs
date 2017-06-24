@@ -96,7 +96,7 @@ main = do
         -- putStrLn solver
         let vars = sltToSMTNameSorts $ sym_links s-- varNamesSorts headers
 
-        (res, m) <- checkSatAndGetModel smt2 hhp formula headers vars
+        (res, m, ex) <- checkSatGetModelGetExpr smt2 hhp formula headers vars (curr_expr s)
         if res == SAT then do
             -- putStrLn "----\nPathCons:"
             -- putStrLn . mkPCStr $ path_cons s
@@ -118,6 +118,10 @@ main = do
                     putStrLn . mkExprHaskell 
                         . foldl (\a a' -> App a a') (Var (xs' !! 0) TyBottom) $ inArg
                 Nothing -> putStrLn "No model found, but SAT returned"
+
+            case ex of
+                Just e -> putStrLn .  mkExprHaskell . replaceFuncSLT s . smtastToExpr $ e
+                Nothing -> putStrLn "Unrecognized Expr as output."
         else return ()
         ) states'
 

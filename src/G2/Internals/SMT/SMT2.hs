@@ -1,8 +1,10 @@
 module G2.Internals.SMT.SMT2 where
 
-import G2.Internals.Core.Language
+import G2.Internals.Core.Language hiding (Assert)
+import G2.Internals.Core.TypeChecker
 import G2.Internals.SMT.Language
 import G2.Internals.SMT.ParseSMT
+import G2.Internals.SMT.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Data.List
@@ -12,7 +14,9 @@ import System.IO
 import System.Process
 import GHC.IO.Handle
 
-smt2 :: SMTConverter String String (Handle, Handle, ProcessHandle)
+type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
+
+smt2 :: SMT2Converter
 smt2 = SMTConverter {
           empty = ""  
         , merge = (++)
@@ -21,7 +25,7 @@ smt2 = SMTConverter {
             setUpFormula h_in h_out formula
             checkSat' h_in h_out
 
-        , checkSatAndGetModel = \(h_in, h_out, ph) formula headers vars -> do
+        , checkSatGetModelGetExpr = \(h_in, h_out, ph) formula headers vars e -> do
             setUpFormula h_in h_out formula
             r <- checkSat' h_in h_out
             if r == SAT then do
@@ -30,10 +34,12 @@ smt2 = SMTConverter {
                 -- putStrLn (show model)
                 -- putStrLn "======"
                 let m = parseModel headers model
+
+                expr <- solveExpr h_in h_out smt2 headers e
                 -- m <- return . parseModel =<< getModel h_in h_out vars
-                return (r, Just m)
+                return (r, Just m, Just expr)
             else do
-                return (r, Nothing)
+                return (r, Nothing, Nothing)
 
         , assert = function1 "assert"
         , sortDecl = \ns ->
@@ -153,14 +159,50 @@ checkSat' h_in h_out = do
         return Unknown
 
 parseModel :: [SMTHeader] -> [(Name, String, Sort)] -> Model
-parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty . map (\(n, str, s) -> (n, parseModel' s str))
-    where
-        parseModel' :: Sort -> String -> SMTAST
-        parseModel' s = correctTypes s . modifyFix elimLets . parseSMT
+parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty
+    . map (\(n, str, s) -> (n, parseToSMTAST headers str s))--parseModel' s str))
+    -- where
+    --     parseModel' :: Sort -> String -> SMTAST
+    --     parseModel' s = correctTypes s . modifyFix elimLets . parseSMT
 
+    --     correctTypes :: Sort -> SMTAST -> SMTAST
+    --     correctTypes (SortFloat) (VDouble r) = VFloat r
+    --     correctTypes (SortDouble) (VFloat r) = VDouble r
+    --     correctTypes s c@(Cons _ _ _) = correctConsTypes c
+    --     correctTypes _ a = a
+
+    --     correctConsTypes :: SMTAST -> SMTAST
+    --     correctConsTypes (Cons n smts _) =
+    --         let
+    --             sName = M.lookup n consNameToSort
+    --         in
+    --         case sName of
+    --             Just n' -> Cons n (map correctConsTypes smts) n'
+    --             Nothing -> error ("Sort constructor " ++ (show n) ++ "not found in correctConsTypes")
+
+    --     consNameToSort :: M.Map Name Sort
+    --     consNameToSort = 
+    --         let
+    --             nameDC = concat [x | (SortDecl x) <- headers]
+    --         in
+    --         M.fromList $ concatMap (\(n, dcs) -> [(dcn, Sort n []) | (DC dcn _) <- dcs]) nameDC
+
+    --     elimLets :: SMTAST -> SMTAST
+    --     elimLets (SLet (n, a) a') = modifyFix (replaceLets n a) a'
+    --     elimLets a = a
+
+    --     replaceLets :: Name -> SMTAST -> SMTAST -> SMTAST
+    --     replaceLets n a c@(Cons n' _ _) = if n == n' then a else c
+    --     replaceLets _ _ a = a
+
+parseToSMTAST :: [SMTHeader] -> String -> Sort -> SMTAST
+parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ str
+    where
         correctTypes :: Sort -> SMTAST -> SMTAST
         correctTypes (SortFloat) (VDouble r) = VFloat r
         correctTypes (SortDouble) (VFloat r) = VDouble r
+        correctTypes _ (Cons "true" _ _) = VBool True
+        correctTypes _ (Cons "false" _ _) = VBool False
         correctTypes s c@(Cons _ _ _) = correctConsTypes c
         correctTypes _ a = a
 
@@ -209,3 +251,13 @@ getLinesUntil h_out p = do
         return out
     else
         return . (++) (out ++ "\n") =<< getLinesUntil h_out p
+
+solveExpr :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> Expr -> IO SMTAST
+solveExpr h_in h_out con headers e = do
+    let smt = toSolverAST con $ exprToSMT e
+    hPutStr h_in ("(eval " ++ smt ++ " :completion)\n")
+    out <- getLinesUntil h_out (not . isPrefixOf "(let")
+    evaluate (length out)
+
+    return out
+    return $ parseToSMTAST headers out (typeToSMT . exprType $ e)
