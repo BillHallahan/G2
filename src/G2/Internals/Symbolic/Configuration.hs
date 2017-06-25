@@ -33,7 +33,8 @@ freshArgNames eenv entry = zip arg_names arg_types
                             , curr_expr    = BAD
                             , path_cons    = []
                             , sym_links    = M.empty
-                            , func_interps = M.empty }
+                            , func_interps = M.empty
+                            , all_names    = []      }
 
 -- | Make Symbolic Links
 --   Construct a the current expression and a symbolic link table given the
@@ -61,12 +62,15 @@ initState tenv eenv mod entry =
         q_entry = entry
         args = freshArgNames eenv q_entry
         (cexpr, slt) = mkSymLinks eenv q_entry args
-    in State { expr_env     = eenv
-             , type_env     = tenv
-             , curr_expr    = cexpr
-             , path_cons    = []
-             , sym_links    = slt
-             , func_interps = M.empty }
+        pre_state = State { expr_env     = eenv
+                          , type_env     = tenv
+                          , curr_expr    = cexpr
+                          , path_cons    = []
+                          , sym_links    = slt
+                          , func_interps = M.empty
+                          , all_names    =         []}
+        all_names = allNames pre_state
+    in pre_state {all_names = all_names}
 
 -- | Flatten Type
 --   Flattens a Type. For instance:
@@ -88,13 +92,16 @@ initStateCond tenv eenv mod cond entry = case match of
             entry_type = exprType entry_ex
             (expr', slt') = mkSymLinks eenv q_entry args'
         in if (flattenType entry_type) == (init $ flattenType cond_type)
-            then State { expr_env     = eenv
-                       , type_env     = tenv
-                       -- , curr_expr    = (App cond_ex' expr')
-                       , curr_expr    = (Assume cond_ex' expr')
-                       , path_cons    = []
-                       , sym_links    = slt
-                       , func_interps = M.empty }
+            then let pre_state = State { expr_env     = eenv
+                                       , type_env     = tenv
+                                       -- , curr_expr    = App cond_ex' expr'
+                                       , curr_expr    = Assume cond_ex' expr'
+                                       , path_cons    = []
+                                       , sym_links    = slt
+                                       , func_interps = M.empty
+                                       , all_names    = []      }
+                     all_names = allNames pre_state
+                 in pre_state {all_names = all_names}
             else error "Incorrect function types given." 
     otherwise -> error "No matching entry points. Check spelling?"
   where -- q_cond  = mod ++ ".__." ++ cond

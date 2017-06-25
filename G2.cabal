@@ -30,11 +30,9 @@ executable G2
                        , z3 >=4.1.1
   hs-source-dirs:      src
 
-  -- exposed-modules:
-  --     G2.Internals.Core, G2.Internals.Translation
-  --     G2.Internals.Preprocessing, G2.Internals.Symbolic,
-  --     G2.Internals.SMT
-
+  ghc-options:         -O2
+                       -threaded
+                       -fprof-auto
 
   default-language:    Haskell2010
 

@@ -7,7 +7,9 @@
 module G2.Internals.Core.Renamer
     ( allNames
     , freshSeededName
+    , freshSeededName'
     , freshSeededNameList
+    , freshSeededNameList'
     , rename
     , renameList          ) where
 
@@ -58,18 +60,33 @@ nameNum name = case filter C.isDigit name of
 --   We want this new name to be different from all other names in the state.   
 freshSeededName :: Name -> State -> Name
 freshSeededName seed state = stripped_seed ++ show (max_confs_num + 1)
-  where conflicts = allNames state
-        max_confs_num = L.maximum $ [0] ++ (map nameNum conflicts)
+  where confs         = allNames state
+        max_confs_num = L.maximum $ [0] ++ (map nameNum confs)
         stripped_seed = filter (not . C.isDigit) seed
+
+-- | Fresh Seeded Name - Optimized
+freshSeededName' :: Name -> State -> (Name, State)
+freshSeededName' seed state = (fresh, state {all_names = fresh:confs})
+  where confs         = all_names state
+        max_confs_num = L.maximum $ [0] ++ (map nameNum confs)
+        stripped_seed = filter (not . C.isDigit) seed
+        fresh         = stripped_seed ++ show (max_confs_num + 1)
 
 -- | Fresh Seeded Name List
 --   Given a list of seeds, generate a list of freshnames for them. We apply a
 --   fold operation in order to keep track of a "history".
 freshSeededNameList :: [Name] -> State -> [Name]
-freshSeededNameList [] _ = []
+freshSeededNameList [] _     = []
 freshSeededNameList (n:ns) s = [n'] ++ freshSeededNameList ns s'
   where n' = freshSeededName n s
         s' = bindExpr n' BAD s  -- Conflict
+
+-- | Fresh Seeded Name List - Optimized
+freshSeededNameList' :: [Name] -> State -> ([Name], State)
+freshSeededNameList' [] s     = ([], s)
+freshSeededNameList' (n:ns) s = (n':ns', s'')
+  where (n', s')   = freshSeededName' n s
+        (ns', s'') = freshSeededNameList' ns s'
 
 -- | Join Symbolic Link Tables
 --   Can only safely join them if their new entries are disjoint!!
