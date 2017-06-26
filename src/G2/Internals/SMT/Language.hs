@@ -7,13 +7,10 @@ module G2.Internals.SMT.Language ( module G2.Internals.SMT.Language
                                  , module G2.Internals.Core.AST
                                  , Name) where
 
--- import qualified Control.Monad.State.Strict as Mon
-
 import G2.Internals.Core.Language hiding (Assert)
 import G2.Internals.Core.AST
 
 import qualified Data.Map as M
-
 
 -- | SMTHeader
 -- These define the two kinds of top level calls we give to the SMT solver.
@@ -108,10 +105,12 @@ data SMTConverter ast out io =
         , (./) :: ast -> ast -> ast
         , neg :: ast -> ast
 
+        --not on True/False
         , lognot :: ast -> ast
 
         , ite :: ast -> ast -> ast -> ast
 
+        --values
         , int :: Int -> ast
         , float :: Rational -> ast
         , double :: Rational -> ast
@@ -119,6 +118,7 @@ data SMTConverter ast out io =
         , cons :: Name -> [ast] -> Sort -> ast
         , var :: Name -> ast -> ast
 
+        --sorts
         , sortInt :: ast
         , sortFloat :: ast
         , sortDouble :: ast

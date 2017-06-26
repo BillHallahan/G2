@@ -7,22 +7,18 @@ import Test.Tasty.HUnit
 
 import GHC
 
+import G2.Internals.Interface
 import G2.Internals.Core as G2
 import G2.Internals.Translation
 import G2.Internals.Preprocessing
 import G2.Internals.Symbolic
 import G2.Internals.SMT
---import G2.Internals.SMT
--- import G2.Internals.SMT.Old.Z3
--- import G2.Internals.SMT.Old.Z3Types
 
 
 import Data.List
 import qualified Data.Map  as M
 import Data.Maybe
 import qualified Data.Monoid as Mon
-
--- import Z3.Monad
 
 import UnitTests
 
@@ -118,63 +114,9 @@ testFile filepath entry = do
     let e_env' = re_env
     let init_state = initState t_env' e_env' "blank" entry
 
-
-    let defun_init_state = defunctionalize init_state
-
-    let (states, n) = runN [defun_init_state] 200
-
-    let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
-    let states'' = filter (\s -> not . containsBadExpr . curr_expr $ s) states'
-
-    -- return . catMaybes =<< mapM (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
-    --     (r, m, out) <- evalZ3 . reachabilityAndOutputSolverZ3 $ s
-    --     if r == Sat then do
-    --         if Nothing `notElem` m then do
-    --             return $ Just (replaceFuncSLT s . map (fromJust) $ m, fromJust out)
-    --         else
-    --             return Nothing
-    --     else
-    --         return Nothing) states'
     hhp <- getZ3ProcessHandles
 
-    return . catMaybes =<<  mapM (\s -> do
-        -- putStrLn $ mkStateStr s
-        let headers = toSMTHeaders s
-        let formula = toSolver smt2 headers
-        -- putStrLn solver
-        let vars = sltToSMTNameSorts $ sym_links s-- varNamesSorts headers
-
-        (res, m, ex) <- checkSatGetModelGetExpr smt2 hhp formula headers vars (curr_expr s)
-        if res == SAT then do
-            -- putStrLn "----\nPathCons:"
-            -- putStrLn . mkPCStr $ path_cons s
-            -- putStrLn "formula:"
-            -- print formula
-            -- putStrLn "model:"
-            -- putStrLn $ show (sym_links s)
-            m' <- case m of
-                        Just m' -> do
-                            let exprM = replaceFuncSLT s . modelAsExpr $ m'
-
-                            let inArgN = map (\(n, _, _) -> n)
-                                       . sortOn (\(_, _, x) -> fromJust x)
-                                       . filter (\(_, _, x) -> isJust x) 
-                                       . M.elems $ sym_links s
-
-                            let inArg = map (\n -> fromJust $ M.lookup n exprM) inArgN
-
-                            return (Just inArg)
-                        Nothing -> return Nothing
-
-            let ex' = case ex of
-                        Just e -> Just . replaceFuncSLT s . smtastToExpr $ e
-                        Nothing -> Nothing
-
-            return (if isJust m' && isJust ex' then Just (fromJust m', fromJust ex') else Nothing)
-
-        else return Nothing
-
-        ) states''
+    run smt2 hhp init_state
 
 
 testFilePrePost :: String -> String -> String -> IO [[Expr]]
@@ -185,119 +127,9 @@ testFilePrePost filepath prepost entry = do
     let e_env' = re_env
     let init_state = initStateCond t_env' e_env' "blank" prepost entry
 
-
-    let defun_init_state = defunctionalize init_state
-
-    let (states, n) = runN [defun_init_state] 200
-
-    let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
-    let states'' = filter (\s -> not . containsBadExpr . curr_expr $ s) states'
-
-    -- return . catMaybes =<< mapM (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
-    --     (r, m) <- evalZ3 . outputSolverZ3 $ s
-    --     if r == Sat then do
-    --         if Nothing `notElem` m then
-    --             return . Just . replaceFuncSLT s . map (fromJust) $ m
-    --         else
-    --             return Nothing
-    --     else
-    --         return Nothing) states'
-
     hhp <- getZ3ProcessHandles
 
-    return . catMaybes =<< mapM (\s -> do
-        -- putStrLn $ mkStateStr s
-        let headers = toSMTHeaders s
-        let formula = toSolver smt2 headers
-        -- putStrLn solver
-        let vars = sltToSMTNameSorts $ sym_links s-- varNamesSorts headers
-
-        (res, m, _) <- checkSatGetModelGetExpr smt2 hhp formula headers vars (curr_expr s)
-        if res == SAT then do
-            -- putStrLn "----\nPathCons:"
-            -- putStrLn . mkPCStr $ path_cons s
-            -- putStrLn "formula:"
-            -- print formula
-            -- putStrLn "model:"
-            -- putStrLn $ show (sym_links s)
-            case m of
-                Just m' -> do
-                    let exprM = replaceFuncSLT s . modelAsExpr $ m'
-
-                    let inArgN = map (\(n, _, _) -> n)
-                               . sortOn (\(_, _, x) -> fromJust x)
-                               . filter (\(_, _, x) -> isJust x) 
-                               . M.elems $ sym_links s
-
-                    let inArg = map (\n -> fromJust $ M.lookup n exprM) inArgN
-
-                    return (Just inArg)
-                Nothing -> return Nothing
-        else return Nothing
-        ) states''
+    mapM (return . fst) =<< run smt2 hhp init_state
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
-
-
--- Dump from DeprensFunctions :: (Manipulatable Type m) => m -> Bool
--- containsFunctions :: (Manipulatable G2.Type m) => m -> Bool
--- containsFunctions = Mon.getAny . CM.eval (Mon.Any .  containsFunctions')
---     where
---         containsFunctions' :: G2.Type -> Bool
---         containsFunctions' (G2.TyFun _ _) = True
---         containsFunctions' _ = False
-
---Contains functions that are not just type constructors
-containsNonConsFunctions :: (ASTContainer m Expr) => TEnv -> m -> Bool
-containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctions' tenv)
-    where
-        containsFunctions' :: TEnv -> Expr -> Bool
-        containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv) && n `notElem` handledFunctions
-        containsFunctions' _ _ = False
-
-        constructors :: TEnv -> [G2.Name]
-        constructors = evalASTs constructors'
-            where
-                constructors' :: G2.Type -> [G2.Name]
-                constructors' (TyAlg _ dc) = [n | (DataCon n _ _ _) <- dc]
-                constructors' _ = []
-
-        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]
-
-containsBadExpr :: (ASTContainer m Expr) => m -> Bool
-containsBadExpr = Mon.getAny . evalASTs (Mon.Any . containsBadExpr')
-    where
-        containsBadExpr' :: Expr -> Bool
-        containsBadExpr' (Var _ _) = False
-        containsBadExpr' (Const _) = False
-        containsBadExpr' (App _ _) = False
-        containsBadExpr' (Type _) = False
-        containsBadExpr' _ = True
-
-
---Switches every occurence of a Var in the Func SLT from datatype to function
-replaceFuncSLT :: ASTContainer m Expr => State -> m -> m
-replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
-    where
-        replaceFuncSLT' :: Expr -> Expr
-        replaceFuncSLT' v@(Var n t) =
-            let
-                n' = M.lookup n (func_interps s)
-            in
-            case n' of
-                    Just (n'', _) -> Var n'' (case functionType s n'' of
-                                                Just t -> t
-                                                Nothing -> TyBottom)
-                    Nothing -> v
-        replaceFuncSLT' e = e
-
-        functionType :: State -> G2.Name -> Maybe G2.Type
-        functionType s n = G2.exprType <$> M.lookup n (expr_env s)
-
--- constructors :: TEnv -> [G2.Name]
--- constructors = evalDataConType (\(DataCon n _ _ _) -> [n])
-
-functionType :: State -> G2.Name -> Maybe G2.Type
-functionType s n = G2.exprType <$> M.lookup n (expr_env s)
-

@@ -2,7 +2,9 @@
 --   Export module for G2.Internals.Preprocessing.
 module G2.Internals.Preprocessing
     ( module G2.Internals.Preprocessing
-    , module G2.Internals.Preprocessing.Defunctionalizor ) where
+    , module G2.Internals.Preprocessing.Defunctionalizor
+    , module G2.Internals.Preprocessing.Interface ) where
 
 import G2.Internals.Preprocessing.Defunctionalizor
+import G2.Internals.Preprocessing.Interface
 

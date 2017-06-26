@@ -1,3 +1,5 @@
+-- | This defines an SMTConverter for the SMT2 language
+-- It provides methods to construct formulas, as well as feed them to an external solver
 module G2.Internals.SMT.SMT2 where
 
 import G2.Internals.Core.Language hiding (Assert)
@@ -36,7 +38,6 @@ smt2 = SMTConverter {
                 let m = parseModel headers model
 
                 expr <- solveExpr h_in h_out smt2 headers e
-                -- m <- return . parseModel =<< getModel h_in h_out vars
                 return (r, Just m, Just expr)
             else do
                 return (r, Nothing, Nothing)
@@ -124,9 +125,15 @@ function2 f a b = "(" ++ f ++ " " ++ a ++ " " ++ b ++ ")"
 function3 :: String -> String -> String -> String -> String
 function3 f a b c = "(" ++ f ++ " " ++ a ++ " " ++ b ++ " " ++ c ++ ")"
 
+-- | getZ3ProcessHandles
+-- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
+-- returned handles to interact with Z3
+-- Ideally, this function should be called only once, and the same Handles should be used
+-- in all future calls
 getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getZ3ProcessHandles = do
-    (m_h_in, m_h_out, _, p) <- createProcess (proc "z3" ["-smt2", "-in"]) { std_in = CreatePipe, std_out = CreatePipe }
+    (m_h_in, m_h_out, _, p) <- createProcess (proc "z3" ["-smt2", "-in"])
+        { std_in = CreatePipe, std_out = CreatePipe }
 
     let (h_in, h_out) =
             case (m_h_in, m_h_out) of
@@ -137,11 +144,14 @@ getZ3ProcessHandles = do
 
     return (h_in, h_out, p)
 
+-- | setUpFormula
+-- Writes a function to Z3
 setUpFormula :: Handle -> Handle -> String -> IO ()
 setUpFormula h_in h_out form = do
     hPutStr h_in "(reset)"
     hPutStr h_in form
 
+-- Checks if a formula, previously written by setUp formula, is SAT
 checkSat' :: Handle -> Handle -> IO Result
 checkSat' h_in h_out = do
     hPutStr h_in "(check-sat)\n"
