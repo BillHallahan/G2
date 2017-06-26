@@ -4,11 +4,11 @@ data Peano = Succ Peano | Zero
 
 add :: Peano -> Peano -> Peano
 add Zero p = p
-add (Succ p) p' = add p (Succ p')
+add (Succ p) p2 = add p (Succ p2)
 
 multiply :: Peano -> Peano -> Peano
 multiply _ Zero = Zero
-multiply p (Succ p') = add p (multiply p p')
+multiply p (Succ p2) = add p (multiply p p2)
 
 toInt :: Peano -> Int
 toInt Zero = 0
@@ -30,4 +30,4 @@ isTrue ::Peano -> Bool -> Bool
 isTrue _ b = b
 
 eqEachOtherAndAddTo4 :: Peano -> Peano -> Peano -> Bool
-eqEachOtherAndAddTo4 p p' p'' = toInt p == toInt p' && toInt p'' == 4
+eqEachOtherAndAddTo4 p p2 p3 = toInt p == toInt p2 && toInt p3 == 4

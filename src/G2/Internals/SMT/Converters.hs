@@ -75,7 +75,7 @@ exprToSMT e = error ("Unhandled expression " ++ show e)
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
 funcToSMT e@(Var n t) es = 
-    if n `elem` ["==", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||", "I#", "F#", "D#", "True", "False"] then
+    if n `elem` ["==", "/=", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||", "I#", "F#", "D#", "True", "False"] then
         funcToSMT' e es
     else
         Cons n (map exprToSMT es) (typeToSMT t)
@@ -104,6 +104,7 @@ funcToSMT4 f (a1, a2, a3, a4)
     | isVarName f ">=" && isIDF a1 = exprToSMT a3 :>= exprToSMT a4
     | isVarName f ">" && isIDF a1 = exprToSMT a3 :> exprToSMT a4
     | isVarName f "==" && isIDF a1 = exprToSMT a3 := exprToSMT a4
+    | isVarName f "/=" && isIDF a1 = Not (exprToSMT a3 := exprToSMT a4)
     | isVarName f "<" && isIDF a1 = exprToSMT a3 :< exprToSMT a4
     | isVarName f "<=" && isIDF a1 = exprToSMT a3 :<= exprToSMT a4
 
@@ -194,6 +195,8 @@ toSolverAST con (x :- y) = (.-) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :* y) = (.*) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :/ y) = (./) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
+
+toSolverAST con (Not x) = lognot con $ toSolverAST con x
 
 toSolverAST con (Ite x y z) =
     ite con (toSolverAST con x) (toSolverAST con y) (toSolverAST con z)

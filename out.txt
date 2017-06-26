@@ -1,0 +1,139 @@
+Preprocessing executable 'G2' for G2-0.1.0.0...
+Running G2...
+Number of execution states: 5
+Number of execution states after first pruning: 1
+Number of execution states after second pruning: 1
+-------
+App (
+   App (
+      App (
+         App (
+            Var - (TyForAll "a"(TyFun (
+                     TyConApp "Num" [ TyVar "a"]
+                     TyFun ( TyVar "a"
+                        TyFun ( TyVar "a" TyVar "a"
+                        )
+                     )
+                  )))
+            Type (TyConApp "Int" [])
+         )
+         Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
+      )
+      Var x (TyConApp "Int" [])
+   )
+   App (
+      Var I# (TyFun ( TyRawInt
+            TyConApp "Int" []
+         ))
+      Const (CInt 10)
+   )
+)
+PC: (App (
+   App (
+      Var && (TyFun (
+            TyConApp "Bool" []
+            TyFun (
+               TyConApp "Bool" []
+               TyConApp "Bool" []
+            )
+         ))
+      App (
+         App (
+            App (
+               App (
+                  Var <= (TyForAll "a"(TyFun (
+                           TyConApp "Ord" [ TyVar "a"]
+                           TyFun ( TyVar "a"
+                              TyFun ( TyVar "a"
+                                 TyConApp "Bool" []
+                              )
+                           )
+                        )))
+                  Type (TyConApp "Int" [])
+               )
+               Var $fOrdInt (TyConApp "Ord" [TyConApp "Int" []])
+            )
+            Var x (TyConApp "Int" [])
+         )
+         App (
+            Var I# (TyFun ( TyRawInt
+                  TyConApp "Int" []
+               ))
+            Const (CInt 100)
+         )
+      )
+   )
+   App (
+      App (
+         App (
+            App (
+               Var /= (TyForAll "a"(TyFun (
+                        TyConApp "Eq" [ TyVar "a"]
+                        TyFun ( TyVar "a"
+                           TyFun ( TyVar "a"
+                              TyConApp "Bool" []
+                           )
+                        )
+                     )))
+               Type (TyConApp "Int" [])
+            )
+            Var $fEqInt (TyConApp "Eq" [TyConApp "Int" []])
+         )
+         App (
+            App (
+               App (
+                  App (
+                     Var - (TyForAll "a"(TyFun (
+                              TyConApp "Num" [ TyVar "a"]
+                              TyFun ( TyVar "a"
+                                 TyFun ( TyVar "a" TyVar "a"
+                                 )
+                              )
+                           )))
+                     Type (TyConApp "Int" [])
+                  )
+                  Var $fNumInt (TyConApp "Num" [TyConApp "Int" []])
+               )
+               Var x (TyConApp "Int" [])
+            )
+            App (
+               Var I# (TyFun ( TyRawInt
+                     TyConApp "Int" []
+                  ))
+               Const (CInt 10)
+            )
+         )
+      )
+      App (
+         Var I# (TyFun ( TyRawInt
+               TyConApp "Int" []
+            ))
+         Const (CInt 91)
+      )
+   )
+))
+PC: (App (
+   App (
+      App (
+         App (
+            Var > (TyForAll "a"(TyFun (
+                     TyConApp "Ord" [ TyVar "a"]
+                     TyFun ( TyVar "a"
+                        TyFun ( TyVar "a"
+                           TyConApp "Bool" []
+                        )
+                     )
+                  )))
+            Type (TyConApp "Int" [])
+         )
+         Var $fOrdInt (TyConApp "Ord" [TyConApp "Int" []])
+      )
+      Var x (TyConApp "Int" [])
+   )
+   App (
+      Var I# (TyFun ( TyRawInt
+            TyConApp "Int" []
+         ))
+      Const (CInt 100)
+   )
+) = Alt (DataCon "True" 2 (TyConApp "Bool" []) [],[])

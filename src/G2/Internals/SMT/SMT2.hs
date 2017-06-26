@@ -86,6 +86,8 @@ smt2 = SMTConverter {
         , (./) = function2 "/"
         , neg = function1 "-"
 
+        , lognot = function1 "not"
+
         , ite = function3 "ite"
 
         , int = show
@@ -160,40 +162,7 @@ checkSat' h_in h_out = do
 
 parseModel :: [SMTHeader] -> [(Name, String, Sort)] -> Model
 parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty
-    . map (\(n, str, s) -> (n, parseToSMTAST headers str s))--parseModel' s str))
-    -- where
-    --     parseModel' :: Sort -> String -> SMTAST
-    --     parseModel' s = correctTypes s . modifyFix elimLets . parseSMT
-
-    --     correctTypes :: Sort -> SMTAST -> SMTAST
-    --     correctTypes (SortFloat) (VDouble r) = VFloat r
-    --     correctTypes (SortDouble) (VFloat r) = VDouble r
-    --     correctTypes s c@(Cons _ _ _) = correctConsTypes c
-    --     correctTypes _ a = a
-
-    --     correctConsTypes :: SMTAST -> SMTAST
-    --     correctConsTypes (Cons n smts _) =
-    --         let
-    --             sName = M.lookup n consNameToSort
-    --         in
-    --         case sName of
-    --             Just n' -> Cons n (map correctConsTypes smts) n'
-    --             Nothing -> error ("Sort constructor " ++ (show n) ++ "not found in correctConsTypes")
-
-    --     consNameToSort :: M.Map Name Sort
-    --     consNameToSort = 
-    --         let
-    --             nameDC = concat [x | (SortDecl x) <- headers]
-    --         in
-    --         M.fromList $ concatMap (\(n, dcs) -> [(dcn, Sort n []) | (DC dcn _) <- dcs]) nameDC
-
-    --     elimLets :: SMTAST -> SMTAST
-    --     elimLets (SLet (n, a) a') = modifyFix (replaceLets n a) a'
-    --     elimLets a = a
-
-    --     replaceLets :: Name -> SMTAST -> SMTAST -> SMTAST
-    --     replaceLets n a c@(Cons n' _ _) = if n == n' then a else c
-    --     replaceLets _ _ a = a
+    . map (\(n, str, s) -> (n, parseToSMTAST headers str s))
 
 parseToSMTAST :: [SMTHeader] -> String -> Sort -> SMTAST
 parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ str
@@ -259,5 +228,4 @@ solveExpr h_in h_out con headers e = do
     out <- getLinesUntil h_out (not . isPrefixOf "(let")
     evaluate (length out)
 
-    return out
     return $ parseToSMTAST headers out (typeToSMT . exprType $ e)

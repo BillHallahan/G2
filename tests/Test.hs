@@ -60,18 +60,17 @@ sampleTests =
 
                 , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
                 , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
-                -- , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
+                , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
-                -- , checkExprOutput  "tests/samples/HigherOrderMath.hs" "isTrue0" "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
-                -- , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue1" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
-                --, checkExprOutput "tests/samples/HigherOrderMath.hs" "HigherOrderMath" "isTrue2" "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
-                                --------------------GET THE ABOVE REXISTS WORKING EVENTUALLY!!!!!!!!!
-                -- , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
+                , checkExprOutput  "tests/samples/HigherOrderMath.hs" "isTrue0" "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
+                , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue1" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue2" "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
+                , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
 
-                -- , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
-                -- , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
-                -- , checkExprOutput "tests/samples/McCarthy91.hs" "lessThanNot91" "mccarthy" 1 [Exactly 0]
-                -- , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThanNot10Less" "mccarthy" 1 [Exactly 0]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "lessThanNot91" "mccarthy" 1 [Exactly 0]
+                , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThanNot10Less" "mccarthy" 1 [Exactly 0]
         ]
 
 -- | Checks conditions on functions, with pre/post conditions
@@ -125,6 +124,7 @@ testFile filepath entry = do
     let (states, n) = runN [defun_init_state] 200
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
+    let states'' = filter (\s -> not . containsBadExpr . curr_expr $ s) states'
 
     -- return . catMaybes =<< mapM (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
     --     (r, m, out) <- evalZ3 . reachabilityAndOutputSolverZ3 $ s
@@ -174,7 +174,7 @@ testFile filepath entry = do
 
         else return Nothing
 
-        ) states'
+        ) states''
 
 
 testFilePrePost :: String -> String -> String -> IO [[Expr]]
@@ -191,6 +191,7 @@ testFilePrePost filepath prepost entry = do
     let (states, n) = runN [defun_init_state] 200
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
+    let states'' = filter (\s -> not . containsBadExpr . curr_expr $ s) states'
 
     -- return . catMaybes =<< mapM (\s@State {curr_expr = expr, path_cons = path_cons', sym_links = sym_links'} -> do
     --     (r, m) <- evalZ3 . outputSolverZ3 $ s
@@ -233,7 +234,7 @@ testFilePrePost filepath prepost entry = do
                     return (Just inArg)
                 Nothing -> return Nothing
         else return Nothing
-        ) states'
+        ) states''
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
@@ -263,6 +264,17 @@ containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctio
                 constructors' _ = []
 
         handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]
+
+containsBadExpr :: (ASTContainer m Expr) => m -> Bool
+containsBadExpr = Mon.getAny . evalASTs (Mon.Any . containsBadExpr')
+    where
+        containsBadExpr' :: Expr -> Bool
+        containsBadExpr' (Var _ _) = False
+        containsBadExpr' (Const _) = False
+        containsBadExpr' (App _ _) = False
+        containsBadExpr' (Type _) = False
+        containsBadExpr' _ = True
+
 
 --Switches every occurence of a Var in the Func SLT from datatype to function
 replaceFuncSLT :: ASTContainer m Expr => State -> m -> m

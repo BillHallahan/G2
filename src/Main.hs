@@ -46,17 +46,20 @@ main = do
 
     let defun_init_state = defunctionalize init_state
 
-    putStrLn $ mkStateStr init_state
-    putStrLn $ mkStateStr defun_init_state
+    -- putStrLn $ mkStateStr init_state
+    -- putStrLn $ mkStateStr defun_init_state
 
-    let (states, n) = runN [defun_init_state] 250
+    let (states, n) = runN [defun_init_state] 2000
 
     putStrLn ("Number of execution states: " ++ (show (length states)))
 
     let states' = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s) states
+    let states'' = filter (\s -> not . containsBadExpr . curr_expr $ s) states'
 
     -- putStrLn $ mkStatesStr states
-    putStrLn ("Number of execution states after pruning: " ++ (show (length states')))
+    putStrLn ("Number of execution states after first pruning: " ++ (show (length states')))
+    putStrLn ("Number of execution states after second pruning: " ++ (show (length states'')))
+    
     --putStrLn "Compiles!\n\n"
     
     -- if num == "1" then
@@ -123,7 +126,7 @@ main = do
                 Just e -> putStrLn .  mkExprHaskell . replaceFuncSLT s . smtastToExpr $ e
                 Nothing -> putStrLn "Unrecognized Expr as output."
         else return ()
-        ) states'
+        ) states''
 
 {-
 main = do
@@ -193,4 +196,14 @@ containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctio
                 constructors' (TyAlg _ dc) = [n | (DataCon n _ _ _) <- dc]
                 constructors' _ = []
 
-        handledFunctions = ["==", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]
+        handledFunctions = ["==", "/=", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]
+
+containsBadExpr :: (ASTContainer m Expr) => m -> Bool
+containsBadExpr = Mon.getAny . evalASTs (Mon.Any . containsBadExpr')
+    where
+        containsBadExpr' :: Expr -> Bool
+        containsBadExpr' (Var _ _) = False
+        containsBadExpr' (Const _) = False
+        containsBadExpr' (App _ _) = False
+        containsBadExpr' (Type _) = False
+        containsBadExpr' _ = True

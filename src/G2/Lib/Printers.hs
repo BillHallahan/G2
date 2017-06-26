@@ -123,8 +123,15 @@ mkTypeStr t i = mkTypeStr' t i False
 
 
 -- Primitive for now because I'm low on battery.
-mkPCStr :: PathCons -> String
-mkPCStr pcs = L.intercalate "\n" $ map show pcs
+mkPCStr :: [PathCond] -> String
+mkPCStr = L.intercalate "\n" . map mkPCStr'
+    where
+        mkPCStr' :: PathCond -> String
+        mkPCStr' (CondAlt e a b) =
+            "PC: (" ++ mkExprStr e ++ (if b then " = " else "/=") ++ show a
+        mkPCStr' (CondExt e b) =
+            "PC: " ++ (if b then "" else "not ") ++ "(" ++ mkExprStr e ++ ")"
+
 {-
 mkPCStr [] = ""
 mkPCStr [(e, a, b)] = mkExprStr e ++ (if b then " = " else " != ") ++ show a

@@ -5,8 +5,6 @@ import G2.Internals.Core
 import Data.List
 import Data.Maybe
 import qualified Data.Map as M
-import qualified Debug.Trace as T
-
 
 {-Defunctionalizor
 
@@ -71,7 +69,7 @@ useApplyType s (t@(TyFun _ _)) =
 
         s' = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) s higherNameExprArgs
 
-        s'' = T.trace (show t) modifyASTs (applyTypeReplace t applyTypeCon) (s' {curr_expr = newCurr_expr})
+        s'' = modifyASTs (applyTypeReplace t applyTypeCon) (s' {curr_expr = newCurr_expr})
 
     in
     s'' { expr_env = M.insert applyFuncName applyFunc (expr_env s'')
