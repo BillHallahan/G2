@@ -113,16 +113,19 @@ initStateCond tenv eenv mod cond entry = case match of
 
 -- | Run n Times
 --   Run a state n times through the power of concatMap.
-runN :: [State] -> Int -> ([State], Int)
-runN states 0 = (states, 0)
-runN [] n     = ([], n - 1)
-runN states n = runN (concatMap (\s -> step s) states) (n - 1)
+runN :: ([State], [State]) -> Int -> (([State], [State]), Int)
+runN ([], dds) n  = (([], dds), n - 1)
+runN (lvs, dds) 0 = ((lvs, dds), 0)
+runN (lvs, dds) n = runN (lvs', dds' ++ dds) (n - 1)
+  where stepped = map step lvs
+        (lvs', dds') = (concatMap fst stepped, concatMap snd stepped)
 
 -- | History n Times
 --   Run a state n times, while keeping track of its history as a list.
-histN :: [State] -> Int -> [([State], Int)]
-histN states 0 = [(states, 0)]
-histN [] n     = [([], n - 1)]
-histN states n = (states', n):(histN states' (n - 1))
-  where states' = concatMap step states
+histN :: ([State], [State]) -> Int -> [(([State], [State]), Int)]
+histN ([], dds) n  = [(([], dds), n - 1)]
+histN (lvs, dds) 0 = [((lvs, dds), 0)]
+histN (lvs, dds) n = ((lvs, dds), n) : histN (lvs', dds' ++ dds) (n - 1)
+  where stepped = map step lvs
+        (lvs', dds') = (concatMap fst stepped, concatMap snd stepped)
 
