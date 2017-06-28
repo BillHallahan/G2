@@ -40,7 +40,7 @@ stepAppLam :: State -> ([State], [State])
 stepAppLam state = ([bindExpr b' ae l_st], [])
   where App (Lam b l t) ae = curr_expr state
         (b', st') = freshSeededName' b state
-        l_st      = rename b b' (st' {curr_expr = l})
+        l_st      = renameExpr b b' (st' {curr_expr = l})
 
 -- | Step (App Case Expr)
 stepAppCaseF :: State -> ([State], [State])
@@ -75,7 +75,8 @@ shove state (Alt (dc, params), ae) = (Alt (dc, params), Case ae as2 t2)
 
 -- | Step Case Case
 stepCaseCase :: State -> ([State], [State])
-stepCaseCase state = ([state{curr_expr=Case m1 (map (shove state) as1) t2}], [])
+stepCaseCase state = ([state {curr_expr = Case m1 (map (shove state) as1) t2}],
+                      [])
   where Case (Case m1 as1 t1) as2 t2 = curr_expr state
 
 -- | Flatten App Spine
@@ -96,12 +97,14 @@ doNDef state (Alt (dc, params), aexp) = case d of
     -- If the matching expression is a Var, then we should treat it as a
     -- symbolic function, which means that it returns symbolic results, and
     -- consequently, the data constructor's parameters are now free symbolics.
-    Var f t -> [renameList p_zip (st' {curr_expr = aexp, path_cons = pcs'})]
+    Var f t -> [renameExprList p_zip (st' { curr_expr = aexp
+                                          , path_cons = pcs'})]
     -- If the matching expression is a data constructor that can successfully
     -- perform structural matching, then do usual stuff of binding expressions.
     Data md -> if (length args == length params) && (dc == md)
         then let binds = zip params' args
-                 a_st = renameList p_zip (st' {curr_expr=aexp, path_cons=pcs'})
+                 a_st = renameExprList p_zip (st' { curr_expr = aexp
+                                                  , path_cons = pcs' })
              in [bindExprList binds a_st]  -- Structural matching failure.
     -- NUH UH NUH!! We can only perform Alt matching based on structure or Var!
         else []
@@ -162,8 +165,10 @@ stepAssert state = if isValue (state {curr_expr = exp})
         -- If the LHS has already been saturated, evaluate it until value.
         otherwise -> if isValue (state {curr_expr = cond})
           then ([state {curr_expr = exp, path_cons = f_pcs}], [])
-          else ([c_st{curr_expr=Assert (curr_expr c_st) exp} | c_st<-c_sts],cd)
-    else ([e_st {curr_expr=Assert cond (curr_expr e_st)} | e_st <- e_sts], ed)
+          else ([c_st {curr_expr = Assert (curr_expr c_st) exp} |
+                 c_st <- c_sts], cd)
+    else ([e_st {curr_expr = Assert cond (curr_expr e_st)} |
+           e_st <- e_sts], ed)
   where Assert cond exp = curr_expr state
         (c_sts, cd) = step (state {curr_expr = cond})
         (e_sts, ed) = step (state {curr_expr = exp})

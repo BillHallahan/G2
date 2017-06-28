@@ -10,8 +10,10 @@ module G2.Internals.Core.Renamer
     , freshSeededName'
     , freshSeededNameList
     , freshSeededNameList'
-    , rename
-    , renameList          ) where
+    , renameExpr
+    , renameExprList
+    , renameType
+    , renameTypeList      ) where
 
 import G2.Internals.Core.AST
 import G2.Internals.Core.Environment
@@ -95,8 +97,8 @@ joinSLTs slts = foldl M.union M.empty slts
  
 -- | Rename Var
 --   If it matches, we update, and add an entry to the symbolic link table.
-renameVar :: Name -> Name -> State -> State
-renameVar old new state = if n == old
+renameExprVar :: Name -> Name -> State -> State
+renameExprVar old new state = if n == old
     then state {curr_expr = cexpr', sym_links = slt'}
     else state
   where Var n t = curr_expr state
@@ -105,51 +107,51 @@ renameVar old new state = if n == old
 
 -- | Rename Lam
 --   Must check for cases where the lambda's binder might be old or new.
-renameLam :: Name -> Name -> State -> State
-renameLam old new state = if b == old
+renameExprLam :: Name -> Name -> State -> State
+renameExprLam old new state = if b == old
     then state  -- Shadowing occurs
     else e_st {curr_expr = cexpr'}
   where Lam b e t = curr_expr state
-        e_st   = rename old new (state {curr_expr = e})
+        e_st   = renameExpr old new (state {curr_expr = e})
         cexpr' = Lam b (curr_expr e_st) t
 
 -- | Rename Let
-renameLet :: Name -> Name -> State -> State
-renameLet old new state = if old `elem` bs_lhs
+renameExprLet :: Name -> Name -> State -> State
+renameExprLet old new state = if old `elem` bs_lhs
     then state  -- Shadowing occurs.
     else e_st {curr_expr = cexpr', sym_links = slt'}
   where Let bs e = curr_expr state
         bs_lhs = map fst bs
         bs_rhs = map snd bs
-        e_st   = rename old new (state {curr_expr = e})
-        bs_sts = map (\(b, e) -> (b, rename old new (state {curr_expr=e}))) bs
+        e_st   = renameExpr old new (state {curr_expr = e})
+        bs_sts = map (\(b, e) -> (b, renameExpr old new (state {curr_expr=e}))) bs
         bs'    = map (\(b, r_st) -> (b, curr_expr r_st)) bs_sts
         cexpr' = Let bs' (curr_expr e_st)
         slt'   = joinSLTs $ [sym_links e_st] ++ map (sym_links . snd) bs_sts
 
 -- | Rename App
-renameApp :: Name -> Name -> State -> State
-renameApp old new state = a_st {curr_expr = cexpr'}
+renameExprApp :: Name -> Name -> State -> State
+renameExprApp old new state = a_st {curr_expr = cexpr'}
   where App f a = curr_expr state
-        f_st = rename old new (state {curr_expr = f})
-        a_st = rename old new (f_st {curr_expr = a})
+        f_st = renameExpr old new (state {curr_expr = f})
+        a_st = renameExpr old new (f_st {curr_expr = a})
         f' = curr_expr f_st
         a' = curr_expr a_st
         cexpr' = App f' a'
 
 -- | Rename Alt
-renameAltExp :: Name -> Name -> State -> (Alt, Expr) -> State
-renameAltExp old new state (Alt (dc, params), aexp) = if old `elem` params
+renameExprAltExp :: Name -> Name -> State -> (Alt, Expr) -> State
+renameExprAltExp old new state (Alt (dc, params), aexp) = if old `elem` params
       then state {curr_expr = aexp}
-      else rename old new (state {curr_expr = aexp})
+      else renameExpr old new (state {curr_expr = aexp})
 
 -- | Rename Case
 --   Renaming occurs depending on if old shows up in the params.
-renameCase :: Name -> Name -> State -> State
-renameCase old new state = state {curr_expr = cexpr', sym_links = slt'}
+renameExprCase :: Name -> Name -> State -> State
+renameExprCase old new state = state {curr_expr = cexpr', sym_links = slt'}
   where Case m as t = curr_expr state
-        m_st   = rename old new (state {curr_expr = m})
-        a_sts  = map (renameAltExp old new state) as
+        m_st   = renameExpr old new (state {curr_expr = m})
+        a_sts  = map (renameExprAltExp old new state) as
         as'    = map (\((Alt (dc, params), _), a_st) ->
                          (Alt (dc, params), curr_expr a_st))
                      (zip as a_sts)
@@ -157,21 +159,21 @@ renameCase old new state = state {curr_expr = cexpr', sym_links = slt'}
         slt'   = joinSLTs $ [sym_links m_st] ++ (map sym_links a_sts)
 
 -- | Rename Assume
-renameAssume :: Name -> Name -> State -> State
-renameAssume old new state = e_st {curr_expr = cexpr'}
+renameExprAssume :: Name -> Name -> State -> State
+renameExprAssume old new state = e_st {curr_expr = cexpr'}
   where Assume c e = curr_expr state
-        c_st = rename old new (state {curr_expr = c})
-        e_st = rename old new (c_st {curr_expr = e})
+        c_st = renameExpr old new (state {curr_expr = c})
+        e_st = renameExpr old new (c_st {curr_expr = e})
         c' = curr_expr c_st
         e' = curr_expr e_st
         cexpr' = Assume c' e'
 
 -- | Rename Assert
-renameAssert :: Name -> Name -> State -> State
-renameAssert old new state = e_st {curr_expr = cexpr'}
+renameExprAssert :: Name -> Name -> State -> State
+renameExprAssert old new state = e_st {curr_expr = cexpr'}
   where Assert c e = curr_expr state
-        c_st = rename old new (state {curr_expr = c})
-        e_st = rename old new (c_st {curr_expr = e})
+        c_st = renameExpr old new (state {curr_expr = c})
+        e_st = renameExpr old new (c_st {curr_expr = e})
         c' = curr_expr c_st
         e' = curr_expr e_st
         cexpr' = Assert c' e'
@@ -182,21 +184,82 @@ renameAssert old new state = e_st {curr_expr = cexpr'}
 --   state. This allows us to prevent checking to see if the new name happens
 --   to equal one of the names in a binder (cf Lam, Case, Let), and thus saves
 --   us the effort of having to perform sub-expression renaming.
-rename :: Name -> Name -> State -> State
-rename old new state = case curr_expr state of
-    Var _ _    -> renameVar    old new state
-    Lam _ _ _  -> renameLam    old new state
-    Let _ _    -> renameLet    old new state
-    App _ _    -> renameApp    old new state
-    Case _ _ _ -> renameCase   old new state
-    Assume _ _ -> renameAssume old new state
-    Assert _ _ -> renameAssert old new state
+renameExpr :: Name -> Name -> State -> State
+renameExpr old new state = case curr_expr state of
+    Var _ _    -> renameExprVar    old new state
+    Lam _ _ _  -> renameExprLam    old new state
+    Let _ _    -> renameExprLet    old new state
+    App _ _    -> renameExprApp    old new state
+    Case _ _ _ -> renameExprCase   old new state
+    Assume _ _ -> renameExprAssume old new state
+    Assert _ _ -> renameExprAssert old new state
     otherwise  -> state
 
 -- | Rename List
 --   Rename, but with a list instead. If we pipe in the input from some fresh
 --   seeded name list, we are guaranteed to have uniqueness at least, such that
 --   the remaps don't step over on each other.
-renameList :: [(Name, Name)] -> State -> State
-renameList remaps state = foldl (\s (n, n') -> rename n n' s) state remaps
+renameExprList :: [(Name, Name)] -> State -> State
+renameExprList [] state = state
+renameExprList ((o, n):rs) state = renameExprList rs state'
+  where state' = renameExpr o n state
+
+-- | Rename TyVar
+renameTyVar :: Name -> Name -> Type -> Type
+renameTyVar old new (TyVar n) = if old == n then TyVar new else TyVar n
+
+-- | Rename TyFun
+renameTyFun :: Name -> Name -> Type -> Type
+renameTyFun old new (TyFun t1 t2) = TyFun t1' t2'
+  where t1' = renameType old new t1
+        t2' = renameType old new t2
+
+-- | Rename TyApp
+renameTyApp :: Name -> Name -> Type -> Type
+renameTyApp old new (TyApp t1 t2) = TyApp t1' t2'
+  where t1' = renameType old new t1
+        t2' = renameType old new t2
+
+-- | Rename TyConApp Name [Type]
+renameTyConApp :: Name -> Name -> Type -> Type
+renameTyConApp old new (TyConApp n tys) = TyConApp n' tys'
+  where n'   = if old == new then new else n
+        tys' = map (renameType old new) tys
+
+-- | Rename TyAlg
+renameTyAlg :: Name -> Name -> Type -> Type
+renameTyAlg old new (TyAlg n dcs) = TyAlg n' dcs'
+  where n'   = if old == new then new else n
+        dcs' = map (renameDataCon old new) dcs
+
+-- | Rename TyForAll
+renameTyForAll :: Name -> Name -> Type -> Type
+renameTyForAll old new (TyForAll n t) = TyForAll n' t'
+  where n' = if old == new then new else n
+        t' = renameType old new t
+
+-- | Rename Type
+renameType :: Name -> Name -> Type -> Type
+renameType old new ty = case ty of
+    TyVar _      -> renameTyVar old new ty
+    TyFun _ _    -> renameTyFun old new ty
+    TyApp _ _    -> renameTyApp old new ty
+    TyConApp _ _ -> renameTyConApp old new ty
+    TyAlg _ _    -> renameTyAlg old new ty
+    TyForAll _ _ -> renameTyForAll old new ty
+    TyBottom     -> TyBottom
+
+-- | Rename Type List
+renameTypeList :: [(Name, Name)] -> Type -> Type
+renameTypeList [] ty = ty
+renameTypeList ((o, n):rs) ty = renameTypeList rs ty'
+  where ty' = renameType o n ty
+
+-- | Rename Data Constructor
+renameDataCon :: Name -> Name -> DataCon -> DataCon
+renameDataCon old new (DataCon n i ty tys) = DataCon n' i ty' tys'
+  where n'   = if old == new then new else n
+        ty'  = renameType old new ty
+        tys' = map (renameType old new) tys
+
 
