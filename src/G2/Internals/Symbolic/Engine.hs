@@ -14,6 +14,7 @@ import qualified Data.Map  as M
 isValue :: State -> Bool
 isValue state = case curr_expr state of
     Var n _ -> lookupExpr n (expr_env state) == Nothing
+    Prim _ _ -> True
     App (Lam _ _ _) _ -> False
     App f a -> isValue (state {curr_expr=f}) && isValue (state {curr_expr=a})
     Let _ _ -> False
@@ -29,6 +30,9 @@ stepVar state = case lookupExpr n (expr_env state) of
     Nothing -> ([state], [])
     Just ex -> ([state {curr_expr = ex}], [])
   where Var n t = curr_expr state
+
+stepPrim :: State -> ([State], [State])
+stepPrim state = ([state], [])
 
 -- | Step Let
 stepLet :: State -> ([State], [State])
@@ -96,8 +100,11 @@ doNDef :: State -> (Alt, Expr) -> [State]
 doNDef state (Alt (dc, params), aexp) = case d of
     -- If the matching expression is a Var, then we should treat it as a
     -- symbolic function, which means that it returns symbolic results, and
-    -- consequently, the data constructor's parameters are now free symbolics.
+    -- consequently, the data constructor's parameters are now free symbols.
     Var f t -> [renameExprList p_zip (st' { curr_expr = aexp
+                                          , path_cons = pcs'})]
+
+    Prim f t -> [renameExprList p_zip (st' { curr_expr = aexp
                                           , path_cons = pcs'})]
     -- If the matching expression is a data constructor that can successfully
     -- perform structural matching, then do usual stuff of binding expressions.
@@ -106,7 +113,7 @@ doNDef state (Alt (dc, params), aexp) = case d of
                  a_st = renameExprList p_zip (st' { curr_expr = aexp
                                                   , path_cons = pcs' })
              in [bindExprList binds a_st]  -- Structural matching failure.
-    -- NUH UH NUH!! We can only perform Alt matching based on structure or Var!
+    -- We can only perform Alt matching based on structure or Var!
         else []
     _ -> [state {curr_expr = BAD}]
   where Case m as t = curr_expr state
@@ -182,7 +189,8 @@ step :: State -> ([State], [State])
 step state = if isValue state
     then ([], [state])
     else case curr_expr state of
-        Var _ _               -> stepVar      state 
+        Var _ _               -> stepVar      state
+        Prim _ _              -> stepPrim     state 
         Let _ _               -> stepLet      state
         App (Lam _ _ _) _     -> stepAppLam   state
         App (Case _ _ _) _    -> stepAppCaseF state

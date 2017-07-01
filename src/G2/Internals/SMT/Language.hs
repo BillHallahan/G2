@@ -41,8 +41,6 @@ data SMTAST = (:>=) SMTAST SMTAST
             | (:/) SMTAST SMTAST
             | Neg SMTAST --Unary negation
 
-            | Not SMTAST
-
             | Ite SMTAST SMTAST SMTAST
             | SLet (Name, SMTAST) SMTAST
 
@@ -105,9 +103,6 @@ data SMTConverter ast out io =
         , (./) :: ast -> ast -> ast
         , neg :: ast -> ast
 
-        --not on True/False
-        , lognot :: ast -> ast
-
         , ite :: ast -> ast -> ast -> ast
 
         --values
@@ -153,8 +148,6 @@ instance AST SMTAST where
     children (x :/ y) = [x, y]
     children (Neg x) = [x]
 
-    children (Not x) = [x]
-
     children (Ite x x' x'') = [x, x', x'']
     children (SLet (n, x) x') = [x, x']
 
@@ -178,8 +171,6 @@ instance AST SMTAST where
     modifyChildren f (x :* y) = f x :* f y
     modifyChildren f (x :/ y) = f x :/ f y
     modifyChildren f (Neg x) = Neg (f x)
-
-    modifyChildren f (Not x) = Not (f x)
 
     modifyChildren f (Ite x x' x'') = Ite (f x) (f x') (f x'')
     modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')

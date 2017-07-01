@@ -80,6 +80,7 @@ containsBadExpr = Mon.getAny . evalASTs (Mon.Any . containsBadExpr')
     where
         containsBadExpr' :: Expr -> Bool
         containsBadExpr' (Var _ _) = False
+        containsBadExpr' (Prim _ _) = False
         containsBadExpr' (Const _) = False
         containsBadExpr' (App _ _) = False
         containsBadExpr' (Type _) = False

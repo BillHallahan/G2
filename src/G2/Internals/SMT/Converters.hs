@@ -64,6 +64,7 @@ exprToSMT a@(App _ _) =
     where
         getFunc :: Expr -> Expr
         getFunc v@(Var _ _) = v
+        getFunc p@(Prim _ _) = p
         getFunc (App a _) = getFunc a
 
         getArgs :: Expr -> [Expr]
@@ -75,50 +76,39 @@ exprToSMT e = error ("Unhandled expression " ++ show e)
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
 funcToSMT e@(Var n t) es = 
-    if n `elem` ["==", "/=", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||", "I#", "F#", "D#", "True", "False"] then
-        funcToSMT' e es
+    if n `elem` ["I#", "F#", "D#", "True", "False"] then
+        funcToSMTVar e es
     else
         Cons n (map exprToSMT es) (typeToSMT t)
     where
-        funcToSMT' e [a] = funcToSMT1 e a
-        funcToSMT' e [a1, a2] = funcToSMT2 e (a1, a2)
-        funcToSMT' e [a1, a2, a3, a4] = funcToSMT4 e (a1, a2, a3, a4)
+        funcToSMTVar e [a] = funcToSMT1Var e a
+funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
+funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
 
-funcToSMT1 :: Expr -> Expr -> SMTAST
-funcToSMT1 f a
-    | isVarName f "!" = (:!) (exprToSMT a)
+funcToSMT1Var :: Expr -> Expr -> SMTAST
+funcToSMT1Var f a
     | isVarName f "-" = Neg (exprToSMT a)
     | isVarName f "I#" = exprToSMT a
     | isVarName f "F#" = exprToSMT a
     | isVarName f "D#" = exprToSMT a
     | otherwise = error ("Unhandled function " ++ show f ++ " in funcToSMT1.")
 
-funcToSMT2 :: Expr -> (Expr, Expr) -> SMTAST
-funcToSMT2 f (a1, a2)
-    | isVarName f "&&" = exprToSMT a1 :&& exprToSMT a2
-    | isVarName f "||" = exprToSMT a1 :|| exprToSMT a2
-    | otherwise = error ("Unhandled function " ++ show f ++ " in funcToSMT2.")
+funcToSMT1Prim :: Prim -> Expr -> SMTAST
+funcToSMT1Prim Not e = (:!) (exprToSMT e)
 
-funcToSMT4 :: Expr -> (Expr, Expr, Expr, Expr) -> SMTAST
-funcToSMT4 f (a1, a2, a3, a4)
-    | isVarName f ">=" && isIDF a1 = exprToSMT a3 :>= exprToSMT a4
-    | isVarName f ">" && isIDF a1 = exprToSMT a3 :> exprToSMT a4
-    | isVarName f "==" && isIDF a1 = exprToSMT a3 := exprToSMT a4
-    | isVarName f "/=" && isIDF a1 = Not (exprToSMT a3 := exprToSMT a4)
-    | isVarName f "<" && isIDF a1 = exprToSMT a3 :< exprToSMT a4
-    | isVarName f "<=" && isIDF a1 = exprToSMT a3 :<= exprToSMT a4
-
-    | isVarName f "+" && isIDF a1 = exprToSMT a3 :+ exprToSMT a4
-    | isVarName f "-" && isIDF a1 = exprToSMT a3 :- exprToSMT a4
-    | isVarName f "*" && isIDF a1 = exprToSMT a3 :* exprToSMT a4
-    | isVarName f "/" && isIDF a1 = exprToSMT a3 :/ exprToSMT a4
-    | otherwise = error ("Unhandled function " ++ show f ++ " in funcToSMT4.")
-    where
-        isIDF :: Expr -> Bool
-        isIDF (Type (TyConApp "Int" [])) = True
-        isIDF (Type (TyConApp "Double" [])) = True
-        isIDF (Type (TyConApp "Float" [])) = True
-        isIDF t = False
+funcToSMT2Prim :: Prim -> Expr -> Expr -> SMTAST
+funcToSMT2Prim And a1 a2 = exprToSMT a1 :&& exprToSMT a2
+funcToSMT2Prim Or a1 a2 = exprToSMT a1 :|| exprToSMT a2
+funcToSMT2Prim GE a1 a2 = exprToSMT a1 :>= exprToSMT a2
+funcToSMT2Prim GrT a1 a2 = exprToSMT a1 :> exprToSMT a2
+funcToSMT2Prim EQL a1 a2 = exprToSMT a1 := exprToSMT a2
+funcToSMT2Prim LsT a1 a2 = exprToSMT a1 :< exprToSMT a2
+funcToSMT2Prim LE a1 a2 = exprToSMT a1 :<= exprToSMT a2
+funcToSMT2Prim Implies a1 a2 = exprToSMT a1 :=> exprToSMT a2
+funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
+funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
+funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
+funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 
 isVarName :: Expr -> Name -> Bool
 isVarName (Var n _) n' = n == n'
@@ -195,8 +185,6 @@ toSolverAST con (x :- y) = (.-) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :* y) = (.*) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :/ y) = (./) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
-
-toSolverAST con (Not x) = lognot con $ toSolverAST con x
 
 toSolverAST con (Ite x y z) =
     ite con (toSolverAST con x) (toSolverAST con y) (toSolverAST con z)
