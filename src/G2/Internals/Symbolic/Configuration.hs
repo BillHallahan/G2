@@ -3,6 +3,7 @@
 module G2.Internals.Symbolic.Configuration
     ( initState
     , initStateCond
+    , initStateAssumeAssert
     , runN
     , histN         ) where
 
@@ -103,13 +104,46 @@ initStateCond tenv eenv mod cond entry = case match of
                      all_names = allNames pre_state
                  in pre_state {all_names = all_names}
             else error "Incorrect function types given." 
-    otherwise -> error "No matching entry points. Check spelling?"
+    otherwise -> error $ "No matching entry points for " ++ entry
   where -- q_cond  = mod ++ ".__." ++ cond
         q_cond = cond
         -- q_entry = mod ++ ".__." ++ entry
         q_entry = entry
         match = (M.lookup q_entry eenv, M.lookup q_cond eenv)
 
+
+-- | Initialize State with Assume / Assert Conditions
+initStateAssumeAssert :: TEnv -> EEnv -> Name ->
+                  Maybe Name -> Maybe Name -> Name -> State
+initStateAssumeAssert tenv eenv mod m_assume m_assert entry =
+  case M.lookup entry eenv of
+    Just entry_ex ->
+      let args'    = freshArgNames eenv entry
+          entry_ty = exprType entry_ex
+          (expr', slt) = mkSymLinks eenv entry args'
+          (expr'', assume_ty) = case m_assume of
+            Nothing -> (expr', TyFun (last $ flattenType entry_ty) TyBottom)
+            Just assume -> case M.lookup assume eenv of
+              Nothing -> error "Could not find Assume condition"
+              Just assume_ex -> (Assume assume_ex expr', exprType assume_ex)
+          (expr''', assert_ty) = case m_assert of
+            Nothing -> (expr'', TyFun (last $ flattenType entry_ty) TyBottom)
+            Just assert -> case M.lookup assert eenv of
+              Nothing -> error "Could not find Assert condition"
+              Just assert_ex -> (Assert assert_ex expr'', exprType assert_ex)
+      in if (last $ flattenType entry_ty) == (head $ flattenType assume_ty) &&
+            (last $ flattenType entry_ty) == (head $ flattenType assert_ty)
+          then let pre_state = State { expr_env     = eenv
+                                     , type_env     = tenv
+                                     , curr_expr    = expr'''
+                                     , path_cons    = []
+                                     , sym_links    = slt
+                                     , func_interps = M.empty
+                                     , all_names    = [] }
+                   all_names = allNames pre_state
+               in pre_state {all_names = all_names}
+          else error "Type(s) mismatch for Assume or Assert"
+    otherwise -> error $ "No matching entry points for " ++ entry
 
 -- | Run n Times
 --   Run a state n times through the power of concatMap.

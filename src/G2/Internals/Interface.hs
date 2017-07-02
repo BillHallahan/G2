@@ -11,14 +11,5 @@ run con hhp state = do
     let ((lives, states), n) = runN ([preproc_state], []) 250
 
     -- putStrLn ("Number of execution states: " ++ (show (length states)))
-    {-
-    putStrLn $ show lives
-
-    putStrLn " ------------------------- "
-
-    putStrLn $ show preproc_state
-
-    putStrLn $ show n
-    -}
 
     satModelOutputs con hhp states

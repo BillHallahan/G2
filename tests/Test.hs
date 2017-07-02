@@ -52,7 +52,11 @@ tests = return . testGroup "Tests"
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  checkExprReach  "tests/samples/IfTest.hs" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
+                  checkExprAssumeAssert "tests/samples/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
+                , checkExprAssumeAssert "tests/samples/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
+                , checkExprAssumeAssert "tests/samples/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
+                , checkExprAssumeAssert "tests/samples/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
+                , checkExprReach  "tests/samples/IfTest.hs" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
                 , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
                 , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
@@ -91,6 +95,18 @@ checkExprReach filepath entry i reqList = do
     return . testCase filepath
         $ assertBool ("Assertion for file " ++ filepath ++ " with function " ++ entry ++ " failed.\n" ++ show exprs) ch
 
+checkExprAssumeAssert :: String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprAssumeAssert filepath m_assume m_assert entry i reqList = do
+    exprs <- testFileAssumeAssert filepath m_assume m_assert entry
+
+    let ch = checkExpr exprs i reqList
+
+    return . testCase filepath
+        $ assertBool ("Assume/Assert for file " ++ filepath ++ 
+                      " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
+                                      "[" ++ (fromMaybe "" m_assert) ++ "] " ++
+                                              entry ++ " failed.\n" ++ show exprs) ch
+
 -- | Checks conditions on given expressions
 --   Helper for checkExprOutput checkExprReach
 checkExpr :: [[Expr]] -> Int -> [Reqs] -> Bool
@@ -126,6 +142,18 @@ testFilePrePost filepath prepost entry = do
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env
     let init_state = initStateCond t_env' e_env' "blank" prepost entry
+
+    hhp <- getZ3ProcessHandles
+
+    mapM (return . fst) =<< run smt2 hhp init_state
+
+testFileAssumeAssert :: String -> Maybe String -> Maybe String -> String -> IO [[Expr]]
+testFileAssumeAssert filepath m_assume m_assert entry = do
+    raw_core <- mkGHCCore filepath
+    let (rtenv, reenv) = mkG2Core raw_core
+    let tenv' = M.union rtenv (M.fromList prelude_t_decls)
+    let eenv' = reenv
+    let init_state = initStateAssumeAssert tenv' eenv' "blank" m_assume m_assert entry
 
     hhp <- getZ3ProcessHandles
 
