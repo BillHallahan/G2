@@ -11,12 +11,10 @@ run :: SMTConverter ast out io -> io -> State -> IO [([Expr], Expr)]
 run con hhp state = do
     let preproc_state = runPreprocessing state
 
-    putStrLn $ mkStateStr preproc_state
+    -- putStrLn $ mkStateStr preproc_state
 
     let ((lives, states), n) = runN ([preproc_state], []) 200
 
     putStrLn ("\nNumber of execution states: " ++ (show (length states)))
-
-    -- putStrLn ("Number of execution states: " ++ (show (length states)))
 
     satModelOutputs con hhp states

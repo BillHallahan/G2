@@ -29,7 +29,7 @@ main = do
     -- putStrLn =<< outStr raw_core
     let t_env' = M.union rt_env (M.fromList prelude_t_decls)
     let e_env' = re_env
-    let init_state = if num == "1" then initState t_env' e_env' mod entry else initStateCond t_env' e_env' mod entry (args' !! 0)
+    let init_state = if num == "1" then initState t_env' e_env' mod Nothing Nothing entry else initState t_env' e_env' mod (Just entry) (Just $ args' !! 0) (args' !! 1)
         
     hhp <- getZ3ProcessHandles
 

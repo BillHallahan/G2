@@ -2,10 +2,8 @@
 --   Module for interacting and interfacing with the symbolic execution engine.
 module G2.Internals.Symbolic.Configuration
     ( initState
-    , initStateCond
-    , initStateAssumeAssert
     , runN
-    , histN         ) where
+    , histN) where
 
 import G2.Internals.Core
 import G2.Internals.Symbolic.Engine
@@ -54,25 +52,6 @@ mkSymLinks eenv entry args = (curr_expr, sym_links)
                            (Var entry entry_type)
                            args
 
--- | Initialize State
---   Initialize an execution state given its type environment, expression
---   environment, and entry point name.
-initState :: TEnv -> EEnv -> Name -> Name -> State
-initState tenv eenv mod entry =
-    let -- q_entry = mod ++ ".__." ++ entry
-        q_entry = entry
-        args = freshArgNames eenv q_entry
-        (cexpr, slt) = mkSymLinks eenv q_entry args
-        pre_state = State { expr_env     = eenv
-                          , type_env     = tenv
-                          , curr_expr    = cexpr
-                          , path_cons    = []
-                          , sym_links    = slt
-                          , func_interps = M.empty
-                          , all_names    =         []}
-        all_names = allNames pre_state
-    in pre_state {all_names = all_names}
-
 -- | Flatten Type
 --   Flattens a Type. For instance:
 --       a -> b -> c  flattens to  [a, b, c]
@@ -80,59 +59,21 @@ flattenType :: Type -> [Type]
 flattenType (TyFun tf ta) = tf : flattenType ta
 flattenType _ = []
 
--- | Initialize State with Conditionals
---   Initialize an execution state given its type environment, expression
---   environment, and entry point name in addition to pre/post conditional
---   functions that return boolean values.
-initStateCond :: TEnv -> EEnv -> Name -> Name -> Name -> State
-initStateCond tenv eenv mod assume entry = case match of
-    (Just entry_ex, Just assume_ex) -> 
-        let args' = freshArgNames eenv q_entry
-            (assume_ex', slt) = mkSymLinks eenv q_assume args'
-            assume_type  = exprType assume_ex
-            entry_type = exprType entry_ex
-            (expr', slt') = mkSymLinks eenv q_entry args'
-        in if (flattenType entry_type) == (init $ flattenType assume_type)
-            then let pre_state = State { expr_env     = eenv
-                                       , type_env     = tenv
-                                       -- , curr_expr    = App assume_ex' expr'
-                                       , curr_expr    = Assume assume_ex' expr'
-                                       , path_cons    = []
-                                       , sym_links    = slt
-                                       , func_interps = M.empty
-                                       , all_names    = [] }
-                     all_names = allNames pre_state
-                 in pre_state {all_names = all_names}
-            else error "Incorrect function types given." 
-    otherwise -> error $ "No matching entry points for " ++ entry
-  where -- q_cond  = mod ++ ".__." ++ cond
-        q_assume = assume
-        -- q_entry = mod ++ ".__." ++ entry
-        q_entry = entry
-        match = (M.lookup q_entry eenv, M.lookup q_assume eenv)
-
 
 -- | Initialize State with Assume / Assert Conditions
-initStateAssumeAssert :: TEnv -> EEnv -> Name ->
+initState :: TEnv -> EEnv -> Name ->
                   Maybe Name -> Maybe Name -> Name -> State
-initStateAssumeAssert tenv eenv mod m_assume m_assert entry =
+initState tenv eenv mod m_assume m_assert entry =
   case M.lookup entry eenv of
     Just entry_ex ->
       let args'    = freshArgNames eenv entry
           entry_ty = exprType entry_ex
           (expr', slt) = mkSymLinks eenv entry args'
-          (expr'', assume_ty) = case m_assume of
-            Nothing -> (expr', TyFun (last $ flattenType entry_ty) TyBottom)
-            Just assume -> case M.lookup assume eenv of
-              Nothing -> error "Could not find Assume condition"
-              Just assume_ex -> (Assume assume_ex expr', exprType assume_ex)
-          (expr''', assert_ty) = case m_assert of
-            Nothing -> (expr'', TyFun (last $ flattenType entry_ty) TyBottom)
-            Just assert -> case M.lookup assert eenv of
-              Nothing -> error "Could not find Assert condition"
-              Just assert_ex -> (Assert assert_ex expr'', exprType assert_ex)
-      in if (last $ flattenType entry_ty) == (head $ flattenType assume_ty) &&
-            (last $ flattenType entry_ty) == (head $ flattenType assert_ty)
+
+          (expr'', assume_ty) = addAssumeAssert Assume m_assume args' eenv expr'
+          (expr''', assert_ty) = addAssumeAssert Assert m_assert args' eenv expr''
+      in if ((flattenType entry_ty) == (init $ flattenType assume_ty) || m_assume == Nothing) &&
+            ((flattenType entry_ty) == (init $ flattenType assert_ty) || m_assert == Nothing)
           then let pre_state = State { expr_env     = eenv
                                      , type_env     = tenv
                                      , curr_expr    = expr'''
@@ -142,8 +83,15 @@ initStateAssumeAssert tenv eenv mod m_assume m_assert entry =
                                      , all_names    = [] }
                    all_names = allNames pre_state
                in pre_state {all_names = all_names}
-          else error "Type(s) mismatch for Assume or Assert"
+          else error "Type(s) mismatch for Assume or Assert\n"
     otherwise -> error $ "No matching entry points for " ++ entry
+    where
+        addAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe Name -> [(Name, Type)] -> EEnv -> Expr -> (Expr, Type)
+        addAssumeAssert _ Nothing _ _ e = (e, TyFun TyBottom TyBottom)
+        addAssumeAssert f (Just a) args eenv e =
+            case M.lookup a eenv of
+                Nothing -> error "Could not find function"
+                Just a_ex -> (f (fst $ mkSymLinks eenv a args) e, exprType a_ex)
 
 -- | Run n Times
 --   Run a state n times through the power of concatMap.

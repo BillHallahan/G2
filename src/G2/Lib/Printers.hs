@@ -88,6 +88,18 @@ mkExprStr e = mkExprStr' e 0
             in
             off i ++ "Case (\n" ++ e1' ++ "\n" ++ ae' ++ " " ++ mkTypeStr t i ++ ")"
         mkExprStr' (Type t) i = off i ++ "Type (" ++ mkTypeStr t (i + 1) ++ ")"
+        mkExprStr' (Assume e1 e2) i = 
+            let
+                e1' = mkExprStr' e1 (i + 1)
+                e2' = mkExprStr' e2 (i + 1)
+            in
+            off i ++ "Assume (\n" ++ e1' ++ "\n" ++ e2' ++ "\n" ++ off i ++ ")"
+        mkExprStr' (Assert e1 e2) i = 
+            let
+                e1' = mkExprStr' e1 (i + 1)
+                e2' = mkExprStr' e2 (i + 1)
+            in
+            off i ++ "Assert (\n" ++ e1' ++ "\n" ++ e2' ++ "\n" ++ off i ++ ")"
         mkExprStr' x i = off i ++ show x
 
 

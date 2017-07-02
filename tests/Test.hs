@@ -52,54 +52,46 @@ tests = return . testGroup "Tests"
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  checkExprAssumeAssert "tests/samples/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
-                , checkExprAssumeAssert "tests/samples/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
-                , checkExprAssumeAssert "tests/samples/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
-                , checkExprAssumeAssert "tests/samples/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
-                , checkExprReach  "tests/samples/IfTest.hs" "f" 2 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
+                  checkExpr "tests/samples/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
+                , checkExpr "tests/samples/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
+                , checkExpr "tests/samples/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
+                , checkExpr "tests/samples/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
+                , checkExprWithOutput  "tests/samples/IfTest.hs" Nothing Nothing "f" 3 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
-                , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
-                , checkExprOutput "tests/samples/Peano.hs" "eqEachOtherAndAddTo4" "add" 2 [RForAll peano_2_2, Exactly 1]
-                , checkExprOutput "tests/samples/Peano.hs" "equalsFour" "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
+                -- , checkExpr "tests/samples/Peano.hs" (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
+                -- , checkExpr "tests/samples/Peano.hs" (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
+                , checkExpr "tests/samples/Peano.hs" (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
+                , checkExpr "tests/samples/Peano.hs" (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
+                , checkExpr "tests/samples/Peano.hs" (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
-                , checkExprOutput  "tests/samples/HigherOrderMath.hs" "isTrue0" "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
-                , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue1" "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
-                , checkExprOutput "tests/samples/HigherOrderMath.hs" "isTrue2" "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
-                , checkExprReach  "tests/samples/HigherOrderMath.hs" "functionSatisfies" 3 [RExists functionSatisfiesRes, AtLeast 1]
+                , checkExpr "tests/samples/HigherOrderMath.hs" (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
+                , checkExpr "tests/samples/HigherOrderMath.hs" (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                , checkExpr "tests/samples/HigherOrderMath.hs" (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
+                , checkExprWithOutput "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
-                , checkExprOutput "tests/samples/McCarthy91.hs" "lessThan91" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
-                , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThan10Less" "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
-                , checkExprOutput "tests/samples/McCarthy91.hs" "lessThanNot91" "mccarthy" 1 [Exactly 0]
-                , checkExprOutput "tests/samples/McCarthy91.hs" "greaterThanNot10Less" "mccarthy" 1 [Exactly 0]
+                , checkExpr "tests/samples/McCarthy91.hs" (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
+                , checkExpr "tests/samples/McCarthy91.hs" (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
+                , checkExpr "tests/samples/McCarthy91.hs" (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
+                , checkExpr "tests/samples/McCarthy91.hs" (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
         ]
 
--- | Checks conditions on functions, with pre/post conditions
---   Also checks that the right number of inputs is found for each function
-checkExprOutput :: String -> String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprOutput filepath prepost entry i reqList = do
-    exprs <- testFilePrePost filepath prepost entry
+checkExpr :: String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExpr filepath m_assume m_assert entry i reqList = do
+    exprs <- return . map fst =<< testFile filepath m_assume m_assert entry
 
-    let ch = checkExpr exprs i reqList
+    let ch = checkExpr' exprs i reqList
 
     return . testCase filepath
-            $ assertBool ("Assertion for file " ++ filepath ++ " with functions " ++ prepost ++ " " ++ entry ++ " failed.\n" ++ show exprs) ch
+        $ assertBool ("Assume/Assert for file " ++ filepath ++ 
+                      " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
+                                      "[" ++ (fromMaybe "" m_assert) ++ "] " ++
+                                              entry ++ " failed.\n" ++ show exprs) ch
 
--- | Checks conditions on functions
---   Also checks that the right number of inputs is found for each function
-checkExprReach :: String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprReach filepath entry i reqList = do
-    exprs <- return . map (\(e, r) -> e ++ [r]) =<< testFile filepath entry
+checkExprWithOutput :: String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprWithOutput filepath m_assume m_assert entry i reqList = do
+    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile filepath m_assume m_assert entry
 
-    let ch = checkExpr exprs (i + 1) reqList
-
-    return . testCase filepath
-        $ assertBool ("Assertion for file " ++ filepath ++ " with function " ++ entry ++ " failed.\n" ++ show exprs) ch
-
-checkExprAssumeAssert :: String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprAssumeAssert filepath m_assume m_assert entry i reqList = do
-    exprs <- testFileAssumeAssert filepath m_assume m_assert entry
-
-    let ch = checkExpr exprs i reqList
+    let ch = checkExpr' (exprs) i reqList
 
     return . testCase filepath
         $ assertBool ("Assume/Assert for file " ++ filepath ++ 
@@ -109,8 +101,8 @@ checkExprAssumeAssert filepath m_assume m_assert entry i reqList = do
 
 -- | Checks conditions on given expressions
 --   Helper for checkExprOutput checkExprReach
-checkExpr :: [[Expr]] -> Int -> [Reqs] -> Bool
-checkExpr exprs i reqList =
+checkExpr' :: [[Expr]] -> Int -> [Reqs] -> Bool
+checkExpr' exprs i reqList =
     let
         argChecksAll = and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
         argChecksEx = and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
@@ -122,42 +114,17 @@ checkExpr exprs i reqList =
     in
     argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
 
-testFile :: String -> String -> IO [([Expr], Expr)]
-testFile filepath entry = do
-    raw_core <- mkGHCCore filepath
-    let (rt_env, re_env) = mkG2Core raw_core
-    let t_env' = M.union rt_env (M.fromList prelude_t_decls)
-    let e_env' = re_env
-    let init_state = initState t_env' e_env' "blank" entry
-
-    hhp <- getZ3ProcessHandles
-
-    run smt2 hhp init_state
-
-
-testFilePrePost :: String -> String -> String -> IO [[Expr]]
-testFilePrePost filepath prepost entry = do
-    raw_core <- mkGHCCore filepath
-    let (rt_env, re_env) = mkG2Core raw_core
-    let t_env' = M.union rt_env (M.fromList prelude_t_decls)
-    let e_env' = re_env
-    let init_state = initStateCond t_env' e_env' "blank" prepost entry
-
-    hhp <- getZ3ProcessHandles
-
-    mapM (return . fst) =<< run smt2 hhp init_state
-
-testFileAssumeAssert :: String -> Maybe String -> Maybe String -> String -> IO [[Expr]]
-testFileAssumeAssert filepath m_assume m_assert entry = do
+testFile :: String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
+testFile filepath m_assume m_assert entry = do
     raw_core <- mkGHCCore filepath
     let (rtenv, reenv) = mkG2Core raw_core
     let tenv' = M.union rtenv (M.fromList prelude_t_decls)
     let eenv' = reenv
-    let init_state = initStateAssumeAssert tenv' eenv' "blank" m_assume m_assert entry
+    let init_state = initState tenv' eenv' "blank" m_assume m_assert entry
 
     hhp <- getZ3ProcessHandles
 
-    mapM (return . fst) =<< run smt2 hhp init_state
+    run smt2 hhp init_state
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
