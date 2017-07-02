@@ -85,31 +85,31 @@ flattenType _ = []
 --   environment, and entry point name in addition to pre/post conditional
 --   functions that return boolean values.
 initStateCond :: TEnv -> EEnv -> Name -> Name -> Name -> State
-initStateCond tenv eenv mod cond entry = case match of
-    (Just entry_ex, Just cond_ex) -> 
+initStateCond tenv eenv mod assume entry = case match of
+    (Just entry_ex, Just assume_ex) -> 
         let args' = freshArgNames eenv q_entry
-            (cond_ex', slt) = mkSymLinks eenv q_cond args'
-            cond_type  = exprType cond_ex
+            (assume_ex', slt) = mkSymLinks eenv q_assume args'
+            assume_type  = exprType assume_ex
             entry_type = exprType entry_ex
             (expr', slt') = mkSymLinks eenv q_entry args'
-        in if (flattenType entry_type) == (init $ flattenType cond_type)
+        in if (flattenType entry_type) == (init $ flattenType assume_type)
             then let pre_state = State { expr_env     = eenv
                                        , type_env     = tenv
-                                       -- , curr_expr    = App cond_ex' expr'
-                                       , curr_expr    = Assume cond_ex' expr'
+                                       -- , curr_expr    = App assume_ex' expr'
+                                       , curr_expr    = Assume assume_ex' expr'
                                        , path_cons    = []
                                        , sym_links    = slt
                                        , func_interps = M.empty
-                                       , all_names    = []      }
+                                       , all_names    = [] }
                      all_names = allNames pre_state
                  in pre_state {all_names = all_names}
             else error "Incorrect function types given." 
     otherwise -> error $ "No matching entry points for " ++ entry
   where -- q_cond  = mod ++ ".__." ++ cond
-        q_cond = cond
+        q_assume = assume
         -- q_entry = mod ++ ".__." ++ entry
         q_entry = entry
-        match = (M.lookup q_entry eenv, M.lookup q_cond eenv)
+        match = (M.lookup q_entry eenv, M.lookup q_assume eenv)
 
 
 -- | Initialize State with Assume / Assert Conditions

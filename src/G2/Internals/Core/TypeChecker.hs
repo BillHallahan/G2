@@ -12,6 +12,7 @@ import qualified Data.List as L
 --   Gets the type of an expression.
 exprType :: Expr -> Type
 exprType (Var _ t) = t
+exprType (Prim _ t) = t
 exprType (Const (CInt _))    = TyRawInt
 exprType (Const (CFloat _))  = TyRawFloat
 exprType (Const (CDouble _)) = TyRawDouble

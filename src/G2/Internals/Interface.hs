@@ -5,10 +5,17 @@ import G2.Internals.Preprocessing
 import G2.Internals.SMT
 import G2.Internals.Symbolic
 
+import G2.Lib.Printers
+
 run :: SMTConverter ast out io -> io -> State -> IO [([Expr], Expr)]
 run con hhp state = do
     let preproc_state = runPreprocessing state
-    let ((lives, states), n) = runN ([preproc_state], []) 250
+
+    putStrLn $ mkStateStr preproc_state
+
+    let ((lives, states), n) = runN ([preproc_state], []) 200
+
+    putStrLn ("\nNumber of execution states: " ++ (show (length states)))
 
     -- putStrLn ("Number of execution states: " ++ (show (length states)))
 

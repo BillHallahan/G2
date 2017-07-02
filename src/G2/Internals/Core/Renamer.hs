@@ -4,6 +4,9 @@
 --   all "fresh" -- that is, it is possible for lambda binders to have a
 --   conflicting name with that of the current environment bindings. Thus, we
 --   must be careful to avoid accidentally capturing free variables.
+
+{-# LANGUAGE FlexibleContexts #-}
+
 module G2.Internals.Core.Renamer
     ( allNames
     , freshSeededName
@@ -13,7 +16,7 @@ module G2.Internals.Core.Renamer
     , renameExpr
     , renameExprList
     , renameType
-    , renameTypeList      ) where
+    , renameTypeList) where
 
 import G2.Internals.Core.AST
 import G2.Internals.Core.Environment
@@ -239,15 +242,18 @@ renameTyForAll old new (TyForAll n t) = TyForAll n' t'
         t' = renameType old new t
 
 -- | Rename Type
-renameType :: Name -> Name -> Type -> Type
-renameType old new ty = case ty of
-    TyVar _      -> renameTyVar old new ty
-    TyFun _ _    -> renameTyFun old new ty
-    TyApp _ _    -> renameTyApp old new ty
-    TyConApp _ _ -> renameTyConApp old new ty
-    TyAlg _ _    -> renameTyAlg old new ty
-    TyForAll _ _ -> renameTyForAll old new ty
-    TyBottom     -> TyBottom
+renameType :: (ASTContainer m Type) => Name -> Name -> m -> m
+renameType old new = modifyASTs (renameType' old new)
+    where
+        renameType' :: Name -> Name -> Type -> Type
+        renameType' old new ty = case ty of
+            TyVar _      -> renameTyVar old new ty
+            TyFun _ _    -> renameTyFun old new ty
+            TyApp _ _    -> renameTyApp old new ty
+            TyConApp _ _ -> renameTyConApp old new ty
+            TyAlg _ _    -> renameTyAlg old new ty
+            TyForAll _ _ -> renameTyForAll old new ty
+            TyBottom     -> TyBottom
 
 -- | Rename Type List
 renameTypeList :: [(Name, Name)] -> Type -> Type

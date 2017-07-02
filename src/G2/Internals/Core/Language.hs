@@ -15,7 +15,7 @@ import qualified Data.Map as M
 --        expressions. Functions after currying are represented as a sequence
 --        of cascading lambda expressions.
 --
---     3. Current Expression: The expression we are trying to evaluate:
+--     3. Current Expression: The expression we are trying to evaluate.
 --
 --     4. Path Constraints: Keep track of which Alt branchings we have taken.
 --
@@ -64,6 +64,7 @@ data Interp = StdInterp | UnInterp deriving (Show, Eq)
 --     BAD    -- Error / filler expression.
 data Expr = Var Name Type
           | Const Const
+          | Prim Prim Type
           | Lam Name Expr Type
           | Let [(Name, Expr)] Expr
           | App Expr Expr
@@ -73,6 +74,27 @@ data Expr = Var Name Type
           | Assume Expr Expr
           | Assert Expr Expr
           | BAD
+          deriving (Show, Eq)
+
+-- | Primitives
+-- These are used to represent various functions in expressions
+-- Translations from functions to these primitives are done
+-- in G2.Internals.Core.PrimReplace.  This allows for more general
+-- handling in the SMT solver- we are not tied to the specific function
+-- names/symbols that come from Haskell
+data Prim = GE -- >=
+          | GrT -- >
+          | EQL -- ==
+          | LsT -- <
+          | LE -- <=
+          | And
+          | Or
+          | Not
+          | Implies
+          | Plus
+          | Minus
+          | Mult
+          | Div
           deriving (Show, Eq)
 
 -- | Constants
