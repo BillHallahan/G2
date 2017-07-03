@@ -40,9 +40,9 @@ useApplyType s (t@(TyFun _ _)) =
         funcs = passedToHigherOrder (expr_env s) t
 
         --apply data type
-        applyTypeName = freshSeededName "ApplyType" s
+        (applyTypeName, s2) = freshSeededName "ApplyType" s
         args = argList t
-        applyConsNames = freshSeededNameList (take (length funcs) . repeat $ "apply") s
+        (applyConsNames, s3) = freshSeededNameList (take (length funcs) . repeat $ "Apply") s2
         applyTypeAlg = TyAlg applyTypeName (map (\n -> DataCon n (-1) (TyConApp applyTypeName []) []) applyConsNames)
         applyTypeCon = TyConApp applyTypeName []
 
@@ -50,32 +50,32 @@ useApplyType s (t@(TyFun _ _)) =
         funcsToNames = map (\(a, b) -> (b, a)) namesToFuncs
 
         --function
-        applyFuncName = freshSeededName "applyFunc" s
-        applyFunc = createApplyFunc args applyTypeName namesToFuncs s
+        (applyFuncName, s4) = freshSeededName "applyFunc" s3
+        (applyFunc, s5) = createApplyFunc args applyTypeName namesToFuncs s4
         applyFuncType = TyFun applyTypeCon t
 
         --adjustment
-        higherNameExpr = higherOrderOfTypeFuncNames (expr_env s) t
+        higherNameExpr = higherOrderOfTypeFuncNames (expr_env s4) t
         higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) higherNameExpr
 
-        funcsInSLT = funcsInSymLink t (sym_links s)
+        funcsInSLT = funcsInSymLink t (sym_links s3)
 
-        newCurr_expr = foldr (\n -> exprReplace (Var n t) (Var n applyTypeCon)) (curr_expr s) funcsInSLT
+        newCurr_expr = foldr (\n -> exprReplace (Var n t) (Var n applyTypeCon)) (curr_expr s5) funcsInSLT
 
         newFuncs_interps = M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
                                                     Var n t -> Just (a, (n, StdInterp))
                                                     otherwise -> Nothing) $ namesToFuncs
 
-        s' = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) s higherNameExprArgs
+        s6 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) s5 higherNameExprArgs
 
-        s'' = modifyASTs (applyTypeReplace t applyTypeCon) (s' {curr_expr = newCurr_expr})
+        s7 = modifyASTs (applyTypeReplace t applyTypeCon) (s6 {curr_expr = newCurr_expr})
 
     in
-    s'' { expr_env = M.insert applyFuncName applyFunc (expr_env s'')
-        , type_env = M.insert applyTypeName applyTypeAlg (type_env s'')
-        , sym_links = adjustSymLinks t applyTypeCon (sym_links s'')
-        , func_interps = M.union newFuncs_interps (func_interps s'')
+    s7 { expr_env = M.insert applyFuncName applyFunc (expr_env s7)
+        , type_env = M.insert applyTypeName applyTypeAlg (type_env s7)
+        , sym_links = adjustSymLinks t applyTypeCon (sym_links s7)
+        , func_interps = M.union newFuncs_interps (func_interps s7)
     }
     where
         argList :: Type -> [Type]
@@ -151,14 +151,14 @@ useApplyType s (t@(TyFun _ _)) =
 useApplyType _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
 
 --Creates the apply function
-createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> State -> Expr
+createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> State -> (Expr, State)
 createApplyFunc ts applyTypeName namesToFuncs s =
     let
         ret_type = head . reverse $ ts
 
-        new_names = freshSeededNameList (repeat "apply_match") s
-        apply_arg = freshSeededName "apply_" s
-        args = freshSeededNameList (replicate (length ts - 1) "i") s
+        (new_names, s2) = freshSeededNameList (replicate (length namesToFuncs) "apply_match") s
+        (apply_arg, s3) = freshSeededName "apply_" s2
+        (args, s4) = freshSeededNameList (replicate (length ts - 1) "i") s3
         args_vars = map (\(a, t) -> Var a t) (zip args ts)
 
         case_expr = Var apply_arg (TyConApp applyTypeName [])
@@ -170,7 +170,7 @@ createApplyFunc ts applyTypeName namesToFuncs s =
 
         arg_lams = foldr (\(a, t) e -> Lam a e (TyFun t (exprType e))) case_final (zip args ts)
     in
-    Lam apply_arg arg_lams (TyFun (TyConApp applyTypeName []) (exprType arg_lams))
+    (Lam apply_arg arg_lams (TyFun (TyConApp applyTypeName []) (exprType arg_lams)), s4)
 
 -- In e, replaces all eOld with eNew
 exprReplace :: Expr -> Expr -> Expr -> Expr

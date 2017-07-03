@@ -33,7 +33,7 @@ data State = State { expr_env     :: EEnv
                    , path_cons    :: PathCons
                    , sym_links    :: SymLinkTable
                    , func_interps :: FuncInterpTable
-                   , all_names    :: [Name]
+                   , all_names    :: M.Map Name Int
                    } deriving (Show, Eq)
 
 type Name = String

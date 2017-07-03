@@ -43,7 +43,7 @@ stepLet state = ([bindExprList bs (state {curr_expr = e})], [])
 stepAppLam :: State -> ([State], [State])
 stepAppLam state = ([bindExpr b' ae l_st], [])
   where App (Lam b l t) ae = curr_expr state
-        (b', st') = freshSeededName' b state
+        (b', st') = freshSeededName b state
         l_st      = renameExpr b b' (st' {curr_expr = l})
 
 -- | Step (App Case Expr)
@@ -118,7 +118,7 @@ doNDef state (Alt (dc, params), aexp) = case d of
     _ -> [state {curr_expr = BAD}]
   where Case m as t = curr_expr state
         (d:args)       = flattenApp m
-        (params', st') = freshSeededNameList' params state
+        (params', st') = freshSeededNameList params state
         p_zip          = zip params params' -- RHS guaranteed to be fresh :)
         pcs'           = [CondAlt m (Alt (dc, params')) True] ++ path_cons st'
         

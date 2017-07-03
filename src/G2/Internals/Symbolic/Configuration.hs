@@ -8,6 +8,8 @@ module G2.Internals.Symbolic.Configuration
 import G2.Internals.Core
 import G2.Internals.Symbolic.Engine
 
+import qualified Data.Char as C
+import Data.List
 import qualified Data.Map as M
 
 -- | Lambda Arguments
@@ -15,6 +17,25 @@ import qualified Data.Map as M
 lamArgs :: Expr -> [(Name, Type)]
 lamArgs (Lam n e (TyFun t _)) = (n, t):lamArgs e
 lamArgs _ = []
+
+-- | Fresh Seeded Name
+freshSeededName' :: Name -> State -> Name
+freshSeededName' seed state = stripped_seed ++ show (max_confs_num + 1)
+  where confs         = allNames state
+        max_confs_num = maximum $ [0] ++ (map nameNum confs)
+        stripped_seed = filter (not . C.isDigit) seed
+
+        nameNum :: Name -> Int
+        nameNum name = case filter C.isDigit name of
+            [] -> 0
+            xs -> read xs :: Int
+
+-- | Fresh Seeded Name List
+freshSeededNameList' :: [Name] -> State -> [Name]
+freshSeededNameList' [] _     = []
+freshSeededNameList' (n:ns) s = [n'] ++ freshSeededNameList' ns s'
+  where n' = freshSeededName' n s
+        s' = bindExpr n' BAD s  -- Conflict
 
 -- | Fresh Argument Names
 --   Gets fresh argument names based on the expression environment.
@@ -26,14 +47,14 @@ freshArgNames eenv entry = zip arg_names arg_types
         args = lamArgs entry_expr
         arg_names = map fst args
         arg_types = map snd args
-        fresh_names = freshSeededNameList arg_names fake_state
+        fresh_names = freshSeededNameList' arg_names fake_state
         fake_state  = State { expr_env     = eenv
                             , type_env     = M.empty
                             , curr_expr    = BAD
                             , path_cons    = []
                             , sym_links    = M.empty
                             , func_interps = M.empty
-                            , all_names    = []      }
+                            , all_names    = M.empty }
 
 -- | Make Symbolic Links
 --   Construct a the current expression and a symbolic link table given the
@@ -59,7 +80,6 @@ flattenType :: Type -> [Type]
 flattenType (TyFun tf ta) = tf : flattenType ta
 flattenType _ = []
 
-
 -- | Initialize State with Assume / Assert Conditions
 initState :: TEnv -> EEnv -> Name ->
                   Maybe Name -> Maybe Name -> Name -> State
@@ -80,8 +100,8 @@ initState tenv eenv mod m_assume m_assert entry =
                                      , path_cons    = []
                                      , sym_links    = slt
                                      , func_interps = M.empty
-                                     , all_names    = [] }
-                   all_names = allNames pre_state
+                                     , all_names    = M.empty }
+                   all_names = allNamesMap pre_state
                in pre_state {all_names = all_names}
           else error "Type(s) mismatch for Assume or Assert\n"
     otherwise -> error $ "No matching entry points for " ++ entry
