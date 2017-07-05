@@ -116,8 +116,9 @@ checkExpr' exprs i reqList =
 
 testFile :: String -> String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src m_assume m_assert entry = do
-    raw_core <- mkGHCCore src
-    let (rtenv, reenv) = mkG2Core raw_core
+    -- raw_core <- mkGHCCore src
+    -- let (rtenv, reenv) = mkG2Core raw_core
+    (rtenv, reenv) <- hskToG2 proj src
     let tenv' = M.union rtenv (M.fromList prelude_t_decls)
     let eenv' = reenv
     let init_state = initState tenv' eenv' m_assume m_assert entry
