@@ -14,6 +14,7 @@ module G2.Internals.Translation.Haskell
     , mkMultiG2Core
     , combineG2Cores
     , hskToG2
+    , hskToG2'
     , mod_sep        
     , getDependencies ) where
 
@@ -54,6 +55,17 @@ hskToG2 :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv)
 hskToG2 proj src = do
     ghc_cores <- mkMultiGHCCore proj src
     return (combineG2Cores $ mkMultiG2Core ghc_cores)
+
+hskToG2' :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv)
+hskToG2' proj src = do
+    (sums_gutss, dflags, env) <- mkCompileClosure proj src
+    let acc_prog = concatMap (mg_binds . snd) sums_gutss
+    let acc_tycs = concatMap (mg_tcs . snd) sums_gutss
+
+    let tenv = mkTEnv (mkTypeEnv (map ATyCon acc_tycs))
+    let eenv = mkEEnv acc_prog
+
+    return (tenv, eenv)
 
 -- | Make Raw Core
 --   Make a raw GHC Core given a FilePath (String).
@@ -98,7 +110,7 @@ getDependencies proj src = do
 -- | Make G2 Core
 --   Given a GHC Core, we convert it into a G2 Core.
 mkG2Core :: CoreModule -> (G2.TEnv, G2.EEnv)
-mkG2Core core = (mkTEnv core, mkEEnv core)
+mkG2Core core = (mkTEnv (cm_types core), mkEEnv (cm_binds core))
 
 -- | Make Multiple G2 Cores
 mkMultiG2Core :: [CoreModule] -> [(G2.TEnv, G2.EEnv)]
@@ -109,9 +121,31 @@ combineG2Cores :: [(G2.TEnv, G2.EEnv)] -> (G2.TEnv, G2.EEnv)
 combineG2Cores cores = foldl pairjoin (M.empty, M.empty) cores
   where pairjoin (acc_t, acc_e) (t, e) = (M.union acc_t t, M.union acc_e e)
 
--- | Get Module Name
---   Get Name of module in a file.
-getModuleName = undefined
+-- | Make Compilation Closure
+--   Captures a snapshot of the DynFlags and HscEnv in addition to
+--   the ModGuts in the ModuleGraph. This allows compilation to be, intheory,
+--   more portable across different applications, since ModGuts is a crucial
+--   intermediary for compilation in general.
+mkCompileClosure :: FilePath -> FilePath ->
+                    IO ([(ModSummary, ModGuts)], DynFlags, HscEnv) 
+mkCompileClosure proj src = runGhc (Just libdir) $ do
+    beta_flags <- getSessionDynFlags
+    let dflags = beta_flags { importPaths = [proj] }
+    setSessionDynFlags dflags
+    env    <- getSession
+    target <- guessTarget src Nothing
+    setTargets [target]
+    load LoadAllTargets
+
+    mod_graph <- getModuleGraph
+    pmods <- (sequence . map parseModule) mod_graph
+    tmods <- (sequence . map typecheckModule) pmods
+    dmods <- (sequence . map desugarModule) tmods
+    let mod_gutss = map coreModule dmods
+
+    let zipd = (zip mod_graph mod_gutss, dflags, env)
+    return zipd
+
 
 -- | Outputable to String
 --   Basic printing capabilities for converting an Outputable into a String.
@@ -139,8 +173,8 @@ mkQualName name = case nameModule_maybe name of
 
 -- | Make Type Environment
 --   Make the type environment given a GHC Core.
-mkTEnv :: CoreModule -> G2.TEnv
-mkTEnv (CoreModule mod tenv binds safe) = M.fromList $ map mkADT tycons
+mkTEnv :: TypeEnv -> G2.TEnv
+mkTEnv tenv = M.fromList $ map mkADT tycons
   where tycons = filter isAlgTyCon $ typeEnvTyCons tenv
 
 -- | Make Algebraic Data Type
@@ -179,8 +213,8 @@ mkType (TyConApp tc kt) = case mkName . tyConName $ tc of
 
 -- | Make Expression Environment
 --   Make the expression environment given a GHC Core.
-mkEEnv :: CoreModule -> G2.EEnv
-mkEEnv (CoreModule mod tenv binds safe) = M.fromList $ concatMap mkBinds binds
+mkEEnv :: CoreProgram -> G2.EEnv
+mkEEnv binds = M.fromList $ concatMap mkBinds binds
 
 -- | Make Bindings
 --   Make G2 Binding given a GHC Core binding.
