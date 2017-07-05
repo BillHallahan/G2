@@ -81,9 +81,8 @@ flattenType (TyFun tf ta) = tf : flattenType ta
 flattenType _ = []
 
 -- | Initialize State with Assume / Assert Conditions
-initState :: TEnv -> EEnv -> Name ->
-                  Maybe Name -> Maybe Name -> Name -> State
-initState tenv eenv mod m_assume m_assert entry =
+initState :: TEnv -> EEnv -> Maybe Name -> Maybe Name -> Name -> State
+initState tenv eenv m_assume m_assert entry =
   case M.lookup entry eenv of
     Just entry_ex ->
       let args'    = freshArgNames eenv entry
