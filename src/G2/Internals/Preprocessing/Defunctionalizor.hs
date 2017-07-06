@@ -104,41 +104,23 @@ useApplyType s (t@(TyFun _ _)) =
         -- This means that the function is being called
         -- We change the call to the function, to a call to the apply function, and pass in the correct constructor
         fstAppReplace :: Type -> FuncName -> FuncName -> Type -> Expr -> Expr
-        fstAppReplace tn fn n t (Lam n' e t') = Lam n' (fstAppReplace tn fn n t e) t'
-        fstAppReplace tn fn n t (Let ne e) =
-            Let (map (\(n, e') -> (n, fstAppReplace tn fn n t e')) ne) (fstAppReplace tn fn n t e)
-        fstAppReplace tn fn n t (App e e') =
-            if e == Var n t then
-                App (fstAppReplace tn fn n t (App (Var fn tn) e)) (fstAppReplace tn fn n t e')
-            else
-                App (fstAppReplace tn fn n t e) (fstAppReplace tn fn n t e')
-        fstAppReplace tn fn n t (Case e ae t') =
-            Case (fstAppReplace tn fn n t e) (map (\(a, e) -> (a, fstAppReplace tn fn n t e)) ae) t'
-        fstAppReplace tn fn n t (Assume e e') =
-            Assume (fstAppReplace tn fn n t e) (fstAppReplace tn fn n t e')
-        fstAppReplace tn fn n t (Assert e e') =
-            Assert (fstAppReplace tn fn n t e) (fstAppReplace tn fn n t e')
-        fstAppReplace _ _ _ _ e = e
+        fstAppReplace tn fn n t = modify (fstAppReplace' tn fn n t)
+            where
+                fstAppReplace' :: Type -> FuncName -> FuncName -> Type -> Expr -> Expr
+                fstAppReplace' tn fn n t a@(App e e') =
+                    if e == Var n t then App (App (Var fn tn) e) e' else a
+                fstAppReplace' _ _ _ _ e = e
 
         -- This adjusts for when the function with the given name is in the second position in an app
         -- This means that the function is being passed
         -- It simply swaps the type of the function, from a function type to an applytype
         sndAppReplace :: FuncName -> Type -> Type -> Expr -> Expr
-        sndAppReplace n t at (Lam n' e t') = Lam n' (sndAppReplace n t at e) t'
-        sndAppReplace n t at (Let ne e) =
-            Let (map (\(n, e') -> (n, sndAppReplace n t at e')) ne) (sndAppReplace n t at e)
-        sndAppReplace n t at a@(App e e') =
-            if e' == Var n t then
-                App (sndAppReplace n t at e) (sndAppReplace n t at (Var n at))
-            else
-                App (sndAppReplace n t at e) (sndAppReplace n t at e')
-        sndAppReplace n t at (Case e ae t') =
-            Case (sndAppReplace n t at e) (map (\(a, e) -> (a, sndAppReplace n t at e)) ae) t'
-        sndAppReplace n t at (Assume e e') =
-            Assume (sndAppReplace n t at e) (sndAppReplace n t at e')
-        sndAppReplace n t at (Assert e e') =
-            Assert (sndAppReplace n t at e) (sndAppReplace n t at e')
-        sndAppReplace _ _ _ e = e
+        sndAppReplace n t at = modify (sndAppReplace' n t at)
+            where
+                sndAppReplace' :: FuncName -> Type -> Type -> Expr -> Expr
+                sndAppReplace' n t at a@(App e e') =
+                    if e' == Var n t then App e (Var n at) else a
+                sndAppReplace' _ _ _ e = e
 
         -- Gets the names of all functions in the symbolic link table, that are of the given type
         funcsInSymLink :: Type -> SymLinkTable -> [FuncName]
@@ -174,20 +156,10 @@ createApplyFunc ts applyTypeName namesToFuncs s =
 
 -- In e, replaces all eOld with eNew
 exprReplace :: Expr -> Expr -> Expr -> Expr
-exprReplace eOld eNew e = if e == eOld then exprReplace' eOld eNew eNew else exprReplace' eOld eNew e
-    where
-        exprReplace' :: Expr -> Expr -> Expr -> Expr
-        exprReplace' eOld eNew (Lam n e t) = Lam n (exprReplace eOld eNew e) t
-        exprReplace' eOld eNew (Let ne e) =
-            Let (map (\(n, e') -> (n, exprReplace eOld eNew e')) ne) (exprReplace eOld eNew e)
-        exprReplace' eOld eNew (App e e') = App (exprReplace eOld eNew e) (exprReplace eOld eNew e')
-        exprReplace' eOld eNew (Case e ae t) =
-            Case (exprReplace eOld eNew e) (map (\(a, e) -> (a, exprReplace eOld eNew e)) ae) t
-        exprReplace' eOld eNew (Assume e e') =
-            Assume (exprReplace eOld eNew e) (exprReplace eOld eNew e')
-        exprReplace' eOld eNew (Assert e e') =
-            Assert (exprReplace eOld eNew e) (exprReplace eOld eNew e')
-        exprReplace' _ _ e = e
+exprReplace eOld eNew e =
+    if e == eOld
+        then modifyChildren (exprReplace eOld eNew) eNew 
+        else modifyChildren (exprReplace eOld eNew) e
 
 -- Given a TyFun type, an apply type, and a type, replaces all of the TyFun types with the apply type
 applyTypeReplace :: Type -> Type -> Type -> Type
@@ -208,12 +180,10 @@ leadingHigherOrderTypes s =
     nub . concatMap leading $ higherTEenv ++ higherEEnv
     where
         leading :: Type -> [Type]
-        leading (TyFun t@(TyFun _ _) t') = t:(leading t ++ leading t')
-        leading (TyFun t t') = leading t ++ leading t'
-        leading (TyApp t t') = leading t ++ leading t'
-        leading (TyConApp _ ts) = concatMap leading ts
-        leading (TyAlg _ dc) = concatMap (\(DataCon _ _ t ts) -> leading t ++ concatMap leading ts) dc
-        leading (TyForAll _ t) = leading t
+        leading = eval leading'
+
+        leading' :: Type -> [Type]
+        leading' (TyFun t@(TyFun _ _) t') = [t]
 
 -- Given a function type t, gets a list of:
 -- (1) all functions of type t from the expression environment

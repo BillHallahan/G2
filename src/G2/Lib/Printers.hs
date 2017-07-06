@@ -36,7 +36,7 @@ mkStateStr s = L.intercalate "\n\n" li
              ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps
              ,"> Sym Link Table:\n" ++ sl
              ,"> Func Sym Link Table:\n" ++ fl]
-        ts = mkTypexpr_envStr . type_env $ s
+        ts = mkTypeEnvStr . type_env $ s
         es = mkExprEnvStr . expr_env $ s
         xs = mkExprStr . curr_expr $ s
         ps = mkPCStr . path_cons $ s
@@ -49,8 +49,8 @@ mkStatesStr [s] = mkStateStr s
 mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
   where divLn = "\n--------------\n"
 
-mkTypexpr_envStr :: TEnv -> String
-mkTypexpr_envStr tenv = L.intercalate "\n" (map ntStr (M.toList tenv))
+mkTypeEnvStr :: TEnv -> String
+mkTypeEnvStr tenv = L.intercalate "\n" (map ntStr (M.toList tenv))
   where ntStr :: (Name, Type) -> String
         ntStr (n, t) = n ++ "\n" ++ sp4 ++ show t
 

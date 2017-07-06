@@ -47,7 +47,7 @@ import qualified Data.Maybe as B
 
 -- | Module Separator
 mod_sep :: String
-mod_sep = "@"
+mod_sep = "."
 
 -- | Haskell Source to G2 Core
 --   Streamline the process of converting a list of files into G2 Core.
@@ -146,13 +146,13 @@ mkCompileClosure proj src = runGhc (Just libdir) $ do
     let zipd = (zip mod_graph mod_gutss, dflags, env)
     return zipd
 
-
 -- | Outputable to String
 --   Basic printing capabilities for converting an Outputable into a String.
 outStr :: (Outputable a) => a -> IO String
 outStr obj = runGhc (Just libdir) $ do
     flags <- getSessionDynFlags
     return $ showPpr flags obj
+
 -- | Make Name
 --   From a GHC Name, make a raw G2 Name.
 mkName :: Name -> G2.Name

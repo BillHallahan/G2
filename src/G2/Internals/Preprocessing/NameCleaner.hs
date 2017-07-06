@@ -29,7 +29,9 @@ cleanNames' s (n:ns) =
         n' = filter (\x -> x `elem` allowedSymbol) n'
 
         -- No reserved symbols start with a $, this also ensures starting with allowed symbol
-        n'' = "$" ++ n'
+        -- We prepend a "$" to ensure that, when we append numbers in the SMT solver,
+        -- we don't have conflicts with existing names ending in numbers.
+        n'' = "$" ++ n' ++ "$"
 
         new_tenv = M.mapKeys (\k -> if k == n then n'' else k) (type_env s)
         new_eenv = M.mapKeys (\k -> if k == n then n'' else k) (expr_env s)
