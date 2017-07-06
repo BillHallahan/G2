@@ -82,7 +82,9 @@ data Expr = Var Name Type
 -- in G2.Internals.Core.PrimReplace.  This allows for more general
 -- handling in the SMT solver- we are not tied to the specific function
 -- names/symbols that come from Haskell
-data Prim = GE -- >=
+data Prim = PTrue
+          | PFalse
+          | GE -- >=
           | GrT -- >
           | EQL -- ==
           | LsT -- <
