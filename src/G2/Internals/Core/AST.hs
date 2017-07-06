@@ -196,6 +196,14 @@ instance ASTContainer State Type where
                                 , path_cons = (modifyASTs f . path_cons) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
+instance ASTContainer Name Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ a = a
+
+instance ASTContainer Name Type where
+    containedASTs _ = []
+    modifyContainedASTs _ a = a
+
 instance ASTContainer DataCon Type where
     containedASTs (DataCon _ _ t ts) = containedASTs (t:ts)
     containedASTs _ = []

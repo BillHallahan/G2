@@ -24,6 +24,7 @@ import G2.Internals.Core.Language
 import qualified Data.Char as C
 import qualified Data.List as L
 import qualified Data.Map  as M
+import qualified Data.Set  as S
 
 -- | Expression Top-Level Names
 exprTopNames :: Expr -> [Name]
@@ -41,9 +42,6 @@ typeTopNames (TyConApp n _) = [n]
 typeTopNames (TyAlg n _) = [n]
 typeTopNames (TyForAll n _) = [n]
 typeTopNames _ = []
-
-strip_seed :: Name -> Name
-strip_seed = filter (not . C.isDigit)
 
 -- | AllNamesMap
 --   Returns all the names used in a state. We aggressively over approximate
@@ -63,17 +61,31 @@ allNames state = L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_keys)
         eenv_keys = (M.keys . expr_env) state
         tenv_keys = (M.keys . type_env) state
 
--- | Name to Number
---   Highest number sequence in a name, ignoring characters.
-nameNum :: Name -> Int
-nameNum name = case filter C.isDigit name of
-    [] -> 0
-    xs -> read xs :: Int
+-- | Fresh String from Int Rand Seed
+mkFreshStr :: Int -> String -> S.Set String -> String
+mkFreshStr rand seed confs = if S.member seed confs
+    then mkFreshStr (rand + 1) (seed ++ [pick]) confs
+    else seed
+  where pick  = bank !! index
+        index = raw_i `mod` (length bank)
+        raw_i = (abs rand) * prime
+        prime = 151  -- The original? :)
+        bank  = lower ++ upper ++ nums
+        lower = "abcdefghijlkmnopqrstuvwxyz"
+        upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        nums  = "1234567890"
 
 -- | Fresh Seeded Name
 --   We want this new name to be different from all other names in the state.   
 freshSeededName :: Name -> State -> (Name, State)
-freshSeededName seed state = (fresh, state {all_names = M.insert stripped_seed new_num confs})
+freshSeededName (Name seed unq) state = (Name fresh unq, state')
+  where a_names = all_names state
+        confs   = map (\(Name n u) -> n) a_names
+        fresh   = mkFreshStr 0 seed (S.fromList confs)
+        state'  = state { all_names = M.insert (Name stripped_seed unq) unq a_names }
+
+
+    (Name fresh unq, state {all_names = M.insert (Name stripped_seed unq) new_num confs})
   where
         confs = all_names state
         -- max_confs_num = L.maximum $ [0] ++ (map nameNum confs)
