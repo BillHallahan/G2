@@ -39,6 +39,7 @@ import SrcLoc
 import TyCon
 import Type
 import TypeRep
+import Unique
 import Var
 
 import qualified Data.List  as L
@@ -158,6 +159,11 @@ outStr obj = runGhc (Just libdir) $ do
 mkName :: Name -> G2.Name
 mkName name = occNameString $ nameOccName name
 -- mkName = mkQualName
+
+mkUniquedName :: Name -> G2.Name
+mkUniquedName name = occ_str ++ "_" ++ unq_str
+  where occ_str = occNameString $ nameOccName name
+        unq_str = show $ getKey $ nameUnique name
 
 -- | Make Qualified Name
 --   From a GHC Name, make a qualified G2 Name.
