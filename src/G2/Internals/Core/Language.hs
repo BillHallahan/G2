@@ -18,7 +18,7 @@ type Const = GenConst Name
 
 type DataCon = GenDataCon Name
 
-type Type = GenDataCon Name
+type Type = GenType Name
 
 type Alt = GenAlt Name
 

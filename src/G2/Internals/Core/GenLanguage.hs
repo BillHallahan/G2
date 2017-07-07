@@ -161,14 +161,14 @@ data GenDataCon n = DataCon n Int (GenType n) [GenType n]
 --
 --   TyBottom is a default filler for when we don't have anything better to do.
 data GenType n = TyVar n
-                 | TyRawInt | TyRawFloat | TyRawDouble | TyRawChar | TyRawString
-                 | TyFun (GenType n) (GenType n)
-                 | TyApp (GenType n) (GenType n)
-                 | TyConApp n [(GenType n)]
-                 | TyAlg n [GenDataCon n]
-                 | TyForAll n (GenType n)
-                 | TyBottom
-                 deriving (Show, Eq)
+               | TyRawInt | TyRawFloat | TyRawDouble | TyRawChar | TyRawString
+               | TyFun (GenType n) (GenType n)
+               | TyApp (GenType n) (GenType n)
+               | TyConApp n [(GenType n)]
+               | TyAlg n [GenDataCon n]
+               | TyForAll n (GenType n)
+               | TyBottom
+               deriving (Show, Eq)
 
 -- | Alternatives
 --   [Name] refers to the parameters of the data constructor.
