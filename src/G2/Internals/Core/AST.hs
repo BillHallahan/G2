@@ -2,6 +2,7 @@
 --   Defines typeclasses and functions for ease of AST manipulation.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Internals.Core.AST

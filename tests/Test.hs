@@ -123,7 +123,7 @@ testFile proj src m_assume m_assert entry = do
 
     hhp <- getZ3ProcessHandles
 
-    run smt2 hhp init_state
+    run smt2 hhp 200 init_state
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
