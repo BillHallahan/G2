@@ -36,7 +36,7 @@ data State = State { expr_env     :: EEnv
                    , all_names    :: M.Map Name Int
                    } deriving (Show, Eq)
 
-data Name = Name String Int deriving (Show, Eq, Ord)
+type Name = String
 
 type TEnv = M.Map Name Type
 

@@ -9,24 +9,24 @@ import G2.Internals.Core.Language
 --       TyRawFloat  -> Float#
 --       TyRawDouble -> Double#
 --       TyRawChar   -> Char#
-p_ty_int    = TyConApp (Name "Int" 0) []
-p_d_int     = DataCon (Name "I#" 0) (-1) p_ty_int [TyRawInt]
-p_ty_float  = TyConApp (Name "Float" 0) []
-p_d_float   = DataCon (Name "F#" 0) (-2) p_ty_float [TyRawFloat]
-p_ty_double = TyConApp (Name "Double" 0) []
-p_d_double  = DataCon (Name "D#" 0) (-3) p_ty_double [TyRawDouble]
-p_ty_char   = TyConApp (Name "Char" 0) []
-p_d_char    = DataCon (Name "C#" 0) (-4) p_ty_char [TyRawChar]
-p_ty_bool   = TyConApp (Name "Bool" 0) []
-p_d_true    = DataCon (Name "True" 0) (-5) p_ty_bool []
-p_d_false   = DataCon (Name "False" 0) (-6) p_ty_bool []
+p_ty_int    = TyConApp "Int" []
+p_d_int     = DataCon "I#" (-1) p_ty_int [TyRawInt]
+p_ty_float  = TyConApp "Float" []
+p_d_float   = DataCon "F#" (-2) p_ty_float [TyRawFloat]
+p_ty_double = TyConApp "Double" []
+p_d_double  = DataCon "D#" (-3) p_ty_double [TyRawDouble]
+p_ty_char   = TyConApp "Char" []
+p_d_char    = DataCon "C#" (-4) p_ty_char [TyRawChar]
+p_ty_bool   = TyConApp "Bool" []
+p_d_true    = DataCon "True" (-5) p_ty_bool []
+p_d_false   = DataCon "False" (-6) p_ty_bool []
 
 -- | Prelude Type Declarations
-prelude_t_decls = [ ("Int",    TyAlg (Name "Int" 0)    [p_d_int])
-                  , ("Float",  TyAlg (Name "Float" 0)  [p_d_float])
-                  , ("Double", TyAlg (Name "Double" 0) [p_d_double])
-                  , ("Char",   TyAlg (Name "Char" 0)   [p_d_char])
-                  , ("Bool",   TyAlg (Name "Bool" 0)   [p_d_true, p_d_false]) ]
+prelude_t_decls = [ ("Int",    TyAlg "Int"    [p_d_int])
+                  , ("Float",  TyAlg "Float"  [p_d_float])
+                  , ("Double", TyAlg "Double" [p_d_double])
+                  , ("Char",   TyAlg "Char"   [p_d_char])
+                  , ("Bool",   TyAlg "Bool"   [p_d_true, p_d_false]) ]
 
 -- | Expressions
 o_add = ("+",  "Add")
@@ -48,7 +48,7 @@ e_char_ops_raw = [ o_eq, o_ne
 
 e_bool_ops = [o_eq, o_ne]
 
-e_num_ops_mod = [(o ++ s,Const (COp (Name ("p_e_" ++ n ++ s) 0) (TyFun t (TyFun t t)))) |
+e_num_ops_mod = [(o ++ s,Const (COp ("p_e_" ++ n ++ s) (TyFun t (TyFun t t)))) |
                      (s, t) <- [ ("!I", p_ty_int)
                                , ("!F", p_ty_float)
                                , ("!D", p_ty_double) ],
@@ -56,19 +56,19 @@ e_num_ops_mod = [(o ++ s,Const (COp (Name ("p_e_" ++ n ++ s) 0) (TyFun t (TyFun 
 
 e_char_ops_mod = map
     (\(o, n) -> ( o ++ "!C"
-                , Const (COp (Name ("p_e_" ++ n ++ "!C") 0)
+                , Const (COp ("p_e_" ++ n ++ "!C")
                              (TyFun p_ty_char (TyFun p_ty_char p_ty_char)))))
     e_char_ops_raw
 
 e_bool_ops_mod = map 
     (\(o, n) -> ( o ++ "!B"
-                , Const (COp (Name ("p_e_" ++ n ++ "!B") 0)
+                , Const (COp ("p_e_" ++ n ++ "!B")
                              (TyFun p_ty_bool (TyFun p_ty_bool p_ty_bool)))))
     e_bool_ops
 
 -- | Prelude Expression Declarations
 prelude_e_decls = e_num_ops_mod ++ e_char_ops_mod ++ e_bool_ops_mod
 
-op_eq = Var (Name "==" 0) TyBottom
-d_eq  = Var (Name "$dEq" 0) TyBottom
+op_eq = Var "==" TyBottom
+d_eq  = Var "$dEq" TyBottom
 

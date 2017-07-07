@@ -52,19 +52,19 @@ mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
 mkTypeEnvStr :: TEnv -> String
 mkTypeEnvStr tenv = L.intercalate "\n" (map ntStr (M.toList tenv))
   where ntStr :: (Name, Type) -> String
-        ntStr (n, t) = (show n) ++ "\n" ++ sp4 ++ show t
+        ntStr (n, t) = n ++ "\n" ++ sp4 ++ show t
 
 mkExprEnvStr :: EEnv -> String
 mkExprEnvStr eenv = L.intercalate "\n" (map neStr (M.toList eenv))
   where neStr :: (Name, Expr) -> String
-        neStr (n, e) = (show n) ++ "\n" ++ sp4 ++ mkExprStr e
+        neStr (n, e) = n ++ "\n" ++ sp4 ++ mkExprStr e
 
 
 mkExprStr :: Expr -> String
 mkExprStr e = mkExprStr' e 0
     where
         mkExprStr' :: Expr -> Int -> String
-        mkExprStr' (Var n t) i = off i ++ "Var " ++ (show n) ++ " (" ++ mkTypeStr t (i + 1) ++")"
+        mkExprStr' (Var n t) i = off i ++ "Var " ++ n ++ " (" ++ mkTypeStr t (i + 1) ++")"
         mkExprStr' (Lam n e t) i = 
             let
                 e' = mkExprStr' e (i + 1)
@@ -72,7 +72,7 @@ mkExprStr e = mkExprStr' e 0
             off i ++  "Lam (" ++ show n ++ "\n" ++ e' ++ " " ++ mkTypeStr t i ++")"
         mkExprStr' (Let ne e) i =
             let
-                ne' = concatMap (\(n, e') -> (show n) ++ " =\n" ++ mkExprStr' e' (i + 1)) ne
+                ne' = concatMap (\(n, e') -> n ++ " =\n" ++ mkExprStr' e' (i + 1)) ne
             in
             off i ++ "Let (\n" ++ off (i + 1) ++ ne' ++ ")" ++ mkExprStr' e (i + 1)
         mkExprStr' (App e1 e2) i = 
@@ -152,31 +152,31 @@ mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a+
 
 mkSLTStr :: SymLinkTable -> String
 mkSLTStr = L.intercalate "\n" . map (\(k, (n, t, i)) -> 
-                                                (show k) ++ " <- " ++ (show n) ++ "  (" ++ show t ++ ")"
+                                                k ++ " <- " ++ n ++ "  (" ++ show t ++ ")"
                                                 ++ case i of
                                                         Just x -> "  " ++ show x
                                                         Nothing -> "") . M.toList
 
 mkFuncSLTStr :: FuncInterpTable -> String
-mkFuncSLTStr = L.intercalate "\n" . map (\(k, (n, i)) -> (show k) ++ " <- " ++ (show n) ++ "  " ++ show i) . M.toList
+mkFuncSLTStr = L.intercalate "\n" . map (\(k, (n, i)) -> k ++ " <- " ++ n ++ "  " ++ show i) . M.toList
 
 mkExprHaskell :: Expr -> String
 mkExprHaskell e = mkExprHaskell' e 0
     where 
         mkExprHaskell' :: Expr -> Int -> String
-        mkExprHaskell' (Var n _) _ = show n
+        mkExprHaskell' (Var n _) _ = n
         mkExprHaskell' (Const c) _ = mkConstHaskell c
-        mkExprHaskell' (Lam n e _) i = "\\" ++ (show n) ++ " -> " ++ mkExprHaskell' e i
+        mkExprHaskell' (Lam n e _) i = "\\" ++ n ++ " -> " ++ mkExprHaskell' e i
         mkExprHaskell' (App e1 e2@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' e2 i ++ ")"
         mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
-        mkExprHaskell' (Data (DataCon n _ _ _)) _ = show n
+        mkExprHaskell' (Data (DataCon n _ _ _)) _ = n
         mkExprHaskell' (Case e ae _) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
                                         ++ L.intercalate "\n" (map (mkAltExprHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
         mkExprHaskell' BAD _ = "BAD"
 
         mkAltExprHaskell :: Int -> (Alt, Expr) -> String
-        mkAltExprHaskell i (Alt (DataCon n _ _ _, n'), e) = off i ++ (show n) ++ " " ++ L.intercalate " " (map show n') ++ " -> " ++ mkExprHaskell' e i
+        mkAltExprHaskell i (Alt (DataCon n _ _ _, n'), e) = off i ++ n ++ " " ++ L.intercalate " " n' ++ " -> " ++ mkExprHaskell' e i
 
         off :: Int -> String
         off i = duplicate "   " i
@@ -187,7 +187,7 @@ mkConstHaskell (CFloat r) = "(" ++ show r ++ ")"
 mkConstHaskell (CDouble r) = "(" ++ show r ++ ")"
 mkConstHaskell (CChar c) = [c]
 mkConstHaskell (CString s) = s
-mkConstHaskell (COp n _) = show n
+mkConstHaskell (COp n _) = n
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
