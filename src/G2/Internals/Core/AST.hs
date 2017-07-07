@@ -110,7 +110,7 @@ evalContainedASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
 evalContainedASTs f = mconcat . map f . containedASTs
 
 -- | Instance Expr of AST
-instance AST Expr where
+instance AST (GenExpr n) where
     children (Lam _ e _)   = [e]
     children (Let bs e)    = (map snd bs) ++ [e]
     children (App f a)     = [f, a]
@@ -127,7 +127,7 @@ instance AST Expr where
     modifyChildren f (Assert c e)  = Assert (f c) (f e)
     modifyChildren f e = e
 
-instance AST Type where
+instance AST (GenType n) where
     children (TyFun tf ta)   = [tf, ta]
     children (TyApp tf ta)   = [tf, ta]
     children (TyConApp _ ts) = ts
@@ -150,7 +150,7 @@ instance AST t => ASTContainer t t where
     containedASTs t = [t]
     modifyContainedASTs f t = f t
 
-instance ASTContainer Expr Type where
+instance ASTContainer (GenExpr n) (GenType n) where
     containedASTs = eval go
       where go (Var _ t)     = [t]
             go (Lam _ _ t)   = [t]
@@ -167,11 +167,11 @@ instance ASTContainer Expr Type where
             go f (Type t)      = Type (f t)
             go f e = e
 
-instance ASTContainer Type Expr where
+instance ASTContainer (GenType n) (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer State Expr where
+instance (ASTContainer n (GenExpr n)) => ASTContainer (GenState n) (GenExpr n) where
     containedASTs s = ((containedASTs . type_env) s) ++
                       ((containedASTs . expr_env) s) ++
                       ((containedASTs . curr_expr) s) ++
@@ -184,7 +184,7 @@ instance ASTContainer State Expr where
                                 , path_cons = (modifyASTs f . path_cons) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
-instance ASTContainer State Type where
+instance (ASTContainer n (GenType n)) => ASTContainer (GenState n) (GenType n) where
     containedASTs s = ((containedASTs . type_env) s) ++
                       ((containedASTs . expr_env) s) ++
                       ((containedASTs . curr_expr) s) ++
@@ -197,22 +197,22 @@ instance ASTContainer State Type where
                                 , path_cons = (modifyASTs f . path_cons) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
-instance ASTContainer DataCon Type where
+instance ASTContainer (GenDataCon n) (GenType n) where
     containedASTs (DataCon _ _ t ts) = containedASTs (t:ts)
     containedASTs _ = []
 
     modifyContainedASTs f (DataCon n i t ts) = DataCon n i (f t) (map f ts)
     modifyContainedASTs _ dc = dc
 
-instance ASTContainer Alt Expr where
+instance ASTContainer (GenAlt n) (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ a = a
 
-instance ASTContainer Alt Type where
+instance ASTContainer (GenAlt n) (GenType n) where
     containedASTs (Alt x) = (containedASTs . fst) x
     modifyContainedASTs f (Alt (dc, n)) = Alt (modifyContainedASTs f dc, n)
 
-instance ASTContainer PathCond Expr where
+instance ASTContainer (GenPathCond n) (GenExpr n) where
     containedASTs (CondExt e b)   = containedASTs e
     containedASTs (CondAlt e a b) = containedASTs e
 
@@ -220,7 +220,7 @@ instance ASTContainer PathCond Expr where
     modifyContainedASTs f (CondAlt e a b) =
         CondAlt (modifyContainedASTs f e) a b
 
-instance ASTContainer PathCond Type where
+instance ASTContainer (GenPathCond n) (GenType n) where
     containedASTs (CondExt e b)   = containedASTs e
     containedASTs (CondAlt e a b) = containedASTs e ++ containedASTs a
 
@@ -262,27 +262,27 @@ instance (ASTContainer c t) => ASTContainer (Maybe c) t where
 --   These instances exist so that we can use them in other types that contain
 --   ASTs and still consider those types ASTContainers. For example (Expr, Bool)
 --   should be an ASTContainer.
-instance ASTContainer Bool Expr where
+instance ASTContainer Bool (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Bool Type where
+instance ASTContainer Bool (GenType n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Char Expr where
+instance ASTContainer Char (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Char Type where
+instance ASTContainer Char (GenType n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Int Expr where
+instance ASTContainer Int (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Int Type where
+instance ASTContainer Int (GenType n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 

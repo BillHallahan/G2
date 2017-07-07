@@ -63,7 +63,7 @@ data Interp = StdInterp | UnInterp deriving (Show, Eq)
 --     Assert -- Assert. The LHS asserts a condition for the RHS.
 --     BAD    -- Error / filler expression.
 data GenExpr n = Var n (GenType n)
-                 | Const (GenConst n)
+                 | Const Const
                  | Prim Prim (GenType n)
                  | Lam n (GenExpr n) (GenType n)
                  | Let [(n, (GenExpr n))] (GenExpr n)
@@ -109,13 +109,12 @@ data Prim = PTrue
 --   special functions are limited, it is probably better that we don't try to
 --   explicitly give these implementations, and instead leave them as COps and
 --   handle them during the SMT solver phase.
-data GenConst n = CInt Int         -- Int#
-                | CFloat Rational  -- Float#
-                | CDouble Rational -- Double#
-                | CChar Char       -- Char#
-                | CString String
-                | COp n (GenType n)
-                deriving (Show, Eq)
+data Const = CInt Int         -- Int#
+           | CFloat Rational  -- Float#
+           | CDouble Rational -- Double#
+           | CChar Char       -- Char#
+           | CString String
+           deriving (Show, Eq)
 
 -- | Data Constructors
 --   We keep track of information such as the name, tag (unique integer ID),
@@ -138,7 +137,7 @@ data GenDataCon n = DataCon n Int (GenType n) [GenType n]
 -- | Types
 --   We need a way of representing types, and so it is done here.
 --
---   The TyRaw* type sare meant to deal with unwrapped types. For example, Int#
+--   The TyRaw* types are meant to deal with unwrapped types. For example, Int#
 --   would be equivalent to TyRawInt.
 --
 --   TyApp is a catch-all statement in case we accidentally run into type
@@ -164,7 +163,7 @@ data GenType n = TyVar n
                | TyRawInt | TyRawFloat | TyRawDouble | TyRawChar | TyRawString
                | TyFun (GenType n) (GenType n)
                | TyApp (GenType n) (GenType n)
-               | TyConApp n [(GenType n)]
+               | TyConApp n [GenType n]
                | TyAlg n [GenDataCon n]
                | TyForAll n (GenType n)
                | TyBottom

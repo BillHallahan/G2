@@ -28,7 +28,6 @@ import qualified Data.Map  as M
 -- | Expression Top-Level Names
 exprTopNames :: Expr -> [Name]
 exprTopNames (Var n t)     = [n]
-exprTopNames (Const (COp n t)) = [n]
 exprTopNames (Lam b e t)   = [b]
 exprTopNames (Let bs e)    = map fst bs
 exprTopNames (Case m as t) = concatMap (\(Alt (_, ps), _) -> ps) as

@@ -48,26 +48,6 @@ e_char_ops_raw = [ o_eq, o_ne
 
 e_bool_ops = [o_eq, o_ne]
 
-e_num_ops_mod = [(o ++ s,Const (COp ("p_e_" ++ n ++ s) (TyFun t (TyFun t t)))) |
-                     (s, t) <- [ ("!I", p_ty_int)
-                               , ("!F", p_ty_float)
-                               , ("!D", p_ty_double) ],
-                     (o, n) <- e_num_ops_raw]
-
-e_char_ops_mod = map
-    (\(o, n) -> ( o ++ "!C"
-                , Const (COp ("p_e_" ++ n ++ "!C")
-                             (TyFun p_ty_char (TyFun p_ty_char p_ty_char)))))
-    e_char_ops_raw
-
-e_bool_ops_mod = map 
-    (\(o, n) -> ( o ++ "!B"
-                , Const (COp ("p_e_" ++ n ++ "!B")
-                             (TyFun p_ty_bool (TyFun p_ty_bool p_ty_bool)))))
-    e_bool_ops
-
--- | Prelude Expression Declarations
-prelude_e_decls = e_num_ops_mod ++ e_char_ops_mod ++ e_bool_ops_mod
 
 op_eq = Var "==" TyBottom
 d_eq  = Var "$dEq" TyBottom

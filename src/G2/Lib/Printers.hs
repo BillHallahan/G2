@@ -187,7 +187,6 @@ mkConstHaskell (CFloat r) = "(" ++ show r ++ ")"
 mkConstHaskell (CDouble r) = "(" ++ show r ++ ")"
 mkConstHaskell (CChar c) = [c]
 mkConstHaskell (CString s) = s
-mkConstHaskell (COp n _) = n
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""

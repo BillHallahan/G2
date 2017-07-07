@@ -1,5 +1,5 @@
 module G2.Internals.Core.Language ( module G2.Internals.Core.Language
-						   	      , module G2.Internals.Core.GenLanguage) where
+                                  , module G2.Internals.Core.GenLanguage) where
 
 import G2.Internals.Core.GenLanguage
 
@@ -13,8 +13,6 @@ type SymLinkTable = GenSymLinkTable Name
 type FuncInterpTable = GenFuncInterpTable Name
 
 type Expr = GenExpr Name
-
-type Const = GenConst Name
 
 type DataCon = GenDataCon Name
 

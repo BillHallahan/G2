@@ -18,7 +18,6 @@ exprType (Const (CFloat _))  = TyRawFloat
 exprType (Const (CDouble _)) = TyRawDouble
 exprType (Const (CChar _))   = TyRawChar
 exprType (Const (CString _)) = TyRawString
-exprType (Const (COp _ t))   = t
 exprType (Lam _ _ t) = t
 exprType (Let _ e) = exprType e
 exprType (App f a) = case exprType f of {TyFun l r->r; t->TyApp t (exprType a)}

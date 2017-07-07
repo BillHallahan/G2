@@ -20,6 +20,7 @@ module G2.Internals.Translation.Haskell
 
 import qualified G2.Internals.Core as G2
 import qualified G2.Internals.Translation.HaskellPrelude as P
+import G2.Internals.Translation.TranslToCore
 
 import ConLike
 import CoreMonad
