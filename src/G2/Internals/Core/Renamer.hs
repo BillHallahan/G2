@@ -260,7 +260,7 @@ renameTypeList ((o, n):rs) ty = renameTypeList rs ty'
 
 -- | Rename Data Constructor
 renameDataCon :: Name -> Name -> DataCon -> DataCon
-renameDataCon old new (DataCon n i ty tys) = DataCon n' i ty' tys'
+renameDataCon old new (DataCon (N n) i ty tys) = DataCon (N n') i ty' tys'
   where n'   = if old == new then new else n
         ty'  = renameType old new ty
         tys' = map (renameType old new) tys

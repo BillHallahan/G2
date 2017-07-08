@@ -13,6 +13,7 @@ module G2.Internals.Translation.Haskell
     , mkTLCore
     , mkMultiTLCore
     , combineTLCores
+    , hskToG2
     , hskToTL
     , hskToTL'
     , mod_sep        
@@ -22,6 +23,7 @@ import qualified G2.Internals.Core as G2
 import qualified G2.Internals.Translation.HaskellPrelude as P
 import qualified G2.Internals.Translation.Language as TL
 import G2.Internals.Translation.TranslToCore
+import G2.Internals.Translation.PrimReplace
 
 import ConLike
 import CoreMonad
@@ -52,6 +54,13 @@ import qualified Data.Maybe as B
 mod_sep :: String
 mod_sep = "."
 
+-- | Haskell Source to Core2
+--   Streamline the process of converting a list of files into Core2.
+hskToG2 :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv)
+hskToG2 proj src = do
+    (tenv, eenv) <- hskToTL' proj src
+    return (translTEnv tenv, translEEnv eenv)  
+
 -- | Haskell Source to TL Core
 --   Streamline the process of converting a list of files into TL Core.
 hskToTL :: FilePath -> FilePath -> IO (TL.TTEnv, TL.TEEnv)
@@ -68,7 +77,7 @@ hskToTL' proj src = do
     let tenv = mkTEnv (mkTypeEnv (map ATyCon acc_tycs))
     let eenv = mkEEnv acc_prog
 
-    return (tenv, eenv)
+    return (M.union (M.fromList P.prelude_t_decls) tenv, primReplace eenv)
 
 -- | Make Raw Core
 --   Make a raw GHC Core given a FilePath (String).
@@ -199,7 +208,7 @@ mkADT algtc = (gname, TL.TyAlg gname gdcs)
 -- | Make Data Constructor
 --   Make a TL data constructor from a GHC Core one.
 mkData :: DataCon -> TL.TDataCon
-mkData dc = TL.DataCon dcname dctag (TL.TyConApp tyname []) args
+mkData dc = TL.DataCon (TL.N dcname) dctag (TL.TyConApp tyname []) args
   where tyname = mkName $ tyConName $ dataConTyCon dc
         dcname = mkName $ dataConName dc
         dctag  = dataConTag dc
@@ -311,7 +320,7 @@ sortAlt ((ac, args, exp):as) = case ac of
 --   Injection of operators from Internals.Translation.Prelude.
 cascadeAlt :: TL.TExpr -> TL.TDataCon -> [CoreAlt] -> TL.TExpr
 cascadeAlt mx recon [] = TL.BAD
-cascadeAlt mx recon@(TL.DataCon n _ t ts) ((ac, args, exp):as) = case ac of
+cascadeAlt mx recon@(TL.DataCon (TL.N n) _ t ts) ((ac, args, exp):as) = case ac of
     DataAlt dc -> error "We should not see non-raw data consturctors here"
     DEFAULT    -> mkExpr exp
     LitAlt lit ->

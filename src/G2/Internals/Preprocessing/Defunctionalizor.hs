@@ -43,7 +43,7 @@ useApplyType s (t@(TyFun _ _)) =
         (applyTypeName, s2) = freshSeededName "ApplyType" s
         args = argList t
         (applyConsNames, s3) = freshSeededNameList (take (length funcs) . repeat $ "Apply") s2
-        applyTypeAlg = TyAlg applyTypeName (map (\n -> DataCon n (-1) (TyConApp applyTypeName []) []) applyConsNames)
+        applyTypeAlg = TyAlg applyTypeName (map (\n -> DataCon (N n) (-1) (TyConApp applyTypeName []) []) applyConsNames)
         applyTypeCon = TyConApp applyTypeName []
 
         namesToFuncs = zip applyConsNames funcs 
@@ -145,7 +145,7 @@ createApplyFunc ts applyTypeName namesToFuncs s =
 
         case_expr = Var apply_arg (TyConApp applyTypeName [])
         case_matches = map (\((n, e), new) ->
-                        (Alt ((DataCon n (-1) (TyConApp applyTypeName []) []), [new])
+                        (Alt ((DataCon (N n) (-1) (TyConApp applyTypeName []) []), [new])
                             , foldr (\i' e' -> App e' i') e args_vars))
                         (zip namesToFuncs new_names)
         case_final = Case case_expr case_matches ret_type

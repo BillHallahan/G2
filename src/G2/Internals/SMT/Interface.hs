@@ -69,7 +69,7 @@ containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctio
         constructors = evalASTs constructors'
             where
                 constructors' :: Type -> [Name]
-                constructors' (TyAlg _ dc) = [n | (DataCon n _ _ _) <- dc]
+                constructors' (TyAlg _ dc) = [ n | (DataCon (N n) _ _ _) <- dc]
                 constructors' _ = []
 
         handledFunctions = ["==", "/=", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]

@@ -26,14 +26,10 @@ main = do
     let m_assume = mAssume tail_args
     let m_assert = mAssert tail_args
 
-    (rtenv, reenv) <- hskToG2 proj src
+    (tenv, eenv) <- hskToG2 proj src
 
-    -- Inject extra information from custom "prelude"
-    let tenv = M.union rtenv (M.fromList prelude_t_decls)
-    let eenv = reenv
-
-    -- putStrLn $ mkTypeEnvStr tenv
-    -- putStrLn $ mkExprEnvStr eenv
+    putStrLn $ mkTypeEnvStr tenv
+    putStrLn $ mkExprEnvStr eenv
 
     let init_state = initState tenv eenv m_assume m_assert entry
 

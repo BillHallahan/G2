@@ -130,9 +130,22 @@ data Const = CInt Int         -- Int#
 --
 --     (dc_name, dc_tag, A, [P1, ..., PN])
 -- newtype DataCon = DC (Name, Int, Type, [Type]) deriving (Show, Eq)
-data GenDataCon n = DataCon n Int (GenType n) [GenType n]
+data GenDataCon n = DataCon (PrimDataCon n) Int (GenType n) [GenType n]
                   | DEFAULT
                   deriving (Show, Eq)
+
+
+-- Primitive Data Constructors
+-- These serve a similar purpose to primitives, but act as Data Constructors 
+-- rather than functions
+data PrimDataCon n = I -- I#
+                   | D -- D#
+                   | F -- F#
+                   | C
+                   | DTrue
+                   | DFalse
+                   | N n -- Arbitrary AST
+                   deriving (Show, Eq)
 
 -- | Types
 --   We need a way of representing types, and so it is done here.

@@ -4,10 +4,8 @@ module G2.Internals.Preprocessing
     ( module G2.Internals.Preprocessing
     , module G2.Internals.Preprocessing.Defunctionalizor
     , module G2.Internals.Preprocessing.NameCleaner
-    , module G2.Internals.Preprocessing.PrimReplace
     , module G2.Internals.Preprocessing.Interface ) where
 
 import G2.Internals.Preprocessing.Defunctionalizor
 import G2.Internals.Preprocessing.NameCleaner
-import G2.Internals.Preprocessing.PrimReplace
 import G2.Internals.Preprocessing.Interface
