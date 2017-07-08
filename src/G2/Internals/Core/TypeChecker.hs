@@ -10,7 +10,7 @@ import qualified Data.List as L
 
 -- | Expression Type
 --   Gets the type of an expression.
-exprType :: Expr -> Type
+exprType :: GenExpr a -> GenType a
 exprType (Var _ t) = t
 exprType (Prim _ t) = t
 exprType (Const (CInt _))    = TyRawInt

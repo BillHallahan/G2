@@ -1,5 +1,6 @@
-module G2.Internals.Translation.Language ( module G2.Internals.Translation.Language
-						   	    	     , module G2.Internals.Core.GenLanguage) where
+module G2.Internals.Translation.Language
+    ( module G2.Internals.Translation.Language
+    , module G2.Internals.Core.GenLanguage) where
 
 import G2.Internals.Core.GenLanguage
 

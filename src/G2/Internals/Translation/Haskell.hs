@@ -1,7 +1,7 @@
 -- | Haskell Translation
---   This module is used for translating Haskell source files into G2 Core.
+--   This module is used for translating Haskell source files into TL Core.
 --   Everything is slightly broken because we are trying to shove Haskell into
---   G2 Core as hard as possible.
+--   TL Core as hard as possible.
 --
 --   In particular, we have to do some faking with Haskell's primitive types
 --   such as Int# and Double#, which means that the implementation of this
@@ -10,16 +10,17 @@ module G2.Internals.Translation.Haskell
     ( mkGHCCore
     , mkGHCCore'
     , mkMultiGHCCore
-    , mkG2Core
-    , mkMultiG2Core
-    , combineG2Cores
-    , hskToG2
-    , hskToG2'
+    , mkTLCore
+    , mkMultiTLCore
+    , combineTLCores
+    , hskToTL
+    , hskToTL'
     , mod_sep        
     , getDependencies ) where
 
 import qualified G2.Internals.Core as G2
 import qualified G2.Internals.Translation.HaskellPrelude as P
+import qualified G2.Internals.Translation.Language as TL
 import G2.Internals.Translation.TranslToCore
 
 import ConLike
@@ -51,15 +52,15 @@ import qualified Data.Maybe as B
 mod_sep :: String
 mod_sep = "."
 
--- | Haskell Source to G2 Core
---   Streamline the process of converting a list of files into G2 Core.
-hskToG2 :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv)
-hskToG2 proj src = do
+-- | Haskell Source to TL Core
+--   Streamline the process of converting a list of files into TL Core.
+hskToTL :: FilePath -> FilePath -> IO (TL.TTEnv, TL.TEEnv)
+hskToTL proj src = do
     ghc_cores <- mkMultiGHCCore proj src
-    return (combineG2Cores $ mkMultiG2Core ghc_cores)
+    return (combineTLCores $ mkMultiTLCore ghc_cores)
 
-hskToG2' :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv)
-hskToG2' proj src = do
+hskToTL' :: FilePath -> FilePath -> IO (TL.TTEnv, TL.TEEnv)
+hskToTL' proj src = do
     (sums_gutss, dflags, env) <- mkCompileClosure proj src
     let acc_prog = concatMap (mg_binds . snd) sums_gutss
     let acc_tycs = concatMap (mg_tcs . snd) sums_gutss
@@ -109,18 +110,18 @@ getDependencies proj src = do
         getModuleGraph
     return $ map (B.fromMaybe "" . ml_hs_file . ms_location) mod_graph
 
--- | Make G2 Core
---   Given a GHC Core, we convert it into a G2 Core.
-mkG2Core :: CoreModule -> (G2.TEnv, G2.EEnv)
-mkG2Core core = (mkTEnv (cm_types core), mkEEnv (cm_binds core))
+-- | Make TL Core
+--   Given a GHC Core, we convert it into a TL Core.
+mkTLCore :: CoreModule -> (TL.TTEnv, TL.TEEnv)
+mkTLCore core = (mkTEnv (cm_types core), mkEEnv (cm_binds core))
 
--- | Make Multiple G2 Cores
-mkMultiG2Core :: [CoreModule] -> [(G2.TEnv, G2.EEnv)]
-mkMultiG2Core cores = map mkG2Core cores
+-- | Make Multiple TL Cores
+mkMultiTLCore :: [CoreModule] -> [(TL.TTEnv, TL.TEEnv)]
+mkMultiTLCore cores = map mkTLCore cores
 
--- | Combine G2 Cores
-combineG2Cores :: [(G2.TEnv, G2.EEnv)] -> (G2.TEnv, G2.EEnv)
-combineG2Cores cores = foldl pairjoin (M.empty, M.empty) cores
+-- | Combine TL Cores
+combineTLCores :: [(TL.TTEnv, TL.TEEnv)] -> (TL.TTEnv, TL.TEEnv)
+combineTLCores cores = foldl pairjoin (M.empty, M.empty) cores
   where pairjoin (acc_t, acc_e) (t, e) = (M.union acc_t t, M.union acc_e e)
 
 -- | Make Compilation Closure
@@ -156,23 +157,24 @@ outStr obj = runGhc (Just libdir) $ do
     return $ showPpr flags obj
 
 -- | Make Name
---   From a GHC Name, make a raw G2 Name.
-mkName :: Name -> G2.Name
-mkName name = occNameString $ nameOccName name
+--   From a GHC Name, make a raw TL.TName.
+mkName :: Name -> TL.TName
+-- mkName name = occNameString $ nameOccName name
+mkName = mkUniquedName
 -- mkName = mkQualName
 
-mkUniquedName :: Name -> G2.Name
-mkUniquedName name = occ_str ++ "_" ++ unq_str
+mkUniquedName :: Name -> TL.TName
+mkUniquedName name = (occ_str, unq_int)
   where occ_str = occNameString $ nameOccName name
-        unq_str = show $ getKey $ nameUnique name
+        unq_int = getKey $ nameUnique name
 
 -- | Make Qualified Name
---   From a GHC Name, make a qualified G2 Name.
-mkQualName :: Name -> G2.Name
-mkQualName name = case nameModule_maybe name of
-    Nothing -> raw_name
-    Just md -> (moduleNameString $ moduleName md) ++ mod_sep ++ raw_name
-  where raw_name = occNameString $ nameOccName name
+--   From a GHC Name, make a qualified TL.TName.
+-- mkQualName :: Name -> TL.TName
+-- mkQualName name = case nameModule_maybe name of
+--     Nothing -> raw_name
+--     Just md -> (moduleNameString $ moduleName md) ++ mod_sep ++ raw_name
+--   where raw_name = occNameString $ nameOccName name
 
 --  mkQualName name = case srcSpanFileName_maybe $ nameSrcSpan name of
 --     Just fs -> (occNameString $ nameOccName name)  ++ ".__." ++ (unpackFS fs)
@@ -180,68 +182,68 @@ mkQualName name = case nameModule_maybe name of
 
 -- | Make Type Environment
 --   Make the type environment given a GHC Core.
-mkTEnv :: TypeEnv -> G2.TEnv
+mkTEnv :: TypeEnv -> TL.TTEnv
 mkTEnv tenv = M.fromList $ map mkADT tycons
   where tycons = filter isAlgTyCon $ typeEnvTyCons tenv
 
 -- | Make Algebraic Data Type
---   Given a type constructor, make the corresonding G2 ADT instance. Returned
+--   Given a type constructor, make the corresonding TL ADT instance. Returned
 --   as a pair in order to make binding into the type environment easier.
-mkADT :: TyCon -> (G2.Name, G2.Type)
-mkADT algtc = (gname, G2.TyAlg gname gdcs)
+mkADT :: TyCon -> (TL.TName, TL.TType)
+mkADT algtc = (gname, TL.TyAlg gname gdcs)
   where name  = tyConName algtc
         dcs   = tyConDataCons algtc
         gname = mkName name
         gdcs  = map mkData dcs
 
 -- | Make Data Constructor
---   Make a G2 data constructor from a GHC Core one.
-mkData :: DataCon -> G2.DataCon
-mkData dc = G2.DataCon dcname dctag (G2.TyConApp tyname []) args
+--   Make a TL data constructor from a GHC Core one.
+mkData :: DataCon -> TL.TDataCon
+mkData dc = TL.DataCon dcname dctag (TL.TyConApp tyname []) args
   where tyname = mkName $ tyConName $ dataConTyCon dc
         dcname = mkName $ dataConName dc
         dctag  = dataConTag dc
         args   = map mkType $ dataConOrigArgTys dc
 
 -- | Make Type
---   Make a G2 Type given a GHC Core one.
-mkType :: Type -> G2.Type
-mkType (TyVarTy var)    = G2.TyVar (mkName $ tyVarName var)
-mkType (AppTy t1 t2)    = G2.TyApp (mkType t1) (mkType t2)
-mkType (FunTy t1 t2)    = G2.TyFun (mkType t1) (mkType t2)
-mkType (ForAllTy v t)   = G2.TyForAll (mkName $ Var.varName v) (mkType t)
+--   Make a TL.TType given a GHC Core one.
+mkType :: Type -> TL.TType
+mkType (TyVarTy var)    = TL.TyVar (mkName $ tyVarName var)
+mkType (AppTy t1 t2)    = TL.TyApp (mkType t1) (mkType t2)
+mkType (FunTy t1 t2)    = TL.TyFun (mkType t1) (mkType t2)
+mkType (ForAllTy v t)   = TL.TyForAll (mkName $ Var.varName v) (mkType t)
 mkType (LitTy tl)       = error "Literal types are sketchy?"
 mkType (TyConApp tc kt) = case mkName . tyConName $ tc of 
-    "Int#"    -> G2.TyRawInt
-    "Float#"  -> G2.TyRawFloat
-    "Double#" -> G2.TyRawDouble
-    "Char#"   -> G2.TyRawChar
-    otherwise -> G2.TyConApp otherwise (map mkType kt)
+    ("Int#", _)    -> TL.TyRawInt
+    ("Float#", _)  -> TL.TyRawFloat
+    ("Double#", _) -> TL.TyRawDouble
+    ("Char#", _)   -> TL.TyRawChar
+    otherwise -> TL.TyConApp otherwise (map mkType kt)
 
 -- | Make Expression Environment
 --   Make the expression environment given a GHC Core.
-mkEEnv :: CoreProgram -> G2.EEnv
+mkEEnv :: CoreProgram -> TL.TEEnv
 mkEEnv binds = M.fromList $ concatMap mkBinds binds
 
 -- | Make Bindings
---   Make G2 Binding given a GHC Core binding.
-mkBinds :: CoreBind -> [(G2.Name, G2.Expr)]
+--   Make TL Binding given a GHC Core binding.
+mkBinds :: CoreBind -> [(TL.TName, TL.TExpr)]
 mkBinds (Rec binds) = map (\(b, e) -> (mkName $ Var.varName b, mkExpr e)) binds
 mkBinds (NonRec bndr expr) = [(gname, gexpr)]
   where gname = mkName $ Var.varName bndr
         gexpr = mkExpr expr
 
 -- | Make Expression
---   Make a G2 Expression from a GHC Core Expression.
-mkExpr :: CoreExpr -> G2.Expr
-mkExpr (Var id)    = G2.Var (mkName $ Var.varName id) (mkType $ varType id)
-mkExpr (Lit lit)   = G2.Const (mkLit lit)
-mkExpr (App f a)   = G2.App (mkExpr f) (mkExpr a)
+--   Make a TL.TExpression from a GHC Core Expression.
+mkExpr :: CoreExpr -> TL.TExpr
+mkExpr (Var id)    = TL.Var (mkName $ Var.varName id) (mkType $ varType id)
+mkExpr (Lit lit)   = TL.Const (mkLit lit)
+mkExpr (App f a)   = TL.App (mkExpr f) (mkExpr a)
 mkExpr l@(Lam b e) =
     let ge = mkExpr e
         et = G2.exprType ge
         an = mkName $ Var.varName b
-    in G2.Lam an ge ((mkType . CU.exprType) l)
+    in TL.Lam an ge ((mkType . CU.exprType) l)
 mkExpr (Case e b t as) =
     let ex = mkExpr e
         ty = mkType t
@@ -254,36 +256,36 @@ mkExpr (Case e b t as) =
         Just dc -> cascadeAlt ex dc (sortAlt as)
 
         -- Otherwise we are free to make simplifications :)
-        Nothing -> G2.App (G2.Lam (mkName $ Var.varName b)
-                            (G2.Case ex (map mkAlt as) ty)
-                            (G2.TyFun (mkType $ CU.exprType (Var b)) ty))
+        Nothing -> TL.App (TL.Lam (mkName $ Var.varName b)
+                            (TL.Case ex (map mkAlt as) ty)
+                            (TL.TyFun (mkType $ CU.exprType (Var b)) ty))
                           ex
 mkExpr (Cast e c) = mkExpr e
 mkExpr (Tick t e) = mkExpr e
-mkExpr (Type t)   = G2.Type (mkType t)
-mkExpr (Let  bs e) = G2.Let (mkBinds bs) (mkExpr e)
+mkExpr (Type t)   = TL.Type (mkType t)
+mkExpr (Let  bs e) = TL.Let (mkBinds bs) (mkExpr e)
 
 -- | Make Literal
---   GHC Core Literals correspond to G2 Consts actually :)
-mkLit :: Literal -> G2.Const
-mkLit (MachChar char)  = G2.CChar char
-mkLit (MachStr bytstr) = G2.CString (show bytstr)
-mkLit (MachInt int)    = G2.CInt (fromInteger int)
-mkLit (MachInt64 int)  = G2.CInt (fromInteger int)
-mkLit (MachWord int)   = G2.CInt (fromInteger int)
-mkLit (MachWord64 int) = G2.CInt (fromInteger int)
-mkLit (MachFloat rat)  = G2.CFloat rat
-mkLit (MachDouble rat) = G2.CDouble rat
-mkLit (LitInteger i t) = G2.CInt (fromInteger i)
+--   GHC Core Literals correspond to TL Consts actually :)
+mkLit :: Literal -> TL.Const
+mkLit (MachChar char)  = TL.CChar char
+mkLit (MachStr bytstr) = TL.CString (show bytstr)
+mkLit (MachInt int)    = TL.CInt (fromInteger int)
+mkLit (MachInt64 int)  = TL.CInt (fromInteger int)
+mkLit (MachWord int)   = TL.CInt (fromInteger int)
+mkLit (MachWord64 int) = TL.CInt (fromInteger int)
+mkLit (MachFloat rat)  = TL.CFloat rat
+mkLit (MachDouble rat) = TL.CDouble rat
+mkLit (LitInteger i t) = TL.CInt (fromInteger i)
 mkLit otherwise        = error "No other lits please?"
 
 -- | Make Alt
---   Make G2 Alt from GHC Core Alt.
-mkAlt :: CoreAlt -> (G2.Alt, G2.Expr)
-mkAlt (ac, args, exp) = (G2.Alt (mkA ac,map (mkName . Var.varName) args),g2exp)
+--   Make TL Alt from GHC Core Alt.
+mkAlt :: CoreAlt -> (TL.TAlt, TL.TExpr)
+mkAlt (ac, args, exp) = (TL.Alt (mkA ac,map (mkName . Var.varName) args),g2exp)
   where g2exp = mkExpr exp
         mkA (DataAlt dc) = mkData dc
-        mkA DEFAULT      = G2.DEFAULT
+        mkA DEFAULT      = TL.DEFAULT
         mkA (LitAlt lit) = case lit of
             MachChar char  -> P.p_d_char
             MachStr bstr   -> error "Should we even have strings?"
@@ -307,33 +309,33 @@ sortAlt ((ac, args, exp):as) = case ac of
 --   The goal here is to convert Literal data constructors into equality case
 --   matchings on Bools. Rather complicated and annoying.
 --   Injection of operators from Internals.Translation.Prelude.
-cascadeAlt :: G2.Expr -> G2.DataCon -> [CoreAlt] -> G2.Expr
-cascadeAlt mx recon [] = G2.BAD
-cascadeAlt mx recon@(G2.DataCon n _ t ts) ((ac, args, exp):as) = case ac of
+cascadeAlt :: TL.TExpr -> TL.TDataCon -> [CoreAlt] -> TL.TExpr
+cascadeAlt mx recon [] = TL.BAD
+cascadeAlt mx recon@(TL.DataCon n _ t ts) ((ac, args, exp):as) = case ac of
     DataAlt dc -> error "We should not see non-raw data consturctors here"
     DEFAULT    -> mkExpr exp
     LitAlt lit ->
-        G2.Case (G2.App (G2.App (G2.App (G2.App P.op_eq
-                                                (G2.Type G2.TyBottom))
+        TL.Case (TL.App (TL.App (TL.App (TL.App P.op_eq
+                                                (TL.Type TL.TyBottom))
                                         P.d_eq)
-                                (G2.App (G2.Var n . toTyFun ts $ t) mx))
-                        (G2.App (G2.Var n . toTyFun ts $ t)
-                                (G2.Const (mkLit lit))))
-                  [(G2.Alt (P.p_d_true, []), mkExpr exp)
-                  ,(G2.Alt (P.p_d_false, []), cascadeAlt mx recon as)]
+                                (TL.App (TL.Var n . toTyFun ts $ t) mx))
+                        (TL.App (TL.Var n . toTyFun ts $ t)
+                                (TL.Const (mkLit lit))))
+                  [(TL.Alt (P.p_d_true, []), mkExpr exp)
+                  ,(TL.Alt (P.p_d_false, []), cascadeAlt mx recon as)]
                 (mkType $ CU.exprType exp)
-  where toTyFun :: [G2.Type] -> G2.Type -> G2.Type
+  where toTyFun :: [TL.TType] -> TL.TType -> TL.TType
         toTyFun [] t = t
-        toTyFun (t:[]) t' = G2.TyFun t t'
-        toTyFun (t:ts) t' = G2.TyFun t (toTyFun ts t')
+        toTyFun (t:[]) t' = TL.TyFun t t'
+        toTyFun (t:ts) t' = TL.TyFun t (toTyFun ts t')
 
 -- | Recover Primitive Data Constructors
---   Given a G2 Type, recover the corresponding data constructor that fakes the
+--   Given a TL.TType, recover the corresponding data constructor that fakes the
 --   primitive data constructor of GHC Core.
-recoverCons :: G2.Type -> Maybe G2.DataCon
-recoverCons G2.TyRawInt    = Just P.p_d_int
-recoverCons G2.TyRawFloat  = Just P.p_d_float
-recoverCons G2.TyRawDouble = Just P.p_d_double
-recoverCons G2.TyRawChar   = Just P.p_d_char
+recoverCons :: TL.TType -> Maybe TL.TDataCon
+recoverCons TL.TyRawInt    = Just P.p_d_int
+recoverCons TL.TyRawFloat  = Just P.p_d_float
+recoverCons TL.TyRawDouble = Just P.p_d_double
+recoverCons TL.TyRawChar   = Just P.p_d_char
 recoverCons otherwise      = Nothing
 

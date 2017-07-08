@@ -9,24 +9,26 @@ import G2.Internals.Core.Language
 --       TyRawFloat  -> Float#
 --       TyRawDouble -> Double#
 --       TyRawChar   -> Char#
-p_ty_int    = TyConApp "Int" []
-p_d_int     = DataCon "I#" (-1) p_ty_int [TyRawInt]
-p_ty_float  = TyConApp "Float" []
-p_d_float   = DataCon "F#" (-2) p_ty_float [TyRawFloat]
-p_ty_double = TyConApp "Double" []
-p_d_double  = DataCon "D#" (-3) p_ty_double [TyRawDouble]
-p_ty_char   = TyConApp "Char" []
-p_d_char    = DataCon "C#" (-4) p_ty_char [TyRawChar]
-p_ty_bool   = TyConApp "Bool" []
-p_d_true    = DataCon "True" (-5) p_ty_bool []
-p_d_false   = DataCon "False" (-6) p_ty_bool []
+p_ty_int    = TyConApp ("Int", 0 :: Int) []
+p_d_int     = DataCon ("I#", 0 :: Int)  ((-1) :: Int) p_ty_int [TyRawInt]
+
+p_ty_float  = TyConApp ("Float", 0 :: Int) []
+p_d_float   = DataCon ("F#", 0 :: Int) ((-2) :: Int) p_ty_float [TyRawFloat]
+
+p_ty_double = TyConApp ("Double", 0 :: Int) []
+p_d_double  = DataCon ("D#", 0 :: Int) ((-3) :: Int) p_ty_double [TyRawDouble]
+p_ty_char   = TyConApp ("Char", 0 :: Int) []
+p_d_char    = DataCon ("C#", 0 :: Int) ((-4) :: Int) p_ty_char [TyRawChar]
+p_ty_bool   = TyConApp ("Bool", 0 :: Int) []
+p_d_true    = DataCon ("True", 0 :: Int) ((-5) :: Int) p_ty_bool []
+p_d_false   = DataCon ("False", 0 :: Int) ((-6) :: Int) p_ty_bool []
 
 -- | Prelude Type Declarations
-prelude_t_decls = [ ("Int",    TyAlg "Int"    [p_d_int])
-                  , ("Float",  TyAlg "Float"  [p_d_float])
-                  , ("Double", TyAlg "Double" [p_d_double])
-                  , ("Char",   TyAlg "Char"   [p_d_char])
-                  , ("Bool",   TyAlg "Bool"   [p_d_true, p_d_false]) ]
+prelude_t_decls = [ (("Int", 0),    TyAlg ("Int", 0 :: Int)    [p_d_int])
+                  , (("Float", 0),  TyAlg ("Float", 0 :: Int)  [p_d_float])
+                  , (("Double", 0), TyAlg ("Double", 0 :: Int) [p_d_double])
+                  , (("Char", 0),   TyAlg ("Char", 0 :: Int)   [p_d_char])
+                  , (("Bool", 0),   TyAlg ("Bool", 0 :: Int)   [p_d_true, p_d_false]) ]
 
 -- | Expressions
 o_add = ("+",  "Add")
@@ -49,6 +51,6 @@ e_char_ops_raw = [ o_eq, o_ne
 e_bool_ops = [o_eq, o_ne]
 
 
-op_eq = Var "==" TyBottom
-d_eq  = Var "$dEq" TyBottom
+op_eq = Var ("==", 0 :: Int) TyBottom
+d_eq  = Var ("$dEq", 0 :: Int) TyBottom
 
