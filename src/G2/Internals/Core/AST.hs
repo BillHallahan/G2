@@ -110,7 +110,7 @@ evalContainedASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
 evalContainedASTs f = mconcat . map f . containedASTs
 
 -- | Instance Expr of AST
-instance AST (GenExpr n dcn) where
+instance AST (GenExpr n) where
     children (Lam _ e _)   = [e]
     children (Let bs e)    = (map snd bs) ++ [e]
     children (App f a)     = [f, a]
@@ -127,7 +127,7 @@ instance AST (GenExpr n dcn) where
     modifyChildren f (Assert c e)  = Assert (f c) (f e)
     modifyChildren f e = e
 
-instance AST (GenType n dcn) where
+instance AST (GenType n) where
     children (TyFun tf ta)   = [tf, ta]
     children (TyApp tf ta)   = [tf, ta]
     children (TyConApp _ ts) = ts
@@ -150,7 +150,7 @@ instance AST t => ASTContainer t t where
     containedASTs t = [t]
     modifyContainedASTs f t = f t
 
-instance ASTContainer (GenExpr n dcn) (GenType n dcn) where
+instance ASTContainer (GenExpr n) (GenType n) where
     containedASTs = eval go
       where go (Var _ t)     = [t]
             go (Lam _ _ t)   = [t]
@@ -167,11 +167,11 @@ instance ASTContainer (GenExpr n dcn) (GenType n dcn) where
             go f (Type t)      = Type (f t)
             go f e = e
 
-instance ASTContainer (GenType n dcn) (GenExpr n dcn) where
+instance ASTContainer (GenType n) (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance (ASTContainer n (GenExpr n dcn)) => ASTContainer (GenState n dcn) (GenExpr n dcn) where
+instance (ASTContainer n (GenExpr n)) => ASTContainer (GenState n) (GenExpr n) where
     containedASTs s = ((containedASTs . type_env) s) ++
                       ((containedASTs . expr_env) s) ++
                       ((containedASTs . curr_expr) s) ++
@@ -184,7 +184,7 @@ instance (ASTContainer n (GenExpr n dcn)) => ASTContainer (GenState n dcn) (GenE
                                 , path_cons = (modifyASTs f . path_cons) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
-instance (ASTContainer n (GenType n dcn)) => ASTContainer (GenState n dcn) (GenType n dcn) where
+instance (ASTContainer n (GenType n)) => ASTContainer (GenState n) (GenType n) where
     containedASTs s = ((containedASTs . type_env) s) ++
                       ((containedASTs . expr_env) s) ++
                       ((containedASTs . curr_expr) s) ++
@@ -197,22 +197,22 @@ instance (ASTContainer n (GenType n dcn)) => ASTContainer (GenState n dcn) (GenT
                                 , path_cons = (modifyASTs f . path_cons) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
-instance ASTContainer (GenDataCon n dcn) (GenType n dcn) where
+instance ASTContainer (GenDataCon n) (GenType n) where
     containedASTs (DataCon _ _ t ts) = containedASTs (t:ts)
     containedASTs _ = []
 
     modifyContainedASTs f (DataCon n i t ts) = DataCon n i (f t) (map f ts)
     modifyContainedASTs _ dc = dc
 
-instance ASTContainer (GenAlt n dcn) (GenExpr n dcn) where
+instance ASTContainer (GenAlt n) (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ a = a
 
-instance ASTContainer (GenAlt n dcn) (GenType n dcn) where
+instance ASTContainer (GenAlt n) (GenType n) where
     containedASTs (Alt x) = (containedASTs . fst) x
     modifyContainedASTs f (Alt (dc, n)) = Alt (modifyContainedASTs f dc, n)
 
-instance ASTContainer (GenPathCond n dcn) (GenExpr n dcn) where
+instance ASTContainer (GenPathCond n) (GenExpr n) where
     containedASTs (CondExt e b)   = containedASTs e
     containedASTs (CondAlt e a b) = containedASTs e
 
@@ -220,7 +220,7 @@ instance ASTContainer (GenPathCond n dcn) (GenExpr n dcn) where
     modifyContainedASTs f (CondAlt e a b) =
         CondAlt (modifyContainedASTs f e) a b
 
-instance ASTContainer (GenPathCond n dcn) (GenType n dcn) where
+instance ASTContainer (GenPathCond n) (GenType n) where
     containedASTs (CondExt e b)   = containedASTs e
     containedASTs (CondAlt e a b) = containedASTs e ++ containedASTs a
 
@@ -262,27 +262,27 @@ instance (ASTContainer c t) => ASTContainer (Maybe c) t where
 --   These instances exist so that we can use them in other types that contain
 --   ASTs and still consider those types ASTContainers. For example (Expr, Bool)
 --   should be an ASTContainer.
-instance ASTContainer Bool (GenExpr n dcn) where
+instance ASTContainer Bool (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Bool (GenType n dcn) where
+instance ASTContainer Bool (GenType n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Char (GenExpr n dcn) where
+instance ASTContainer Char (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Char (GenType n dcn) where
+instance ASTContainer Char (GenType n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Int (GenExpr n dcn) where
+instance ASTContainer Int (GenExpr n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Int (GenType n dcn) where
+instance ASTContainer Int (GenType n) where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 

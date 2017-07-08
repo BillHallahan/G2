@@ -242,10 +242,15 @@ mkBinds (NonRec bndr expr) = [(gname, gexpr)]
   where gname = mkName $ Var.varName bndr
         gexpr = mkExpr expr
 
+pdcset = ["I#", "F#", "D#", "C#"]
+
 -- | Make Expression
 --   Make a TL.TExpression from a GHC Core Expression.
 mkExpr :: CoreExpr -> TL.TExpr
-mkExpr (Var id)    = TL.Var (mkName $ Var.varName id) (mkType $ varType id)
+mkExpr (Var id)    =
+    if (occNameString $ nameOccName $ Var.varName id) `elem` pdcset
+        then TL.Data (mkCaughtDataCon id)
+        else TL.Var (mkName $ Var.varName id) (mkType $ varType id)
 mkExpr (Lit lit)   = TL.Const (mkLit lit)
 mkExpr (App f a)   = TL.App (mkExpr f) (mkExpr a)
 mkExpr l@(Lam b e) =
@@ -347,4 +352,16 @@ recoverCons TL.TyRawFloat  = Just P.p_d_float
 recoverCons TL.TyRawDouble = Just P.p_d_double
 recoverCons TL.TyRawChar   = Just P.p_d_char
 recoverCons otherwise      = Nothing
+
+-- | Make Caught DataCon
+mkCaughtDataCon :: Id -> TL.TDataCon
+mkCaughtDataCon id = case occ of
+    "I#" -> undefined
+    "D#" -> undefined
+    "F#" -> undefined
+    "C#" -> undefined
+    otherwise -> error $ "Unknown interception: " ++ otherwise
+  where occ = occNameString $ nameOccName $ Var.varName id
+        unq = getKey $ varUnique id
+
 

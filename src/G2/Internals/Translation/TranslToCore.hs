@@ -41,7 +41,7 @@ translDataCon (TL.DataCon ("F#", _) i t ts) = DataCon F i (translType t) (map tr
 translDataCon (TL.DataCon ("C#", _) i t ts) = DataCon C i (translType t) (map translType ts)
 translDataCon (TL.DataCon ("True", _) i t ts) = DataCon DTrue i (translType t) (map translType ts)
 translDataCon (TL.DataCon ("False", _) i t ts) = DataCon DFalse i (translType t) (map translType ts)
-translDataCon (TL.DataCon n i t ts) = DataCon (N $ translName n) i (translType t) (map translType ts)
+translDataCon (TL.DataCon n i t ts) = DataCon (translName n) i (translType t) (map translType ts)
 translDataCon TL.DEFAULT = DEFAULT
 
 translType :: TL.TType -> Type
