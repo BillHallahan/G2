@@ -7,8 +7,8 @@ module G2.Internals.Translation.PrimReplace (primReplace) where
 import G2.Internals.Translation.Language
 import G2.Internals.Core.AST
 
-primReplace :: (ASTContainer m TExpr) => m -> m
-primReplace = modifyASTs primReplace'
+primReplace :: (ASTContainer m TExpr, ASTContainer m TType) => m -> m
+primReplace = modifyASTs (primReplaceT) . modifyASTs (primReplace')
 
 primReplace' :: TExpr -> TExpr
 primReplace' (App (Var n t) a1) = primReplace1 n t a1
@@ -50,3 +50,11 @@ primReplace4 f t a1 a2 a3 a4
         isIDF (Type (TyConApp ("Double", _) [])) = True
         isIDF (Type (TyConApp ("Float", _) [])) = True
         isIDF t = False
+
+primReplaceT :: TType -> TType
+primReplaceT (TyConApp ("Int", _) _) = TyInt
+primReplaceT (TyConApp ("Double", _) _) = TyDouble
+primReplaceT (TyConApp ("Float", _) _) = TyFloat
+primReplaceT (TyConApp ("Char", _) _) = TyChar
+primReplaceT (TyConApp ("Bool", _) _) = TyBool
+primReplaceT t = t

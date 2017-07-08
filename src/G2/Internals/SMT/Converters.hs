@@ -115,11 +115,11 @@ isVarName (Var n _) n' = n == n'
 isVarName _ _ = False
 
 altToSMT :: Alt -> SMTAST
-altToSMT (Alt (DataCon DTrue _ (TyConApp "Bool" _) _, _)) = VBool True
-altToSMT (Alt (DataCon DFalse _ (TyConApp "Bool" _) _, _)) = VBool False
-altToSMT (Alt (DataCon I _ (TyConApp "Int" _) _, [i])) = V i SortInt
-altToSMT (Alt (DataCon D _ (TyConApp "Double" _) _, [d])) = V d SortDouble
-altToSMT (Alt (DataCon F _ (TyConApp "Float" _) _, [f])) = V f SortFloat
+altToSMT (Alt (PrimCon DTrue, _)) = VBool True
+altToSMT (Alt (PrimCon DFalse, _)) = VBool False
+altToSMT (Alt (PrimCon I, [i])) = V i SortInt
+altToSMT (Alt (PrimCon D, [d])) = V d SortDouble
+altToSMT (Alt (PrimCon F, [f])) = V f SortFloat
 altToSMT (Alt (DataCon n _ t@(TyConApp _ _) ts, ns)) =
     Cons n (map f $ zip ns ts) (typeToSMT t)
     where

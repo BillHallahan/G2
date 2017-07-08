@@ -35,17 +35,17 @@ translExpr (TL.Assert e e') = Assert (translExpr e) (translExpr e')
 translExpr TL.BAD = BAD
 
 translDataCon :: TL.TDataCon -> DataCon
-translDataCon (TL.DataCon ("I#", _) i t ts) = DataCon I i (translType t) (map translType ts)
-translDataCon (TL.DataCon ("D#", _) i t ts) = DataCon D i (translType t) (map translType ts)
-translDataCon (TL.DataCon ("F#", _) i t ts) = DataCon F i (translType t) (map translType ts)
-translDataCon (TL.DataCon ("C#", _) i t ts) = DataCon C i (translType t) (map translType ts)
-translDataCon (TL.DataCon ("True", _) i t ts) = DataCon DTrue i (translType t) (map translType ts)
-translDataCon (TL.DataCon ("False", _) i t ts) = DataCon DFalse i (translType t) (map translType ts)
 translDataCon (TL.DataCon n i t ts) = DataCon (translName n) i (translType t) (map translType ts)
+translDataCon (TL.PrimCon c) = PrimCon c
 translDataCon TL.DEFAULT = DEFAULT
 
 translType :: TL.TType -> Type
 translType (TL.TyVar n) = TyVar (translName n)
+translType (TL.TyInt) = TyInt
+translType (TL.TyFloat) = TyFloat
+translType (TL.TyDouble) = TyDouble
+translType (TL.TyChar) = TyChar
+translType (TL.TyBool) = TyBool
 translType (TL.TyRawInt) = TyRawInt
 translType (TL.TyRawFloat) = TyRawFloat
 translType (TL.TyRawDouble) = TyRawDouble
