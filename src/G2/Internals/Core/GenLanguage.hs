@@ -27,22 +27,22 @@ import qualified Data.Map as M
 --        to their function names.  Interp distinguishes between functions that
 --        exist in the expression environment (StdInterp) and those that should
 --        be treated as uninterpreted functions (UnInterp)
-data GenState n dcn = State { expr_env     :: GenEEnv n dcn
-                            , type_env     :: GenTEnv n dcn
-                            , curr_expr    :: GenExpr n dcn
-                            , path_cons    :: [GenPathCond n dcn]
-                            , sym_links    :: GenSymLinkTable n dcn
-                            , func_interps :: GenFuncInterpTable n
-                            , all_names    :: M.Map n Int
-                            } deriving (Show, Eq)
+data GenState n = State { expr_env     :: GenEEnv n
+                        , type_env     :: GenTEnv n
+                        , curr_expr    :: GenExpr n
+                        , path_cons    :: [GenPathCond n]
+                        , sym_links    :: GenSymLinkTable n
+                        , func_interps :: GenFuncInterpTable n
+                        , all_names    :: M.Map n Int
+                        } deriving (Show, Eq)
 
 
 
-type GenTEnv n dcn = M.Map n (GenType n dcn)
+type GenTEnv n = M.Map n (GenType n)
 
-type GenEEnv n dcn = M.Map n (GenExpr n dcn)
+type GenEEnv n = M.Map n (GenExpr n)
 
-type GenSymLinkTable n dcn = M.Map n (n, GenType n dcn, Maybe Int)
+type GenSymLinkTable n = M.Map n (n, GenType n, Maybe Int)
 
 type GenFuncInterpTable n = M.Map n (n, Interp)
 
@@ -62,19 +62,19 @@ data Interp = StdInterp | UnInterp deriving (Show, Eq)
 --     Assume -- Assume. The LHS assumes a condition for the RHS.
 --     Assert -- Assert. The LHS asserts a condition for the RHS.
 --     BAD    -- Error / filler expression.
-data GenExpr n dcn = Var n (GenType n dcn)
-                   | Const Const
-                   | Prim Prim (GenType n dcn)
-                   | Lam n (GenExpr n dcn) (GenType n dcn)
-                   | Let [(n, (GenExpr n dcn))] (GenExpr n dcn)
-                   | App (GenExpr n dcn) (GenExpr n dcn)
-                   | Data (GenDataCon n dcn)
-                   | Case (GenExpr n dcn) [((GenAlt n dcn), (GenExpr n dcn))] (GenType n dcn)
-                   | Type (GenType n dcn)
-                   | Assume (GenExpr n dcn) (GenExpr n dcn)
-                   | Assert (GenExpr n dcn) (GenExpr n dcn)
-                   | BAD
-                   deriving (Show, Eq)
+data GenExpr n = Var n (GenType n)
+               | Const Const
+               | Prim Prim (GenType n)
+               | Lam n (GenExpr n) (GenType n)
+               | Let [(n, (GenExpr n))] (GenExpr n)
+               | App (GenExpr n) (GenExpr n)
+               | Data (GenDataCon n)
+               | Case (GenExpr n) [((GenAlt n), (GenExpr n))] (GenType n)
+               | Type (GenType n)
+               | Assume (GenExpr n) (GenExpr n)
+               | Assert (GenExpr n) (GenExpr n)
+               | BAD
+               deriving (Show, Eq)
 
 -- | Primitives
 -- These are used to represent various functions in expressions
@@ -130,7 +130,7 @@ data Const = CInt Int         -- Int#
 --
 --     (dc_name, dc_tag, A, [P1, ..., PN])
 -- newtype DataCon = DC (Name, Int, Type, [Type]) deriving (Show, Eq)
-data GenDataCon n dcn = DataCon dcn Int (GenType n dcn) [GenType n dcn]
+data GenDataCon n = DataCon n Int (GenType n) [GenType n]
                   | DEFAULT
                   deriving (Show, Eq)
 
@@ -138,14 +138,13 @@ data GenDataCon n dcn = DataCon dcn Int (GenType n dcn) [GenType n dcn]
 -- Primitive Data Constructors
 -- These serve a similar purpose to primitives, but act as Data Constructors 
 -- rather than functions
-data PrimDataCon n = I -- I#
-                   | D -- D#
-                   | F -- F#
-                   | C
-                   | DTrue
-                   | DFalse
-                   | N n -- Arbitrary AST
-                   deriving (Show, Eq)
+data PrimDataCon = I -- I#
+                 | D -- D#
+                 | F -- F#
+                 | C
+                 | DTrue
+                 | DFalse
+                 deriving (Show, Eq)
 
 -- | Types
 --   We need a way of representing types, and so it is done here.
@@ -172,15 +171,15 @@ data PrimDataCon n = I -- I#
 --   we throw things at the SMT solver.
 --
 --   TyBottom is a default filler for when we don't have anything better to do.
-data GenType n dcn = TyVar n
-                   | TyRawInt | TyRawFloat | TyRawDouble | TyRawChar | TyRawString
-                   | TyFun (GenType n dcn) (GenType n dcn)
-                   | TyApp (GenType n dcn) (GenType n dcn)
-                   | TyConApp n [GenType n dcn]
-                   | TyAlg n [GenDataCon n dcn]
-                   | TyForAll n (GenType n dcn)
-                   | TyBottom
-                   deriving (Show, Eq)
+data GenType n = TyVar n
+               | TyRawInt | TyRawFloat | TyRawDouble | TyRawChar | TyRawString
+               | TyFun (GenType n) (GenType n)
+               | TyApp (GenType n) (GenType n)
+               | TyConApp n [GenType n]
+               | TyAlg n [GenDataCon n]
+               | TyForAll n (GenType n)
+               | TyBottom
+               deriving (Show, Eq)
 
 -- | Alternatives
 --   [Name] refers to the parameters of the data constructor.
@@ -189,7 +188,7 @@ data GenType n dcn = TyVar n
 --   for instance, that we are not able to perform direct matching on numbers,
 --   which Core Haskell appears to be capable of. However, there are ways to
 --   work around this if we are clever with a custom prelude.
-data GenAlt n dcn = Alt (GenDataCon n dcn, [n]) deriving (Show, Eq)
+data GenAlt n = Alt (GenDataCon n, [n]) deriving (Show, Eq)
 
 -- | Path Condition
 --   A single decision point in program execution.
@@ -197,6 +196,6 @@ data GenAlt n dcn = Alt (GenDataCon n dcn, [n]) deriving (Show, Eq)
 --   CondAlt denotes structural matching as a result of Case/Alt statements.
 --
 --   CondExt denotes external specification derived from Assume/Assert.
-data GenPathCond n dcn = CondAlt (GenExpr n dcn) (GenAlt n dcn) Bool
-                       | CondExt (GenExpr n dcn) Bool
-                       deriving (Show, Eq)
+data GenPathCond n = CondAlt (GenExpr n) (GenAlt n) Bool
+                   | CondExt (GenExpr n) Bool
+                   deriving (Show, Eq)

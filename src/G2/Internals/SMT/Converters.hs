@@ -120,7 +120,7 @@ altToSMT (Alt (DataCon DFalse _ (TyConApp "Bool" _) _, _)) = VBool False
 altToSMT (Alt (DataCon I _ (TyConApp "Int" _) _, [i])) = V i SortInt
 altToSMT (Alt (DataCon D _ (TyConApp "Double" _) _, [d])) = V d SortDouble
 altToSMT (Alt (DataCon F _ (TyConApp "Float" _) _, [f])) = V f SortFloat
-altToSMT (Alt (DataCon (N n) _ t@(TyConApp _ _) ts, ns)) =
+altToSMT (Alt (DataCon n _ t@(TyConApp _ _) ts, ns)) =
     Cons n (map f $ zip ns ts) (typeToSMT t)
     where
         f :: (Name, Type) -> SMTAST
@@ -152,7 +152,7 @@ typesToSMTSorts tenv =
             typeToSortDecl (TyAlg n dcs) = (n, map dataConToDC dcs)
 
             dataConToDC :: DataCon -> DC
-            dataConToDC (DataCon (N n) _ _ ts) =
+            dataConToDC (DataCon n _ _ ts) =
                 DC n $ map (\(TyConApp t _) -> Sort t []) ts
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]

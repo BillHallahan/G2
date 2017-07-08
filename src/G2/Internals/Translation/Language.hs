@@ -6,13 +6,13 @@ import G2.Internals.Core.GenLanguage
 
 type TName = (String, Int)
 
-type TTEnv = GenTEnv TName TName
-type TEEnv = GenEEnv TName TName
+type TTEnv = GenTEnv TName
+type TEEnv = GenEEnv TName
 
-type TExpr = GenExpr TName TName
+type TExpr = GenExpr TName
 
-type TDataCon = GenDataCon TName TName
+type TDataCon = GenDataCon TName
 
-type TType = GenType TName TName
+type TType = GenType TName
 
-type TAlt = GenAlt TName TName
+type TAlt = GenAlt TName

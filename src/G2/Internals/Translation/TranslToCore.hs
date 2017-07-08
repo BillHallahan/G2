@@ -35,7 +35,7 @@ translExpr (TL.Assert e e') = Assert (translExpr e) (translExpr e')
 translExpr TL.BAD = BAD
 
 translDataCon :: TL.TDataCon -> DataCon
-translDataCon (TL.DataCon n i t ts) = DataCon (N $ translName n) i (translType t) (map translType ts)
+translDataCon (TL.DataCon n i t ts) = DataCon (translName n) i (translType t) (map translType ts)
 translDataCon TL.DEFAULT = DEFAULT
 
 translType :: TL.TType -> Type

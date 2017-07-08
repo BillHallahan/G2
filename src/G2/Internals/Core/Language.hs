@@ -5,19 +5,19 @@ import G2.Internals.Core.GenLanguage
 
 type Name = String
 
-type State = GenState Name (PrimDataCon Name)
+type State = GenState Name
 
-type TEnv = GenTEnv Name (PrimDataCon Name)
-type EEnv = GenEEnv Name (PrimDataCon Name)
-type SymLinkTable = GenSymLinkTable Name (PrimDataCon Name)
+type TEnv = GenTEnv Name
+type EEnv = GenEEnv Name
+type SymLinkTable = GenSymLinkTable Name
 type FuncInterpTable = GenFuncInterpTable Name
 
-type Expr = GenExpr Name (PrimDataCon Name)
+type Expr = GenExpr Name
 
-type DataCon = GenDataCon Name (PrimDataCon Name)
+type DataCon = GenDataCon Name
 
-type Type = GenType Name (PrimDataCon Name)
+type Type = GenType Name
 
-type Alt = GenAlt Name (PrimDataCon Name)
+type Alt = GenAlt Name
 
-type PathCond = GenPathCond Name (PrimDataCon Name)
+type PathCond = GenPathCond Name
