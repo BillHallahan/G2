@@ -208,7 +208,7 @@ mkADT algtc = (gname, TL.TyAlg gname gdcs)
 -- | Make Data Constructor
 --   Make a TL data constructor from a GHC Core one.
 mkData :: DataCon -> TL.TDataCon
-mkData dc = TL.DataCon (TL.N dcname) dctag (TL.TyConApp tyname []) args
+mkData dc = TL.DataCon dcname dctag (TL.TyConApp tyname []) args
   where tyname = mkName $ tyConName $ dataConTyCon dc
         dcname = mkName $ dataConName dc
         dctag  = dataConTag dc
@@ -320,7 +320,7 @@ sortAlt ((ac, args, exp):as) = case ac of
 --   Injection of operators from Internals.Translation.Prelude.
 cascadeAlt :: TL.TExpr -> TL.TDataCon -> [CoreAlt] -> TL.TExpr
 cascadeAlt mx recon [] = TL.BAD
-cascadeAlt mx recon@(TL.DataCon (TL.N n) _ t ts) ((ac, args, exp):as) = case ac of
+cascadeAlt mx recon@(TL.DataCon n _ t ts) ((ac, args, exp):as) = case ac of
     DataAlt dc -> error "We should not see non-raw data consturctors here"
     DEFAULT    -> mkExpr exp
     LitAlt lit ->
