@@ -173,6 +173,7 @@ data PrimDataCon n = I -- I#
 --
 --   TyBottom is a default filler for when we don't have anything better to do.
 data GenType n dcn = TyVar n
+                   | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
                    | TyRawInt | TyRawFloat | TyRawDouble | TyRawChar | TyRawString
                    | TyFun (GenType n dcn) (GenType n dcn)
                    | TyApp (GenType n dcn) (GenType n dcn)

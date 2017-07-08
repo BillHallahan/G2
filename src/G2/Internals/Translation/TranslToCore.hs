@@ -35,6 +35,12 @@ translExpr (TL.Assert e e') = Assert (translExpr e) (translExpr e')
 translExpr TL.BAD = BAD
 
 translDataCon :: TL.TDataCon -> DataCon
+translDataCon (TL.DataCon ("I#", _) i t ts) = DataCon I i (translType t) (map translType ts)
+translDataCon (TL.DataCon ("D#", _) i t ts) = DataCon D i (translType t) (map translType ts)
+translDataCon (TL.DataCon ("F#", _) i t ts) = DataCon F i (translType t) (map translType ts)
+translDataCon (TL.DataCon ("C#", _) i t ts) = DataCon C i (translType t) (map translType ts)
+translDataCon (TL.DataCon ("True", _) i t ts) = DataCon DTrue i (translType t) (map translType ts)
+translDataCon (TL.DataCon ("False", _) i t ts) = DataCon DFalse i (translType t) (map translType ts)
 translDataCon (TL.DataCon n i t ts) = DataCon (N $ translName n) i (translType t) (map translType ts)
 translDataCon TL.DEFAULT = DEFAULT
 
