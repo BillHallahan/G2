@@ -131,6 +131,7 @@ data Const = CInt Int         -- Int#
 --     (dc_name, dc_tag, A, [P1, ..., PN])
 -- newtype DataCon = DC (Name, Int, Type, [Type]) deriving (Show, Eq)
 data GenDataCon n = DataCon n Int (GenType n) [GenType n]
+                  | PrimCon PrimDataCon
                   | DEFAULT
                   deriving (Show, Eq)
 
