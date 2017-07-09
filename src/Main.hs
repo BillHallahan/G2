@@ -35,7 +35,7 @@ main = do
 
     let entry' = lookupFromNamesMap nMap entry
     let assume = return . lookupFromNamesMap nMap =<< m_assume
-    let assert = return . lookupFromNamesMap nMap =<<m_assert
+    let assert = return . lookupFromNamesMap nMap =<< m_assert
 
     let init_state = initState tenv eenv assume assert entry'
 

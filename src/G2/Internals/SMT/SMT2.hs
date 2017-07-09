@@ -30,7 +30,7 @@ smt2 = SMTConverter {
         , checkSatGetModelGetExpr = \(h_in, h_out, ph) formula headers vars e -> do
             setUpFormula h_in h_out formula
             r <- checkSat' h_in h_out
-            -- print r
+            print r
             if r == SAT then do
                 model <- return =<< getModel h_in h_out vars
                 -- putStrLn "======"
@@ -147,6 +147,7 @@ getZ3ProcessHandles = do
 -- Writes a function to Z3
 setUpFormula :: Handle -> Handle -> String -> IO ()
 setUpFormula h_in h_out form = do
+    putStrLn form
     hPutStr h_in "(reset)"
     hPutStr h_in form
 

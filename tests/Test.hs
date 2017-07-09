@@ -116,10 +116,13 @@ checkExpr' exprs i reqList =
 
 testFile :: String -> String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src m_assume m_assert entry = do
-    (rtenv, reenv) <- hskToG2' proj src
-    let tenv' = M.union rtenv (M.fromList prelude_t_decls)
-    let eenv' = reenv
-    let init_state = initState tenv' eenv' m_assume m_assert entry
+    (tenv, eenv, nMap) <- hskToG2 proj src
+
+    let entry' = lookupFromNamesMap nMap entry
+    let assume = return . lookupFromNamesMap nMap =<< m_assume
+    let assert = return . lookupFromNamesMap nMap =<< m_assert
+
+    let init_state = initState tenv eenv assume assert entry'
 
     hhp <- getZ3ProcessHandles
 
@@ -127,3 +130,10 @@ testFile proj src m_assume m_assert entry = do
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
+
+-- CLEAN THIS UP!
+lookupFromNamesMap :: M.Map G2.Name G2.Name -> G2.Name -> G2.Name
+lookupFromNamesMap nMap n =
+    case M.lookup n nMap of
+                Just f -> f
+                Nothing -> error ("Function " ++ n ++ " not recognized.")
