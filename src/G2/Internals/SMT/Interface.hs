@@ -62,7 +62,7 @@ containsNonConsFunctions :: (ASTContainer m Expr) => TEnv -> m -> Bool
 containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctions' tenv)
     where
         containsFunctions' :: TEnv -> Expr -> Bool
-        containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv) && n `notElem` handledFunctions
+        containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv)
         containsFunctions' _ _ = False
 
         constructors :: TEnv -> [Name]
@@ -71,8 +71,6 @@ containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctio
                 constructors' :: Type -> [Name]
                 constructors' (TyAlg _ dc) = [ n | (DataCon n _ _ _) <- dc]
                 constructors' _ = []
-
-        handledFunctions = ["==", "/=", ">", "<", ">=", "<=", "+", "-", "*", "/", "&&", "||"]
 
 -- Returns true if an Expr contains any Expr that can't be handled by the SMT solver
 containsBadExpr :: (ASTContainer m Expr) => m -> Bool
@@ -83,6 +81,7 @@ containsBadExpr = Mon.getAny . evalASTs (Mon.Any . containsBadExpr')
         containsBadExpr' (Prim _ _) = False
         containsBadExpr' (Const _) = False
         containsBadExpr' (App _ _) = False
+        containsBadExpr' (Data _) = False
         containsBadExpr' (Type _) = False
         containsBadExpr' _ = True
 

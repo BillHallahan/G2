@@ -2,7 +2,8 @@
 -- the core defined in G2.Internals.Core.Language
 
 module G2.Internals.Translation.TranslToCore (translEEnv
-                                             , translTEnv) where
+                                             , translTEnv
+                                             , namesMapTEEnv) where
 
 import G2.Internals.Core.Language
 import qualified G2.Internals.Translation.Language as TL
@@ -60,3 +61,12 @@ translType TL.TyBottom = TyBottom
 
 translAlt :: TL.TAlt -> Alt
 translAlt (TL.Alt (dc, ns)) = Alt (translDataCon dc, map translName ns)
+
+-- Given a list of TL.TName's returns a mapping from the String portion of each
+-- name to the full name from translName
+-- This can be used to correctly handle user input
+namesMap :: [TL.TName] -> M.Map Name Name
+namesMap = M.fromList . map (\n@(n', _) -> (n', translName n))
+
+namesMapTEEnv :: TL.TEEnv -> M.Map Name Name
+namesMapTEEnv = namesMap . M.keys

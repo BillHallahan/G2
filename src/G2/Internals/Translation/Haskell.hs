@@ -56,10 +56,11 @@ mod_sep = "."
 
 -- | Haskell Source to Core2
 --   Streamline the process of converting a list of files into Core2.
-hskToG2 :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv)
+hskToG2 :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv, M.Map G2.Name G2.Name)
 hskToG2 proj src = do
     (tenv, eenv) <- hskToTL' proj src
-    return (translTEnv tenv, translEEnv eenv)  
+    let names = namesMapTEEnv eenv
+    return (translTEnv tenv, translEEnv eenv, names)
 
 -- | Haskell Source to TL Core
 --   Streamline the process of converting a list of files into TL Core.
@@ -77,7 +78,7 @@ hskToTL' proj src = do
     let tenv = mkTEnv (mkTypeEnv (map ATyCon acc_tycs))
     let eenv = mkEEnv acc_prog
 
-    return (M.union (M.fromList P.prelude_t_decls) tenv, primReplace eenv)
+    return $ primReplace (tenv, eenv)
 
 -- | Make Raw Core
 --   Make a raw GHC Core given a FilePath (String).

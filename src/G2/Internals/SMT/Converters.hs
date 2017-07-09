@@ -66,6 +66,7 @@ exprToSMT a@(App _ _) =
         getFunc v@(Var _ _) = v
         getFunc p@(Prim _ _) = p
         getFunc (App a _) = getFunc a
+        getFunc d@(Data _) = d 
 
         getArgs :: Expr -> [Expr]
         getArgs (App a a') = getArgs a ++ [a']
@@ -75,22 +76,20 @@ exprToSMT e = error ("Unhandled expression " ++ show e)
 -- | funcToSMT
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
-funcToSMT e@(Var n t) es = 
-    if n `elem` ["I#", "F#", "D#", "True", "False"] then
-        funcToSMTVar e es
-    else
-        Cons n (map exprToSMT es) (typeToSMT t)
-    where
-        funcToSMTVar e [a] = funcToSMT1Var e a
 funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
 funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
+funcToSMT e@(Data (DataCon n _ t _)) es = Cons n (map exprToSMT es) (typeToSMT t)
+funcToSMT e@(Data n) es = funcToSMTData e es
+    where
+        funcToSMTData e [a] = funcToSMT1Var e a
+
 
 funcToSMT1Var :: Expr -> Expr -> SMTAST
 funcToSMT1Var f a
     | isVarName f "-" = Neg (exprToSMT a)
-    | isVarName f "I#" = exprToSMT a
-    | isVarName f "F#" = exprToSMT a
-    | isVarName f "D#" = exprToSMT a
+    | f == Data (PrimCon I) = exprToSMT a
+    | f == Data (PrimCon F) = exprToSMT a
+    | f == Data (PrimCon D) = exprToSMT a
     | otherwise = error ("Unhandled function " ++ show f ++ " in funcToSMT1.")
 
 funcToSMT1Prim :: Prim -> Expr -> SMTAST
@@ -133,10 +132,10 @@ sltToSMTNameSorts = map sltToSMTNameSorts' . M.toList
         sltToSMTNameSorts' (n, (_, t, _)) = (n, typeToSMT t)
 
 typeToSMT :: Type -> Sort
-typeToSMT (TyConApp "Int" _) = SortInt
-typeToSMT (TyConApp "Double" _) = SortDouble
-typeToSMT (TyConApp "Float" _) = SortFloat
-typeToSMT (TyConApp "Bool" _) = SortBool
+typeToSMT TyInt = SortInt
+typeToSMT TyDouble = SortDouble
+typeToSMT TyFloat = SortFloat
+typeToSMT TyBool = SortBool
 typeToSMT (TyConApp n _) = Sort n []
 typeToSMT e = Sort "" []
 
@@ -153,7 +152,7 @@ typesToSMTSorts tenv =
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ _ ts) =
-                DC n $ map (\(TyConApp t _) -> Sort t []) ts
+                DC n $ map typeToSMT ts
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []

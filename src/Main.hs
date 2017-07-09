@@ -26,12 +26,18 @@ main = do
     let m_assume = mAssume tail_args
     let m_assert = mAssert tail_args
 
-    (tenv, eenv) <- hskToG2 proj src
+    (tenv, eenv, nMap) <- hskToG2 proj src
+
+    -- let tenv = M.union (M.fromList P.prelude_t_decls) tenv'
 
     putStrLn $ mkTypeEnvStr tenv
     putStrLn $ mkExprEnvStr eenv
 
-    let init_state = initState tenv eenv m_assume m_assert entry
+    let entry' = lookupFromNamesMap nMap entry
+    let assume = return . lookupFromNamesMap nMap =<< m_assume
+    let assert = return . lookupFromNamesMap nMap =<<m_assert
+
+    let init_state = initState tenv eenv assume assert entry'
 
     hhp <- getZ3ProcessHandles
 
@@ -51,6 +57,12 @@ mArg s args f d = case elemIndex s args of
                Just id -> if id >= length args
                               then error ("Invalid use of " ++ s)
                               else f (args !! (id + 1))
+
+lookupFromNamesMap :: M.Map Name Name -> Name -> Name
+lookupFromNamesMap nMap n =
+    case M.lookup n nMap of
+                Just f -> f
+                Nothing -> error ("Function " ++ n ++ " not recognized.")
 
 nVal :: [String] -> Int
 nVal args = mArg "--n" args read 200
