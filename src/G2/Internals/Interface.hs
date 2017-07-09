@@ -11,7 +11,7 @@ run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
 run con hhp n state = do
     let preproc_state = runPreprocessing state
 
-    -- putStrLn $ mkStateStr preproc_state
+    putStrLn $ mkRawStateStr preproc_state
 
     let ((lives, states), _) = runN ([preproc_state], []) n
 

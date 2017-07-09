@@ -209,11 +209,19 @@ mkADT algtc = (gname, TL.TyAlg gname gdcs)
 -- | Make Data Constructor
 --   Make a TL data constructor from a GHC Core one.
 mkData :: DataCon -> TL.TDataCon
-mkData dc = TL.DataCon dcname dctag (TL.TyConApp tyname []) args
-  where tyname = mkName $ tyConName $ dataConTyCon dc
-        dcname = mkName $ dataConName dc
-        dctag  = dataConTag dc
-        args   = map mkType $ dataConOrigArgTys dc
+mkData dc = datacon
+  where tyname  = mkName $ tyConName $ dataConTyCon dc
+        dcname  = mkName $ dataConName dc
+        dctag   = dataConTag dc
+        args    = map mkType $ dataConOrigArgTys dc
+        datacon = case fst dcname of
+            "I#" -> TL.PrimCon TL.I
+            "F#" -> TL.PrimCon TL.F
+            "D#" -> TL.PrimCon TL.D
+            "C#" -> TL.PrimCon TL.C
+            "False" -> TL.PrimCon TL.DFalse
+            "True"  -> TL.PrimCon TL.DTrue
+            otherwise -> TL.DataCon dcname dctag (TL.TyConApp tyname []) args
 
 -- | Make Type
 --   Make a TL.TType given a GHC Core one.
@@ -243,6 +251,7 @@ mkBinds (NonRec bndr expr) = [(gname, gexpr)]
   where gname = mkName $ Var.varName bndr
         gexpr = mkExpr expr
 
+-- Catching data cons.
 pdcset = ["I#", "F#", "D#", "C#", "True", "False"]
 
 -- | Make Expression

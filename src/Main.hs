@@ -30,8 +30,8 @@ main = do
 
     -- let tenv = M.union (M.fromList P.prelude_t_decls) tenv'
 
-    putStrLn $ mkTypeEnvStr tenv
-    putStrLn $ mkExprEnvStr eenv
+    -- putStrLn $ mkTypeEnvStr tenv
+    -- putStrLn $ mkExprEnvStr eenv
 
     let entry' = lookupFromNamesMap nMap entry
     let assume = return . lookupFromNamesMap nMap =<< m_assume
