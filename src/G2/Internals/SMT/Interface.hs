@@ -92,7 +92,7 @@ replaceFuncSLT :: ASTContainer m Expr => State -> m -> m
 replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
     where
         replaceFuncSLT' :: Expr -> Expr
-        replaceFuncSLT' v@(Var n t) =
+        replaceFuncSLT' v@(Data (DataCon n _ t _)) =
             let
                 n' = M.lookup n (func_interps s)
             in

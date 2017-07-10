@@ -3,7 +3,8 @@
 
 module G2.Internals.Translation.TranslToCore (translEEnv
                                              , translTEnv
-                                             , namesMapTEEnv) where
+                                             , namesMapTEEnv
+                                             , namesMapCons) where
 
 import G2.Internals.Core.Language
 import qualified G2.Internals.Translation.Language as TL
@@ -65,8 +66,19 @@ translAlt (TL.Alt (dc, ns)) = Alt (translDataCon dc, map translName ns)
 -- Given a list of TL.TName's returns a mapping from the String portion of each
 -- name to the full name from translName
 -- This can be used to correctly handle user input
-namesMap :: [TL.TName] -> M.Map Name Name
-namesMap = M.fromList . map (\n@(n', _) -> (n', translName n))
+namesMapTLToC :: [TL.TName] -> M.Map Name Name
+namesMapTLToC = M.fromList . map (\n@(n', _) -> (n', translName n))
+
+-- Given a list of TL.TName's returns a mapping from the full name from translName
+-- to String portion of each
+namesMapCToTL :: [TL.TName] -> M.Map Name Name
+namesMapCToTL = M.fromList . map (\n@(n', _) -> (translName n, n'))
 
 namesMapTEEnv :: TL.TEEnv -> M.Map Name Name
-namesMapTEEnv = namesMap . M.keys
+namesMapTEEnv = namesMapTLToC . M.keys
+
+namesMapCons :: TL.TTEnv -> M.Map Name Name
+namesMapCons = namesMapCToTL . concatMap getDCNames . M.elems
+
+getDCNames :: TL.TType -> [TL.TName]
+getDCNames (TyAlg _ ts) = map (\(TL.DataCon n _ _ _) -> n) ts

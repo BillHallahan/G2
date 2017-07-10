@@ -169,7 +169,7 @@ mkExprHaskell e = mkExprHaskell' e 0
         mkExprHaskell' (Lam n e _) i = "\\" ++ n ++ " -> " ++ mkExprHaskell' e i
         mkExprHaskell' (App e1 e2@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' e2 i ++ ")"
         mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
-        mkExprHaskell' (Data (DataCon n _ _ _)) _ = show n
+        mkExprHaskell' (Data (DataCon n _ _ _)) _ = n
         mkExprHaskell' (Case e ae _) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
                                         ++ L.intercalate "\n" (map (mkAltExprHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""

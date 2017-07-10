@@ -223,7 +223,7 @@ smtastToExpr (VInt i) = Const (CInt i)
 smtastToExpr (VFloat f) = Const (CFloat f)
 smtastToExpr (VDouble d) = Const (CDouble d)
 smtastToExpr (VBool b) = Var (if b then "True" else "False") (TyConApp "Bool" [])
-smtastToExpr (Cons n smts s) = foldl (\v a -> App v (smtastToExpr a)) (Var n (sortToType s)) smts
+smtastToExpr (Cons n smts s) = foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon n 0 (sortToType s) [])) smts
 smtastToExpr (V n s) = Var n (sortToType s)
 
 sortToType :: Sort -> Type

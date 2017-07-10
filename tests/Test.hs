@@ -19,6 +19,7 @@ import Data.List
 import qualified Data.Map  as M
 import Data.Maybe
 import qualified Data.Monoid as Mon
+import Data.Tuple
 
 import UnitTests
 
@@ -116,17 +117,25 @@ checkExpr' exprs i reqList =
 
 testFile :: String -> String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src m_assume m_assert entry = do
-    (tenv, eenv, nMap) <- hskToG2 proj src
+    (tenv, eenv, varN, conN) <- hskToG2 proj src
 
-    let entry' = lookupFromNamesMap nMap entry
-    let assume = return . lookupFromNamesMap nMap =<< m_assume
-    let assert = return . lookupFromNamesMap nMap =<< m_assert
+    let revVarN = M.fromList . map swap $ M.toList varN
+
+    let entry' = lookupFromNamesMap varN entry
+    let assume = return . lookupFromNamesMap varN =<< m_assume
+    let assert = return . lookupFromNamesMap varN =<< m_assert
 
     let init_state = initState tenv eenv assume assert entry'
 
     hhp <- getZ3ProcessHandles
 
-    run smt2 hhp 200 init_state
+    in_out <- run smt2 hhp 200 init_state
+    
+    mapM (\(inArg, ex) -> do
+            let inArg' = map (maybeReplaceVarName revVarN) . map (replaceDataConName conN) $ inArg
+            let ex' = replaceDataConName conN ex
+            return (inArg', ex')
+        ) in_out
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
@@ -137,3 +146,20 @@ lookupFromNamesMap nMap n =
     case M.lookup n nMap of
                 Just f -> f
                 Nothing -> error ("Function " ++ n ++ " not recognized.")
+
+maybeReplaceVarName :: M.Map G2.Name G2.Name -> Expr -> Expr
+maybeReplaceVarName nMap v@(Var n t) =
+    case M.lookup n nMap of
+        Just n' -> Var n' t
+        Nothing -> v
+maybeReplaceVarName _ e = e
+
+replaceDataConName :: M.Map G2.Name G2.Name -> Expr -> Expr
+replaceDataConName conMap = modify (replaceDataConName' conMap)
+    where
+        replaceDataConName' :: M.Map G2.Name G2.Name -> Expr -> Expr
+        replaceDataConName' conMap (Data (DataCon n i t ts)) =
+            case M.lookup n conMap of
+                        Just n' -> (Data (DataCon n' i t ts))
+                        Nothing -> error (n ++ " not recognized.")
+        replaceDataConName' _ e = e

@@ -8,6 +8,7 @@ import GHC hiding (Name, Type, exprType)
 
 import Data.List
 import qualified Data.Map as M
+import Data.Tuple
 
 import G2.Lib.Utils
 import G2.Lib.Printers
@@ -26,16 +27,18 @@ main = do
     let m_assume = mAssume tail_args
     let m_assert = mAssert tail_args
 
-    (tenv, eenv, nMap) <- hskToG2 proj src
+    (tenv, eenv, varN, conN) <- hskToG2 proj src
+
+    let revVarN = M.fromList . map swap $ M.toList varN
 
     -- let tenv = M.union (M.fromList P.prelude_t_decls) tenv'
 
     -- putStrLn $ mkTypeEnvStr tenv
     -- putStrLn $ mkExprEnvStr eenv
 
-    let entry' = lookupFromNamesMap nMap entry
-    let assume = return . lookupFromNamesMap nMap =<< m_assume
-    let assert = return . lookupFromNamesMap nMap =<< m_assert
+    let entry' = lookupFromNamesMap varN entry
+    let assume = return . lookupFromNamesMap varN =<< m_assume
+    let assert = return . lookupFromNamesMap varN =<< m_assert
 
     let init_state = initState tenv eenv assume assert entry'
 
@@ -44,10 +47,13 @@ main = do
     in_out <- run smt2 hhp n_val init_state
 
     mapM_ (\(inArg, ex) -> do
-            putStrLn . mkExprHaskell 
-                . foldl (\a a' -> App a a') (Var entry TyBottom) $ inArg
+            let inArg' = map (maybeReplaceVarName revVarN) . map (replaceDataConName conN) $ inArg
+            let ex' = replaceDataConName conN ex
 
-            putStrLn .  mkExprHaskell $ ex
+            putStrLn . mkExprHaskell 
+                . foldl (\a a' -> App a a') (Var entry TyBottom) $ inArg'
+
+            putStrLn .  mkExprHaskell $ ex'
         ) in_out
 
 
@@ -62,7 +68,24 @@ lookupFromNamesMap :: M.Map Name Name -> Name -> Name
 lookupFromNamesMap nMap n =
     case M.lookup n nMap of
                 Just f -> f
-                Nothing -> error ("Function " ++ n ++ " not recognized.")
+                Nothing -> error (n ++ " not recognized.")
+
+maybeReplaceVarName :: M.Map Name Name -> Expr -> Expr
+maybeReplaceVarName nMap v@(Var n t) =
+    case M.lookup n nMap of
+        Just n' -> Var n' t
+        Nothing -> v
+maybeReplaceVarName _ e = e
+
+replaceDataConName :: M.Map Name Name -> Expr -> Expr
+replaceDataConName conMap = modify (replaceDataConName' conMap)
+    where
+        replaceDataConName' :: M.Map Name Name -> Expr -> Expr
+        replaceDataConName' conMap (Data (DataCon n i t ts)) =
+            case M.lookup n conMap of
+                        Just n' -> (Data (DataCon n' i t ts))
+                        Nothing -> error (n ++ " not recognized.")
+        replaceDataConName' _ e = e
 
 nVal :: [String] -> Int
 nVal args = mArg "--n" args read 200

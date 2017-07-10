@@ -56,11 +56,13 @@ mod_sep = "."
 
 -- | Haskell Source to Core2
 --   Streamline the process of converting a list of files into Core2.
-hskToG2 :: FilePath -> FilePath -> IO (G2.TEnv, G2.EEnv, M.Map G2.Name G2.Name)
+hskToG2 :: FilePath -> FilePath
+    -> IO (G2.TEnv, G2.EEnv, M.Map G2.Name G2.Name, M.Map G2.Name G2.Name)
 hskToG2 proj src = do
     (tenv, eenv) <- hskToTL' proj src
     let names = namesMapTEEnv eenv
-    return (translTEnv tenv, translEEnv eenv, names)
+    let conNames = namesMapCons tenv
+    return (translTEnv tenv, translEEnv eenv, names, conNames)
 
 -- | Haskell Source to TL Core
 --   Streamline the process of converting a list of files into TL Core.
