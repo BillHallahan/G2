@@ -1,7 +1,9 @@
 module G2.Internals.Core.Language ( module G2.Internals.Core.Language
-                                  , module G2.Internals.Core.GenLanguage) where
+                                  , module G2.Internals.Core.GenLanguage
+                                  , module G2.Internals.Core.AST) where
 
 import G2.Internals.Core.GenLanguage
+import G2.Internals.Core.AST
 
 type Name = String
 

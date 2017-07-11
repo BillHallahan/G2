@@ -59,7 +59,7 @@ smt2 = SMTConverter {
                 dcHandler (DC n s:dc) =
                     let
                         si = map (\(_s, i) -> (_s, (sortN _s) ++ show i)) $ zip s [0..]
-                        s' = intercalate " " . map (\(_s, i) -> "(_" ++ i ++ " " ++ (sortN _s) ++ ")") $ si
+                        s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ " " ++ (sortN _s) ++ ")") $ si
                     in
                     if s /= [] then
                         "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc

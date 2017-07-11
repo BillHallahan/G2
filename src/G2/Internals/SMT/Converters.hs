@@ -55,6 +55,7 @@ exprToSMT (Const c) =
         CInt i -> VInt i
         CFloat f -> VFloat f
         CDouble d -> VDouble d
+exprToSMT (Data (DataCon n _ t _)) = V n (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -76,13 +77,14 @@ exprToSMT e = error ("Unhandled expression " ++ show e)
 -- | funcToSMT
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
+funcToSMT e@(Var n t) es = Cons n (map exprToSMT es) (typeToSMT t)
 funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
 funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
 funcToSMT e@(Data (DataCon n _ t _)) es = Cons n (map exprToSMT es) (typeToSMT t)
 funcToSMT e@(Data n) es = funcToSMTData e es
     where
         funcToSMTData e [a] = funcToSMT1Var e a
-
+funcToSMT e es = error ("Unrecognized " ++ show e ++ " in funcToSMT")
 
 funcToSMT1Var :: Expr -> Expr -> SMTAST
 funcToSMT1Var f a

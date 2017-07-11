@@ -62,7 +62,8 @@ hskToG2 proj src = do
     (tenv, eenv) <- hskToTL' proj src
     let names = namesMapTEEnv eenv
     let conNames = namesMapCons tenv
-    return (translTEnv tenv, translEEnv eenv, names, conNames)
+    let (tenv', eenv') = transl tenv eenv
+    return (tenv', eenv', names, conNames)
 
 -- | Haskell Source to TL Core
 --   Streamline the process of converting a list of files into TL Core.
@@ -213,7 +214,7 @@ mkADT algtc = (gname, TL.TyAlg gname gdcs)
 mkData :: DataCon -> TL.TDataCon
 mkData dc = datacon
   where tyname  = mkName $ tyConName $ dataConTyCon dc
-        dcname  = mkName $ dataConName dc
+        dcname  = mkName . Var.varName $ dataConWrapId dc -- mkName $ dataConName dc
         dctag   = dataConTag dc
         args    = map mkType $ dataConOrigArgTys dc
         datacon = case fst dcname of

@@ -2,6 +2,8 @@ module HigherOrderMathTest where
 
 import G2.Internals.Core.Language
 
+import TestUtils
+
 abs2 = Var "abs2" (TyFun (TyConApp "Double" []) (TyConApp "Double" []))
 square = Var "square" (TyFun (TyConApp "Double" []) (TyConApp "Double" []))
 negativeSquare = Var "negativeSquare" (TyFun (TyConApp "Double" []) (TyConApp "Double" []))
@@ -17,33 +19,33 @@ notNegativeAt0 = Var "notNegativeAt0" (TyFun (TyFun (TyConApp "Double" []) (TyCo
 notNegativeAt0NegativeAt1 = Var "notNegativeAt0NegativeAt1" (TyFun (TyFun (TyConApp "Double" []) (TyConApp "Double" [])) (TyConApp "Bool" []))
 
 abs2NonNeg :: [Expr] -> Bool
-abs2NonNeg [f, (Const (CDouble x))] = f == abs2 && x >= 0
+abs2NonNeg [f, (Const (CDouble x))] = f `eqIgT` abs2 && x >= 0
 abs2NonNeg _ = False
 
 abs2Neg :: [Expr] -> Bool
-abs2Neg [f, (Const (CDouble x))] = f == abs2 && x < 0
+abs2Neg [f, (Const (CDouble x))] = f `eqIgT` abs2 && x < 0
 abs2Neg _ = False
 
 squareRes :: [Expr] -> Bool
-squareRes [f, (Const (CDouble x))] = f == square && (x == 0 || x == 1)
+squareRes [f, (Const (CDouble x))] = f `eqIgT` square && (x == 0 || x == 1)
 squareRes _ = False
 
 negativeSquareRes :: [Expr] -> Bool
-negativeSquareRes [f] = f == negativeSquare
+negativeSquareRes [f] = f `eqIgT` negativeSquare
 negativeSquareRes _ = False
 
 fourthPowerRes :: [Expr] -> Bool
-fourthPowerRes [f, (Const (CDouble x))] = f == square && (x == 0 || x == 1)
+fourthPowerRes [f, (Const (CDouble x))] = f `eqIgT` square && (x == 0 || x == 1)
 fourthPowerRes _ = False
 
 addRes :: [Expr] -> Bool
-addRes [f, (Const (CDouble x))] = f == add && x > 0
+addRes [f, (Const (CDouble x))] = f `eqIgT` add && x > 0
 
 subRes :: [Expr] -> Bool
-subRes [f, (Const (CDouble x))] = f == sub && x < 0
+subRes [f, (Const (CDouble x))] = f `eqIgT` sub && x < 0
 
 pythagoreanRes :: [Expr] -> Bool
-pythagoreanRes [f, (Const (CDouble x))] = f == pythagorean && x /= 0
+pythagoreanRes [f, (Const (CDouble x))] = f `eqIgT` pythagorean && x /= 0
 
 functionSatisfiesRes :: [Expr] -> Bool
 functionSatisfiesRes (Var "notNegativeAt0" _:Var "add1" _:ex) = True

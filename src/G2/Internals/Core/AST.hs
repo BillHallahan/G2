@@ -8,7 +8,7 @@
 module G2.Internals.Core.AST
     ( module G2.Internals.Core.AST ) where
 
-import G2.Internals.Core.Language
+import G2.Internals.Core.GenLanguage
 
 import qualified Data.Map as M
 

@@ -1,22 +1,33 @@
 -- Converts the core defined in G2.Internals.Translation.Language to
 -- the core defined in G2.Internals.Core.Language
 
-module G2.Internals.Translation.TranslToCore (translEEnv
-                                             , translTEnv
+{-# LANGUAGE FlexibleContexts #-}
+
+module G2.Internals.Translation.TranslToCore ( transl
                                              , namesMapTEEnv
                                              , namesMapCons) where
 
 import G2.Internals.Core.Language
 import qualified G2.Internals.Translation.Language as TL
 
+import Data.List
 import qualified Data.Map as M
 
 -- This ensures uniqueness per tuple, and that equal tuples generate equal names
 translName :: TL.TName -> Name
 translName (n, i) = n ++ "_" ++ show i
 
-translEEnv :: TL.TEEnv -> EEnv
-translEEnv = M.map translExpr . M.mapKeys translName
+transl :: TL.TTEnv -> TL.TEEnv -> (TEnv, EEnv)
+transl tenv eenv =
+    let
+        tenv' = translTEnv tenv
+        eenv' = translEEnv tenv' eenv
+    in
+    (tenv', eenv')
+
+translEEnv :: TEnv -> TL.TEEnv -> EEnv
+translEEnv tenv = -- M.map (switchVarDataCon tenv) .
+    M.map translExpr . M.mapKeys translName
 
 translTEnv :: TL.TTEnv -> TEnv
 translTEnv = M.map translType . M.mapKeys translName
@@ -62,6 +73,19 @@ translType TL.TyBottom = TyBottom
 
 translAlt :: TL.TAlt -> Alt
 translAlt (TL.Alt (dc, ns)) = Alt (translDataCon dc, map translName ns)
+
+switchVarDataCon :: TEnv -> Expr -> Expr
+switchVarDataCon tenv = modify switchVarDataCon'
+    where
+        tenv' :: [(Name, (Int, [Type]))]
+        tenv' = concat [ [ (n, (i, ts')) | (DataCon n i _ ts') <- ts] | (_, TyAlg _ ts) <- (M.toList tenv)]
+
+        switchVarDataCon' :: Expr -> Expr
+        switchVarDataCon' v@(Var n t) =
+            case lookup n tenv' of
+                Just (i, ts) -> Data $ DataCon n i t ts
+                Nothing -> v
+        switchVarDataCon' e = e
 
 -- Given a list of TL.TName's returns a mapping from the String portion of each
 -- name to the full name from translName

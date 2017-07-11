@@ -17,4 +17,5 @@ run con hhp n state = do
 
     putStrLn ("\nNumber of execution states: " ++ (show (length states)))
 
+
     satModelOutputs con hhp states

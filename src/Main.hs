@@ -42,6 +42,8 @@ main = do
 
     let init_state = initState tenv eenv assume assert entry'
 
+    putStrLn $ mkStateStr init_state
+
     hhp <- getZ3ProcessHandles
 
     in_out <- run smt2 hhp n_val init_state
