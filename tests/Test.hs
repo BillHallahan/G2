@@ -47,21 +47,17 @@ main = do
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
+        , testFileTests
         , unitTests
         ]
 
+-- Test based on examples that are also good for demos
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  checkExpr "tests/samples/" "tests/samples/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
-                , checkExpr "tests/samples/" "tests/samples/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
-                , checkExpr "tests/samples/" "tests/samples/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
-                , checkExpr "tests/samples/" "tests/samples/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
-                , checkExprWithOutput "tests/samples/" "tests/samples/IfTest.hs" Nothing Nothing "f" 3 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
-
                 -- , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
                 -- , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
-                , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
+                  checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
                 , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
                 , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
@@ -74,6 +70,20 @@ sampleTests =
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
+        ]
+
+-- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
+testFileTests = 
+    return . testGroup "Samples"
+        =<< sequence [
+                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" Nothing Nothing "f" 3 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
+
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
+
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/multCase.hs" Nothing Nothing "f" 2 [AtLeast 3] -- TODO: Update this...
         ]
 
 checkExpr :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree

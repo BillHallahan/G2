@@ -52,10 +52,12 @@ main = do
             let inArg' = map (maybeReplaceVarName revVarN) . map (replaceDataConName conN) $ inArg
             let ex' = replaceDataConName conN ex
 
-            putStrLn . mkExprHaskell 
-                . foldl (\a a' -> App a a') (Var entry TyBottom) $ inArg'
+            let funcCall = mkExprHaskell 
+                             . foldl (\a a' -> App a a') (Var entry TyBottom) $ inArg'
 
-            putStrLn .  mkExprHaskell $ ex'
+            let funcOut = mkExprHaskell $ ex'
+
+            putStrLn (funcCall ++ " == " ++ funcOut)
         ) in_out
 
 
