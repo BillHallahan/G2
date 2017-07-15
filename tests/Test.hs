@@ -83,7 +83,10 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/multCase.hs" Nothing Nothing "f" 2 [AtLeast 3] -- TODO: Update this...
+                -- , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
+                --     [ RExists (\[Const(CDouble x), y] -> x == 2 && y == (Data $ PrimCon DTrue))
+                --     , RExists (\[Const(CDouble x), y] -> x == 1 && y == (Data $ PrimCon DFalse))
+                --     , RExists (\[Const(CDouble x), y] -> x /= 2 && x /= 1 && y == (Data $ PrimCon DFalse))]
         ]
 
 checkExpr :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
@@ -96,7 +99,7 @@ checkExpr proj src m_assume m_assert entry i reqList = do
         $ assertBool ("Assume/Assert for file " ++ src ++ 
                       " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
                                       "[" ++ (fromMaybe "" m_assert) ++ "] " ++
-                                              entry ++ " failed.\n" ++ show exprs) ch
+                                              entry ++ " failed.\n") ch
 
 checkExprWithOutput :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprWithOutput proj src m_assume m_assert entry i reqList = do
@@ -108,7 +111,7 @@ checkExprWithOutput proj src m_assume m_assert entry i reqList = do
         $ assertBool ("Assume/Assert for file " ++ src ++ 
                       " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
                                       "[" ++ (fromMaybe "" m_assert) ++ "] " ++
-                                              entry ++ " failed.\n" ++ show exprs) ch
+                                              entry ++ " failed.\n") ch
 
 -- | Checks conditions on given expressions
 --   Helper for checkExprOutput checkExprReach

@@ -31,18 +31,11 @@ main = do
 
     let revVarN = M.fromList . map swap $ M.toList varN
 
-    -- let tenv = M.union (M.fromList P.prelude_t_decls) tenv'
-
-    -- putStrLn $ mkTypeEnvStr tenv
-    -- putStrLn $ mkExprEnvStr eenv
-
     let entry' = lookupFromNamesMap varN entry
     let assume = return . lookupFromNamesMap varN =<< m_assume
     let assert = return . lookupFromNamesMap varN =<< m_assert
 
     let init_state = initState tenv eenv assume assert entry'
-
-    putStrLn $ mkStateStr init_state
 
     hhp <- getZ3ProcessHandles
 
