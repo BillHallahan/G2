@@ -31,8 +31,8 @@ exprType (Data (PrimCon C)) = TyChar
 exprType (Data DEFAULT) = TyBottom
 exprType (Case _ _ t) = t
 exprType (Type t) = t
-exprType (Assume c e) = exprType e
-exprType (Assert c e) = exprType e
+exprType (Assume _ e) = exprType e
+exprType (Assert _ e) = exprType e
 exprType (BAD) = TyBottom
 
 -- | Type Check a State

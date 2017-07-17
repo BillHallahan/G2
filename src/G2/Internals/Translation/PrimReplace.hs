@@ -1,7 +1,5 @@
 -- | PrimReplacer
 
-{-# LANGUAGE FlexibleContexts #-}
-
 module G2.Internals.Translation.PrimReplace (primReplace) where
 
 import G2.Internals.Translation.Language

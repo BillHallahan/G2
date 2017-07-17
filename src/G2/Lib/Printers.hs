@@ -61,7 +61,7 @@ mkExprEnvStr eenv = L.intercalate "\n" (map neStr (M.toList eenv))
 
 
 mkExprStr :: Expr -> String
-mkExprStr e = mkExprStr' e 0
+mkExprStr ex = mkExprStr' ex 0
     where
         mkExprStr' :: Expr -> Int -> String
         mkExprStr' (Var n t) i = off i ++ "Var " ++ n ++ " (" ++ mkTypeStr t (i + 1) ++")"
@@ -113,17 +113,17 @@ mkExprStr e = mkExprStr' e 0
 
 
 mkTypeStr :: Type -> Int -> String
-mkTypeStr t i = mkTypeStr' t i False
+mkTypeStr ty ind = mkTypeStr' ty ind False
     where
         mkTypeStr' :: Type -> Int -> Bool -> String
-        mkTypeStr' (TyFun t1 t2) i  b = tPat t1 t2 "TyFun" i b 
-        mkTypeStr' (TyApp t1 t2) i  b = tPat t1 t2 "TyApp" i b 
+        mkTypeStr' (TyFun t1 t2) i b = tPat t1 t2 "TyFun" i b 
+        mkTypeStr' (TyApp t1 t2) i b = tPat t1 t2 "TyApp" i b 
         mkTypeStr' (TyConApp n tx) i b = 
             let li = L.intercalate ", " . map (\t' -> mkTypeStr' t' (i + 1) b) $ tx in
                 off i b ++ "TyConApp " ++ show n ++ " [" ++ li ++ "]"
         mkTypeStr' (TyForAll n t) i b = off i b ++ "TyForAll " ++ show n ++
                                         "(" ++ mkTypeStr' t (i + 1) b ++ ")"
-        mkTypeStr' t i b = (if b then " " else "") ++ show t
+        mkTypeStr' t _ b = (if b then " " else "") ++ show t
 
         tPat :: Type -> Type -> String -> Int -> Bool -> String
         tPat t1 t2 s i b = off i b ++ s ++ " (" 
@@ -161,7 +161,7 @@ mkFuncSLTStr :: FuncInterpTable -> String
 mkFuncSLTStr = L.intercalate "\n" . map (\(k, (n, i)) -> k ++ " <- " ++ n ++ "  " ++ show i) . M.toList
 
 mkExprHaskell :: Expr -> String
-mkExprHaskell e = mkExprHaskell' e 0
+mkExprHaskell ex = mkExprHaskell' ex 0
     where 
         mkExprHaskell' :: Expr -> Int -> String
         mkExprHaskell' (Var n _) _ = n

@@ -1,8 +1,6 @@
 -- Converts the core defined in G2.Internals.Translation.Language to
 -- the core defined in G2.Internals.Core.Language
 
-{-# LANGUAGE FlexibleContexts #-}
-
 module G2.Internals.Translation.TranslToCore ( transl
                                              , namesMapTEEnv
                                              , namesMapCons) where
@@ -10,7 +8,6 @@ module G2.Internals.Translation.TranslToCore ( transl
 import G2.Internals.Core.Language
 import qualified G2.Internals.Translation.Language as TL
 
-import Data.List
 import qualified Data.Map as M
 
 -- This ensures uniqueness per tuple, and that equal tuples generate equal names
@@ -21,13 +18,12 @@ transl :: TL.TTEnv -> TL.TEEnv -> (TEnv, EEnv)
 transl tenv eenv =
     let
         tenv' = translTEnv tenv
-        eenv' = translEEnv tenv' eenv
+        eenv' = translEEnv eenv
     in
     (tenv', eenv')
 
-translEEnv :: TEnv -> TL.TEEnv -> EEnv
-translEEnv tenv = -- M.map (switchVarDataCon tenv) .
-    M.map translExpr . M.mapKeys translName
+translEEnv :: TL.TEEnv -> EEnv
+translEEnv = M.map translExpr . M.mapKeys translName
 
 translTEnv :: TL.TTEnv -> TEnv
 translTEnv = M.map translType . M.mapKeys translName
@@ -37,11 +33,11 @@ translExpr (TL.Var n t) = Var (translName n) (translType t)
 translExpr (TL.Const c) = Const c
 translExpr (TL.Prim p t) = Prim p (translType t)
 translExpr (TL.Lam n e t) = Lam (translName n) (translExpr e) (translType t)
-translExpr (TL.Let bx e) = Let (map (\(n, e') -> (translName n, translExpr e)) bx) (translExpr e)
+translExpr (TL.Let bx e) = Let (map (\(n, e') -> (translName n, translExpr e')) bx) (translExpr e)
 translExpr (TL.App e e') = App (translExpr e) (translExpr e')
 translExpr (TL.Data d) = Data (translDataCon d)
 translExpr (TL.Case e ae t) =
-    Case (translExpr e) (map (\(a, e) -> (translAlt a, translExpr e)) ae) (translType t)
+    Case (translExpr e) (map (\(a, e') -> (translAlt a, translExpr e')) ae) (translType t)
 translExpr (TL.Type t) = Type (translType t)
 translExpr (TL.Assume e e') = Assume (translExpr e) (translExpr e')
 translExpr (TL.Assert e e') = Assert (translExpr e) (translExpr e')
@@ -73,19 +69,6 @@ translType TL.TyBottom = TyBottom
 
 translAlt :: TL.TAlt -> Alt
 translAlt (TL.Alt (dc, ns)) = Alt (translDataCon dc, map translName ns)
-
-switchVarDataCon :: TEnv -> Expr -> Expr
-switchVarDataCon tenv = modify switchVarDataCon'
-    where
-        tenv' :: [(Name, (Int, [Type]))]
-        tenv' = concat [ [ (n, (i, ts')) | (DataCon n i _ ts') <- ts] | (_, TyAlg _ ts) <- (M.toList tenv)]
-
-        switchVarDataCon' :: Expr -> Expr
-        switchVarDataCon' v@(Var n t) =
-            case lookup n tenv' of
-                Just (i, ts) -> Data $ DataCon n i t ts
-                Nothing -> v
-        switchVarDataCon' e = e
 
 -- Given a list of TL.TName's returns a mapping from the String portion of each
 -- name to the full name from translName

@@ -2,7 +2,6 @@
 --   Defines typeclasses and functions for ease of AST manipulation.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Internals.Core.AST
@@ -125,7 +124,7 @@ instance AST (GenExpr n) where
     modifyChildren f (Case m as t) = Case (f m) (map (\(a,e) -> (a,f e)) as) t
     modifyChildren f (Assume c e)  = Assume (f c) (f e)
     modifyChildren f (Assert c e)  = Assert (f c) (f e)
-    modifyChildren f e = e
+    modifyChildren _ e = e
 
 instance AST (GenType n) where
     children (TyFun tf ta)   = [tf, ta]
@@ -141,7 +140,7 @@ instance AST (GenType n) where
     modifyChildren f (TyAlg n dcs)   =
         TyAlg n (map (\(DataCon n i t ts) -> DataCon n i (f t) (map f ts)) dcs)
     modifyChildren f (TyForAll n t)  = TyForAll n (f t)
-    modifyChildren f e = e
+    modifyChildren _ e = e
 
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
@@ -213,16 +212,16 @@ instance ASTContainer (GenAlt n) (GenType n) where
     modifyContainedASTs f (Alt (dc, n)) = Alt (modifyContainedASTs f dc, n)
 
 instance ASTContainer (GenPathCond n) (GenExpr n) where
-    containedASTs (CondExt e b)   = containedASTs e
-    containedASTs (CondAlt e a b) = containedASTs e
+    containedASTs (CondExt e _)   = containedASTs e
+    containedASTs (CondAlt e _ _) = containedASTs e
 
     modifyContainedASTs f (CondExt e b)   = CondExt (modifyContainedASTs f e) b
     modifyContainedASTs f (CondAlt e a b) =
         CondAlt (modifyContainedASTs f e) a b
 
 instance ASTContainer (GenPathCond n) (GenType n) where
-    containedASTs (CondExt e b)   = containedASTs e
-    containedASTs (CondAlt e a b) = containedASTs e ++ containedASTs a
+    containedASTs (CondExt e _)   = containedASTs e
+    containedASTs (CondAlt e a _) = containedASTs e ++ containedASTs a
 
     modifyContainedASTs f (CondExt e b)   = CondExt (modifyContainedASTs f e) b
     modifyContainedASTs f (CondAlt e a b) =

@@ -2,24 +2,19 @@ module Main where
 
 import System.Environment
 
-import HscTypes
-import TyCon
-import GHC hiding (Name, Type, exprType)
-
 import Data.List
 import qualified Data.Map as M
 import Data.Tuple
 
-import G2.Lib.Utils
 import G2.Lib.Printers
 
 import G2.Internals.Interface
 import G2.Internals.Core
 import G2.Internals.Translation
-import G2.Internals.Preprocessing
 import G2.Internals.Symbolic
 import G2.Internals.SMT
 
+main :: IO ()
 main = do
     (proj:src:entry:tail_args) <- getArgs
 
@@ -32,10 +27,10 @@ main = do
     let revVarN = M.fromList . map swap $ M.toList varN
 
     let entry' = lookupFromNamesMap varN entry
-    let assume = return . lookupFromNamesMap varN =<< m_assume
-    let assert = return . lookupFromNamesMap varN =<< m_assert
+    let assume' = return . lookupFromNamesMap varN =<< m_assume
+    let assert' = return . lookupFromNamesMap varN =<< m_assert
 
-    let init_state = initState tenv eenv assume assert entry'
+    let init_state = initState tenv eenv assume' assert' entry'
 
     hhp <- getZ3ProcessHandles
 
@@ -57,9 +52,9 @@ main = do
 mArg :: String -> [String] -> (String -> a) -> a -> a
 mArg s args f d = case elemIndex s args of
                Nothing -> d
-               Just id -> if id >= length args
+               Just i -> if i >= length args
                               then error ("Invalid use of " ++ s)
-                              else f (args !! (id + 1))
+                              else f (args !! (i + 1))
 
 lookupFromNamesMap :: M.Map Name Name -> Name -> Name
 lookupFromNamesMap nMap n =
@@ -75,14 +70,14 @@ maybeReplaceVarName nMap v@(Var n t) =
 maybeReplaceVarName _ e = e
 
 replaceDataConName :: M.Map Name Name -> Expr -> Expr
-replaceDataConName conMap = modify (replaceDataConName' conMap)
+replaceDataConName conMap = modify replaceDataConName'
     where
-        replaceDataConName' :: M.Map Name Name -> Expr -> Expr
-        replaceDataConName' conMap (Data (DataCon n i t ts)) =
+        replaceDataConName' :: Expr -> Expr
+        replaceDataConName' (Data (DataCon n i t ts)) =
             case M.lookup n conMap of
                         Just n' -> (Data (DataCon n' i t ts))
                         Nothing -> error (n ++ " not recognized.")
-        replaceDataConName' _ e = e
+        replaceDataConName' e = e
 
 nVal :: [String] -> Int
 nVal args = mArg "--n" args read 200

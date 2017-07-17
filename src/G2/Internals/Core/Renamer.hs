@@ -5,8 +5,6 @@
 --   conflicting name with that of the current environment bindings. Thus, we
 --   must be careful to avoid accidentally capturing free variables.
 
-{-# LANGUAGE FlexibleContexts #-}
-
 module G2.Internals.Core.Renamer
     ( allNamesMap
     , allNames
@@ -27,10 +25,10 @@ import qualified Data.Map  as M
 
 -- | Expression Top-Level Names
 exprTopNames :: Expr -> [Name]
-exprTopNames (Var n t)     = [n]
-exprTopNames (Lam b e t)   = [b]
-exprTopNames (Let bs e)    = map fst bs
-exprTopNames (Case m as t) = concatMap (\(Alt (_, ps), _) -> ps) as
+exprTopNames (Var n _)     = [n]
+exprTopNames (Lam b _ _)   = [b]
+exprTopNames (Let bs _)    = map fst bs
+exprTopNames (Case _ as _) = concatMap (\(Alt (_, ps), _) -> ps) as
 exprTopNames _ = []
 
 -- | Type Top-Level Names
@@ -122,7 +120,6 @@ renameExprLet old new state = if old `elem` bs_lhs
     else e_st {curr_expr = cexpr', sym_links = slt'}
   where Let bs e = curr_expr state
         bs_lhs = map fst bs
-        bs_rhs = map snd bs
         e_st   = renameExpr old new (state {curr_expr = e})
         bs_sts = map (\(b, e) -> (b, renameExpr old new (state {curr_expr=e}))) bs
         bs'    = map (\(b, r_st) -> (b, curr_expr r_st)) bs_sts
@@ -193,7 +190,7 @@ renameExpr old new state = case curr_expr state of
     Case _ _ _ -> renameExprCase   old new state
     Assume _ _ -> renameExprAssume old new state
     Assert _ _ -> renameExprAssert old new state
-    otherwise  -> state
+    _  -> state
 
 -- | Rename List
 --   Rename, but with a list instead. If we pipe in the input from some fresh

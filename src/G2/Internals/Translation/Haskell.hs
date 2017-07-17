@@ -25,28 +25,20 @@ import qualified G2.Internals.Translation.Language as TL
 import G2.Internals.Translation.TranslToCore
 import G2.Internals.Translation.PrimReplace
 
-import ConLike
-import CoreMonad
-import CoreSubst
 import CoreSyn
 import CoreUtils as CU
-import Data.List
 import DataCon
-import FastString
 import GHC
 import GHC.Paths
 import HscTypes
 import Literal
 import Name
 import Outputable
-import SrcLoc
 import TyCon
-import Type
 import TypeRep
 import Unique
 import Var
 
-import qualified Data.List  as L
 import qualified Data.Map   as M
 import qualified Data.Maybe as B
 
@@ -74,7 +66,7 @@ hskToTL proj src = do
 
 hskToTL' :: FilePath -> FilePath -> IO (TL.TTEnv, TL.TEEnv)
 hskToTL' proj src = do
-    (sums_gutss, dflags, env) <- mkCompileClosure proj src
+    (sums_gutss, _, _) <- mkCompileClosure proj src
     let acc_prog = concatMap (mg_binds . snd) sums_gutss
     let acc_tycs = concatMap (mg_tcs . snd) sums_gutss
 
@@ -224,7 +216,7 @@ mkData dc = datacon
             "C#" -> TL.PrimCon TL.C
             "False" -> TL.PrimCon TL.DFalse
             "True"  -> TL.PrimCon TL.DTrue
-            otherwise -> TL.DataCon dcname dctag (TL.TyConApp tyname []) args
+            _ -> TL.DataCon dcname dctag (TL.TyConApp tyname []) args
 
 -- | Make Type
 --   Make a TL.TType given a GHC Core one.
@@ -233,13 +225,13 @@ mkType (TyVarTy var)    = TL.TyVar (mkName $ tyVarName var)
 mkType (AppTy t1 t2)    = TL.TyApp (mkType t1) (mkType t2)
 mkType (FunTy t1 t2)    = TL.TyFun (mkType t1) (mkType t2)
 mkType (ForAllTy v t)   = TL.TyForAll (mkName $ Var.varName v) (mkType t)
-mkType (LitTy tl)       = error "Literal types are sketchy?"
+mkType (LitTy _)       = error "Literal types are sketchy?"
 mkType (TyConApp tc kt) = case mkName . tyConName $ tc of 
     ("Int#", _)    -> TL.TyRawInt
     ("Float#", _)  -> TL.TyRawFloat
     ("Double#", _) -> TL.TyRawDouble
     ("Char#", _)   -> TL.TyRawChar
-    otherwise -> TL.TyConApp otherwise (map mkType kt)
+    x -> TL.TyConApp x (map mkType kt)
 
 -- | Make Expression Environment
 --   Make the expression environment given a GHC Core.
@@ -255,6 +247,7 @@ mkBinds (NonRec bndr expr) = [(gname, gexpr)]
         gexpr = mkExpr expr
 
 -- Catching data cons.
+pdcset :: [String]
 pdcset = ["I#", "F#", "D#", "C#", "True", "False"]
 
 -- | Make Expression
@@ -312,14 +305,14 @@ mkAlt :: CoreAlt -> (TL.TAlt, TL.TExpr)
 mkAlt (ac, args, exp) = (TL.Alt (mkA ac,map (mkName . Var.varName) args),g2exp)
   where g2exp = mkExpr exp
         mkA (DataAlt dc) = mkData dc
-        mkA DEFAULT      = TL.DEFAULT
+        mkA DEFAULT = TL.DEFAULT
         mkA (LitAlt lit) = case lit of
-            MachChar char  -> P.p_d_char
-            MachStr bstr   -> error "Should we even have strings?"
-            MachInt int    -> P.p_d_int
-            MachInt64 int  -> P.p_d_int
-            MachFloat rat  -> P.p_d_float
-            MachDouble rat -> P.p_d_double
+            MachChar char -> P.p_d_char
+            MachStr _ -> error "Should we even have strings?"
+            MachInt _ -> P.p_d_int
+            MachInt64 _ -> P.p_d_int
+            MachFloat _ -> P.p_d_float
+            MachDouble _ -> P.p_d_double
             otherwise      -> error "Unsupported alt condition."
 
 -- | Sort Alt
@@ -337,7 +330,7 @@ sortAlt ((ac, args, exp):as) = case ac of
 --   matchings on Bools. Rather complicated and annoying.
 --   Injection of operators from Internals.Translation.Prelude.
 cascadeAlt :: TL.TExpr -> TL.TDataCon -> [CoreAlt] -> TL.TExpr
-cascadeAlt mx recon [] = TL.BAD
+cascadeAlt _ _ [] = TL.BAD
 cascadeAlt mx recon@(TL.DataCon n _ t ts) ((ac, args, exp):as) = case ac of
     DataAlt dc -> error "We should not see non-raw data consturctors here"
     DEFAULT    -> mkExpr exp
@@ -360,23 +353,20 @@ cascadeAlt mx recon@(TL.DataCon n _ t ts) ((ac, args, exp):as) = case ac of
 --   Given a TL.TType, recover the corresponding data constructor that fakes the
 --   primitive data constructor of GHC Core.
 recoverCons :: TL.TType -> Maybe TL.TDataCon
-recoverCons TL.TyRawInt    = Just P.p_d_int
-recoverCons TL.TyRawFloat  = Just P.p_d_float
+recoverCons TL.TyRawInt = Just P.p_d_int
+recoverCons TL.TyRawFloat = Just P.p_d_float
 recoverCons TL.TyRawDouble = Just P.p_d_double
-recoverCons TL.TyRawChar   = Just P.p_d_char
-recoverCons otherwise      = Nothing
+recoverCons TL.TyRawChar = Just P.p_d_char
+recoverCons _ = Nothing
 
 -- | Make Caught DataCon
 mkCaughtDataCon :: Id -> TL.TDataCon
-mkCaughtDataCon id = case occ of
+mkCaughtDataCon i = case occ of
     "I#"    -> TL.PrimCon TL.I
     "D#"    -> TL.PrimCon TL.D
     "F#"    -> TL.PrimCon TL.F
     "C#"    -> TL.PrimCon TL.C
     "True"  -> TL.PrimCon TL.DTrue
     "False" -> TL.PrimCon TL.DFalse
-    otherwise -> error $ "Unknown interception: " ++ otherwise
-  where occ = occNameString $ nameOccName $ Var.varName id
-        unq = getKey $ varUnique id
-
-
+    x -> error $ "Unknown interception: " ++ x
+  where occ = occNameString $ nameOccName $ Var.varName i

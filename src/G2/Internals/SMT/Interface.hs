@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-
 module G2.Internals.SMT.Interface ( satModelOutputs
                                   , satModelOutput
                                   , smtReady) where
@@ -18,11 +16,9 @@ import G2.Internals.SMT.Language
 -- Returns a list of possible input/output pairs for the satisifiable states
 satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [([Expr], Expr)]
 satModelOutputs con io s = do
-   let s' = smtReady s
-
-   return . map (\(s, es, e) -> (fromJust es, fromJust e))
-          . filter (\(s, es, e) -> s == SAT && isJust es && isJust e)
-          =<< mapM (satModelOutput con io) s'
+   return . map (\(_, es, e) -> (fromJust es, fromJust e))
+          . filter (\(s', es, e) -> s' == SAT && isJust es && isJust e)
+          =<< mapM (satModelOutput con io) (smtReady s)
 
 -- | checkSatModelOutput
 -- Given an smt converter and a list state, checks if the states current expression

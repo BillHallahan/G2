@@ -13,13 +13,11 @@ module G2.Internals.SMT.Converters ( toSMTHeaders
                                    , sortToType
                                    , modelAsExpr) where
 
-import Data.List
 import qualified Data.Map as M
 
 import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Core.Language hiding (Assert)
 import G2.Internals.SMT.Language
-import G2.Internals.SMT.Utils
 
 -- | toSMTHeaders
 -- Here we convert from a State, to an SMTHeader.  This SMTHeader can later
@@ -66,25 +64,23 @@ exprToSMT a@(App _ _) =
         getFunc :: Expr -> Expr
         getFunc v@(Var _ _) = v
         getFunc p@(Prim _ _) = p
-        getFunc (App a _) = getFunc a
+        getFunc (App a' _) = getFunc a'
         getFunc d@(Data _) = d 
 
         getArgs :: Expr -> [Expr]
-        getArgs (App a a') = getArgs a ++ [a']
+        getArgs (App a1 a2) = getArgs a1 ++ [a2]
         getArgs _ = []
 exprToSMT e = error ("Unhandled expression " ++ show e)
 
 -- | funcToSMT
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
-funcToSMT e@(Var n t) es = Cons n (map exprToSMT es) (typeToSMT t)
+funcToSMT (Var n t) es = Cons n (map exprToSMT es) (typeToSMT t)
 funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
 funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
-funcToSMT e@(Data (DataCon n _ t _)) es = Cons n (map exprToSMT es) (typeToSMT t)
-funcToSMT e@(Data n) es = funcToSMTData e es
-    where
-        funcToSMTData e [a] = funcToSMT1Var e a
-funcToSMT e es = error ("Unrecognized " ++ show e ++ " in funcToSMT")
+funcToSMT (Data (DataCon n _ t _)) es = Cons n (map exprToSMT es) (typeToSMT t)
+funcToSMT e@(Data _) [a] = funcToSMT1Var e a
+funcToSMT e _ = error ("Unrecognized " ++ show e ++ " in funcToSMT")
 
 funcToSMT1Var :: Expr -> Expr -> SMTAST
 funcToSMT1Var f a
@@ -125,7 +121,7 @@ altToSMT (Alt (DataCon n _ t@(TyConApp _ _) ts, ns)) =
     Cons n (map f $ zip ns ts) (typeToSMT t)
     where
         f :: (Name, Type) -> SMTAST
-        f (n, t) = V n (typeToSMT t)
+        f (n', t') = V n' (typeToSMT t')
 
 sltToSMTNameSorts :: SymLinkTable -> [(Name, Sort)]
 sltToSMTNameSorts = map sltToSMTNameSorts' . M.toList
@@ -139,7 +135,7 @@ typeToSMT TyDouble = SortDouble
 typeToSMT TyFloat = SortFloat
 typeToSMT TyBool = SortBool
 typeToSMT (TyConApp n _) = Sort n []
-typeToSMT e = Sort "" []
+typeToSMT _ = Sort "" []
 
 typesToSMTSorts :: TEnv -> [SMTHeader]
 typesToSMTSorts tenv =
@@ -209,15 +205,6 @@ toSolverSortDecl con = sortDecl con
 -- | toSolverVarDecl
 toSolverVarDecl :: SMTConverter ast out io -> Name -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
-
--- | toSolverSort
-toSolverSort :: SMTConverter ast out io -> Sort -> ast
-toSolverSort con SortInt = sortInt con
-toSolverSort con SortFloat = sortFloat con
-toSolverSort con SortDouble = sortDouble con
-toSolverSort con SortBool = sortBool con
-toSolverSort con (Sort n s) = sortADT con n s
-
 
 -- | smtastToExpr
 smtastToExpr :: SMTAST -> Expr

@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
-
 module G2.Internals.SMT.Utils where
 
 import G2.Internals.SMT.Language

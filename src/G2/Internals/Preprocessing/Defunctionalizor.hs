@@ -26,7 +26,7 @@ defunctionalize :: State -> State
 defunctionalize s =
     case leadingHigherOrderTypes s of
             (t:_) -> defunctionalize . useApplyType s $ t
-            otherwise -> s
+            _ -> s
 
 -- Given a state and a leading higher order function type
 -- adjusts the state to use apply types instead.
@@ -41,18 +41,16 @@ useApplyType s (t@(TyFun _ _)) =
 
         --apply data type
         (applyTypeName, s2) = freshSeededName "ApplyType" s
-        args = argList t
         (applyConsNames, s3) = freshSeededNameList (take (length funcs) . repeat $ "Apply") s2
         applyTypeAlg = TyAlg applyTypeName (map (\n -> DataCon n (-1) (TyConApp applyTypeName []) []) applyConsNames)
         applyTypeCon = TyConApp applyTypeName []
 
         namesToFuncs = zip applyConsNames funcs 
-        funcsToNames = map (\(a, b) -> (b, a)) namesToFuncs
 
         --function
         (applyFuncName, s4) = freshSeededName "applyFunc" s3
+        args = argList t
         (applyFunc, s5) = createApplyFunc args applyTypeName namesToFuncs s4
-        applyFuncType = TyFun applyTypeCon t
 
         --adjustment
         higherNameExpr = higherOrderOfTypeFuncNames (expr_env s4) t
@@ -64,8 +62,8 @@ useApplyType s (t@(TyFun _ _)) =
 
         newFuncs_interps = M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
-                                                    Var n t -> Just (a, (n, StdInterp))
-                                                    otherwise -> Nothing) $ namesToFuncs
+                                                    Var n _ -> Just (a, (n, StdInterp))
+                                                    _ -> Nothing) $ namesToFuncs
 
         s6 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) s5 higherNameExprArgs
 
@@ -115,12 +113,12 @@ useApplyType s (t@(TyFun _ _)) =
         -- This means that the function is being passed
         -- It simply swaps the type of the function, from a function type to an applytype
         sndAppReplace :: FuncName -> Type -> Type -> Expr -> Expr
-        sndAppReplace n t at = modify (sndAppReplace' n t at)
+        sndAppReplace n t at = modify (sndAppReplace')
             where
-                sndAppReplace' :: FuncName -> Type -> Type -> Expr -> Expr
-                sndAppReplace' n t at a@(App e e') =
+                sndAppReplace' :: Expr -> Expr
+                sndAppReplace' a@(App e e') =
                     if e' == Var n t then App e (Var n at) else a
-                sndAppReplace' _ _ _ e = e
+                sndAppReplace' e = e
 
         -- Gets the names of all functions in the symbolic link table, that are of the given type
         funcsInSymLink :: Type -> SymLinkTable -> [FuncName]
@@ -183,7 +181,8 @@ leadingHigherOrderTypes s =
         leading = eval leading'
 
         leading' :: Type -> [Type]
-        leading' (TyFun t@(TyFun _ _) t') = [t]
+        leading' (TyFun t@(TyFun _ _) _) = [t]
+        leading' _ = []
 
 -- Given a function type t, gets a list of:
 -- (1) all functions of type t from the expression environment
@@ -198,15 +197,15 @@ passedToHigherOrder eenv t =
     nub (funcs ++ part_lams)
     where
         higherOrderArg :: Expr -> Type -> [Expr]
-        higherOrderArg (App f a) (TyFun t@(TyFun _ _) t') = f:(higherOrderArg f t ++ higherOrderArg a t')
-        higherOrderArg (App _ a) (TyFun _ t) = higherOrderArg a t
+        higherOrderArg (App f a) (TyFun t'@(TyFun _ _) t'') = f:(higherOrderArg f t' ++ higherOrderArg a t'')
+        higherOrderArg (App _ a) (TyFun _ t') = higherOrderArg a t'
         higherOrderArg _ _ = []
 
 -- Given an expression environment, gets the names and expressions of all higher order functions
 -- that accept the given type
 higherOrderOfTypeFuncNames :: EEnv -> Type -> [(FuncName, Expr)]
-higherOrderOfTypeFuncNames eenv t =
-    nub . filter (\(n, e) -> t `elem` functionsAccepted e) . M.toList $ eenv
+higherOrderOfTypeFuncNames eenv ty =
+    nub . filter (\(_, e) -> ty `elem` functionsAccepted e) . M.toList $ eenv
     where
         -- Returns a list of all function types that must be passed to the given function
         functionsAccepted :: Expr -> [Type]

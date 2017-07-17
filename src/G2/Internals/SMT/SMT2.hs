@@ -219,7 +219,7 @@ getModel h_in h_out ns = do
         getModel' h_in h_out ((n, s):ns) = do
             hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
             out <- getLinesUntil h_out (not . isPrefixOf "(let")
-            evaluate (length out)
+            _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 
             return . (:) (n, out, s) =<< getModel' h_in h_out ns
 
