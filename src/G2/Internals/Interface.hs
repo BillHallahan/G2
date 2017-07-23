@@ -9,7 +9,7 @@ run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
 run con hhp n state = do
     let preproc_state = runPreprocessing state
 
-    let ((lives, states), _) = runN ([preproc_state], []) n
+    let states = runNDepth [preproc_state] n
 
     putStrLn ("\nNumber of execution states: " ++ (show (length states)))
 

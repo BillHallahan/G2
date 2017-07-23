@@ -25,37 +25,37 @@ isValue state = case curr_expr state of
 
 -- | Step Var
 --   We treat unbounded free variables as symbolic during evaluation.
-stepVar :: State -> ([State], [State])
+stepVar :: State -> [State]
 stepVar state = case lookupExpr n (expr_env state) of
-    Nothing -> ([state], [])
-    Just ex -> ([state {curr_expr = ex}], [])
+    Nothing -> [state]
+    Just ex -> [state {curr_expr = ex}]
   where Var n t = curr_expr state
 
-stepPrim :: State -> ([State], [State])
-stepPrim state = ([state], [])
+stepPrim :: State -> [State]
+stepPrim state = [state]
 
 -- | Step Let
-stepLet :: State -> ([State], [State])
-stepLet state = ([bindExprList bs (state {curr_expr = e})], [])
+stepLet :: State -> [State]
+stepLet state = [bindExprList bs (state {curr_expr = e})]
   where Let bs e = curr_expr state
 
 -- | Step (App Lam Expr)
-stepAppLam :: State -> ([State], [State])
-stepAppLam state = ([bindExpr b' ae l_st], [])
+stepAppLam :: State -> [State]
+stepAppLam state = [bindExpr b' ae l_st]
   where App (Lam b l t) ae = curr_expr state
         (b', st') = freshSeededName b state
         l_st      = renameExpr b b' (st' {curr_expr = l})
 
 -- | Step (App Case Expr)
-stepAppCaseF :: State -> ([State], [State])
-stepAppCaseF state = ([state {curr_expr = Case m as' t'}], [])
+stepAppCaseF :: State -> [State]
+stepAppCaseF state = [state {curr_expr = Case m as' t'}]
   where App (Case m as t) ae = curr_expr state
         as' = map (\(Alt (dc, pars), x) -> (Alt (dc, pars), App x ae)) as
         t'  = exprType $ snd $ head as'
 
 -- | Step (App Expr Case)
-stepAppCaseA :: State -> ([State], [State])
-stepAppCaseA state = ([state {curr_expr = Case m as' t'}], [])
+stepAppCaseA :: State -> [State]
+stepAppCaseA state = [state {curr_expr = Case m as' t'}]
   where App fe (Case m as t) = curr_expr state
         as' = map (\(Alt (dc, pars), x) -> (Alt (dc, pars), App fe x)) as
         t'  = exprType $ snd $ head as'
@@ -64,13 +64,13 @@ stepAppCaseA state = ([state {curr_expr = Case m as' t'}], [])
 --   Favor LHS evaluation during Apps to emulate lazy evaluation.
 --   We permit environment sharing across the LHS and RHS of the App because
 --   our fresh variable finder is overly aggressive, and so this is okay.
-stepApp :: State -> ([State], [State])
+stepApp :: State -> [State]
 stepApp state = if isValue (state {curr_expr = f})
-    then ([a_st {curr_expr = App f (curr_expr a_st)} | a_st <- a_sts], a_dsts)
-    else ([f_st {curr_expr = App (curr_expr f_st) a} | f_st <- f_sts], f_dsts)
+    then [a_st {curr_expr = App f (curr_expr a_st)} | a_st <- a_sts]
+    else [f_st {curr_expr = App (curr_expr f_st) a} | f_st <- f_sts]
   where App f a = curr_expr state
-        (f_sts, f_dsts) = step (state {curr_expr = f})
-        (a_sts, a_dsts) = step (state {curr_expr = a})
+        f_sts = step (state {curr_expr = f})
+        a_sts = step (state {curr_expr = a})
 
 -- | Shove Alts Inwards
 shove :: State -> (Alt, Expr) -> (Alt, Expr)
@@ -78,10 +78,9 @@ shove state (Alt (dc, params), ae) = (Alt (dc, params), Case ae as2 t2)
   where Case (Case m1 as1 t1) as2 t2 = curr_expr state
 
 -- | Step Case Case
-stepCaseCase :: State -> ([State], [State])
-stepCaseCase state = ([state {curr_expr = Case m1 (map (shove state) as1) t2}],
-                      [])
-  where Case (Case m1 as1 t1) as2 t2 = curr_expr state
+stepCaseCase :: State -> [State]
+stepCaseCase state = [state {curr_expr = Case m1 (map (shove state) as1) t2}]
+    where Case (Case m1 as1 t1) as2 t2 = curr_expr state
 
 -- | Flatten App Spine
 flattenApp :: Expr -> [Expr]
@@ -136,58 +135,57 @@ doDef state ndfs (Alt (dc, params), aexp) =
         pcs'     = (path_cons state) ++ neg_pcs
 
 -- | Step Case
-stepCase :: State -> ([State], [State])
+stepCase :: State -> [State]
 stepCase state = if isValue (state {curr_expr = m})
-    then (concatMap (doNDef state) nds ++ concatMap (doDef state nds) ds, [])
-    else ([m_st {curr_expr = Case (curr_expr m_st) as t} | m_st <- m_sts],dsts)
+      then (concatMap (doNDef state) nds) ++ (concatMap (doDef state nds) ds)
+      else [m_st {curr_expr = Case (curr_expr m_st) as t} | m_st <- m_sts]
   where Case m as t = curr_expr state
         nds   = filter (not . isAltDefault) as
         ds    = filter isAltDefault as
-        (m_sts, dsts) = step (state {curr_expr = m})
+        m_sts = step (state {curr_expr = m})
+
 
 -- | Step Assume
-stepAssume :: State -> ([State], [State])
+stepAssume :: State -> [State]
 stepAssume state = if isValue (state {curr_expr = exp})
     then case cond of
         -- If the LHS is a Lam, then we apply it, and later on continue left
         -- derivation of the expression until we hit a value term.
-        Lam b c t -> ([state {curr_expr = Assume (App cond exp) exp}], [])
+        Lam b c t -> [state {curr_expr = Assume (App cond exp) exp}]
         -- If the LHS has already been saturated, evaluate it until value.
         otherwise -> if isValue (state {curr_expr = cond})
-          then ([state {curr_expr = exp, path_cons = pcs'}], [])
-          else ([c_st{curr_expr=Assume (curr_expr c_st) exp} | c_st<-c_sts],cd)
-    else ([e_st {curr_expr=Assume cond (curr_expr e_st)} | e_st <- e_sts], ed)
+            then [state {curr_expr = exp, path_cons = pcs'}]
+            else [c_st {curr_expr=Assume (curr_expr c_st) exp} | c_st <- c_sts]
+    else [e_st {curr_expr = Assume cond (curr_expr e_st)} | e_st <- e_sts]
   where Assume cond exp = curr_expr state
-        (c_sts, cd) = step (state {curr_expr = cond})
-        (e_sts, ed) = step (state {curr_expr = exp})
+        c_sts = step (state {curr_expr = cond})
+        e_sts = step (state {curr_expr = exp})
         pcs'  = [CondExt cond True] ++ path_cons state
  
 -- | Step Assert
-stepAssert :: State -> ([State], [State])
+stepAssert :: State -> [State]
 stepAssert state = if isValue (state {curr_expr = exp})
     then case cond of
         -- If the LHS is a Lam, then we apply it, and later on continue left
         -- derivation of the expression until we hit a value term.
-        Lam b c t -> ([state {curr_expr = Assert (App cond exp) exp}], [])
+        Lam b c t -> [state {curr_expr = Assert (App cond exp) exp}]
         -- If the LHS has already been saturated, evaluate it until value.
         otherwise -> if isValue (state {curr_expr = cond})
-          then ([state {curr_expr = exp, path_cons = f_pcs}], [])
-          else ([c_st {curr_expr = Assert (curr_expr c_st) exp} |
-                 c_st <- c_sts], cd)
-    else ([e_st {curr_expr = Assert cond (curr_expr e_st)} |
-           e_st <- e_sts], ed)
+            then [state {curr_expr = exp, path_cons = f_pcs}]
+            else [c_st {curr_expr=Assert (curr_expr c_st) exp} | c_st <- c_sts]
+    else [e_st {curr_expr = Assert cond (curr_expr e_st)} | e_st <- e_sts]
   where Assert cond exp = curr_expr state
-        (c_sts, cd) = step (state {curr_expr = cond})
-        (e_sts, ed) = step (state {curr_expr = exp})
+        c_sts = step (state {curr_expr = cond})
+        e_sts = step (state {curr_expr = exp})
         t_pcs = [CondExt cond True]  ++ path_cons state
         f_pcs = [CondExt cond False] ++ path_cons state
 
 -- | Stepper
 --   We run our program in discrete steps. If confused, please email Anton.
 --   Email: antonxue1572@gmail.com, anton.xue@yale.edu
-step :: State -> ([State], [State])
+step :: State -> [State]
 step state = if isValue state
-    then ([], [state])
+    then [state]
     else case curr_expr state of
         Var _ _               -> stepVar      state
         Prim _ _              -> stepPrim     state 
@@ -200,5 +198,5 @@ step state = if isValue state
         Case _ _ _            -> stepCase     state
         Assume _ _            -> stepAssume   state
         Assert _ _            -> stepAssert   state
-        otherwise             -> ([], [state])
+        otherwise             -> [state]
 

@@ -2,8 +2,10 @@
 --   Module for interacting and interfacing with the symbolic execution engine.
 module G2.Internals.Symbolic.Configuration
     ( initState
-    , runN
-    , histN) where
+    , runNBreadth
+    , runNDepth
+    , histN
+    ) where
 
 import G2.Internals.Core
 import G2.Internals.Symbolic.Engine
@@ -114,19 +116,27 @@ initState tenv eenv m_assume m_assert entry =
 
 -- | Run n Times
 --   Run a state n times through the power of concatMap.
-runN :: ([State], [State]) -> Int -> (([State], [State]), Int)
-runN ([], dds) n  = (([], dds), n - 1)
-runN (lvs, dds) 0 = ((lvs, dds), 0)
-runN (lvs, dds) n = runN (lvs', dds' ++ dds) (n - 1)
-  where stepped = map step lvs
-        (lvs', dds') = (concatMap fst stepped, concatMap snd stepped)
+runNBreadth :: [State] -> Int -> [State]
+runNBreadth states 0 = states
+runNBreadth [] n     = []
+runNBreadth states n = runNBreadth (concatMap (\s -> step s) states) (n - 1)
+
+runNDepth :: [State] -> Int -> [State]
+runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)
+    where
+        runNDepth' :: [(State, Int)] -> [State]
+        runNDepth' [] = []
+        runNDepth' ((s, 0):xs) = s:runNDepth' xs
+        runNDepth' ((s, n):xs) =
+            let
+                s'' = map (\s' -> (s', n - 1)) (step s)
+            in
+            runNDepth' (s'' ++ xs)
 
 -- | History n Times
 --   Run a state n times, while keeping track of its history as a list.
-histN :: ([State], [State]) -> Int -> [(([State], [State]), Int)]
-histN ([], dds) n  = [(([], dds), n - 1)]
-histN (lvs, dds) 0 = [((lvs, dds), 0)]
-histN (lvs, dds) n = ((lvs, dds), n) : histN (lvs', dds' ++ dds) (n - 1)
-  where stepped = map step lvs
-        (lvs', dds') = (concatMap fst stepped, concatMap snd stepped)
-
+histN :: [State] -> Int -> [([State], Int)]
+histN states 0 = [(states, 0)]
+histN [] n     = [([], n - 1)]
+histN states n = (states', n):(histN states' (n - 1))
+  where states' = concatMap step states
