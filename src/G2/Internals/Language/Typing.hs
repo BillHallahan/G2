@@ -36,11 +36,18 @@ litType (LitInt _)    = TyLitInt
 litType (LitFloat _)  = TyLitFloat
 litType (LitDouble _) = TyLitDouble
 litType (LitChar _)   = TyLitChar
-litTpye (LitString _) = TyLitString
+litType (LitString _) = TyLitString
 
 -- | `Type` of `DataCon`.
 dataconType :: DataCon -> Type
 dataconType (DataCon _ ty tys) = foldr TyFun ty tys
+dataconType (PrimDataCon pd)   = case pd of
+    I      -> TyFun TyLitInt TyInt
+    D      -> TyFun TyLitDouble TyDouble
+    F      -> TyFun TyLitFloat TyFloat
+    C      -> TyFun TyLitChar TyChar
+    PTrue  -> TyBool
+    PFalse -> TyBool
 
 -- | `Type` of `Alt`.
 altType :: Alt -> Type
