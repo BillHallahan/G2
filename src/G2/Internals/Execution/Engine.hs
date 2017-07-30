@@ -1,6 +1,10 @@
 -- | Engine
 --   The symbolic execution engine. Many hours were spent on improving this.
-module G2.Internals.Symbolic.Engine
+module G2.Internals.Execution.Engine
+    () where
+
+{-
+
     ( isValue
     , step  ) where
 
@@ -199,4 +203,5 @@ step state = if isValue state
         Assume _ _            -> stepAssume   state
         Assert _ _            -> stepAssert   state
         otherwise             -> [state]
+-}
 

@@ -1,6 +1,10 @@
 -- | PrimReplacer
 
-module G2.Internals.Translation.PrimReplace (primReplace) where
+module G2.Internals.Translation.PrimReplace
+    () where
+
+{-
+    (primReplace) where
 
 import G2.Internals.Translation.Language
 import G2.Internals.Core.AST
@@ -56,3 +60,4 @@ primReplaceT (TyConApp ("Float", _) _) = TyFloat
 primReplaceT (TyConApp ("Char", _) _) = TyChar
 primReplaceT (TyConApp ("Bool", _) _) = TyBool
 primReplaceT t = t
+-}

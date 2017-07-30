@@ -1,9 +1,14 @@
 -- Converts the core defined in G2.Internals.Translation.Language to
 -- the core defined in G2.Internals.Core.Language
 
-module G2.Internals.Translation.TranslToCore ( transl
-                                             , namesMapTEEnv
-                                             , namesMapCons) where
+module G2.Internals.Translation.TranslToCore
+    () where
+
+{-
+    
+    ( transl
+    , namesMapTEEnv
+    , namesMapCons) where
 
 import G2.Internals.Core.Language
 import qualified G2.Internals.Translation.Language as TL
@@ -89,3 +94,4 @@ namesMapCons = namesMapCToTL . concatMap getDCNames . M.elems
 
 getDCNames :: TL.TType -> [TL.TName]
 getDCNames (TyAlg _ ts) = map (\(TL.DataCon n _ _ _) -> n) ts
+-}

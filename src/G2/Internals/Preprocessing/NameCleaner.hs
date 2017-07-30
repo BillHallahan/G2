@@ -5,7 +5,12 @@
 -- 2) Names start with numbers or one of the 17 symbols, except for @ and .
 -- 3) Names do not conflict with a symbol reserved by the SMT solver
 
-module G2.Internals.Preprocessing.NameCleaner (cleanNames) where
+module G2.Internals.Preprocessing.NameCleaner
+    () where
+
+
+{-
+    (cleanNames) where
 
 import qualified Data.Map as M
 
@@ -37,3 +42,6 @@ cleanNames' s (n:ns) =
         new_eenv = M.mapKeys (\k -> if k == n then n'' else k) (expr_env s)
     in
     renameType n n'' $ renameExpr n n'' (s {type_env = new_tenv, expr_env = new_eenv})
+
+
+-}

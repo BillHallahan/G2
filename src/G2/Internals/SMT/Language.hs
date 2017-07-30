@@ -3,9 +3,13 @@
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module G2.Internals.SMT.Language ( module G2.Internals.SMT.Language
-                                 , module G2.Internals.Core.AST
-                                 , Name) where
+module G2.Internals.SMT.Language
+    () where
+
+{-
+    ( module G2.Internals.SMT.Language
+    , module G2.Internals.Core.AST
+    , Name) where
 
 import G2.Internals.Core.Language hiding (Assert)
 import G2.Internals.Core.AST
@@ -202,3 +206,5 @@ instance ASTContainer SMTAST Sort where
     modifyContainedASTs f (Cons n x s) = Cons n x (modify f s)
     modifyContainedASTs f (V n s) = V n (modify f s)
     modifyContainedASTs f x = modify (modifyContainedASTs f) x
+-}
+

@@ -1,29 +1,11 @@
 -- | Haskell Translation
---   This module is used for translating Haskell source files into TL Core.
---   Everything is slightly broken because we are trying to shove Haskell into
---   TL Core as hard as possible.
---
---   In particular, we have to do some faking with Haskell's primitive types
---   such as Int# and Double#, which means that the implementation of this
---   this module heavily depends on the GHC version we are working with.
 module G2.Internals.Translation.Haskell
-    ( mkGHCCore
-    , mkGHCCore'
-    , mkMultiGHCCore
-    , mkTLCore
-    , mkMultiTLCore
-    , combineTLCores
-    , hskToG2
-    , hskToTL
-    , hskToTL'
-    , mod_sep        
-    , getDependencies ) where
+    () where
 
-import qualified G2.Internals.Core as G2
-import qualified G2.Internals.Translation.HaskellPrelude as P
-import qualified G2.Internals.Translation.Language as TL
-import G2.Internals.Translation.TranslToCore
-import G2.Internals.Translation.PrimReplace
+import qualified G2.Internals.Language as G2
+-- import qualified G2.Internals.Translation.HaskellPrelude as P
+-- import G2.Internals.Translation.TranslToCore
+-- import G2.Internals.Translation.PrimReplace
 
 import CoreSyn
 import CoreUtils as CU
@@ -42,10 +24,12 @@ import Var
 import qualified Data.Map   as M
 import qualified Data.Maybe as B
 
--- | Module Separator
-mod_sep :: String
-mod_sep = "."
+mkIOString :: (Outputable a) => a -> IO String
+mkIOString obj = runGhc (Just libdir) $ do
+    dflags <- getSessionDynFlags
+    return (showPpr dflags obj)
 
+{-
 -- | Haskell Source to Core2
 --   Streamline the process of converting a list of files into Core2.
 hskToG2 :: FilePath -> FilePath
@@ -72,8 +56,10 @@ hskToTL' proj src = do
 
     let tenv = mkTEnv (mkTypeEnv (map ATyCon acc_tycs))
     let eenv = mkEEnv acc_prog
+    
+    return (tenv, eenv)
 
-    return $ primReplace (tenv, eenv)
+    -- return $ primReplace (tenv, eenv)
 
 -- | Make Raw Core
 --   Make a raw GHC Core given a FilePath (String).
@@ -370,3 +356,5 @@ mkCaughtDataCon i = case occ of
     "False" -> TL.PrimCon TL.DFalse
     x -> error $ "Unknown interception: " ++ x
   where occ = occNameString $ nameOccName $ Var.varName i
+-}
+

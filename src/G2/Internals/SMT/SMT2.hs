@@ -1,6 +1,9 @@
 -- | This defines an SMTConverter for the SMT2 language
 -- It provides methods to construct formulas, as well as feed them to an external solver
-module G2.Internals.SMT.SMT2 where
+module G2.Internals.SMT.SMT2 
+    () where
+
+{-
 
 import G2.Internals.Core.Language hiding (Assert)
 import G2.Internals.Core.TypeChecker
@@ -239,3 +242,5 @@ solveExpr h_in h_out con headers e = do
     evaluate (length out)
 
     return $ parseToSMTAST headers out (typeToSMT . exprType $ e)
+-}
+

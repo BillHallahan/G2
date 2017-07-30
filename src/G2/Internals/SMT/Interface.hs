@@ -1,6 +1,11 @@
-module G2.Internals.SMT.Interface ( satModelOutputs
-                                  , satModelOutput
-                                  , smtReady) where
+module G2.Internals.SMT.Interface
+    () where
+
+
+{-
+    ( satModelOutputs
+    , satModelOutput
+    , smtReady) where
 
 import Data.List
 import qualified Data.Map as M
@@ -101,3 +106,5 @@ replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
 
         functionType :: State -> Name -> Maybe Type
         functionType s n = exprType <$> M.lookup n (expr_env s)
+-}
+

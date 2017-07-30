@@ -1,4 +1,7 @@
-module G2.Internals.SMT.ParseSMT (parseSMT) where
+module G2.Internals.SMT.ParseSMT
+    () where
+{-
+    (parseSMT) where
 
 import G2.Internals.SMT.Language
 
@@ -80,3 +83,6 @@ parseSMT :: String -> SMTAST
 parseSMT s = case parse smtParser "" s of
     Left e -> error $ show e
     Right r -> r
+-}
+
+

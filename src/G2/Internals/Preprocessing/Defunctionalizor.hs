@@ -1,6 +1,11 @@
-module G2.Internals.Preprocessing.Defunctionalizor (defunctionalize) where
+module G2.Internals.Preprocessing.Defunctionalizor 
 
-import G2.Internals.Core
+() where
+
+{-
+(defunctionalize) where
+
+import G2.Internals.Language
 
 import Data.List
 import Data.Maybe
@@ -246,3 +251,5 @@ higherOrderFuncType (TyFun (TyFun _ _) _) = True
 higherOrderFuncType (TyFun t t') = higherOrderFuncType t || higherOrderFuncType t'
 higherOrderFuncType (TyApp t t') = higherOrderFuncType t || higherOrderFuncType t'
 higherOrderFuncType _ = False
+-}
+

@@ -3,15 +3,20 @@
 -- (1) A State/Exprs/Types to SMTHeaders/SMTASTs/Sorts
 -- (2) SMTHeaders/SMTASTs/Sorts to some SMT solver interface
 -- (3) SMTASTs/Sorts to Exprs/Types
-module G2.Internals.SMT.Converters ( toSMTHeaders
-                                   , toSolver
-                                   , sltToSMTNameSorts
-                                   , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
-                                   , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
-                                   , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
-                                   , smtastToExpr
-                                   , sortToType
-                                   , modelAsExpr) where
+module G2.Internals.SMT.Converters
+    () where
+
+{-
+
+    ( toSMTHeaders
+    , toSolver
+    , sltToSMTNameSorts
+    , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
+    , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
+    , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
+    , smtastToExpr
+    , sortToType
+    , modelAsExpr) where
 
 import qualified Data.Map as M
 
@@ -224,3 +229,4 @@ sortToType (Sort n xs) = TyConApp n (map sortToType xs)
 
 modelAsExpr :: Model -> ExprModel
 modelAsExpr = M.map smtastToExpr
+-}

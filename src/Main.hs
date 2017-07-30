@@ -9,11 +9,16 @@ import Data.Tuple
 import G2.Lib.Printers
 
 import G2.Internals.Interface
-import G2.Internals.Core
+import G2.Internals.Language
 import G2.Internals.Translation
-import G2.Internals.Symbolic
+import G2.Internals.Execution
 import G2.Internals.SMT
 
+
+main :: IO ()
+main = putStrLn "Compiles!"
+
+{-
 main :: IO ()
 main = do
     (proj:src:entry:tail_args) <- getArgs
@@ -87,3 +92,5 @@ mAssume args = mArg "--assume" args Just Nothing
 
 mAssert :: [String] -> Maybe String
 mAssert args = mArg "--assert" args Just Nothing
+-}
+

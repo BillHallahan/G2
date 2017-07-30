@@ -18,7 +18,7 @@ cabal-version:       >=1.10
 executable G2
   -- other-modules:   
   -- other-extensions:    
-  build-depends:       base >= 4.8 && < 5
+  build-depends:         base >= 4.8 && < 5
                        , containers >= 0.5 && < 0.6
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc
@@ -35,7 +35,7 @@ executable G2
   main-is:             Main.hs
 
 test-suite test
-  build-depends:       base >= 4.8 && < 5
+  build-depends:         base >= 4.8 && < 5
                        , containers >= 0.5 && < 0.6
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc

@@ -1,5 +1,7 @@
 module G2.Internals.SMT.Utils where
 
+
+{-
 import G2.Internals.SMT.Language
 
 import Data.List
@@ -12,3 +14,5 @@ varNamesSorts = nub . evalASTs varNamesSorts'
         varNamesSorts' :: SMTAST -> [(Name, Sort)]
         varNamesSorts' (V n s) = [(n, s)]
         varNamesSorts' _ = []
+-}
+

@@ -1,14 +1,18 @@
 -- | Configuration
 --   Module for interacting and interfacing with the symbolic execution engine.
-module G2.Internals.Symbolic.Configuration
+module G2.Internals.Execution.Configuration
+    () where
+
+{-
+
     ( initState
     , runNBreadth
     , runNDepth
     , histN
     ) where
 
-import G2.Internals.Core
-import G2.Internals.Symbolic.Engine
+import G2.Internals.Language
+import G2.Internals.Execution.Engine
 
 import qualified Data.Char as C
 import Data.List
@@ -140,3 +144,6 @@ histN states 0 = [(states, 0)]
 histN [] n     = [([], n - 1)]
 histN states n = (states', n):(histN states' (n - 1))
   where states' = concatMap step states
+-}
+
+

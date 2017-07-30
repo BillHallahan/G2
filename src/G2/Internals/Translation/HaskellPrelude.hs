@@ -1,8 +1,10 @@
 module G2.Internals.Translation.HaskellPrelude
-    ( module G2.Internals.Translation.HaskellPrelude ) where
+    ( module G2.Internals.Translation.HaskellPrelude
+    ) where
 
-import G2.Internals.Core.Language
+import G2.Internals.Language
 
+{-
 -- | Types
 --   In G2 Core we use the following to represent primitive types:
 --       TyRawInt    -> Int#
@@ -53,3 +55,4 @@ e_bool_ops = [o_eq, o_ne]
 
 op_eq = Var ("==", 0 :: Int) TyBottom
 d_eq  = Var ("$dEq", 0 :: Int) TyBottom
+-}
