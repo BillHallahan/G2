@@ -35,7 +35,7 @@ import Literal
 import Name
 import Outputable
 import TyCon
-import TypeRep
+import TyCoRep
 import Unique
 import Var
 
@@ -223,8 +223,8 @@ mkData dc = datacon
 mkType :: Type -> TL.TType
 mkType (TyVarTy var)    = TL.TyVar (mkName $ tyVarName var)
 mkType (AppTy t1 t2)    = TL.TyApp (mkType t1) (mkType t2)
-mkType (FunTy t1 t2)    = TL.TyFun (mkType t1) (mkType t2)
-mkType (ForAllTy v t)   = TL.TyForAll (mkName $ Var.varName v) (mkType t)
+-- mkType (FunTy t1 t2)    = TL.TyFun (mkType t1) (mkType t2)
+-- mkType (ForAllTy v t)   = TL.TyForAll (mkName $ Var.varName v) (mkType t)
 mkType (LitTy _)       = error "Literal types are sketchy?"
 mkType (TyConApp tc kt) = case mkName . tyConName $ tc of 
     ("Int#", _)    -> TL.TyRawInt
