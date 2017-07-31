@@ -21,6 +21,7 @@ main = do
     (proj:src:entry:tail_args) <- getArgs
     (binds, tycons) <- hskToG2 proj src
     mapM_ (putStrLn . show) binds
+    putStrLn "========================"
     mapM_ (putStrLn . show) tycons
 
 

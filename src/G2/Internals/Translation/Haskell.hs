@@ -7,13 +7,9 @@ module G2.Internals.Translation.Haskell
     ) where
 
 import qualified G2.Internals.Language as G2
--- import qualified G2.Internals.Translation.HaskellPrelude as P
--- import G2.Internals.Translation.TranslToCore
--- import G2.Internals.Translation.PrimReplace
 
 import CoreSyn
 import DataCon
-import FastString
 import GHC
 import GHC.Paths
 import HscTypes
@@ -66,7 +62,7 @@ mkBinding (Rec ves)         = G2.Bind G2.Rec (map (\(v, e) ->
                                                        (mkId v, mkExpr e)) ves)
 
 mkExpr :: CoreExpr -> G2.Expr
-mkExpr (Var var)              = G2.Var (mkId var)
+mkExpr (Var var)              = filterPrimOp (mkId var)
 mkExpr (Lit lit)              = G2.Lit (mkLit lit)
 mkExpr (App fxpr axpr)        = G2.App (mkExpr fxpr) (mkExpr axpr)
 mkExpr (Lam var expr)         = G2.Lam (mkId var) (mkExpr expr)
@@ -79,6 +75,25 @@ mkExpr (Coercion _)           = error "mkExpr: Coercion"
 
 mkId :: Id -> G2.Id
 mkId vid = G2.Id ((mkName . V.varName) vid) ((mkType . varType) vid)
+
+filterPrimOp :: G2.Id -> G2.Expr
+filterPrimOp (G2.Id name ty) = expr
+  where G2.Name occ mb_mdl _ _ = name
+        ghc_tys = "GHC.Types"
+        expr = case (mb_mdl == Just ghc_tys, occ) of
+                    (True, ">=")  -> G2.Prim G2.PGE
+                    (True, ">")   -> G2.Prim G2.PGT
+                    (True, "==")  -> G2.Prim G2.PEQ
+                    (True, "<=")  -> G2.Prim G2.PLE
+                    (True, "<")   -> G2.Prim G2.PLT
+                    (True, "&&")  -> G2.Prim G2.PAND
+                    (True, "||")  -> G2.Prim G2.POR
+                    (True, "not") -> G2.Prim G2.PNOT
+                    (True, "+")   -> G2.Prim G2.PPlus
+                    (True, "-")   -> G2.Prim G2.PMinus
+                    (True, "*")   -> G2.Prim G2.PMult
+                    (True, "/")   -> G2.Prim G2.PDiv
+                    _ -> G2.Var (G2.Id name ty)
 
 mkName :: Name -> G2.Name
 mkName name = G2.Name occ mdl ns unq
@@ -97,15 +112,15 @@ mkNameSpace ns | isVarNameSpace ns     = G2.VarNSpace
                | otherwise             = error "mkNameSpace: unrecognized"
 
 mkLit :: Literal -> G2.Lit
-mkLit (MachChar char)    = G2.LitChar char
+mkLit (MachChar chr)     = G2.LitChar chr
 mkLit (MachStr bstr)     = G2.LitString (show bstr)
-mkLit (MachInt int)      = G2.LitInt (fromInteger int)
-mkLit (MachInt64 int)    = G2.LitInt (fromInteger int)
-mkLit (MachWord int)     = G2.LitInt (fromInteger int)
-mkLit (MachWord64 int)   = G2.LitInt (fromInteger int)
+mkLit (MachInt i)        = G2.LitInt (fromInteger i)
+mkLit (MachInt64 i)      = G2.LitInt (fromInteger i)
+mkLit (MachWord i)       = G2.LitInt (fromInteger i)
+mkLit (MachWord64 i)     = G2.LitInt (fromInteger i)
 mkLit (MachFloat rat)    = G2.LitFloat rat
 mkLit (MachDouble rat)   = G2.LitDouble rat
-mkLit (LitInteger int _) = G2.LitInt (fromInteger int)
+mkLit (LitInteger i _)   = G2.LitInt (fromInteger i)
 mkLit (MachNullAddr)     = error "mkLit: MachNullAddr"
 mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
@@ -126,15 +141,15 @@ mkAltCon (LitAlt lit)   = G2.DataAlt (G2.PrimCon (mkLitCon lit))
 mkAltCon (DEFAULT)      = G2.Default
 
 mkLitCon :: Literal -> G2.LitCon
-mkLitCon (MachChar char)    = G2.C
-mkLitCon (MachInt int)      = G2.I
-mkLitCon (MachInt64 int)    = G2.I
-mkLitCon (MachWord int)     = G2.I
-mkLitCon (MachWord64 int)   = G2.I
-mkLitCon (MachFloat rat)    = G2.F
-mkLitCon (MachDouble rat)   = G2.D
-mkLitCon (LitInteger int _) = G2.I
-mkLitCon (MachStr bstr)     = error "mkLitCon: MachStr"
+mkLitCon (MachChar _)       = G2.C
+mkLitCon (MachInt _)        = G2.I
+mkLitCon (MachInt64 _)      = G2.I
+mkLitCon (MachWord _)       = G2.I
+mkLitCon (MachWord64 _)     = G2.I
+mkLitCon (MachFloat _)      = G2.F
+mkLitCon (MachDouble _)     = G2.D
+mkLitCon (LitInteger _ _)   = G2.I
+mkLitCon (MachStr _)        = error "mkLitCon: MachStr"
 mkLitCon (MachNullAddr)     = error "mkLitCon: MachNullAddr"
 mkLitCon (MachLabel _ _ _ ) = error "mkLitCon: MachLabel"
 
@@ -162,10 +177,24 @@ mkTyCon tc | isFunTyCon         tc = G2.FunTyCon     name tcbndrs
         dcon    = (mkData . MB.fromJust . isPromotedDataCon_maybe) tc
 
 mkData :: DataCon -> G2.DataCon
-mkData datacon = G2.DataCon name ty args
+mkData datacon = filterPrimCon (G2.DataCon name ty tys)
   where name = mkDataName datacon
         ty   = (mkType . dataConRepType) datacon
-        args = map mkType (dataConOrigArgTys datacon)
+        tys  = map mkType (dataConOrigArgTys datacon)
+
+filterPrimCon :: G2.DataCon -> G2.DataCon
+filterPrimCon (G2.PrimCon lcon)        = G2.PrimCon lcon
+filterPrimCon (G2.DataCon name ty tys) = dcon
+  where G2.Name occ mb_mdl _ _ = name
+        ghc_tys = "GHC.Types"
+        dcon    = case (mb_mdl == Just ghc_tys, occ) of
+                      (True, "I#") -> G2.PrimCon G2.I
+                      (True, "D#") -> G2.PrimCon G2.D
+                      (True, "F#") -> G2.PrimCon G2.F
+                      (True, "C#") -> G2.PrimCon G2.C
+                      (True, "True") -> G2.PrimCon G2.PTrue
+                      (True, "False") -> G2.PrimCon G2.PFalse
+                      _  -> G2.DataCon name ty tys
 
 mkDataName :: DataCon -> G2.Name
 mkDataName datacon = (mkName . dataConName) datacon
