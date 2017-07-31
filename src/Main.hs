@@ -16,7 +16,13 @@ import G2.Internals.SMT
 
 
 main :: IO ()
-main = putStrLn "Compiles!"
+main = do
+    putStrLn "Compiles!"
+    (proj:src:entry:tail_args) <- getArgs
+    (binds, tycons) <- hskToG2 proj src
+    mapM_ (putStrLn . show) binds
+    mapM_ (putStrLn . show) tycons
+
 
 {-
 main :: IO ()

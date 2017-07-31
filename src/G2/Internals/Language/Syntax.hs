@@ -2,7 +2,6 @@ module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
 
-
 -- | Variables, data constructors, type variables, and type constructors.
 data NameSpace = VarNSpace | DataNSpace | TvNSpace | TcClsNSpace
                deriving (Show, Eq, Read, Ord)
@@ -17,12 +16,12 @@ data Name = Name String (Maybe String) NameSpace Int
 data Id = Id Name Type deriving (Show, Eq, Read)
 
 data Expr = Var  Id
-          | Lit  Literal
+          | Lit  Lit
           | Prim Primitive
           | Data DataCon
           | App  Expr Expr
           | Lam  Id Expr
-          | Let  Binding Expr
+          | Let  Bind Expr
           | Case Expr Id [Alt]
           | Type Type
           deriving (Show, Eq, Read)
@@ -34,22 +33,22 @@ data Primitive = PTRUE | PFALSE
                | PAssert | PAssume
                deriving (Show, Eq, Read)
 
-data Literal = LitInt    Int
-             | LitFloat  Float
-             | LitDouble Rational
-             | LitChar   Char
-             | LitString String
-             deriving (Show, Eq, Read)
+data Lit = LitInt    Int
+         | LitFloat  Rational
+         | LitDouble Rational
+         | LitChar   Char
+         | LitString String
+         deriving (Show, Eq, Read)
 
 data DataCon = DataCon Name Type [Type]
-             | PrimCon PrimDataCon
+             | PrimCon LitCon
              deriving (Show, Eq, Read)
 
-data PrimDataCon = I | D | F | C | PTrue | PFalse deriving (Show, Eq, Read)
+data LitCon = I | D | F | C | PTrue | PFalse deriving (Show, Eq, Read)
 
 data RecForm = Rec | NonRec deriving (Show, Eq, Read)
 
-data Binding = Binding RecForm [(Id, Expr)] deriving (Show, Eq, Read)
+data Bind = Bind RecForm [(Id, Expr)] deriving (Show, Eq, Read)
 
 data AltCon = DataAlt DataCon
             | Default
