@@ -2,15 +2,11 @@ module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
 
--- | Variables, data constructors, type variables, and type constructors.
-data NameSpace = VarNSpace | DataNSpace | TvNSpace | TcClsNSpace
-               deriving (Show, Eq, Read, Ord)
-
 -- | The occurrence name is defined as a string, with a `Maybe` module name
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
-data Name = Name String (Maybe String) NameSpace Int
+data Name = Name String (Maybe String) Int
           deriving (Show, Eq, Read, Ord)
 
 data Id = Id Name Type deriving (Show, Eq, Read)
@@ -26,11 +22,11 @@ data Expr = Var  Id
           | Type Type
           deriving (Show, Eq, Read)
 
-data Primitive = PTRUE | PFALSE
-               | PGE | PGT | PEQ | PLT | PLE
-               | PAND | POR | PNOT | PImplies
-               | PPlus | PMinus | PMult | PDiv
-               | PAssert | PAssume
+data Primitive = PTrue | PFalse
+               | GE | GT | EQ | LT | LE
+               | And | Or | Not | Implies
+               | Plus | Minus | Mult | Div
+               | Assert | Assume
                deriving (Show, Eq, Read)
 
 data Lit = LitInt    Int
