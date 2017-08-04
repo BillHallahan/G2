@@ -6,18 +6,17 @@ module G2.Internals.Language.Syntax
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
-data Name = Name String (Maybe String) Int
-          deriving (Show, Eq, Read, Ord)
+data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord)
 
 data Id = Id Name Type deriving (Show, Eq, Read)
 
-data Expr = Var  Id
-          | Lit  Lit
+data Expr = Var Id
+          | Lit Lit
           | Prim Primitive
           | Data DataCon
-          | App  Expr Expr
-          | Lam  Id Expr
-          | Let  Bind Expr
+          | App Expr Expr
+          | Lam Id Expr
+          | Let Bind Expr
           | Case Expr Id [Alt]
           | Type Type
           deriving (Show, Eq, Read)
@@ -29,10 +28,10 @@ data Primitive = PTrue | PFalse
                | Assert | Assume
                deriving (Show, Eq, Read)
 
-data Lit = LitInt    Int
-         | LitFloat  Rational
+data Lit = LitInt Int
+         | LitFloat Rational
          | LitDouble Rational
-         | LitChar   Char
+         | LitChar Char
          | LitString String
          deriving (Show, Eq, Read)
 
@@ -56,7 +55,7 @@ data TyBinder = AnonTyBndr
               | NamedTyBndr Name
               deriving (Show, Eq, Read)
 
-data Type = TyVarTy Name
+data Type = TyVar Name
           | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
           | TyFun Type Type
@@ -66,17 +65,5 @@ data Type = TyVarTy Name
           | TyBottom
           deriving (Show, Eq, Read)
 
-data TyCon = FunTyCon     Name [TyBinder]
-           | AlgTyCon     Name [Name] AlgTyRhs
-           | SynonymTyCon Name [Name]
-           | FamilyTyCon  Name [Name]
-           | PrimTyCon    Name [TyBinder]
-           | Promoted     Name [TyBinder] DataCon
-           deriving (Show, Eq, Read)
-
-data AlgTyRhs = AbstractTyCon Bool
-              | DataTyCon     [Name]
-              | NewTyCon      Name
-              | TupleTyCon    Name
-              deriving (Show, Eq, Read)
+data TyCon = TyCon Name deriving (Show, Eq, Read)
 

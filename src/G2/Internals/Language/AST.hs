@@ -1,5 +1,4 @@
--- | Abstract Syntax Tree
---   Defines typeclasses and functions for ease of AST manipulation.
+-- | Defines typeclasses and functions for ease of AST manipulation.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -13,61 +12,52 @@ import G2.Internals.Language.Support
 
 import qualified Data.Map as M
 
--- | Abstract Syntax Tree
---   Describes the data types that can be represented in a tree format.
+-- | Describes the data types that can be represented in a tree format.
 class AST t where
-    -- | Children
-    --   Gets the direct children of the given node.
+    -- | Gets the direct children of the given node.
     children :: t -> [t]
-    -- | Modify Children
-    --   Applies the given function to all children of the given node.
+    -- | Applies the given function to all children of the given node.
     modifyChildren :: (t -> t) -> t -> t
 
--- | Modify
---   Calls the given function on the given node, and all of the descendants
---   in a recursive manner.
+-- | Calls the given function on the given node, and all of the descendants
+-- in a recursive manner.
 modify :: AST t => (t -> t) -> t -> t
 modify f t = modifyChildren (modify f) (f t)
 
--- | Monoidic Modify
---   Similar to modify. Also passes a Monoid instance to the modify function. 
---   Children have access to the mconcated results from higher in the tree
---   As exposed by modifyM, the head of the tree is given mempty.
+-- | Similar to modify. Also passes a Monoid instance to the modify function. 
+-- Children have access to the mconcated results from higher in the tree
+-- As exposed by modifyM, the head of the tree is given mempty.
 modifyM :: (AST t, Monoid a) => (a -> t -> (t, a)) -> t -> t
 modifyM f = go f mempty
-  where go :: (AST t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
-        go f m t = let (t', m') = f m t
-                       ms = m `mappend` m'
-                   in modifyChildren (go f ms) t'
+  where
+    go :: (AST t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
+    go g m t = let (t', m') = g m t
+                   ms = m `mappend` m'
+               in modifyChildren (go g ms) t'
 
--- | Modify Fixed Point
---   Runs the given function f on the node t, t until t = f t, then does the
---   same on all decendants of t recursively.
+-- | Runs the given function f on the node t, t until t = f t, then does the
+-- same on all decendants of t recursively.
 modifyFix :: (AST t, Eq t) => (t -> t) -> t -> t
 modifyFix f t = let t' = f t
                 in if t == t'
                     then modifyChildren (modifyFix f) t'
                     else modifyFix f t'
 
--- | Monoidic Modify Fixed Point
---   Combines the methods of modifyM and modifyFix.
---   Runs until t == t', but does not consider the Monoid's value. However, the
---   mappend still occurs each time an iteration is performed on a given AST.
+-- | Combines the methods of modifyM and modifyFix.
+-- Runs until t == t', but does not consider the Monoid's value. However, the
+-- mappend still occurs each time an iteration is performed on a given AST.
 modifyFixM :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> t -> t
 modifyFixM f = go f mempty
-    where
-        go :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
-        go f m t =  let
-                        (t', m') = f m t
-                        ms = m `mappend` m'
-                    in
-                    if t == t'
-                    then modifyChildren (go f ms) t'
-                    else go f ms t'
+  where
+    go :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
+    go g m t =  let (t', m') = g m t
+                    ms = m `mappend` m'
+                in if t == t'
+                    then modifyChildren (go g ms) t'
+                    else go g ms t'
 
--- | Evaluation
---   Recursively runs the given function on each node, top down. Uses mappend
---   to combine the results after evaluation of the entire tree.
+-- | Recursively runs the given function on each node, top down. Uses mappend
+-- to combine the results after evaluation of the entire tree.
 eval :: (AST t, Monoid a) => (t -> a) -> t -> a
 eval f t = (f t) `mappend` (evalChildren (eval f) t)
 
@@ -75,76 +65,64 @@ eval f t = (f t) `mappend` (evalChildren (eval f) t)
 evalChildren :: (AST t, Monoid a) => (t -> a) -> t -> a
 evalChildren f = mconcat . (map f) . children
 
--- | AST Container
---   For types that contain ASTs, but that are not ASTs themselves. Such types
---   may include environments, state, and the like.
+-- | For types that contain ASTs, but that are not ASTs themselves. Such types
+-- may include environments, state, and the like.
 class AST t => ASTContainer c t where
-    -- | Contained ASTs
-    --   Gets all the ASTs that are recursively contained in the container.
+    -- | Gets all the ASTs that are recursively contained in the container.
     containedASTs :: c -> [t]
-    -- | Modify Contained ASTs
-    --   Calls the function on all ASTs in the container.
+    -- | Calls the function on all ASTs in the container.
     modifyContainedASTs :: (t -> t) -> c -> c
 
--- | Modify Container
---   Runs modify on all the ASTs in the container.
+-- | Runs modify on all the ASTs in the container.
 modifyASTs :: ASTContainer t e => (e -> e) -> t -> t
 modifyASTs f = modifyContainedASTs (modify f)
 
--- | Monoidic Modify Container
---   Runs modifyM on all the ASTs in the container.
+-- | Runs modifyM on all the ASTs in the container.
 modifyASTsM :: (ASTContainer t e, Monoid a) => (a -> e -> (e,a)) -> t -> t
 modifyASTsM f = modifyContainedASTs (modifyM f)
 
--- | Modify Container Fixed Point
---   Runs modifyFix on all the ASTs in the container.
+-- | Runs modifyFix on all the ASTs in the container.
 modifyASTsFix :: (ASTContainer t e, Eq e) => (e -> e) -> t -> t
 modifyASTsFix f = modifyContainedASTs (modifyFix f)
 
--- | Evaluate Container ASTs
---   Runs eval on all the ASTs in the container, and uses mappend to combine
---   the results.
+-- | Runs eval on all the ASTs in the container, and uses mappend to results.
 evalASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
 evalASTs f = evalContainedASTs (eval f)
 
--- | Evaluate Container with Function
---   Runs a function on all the ASTs in the container, and uses mappend to
---   combine the results.
+-- | Runs a function on all the ASTs in the container, and uses mappend to
+-- combine the results.
 evalContainedASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
 evalContainedASTs f = mconcat . map f . containedASTs
 
 -- | Instance Expr of AST
 instance AST Expr where
-    children (App f a)     = [f, a]
-    children (Lam _ e)     = [e]
-    children (Let bnd e)   = e : bndExprs bnd
-        where
-            bndExprs :: Bind -> [Expr]
-            bndExprs (Bind _ kvs) = map snd kvs
+    children (App f a) = [f, a]
+    children (Lam _ e) = [e]
+    children (Let bind e) = e : bindExprs bind
+      where
+        bindExprs :: Bind -> [Expr]
+        bindExprs (Bind _ kvs) = map snd kvs
     children (Case m _ as) = m : map (\(Alt _ _ e) -> e) as
-    children _             = []
+    children _  = []
 
-    modifyChildren f (App fx ax)   = App (f fx) (f ax)
-    modifyChildren f (Lam b e)     = Lam b (f e)
-    modifyChildren f (Let bnd e)   = Let (mapBnd f bnd) (f e)
-        where
-            mapBnd :: (Expr -> Expr) -> Bind -> Bind
-            mapBnd f (Bind r kvs) = Bind r (map (\(k, v) -> (k, f v)) kvs)
+    modifyChildren f (App fx ax) = App (f fx) (f ax)
+    modifyChildren f (Lam b e) = Lam b (f e)
+    modifyChildren f (Let bind e) = Let (mapBind f bind) (f e)
+      where
+        mapBind :: (Expr -> Expr) -> Bind -> Bind
+        mapBind g (Bind r kvs) = Bind r (map (\(k, v) -> (k, g v)) kvs)
     modifyChildren f (Case m b as) = Case (f m) b (mapAlt f as)
-        where 
-            mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
-            mapAlt f alts = map (\(Alt ac ps e) -> Alt ac ps (f e)) alts
-
-    modifyChildren _ e             = e
-
-{-
+      where
+        mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
+        mapAlt g alts = map (\(Alt ac ps e) -> Alt ac ps (g e)) alts
+    modifyChildren _ e = e
 
 instance AST Type where
-    children (TyFun tf ta)   = [tf, ta]
-    children (TyApp tf ta)   = [tf, ta]
+    children (TyFun tf ta) = [tf, ta]
+    children (TyApp tf ta) = [tf, ta]
     children (TyConApp _ ts) = ts
     children (TyForAll _ t)  = [t]
-    children _               = []
+    children _ = []
 
     modifyChildren f (TyFun tf ta)   = TyFun (f tf) (f ta)
     modifyChildren f (TyApp tf ta)   = TyApp (f tf) (f ta)
@@ -152,7 +130,6 @@ instance AST Type where
     modifyChildren f (TyForAll b t)  = TyForAll b (f t)
     modifyChildren _ t               = t
 
--}
 
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
@@ -175,20 +152,19 @@ instance ASTContainer Expr Type where
             go (Type t) = [t]
             go _ = []
 
-    modifyContainedASTs f = modify (go)
+    modifyContainedASTs f = modify go
       where
             go :: Expr -> Expr
             go (Var i) = Var (modifyContainedASTs f i)
             go (Data dc) = Data (modifyContainedASTs f dc)
             go (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
             go (Lam b e) = Lam (modifyContainedASTs f b) (modifyContainedASTs f e)
-            go (Data dc) = Data (modifyContainedASTs f dc)
             go (Case m b as) = Case (modifyContainedASTs f m) (modifyContainedASTs f b) (modifyContainedASTs f as) 
             go (Type t) = Type (f t)
             go e = e
 
 instance ASTContainer Id Type where
-  containedASTs (Id n t) = [t]
+  containedASTs (Id _ t) = [t]
 
   modifyContainedASTs f (Id n t) = Id n (modifyContainedASTs f t)
   

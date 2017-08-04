@@ -39,14 +39,14 @@ litType (LitChar _)   = TyLitChar
 litType (LitString _) = TyLitString
 
 -- | `Type` of `DataCon`.
-dataconType :: DataCon -> Type
-dataconType (DataCon _ ty tys) = foldr TyFun ty tys
-dataconType (PrimCon I) = TyFun TyLitInt TyInt
-dataconType (PrimCon D) = TyFun TyLitDouble TyDouble
-dataconType (PrimCon F) = TyFun TyLitFloat TyFloat
-dataconType (PrimCon C) = TyFun TyLitChar TyChar
-dataconType (PrimCon CTrue) = TyBool
-dataconType (PrimCon CFalse) = TyBool
+dataConType :: DataCon -> Type
+dataConType (DataCon _ ty tys) = foldr TyFun ty tys
+dataConType (PrimCon I) = TyFun TyLitInt TyInt
+dataConType (PrimCon D) = TyFun TyLitDouble TyDouble
+dataConType (PrimCon F) = TyFun TyLitFloat TyFloat
+dataConType (PrimCon C) = TyFun TyLitChar TyChar
+dataConType (PrimCon CTrue) = TyBool
+dataConType (PrimCon CFalse) = TyBool
 
 -- | `Type` of `Alt`.
 altType :: Alt -> Type
@@ -58,10 +58,10 @@ exprType :: Expr -> Type
 exprType (Var vid) = idType vid
 exprType (Prim prim) = primType prim
 exprType (Lit lit) = litType lit
-exprType (Data dcon) = dataconType dcon
+exprType (Data dcon) = dataConType dcon
 exprType (App fxpr axpr) = TyApp (exprType fxpr) (exprType axpr)
 exprType (Lam b expr ) = TyFun (idType b) (exprType expr)
-exprType (Let bnd expr) = exprType expr
+exprType (Let _ expr) = exprType expr
 exprType (Case _ _ (a:_)) = altType a
 exprType (Type ty) = ty
 exprType _ = TyBottom
