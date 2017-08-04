@@ -19,6 +19,7 @@ data Expr = Var Id
           | Let Bind Expr
           | Case Expr Id [Alt]
           | Type Type
+          | BLACKHOLE
           deriving (Show, Eq, Read)
 
 data Primitive = PTrue | PFalse

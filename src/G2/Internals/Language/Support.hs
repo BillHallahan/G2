@@ -38,3 +38,25 @@ newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
 
 data Interp = StdInt | UnInt deriving (Show, Eq, Read)
 
+idName :: Id -> Name
+idName (Id name _) = name
+
+lookupExpr :: Name -> ExprEnv -> Maybe Expr
+lookupExpr = M.lookup
+
+insertExpr :: Name -> Expr -> ExprEnv -> ExprEnv
+insertExpr = M.insert
+
+lookupType :: Name -> TypeEnv -> Maybe Type
+lookupType = M.lookup
+
+insertType :: Name -> Type -> TypeEnv -> TypeEnv
+insertType = M.insert
+
+pushStack :: Frame -> Stack -> Stack
+pushStack frame (Stack frames) = Stack (frame : frames)
+
+popStack :: Stack -> Maybe (Frame, Stack)
+popStack (Stack []) = Nothing
+popStack (Stack (frame:frames)) = Just (frame, Stack frames)
+
