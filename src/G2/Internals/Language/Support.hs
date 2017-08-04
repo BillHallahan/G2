@@ -1,5 +1,5 @@
-module G2.Internals.Execution.Support
-    ( module G2.Internals.Execution.Support
+module G2.Internals.Language.Support
+    ( module G2.Internals.Language.Support
     ) where
 
 import G2.Internals.Language.Syntax

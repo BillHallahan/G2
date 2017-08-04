@@ -9,7 +9,7 @@ module G2.Internals.Language.AST
     ) where
 
 import G2.Internals.Language.Syntax
-import G2.Internals.Execution.Support
+import G2.Internals.Language.Support
 
 import qualified Data.Map as M
 
