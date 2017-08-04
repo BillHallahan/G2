@@ -96,20 +96,12 @@ filterPrimOp (G2.Id name ty) = expr
                     _ -> G2.Var (G2.Id name ty)
 
 mkName :: Name -> G2.Name
-mkName name = G2.Name occ mdl ns unq
+mkName name = G2.Name occ mdl unq
   where occ = (occNameString . nameOccName) name
-        ns  = (mkNameSpace . occNameSpace . nameOccName) name
         unq = (getKey . nameUnique) name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
                   Just md -> Just ((moduleNameString . moduleName) md)
-
-mkNameSpace :: NameSpace -> G2.NameSpace
-mkNameSpace ns | isVarNameSpace ns     = G2.VarNSpace
-               | isTvNameSpace  ns     = G2.TvNSpace
-               | isDataConNameSpace ns = G2.DataNSpace
-               | isTcClsNameSpace ns   = G2.TcClsNSpace
-               | otherwise             = error "mkNameSpace: unrecognized"
 
 mkLit :: Literal -> G2.Lit
 mkLit (MachChar chr)     = G2.LitChar chr
