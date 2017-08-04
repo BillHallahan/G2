@@ -23,7 +23,7 @@ data Expr = Var  Id
           deriving (Show, Eq, Read)
 
 data Primitive = PTrue | PFalse
-               | GE | GT | EQ | LT | LE
+               | Ge | Gt | Eq | Lt | Le
                | And | Or | Not | Implies
                | Plus | Minus | Mult | Div
                | Assert | Assume
@@ -40,7 +40,7 @@ data DataCon = DataCon Name Type [Type]
              | PrimCon LitCon
              deriving (Show, Eq, Read)
 
-data LitCon = I | D | F | C | PTrue | PFalse deriving (Show, Eq, Read)
+data LitCon = I | D | F | C | CTrue | CFalse deriving (Show, Eq, Read)
 
 data RecForm = Rec | NonRec deriving (Show, Eq, Read)
 
@@ -63,7 +63,7 @@ data Type = TyVarTy Name
           | TyApp Type Type
           | TyConApp TyCon [Type]
           | TyForAll TyBinder Type
-          | Bottom
+          | TyBottom
           deriving (Show, Eq, Read)
 
 data TyCon = FunTyCon     Name [TyBinder]

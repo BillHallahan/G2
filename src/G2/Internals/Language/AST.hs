@@ -9,11 +9,9 @@ module G2.Internals.Language.AST
     ) where
 
 import G2.Internals.Language.Syntax
+import G2.Internals.Execution.Support
 
 import qualified Data.Map as M
-
-{-
-
 
 -- | Abstract Syntax Tree
 --   Describes the data types that can be represented in a tree format.
@@ -57,12 +55,15 @@ modifyFix f t = let t' = f t
 --   mappend still occurs each time an iteration is performed on a given AST.
 modifyFixM :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> t -> t
 modifyFixM f = go f mempty
-  where go :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
-        go f m t = let (t', m') = f m t
-                       ms = m `mappend` m'
-                   in if t == t'
-                       then modifyChildren (go f ms) t'
-                       else go f ms t'
+    where
+        go :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
+        go f m t =  let
+                        (t', m') = f m t
+                        ms = m `mappend` m'
+                    in
+                    if t == t'
+                    then modifyChildren (go f ms) t'
+                    else go f ms t'
 
 -- | Evaluation
 --   Recursively runs the given function on each node, top down. Uses mappend
@@ -117,21 +118,26 @@ instance AST Expr where
     children (App f a)     = [f, a]
     children (Lam _ e)     = [e]
     children (Let bnd e)   = e : bndExprs bnd
+        where
+            bndExprs :: Bind -> [Expr]
+            bndExprs (Bind _ kvs) = map snd kvs
     children (Case m _ as) = m : map (\(Alt _ _ e) -> e) as
     children _             = []
-      where bndExprs :: Binding -> [Expr]
-            bndExprs (Binding _ kvs) = map snd kvs
 
     modifyChildren f (App fx ax)   = App (f fx) (f ax)
     modifyChildren f (Lam b e)     = Lam b (f e)
     modifyChildren f (Let bnd e)   = Let (mapBnd f bnd) (f e)
+        where
+            mapBnd :: (Expr -> Expr) -> Bind -> Bind
+            mapBnd f (Bind r kvs) = Bind r (map (\(k, v) -> (k, f v)) kvs)
     modifyChildren f (Case m b as) = Case (f m) b (mapAlt f as)
-    modifyChildren _ e             = e
-      where mapBnd :: (Expr -> Expr) -> Binding -> Binding
-            mapBnd f (Binding r kvs) = Binding r (map (\(k, v) -> (k, f v)) kvs)
-
+        where 
             mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
             mapAlt f alts = map (\(Alt ac ps e) -> Alt ac ps (f e)) alts
+
+    modifyChildren _ e             = e
+
+{-
 
 instance AST Type where
     children (TyFun tf ta)   = [tf, ta]
@@ -146,6 +152,8 @@ instance AST Type where
     modifyChildren f (TyForAll b t)  = TyForAll b (f t)
     modifyChildren _ t               = t
 
+-}
+
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
@@ -154,150 +162,160 @@ instance AST t => ASTContainer t t where
 
     modifyContainedASTs f t = f t
 
+
 instance ASTContainer Expr Type where
     containedASTs = eval go
-      where go :: Expr -> [Type]
-            go (Var _ t)     = [t]
-            go (Data dc)     = containedASTs dc
-            go (Lam b e)     = containedASTs b ++ containedASTs e
-            go (Let bnd e)   = containedASTs bnd ++ containedASTs e
-            go (Case _ as t) = ((containedASTs . map fst) as) ++ [t]
-            go (Type t)      = [t]
-            go _             = []
+      where
+            go :: Expr -> [Type]
+            go (Var i) = containedASTs i
+            go (Data dc) = containedASTs dc
+            go (Lam b e) = containedASTs b ++ containedASTs e
+            go (Let bnd e) = containedASTs bnd ++ containedASTs e
+            go (Case e i as) = (containedASTs e) ++ (containedASTs i) ++ (containedASTs as)
+            go (Type t) = [t]
+            go _ = []
 
-    modifyContainedASTs f = modify (go f)
-      where go f (Var n t)     = Var n (f t)
-            go f (Data dc)     = Data (modyfContainedASTs f dc)
-            go f (App fx ax)   = App (f fx) (f ax)
-            go f (Lam b e)     = Lam (modifyContainedASTs f b) (f e)
-            go f (Data dc)     = Data (modifyContainedASTs f dc)
-            go f (Case m b as) = Case (f m) as (f 
-            go f (Type t)      = Type (f t)
-            go f e             = e
+    modifyContainedASTs f = modify (go)
+      where
+            go :: Expr -> Expr
+            go (Var i) = Var (modifyContainedASTs f i)
+            go (Data dc) = Data (modifyContainedASTs f dc)
+            go (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
+            go (Lam b e) = Lam (modifyContainedASTs f b) (modifyContainedASTs f e)
+            go (Data dc) = Data (modifyContainedASTs f dc)
+            go (Case m b as) = Case (modifyContainedASTs f m) (modifyContainedASTs f b) (modifyContainedASTs f as) 
+            go (Type t) = Type (f t)
+            go e = e
 
 instance ASTContainer Id Type where
-  containedASTs (Var _ t) = [t]
+  containedASTs (Id n t) = [t]
 
-  modifyContainedASTs f (Var n t) = Var n (f t)
+  modifyContainedASTs f (Id n t) = Id n (modifyContainedASTs f t)
   
 
-instance ASTContainer (GenType n) (GenExpr n) where
+instance ASTContainer Type Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance (ASTContainer n (GenExpr n)) => ASTContainer (GenState n) (GenExpr n) where
+
+instance ASTContainer State Expr where
     containedASTs s = ((containedASTs . type_env) s) ++
                       ((containedASTs . expr_env) s) ++
                       ((containedASTs . curr_expr) s) ++
-                      ((containedASTs . path_cons) s) ++
+                      ((containedASTs . path_conds) s) ++
                       ((containedASTs . sym_links) s)
 
     modifyContainedASTs f s = s { type_env  = (modifyASTs f . type_env) s
                                 , expr_env  = (modifyASTs f . expr_env) s
                                 , curr_expr = (modifyASTs f . curr_expr) s
-                                , path_cons = (modifyASTs f . path_cons) s
+                                , path_conds = (modifyASTs f . path_conds) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
-instance (ASTContainer n (GenType n)) => ASTContainer (GenState n) (GenType n) where
+
+instance ASTContainer State Type where
     containedASTs s = ((containedASTs . type_env) s) ++
                       ((containedASTs . expr_env) s) ++
                       ((containedASTs . curr_expr) s) ++
-                      ((containedASTs . path_cons) s) ++
+                      ((containedASTs . path_conds) s) ++
                       ((containedASTs . sym_links) s)
 
     modifyContainedASTs f s = s { type_env  = (modifyASTs f . type_env) s
                                 , expr_env  = (modifyASTs f . expr_env) s
                                 , curr_expr = (modifyASTs f . curr_expr) s
-                                , path_cons = (modifyASTs f . path_cons) s
+                                , path_conds = (modifyASTs f . path_conds) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
-instance ASTContainer (GenDataCon n) (GenType n) where
-    containedASTs (DataCon _ _ t ts) = containedASTs (t:ts)
+
+instance ASTContainer Bind Expr where
+    containedASTs (Bind _ ie) = containedASTs ie
+
+    modifyContainedASTs f (Bind r ie) = Bind r (modifyContainedASTs f ie)
+
+instance ASTContainer Bind Type where
+    containedASTs (Bind _ ie) = containedASTs ie
+
+    modifyContainedASTs f (Bind r ie) = Bind r (modifyContainedASTs f ie)
+
+instance ASTContainer DataCon Type where
+    containedASTs (DataCon _ t ts) = containedASTs (t:ts)
     containedASTs _ = []
 
-    modifyContainedASTs f (DataCon n i t ts) = DataCon n i (f t) (map f ts)
+    modifyContainedASTs f (DataCon n t ts) = DataCon n (f t) (map f ts)
     modifyContainedASTs _ dc = dc
 
-instance ASTContainer (GenAlt n) (GenExpr n) where
+instance ASTContainer AltCon Expr where
     containedASTs _ = []
-    modifyContainedASTs _ a = a
+    modifyContainedASTs _ e = e
 
-instance ASTContainer (GenAlt n) (GenType n) where
-    containedASTs (Alt x) = (containedASTs . fst) x
-    modifyContainedASTs f (Alt (dc, n)) = Alt (modifyContainedASTs f dc, n)
+instance ASTContainer AltCon Type where
+    containedASTs (DataAlt dc) = containedASTs dc
+    containedASTs _ = []
 
-instance ASTContainer (GenPathCond n) (GenExpr n) where
-    containedASTs (CondExt e _)   = containedASTs e
-    containedASTs (CondAlt e _ _) = containedASTs e
+    modifyContainedASTs f (DataAlt dc) = DataAlt (modifyContainedASTs f dc)
+    modifyContainedASTs _ e = e
 
-    modifyContainedASTs f (CondExt e b)   = CondExt (modifyContainedASTs f e) b
-    modifyContainedASTs f (CondAlt e a b) =
-        CondAlt (modifyContainedASTs f e) a b
+instance ASTContainer Alt Expr where
+    containedASTs (Alt _ _ e) = [e]
+    modifyContainedASTs f (Alt a i e) = Alt a i (f e)
 
-instance ASTContainer (GenPathCond n) (GenType n) where
-    containedASTs (CondExt e _)   = containedASTs e
-    containedASTs (CondAlt e a _) = containedASTs e ++ containedASTs a
+instance ASTContainer Alt Type where
+    containedASTs (Alt a i e) = (containedASTs a) ++ (containedASTs i) ++ (containedASTs e)
+    modifyContainedASTs f (Alt a i e) =
+        Alt (modifyContainedASTs f a) (modifyContainedASTs f i) (modifyContainedASTs f e)
 
-    modifyContainedASTs f (CondExt e b)   = CondExt (modifyContainedASTs f e) b
-    modifyContainedASTs f (CondAlt e a b) =
-        CondAlt (modifyContainedASTs f e) (modifyContainedASTs f a) b
+instance ASTContainer SymLinks Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ m = m
 
-instance ASTContainer c t => ASTContainer [c] t where
-    containedASTs = concatMap containedASTs
-    modifyContainedASTs f = map (modifyContainedASTs f)
+instance ASTContainer SymLinks Type where
+    containedASTs (SymLinks m) = map (\(_, t, _) -> t) $ M.elems m
+    modifyContainedASTs f (SymLinks m) =
+        SymLinks (M.map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m)
 
-instance ASTContainer c t => ASTContainer (M.Map k c) t where
-    containedASTs = concatMap containedASTs . M.elems
-    modifyContainedASTs f = M.map (modifyContainedASTs f)
+instance ASTContainer PathCond Expr where
+    containedASTs (ExtCond e _)   = [e]
+    containedASTs (AltCond e _ _) = [e]
 
-instance (ASTContainer a t, ASTContainer b t) => ASTContainer (a, b) t where
-    containedASTs (x, y) = containedASTs x ++ containedASTs y
-    modifyContainedASTs f (x, y) = (modifyContainedASTs f x,
-                                    modifyContainedASTs f y)
+    modifyContainedASTs f (ExtCond e b)   = ExtCond (modifyContainedASTs f e) b
+    modifyContainedASTs f (AltCond e a b) = AltCond (modifyContainedASTs f e) a b
 
-instance (ASTContainer a t,
-          ASTContainer b t,
-          ASTContainer c t) => ASTContainer (a, b, c) t where
-    containedASTs (x, y, z) = containedASTs x ++
-                              containedASTs y ++
-                              containedASTs z
-    modifyContainedASTs f (x, y, z) = (modifyContainedASTs f x,
-                                       modifyContainedASTs f y,
-                                       modifyContainedASTs f z)
+instance ASTContainer PathCond Type where
+    containedASTs (ExtCond e _)   = containedASTs e
+    containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
 
-instance (ASTContainer c t) => ASTContainer (Maybe c) t where
-    containedASTs (Just x) = containedASTs x
-    containedASTs Nothing = []
+    modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
+    modifyContainedASTs f (AltCond e a b) =
+        AltCond (modifyContainedASTs f e) (modifyContainedASTs f a) b
 
-    modifyContainedASTs f (Just x) = Just (modifyContainedASTs f x)
-    modifyContainedASTs _ Nothing = Nothing
+instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
+    containedASTs = foldMap (containedASTs)
+
+    modifyContainedASTs f = fmap (modifyContainedASTs f)
 
 -- | Miscellaneous Instances
 --   These instances exist so that we can use them in other types that contain
 --   ASTs and still consider those types ASTContainers. For example (Expr, Bool)
 --   should be an ASTContainer.
-instance ASTContainer Bool (GenExpr n) where
+instance ASTContainer Bool Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Bool (GenType n) where
+instance ASTContainer Bool Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Char (GenExpr n) where
+instance ASTContainer Char Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Char (GenType n) where
+instance ASTContainer Char Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Int (GenExpr n) where
+instance ASTContainer Int Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Int (GenType n) where
+instance ASTContainer Int Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
-
--}
