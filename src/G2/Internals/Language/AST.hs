@@ -100,17 +100,17 @@ instance AST Expr where
     children (Lam _ e) = [e]
     children (Let bind e) = e : bindExprs bind
       where
-        bindExprs :: Bind -> [Expr]
-        bindExprs (Bind _ kvs) = map snd kvs
+        bindExprs :: Binds -> [Expr]
+        bindExprs (Binds _ kvs) = map snd kvs
     children (Case m _ as) = m : map (\(Alt _ _ e) -> e) as
     children _  = []
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
     modifyChildren f (Lam b e) = Lam b (f e)
-    modifyChildren f (Let bind e) = Let (mapBind f bind) (f e)
+    modifyChildren f (Let bind e) = Let (mapBinds f bind) (f e)
       where
-        mapBind :: (Expr -> Expr) -> Bind -> Bind
-        mapBind g (Bind r kvs) = Bind r (map (\(k, v) -> (k, g v)) kvs)
+        mapBinds :: (Expr -> Expr) -> Binds -> Binds
+        mapBinds g (Binds r kvs) = Binds r (map (\(k, v) -> (k, g v)) kvs)
     modifyChildren f (Case m b as) = Case (f m) b (mapAlt f as)
       where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
@@ -129,7 +129,6 @@ instance AST Type where
     modifyChildren f (TyConApp b ts) = TyConApp b (map f ts)
     modifyChildren f (TyForAll b t)  = TyForAll b (f t)
     modifyChildren _ t               = t
-
 
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
@@ -169,7 +168,6 @@ instance ASTContainer Id Type where
 
   modifyContainedASTs f (Id n t) = Id n (modifyContainedASTs f t)
   
-
 instance ASTContainer Type Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
@@ -190,8 +188,8 @@ instance ASTContainer State Expr where
 
 
 instance ASTContainer State Type where
-    containedASTs s = ((containedASTs . type_env) s) ++
-                      ((containedASTs . expr_env) s) ++
+    containedASTs s = ((containedASTs . expr_env) s) ++
+                      ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       ((containedASTs . sym_links) s)
@@ -202,16 +200,89 @@ instance ASTContainer State Type where
                                 , path_conds = (modifyASTs f . path_conds) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
+instance ASTContainer EnvObj Expr where
+    containedASTs (ValObj e) = [e]
+    containedASTs (FunObj _ e v) = e : containedASTs v
+    containedASTs (ConObj _ es v) = es ++ containedASTs v
+    containedASTs (ThunkObj e v) = e : containedASTs v
+    containedASTs (SymObj s) = containedASTs s
+    containedASTs (BLACKHOLE) = []
 
-instance ASTContainer Bind Expr where
-    containedASTs (Bind _ ie) = containedASTs ie
+    modifyContainedASTs f (ValObj e) = ValObj (modifyContainedASTs f e)
+    modifyContainedASTs f (FunObj i e v) = FunObj i e' v'
+      where
+        e' = modifyContainedASTs f e
+        v' = modifyContainedASTs f v
+    modifyContainedASTs f (ConObj dc es v) = ConObj dc es' v'
+      where
+        es' = modifyContainedASTs f es
+        v' = modifyContainedASTs f v
+    modifyContainedASTs f (ThunkObj e v) = ThunkObj e' v'
+      where
+        e' = modifyContainedASTs f e
+        v' = modifyContainedASTs f v
+    modifyContainedASTs f (SymObj s) = SymObj (modifyContainedASTs f s)
+    modifyContainedASTs _ (BLACKHOLE) = BLACKHOLE
 
-    modifyContainedASTs f (Bind r ie) = Bind r (modifyContainedASTs f ie)
 
-instance ASTContainer Bind Type where
-    containedASTs (Bind _ ie) = containedASTs ie
+instance ASTContainer EnvObj Type where
+    containedASTs (ValObj e) = containedASTs e
+    containedASTs (FunObj i e v) = containedASTs i ++ containedASTs e
+                                                   ++ containedASTs v
+    containedASTs (ConObj _ es v) = concatMap containedASTs es ++
+                                    containedASTs v
+    containedASTs (ThunkObj e v) = containedASTs e ++ containedASTs v
+    containedASTs (SymObj s) = containedASTs s
+    containedASTs (BLACKHOLE) = []
 
-    modifyContainedASTs f (Bind r ie) = Bind r (modifyContainedASTs f ie)
+
+    modifyContainedASTs f (ValObj e) = ValObj (modifyContainedASTs f e)
+    modifyContainedASTs f (FunObj i e v) = FunObj i' e' v'
+      where
+        i' = modifyContainedASTs f i
+        e' = modifyContainedASTs f e
+        v' = modifyContainedASTs f v
+    modifyContainedASTs f (ConObj dc es v) = ConObj dc' es' v'
+      where
+        dc' = modifyContainedASTs f dc
+        es' = modifyContainedASTs f es
+        v' = modifyContainedASTs f v
+    modifyContainedASTs f (ThunkObj e v) = ThunkObj e' v'
+      where
+        e' = modifyContainedASTs f e
+        v' = modifyContainedASTs f v
+    modifyContainedASTs f (SymObj s) = SymObj (modifyContainedASTs f s)
+    modifyContainedASTs _ (BLACKHOLE) = BLACKHOLE
+
+instance ASTContainer Symbol Expr where
+    containedASTs (Symbol _ Nothing) = []
+    containedASTs (Symbol _ (Just (e, v))) = containedASTs e ++ containedASTs v
+
+    modifyContainedASTs _ (Symbol i Nothing) = Symbol i Nothing
+    modifyContainedASTs f (Symbol i (Just (e, v))) = Symbol i (Just (f e, v))
+
+instance ASTContainer Symbol Type where
+    containedASTs (Symbol i Nothing) = containedASTs i
+    containedASTs (Symbol i (Just (e, v))) = containedASTs i ++ containedASTs e
+                                                             ++ containedASTs v
+
+    modifyContainedASTs f (Symbol i Nothing) =
+        Symbol (modifyContainedASTs f i) Nothing
+    modifyContainedASTs f (Symbol i (Just (e, v))) = Symbol i' (Just (e', v'))
+      where
+        i' = modifyContainedASTs f i
+        e' = modifyContainedASTs f e
+        v' = modifyContainedASTs f v
+
+instance ASTContainer Binds Expr where
+    containedASTs (Binds _ ie) = containedASTs ie
+
+    modifyContainedASTs f (Binds r ie) = Binds r (modifyContainedASTs f ie)
+
+instance ASTContainer Binds Type where
+    containedASTs (Binds _ ie) = containedASTs ie
+
+    modifyContainedASTs f (Binds r ie) = Binds r (modifyContainedASTs f ie)
 
 instance ASTContainer DataCon Type where
     containedASTs (DataCon _ t ts) = containedASTs (t:ts)
@@ -302,3 +373,4 @@ instance ASTContainer Int Expr where
 instance ASTContainer Int Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
+

@@ -28,11 +28,11 @@ mkIOString obj = runGhc (Just libdir) $ do
 
 type CompileClosure = ([(ModSummary, ModGuts)], DynFlags, HscEnv)
 
-hskToG2 :: FilePath -> FilePath -> IO ([G2.Bind], [G2.TyCon])
+hskToG2 :: FilePath -> FilePath -> IO ([G2.Binds], [G2.TyCon])
 hskToG2 proj src = do
     (sums_gutss, _, _) <- mkCompileClosure proj src
     let gutss = map snd sums_gutss
-    let binds = concatMap (map mkBinding . mg_binds) gutss
+    let binds = concatMap (map mkBinds . mg_binds) gutss
     let tycons = concatMap (map mkTyCon . mg_tcs) gutss
     return (binds, tycons)
 
@@ -53,9 +53,9 @@ mkCompileClosure proj src = runGhc (Just libdir) $ do
     let mod_gutss = map coreModule dmods
     return (zip mod_graph mod_gutss, dflags, env)
 
-mkBinding :: CoreBind -> G2.Bind
-mkBinding (NonRec var expr) = G2.Bind G2.NonRec [(mkId var, mkExpr expr)]
-mkBinding (Rec ves) = G2.Bind G2.Rec (map (\(v, e) -> (mkId v, mkExpr e)) ves)
+mkBinds :: CoreBind -> G2.Binds
+mkBinds (NonRec var expr) = G2.Binds G2.NonRec [(mkId var, mkExpr expr)]
+mkBinds (Rec ves) = G2.Binds G2.Rec (map (\(v, e) -> (mkId v, mkExpr e)) ves)
 
 mkExpr :: CoreExpr -> G2.Expr
 mkExpr (Var var) = filterPrimOp (mkId var)
@@ -114,9 +114,9 @@ mkLit (LitInteger i _) = G2.LitInt (fromInteger i)
 mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
-mkBind :: CoreBind -> G2.Bind
-mkBind (NonRec var expr) = G2.Bind (G2.NonRec) [(mkId var, mkExpr expr)]
-mkBind (Rec ves) = G2.Bind (G2.Rec) (map (\(v, e) -> (mkId v, mkExpr e)) ves)
+mkBind :: CoreBind -> G2.Binds
+mkBind (NonRec var expr) = G2.Binds (G2.NonRec) [(mkId var, mkExpr expr)]
+mkBind (Rec ves) = G2.Binds (G2.Rec) (map (\(v, e) -> (mkId v, mkExpr e)) ves)
 
 mkAlts :: [CoreAlt] -> [G2.Alt]
 mkAlts alts = map mkAlt alts

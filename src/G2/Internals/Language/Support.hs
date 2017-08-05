@@ -6,23 +6,34 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
-data State = State { expr_env :: ExprEnv
-                   , type_env :: TypeEnv
-                   , curr_expr :: Expr
-                   , all_names :: [Name]
-                   , path_conds :: [PathCond]
-                   , sym_links :: SymLinks
-                   , fun_table :: FuncInterps
+data State = State { expr_env :: !ExprEnv
+                   , type_env :: !TypeEnv
+                   , stack :: !Stack
+                   , curr_expr :: !Expr
+                   , all_names :: ![Name]
+                   , path_conds :: ![PathCond]
+                   , sym_links :: !SymLinks
+                   , fun_table :: !FuncInterps
                    } deriving (Show, Eq, Read)
 
-type ExprEnv = M.Map Name Expr
+data Symbol = Symbol Id (Maybe (Expr, ExprEnv)) deriving (Show, Eq, Read)
 
-type TypeEnv = M.Map Name Type
+type ExprEnv = M.Map Name (Either Name EnvObj)
+
+data EnvObj = ValObj Expr
+            | FunObj Id Expr ExprEnv
+            | ConObj DataCon [Expr] ExprEnv
+            | ThunkObj Expr ExprEnv
+            | SymObj Symbol
+            | BLACKHOLE
+            deriving (Show, Eq, Read)
+
+type TypeEnv = M.Map Name (Either Name Type)
 
 newtype Stack = Stack [Frame] deriving (Show, Eq, Read)
 
-data Frame = CaseFrame  Id [Alt]
-           | ApplyFrame Expr
+data Frame = CaseFrame  Id [Alt] Expr ExprEnv
+           | ApplyFrame Expr ExprEnv
            | UpdateFrame Name
            deriving (Show, Eq, Read)
 
@@ -47,6 +58,30 @@ pushStack frame (Stack frames) = Stack (frame : frames)
 popStack :: Stack -> Maybe (Frame, Stack)
 popStack (Stack []) = Nothing
 popStack (Stack (frame:frames)) = Just (frame, Stack frames)
+
+lookupExprEnv :: Name -> ExprEnv -> Maybe EnvObj
+lookupExprEnv name eenv = case M.lookup name eenv of
+    Just (Left redir) -> lookupExprEnv redir eenv
+    Just (Right eobj) -> Just eobj
+    Nothing -> Nothing
+
+vlookupExprEnv :: Id -> ExprEnv -> Maybe EnvObj
+vlookupExprEnv var eenv = lookupExprEnv (idName var) eenv
+
+insertEnvObj :: (Name, EnvObj) -> ExprEnv -> ExprEnv
+insertEnvObj (name, eobj) eenv = M.insert name (Right eobj) eenv
+
+insertEnvObjList :: [(Name, EnvObj)] -> ExprEnv -> ExprEnv
+insertEnvObjList kvs eenv = foldr insertEnvObj eenv kvs
+
+-- vlookupExpr :: Id -> ExprEnv -> Maybe Expr
+-- vlookupExpr (Id name _) eenv = lookupExpr name eenv
+
+lookupType :: Name -> TypeEnv -> Maybe Type
+lookupType name tenv = case M.lookup name tenv of
+    Just (Left redir) -> lookupType redir tenv
+    Just (Right ty) -> Just ty
+    Nothing -> Nothing
 
 lookupSymLinks :: Name -> SymLinks -> Maybe (Name, Type, Maybe Int)
 lookupSymLinks name (SymLinks smap) = M.lookup name smap

@@ -1,0 +1,46 @@
+-- | Reduction Rules for Stack Execution Semantics
+module G2.Internals.Execution.Stack.Rules
+  ( stackReduce
+  ) where
+
+import G2.Internals.Language
+
+data StackRule = StkRuleApp
+               deriving (Show, Eq, Read)
+
+-- | If something is in "value form", then it is essentially ready to be
+-- returned and popped off the heap. This will be the SSTG equivalent of having
+-- Return vs Evaluate for the Code of the `State`.
+--
+-- So in this context, the following are considered NOT-value forms:
+--   `Var`, only if a lookup still available in the expression environment.
+--   `App`, which involves pushing the RHS onto the `Stack`.
+--   `Let`, which involves binding the binds into the eenv
+--   `Case`, which involves pattern decomposition and stuff.
+isValueForm :: Expr -> ExprEnv -> Bool
+isValueForm (Var var) eenv = lookupExpr var eenv == Nothing
+isValueForm (App _ _) _ = False
+isValueForm (Let _ _) _ = False
+isValueForm (Case _ _ _) _ = False
+isValueForm _ _ = True
+
+stackReduce :: (State, Stack) -> Maybe (StackRule, [(State, Stack)])
+stackReduce state @ State { expr_env = eenv
+                          , type_env = tenv
+                          , curr_expr = curr
+                          , all_names = conf
+                          , path_conds = paths }
+            stack
+
+-- Hi Bill. Directly translating these from SSTG was harder than I thought, but
+-- I believe in the power of sketchy techniques.
+
+  -- | 
+  | App fexpr aexpr <- curr =
+    let frame = ApplyFrame aexpr
+  , Just (StkRuleApp
+         ,[(state { curr_expr = fexpr }
+           ,pushStack frame stack)])
+
+  
+

@@ -16,10 +16,9 @@ data Expr = Var Id
           | Data DataCon
           | App Expr Expr
           | Lam Id Expr
-          | Let Bind Expr
+          | Let Binds Expr
           | Case Expr Id [Alt]
           | Type Type
-          | BLACKHOLE
           deriving (Show, Eq, Read)
 
 data Primitive = PTrue | PFalse
@@ -44,7 +43,7 @@ data LitCon = I | D | F | C | CTrue | CFalse deriving (Show, Eq, Read)
 
 data RecForm = Rec | NonRec deriving (Show, Eq, Read)
 
-data Bind = Bind RecForm [(Id, Expr)] deriving (Show, Eq, Read)
+data Binds = Binds RecForm [(Id, Expr)] deriving (Show, Eq, Read)
 
 data AltCon = DataAlt DataCon
             | Default
