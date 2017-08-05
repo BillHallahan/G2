@@ -3,8 +3,10 @@
 module G2.Internals.Execution
     ( module G2.Internals.Execution
     , module G2.Internals.Execution.Configuration
+    , module G2.Internals.Execution.Lambda
     , module G2.Internals.Execution.Engine
     ) where
 
 import G2.Internals.Execution.Configuration
+import G2.Internals.Execution.Lambda
 import G2.Internals.Execution.Engine

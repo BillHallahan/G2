@@ -26,8 +26,8 @@ data Frame = CaseFrame  Id [Alt]
            | UpdateFrame Name
            deriving (Show, Eq, Read)
 
-data PathCond = AltCond Expr (AltCon, [Id]) Bool
-              | ExtCond Expr Bool
+data PathCond = AltCond Expr (AltCon, [Id]) Bool ExprEnv
+              | ExtCond Expr Bool ExprEnv
               deriving (Show, Eq, Read)
 
 newtype SymLinks = SymLinks (M.Map Name (Name, Type, Maybe Int))
@@ -41,22 +41,22 @@ data Interp = StdInt | UnInt deriving (Show, Eq, Read)
 idName :: Id -> Name
 idName (Id name _) = name
 
-lookupExpr :: Name -> ExprEnv -> Maybe Expr
-lookupExpr = M.lookup
-
-insertExpr :: Name -> Expr -> ExprEnv -> ExprEnv
-insertExpr = M.insert
-
-lookupType :: Name -> TypeEnv -> Maybe Type
-lookupType = M.lookup
-
-insertType :: Name -> Type -> TypeEnv -> TypeEnv
-insertType = M.insert
-
 pushStack :: Frame -> Stack -> Stack
 pushStack frame (Stack frames) = Stack (frame : frames)
 
 popStack :: Stack -> Maybe (Frame, Stack)
 popStack (Stack []) = Nothing
 popStack (Stack (frame:frames)) = Just (frame, Stack frames)
+
+lookupSymLinks :: Name -> SymLinks -> Maybe (Name, Type, Maybe Int)
+lookupSymLinks name (SymLinks smap) = M.lookup name smap
+
+insertSymLinks :: Name -> (Name, Type, Maybe Int) -> SymLinks -> SymLinks
+insertSymLinks new old (SymLinks smap) = SymLinks (M.insert new old smap)
+
+lookupFuncInterps :: Name -> FuncInterps -> Maybe (Name, Interp)
+lookupFuncInterps name (FuncInterps fs) = M.lookup name fs
+
+insertFuncInterps :: Name -> (Name, Interp) -> FuncInterps -> FuncInterps
+insertFuncInterps fun int (FuncInterps fs) = FuncInterps (M.insert fun int fs)
 

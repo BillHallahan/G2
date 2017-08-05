@@ -148,7 +148,8 @@ instance ASTContainer Expr Type where
             go (Data dc) = containedASTs dc
             go (Lam b e) = containedASTs b ++ containedASTs e
             go (Let bnd e) = containedASTs bnd ++ containedASTs e
-            go (Case e i as) = (containedASTs e) ++ (containedASTs i) ++ (containedASTs as)
+            go (Case e i as) = (containedASTs e) ++ (containedASTs i)
+                                                 ++ (containedASTs as)
             go (Type t) = [t]
             go _ = []
 
@@ -249,19 +250,25 @@ instance ASTContainer SymLinks Type where
         SymLinks (M.map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m)
 
 instance ASTContainer PathCond Expr where
-    containedASTs (ExtCond e _)   = [e]
-    containedASTs (AltCond e _ _) = [e]
+    containedASTs (ExtCond e _ _)   = [e]
+    containedASTs (AltCond e _ _ _) = [e]
 
-    modifyContainedASTs f (ExtCond e b)   = ExtCond (modifyContainedASTs f e) b
-    modifyContainedASTs f (AltCond e a b) = AltCond (modifyContainedASTs f e) a b
+    modifyContainedASTs f (ExtCond e b v) =
+        ExtCond (modifyContainedASTs f e) b v
+    modifyContainedASTs f (AltCond e a b v) =
+        AltCond (modifyContainedASTs f e) a b v
 
 instance ASTContainer PathCond Type where
-    containedASTs (ExtCond e _)   = containedASTs e
-    containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
+    containedASTs (ExtCond e _ _)   = containedASTs e
+    containedASTs (AltCond e a _ _) = containedASTs e ++ containedASTs a
 
-    modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
-    modifyContainedASTs f (AltCond e a b) =
-        AltCond (modifyContainedASTs f e) (modifyContainedASTs f a) b
+    modifyContainedASTs f (ExtCond e b v) = ExtCond e' b v'
+      where e' = modifyContainedASTs f e
+            v' = modifyContainedASTs f v
+    modifyContainedASTs f (AltCond e a b v) = AltCond e' a' b v'
+      where e' = modifyContainedASTs f e
+            a' = modifyContainedASTs f a
+            v' = modifyContainedASTs f v
 
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)
