@@ -1,0 +1,85 @@
+module G2.Internals.Language.Naming
+    ( allNames
+    , freshStr
+    , freshName
+    , freshSeededName
+    , freshSeededNames
+    ) where
+
+import G2.Internals.Language.AST
+import G2.Internals.Language.Support
+import G2.Internals.Language.Syntax
+
+import qualified Data.List as L
+import qualified Data.Map as M
+import qualified Data.Set as S
+
+allNames :: State -> [Name]
+allNames state = L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_keys)
+  where expr_names = evalASTs exprTopNames state
+        type_names = evalASTs typeTopNames state
+        eenv_keys = (M.keys . expr_env) state
+        tenv_keys = (M.keys . type_env) state
+
+-- | Expression Top-Level Names
+exprTopNames :: Expr -> [Name]
+exprTopNames (Var var) = [idName var]
+exprTopNames (Lam b _) = [idName b]
+exprTopNames (Let (Binds _ kvs) _) = map (idName . fst) kvs
+exprTopNames (Case _ cvar as) = idName cvar :
+                                concatMap (\(Alt _ ps _) -> map idName ps) as
+exprTopNames _ = []
+
+nameOccStr :: Name -> String
+nameOccStr (Name occ _ _) = occ
+
+nameInt :: Name -> Int
+nameInt (Name _ _ int) = int
+
+-- | Type Top-Level Names
+typeTopNames :: Type -> [Name]
+typeTopNames (TyVar n)   = [n]
+typeTopNames (TyConApp (TyCon n) _) = [n]
+typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
+typeTopNames _ = []
+
+freshStr :: Int -> String -> S.Set String -> String
+freshStr rand seed confs = if S.member seed confs
+    then freshStr (rand + 1) (seed ++ [pick]) confs else seed
+  where
+    pick = bank !! index
+    index = raw_i `mod` (length bank)
+    raw_i = (abs rand) * prime
+    prime = 151  -- The original? :)
+    bank = lower ++ upper ++ nums
+    lower = "abcdefghijlkmnopqrstuvwxyz"
+    upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    nums = "1234567890"
+
+freshName :: [Name] -> Name
+freshName confs = freshSeededName seed confs
+  where
+    seed = Name "fs?" Nothing 0
+
+freshSeededName :: Name -> [Name] -> Name
+freshSeededName seed confs = Name occ' mdl unq'
+  where
+    Name occ mdl unq = seed
+    occ' = freshStr 1 occ (S.fromList alls)
+    unq' = maxs + 1
+    alls = map nameOccStr confs
+    maxs = L.maximum (unq : map nameInt confs)
+
+freshNames :: [a] -> [Name] -> [Name]
+freshNames as confs = freshSeededNames seeds confs
+  where
+    seeds = [Name ("fs" ++ show i ++ "?") Nothing 0 | i <- [1..(length as)]]
+
+freshSeededNames :: [Name] -> [Name] -> [Name]
+freshSeededNames (name:ns) confs = name' : freshSeededNames ns confs'
+  where
+    name' = freshSeededName name confs
+    confs' = name' : confs
+
+
+

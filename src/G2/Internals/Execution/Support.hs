@@ -23,7 +23,7 @@ data Symbol = Symbol Id (Maybe (Expr, Scope)) deriving (Show, Eq, Read)
 
 newtype Stack = Stack [Frame] deriving (Show, Eq, Read)
 
-data Frame = CaseFrame  Id [Alt] Expr Scope
+data Frame = CaseFrame Id [Alt] Scope
            | ApplyFrame Expr Scope
            | UpdateFrame Name
            deriving (Show, Eq, Read)
@@ -31,10 +31,7 @@ data Frame = CaseFrame  Id [Alt] Expr Scope
 newtype Scope = Scope (M.Map Name (Either Name EnvObj))
              deriving (Show, Eq, Read)
 
-data EnvObj = ValObj Expr
-            | FunObj Id Expr Scope
-            | ConObj DataCon [Expr] Scope
-            | ThunkObj Expr Scope
+data EnvObj = ExprObj Expr
             | SymObj Symbol
             | BLACKHOLE
             deriving (Show, Eq, Read)
@@ -68,5 +65,4 @@ insertEnvObj (k, v) (Scope smap) = Scope (M.insert k (Right v) smap)
 
 insertEnvObjList :: [(Name, EnvObj)] -> Scope -> Scope
 insertEnvObjList kvs scope = foldr insertEnvObj scope kvs
-
 

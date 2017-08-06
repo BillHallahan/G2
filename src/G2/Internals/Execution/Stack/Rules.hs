@@ -7,8 +7,11 @@ import G2.Internals.Language
 
 import G2.Internals.Execution.Support
 
-data StackRule = StkRuleVar
+data StackRule = StkRuleVal
+               | StkRuleVar | StkRuleUnInt
                | StkRuleApp
+               | StkRuleLet
+               | StkRuleCase
                deriving (Show, Eq, Read)
 
 -- | If something is in "value form", then it is essentially ready to be
@@ -20,48 +23,82 @@ data StackRule = StkRuleVar
 --   `App`, which involves pushing the RHS onto the `Stack`.
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
-{-
-isValueForm :: Expr -> ExprEnv -> Bool
-isValueForm (Var var) eenv = vlookupExprEnv var eenv == Nothing
+isValueForm :: Expr -> Scope -> Bool
+isValueForm (Var var) scope = case vlookupScope var scope of
+    Just (ExprObj _) -> False
+    _ -> True
 isValueForm (App _ _) _ = False
 isValueForm (Let _ _) _ = False
 isValueForm (Case _ _ _) _ = False
 isValueForm _ _ = True
--}
+
+bindsToEnvObjList :: Binds -> [(Name, EnvObj)]
+bindsToEnvObjList (Binds _ kvs) = map (\(k, v) -> (idName k, ExprObj v)) kvs
+
+liftBinds :: Binds -> Scope -> Scope
+liftBinds (Binds _ kvs) scope = insertEnvObjList eobjs scope
+  where
+    eobjs = map (\(k, v) -> (idName k, ExprObj v)) kvs
 
 stackReduce :: ExecState -> Maybe (StackRule, [ExecState])
-stackReduce = undefined
+stackReduce state @ ExecState { exec_stack = stack
+                              , exec_scope = scope
+                              , exec_code = code
+                              , exec_names = confs
+                              , exec_paths = paths }
 
--- Hi Bill. Directly translating these from SSTG was harder than I thought. In
--- particular this is because less explicit data structures and forms such as
--- Return and Evaluate are used as well as explicit demarcation of pointers and
--- values. However, I believe in the power of sketchy techniques :)
 
+-- The semantics differ a bit from SSTG a bit, namely in what is and is not
+-- returned from the heap. In SSTG, you return either literals or pointers.
+-- The distinction is less clear here. For now :)
 
-{-
-  -- | Variable lookup.
-  | Var var <- curr
-  , Just expr <- vlookupExpr var eenv =
+-- Evaluation form expressions.
+
+  -- | Value form returning.
+  | Evaluate expr <- code
+  , isValueForm expr scope =
+    Just (StkRuleVal
+         ,[state { exec_code = Return expr }])
+
+  -- | Downcasting expression from the environment.
+  | Evaluate (Var var) <- code
+  , Just (ExprObj expr) <- vlookupScope var scope =
     let frame = UpdateFrame (idName var)
     in Just (StkRuleVar
-            ,[state { stack = pushStack frame stack
-                    , curr_expr = expr }])
+            ,[state { exec_stack = pushStack frame stack
+                    , exec_code = Evaluate expr }])
 
-  -- | Expression application.
-  | App fexpr aexpr <- curr =
-    let frame = ApplyFrame aexpr eenv
+  -- | Uninterpreted variable lifting.
+  | Evaluate (Var var) <- code
+  , Nothing <- vlookupScope var scope =
+    let sname = freshSeededName (idName var) confs
+        svar = Id sname (idType var)
+        sym = Symbol svar Nothing
+    in Just (StkRuleUnInt
+            ,[state { exec_scope = insertEnvObj (idName var, SymObj sym) scope
+                    , exec_code = Evaluate (Var var) }])
+
+  -- Push application RHS onto the stack.
+  | Evaluate (App fexpr aexpr) <- code =
+    let frame = ApplyFrame aexpr scope
     in Just (StkRuleApp
-            ,[state { stack = pushStack frame stack
-                    , curr_expr = fexpr }])
+            ,[state { exec_stack = pushStack frame stack
+                    , exec_code = Evaluate fexpr }])
 
-  -- | Let evaluation. I guess if everything is kept in a global scope, there
-  -- is not a strong need to differentiate recursive let bindings and whatever.
-  -- However, assuming that local scoping is somehow needed to differentiate
-  -- things, then this could potentially be useful. Ultimately though, we are
-  -- under the assumption that name uniqueness allows us to avoid scoping
-  -- problems EXCEPT in cases in which the environment may introduce "cross
-  -- contamination" that is the result over overwriting existing values. This
-  -- would occur most notably in recursive functions.
+  -- Bind let stuff into the environment.
+  | Evaluate (Let binds expr) <- code =
+    Just (StkRuleLet
+         ,[state { exec_scope = liftBinds binds scope
+                 , exec_code = Evaluate expr }])
+
+  -- Do case stuff magic shove the staccccck
+  | Evaluate (Case mexpr cvar alts) <- code =
+    let frame = CaseFrame cvar alts scope
+    in Just (StkRuleCase
+            ,[state { exec_stack = pushStack frame stack
+                    , exec_code = Evaluate mexpr }])
+
+-- Return form expressions.
   
--}
+
 
