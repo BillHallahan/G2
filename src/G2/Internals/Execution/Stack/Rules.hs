@@ -5,6 +5,8 @@ module G2.Internals.Execution.Stack.Rules
 
 import G2.Internals.Language
 
+import G2.Internals.Execution.Support
+
 data StackRule = StkRuleVar
                | StkRuleApp
                deriving (Show, Eq, Read)
@@ -18,20 +20,17 @@ data StackRule = StkRuleVar
 --   `App`, which involves pushing the RHS onto the `Stack`.
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
+{-
 isValueForm :: Expr -> ExprEnv -> Bool
 isValueForm (Var var) eenv = vlookupExprEnv var eenv == Nothing
 isValueForm (App _ _) _ = False
 isValueForm (Let _ _) _ = False
 isValueForm (Case _ _ _) _ = False
 isValueForm _ _ = True
+-}
 
-stackReduce :: State -> Maybe (StackRule, [State])
-stackReduce state @ State { expr_env = eenv
-                          , type_env = tenv
-                          , stack = stack
-                          , curr_expr = curr
-                          , all_names = conf
-                          , path_conds = paths } = undefined
+stackReduce :: ExecState -> Maybe (StackRule, [ExecState])
+stackReduce = undefined
 
 -- Hi Bill. Directly translating these from SSTG was harder than I thought. In
 -- particular this is because less explicit data structures and forms such as

@@ -200,80 +200,6 @@ instance ASTContainer State Type where
                                 , path_conds = (modifyASTs f . path_conds) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
-instance ASTContainer EnvObj Expr where
-    containedASTs (ValObj e) = [e]
-    containedASTs (FunObj _ e v) = e : containedASTs v
-    containedASTs (ConObj _ es v) = es ++ containedASTs v
-    containedASTs (ThunkObj e v) = e : containedASTs v
-    containedASTs (SymObj s) = containedASTs s
-    containedASTs (BLACKHOLE) = []
-
-    modifyContainedASTs f (ValObj e) = ValObj (modifyContainedASTs f e)
-    modifyContainedASTs f (FunObj i e v) = FunObj i e' v'
-      where
-        e' = modifyContainedASTs f e
-        v' = modifyContainedASTs f v
-    modifyContainedASTs f (ConObj dc es v) = ConObj dc es' v'
-      where
-        es' = modifyContainedASTs f es
-        v' = modifyContainedASTs f v
-    modifyContainedASTs f (ThunkObj e v) = ThunkObj e' v'
-      where
-        e' = modifyContainedASTs f e
-        v' = modifyContainedASTs f v
-    modifyContainedASTs f (SymObj s) = SymObj (modifyContainedASTs f s)
-    modifyContainedASTs _ (BLACKHOLE) = BLACKHOLE
-
-
-instance ASTContainer EnvObj Type where
-    containedASTs (ValObj e) = containedASTs e
-    containedASTs (FunObj i e v) = containedASTs i ++ containedASTs e
-                                                   ++ containedASTs v
-    containedASTs (ConObj _ es v) = concatMap containedASTs es ++
-                                    containedASTs v
-    containedASTs (ThunkObj e v) = containedASTs e ++ containedASTs v
-    containedASTs (SymObj s) = containedASTs s
-    containedASTs (BLACKHOLE) = []
-
-
-    modifyContainedASTs f (ValObj e) = ValObj (modifyContainedASTs f e)
-    modifyContainedASTs f (FunObj i e v) = FunObj i' e' v'
-      where
-        i' = modifyContainedASTs f i
-        e' = modifyContainedASTs f e
-        v' = modifyContainedASTs f v
-    modifyContainedASTs f (ConObj dc es v) = ConObj dc' es' v'
-      where
-        dc' = modifyContainedASTs f dc
-        es' = modifyContainedASTs f es
-        v' = modifyContainedASTs f v
-    modifyContainedASTs f (ThunkObj e v) = ThunkObj e' v'
-      where
-        e' = modifyContainedASTs f e
-        v' = modifyContainedASTs f v
-    modifyContainedASTs f (SymObj s) = SymObj (modifyContainedASTs f s)
-    modifyContainedASTs _ (BLACKHOLE) = BLACKHOLE
-
-instance ASTContainer Symbol Expr where
-    containedASTs (Symbol _ Nothing) = []
-    containedASTs (Symbol _ (Just (e, v))) = containedASTs e ++ containedASTs v
-
-    modifyContainedASTs _ (Symbol i Nothing) = Symbol i Nothing
-    modifyContainedASTs f (Symbol i (Just (e, v))) = Symbol i (Just (f e, v))
-
-instance ASTContainer Symbol Type where
-    containedASTs (Symbol i Nothing) = containedASTs i
-    containedASTs (Symbol i (Just (e, v))) = containedASTs i ++ containedASTs e
-                                                             ++ containedASTs v
-
-    modifyContainedASTs f (Symbol i Nothing) =
-        Symbol (modifyContainedASTs f i) Nothing
-    modifyContainedASTs f (Symbol i (Just (e, v))) = Symbol i' (Just (e', v'))
-      where
-        i' = modifyContainedASTs f i
-        e' = modifyContainedASTs f e
-        v' = modifyContainedASTs f v
-
 instance ASTContainer Binds Expr where
     containedASTs (Binds _ ie) = containedASTs ie
 
@@ -321,25 +247,22 @@ instance ASTContainer SymLinks Type where
         SymLinks (M.map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m)
 
 instance ASTContainer PathCond Expr where
-    containedASTs (ExtCond e _ _)   = [e]
-    containedASTs (AltCond e _ _ _) = [e]
+    containedASTs (ExtCond e _ )   = [e]
+    containedASTs (AltCond e _ _) = [e]
 
-    modifyContainedASTs f (ExtCond e b v) =
-        ExtCond (modifyContainedASTs f e) b v
-    modifyContainedASTs f (AltCond e a b v) =
-        AltCond (modifyContainedASTs f e) a b v
+    modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
+    modifyContainedASTs f (AltCond e a b) =
+        AltCond (modifyContainedASTs f e) a b
 
 instance ASTContainer PathCond Type where
-    containedASTs (ExtCond e _ _)   = containedASTs e
-    containedASTs (AltCond e a _ _) = containedASTs e ++ containedASTs a
+    containedASTs (ExtCond e _)   = containedASTs e
+    containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
 
-    modifyContainedASTs f (ExtCond e b v) = ExtCond e' b v'
+    modifyContainedASTs f (ExtCond e b) = ExtCond e' b
       where e' = modifyContainedASTs f e
-            v' = modifyContainedASTs f v
-    modifyContainedASTs f (AltCond e a b v) = AltCond e' a' b v'
+    modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
       where e' = modifyContainedASTs f e
             a' = modifyContainedASTs f a
-            v' = modifyContainedASTs f v
 
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)
