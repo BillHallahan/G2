@@ -32,11 +32,11 @@ isValueForm (Let _ _) _ = False
 isValueForm (Case _ _ _) _ = False
 isValueForm _ _ = True
 
-bindsToEnvObjList :: Binds -> [(Name, EnvObj)]
-bindsToEnvObjList (Binds _ kvs) = map (\(k, v) -> (idName k, ExprObj v)) kvs
+bindsToEnvObjList :: [(Id, Expr)] -> [(Name, EnvObj)]
+bindsToEnvObjList kvs = map (\(k, v) -> (idName k, ExprObj v)) kvs
 
-liftBinds :: Binds -> Scope -> Scope
-liftBinds (Binds _ kvs) scope = insertEnvObjList eobjs scope
+liftBinds :: [(Id, Expr)] -> Scope -> Scope
+liftBinds kvs scope = insertEnvObjList eobjs scope
   where
     eobjs = map (\(k, v) -> (idName k, ExprObj v)) kvs
 

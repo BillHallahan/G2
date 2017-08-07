@@ -25,7 +25,7 @@ allNames state = L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_keys)
 exprTopNames :: Expr -> [Name]
 exprTopNames (Var var) = [idName var]
 exprTopNames (Lam b _) = [idName b]
-exprTopNames (Let (Binds _ kvs) _) = map (idName . fst) kvs
+exprTopNames (Let kvs _) = map (idName . fst) kvs
 exprTopNames (Case _ cvar as) = idName cvar :
                                 concatMap (\(Alt _ ps _) -> map idName ps) as
 exprTopNames _ = []

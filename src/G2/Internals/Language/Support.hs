@@ -6,13 +6,13 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
-data State = State { expr_env :: !ExprEnv
-                   , type_env :: !TypeEnv
-                   , curr_expr :: !Expr
-                   , all_names :: ![Name]
-                   , path_conds :: ![PathCond]
-                   , sym_links :: !SymLinks
-                   , fun_table :: !FuncInterps
+data State = State { expr_env :: ExprEnv
+                   , type_env :: TypeEnv
+                   , curr_expr :: Expr
+                   , all_names :: [Name]
+                   , path_conds :: [PathCond]
+                   , sym_links :: SymLinks
+                   , fun_table :: FuncInterps
                    } deriving (Show, Eq, Read)
 
 type ExprEnv = M.Map Name Expr

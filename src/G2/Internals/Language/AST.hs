@@ -98,19 +98,13 @@ evalContainedASTs f = mconcat . map f . containedASTs
 instance AST Expr where
     children (App f a) = [f, a]
     children (Lam _ e) = [e]
-    children (Let bind e) = e : bindExprs bind
-      where
-        bindExprs :: Binds -> [Expr]
-        bindExprs (Binds _ kvs) = map snd kvs
+    children (Let bind e) = e : containedASTs bind
     children (Case m _ as) = m : map (\(Alt _ _ e) -> e) as
     children _  = []
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
     modifyChildren f (Lam b e) = Lam b (f e)
-    modifyChildren f (Let bind e) = Let (mapBinds f bind) (f e)
-      where
-        mapBinds :: (Expr -> Expr) -> Binds -> Binds
-        mapBinds g (Binds r kvs) = Binds r (map (\(k, v) -> (k, g v)) kvs)
+    modifyChildren f (Let bind e) = Let (modifyContainedASTs f bind) (f e)
     modifyChildren f (Case m b as) = Case (f m) b (mapAlt f as)
       where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
@@ -163,6 +157,13 @@ instance ASTContainer Expr Type where
             go (Type t) = Type (f t)
             go e = e
 
+
+instance ASTContainer Id Expr where
+  containedASTs (Id _ _) = []
+
+  modifyContainedASTs _ i = i
+
+
 instance ASTContainer Id Type where
   containedASTs (Id _ t) = [t]
 
@@ -199,16 +200,6 @@ instance ASTContainer State Type where
                                 , curr_expr = (modifyASTs f . curr_expr) s
                                 , path_conds = (modifyASTs f . path_conds) s
                                 , sym_links = (modifyASTs f . sym_links) s }
-
-instance ASTContainer Binds Expr where
-    containedASTs (Binds _ ie) = containedASTs ie
-
-    modifyContainedASTs f (Binds r ie) = Binds r (modifyContainedASTs f ie)
-
-instance ASTContainer Binds Type where
-    containedASTs (Binds _ ie) = containedASTs ie
-
-    modifyContainedASTs f (Binds r ie) = Binds r (modifyContainedASTs f ie)
 
 instance ASTContainer DataCon Type where
     containedASTs (DataCon _ t ts) = containedASTs (t:ts)
