@@ -2,6 +2,7 @@ module G2.Internals.Language.Support
     ( module G2.Internals.Language.Support
     ) where
 
+import {-# SOURCE #-} G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
@@ -9,7 +10,7 @@ import qualified Data.Map as M
 data State = State { expr_env :: ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: Expr
-                   , all_names :: [Name]
+                   , all_names :: Renamer
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
                    , fun_table :: FuncInterps

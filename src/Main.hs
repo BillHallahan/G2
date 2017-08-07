@@ -14,7 +14,6 @@ import G2.Internals.Translation
 import G2.Internals.Execution
 import G2.Internals.SMT
 
-
 main :: IO ()
 main = do
     putStrLn "Compiles!"

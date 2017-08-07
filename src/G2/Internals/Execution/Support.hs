@@ -9,7 +9,7 @@ import qualified Data.Map as M
 data ExecState = ExecState { exec_stack :: Stack
                            , exec_scope :: Scope
                            , exec_code :: Code
-                           , exec_names :: [Name]
+                           , exec_names :: Renamer
                            , exec_paths :: [ExecCond]
                            } deriving (Show, Eq, Read)
 
