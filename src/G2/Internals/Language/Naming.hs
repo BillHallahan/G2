@@ -58,30 +58,35 @@ freshStr rand seed confs = if S.member seed confs
     upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     nums = "1234567890"
 
-freshName :: Renamer -> Name
+freshName :: Renamer -> (Name, Renamer)
 freshName confs = freshSeededName seed confs
   where
     seed = Name "fs?" Nothing 0
 
-freshSeededName :: Name -> Renamer -> Name
-freshSeededName seed (Renamer confs) = Name occ' mdl unq'
+freshSeededName :: Name -> Renamer -> (Name, Renamer)
+freshSeededName seed (Renamer confs) = (new_n, Renamer (new_n:confs))
   where
     Name occ mdl unq = seed
     occ' = freshStr 1 occ (S.fromList alls)
     unq' = maxs + 1
     alls = map nameOccStr confs
     maxs = L.maximum (unq : map nameInt confs)
+    new_n = Name occ' mdl unq'
 
-freshNames :: [a] -> Renamer -> [Name]
+freshNames :: [a] -> Renamer -> ([Name], Renamer)
 freshNames as confs = freshSeededNames seeds confs
   where
     seeds = [Name ("fs" ++ show i ++ "?") Nothing 0 | i <- [1..(length as)]]
 
-freshSeededNames :: [Name] -> Renamer -> [Name]
-freshSeededNames (name:ns) r@(Renamer confs) = name' : freshSeededNames ns confs'
-  where
-    name' = freshSeededName name r
-    confs' = Renamer (name' : confs)
+freshSeededNames :: [Name] -> Renamer -> ([Name], Renamer)
+freshSeededNames (name:ns) r@(Renamer confs) =
+    let
+        (name', confs') = freshSeededName name r
+        (ns', confs'') = freshSeededNames ns confs'
+    in
+    (name':ns', confs'') 
+    
+    -- confs' = Renamer (name' : confs)
 
 
 
