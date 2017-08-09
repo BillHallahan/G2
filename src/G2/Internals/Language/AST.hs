@@ -9,6 +9,7 @@ module G2.Internals.Language.AST
 
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
+import qualified G2.Internals.Language.SymLinks as SymLinks
 
 import qualified Data.Map as M
 
@@ -124,6 +125,13 @@ instance AST Type where
     modifyChildren f (TyForAll b t)  = TyForAll b (f t)
     modifyChildren _ t               = t
 
+instance AST TyArg where
+    children (FuncArg t1 t2) = [t1, t2]
+    children _ = []
+
+    modifyChildren f (FuncArg t1 t2) = FuncArg (f t1) (f t2)
+    modifyChildren _ a = a
+
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
@@ -141,8 +149,7 @@ instance ASTContainer Expr Type where
             go (Data dc) = containedASTs dc
             go (Lam b e) = containedASTs b ++ containedASTs e
             go (Let bnd e) = containedASTs bnd ++ containedASTs e
-            go (Case e i as) = (containedASTs e) ++ (containedASTs i)
-                                                 ++ (containedASTs as)
+            go (Case e _ as) = (containedASTs e) ++ (containedASTs as)
             go (Type t) = [t]
             go _ = []
 
@@ -153,7 +160,8 @@ instance ASTContainer Expr Type where
             go (Data dc) = Data (modifyContainedASTs f dc)
             go (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
             go (Lam b e) = Lam (modifyContainedASTs f b) (modifyContainedASTs f e)
-            go (Case m b as) = Case (modifyContainedASTs f m) (modifyContainedASTs f b) (modifyContainedASTs f as) 
+            go (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
+            go (Case m n as) = Case (modifyContainedASTs f m) n (modifyContainedASTs f as) 
             go (Type t) = Type (f t)
             go e = e
 
@@ -168,6 +176,14 @@ instance ASTContainer Id Type where
   containedASTs (Id _ t) = [t]
 
   modifyContainedASTs f (Id n t) = Id n (modifyContainedASTs f t)
+
+instance ASTContainer Name Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ n = n
+
+instance ASTContainer Name Type where
+    containedASTs _ = []
+    modifyContainedASTs _ n = n
   
 instance ASTContainer Type Expr where
     containedASTs _ = []
@@ -228,14 +244,34 @@ instance ASTContainer Alt Type where
     modifyContainedASTs f (Alt a i e) =
         Alt (modifyContainedASTs f a) (modifyContainedASTs f i) (modifyContainedASTs f e)
 
+instance ASTContainer TyAlg Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ a = a
+
+instance ASTContainer TyAlg Type where
+    containedASTs (TyAlg _ dc) = containedASTs dc
+    modifyContainedASTs f (TyAlg ns dc) = TyAlg ns (modifyContainedASTs f dc)
+
+instance ASTContainer TyArg Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ a = a
+
+instance ASTContainer TyArg Type where
+    containedASTs (DCArg dc) = containedASTs dc
+    containedASTs (FuncArg t1 t2) = containedASTs t1 ++ containedASTs t2
+
+    modifyContainedASTs f (DCArg dc) = DCArg (modifyContainedASTs f dc)
+    modifyContainedASTs f (FuncArg t1 t2) =
+        FuncArg (modifyContainedASTs f t1) (modifyContainedASTs f t2)
+
 instance ASTContainer SymLinks Expr where
     containedASTs _ = []
     modifyContainedASTs _ m = m
 
 instance ASTContainer SymLinks Type where
-    containedASTs (SymLinks m) = map (\(_, t, _) -> t) $ M.elems m
-    modifyContainedASTs f (SymLinks m) =
-        SymLinks (M.map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m)
+    containedASTs sym = M.elems $ SymLinks.map' (\(_, t, _) -> t) sym
+    modifyContainedASTs f m =
+        SymLinks.map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m
 
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
@@ -254,6 +290,11 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
       where e' = modifyContainedASTs f e
             a' = modifyContainedASTs f a
+
+instance ASTContainer TyAlg TyArg where
+    containedASTs (TyAlg _ ta) = ta
+
+    modifyContainedASTs f (TyAlg n ta) = TyAlg n (modifyContainedASTs f ta)
 
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)

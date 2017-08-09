@@ -1,11 +1,10 @@
 module G2.Internals.Preprocessing.Defunctionalizor 
 
-() where
-
-{-
 (defunctionalize) where
 
 import G2.Internals.Language
+import qualified G2.Internals.Language.SymLinks as SymLinks
+import G2.Internals.Language.Typing
 
 import Data.List
 import Data.Maybe
@@ -45,40 +44,40 @@ useApplyType s (t@(TyFun _ _)) =
         funcs = passedToHigherOrder (expr_env s) t
 
         --apply data type
-        (applyTypeName, s2) = freshSeededName "ApplyType" s
-        (applyConsNames, s3) = freshSeededNameList (take (length funcs) . repeat $ "Apply") s2
-        applyTypeAlg = TyAlg applyTypeName (map (\n -> DataCon n (-1) (TyConApp applyTypeName []) []) applyConsNames)
-        applyTypeCon = TyConApp applyTypeName []
+        (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (all_names s)
+        (applyConsNames, r3) = freshSeededNames (take (length funcs) . repeat $ Name "ApplyType" Nothing 0) r2
+        applyTypeAlg = TyAlg applyConsNames []
+        applyTypeCon = TyConApp (TyCon applyTypeName) []
 
         namesToFuncs = zip applyConsNames funcs 
 
         --function
-        (applyFuncName, s4) = freshSeededName "applyFunc" s3
+        (applyFuncName, r4) = freshSeededName (Name "applyFunc" Nothing 0) r3
         args = argList t
-        (applyFunc, s5) = createApplyFunc args applyTypeName namesToFuncs s4
+        (applyFunc, r5) = createApplyFunc args applyTypeName namesToFuncs r4
 
         --adjustment
-        higherNameExpr = higherOrderOfTypeFuncNames (expr_env s4) t
+        higherNameExpr = higherOrderOfTypeFuncNames (expr_env s) t
         higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) higherNameExpr
 
-        funcsInSLT = funcsInSymLink t (sym_links s3)
+        funcsInSLT = funcsInSymLink t (sym_links s)
 
-        newCurr_expr = foldr (\n -> exprReplace (Var n t) (Var n applyTypeCon)) (curr_expr s5) funcsInSLT
+        newCurr_expr = foldr (\n -> exprReplace (Var $ Id n t) (Var $ Id n applyTypeCon)) (curr_expr s) funcsInSLT
 
-        newFuncs_interps = M.fromList . catMaybes . map (\(a, n) -> 
+        newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
-                                                    Var n _ -> Just (a, (n, StdInterp))
+                                                    Var (Id n _) -> Just (a, (n, StdInterp))
                                                     _ -> Nothing) $ namesToFuncs
 
-        s6 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) s5 higherNameExprArgs
+        s2 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) (s {all_names = r5}) higherNameExprArgs
 
-        s7 = modifyASTs (applyTypeReplace t applyTypeCon) (s6 {curr_expr = newCurr_expr})
+        s3 = modifyASTs (applyTypeReplace t applyTypeCon) (s2 {curr_expr = newCurr_expr})
 
     in
-    s7 { expr_env = M.insert applyFuncName applyFunc (expr_env s7)
-        , type_env = M.insert applyTypeName applyTypeAlg (type_env s7)
-        , sym_links = adjustSymLinks t applyTypeCon (sym_links s7)
-        , func_interps = M.union newFuncs_interps (func_interps s7)
+    s3 { expr_env = M.insert applyFuncName applyFunc (expr_env s3)
+        , type_env = M.insert applyTypeName applyTypeAlg (type_env s3)
+        , sym_links = adjustSymLinks t applyTypeCon (sym_links s3)
+        , func_table = unionFuncInterps newFuncs_interps (func_table s3)
     }
     where
         argList :: Type -> [Type]
@@ -111,7 +110,7 @@ useApplyType s (t@(TyFun _ _)) =
             where
                 fstAppReplace' :: Type -> FuncName -> FuncName -> Type -> Expr -> Expr
                 fstAppReplace' tn fn n t a@(App e e') =
-                    if e == Var n t then App (App (Var fn tn) e) e' else a
+                    if e == Var (Id n t) then App (App (Var (Id fn tn)) e) e' else a
                 fstAppReplace' _ _ _ _ e = e
 
         -- This adjusts for when the function with the given name is in the second position in an app
@@ -122,40 +121,45 @@ useApplyType s (t@(TyFun _ _)) =
             where
                 sndAppReplace' :: Expr -> Expr
                 sndAppReplace' a@(App e e') =
-                    if e' == Var n t then App e (Var n at) else a
+                    if e' == Var (Id n t) then App e (Var (Id n at)) else a
                 sndAppReplace' e = e
 
         -- Gets the names of all functions in the symbolic link table, that are of the given type
-        funcsInSymLink :: Type -> SymLinkTable -> [FuncName]
-        funcsInSymLink t = M.keys . M.filter (\(_, t', _) -> t == t')
+        funcsInSymLink :: Type -> SymLinks -> [FuncName]
+        funcsInSymLink t = SymLinks.names . SymLinks.filter (\(_, t', _) -> t == t')
 
         -- In the symbolic link table, changes all Types rt to Type at
-        adjustSymLinks :: Type -> Type -> SymLinkTable -> SymLinkTable
-        adjustSymLinks rt at = M.map (\(n, t, i) -> (n, if t == rt then at else t, i))
+        adjustSymLinks :: Type -> Type -> SymLinks -> SymLinks
+        adjustSymLinks rt at = SymLinks.map (\(n, t, i) -> (n, if t == rt then at else t, i))
 
 useApplyType _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
 
 --Creates the apply function
-createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> State -> (Expr, State)
-createApplyFunc ts applyTypeName namesToFuncs s =
+createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> Renamer -> (Expr, Renamer)
+createApplyFunc ts applyTypeName namesToFuncs r =
     let
         ret_type = head . reverse $ ts
 
-        (new_names, s2) = freshSeededNameList (replicate (length namesToFuncs) "apply_match") s
-        (apply_arg, s3) = freshSeededName "apply_" s2
-        (args, s4) = freshSeededNameList (replicate (length ts - 1) "i") s3
-        args_vars = map (\(a, t) -> Var a t) (zip args ts)
+        (new_names, r2) = freshSeededNames (replicate (length namesToFuncs) (Name "apply_match" Nothing 0)) r
+        (top, r3) = freshName r2
+        (apply_arg, r4) = freshSeededName (Name "apply_" Nothing 0) r3
+        (args, r5) = freshSeededNames (replicate (length ts - 1) (Name "i" Nothing 0)) r4
+        args_vars = map (\(a, t) -> Var $ Id a t) (zip args ts)
 
-        case_expr = Var apply_arg (TyConApp applyTypeName [])
+        case_expr_type = TyConApp (TyCon applyTypeName) []
+        apply_arg_id = Id apply_arg case_expr_type
+
+        case_expr = Var apply_arg_id 
         case_matches = map (\((n, e), new) ->
-                        (Alt ((DataCon n (-1) (TyConApp applyTypeName []) []), [new])
-                            , foldr (\i' e' -> App e' i') e args_vars))
-                        (zip namesToFuncs new_names)
-        case_final = Case case_expr case_matches ret_type
+                        (Alt (DataAlt $ DataCon n (TyConApp (TyCon applyTypeName) []) [])
+                             [new]
+                             (foldr (\i' e' -> App e' i') e args_vars)))
+                        (zip namesToFuncs (map (\n -> Id n case_expr_type) new_names))
+        case_final = Case case_expr (Id top case_expr_type) case_matches
 
-        arg_lams = foldr (\(a, t) e -> Lam a e (TyFun t (exprType e))) case_final (zip args ts)
+        arg_lams = foldr (\(a, t) e -> Lam (Id a t) e) case_final (zip args ts)
     in
-    (Lam apply_arg arg_lams (TyFun (TyConApp applyTypeName []) (exprType arg_lams)), s4)
+    (Lam apply_arg_id arg_lams, r5)
 
 -- In e, replaces all eOld with eNew
 exprReplace :: Expr -> Expr -> Expr -> Expr
@@ -177,10 +181,10 @@ applyTypeReplace _ _ t = t
 leadingHigherOrderTypes :: State -> [Type]
 leadingHigherOrderTypes s =
     let
-        higherTEenv = higherOrderTypesTEnv . type_env $ s
-        higherEEnv = map exprType . higherOrderFuncsEEnv . expr_env $ s
+        higherTExprEnv = higherOrderTypesTEnv . type_env $ s
+        higherExprEnv = map exprType . higherOrderFuncsExprEnv . expr_env $ s
     in
-    nub . concatMap leading $ higherTEenv ++ higherEEnv
+    nub . concatMap leading $ higherTExprEnv ++ higherExprEnv
     where
         leading :: Type -> [Type]
         leading = eval leading'
@@ -193,10 +197,10 @@ leadingHigherOrderTypes s =
 -- (1) all functions of type t from the expression environment
 -- (2) all expresions of type t that are passed into a higher order function,
 --     somewhere in the expression environment
-passedToHigherOrder :: EEnv -> Type -> [Expr]
+passedToHigherOrder :: ExprEnv -> Type -> [Expr]
 passedToHigherOrder eenv t =
     let
-        funcs = map (\n -> Var n t) (functionNamesOfType eenv t)
+        funcs = map (\n -> Var $ Id n t) (functionNamesOfType eenv t)
         part_lams = concatMap (\e -> higherOrderArg e (exprType e)) (M.elems eenv)
     in
     nub (funcs ++ part_lams)
@@ -208,7 +212,7 @@ passedToHigherOrder eenv t =
 
 -- Given an expression environment, gets the names and expressions of all higher order functions
 -- that accept the given type
-higherOrderOfTypeFuncNames :: EEnv -> Type -> [(FuncName, Expr)]
+higherOrderOfTypeFuncNames :: ExprEnv -> Type -> [(FuncName, Expr)]
 higherOrderOfTypeFuncNames eenv ty =
     nub . filter (\(_, e) -> ty `elem` functionsAccepted e) . M.toList $ eenv
     where
@@ -224,22 +228,25 @@ higherOrderOfTypeFuncNames eenv ty =
 
 -- Given a higher order function, returns the names and types of all higher order arguments
 higherOrderArgs :: Expr -> [(FuncName, Type)]
-higherOrderArgs (Lam n e (TyFun t@(TyFun _ _) _)) = (n, t):higherOrderArgs e
-higherOrderArgs (Lam _ e _) = higherOrderArgs e
+higherOrderArgs l@(Lam (Id n _) e) =
+    case exprType l of
+        TyFun t@(TyFun _ _) _ -> (n, t):higherOrderArgs e
+        _ -> higherOrderArgs e
+-- higherOrderArgs (Lam n e (TyFun t@(TyFun _ _) _)) = (n, t):higherOrderArgs e
 higherOrderArgs _ = []
 
 -- Returns all function names of the given type
-functionNamesOfType :: EEnv -> Type -> [FuncName]
+functionNamesOfType :: ExprEnv -> Type -> [FuncName]
 functionNamesOfType eenv t =
     map fst . filter (\(_, e') -> exprType e' == t) . M.assocs $ eenv
 
 -- Get higher order functions from the expression environment
-higherOrderFuncsEEnv :: EEnv -> [Expr]
-higherOrderFuncsEEnv = filter (higherOrderFunc) . M.elems
+higherOrderFuncsExprEnv :: ExprEnv -> [Expr]
+higherOrderFuncsExprEnv = filter (higherOrderFunc) . M.elems
 
 -- Get higher order types from the type environment
-higherOrderTypesTEnv :: TEnv -> [Type]
-higherOrderTypesTEnv = filter (higherOrderFuncType) . M.elems
+higherOrderTypesTEnv :: TypeEnv -> [Type]
+higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map tyArgType . containedASTs $ M.elems tenv)
 
 -- Returns whether the expr is a higher order function
 higherOrderFunc :: Expr -> Bool
@@ -251,5 +258,3 @@ higherOrderFuncType (TyFun (TyFun _ _) _) = True
 higherOrderFuncType (TyFun t t') = higherOrderFuncType t || higherOrderFuncType t'
 higherOrderFuncType (TyApp t t') = higherOrderFuncType t || higherOrderFuncType t'
 higherOrderFuncType _ = False
--}
-

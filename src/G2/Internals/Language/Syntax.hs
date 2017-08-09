@@ -93,11 +93,6 @@ data TyBinder = AnonTyBndr
 --
 --     TyConApp Tree [Int]
 --
---   TyAlg is simply the ADT that lives in the environment. We don't actually
---   use the type environment at all during symbolic execution. However, the
---   type environment, as stated before, is crucial for reconstruction for when
---   we throw things at the SMT solver.
---
 --   TyBottom is a default filler for when we don't have anything better to do.
 data Type = TyVar Name
           | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
@@ -111,4 +106,3 @@ data Type = TyVar Name
 
 data TyCon = TyCon Name
            | TyLit LitCon deriving (Show, Eq, Read)
-

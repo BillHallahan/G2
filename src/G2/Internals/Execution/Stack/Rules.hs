@@ -71,13 +71,13 @@ stackReduce state @ ExecState { exec_stack = stack
   -- | Uninterpreted variable lifting.
   | Evaluate (Var var) <- code
   , Nothing <- vlookupScope var scope =
-    let (sname, renamer) = freshSeededName (idName var) confs
+    let (sname, re) = freshSeededName (idName var) confs
         svar = Id sname (idType var)
         sym = Symbol svar Nothing
     in Just (StkRuleUnInt
             ,[state { exec_scope = insertEnvObj (idName var, SymObj sym) scope
                     , exec_code = Evaluate (Var var)
-                    , exec_names = renamer}])
+                    , exec_names = confs}])
 
   -- Push application RHS onto the stack.
   | Evaluate (App fexpr aexpr) <- code =

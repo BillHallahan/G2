@@ -29,7 +29,7 @@ allNames state = Renamer $ L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_
         exprTopNames (Var var) = [idName var]
         exprTopNames (Lam b _) = [idName b]
         exprTopNames (Let kvs _) = map (idName . fst) kvs
-        exprTopNames (Case _ cvar as) = idName cvar :
+        exprTopNames (Case _ cvar as) = (idName cvar) :
                                         concatMap (\(Alt _ ps _) -> map idName ps) as
         exprTopNames _ = []
 
