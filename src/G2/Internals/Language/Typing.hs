@@ -12,8 +12,6 @@ idType (Id _ ty) = ty
 
 -- | `Type` of `Primitive`.
 primType :: Primitive -> Type
-primType PTrue = TyBool
-primType PFalse = TyBool
 primType Ge = TyBottom  -- TODO: fill in correctly.
 primType Gt = TyBottom
 primType Eq = TyBottom
@@ -45,8 +43,7 @@ dataConType (PrimCon I) = TyFun TyLitInt TyInt
 dataConType (PrimCon D) = TyFun TyLitDouble TyDouble
 dataConType (PrimCon F) = TyFun TyLitFloat TyFloat
 dataConType (PrimCon C) = TyFun TyLitChar TyChar
-dataConType (PrimCon CTrue) = TyBool
-dataConType (PrimCon CFalse) = TyBool
+dataConType (PrimCon B) = TyBool
 
 -- | `Type` of `Alt`.
 altType :: Alt -> Type

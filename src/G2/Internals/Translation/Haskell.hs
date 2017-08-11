@@ -172,8 +172,6 @@ filterPrimCon (G2.DataCon name ty tys) = dcon
                (True, "D#") -> G2.PrimCon G2.D
                (True, "F#") -> G2.PrimCon G2.F
                (True, "C#") -> G2.PrimCon G2.C
-               (True, "True") -> G2.PrimCon G2.CTrue
-               (True, "False") -> G2.PrimCon G2.CFalse
                _ -> G2.DataCon name ty tys
 
 mkDataName :: DataCon -> G2.Name

@@ -43,8 +43,7 @@ tyArgType (DCArg (PrimCon I)) = TyInt
 tyArgType (DCArg (PrimCon F)) = TyFloat
 tyArgType (DCArg (PrimCon D)) = TyDouble
 tyArgType (DCArg (PrimCon C)) = TyChar
-tyArgType (DCArg (PrimCon CTrue)) = TyBool
-tyArgType (DCArg (PrimCon CFalse)) = TyBool
+tyArgType (DCArg (PrimCon B)) = TyBool
 tyArgType (FuncArg t1 t2) = TyFun (tyArgType t1) (tyArgType t2)
 
 idName :: Id -> Name

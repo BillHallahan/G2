@@ -42,8 +42,7 @@ data Expr = Var Id
 -- Translations from functions. This allows for more general
 -- handling in the SMT solver- we are not tied to the specific function
 -- names/symbols that come from Haskell
-data Primitive = PTrue | PFalse
-               | Ge | Gt | Eq | Lt | Le
+data Primitive = Ge | Gt | Eq | Lt | Le
                | And | Or | Not | Implies
                | Plus | Minus | Mult | Div
                | Assert | Assume
@@ -55,16 +54,18 @@ data Lit = LitInt Int
          | LitDouble Rational
          | LitChar Char
          | LitString String
+         | LitBool Bool
          deriving (Show, Eq, Read)
 
 -- LitCon's are used in DataCons to construct a value of a specific type
-data LitCon = I | D | F | C | CTrue | CFalse deriving (Show, Eq, Read)
+data LitCon = I | D | F | C | B deriving (Show, Eq, Read)
 
 data DataCon = DataCon Name Type [Type]
              | PrimCon LitCon
              deriving (Show, Eq, Read)
 
 data AltCon = DataAlt DataCon
+            | LitAlt Lit
             | Default
             deriving (Show, Eq, Read)
 
@@ -104,5 +105,4 @@ data Type = TyVar Name
           | TyBottom
           deriving (Show, Eq, Read)
 
-data TyCon = TyCon Name
-           | TyLit LitCon deriving (Show, Eq, Read)
+data TyCon = TyCon Name deriving (Show, Eq, Read)
