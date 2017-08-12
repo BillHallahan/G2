@@ -3,7 +3,7 @@ module G2.Internals.Language.Support
     , SymLinks
     ) where
 
-import {-# SOURCE #-} G2.Internals.Language.Naming
+import G2.Internals.Language.Naming
 import G2.Internals.Language.SymLinks
 import G2.Internals.Language.Syntax
 

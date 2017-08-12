@@ -3,20 +3,23 @@ module G2.Internals.Language.Naming
     , allNames
     , freshStr
     , freshName
+    , freshNames
     , freshSeededName
     , freshSeededNames
     ) where
 
-import G2.Internals.Language.AST
-import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
 
 import qualified Data.List as L
-import qualified Data.Map as M
 import qualified Data.Set as S
 
 newtype Renamer = Renamer [Name] deriving (Show, Eq, Read)
 
+allNames :: Program -> [Name]
+allNames = undefined
+
+
+{-
 allNames :: State -> Renamer
 allNames state = Renamer $ L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_keys)
   where
@@ -38,6 +41,7 @@ allNames state = Renamer $ L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_
         typeTopNames (TyConApp (TyCon n) _) = [n]
         typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
         typeTopNames _ = []
+-}
 
 nameOccStr :: Name -> String
 nameOccStr (Name occ _ _) = occ
@@ -79,7 +83,8 @@ freshNames as confs = freshSeededNames seeds confs
     seeds = [Name ("fs" ++ show i ++ "?") Nothing 0 | i <- [1..(length as)]]
 
 freshSeededNames :: [Name] -> Renamer -> ([Name], Renamer)
-freshSeededNames (name:ns) r@(Renamer confs) =
+freshSeededNames [] r = ([], r)
+freshSeededNames (name:ns) r =
     let
         (name', confs') = freshSeededName name r
         (ns', confs'') = freshSeededNames ns confs'

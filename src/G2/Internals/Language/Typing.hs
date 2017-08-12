@@ -35,6 +35,7 @@ litType (LitFloat _) = TyLitFloat
 litType (LitDouble _) = TyLitDouble
 litType (LitChar _)   = TyLitChar
 litType (LitString _) = TyLitString
+litType (LitBool _) = TyBool
 
 -- | `Type` of `DataCon`.
 dataConType :: DataCon -> Type

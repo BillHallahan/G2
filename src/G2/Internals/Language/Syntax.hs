@@ -5,6 +5,16 @@ module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
 
+-- | The native GHC defintion states that a `Program` is a list of `Binds`.
+type Program = [Binds]
+
+-- | Typically `Binds` are categorized as recursive or non-recursive. This is
+-- because recursive let bindings require their local scopes of all bindings
+-- to contain each other. Technically, all bindings can be expressed as
+-- recursive, though GHC differentiates them. We do not care here because we
+-- assume naming independence.
+type Binds = [(Id, Expr)]
+
 -- | The occurrence name is defined as a string, with a `Maybe` module name
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
@@ -13,42 +23,38 @@ data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord)
 
 data Id = Id Name Type deriving (Show, Eq, Read)
 
--- | Expressions
---   We annotate our expressions with types. The reason we do this is because
---   type information is needed to reconstruct statements for SMT solvers.
---
--- Var    -- Variables.
--- Lit    -- Literals, such as Int#, +#, and others.
--- Prim   -- A primitive that we have some sort of special support for in the SMT solver.
--- Data   -- Data constructors.
--- App    -- Expression (function) application.
--- Lam    -- Lambda functions. Its type is a TyFun.
--- Let    -- Bindings of Id's to Expr.
--- Case   -- Case expressions. Type denotes the type of its Alts.
--- Type   -- A type expression. Unfortuantely we do need this.
+-- | Expressions are defined as:
+--   * Variables
+--   * Literals such as unwrapped Int# types
+--   * Primitive known operation on WRAPPED types such as +, <, etc
+--   * Data Constructors
+--   * Application of expressions: apply RHS to LHS, LHS being a function
+--   * Lambda expressions where the `Id` is the lambda binder
+--   * Let bindings such that `Binds` appears in the scope for the body `Expr`
+--   * Case pattern matching where `Expr` is inspection, `Id` is binding
+--   * Type expression wrappers for who knows what
 data Expr = Var Id
           | Lit Lit
           | Prim Primitive
           | Data DataCon
           | App Expr Expr
           | Lam Id Expr
-          | Let [(Id, Expr)] Expr
+          | Let Binds Expr
           | Case Expr Id [Alt]
           | Type Type
           deriving (Show, Eq, Read)
 
--- | Primitives
--- These are used to represent various functions in expressions
--- Translations from functions. This allows for more general
--- handling in the SMT solver- we are not tied to the specific function
--- names/symbols that come from Haskell
+-- | These enumerate a set of known, and G2-augmented operations, over wrapped
+-- data types such as Int, Char, Double, etc. We refer to these as primitives.
+-- We further introduce a assertion and assumption as special features.
 data Primitive = Ge | Gt | Eq | Lt | Le
                | And | Or | Not | Implies
                | Plus | Minus | Mult | Div
                | Assert | Assume
                deriving (Show, Eq, Read)
 
--- Lit's are used in the Expr Lit to denote a constant value.
+-- | Literals for denoting unwrapped types such as Int#, Double#. These would
+-- be contained within primitives.
 data Lit = LitInt Int
          | LitFloat Rational
          | LitDouble Rational
@@ -57,45 +63,45 @@ data Lit = LitInt Int
          | LitBool Bool
          deriving (Show, Eq, Read)
 
--- LitCon's are used in DataCons to construct a value of a specific type
-data LitCon = I | D | F | C | B deriving (Show, Eq, Read)
+-- | These are used for expressing wrapped data type constructors such as I#.
+-- In the context of these documentations, primitive types refers to the boxed
+-- types `Int`, `Double`, `Float`, `Char`, and `Bool`.
+data PrimCon = I | D | F | C | B deriving (Show, Eq, Read)
 
+-- | Data constructor. We have a special ditinction for primitive types.
 data DataCon = DataCon Name Type [Type]
-             | PrimCon LitCon
+             | PrimCon PrimCon
              deriving (Show, Eq, Read)
 
+-- | Alternative case constructors, which are done by structural matching,
+-- which is a phrase I invented to describe this :)
 data AltCon = DataAlt DataCon
             | LitAlt Lit
             | Default
             deriving (Show, Eq, Read)
 
+-- | Alternatives consist of the consturctor that is used to structurally match
+-- onto them, a list of parameters corresponding to this constructor, which
+-- serve to perform binding in the environment scope. The `Expr` is what is
+-- evaluated provided that the `AltCon` successfully matches.
 data Alt = Alt AltCon [Id] Expr deriving (Show, Eq, Read)
 
+-- | TyBinder is used only inthe `TyForAll`. It has other uses if we wish to
+-- make the `TyCon` more verbose.
 data TyBinder = AnonTyBndr
               | NamedTyBndr Name
               deriving (Show, Eq, Read)
 
--- | Types
---   We need a way of representing types, and so it is done here.
---
---   The TyRaw* types are meant to deal with unwrapped types. For example, Int#
---   would be equivalent to TyRawInt.
---
---   TyApp is a catch-all statement in case we accidentally run into type
---   variables when trying to "type check" a function type's App spine.
---
---   TyConApp is equivalent to applying types to parametrized ADTs:
---
---     data Tree a = Node a | Branch (Tree a) (Tree a)
---     
---     foo :: Tree Int -> Int
---
---   Here the first parameter of foo would have something akin to:
---
---     TyConApp Tree [Int]
---
---   TyBottom is a default filler for when we don't have anything better to do.
-data Type = TyVar Name
+-- | Types are decomposed as follows:
+-- * Type variables correspond to the aliasing of a type
+-- * TyInt, TyFloat, etc, denote primitive types
+-- * TyLitInt, TyLitFloat etc denote unwrapped primitive types.
+-- * Function type. For instance (assume Int): \x -> x + 1 :: TyFun TyInt TyInt
+-- * Application, often reducible: (TyApp (TyFun TyInt TyInt) TyInt) :: TyInt
+-- * Type constructor (see below) application creates an actual type
+-- * For all types
+-- * BOTTOM
+data Type = TyVar Name Type
           | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
           | TyFun Type Type
@@ -105,4 +111,11 @@ data Type = TyVar Name
           | TyBottom
           deriving (Show, Eq, Read)
 
+-- | We keep type constructors simple. Semantically, type constructors are not
+-- types, they are literally constructors used to make types. Types are
+-- entities with kind *, while constructors have kind * -> *, * -> * -> * and
+-- so on. Type constructors can be thought of as data constructors, where
+-- instead of putting in data values to make a solid piece of data object, you
+-- put in types instead.
 data TyCon = TyCon Name deriving (Show, Eq, Read)
+

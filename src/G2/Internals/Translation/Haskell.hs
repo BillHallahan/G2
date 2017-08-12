@@ -126,24 +126,11 @@ mkAlt (acon, prms, expr) = G2.Alt (mkAltCon acon) (map mkId prms) (mkExpr expr)
 
 mkAltCon :: AltCon -> G2.AltCon
 mkAltCon (DataAlt dcon) = G2.DataAlt (mkData dcon)
-mkAltCon (LitAlt lit) = G2.DataAlt (G2.PrimCon (mkLitCon lit))
+mkAltCon (LitAlt lit) = G2.LitAlt (mkLit lit)
 mkAltCon (DEFAULT) = G2.Default
 
-mkLitCon :: Literal -> G2.LitCon
-mkLitCon (MachChar _) = G2.C
-mkLitCon (MachInt _) = G2.I
-mkLitCon (MachInt64 _) = G2.I
-mkLitCon (MachWord _) = G2.I
-mkLitCon (MachWord64 _) = G2.I
-mkLitCon (MachFloat _) = G2.F
-mkLitCon (MachDouble _) = G2.D
-mkLitCon (LitInteger _ _) = G2.I
-mkLitCon (MachStr _) = error "mkLitCon: MachStr"
-mkLitCon (MachNullAddr) = error "mkLitCon: MachNullAddr"
-mkLitCon (MachLabel _ _ _ ) = error "mkLitCon: MachLabel"
-
 mkType :: Type -> G2.Type
-mkType (TyVarTy v) = G2.TyVar (mkName (V.varName v))
+mkType (TyVarTy v) = G2.TyVar (mkName (V.varName v)) (mkType (varType v))
 mkType (AppTy t1 t2) = G2.TyApp (mkType t1) (mkType t2)
 mkType (TyConApp tc ts) = G2.TyConApp (mkTyCon tc) (map mkType ts)
 mkType (ForAllTy b ty) = G2.TyForAll (mkTyBinder b) (mkType ty)
