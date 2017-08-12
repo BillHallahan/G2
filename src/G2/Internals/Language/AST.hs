@@ -8,8 +8,6 @@ module G2.Internals.Language.AST
     ) where
 
 import G2.Internals.Language.Syntax
-import G2.Internals.Language.Support
-import qualified G2.Internals.Language.SymLinks as SymLinks
 
 import qualified Data.Map as M
 
@@ -125,13 +123,6 @@ instance AST Type where
     modifyChildren f (TyForAll b t)  = TyForAll b (f t)
     modifyChildren _ t               = t
 
-instance AST TyArg where
-    children (FuncArg t1 t2) = [t1, t2]
-    children _ = []
-
-    modifyChildren f (FuncArg t1 t2) = FuncArg (f t1) (f t2)
-    modifyChildren _ a = a
-
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
@@ -189,34 +180,6 @@ instance ASTContainer Type Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-
-instance ASTContainer State Expr where
-    containedASTs s = ((containedASTs . type_env) s) ++
-                      ((containedASTs . expr_env) s) ++
-                      ((containedASTs . curr_expr) s) ++
-                      ((containedASTs . path_conds) s) ++
-                      ((containedASTs . sym_links) s)
-
-    modifyContainedASTs f s = s { type_env  = (modifyASTs f . type_env) s
-                                , expr_env  = (modifyASTs f . expr_env) s
-                                , curr_expr = (modifyASTs f . curr_expr) s
-                                , path_conds = (modifyASTs f . path_conds) s
-                                , sym_links = (modifyASTs f . sym_links) s }
-
-
-instance ASTContainer State Type where
-    containedASTs s = ((containedASTs . expr_env) s) ++
-                      ((containedASTs . type_env) s) ++
-                      ((containedASTs . curr_expr) s) ++
-                      ((containedASTs . path_conds) s) ++
-                      ((containedASTs . sym_links) s)
-
-    modifyContainedASTs f s = s { type_env  = (modifyASTs f . type_env) s
-                                , expr_env  = (modifyASTs f . expr_env) s
-                                , curr_expr = (modifyASTs f . curr_expr) s
-                                , path_conds = (modifyASTs f . path_conds) s
-                                , sym_links = (modifyASTs f . sym_links) s }
-
 instance ASTContainer DataCon Type where
     containedASTs (DataCon _ t ts) = containedASTs (t:ts)
     containedASTs _ = []
@@ -243,58 +206,6 @@ instance ASTContainer Alt Type where
     containedASTs (Alt a i e) = (containedASTs a) ++ (containedASTs i) ++ (containedASTs e)
     modifyContainedASTs f (Alt a i e) =
         Alt (modifyContainedASTs f a) (modifyContainedASTs f i) (modifyContainedASTs f e)
-
-instance ASTContainer TyAlg Expr where
-    containedASTs _ = []
-    modifyContainedASTs _ a = a
-
-instance ASTContainer TyAlg Type where
-    containedASTs (TyAlg _ dc) = containedASTs dc
-    modifyContainedASTs f (TyAlg ns dc) = TyAlg ns (modifyContainedASTs f dc)
-
-instance ASTContainer TyArg Expr where
-    containedASTs _ = []
-    modifyContainedASTs _ a = a
-
-instance ASTContainer TyArg Type where
-    containedASTs (DCArg dc) = containedASTs dc
-    containedASTs (FuncArg t1 t2) = containedASTs t1 ++ containedASTs t2
-
-    modifyContainedASTs f (DCArg dc) = DCArg (modifyContainedASTs f dc)
-    modifyContainedASTs f (FuncArg t1 t2) =
-        FuncArg (modifyContainedASTs f t1) (modifyContainedASTs f t2)
-
-instance ASTContainer SymLinks Expr where
-    containedASTs _ = []
-    modifyContainedASTs _ m = m
-
-instance ASTContainer SymLinks Type where
-    containedASTs sym = M.elems $ SymLinks.map' (\(_, t, _) -> t) sym
-    modifyContainedASTs f m =
-        SymLinks.map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m
-
-instance ASTContainer PathCond Expr where
-    containedASTs (ExtCond e _ )   = [e]
-    containedASTs (AltCond e _ _) = [e]
-
-    modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
-    modifyContainedASTs f (AltCond e a b) =
-        AltCond (modifyContainedASTs f e) a b
-
-instance ASTContainer PathCond Type where
-    containedASTs (ExtCond e _)   = containedASTs e
-    containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
-
-    modifyContainedASTs f (ExtCond e b) = ExtCond e' b
-      where e' = modifyContainedASTs f e
-    modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
-      where e' = modifyContainedASTs f e
-            a' = modifyContainedASTs f a
-
-instance ASTContainer TyAlg TyArg where
-    containedASTs (TyAlg _ ta) = ta
-
-    modifyContainedASTs f (TyAlg n ta) = TyAlg n (modifyContainedASTs f ta)
 
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)

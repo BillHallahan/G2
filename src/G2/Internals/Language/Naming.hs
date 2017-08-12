@@ -1,19 +1,17 @@
 module G2.Internals.Language.Naming
     ( Renamer
     , nameToStr
-    , allNames
-    , freshStr
+    , renamer
     , freshName
+    , freshNames
     , freshSeededName
     , freshSeededNames
     ) where
 
 import G2.Internals.Language.AST
-import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
 
-import qualified Data.List as L
-import qualified Data.Map as M
+import Data.List
 import qualified Data.Set as S
 
 newtype Renamer = Renamer [Name] deriving (Show, Eq, Read)
@@ -21,13 +19,15 @@ newtype Renamer = Renamer [Name] deriving (Show, Eq, Read)
 nameToStr :: Name -> String
 nameToStr = undefined
 
-allNames :: State -> Renamer
-allNames state = Renamer $ L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_keys)
+renamer :: Program -> Renamer
+renamer = Renamer . allNames
+
+allNames :: Program -> [Name]
+allNames prog = nub (binds ++ expr_names ++ type_names)
   where
-        expr_names = evalASTs exprTopNames state
-        type_names = evalASTs typeTopNames state
-        eenv_keys = (M.keys . expr_env) state
-        tenv_keys = (M.keys . type_env) state
+        binds = concatMap (map (idName . fst)) prog
+        expr_names = evalASTs exprTopNames prog
+        type_names = evalASTs typeTopNames prog
 
         exprTopNames :: Expr -> [Name]
         exprTopNames (Var var) = [idName var]
@@ -38,8 +38,8 @@ allNames state = Renamer $ L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_
         exprTopNames _ = []
 
         typeTopNames :: Type -> [Name]
-        typeTopNames (TyVar n) = [n]
-        typeTopNames (TyConApp (TyCon n) _) = [n]
+        typeTopNames (TyVar n _) = [n]
+        typeTopNames (TyConApp n _) = [n]
         typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
         typeTopNames _ = []
 
@@ -74,7 +74,7 @@ freshSeededName seed (Renamer confs) = (new_n, Renamer (new_n:confs))
     occ' = freshStr 1 occ (S.fromList alls)
     unq' = maxs + 1
     alls = map nameOccStr confs
-    maxs = L.maximum (unq : map nameInt confs)
+    maxs = maximum (unq : map nameInt confs)
     new_n = Name occ' mdl unq'
 
 freshNames :: [a] -> Renamer -> ([Name], Renamer)
@@ -83,7 +83,8 @@ freshNames as confs = freshSeededNames seeds confs
     seeds = [Name ("fs" ++ show i ++ "?") Nothing 0 | i <- [1..(length as)]]
 
 freshSeededNames :: [Name] -> Renamer -> ([Name], Renamer)
-freshSeededNames (name:ns) r@(Renamer confs) =
+freshSeededNames [] r = ([], r)
+freshSeededNames (name:ns) r =
     let
         (name', confs') = freshSeededName name r
         (ns', confs'') = freshSeededNames ns confs'

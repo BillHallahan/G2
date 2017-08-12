@@ -1,3 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 module G2.Internals.Language.SymLinks ( SymLinks
                                       , lookupSymLinks
                                       , insertSymLinks
@@ -7,6 +10,7 @@ module G2.Internals.Language.SymLinks ( SymLinks
                                       , names
                                       , namesTypes) where
 
+import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 import Prelude hiding (filter, map)
 
@@ -36,3 +40,12 @@ names (SymLinks s) = M.keys s
 
 namesTypes :: SymLinks -> [(Name, Type)]
 namesTypes (SymLinks m) = L.map (\(n, (_, t, _)) -> (n, t)) $ M.toList m
+
+instance ASTContainer SymLinks Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ m = m
+
+instance ASTContainer SymLinks Type where
+    containedASTs sym = M.elems $ map' (\(_, t, _) -> t) sym
+    modifyContainedASTs f m =
+        map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m

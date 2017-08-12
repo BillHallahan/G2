@@ -4,7 +4,6 @@ module G2.Internals.Preprocessing.Defunctionalizor
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.SymLinks as SymLinks
-import G2.Internals.Language.Typing
 
 import Data.List
 import Data.Maybe
@@ -47,7 +46,7 @@ useApplyType s (t@(TyFun _ _)) =
         (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (all_names s)
         (applyConsNames, r3) = freshSeededNames (take (length funcs) . repeat $ Name "ApplyType" Nothing 0) r2
         applyTypeAlg = TyAlg applyConsNames []
-        applyTypeCon = TyConApp (TyCon applyTypeName) []
+        applyTypeCon = TyConApp applyTypeName []
 
         namesToFuncs = zip applyConsNames funcs 
 
@@ -138,20 +137,18 @@ useApplyType _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyT
 createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> Renamer -> (Expr, Renamer)
 createApplyFunc ts applyTypeName namesToFuncs r =
     let
-        ret_type = head . reverse $ ts
-
         (new_names, r2) = freshSeededNames (replicate (length namesToFuncs) (Name "apply_match" Nothing 0)) r
         (top, r3) = freshName r2
         (apply_arg, r4) = freshSeededName (Name "apply_" Nothing 0) r3
         (args, r5) = freshSeededNames (replicate (length ts - 1) (Name "i" Nothing 0)) r4
         args_vars = map (\(a, t) -> Var $ Id a t) (zip args ts)
 
-        case_expr_type = TyConApp (TyCon applyTypeName) []
+        case_expr_type = TyConApp applyTypeName []
         apply_arg_id = Id apply_arg case_expr_type
 
         case_expr = Var apply_arg_id 
         case_matches = map (\((n, e), new) ->
-                        (Alt (DataAlt $ DataCon n (TyConApp (TyCon applyTypeName) []) [])
+                        (Alt (DataAlt $ DataCon n (TyConApp applyTypeName []) [])
                              [new]
                              (foldr (\i' e' -> App e' i') e args_vars)))
                         (zip namesToFuncs (map (\n -> Id n case_expr_type) new_names))

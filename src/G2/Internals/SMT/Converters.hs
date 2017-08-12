@@ -3,8 +3,8 @@
 -- (1) A State/Exprs/Types to SMTHeaders/SMTASTs/Sorts
 -- (2) SMTHeaders/SMTASTs/Sorts to some SMT solver interface
 -- (3) SMTASTs/Sorts to Exprs/Types
-module G2.Internals.SMT.Converters
-    ( toSMTHeaders
+module G2.Internals.SMT.Converters where
+{-    ( toSMTHeaders
     , toSolver
     , sltToSMTNameSorts
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
@@ -19,6 +19,7 @@ import qualified Data.Map as M
 -- import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Support
+import qualified G2.Internals.Language.SymLinks as SLT
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.SMT.Language
 
@@ -87,7 +88,7 @@ funcToSMT e _ = error ("Unrecognized " ++ show e ++ " in funcToSMT")
 
 funcToSMT1Var :: Expr -> Expr -> SMTAST
 funcToSMT1Var f a
-    | isVarName f "-" = Neg (exprToSMT a)
+    | f == Prim (UNeg) = Neg (exprToSMT a)
     | f == Data (PrimCon I) = exprToSMT a
     | f == Data (PrimCon F) = exprToSMT a
     | f == Data (PrimCon D) = exprToSMT a
@@ -110,10 +111,6 @@ funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
 funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 
-isVarName :: Expr -> Name -> Bool
-isVarName (Var (Id n _)) n' = n == n'
-isVarName _ _ = False
-
 altToSMT :: Alt -> SMTAST
 altToSMT (Alt (PrimCon (LitBool b), _)) = VBool b
 altToSMT (Alt (PrimCon I, [i])) = V i SortInt
@@ -126,34 +123,30 @@ altToSMT (Alt (DataCon n _ t@(TyConApp _ _) ts, ns)) =
         f (n', t') = V n' (typeToSMT t')
 
 sltToSMTNameSorts :: SymLinks -> [(Name, Sort)]
-sltToSMTNameSorts = map (\(n, t) -> (n, typeToSMT t)) . namesTypes
+sltToSMTNameSorts = map (\(n, t) -> (n, typeToSMT t)) . SLT.namesTypes
 
 typeToSMT :: Type -> Sort
 typeToSMT TyInt = SortInt
 typeToSMT TyDouble = SortDouble
 typeToSMT TyFloat = SortFloat
 typeToSMT TyBool = SortBool
-typeToSMT (TyConApp n _) = Sort n []
+typeToSMT (TyConApp n _) = Sort (nameToStr n) []
 typeToSMT _ = Sort "" []
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =
-    let
-        knownTypes = map (fst . fst) prelude_t_decls
-        tenv' = M.filterWithKey (\k _ -> not (k `elem` knownTypes)) tenv
-    in
-    [SortDecl . map typeToSortDecl $ M.elems tenv']
+    [SortDecl . map typeToSortDecl $ M.toList tenv]
         where
-            typeToSortDecl :: Type -> (Name, [DC])
-            typeToSortDecl (TyAlg n dcs) = (n, map dataConToDC dcs)
+            typeToSortDecl :: (Name, TyAlg) -> (Name, [DC])
+            typeToSortDecl (n, TyAlg _ dcs) = (n, map dataConToDC dcs)
 
             dataConToDC :: DataCon -> DC
-            dataConToDC (DataCon n _ _ ts) =
-                DC n $ map typeToSMT ts
+            dataConToDC (DataCon n _ ts) =
+                DC (nameToStr n) $ map typeToSMT ts
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []
-createVarDecls ((n,s):xs) = VarDecl n s:createVarDecls xs
+createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
 
 -- | toSolver
 toSolver :: SMTConverter ast out io -> [SMTHeader] -> out
@@ -222,4 +215,4 @@ sortToType (SortBool) = TyConApp "Bool" []
 sortToType (Sort n xs) = TyConApp n (map sortToType xs)
 
 modelAsExpr :: Model -> ExprModel
-modelAsExpr = M.map smtastToExpr
+modelAsExpr = M.map smtastToExpr-}
