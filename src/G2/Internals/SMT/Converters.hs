@@ -4,10 +4,6 @@
 -- (2) SMTHeaders/SMTASTs/Sorts to some SMT solver interface
 -- (3) SMTASTs/Sorts to Exprs/Types
 module G2.Internals.SMT.Converters
-    () where
-
-{-
-
     ( toSMTHeaders
     , toSolver
     , sltToSMTNameSorts
@@ -20,8 +16,10 @@ module G2.Internals.SMT.Converters
 
 import qualified Data.Map as M
 
-import G2.Internals.Translation.HaskellPrelude
-import G2.Internals.Core.Language hiding (Assert)
+-- import G2.Internals.Translation.HaskellPrelude
+import G2.Internals.Language.Naming
+import G2.Internals.Language.Support
+import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.SMT.Language
 
 -- | toSMTHeaders
@@ -36,29 +34,29 @@ toSMTHeaders s =
     ++
     (createVarDecls . sltToSMTNameSorts $ sym_links s)
     ++
-    (map pathConsToSMT $ path_cons s)
+    (map pathConsToSMT $ path_conds s)
 
 pathConsToSMT :: PathCond -> SMTHeader
-pathConsToSMT (CondAlt e a b) =
+pathConsToSMT (AltCond e a b) =
     let
         exprSMT = exprToSMT e
         altSMT = altToSMT a
     in
     Assert $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
-pathConsToSMT (CondExt e b) =
+pathConsToSMT (ExtCond e b) =
     let
         exprSMT = exprToSMT e
     in
     Assert $ if b then exprSMT else (:!) exprSMT
 
 exprToSMT :: Expr -> SMTAST
-exprToSMT (Var n t) = V n (typeToSMT t)
-exprToSMT (Const c) =
+exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
+exprToSMT (Lit c) =
     case c of
-        CInt i -> VInt i
-        CFloat f -> VFloat f
-        CDouble d -> VDouble d
-exprToSMT (Data (DataCon n _ t _)) = V n (typeToSMT t)
+        LitInt i -> VInt i
+        LitFloat f -> VFloat f
+        LitDouble d -> VDouble d
+exprToSMT (Data (DataCon n t _)) = V (nameToStr n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -67,8 +65,8 @@ exprToSMT a@(App _ _) =
     funcToSMT f args
     where
         getFunc :: Expr -> Expr
-        getFunc v@(Var _ _) = v
-        getFunc p@(Prim _ _) = p
+        getFunc v@(Var _) = v
+        getFunc p@(Prim _) = p
         getFunc (App a' _) = getFunc a'
         getFunc d@(Data _) = d 
 
@@ -80,10 +78,10 @@ exprToSMT e = error ("Unhandled expression " ++ show e)
 -- | funcToSMT
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
-funcToSMT (Var n t) es = Cons n (map exprToSMT es) (typeToSMT t)
-funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
-funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
-funcToSMT (Data (DataCon n _ t _)) es = Cons n (map exprToSMT es) (typeToSMT t)
+funcToSMT (Var (Id n t)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
+funcToSMT (Prim p) [a] = funcToSMT1Prim p a
+funcToSMT (Prim p) [a1, a2] = funcToSMT2Prim p a1 a2
+funcToSMT (Data (DataCon n t _)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
 funcToSMT e@(Data _) [a] = funcToSMT1Var e a
 funcToSMT e _ = error ("Unrecognized " ++ show e ++ " in funcToSMT")
 
@@ -95,17 +93,17 @@ funcToSMT1Var f a
     | f == Data (PrimCon D) = exprToSMT a
     | otherwise = error ("Unhandled function " ++ show f ++ " in funcToSMT1.")
 
-funcToSMT1Prim :: Prim -> Expr -> SMTAST
+funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 
-funcToSMT2Prim :: Prim -> Expr -> Expr -> SMTAST
+funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
 funcToSMT2Prim And a1 a2 = exprToSMT a1 :&& exprToSMT a2
 funcToSMT2Prim Or a1 a2 = exprToSMT a1 :|| exprToSMT a2
-funcToSMT2Prim GE a1 a2 = exprToSMT a1 :>= exprToSMT a2
-funcToSMT2Prim GrT a1 a2 = exprToSMT a1 :> exprToSMT a2
-funcToSMT2Prim EQL a1 a2 = exprToSMT a1 := exprToSMT a2
-funcToSMT2Prim LsT a1 a2 = exprToSMT a1 :< exprToSMT a2
-funcToSMT2Prim LE a1 a2 = exprToSMT a1 :<= exprToSMT a2
+funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
+funcToSMT2Prim Gt a1 a2 = exprToSMT a1 :> exprToSMT a2
+funcToSMT2Prim Eq a1 a2 = exprToSMT a1 := exprToSMT a2
+funcToSMT2Prim Lt a1 a2 = exprToSMT a1 :< exprToSMT a2
+funcToSMT2Prim Le a1 a2 = exprToSMT a1 :<= exprToSMT a2
 funcToSMT2Prim Implies a1 a2 = exprToSMT a1 :=> exprToSMT a2
 funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
 funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
@@ -113,12 +111,11 @@ funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 
 isVarName :: Expr -> Name -> Bool
-isVarName (Var n _) n' = n == n'
+isVarName (Var (Id n _)) n' = n == n'
 isVarName _ _ = False
 
 altToSMT :: Alt -> SMTAST
-altToSMT (Alt (PrimCon DTrue, _)) = VBool True
-altToSMT (Alt (PrimCon DFalse, _)) = VBool False
+altToSMT (Alt (PrimCon (LitBool b), _)) = VBool b
 altToSMT (Alt (PrimCon I, [i])) = V i SortInt
 altToSMT (Alt (PrimCon D, [d])) = V d SortDouble
 altToSMT (Alt (PrimCon F, [f])) = V f SortFloat
@@ -128,11 +125,8 @@ altToSMT (Alt (DataCon n _ t@(TyConApp _ _) ts, ns)) =
         f :: (Name, Type) -> SMTAST
         f (n', t') = V n' (typeToSMT t')
 
-sltToSMTNameSorts :: SymLinkTable -> [(Name, Sort)]
-sltToSMTNameSorts = map sltToSMTNameSorts' . M.toList
-    where
-        sltToSMTNameSorts' :: (Name, (Name, Type, Maybe Int)) -> (Name, Sort)
-        sltToSMTNameSorts' (n, (_, t, _)) = (n, typeToSMT t)
+sltToSMTNameSorts :: SymLinks -> [(Name, Sort)]
+sltToSMTNameSorts = map (\(n, t) -> (n, typeToSMT t)) . namesTypes
 
 typeToSMT :: Type -> Sort
 typeToSMT TyInt = SortInt
@@ -142,7 +136,7 @@ typeToSMT TyBool = SortBool
 typeToSMT (TyConApp n _) = Sort n []
 typeToSMT _ = Sort "" []
 
-typesToSMTSorts :: TEnv -> [SMTHeader]
+typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =
     let
         knownTypes = map (fst . fst) prelude_t_decls
@@ -213,12 +207,12 @@ toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 -- | smtastToExpr
 smtastToExpr :: SMTAST -> Expr
-smtastToExpr (VInt i) = Const (CInt i)
-smtastToExpr (VFloat f) = Const (CFloat f)
-smtastToExpr (VDouble d) = Const (CDouble d)
-smtastToExpr (VBool b) = Var (if b then "True" else "False") (TyConApp "Bool" [])
+smtastToExpr (VInt i) = Lit $ LitInt i
+smtastToExpr (VFloat f) = Lit $ LitFloat f
+smtastToExpr (VDouble d) = Lit $ LitDouble d
+smtastToExpr (VBool b) = Lit $ LitBool b
 smtastToExpr (Cons n smts s) = foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon n 0 (sortToType s) [])) smts
-smtastToExpr (V n s) = Var n (sortToType s)
+smtastToExpr (V n s) = Var $ Id n (sortToType s)
 
 sortToType :: Sort -> Type
 sortToType (SortInt) = TyConApp "Int" []
@@ -229,4 +223,3 @@ sortToType (Sort n xs) = TyConApp n (map sortToType xs)
 
 modelAsExpr :: Model -> ExprModel
 modelAsExpr = M.map smtastToExpr
--}

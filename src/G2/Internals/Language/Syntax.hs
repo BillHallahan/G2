@@ -42,10 +42,21 @@ data Expr = Var Id
 -- Translations from functions. This allows for more general
 -- handling in the SMT solver- we are not tied to the specific function
 -- names/symbols that come from Haskell
-data Primitive = Ge | Gt | Eq | Lt | Le
-               | And | Or | Not | Implies
-               | Plus | Minus | Mult | Div
-               | Assert | Assume
+data Primitive = Ge
+               | Gt
+               | Eq
+               | Lt
+               | Le
+               | And
+               | Or
+               | Not
+               | Implies
+               | Plus
+               | Minus
+               | Mult
+               | Div
+               | Assert
+               | Assume
                deriving (Show, Eq, Read)
 
 -- Lit's are used in the Expr Lit to denote a constant value.

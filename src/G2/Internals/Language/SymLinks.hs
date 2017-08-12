@@ -4,11 +4,13 @@ module G2.Internals.Language.SymLinks ( SymLinks
                                       , filter
                                       , map
                                       , map'
-                                      , names) where
+                                      , names
+                                      , namesTypes) where
 
 import G2.Internals.Language.Syntax
 import Prelude hiding (filter, map)
 
+import qualified Data.List as L
 import qualified Data.Map as M
 
 newtype SymLinks = SymLinks (M.Map Name (Name, Type, Maybe Int))
@@ -31,3 +33,6 @@ map' f (SymLinks s) = M.map f s
 
 names :: SymLinks -> [Name]
 names (SymLinks s) = M.keys s
+
+namesTypes :: SymLinks -> [(Name, Type)]
+namesTypes (SymLinks m) = L.map (\(n, (_, t, _)) -> (n, t)) $ M.toList m

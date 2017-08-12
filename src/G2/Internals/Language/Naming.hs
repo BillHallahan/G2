@@ -1,5 +1,6 @@
 module G2.Internals.Language.Naming
     ( Renamer
+    , nameToStr
     , allNames
     , freshStr
     , freshName
@@ -16,6 +17,9 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 
 newtype Renamer = Renamer [Name] deriving (Show, Eq, Read)
+
+nameToStr :: Name -> String
+nameToStr = undefined
 
 allNames :: State -> Renamer
 allNames state = Renamer $ L.nub (expr_names ++ type_names ++ eenv_keys ++ tenv_keys)

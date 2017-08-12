@@ -4,17 +4,16 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Internals.SMT.Language
-    () where
-
-{-
     ( module G2.Internals.SMT.Language
-    , module G2.Internals.Core.AST
-    , Name) where
+    , module G2.Internals.Language.AST) where
 
-import G2.Internals.Core.Language hiding (Assert)
-import G2.Internals.Core.AST
+import G2.Internals.Language.Syntax hiding (Assert)
+import G2.Internals.Language.AST
+import G2.Internals.Language.Naming
 
 import qualified Data.Map as M
+
+type SMTName = String
 
 -- | SMTHeader
 -- These define the two kinds of top level calls we give to the SMT solver.
@@ -22,7 +21,7 @@ import qualified Data.Map as M
 -- A sort decl declares a new sort.
 data SMTHeader = Assert SMTAST
                | SortDecl [(Name, [DC])]
-               | VarDecl Name Sort
+               | VarDecl SMTName Sort
                deriving (Show, Eq)
 
 -- | SMTAST
@@ -46,25 +45,25 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Neg SMTAST --Unary negation
 
             | Ite SMTAST SMTAST SMTAST
-            | SLet (Name, SMTAST) SMTAST
+            | SLet (SMTName, SMTAST) SMTAST
 
             | VInt Int
             | VFloat Rational
             | VDouble Rational
             | VBool Bool
-            | Cons Name [SMTAST] Sort
+            | Cons SMTName [SMTAST] Sort
 
-            | V Name Sort
+            | V SMTName Sort
             deriving (Show, Eq)
 
 data Sort = SortInt
           | SortFloat
           | SortDouble
           | SortBool
-          | Sort Name [Sort]
+          | Sort SMTName [Sort]
           deriving (Show, Eq)
 
-data DC = DC Name [Sort] deriving (Show, Eq)
+data DC = DC SMTName [Sort] deriving (Show, Eq)
 
 data Result = SAT
             | UNSAT
@@ -72,7 +71,7 @@ data Result = SAT
             deriving (Show, Eq)
 
 
-type Model = M.Map Name SMTAST
+type Model = M.Map SMTName SMTAST
 type ExprModel = M.Map Name Expr
 
 -- This data type is used to describe the specific output format required by various solvers
@@ -122,7 +121,7 @@ data SMTConverter ast out io =
         , sortFloat :: ast
         , sortDouble :: ast
         , sortBool :: ast
-        , sortADT :: Name -> [Sort] -> ast
+        , sortADT :: SMTName -> [Sort] -> ast
 
         , varName :: Name -> Sort -> ast
     }
@@ -206,5 +205,3 @@ instance ASTContainer SMTAST Sort where
     modifyContainedASTs f (Cons n x s) = Cons n x (modify f s)
     modifyContainedASTs f (V n s) = V n (modify f s)
     modifyContainedASTs f x = modify (modifyContainedASTs f) x
--}
-
