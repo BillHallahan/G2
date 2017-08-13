@@ -1,6 +1,4 @@
 module G2.Internals.SMT.ParseSMT
-    () where
-{-
     (parseSMT) where
 
 import G2.Internals.SMT.Language
@@ -47,7 +45,7 @@ letExpr = do
     ex <- sExpr
     return $ SLet bEx ex
 
-identExprTuple :: Parser (Name, SMTAST)
+identExprTuple :: Parser (SMTName, SMTAST)
 identExprTuple = do
     bind <- identifier
     ex <- sExpr
@@ -83,6 +81,3 @@ parseSMT :: String -> SMTAST
 parseSMT s = case parse smtParser "" s of
     Left e -> error $ show e
     Right r -> r
--}
-
-

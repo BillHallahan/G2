@@ -1,12 +1,9 @@
 -- | This defines an SMTConverter for the SMT2 language
 -- It provides methods to construct formulas, as well as feed them to an external solver
-module G2.Internals.SMT.SMT2 
-    () where
+module G2.Internals.SMT.SMT2 where
 
-{-
-
-import G2.Internals.Core.Language hiding (Assert)
-import G2.Internals.Core.TypeChecker
+import G2.Internals.Language.Syntax hiding (Assert)
+import G2.Internals.Language.Typing
 import G2.Internals.SMT.Language
 import G2.Internals.SMT.ParseSMT
 import G2.Internals.SMT.Converters --It would be nice to not import this...
@@ -173,7 +170,7 @@ checkSat' h_in h_out = do
     else do
         return Unknown
 
-parseModel :: [SMTHeader] -> [(Name, String, Sort)] -> Model
+parseModel :: [SMTHeader] -> [(SMTName, String, Sort)] -> Model
 parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty
     . map (\(n, str, s) -> (n, parseToSMTAST headers str s))
 
@@ -197,7 +194,7 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
                 Just n' -> Cons n (map correctConsTypes smts) n'
                 Nothing -> error ("Sort constructor " ++ (show n) ++ "not found in correctConsTypes")
 
-        consNameToSort :: M.Map Name Sort
+        consNameToSort :: M.Map SMTName Sort
         consNameToSort = 
             let
                 nameDC = concat [x | (SortDecl x) <- headers]
@@ -208,16 +205,16 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
         elimLets (SLet (n, a) a') = modifyFix (replaceLets n a) a'
         elimLets a = a
 
-        replaceLets :: Name -> SMTAST -> SMTAST -> SMTAST
+        replaceLets :: SMTName -> SMTAST -> SMTAST -> SMTAST
         replaceLets n a c@(Cons n' _ _) = if n == n' then a else c
         replaceLets _ _ a = a
 
-getModel :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String, Sort)]
+getModel :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModel h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
     getModel' h_in h_out ns
     where
-        getModel' :: Handle -> Handle -> [(Name, Sort)] -> IO [(Name, String, Sort)]
+        getModel' :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
         getModel' _ _ [] = return []
         getModel' h_in h_out ((n, s):ns) = do
             hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
@@ -242,5 +239,3 @@ solveExpr h_in h_out con headers e = do
     evaluate (length out)
 
     return $ parseToSMTAST headers out (typeToSMT . exprType $ e)
--}
-
