@@ -20,7 +20,7 @@ type SMTName = String
 -- An assertion says the given SMTAST is true
 -- A sort decl declares a new sort.
 data SMTHeader = Assert SMTAST
-               | SortDecl [(Name, [DC])]
+               | SortDecl [(SMTName, [DC])]
                | VarDecl SMTName Sort
                deriving (Show, Eq)
 
@@ -86,8 +86,8 @@ data SMTConverter ast out io =
         , checkSatGetModelGetExpr :: io -> out -> [SMTHeader] -> [(Name, Sort)] -> Expr -> IO (Result, Maybe Model, Maybe SMTAST)
 
         , assert :: ast -> out
-        , sortDecl :: [(Name, [DC])] -> out
-        , varDecl :: Name -> ast -> out
+        , sortDecl :: [(SMTName, [DC])] -> out
+        , varDecl :: SMTName -> ast -> out
 
         , (.>=) :: ast -> ast -> ast
         , (.>) :: ast -> ast -> ast
@@ -113,8 +113,8 @@ data SMTConverter ast out io =
         , float :: Rational -> ast
         , double :: Rational -> ast
         , bool :: Bool -> ast
-        , cons :: Name -> [ast] -> Sort -> ast
-        , var :: Name -> ast -> ast
+        , cons :: SMTName -> [ast] -> Sort -> ast
+        , var :: SMTName -> ast -> ast
 
         --sorts
         , sortInt :: ast
@@ -123,7 +123,7 @@ data SMTConverter ast out io =
         , sortBool :: ast
         , sortADT :: SMTName -> [Sort] -> ast
 
-        , varName :: Name -> Sort -> ast
+        , varName :: SMTName -> Sort -> ast
     }
 
 sortName :: SMTConverter ast out io -> Sort -> ast

@@ -3,16 +3,16 @@
 -- (1) A State/Exprs/Types to SMTHeaders/SMTASTs/Sorts
 -- (2) SMTHeaders/SMTASTs/Sorts to some SMT solver interface
 -- (3) SMTASTs/Sorts to Exprs/Types
-module G2.Internals.SMT.Converters where
-{-    ( toSMTHeaders
+module G2.Internals.SMT.Converters
+    ( toSMTHeaders
     , toSolver
     , sltToSMTNameSorts
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
-    , smtastToExpr
+    {- , smtastToExpr
     , sortToType
-    , modelAsExpr) where
+    , modelAsExpr -} ) where
 
 import qualified Data.Map as M
 
@@ -111,16 +111,19 @@ funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
 funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 
-altToSMT :: Alt -> SMTAST
-altToSMT (Alt (PrimCon (LitBool b), _)) = VBool b
-altToSMT (Alt (PrimCon I, [i])) = V i SortInt
-altToSMT (Alt (PrimCon D, [d])) = V d SortDouble
-altToSMT (Alt (PrimCon F, [f])) = V f SortFloat
-altToSMT (Alt (DataCon n _ t@(TyConApp _ _) ts, ns)) =
-    Cons n (map f $ zip ns ts) (typeToSMT t)
+altToSMT :: AltMatch -> SMTAST
+altToSMT (LitAlt (LitInt i)) = VInt i
+altToSMT (LitAlt (LitFloat f)) = VFloat f
+altToSMT (LitAlt (LitDouble d)) = VDouble d
+altToSMT (LitAlt (LitBool b)) = VBool b
+altToSMT (DataAlt (PrimCon I) [i]) = V (nameToStr . idName $ i) SortInt
+altToSMT (DataAlt (PrimCon D) [d]) = V (nameToStr . idName $ d) SortDouble
+altToSMT (DataAlt (PrimCon F) [f]) = V (nameToStr . idName $ f) SortFloat
+altToSMT (DataAlt (DataCon n t@(TyConApp _ _) ts) ns) =
+    Cons (nameToStr n) (map f $ zip ns ts) (typeToSMT t)
     where
-        f :: (Name, Type) -> SMTAST
-        f (n', t') = V n' (typeToSMT t')
+        f :: (Id, Type) -> SMTAST
+        f (n', t') = V (nameToStr . idName $ n') (typeToSMT t')
 
 sltToSMTNameSorts :: SymLinks -> [(Name, Sort)]
 sltToSMTNameSorts = map (\(n, t) -> (n, typeToSMT t)) . SLT.namesTypes
@@ -137,8 +140,11 @@ typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =
     [SortDecl . map typeToSortDecl $ M.toList tenv]
         where
-            typeToSortDecl :: (Name, TyAlg) -> (Name, [DC])
-            typeToSortDecl (n, TyAlg _ dcs) = (n, map dataConToDC dcs)
+            typeToSortDecl :: (Name, TyAlg) -> (SMTName, [DC])
+            typeToSortDecl (n, TyAlg _ dcs) = (nameToStr n, map tyArgToDC dcs)
+
+            tyArgToDC :: TyArg -> DC
+            tyArgToDC (DCArg dc) = dataConToDC dc
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =
@@ -191,14 +197,15 @@ toSolverAST con (Cons n asts s) =
 toSolverAST con (V n s) = varName con n s
 
 -- | toSolverSortDecl
-toSolverSortDecl :: SMTConverter ast out io -> [(Name, [DC])] -> out
-toSolverSortDecl con = sortDecl con
+toSolverSortDecl :: SMTConverter ast out io -> [(SMTName, [DC])] -> out
+toSolverSortDecl = sortDecl
 
 -- | toSolverVarDecl
-toSolverVarDecl :: SMTConverter ast out io -> Name -> Sort -> out
+toSolverVarDecl :: SMTConverter ast out io -> SMTName -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 -- | smtastToExpr
+{- TODO:
 smtastToExpr :: SMTAST -> Expr
 smtastToExpr (VInt i) = Lit $ LitInt i
 smtastToExpr (VFloat f) = Lit $ LitFloat f
@@ -215,4 +222,5 @@ sortToType (SortBool) = TyConApp "Bool" []
 sortToType (Sort n xs) = TyConApp n (map sortToType xs)
 
 modelAsExpr :: Model -> ExprModel
-modelAsExpr = M.map smtastToExpr-}
+modelAsExpr = M.map smtastToExpr
+-}
