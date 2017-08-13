@@ -40,7 +40,7 @@ data Code = Evaluate Expr
           | Return Expr
           deriving (Show, Eq, Read)
 
-data ExecCond = ExecAltCond Expr (AltCon, [Id]) Bool Scope
+data ExecCond = ExecAltCond Expr (AltMatch, [Id]) Bool Scope
               | ExecExtCond Expr Bool Scope
               deriving (Show, Eq, Read)
 

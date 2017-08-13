@@ -33,9 +33,17 @@ allNames prog = nub (binds ++ expr_names ++ type_names)
         exprTopNames (Var var) = [idName var]
         exprTopNames (Lam b _) = [idName b]
         exprTopNames (Let kvs _) = map (idName . fst) kvs
-        exprTopNames (Case _ cvar as) = (idName cvar) :
-                                        concatMap (\(Alt _ ps _) -> map idName ps) as
+        exprTopNames (Case _ cvar as) = idName cvar :
+                                        concatMap (\(Alt am _) -> altMatchNames am) as
         exprTopNames _ = []
+
+        altMatchNames :: AltMatch -> [Name]
+        altMatchNames (DataAlt dc i) = dataConName dc ++ (map idName i)
+        altMatchNames _ = []
+
+        dataConName :: DataCon -> [Name]
+        dataConName (DataCon n _ _) = [n]
+        dataConName _ = []
 
         typeTopNames :: Type -> [Name]
         typeTopNames (TyVar n _) = [n]

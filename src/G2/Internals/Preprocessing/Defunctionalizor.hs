@@ -148,8 +148,7 @@ createApplyFunc ts applyTypeName namesToFuncs r =
 
         case_expr = Var apply_arg_id 
         case_matches = map (\((n, e), new) ->
-                        (Alt (DataAlt $ DataCon n (TyConApp applyTypeName []) [])
-                             [new]
+                        (Alt (DataAlt (DataCon n (TyConApp applyTypeName []) []) [new])
                              (foldr (\i' e' -> App e' i') e args_vars)))
                         (zip namesToFuncs (map (\n -> Id n case_expr_type) new_names))
         case_final = Case case_expr (Id top case_expr_type) case_matches

@@ -9,8 +9,6 @@ module G2.Internals.Language.AST
 
 import G2.Internals.Language.Syntax
 
-import qualified Data.Map as M
-
 -- | Describes the data types that can be represented in a tree format.
 class AST t where
     -- | Gets the direct children of the given node.
@@ -98,7 +96,7 @@ instance AST Expr where
     children (App f a) = [f, a]
     children (Lam _ e) = [e]
     children (Let bind e) = e : containedASTs bind
-    children (Case m _ as) = m : map (\(Alt _ _ e) -> e) as
+    children (Case m _ as) = m : map (\(Alt _ e) -> e) as
     children _  = []
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
@@ -107,7 +105,7 @@ instance AST Expr where
     modifyChildren f (Case m b as) = Case (f m) b (mapAlt f as)
       where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
-        mapAlt g alts = map (\(Alt ac ps e) -> Alt ac ps (g e)) alts
+        mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
     modifyChildren _ e = e
 
 instance AST Type where
@@ -187,25 +185,25 @@ instance ASTContainer DataCon Type where
     modifyContainedASTs f (DataCon n t ts) = DataCon n (f t) (map f ts)
     modifyContainedASTs _ dc = dc
 
-instance ASTContainer AltCon Expr where
+instance ASTContainer AltMatch Expr where
     containedASTs _ = []
     modifyContainedASTs _ e = e
 
-instance ASTContainer AltCon Type where
-    containedASTs (DataAlt dc) = containedASTs dc
+instance ASTContainer AltMatch Type where
+    containedASTs (DataAlt dc _) = containedASTs dc
     containedASTs _ = []
 
-    modifyContainedASTs f (DataAlt dc) = DataAlt (modifyContainedASTs f dc)
+    modifyContainedASTs f (DataAlt dc i) = DataAlt (modifyContainedASTs f dc) i
     modifyContainedASTs _ e = e
 
 instance ASTContainer Alt Expr where
-    containedASTs (Alt _ _ e) = [e]
-    modifyContainedASTs f (Alt a i e) = Alt a i (f e)
+    containedASTs (Alt _ e) = [e]
+    modifyContainedASTs f (Alt a e) = Alt a (f e)
 
 instance ASTContainer Alt Type where
-    containedASTs (Alt a i e) = (containedASTs a) ++ (containedASTs i) ++ (containedASTs e)
-    modifyContainedASTs f (Alt a i e) =
-        Alt (modifyContainedASTs f a) (modifyContainedASTs f i) (modifyContainedASTs f e)
+    containedASTs (Alt a e) = (containedASTs a) ++ (containedASTs e)
+    modifyContainedASTs f (Alt a e) =
+        Alt (modifyContainedASTs f a) (modifyContainedASTs f e)
 
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)

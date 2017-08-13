@@ -49,7 +49,7 @@ dataConType (PrimCon B) = TyBool
 
 -- | `Type` of `Alt`.
 altType :: Alt -> Type
-altType (Alt _ _ expr) = exprType expr
+altType (Alt _ expr) = exprType expr
 
 -- | Expression Type
 --   Gets the type of an expression.

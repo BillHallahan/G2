@@ -122,12 +122,12 @@ mkAlts :: [CoreAlt] -> [G2.Alt]
 mkAlts alts = map mkAlt alts
 
 mkAlt :: CoreAlt -> G2.Alt
-mkAlt (acon, prms, expr) = G2.Alt (mkAltCon acon) (map mkId prms) (mkExpr expr)
+mkAlt (acon, prms, expr) = G2.Alt (mkAltMatch acon prms) (mkExpr expr)
 
-mkAltCon :: AltCon -> G2.AltCon
-mkAltCon (DataAlt dcon) = G2.DataAlt (mkData dcon)
-mkAltCon (LitAlt lit) = G2.LitAlt (mkLit lit)
-mkAltCon (DEFAULT) = G2.Default
+mkAltMatch :: AltCon -> [Var] -> G2.AltMatch
+mkAltMatch (DataAlt dcon) params = G2.DataAlt (mkData dcon) (map mkId params)
+mkAltMatch (LitAlt lit) _ = G2.LitAlt (mkLit lit)
+mkAltMatch (DEFAULT) _ = G2.Default
 
 mkType :: Type -> G2.Type
 mkType (TyVarTy v) = G2.TyVar (mkName (V.varName v)) (mkType (varType v))

@@ -5,6 +5,8 @@ module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
 
+import Data.Hashable
+
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
 
@@ -20,6 +22,11 @@ type Binds = [(Id, Expr)]
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
 data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord)
+
+instance Hashable Name where
+    hashWithSalt s (Name n m i) =
+        s `hashWithSalt` n `hashWithSalt` m `hashWithSalt` i
+
 
 data Id = Id Name Type deriving (Show, Eq, Read)
 
@@ -90,17 +97,24 @@ data DataCon = DataCon Name Type [Type]
              deriving (Show, Eq, Read)
 
 -- | Alternative case constructors, which are done by structural matching,
--- which is a phrase I invented to describe this :)
-data AltCon = DataAlt DataCon
-            | LitAlt Lit
-            | Default
-            deriving (Show, Eq, Read)
+-- which is a phrase I invented to describe this. In essence, consider the
+-- following scenario:
+--    case expr of
+--       Con1 -> ...
+--       Con2 -> ...
+-- We define structural matching as when the expr matches to either Con1 or
+-- Con2. Unlike traditional true / false matching in imperative languages,
+-- structural matching is more general and is data constructor matching.
+data AltMatch = DataAlt DataCon [Id]
+              | LitAlt Lit
+              | Default
+              deriving (Show, Eq, Read)
 
 -- | Alternatives consist of the consturctor that is used to structurally match
 -- onto them, a list of parameters corresponding to this constructor, which
 -- serve to perform binding in the environment scope. The `Expr` is what is
--- evaluated provided that the `AltCon` successfully matches.
-data Alt = Alt AltCon [Id] Expr deriving (Show, Eq, Read)
+-- evaluated provided that the `AltMatch` successfully matches.
+data Alt = Alt AltMatch Expr deriving (Show, Eq, Read)
 
 -- | TyBinder is used only inthe `TyForAll`
 data TyBinder = AnonTyBndr

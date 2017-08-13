@@ -33,7 +33,7 @@ data TyAlg = TyAlg [Name] [TyArg] deriving (Show, Eq, Read)
 data TyArg = DCArg DataCon
            | FuncArg TyArg TyArg deriving (Show, Eq, Read)
 
-data PathCond = AltCond Expr (AltCon, [Id]) Bool
+data PathCond = AltCond Expr AltMatch Bool
               | ExtCond Expr Bool
               deriving (Show, Eq, Read)
 
