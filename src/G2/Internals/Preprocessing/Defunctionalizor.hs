@@ -1,6 +1,5 @@
-module G2.Internals.Preprocessing.Defunctionalizor 
-
-(defunctionalize) where
+module G2.Internals.Preprocessing.Defunctionalizor
+    (defunctionalize) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.SymLinks as SymLinks
@@ -65,7 +64,7 @@ useApplyType s (t@(TyFun _ _)) =
 
         newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
-                                                    Var (Id n _) -> Just (a, (n, StdInterp))
+                                                    Var (Id n' _) -> Just (a, (n', StdInterp))
                                                     _ -> Nothing) $ namesToFuncs
 
         s2 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) (s {all_names = r5}) higherNameExprArgs
@@ -80,56 +79,48 @@ useApplyType s (t@(TyFun _ _)) =
     }
     where
         argList :: Type -> [Type]
-        argList (TyFun t t') = t:argList t'
-        argList t = [t]
+        argList (TyFun ty ty') = ty:argList ty'
+        argList ty = [ty]
 
         updateArgRefs :: FuncName -> Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> State -> State
-        updateArgRefs n t t' fn e ns s =
+        updateArgRefs na ty t' fn e ns st =
             let
-                e' = updateArgRefs' t t' fn e ns
+                e' = updateArgRefs' ty t' fn e ns
             in
-            s {expr_env = M.insert n e' (expr_env s)}
+            st {expr_env = M.insert na e' (expr_env st)}
 
         updateArgRefs' :: Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> Expr
         updateArgRefs' _ _ _ e [] = e
-        updateArgRefs' t at fn e ((n, t'):ns) =
+        updateArgRefs' ty at fn e ((n, t'):ns) =
             let
-                funcType = TyFun at t
+                funcType = TyFun at ty
 
                 e' = fstAppReplace funcType fn n t' e
                 e'' = sndAppReplace n t' at e'
             in
-            if t == t' then updateArgRefs' t at fn e'' ns else updateArgRefs' t at fn e ns
+            if ty == t' then updateArgRefs' ty at fn e'' ns else updateArgRefs' ty at fn e ns
 
         -- This adjusts for when the function with the given name is in the first position in an app
         -- This means that the function is being called
         -- We change the call to the function, to a call to the apply function, and pass in the correct constructor
         fstAppReplace :: Type -> FuncName -> FuncName -> Type -> Expr -> Expr
-        fstAppReplace tn fn n t = modify (fstAppReplace' tn fn n t)
+        fstAppReplace tn fn n ty = modify (fstAppReplace')
             where
-                fstAppReplace' :: Type -> FuncName -> FuncName -> Type -> Expr -> Expr
-                fstAppReplace' tn fn n t a@(App e e') =
-                    if e == Var (Id n t) then App (App (Var (Id fn tn)) e) e' else a
-                fstAppReplace' _ _ _ _ e = e
+                fstAppReplace' :: Expr -> Expr
+                fstAppReplace' a@(App e e') =
+                    if e == Var (Id n ty) then App (App (Var (Id fn tn)) e) e' else a
+                fstAppReplace' e = e
 
         -- This adjusts for when the function with the given name is in the second position in an app
         -- This means that the function is being passed
         -- It simply swaps the type of the function, from a function type to an applytype
         sndAppReplace :: FuncName -> Type -> Type -> Expr -> Expr
-        sndAppReplace n t at = modify (sndAppReplace')
+        sndAppReplace n ty at = modify (sndAppReplace')
             where
                 sndAppReplace' :: Expr -> Expr
                 sndAppReplace' a@(App e e') =
-                    if e' == Var (Id n t) then App e (Var (Id n at)) else a
+                    if e' == Var (Id n ty) then App e (Var (Id n at)) else a
                 sndAppReplace' e = e
-
-        -- Gets the names of all functions in the symbolic link table, that are of the given type
-        funcsInSymLink :: Type -> SymLinks -> [FuncName]
-        funcsInSymLink t = SymLinks.names . SymLinks.filter (\(_, t', _) -> t == t')
-
-        -- In the symbolic link table, changes all Types rt to Type at
-        adjustSymLinks :: Type -> Type -> SymLinks -> SymLinks
-        adjustSymLinks rt at = SymLinks.map (\(n, t, i) -> (n, if t == rt then at else t, i))
 
 useApplyType _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
 
@@ -254,3 +245,11 @@ higherOrderFuncType (TyFun (TyFun _ _) _) = True
 higherOrderFuncType (TyFun t t') = higherOrderFuncType t || higherOrderFuncType t'
 higherOrderFuncType (TyApp t t') = higherOrderFuncType t || higherOrderFuncType t'
 higherOrderFuncType _ = False
+
+-- Gets the names of all functions in the symbolic link table, that are of the given type
+funcsInSymLink :: Type -> SymLinks -> [FuncName]
+funcsInSymLink t = SymLinks.names . SymLinks.filter (\(_, t', _) -> t == t')
+
+-- In the symbolic link table, changes all Types rt to Type at
+adjustSymLinks :: Type -> Type -> SymLinks -> SymLinks
+adjustSymLinks rt at = SymLinks.map (\(n, t, i) -> (n, if t == rt then at else t, i))

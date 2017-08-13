@@ -9,7 +9,6 @@ module G2.Internals.SMT.Language
 
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.AST
-import G2.Internals.Language.Naming
 
 import qualified Data.Map as M
 
@@ -152,7 +151,7 @@ instance AST SMTAST where
     children (Neg x) = [x]
 
     children (Ite x x' x'') = [x, x', x'']
-    children (SLet (n, x) x') = [x, x']
+    children (SLet (_, x) x') = [x, x']
 
     children (Cons _ x _) = x
 
@@ -187,8 +186,7 @@ instance AST Sort where
     children _ = []
 
     modifyChildren f (Sort n s) = Sort n (map f s) 
-    modifyChildren f s = s
-
+    modifyChildren _ s = s
 
 instance ASTContainer SMTHeader SMTAST where
     containedASTs (Assert a) = [a]

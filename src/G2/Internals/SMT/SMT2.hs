@@ -14,7 +14,6 @@ import qualified Data.Map as M
 import Data.Ratio
 import System.IO
 import System.Process
-import GHC.IO.Handle
 
 type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
 
@@ -23,11 +22,11 @@ smt2 = SMTConverter {
           empty = ""  
         , merge = (++)
 
-        , checkSat = \(h_in, h_out, ph) formula -> do
+        , checkSat = \(h_in, h_out, _) formula -> do
             setUpFormula h_in h_out formula
             checkSat' h_in h_out
 
-        , checkSatGetModelGetExpr = \(h_in, h_out, ph) formula headers vars e -> do
+        , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars e -> do
             setUpFormula h_in h_out formula
             r <- checkSat' h_in h_out
             -- print r
@@ -46,7 +45,7 @@ smt2 = SMTConverter {
         , assert = function1 "assert"
         , sortDecl = \ns ->
             let
-                --TODO : SAME AS sortName in langauage, fix
+                --TODO: SAME AS sortName in langauage, fix
                 sortN :: Sort -> String
                 sortN SortInt = sortInt smt2
                 sortN SortFloat = sortFloat smt2
@@ -58,7 +57,7 @@ smt2 = SMTConverter {
                 dcHandler [] = ""
                 dcHandler (DC n s:dc) =
                     let
-                        si = map (\(_s, i) -> (_s, (sortN _s) ++ show i)) $ zip s [0..]
+                        si = map (\(s'', i) -> (s'', (sortN s'') ++ show i)) $ zip s ([0..] :: [Integer])
                         s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ " " ++ (sortN _s) ++ ")") $ si
                     in
                     if s /= [] then
@@ -104,7 +103,7 @@ smt2 = SMTConverter {
         , sortBool = "Bool"
         , sortADT = \n _ -> n
 
-        , cons = \n asts s ->
+        , cons = \n asts _ ->
             if asts /= [] then
                 "(" ++ n ++ " " ++ (intercalate " " asts) ++ ")" 
             else
@@ -146,7 +145,7 @@ getZ3ProcessHandles = do
 -- | setUpFormula
 -- Writes a function to Z3
 setUpFormula :: Handle -> Handle -> String -> IO ()
-setUpFormula h_in h_out form = do
+setUpFormula h_in _ form = do
     -- putStrLn form
     hPutStr h_in "(reset)"
     hPutStr h_in form
@@ -159,7 +158,7 @@ checkSat' h_in h_out = do
     r <- hWaitForInput h_out 10000
     if r then do
         out <- hGetLine h_out
-        evaluate (length out)
+        _ <- evaluate (length out)
 
         if out == "sat" then
             return SAT
@@ -182,7 +181,7 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
         correctTypes (SortDouble) (VFloat r) = VDouble r
         correctTypes _ (Cons "true" _ _) = VBool True
         correctTypes _ (Cons "false" _ _) = VBool False
-        correctTypes s c@(Cons _ _ _) = correctConsTypes c
+        correctTypes _ c@(Cons _ _ _) = correctConsTypes c
         correctTypes _ a = a
 
         correctConsTypes :: SMTAST -> SMTAST
@@ -212,16 +211,16 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
 getModel :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModel h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
-    getModel' h_in h_out ns
+    getModel' ns
     where
-        getModel' :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
-        getModel' _ _ [] = return []
-        getModel' h_in h_out ((n, s):ns) = do
+        getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
+        getModel' [] = return []
+        getModel' ((n, s):nss) = do
             hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
             out <- getLinesUntil h_out (not . isPrefixOf "(let")
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 
-            return . (:) (n, out, s) =<< getModel' h_in h_out ns
+            return . (:) (n, out, s) =<< getModel' nss
 
 getLinesUntil :: Handle -> (String -> Bool) -> IO String
 getLinesUntil h_out p = do
@@ -236,6 +235,6 @@ solveExpr h_in h_out con headers e = do
     let smt = toSolverAST con $ exprToSMT e
     hPutStr h_in ("(eval " ++ smt ++ " :completion)\n")
     out <- getLinesUntil h_out (not . isPrefixOf "(let")
-    evaluate (length out)
+    _ <- evaluate (length out)
 
     return $ parseToSMTAST headers out (typeToSMT . exprType $ e)
