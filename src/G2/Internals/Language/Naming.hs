@@ -11,16 +11,18 @@ module G2.Internals.Language.Naming
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
+import qualified Data.HashMap.Lazy as HM
 import Data.List
-import qualified Data.Set as S
 
-newtype Renamer = Renamer [Name] deriving (Show, Eq, Read)
+newtype Renamer = Renamer (HM.HashMap (String, Maybe String) Int) deriving (Show, Eq, Read)
 
 nameToStr :: Name -> String
 nameToStr = undefined
 
 renamer :: Program -> Renamer
-renamer = Renamer . allNames
+renamer = Renamer
+        . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) i hm) HM.empty
+        . allNames
 
 allNames :: Program -> [Name]
 allNames prog = nub (binds ++ expr_names ++ type_names)
@@ -51,44 +53,13 @@ allNames prog = nub (binds ++ expr_names ++ type_names)
         typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
         typeTopNames _ = []
 
-nameOccStr :: Name -> String
-nameOccStr (Name occ _ _) = occ
-
-nameInt :: Name -> Int
-nameInt (Name _ _ int) = int
-
-freshStr :: Int -> String -> S.Set String -> String
-freshStr rand seed confs = if S.member seed confs
-    then freshStr (rand + 1) (seed ++ [pick]) confs else seed
-  where
-    pick = bank !! index
-    index = raw_i `mod` (length bank)
-    raw_i = (abs rand) * prime
-    prime = 151  -- The original? :)
-    bank = lower ++ upper ++ nums
-    lower = "abcdefghijlkmnopqrstuvwxyz"
-    upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    nums = "1234567890"
-
-freshName :: Renamer -> (Name, Renamer)
-freshName confs = freshSeededName seed confs
-  where
-    seed = Name "fs?" Nothing 0
-
 freshSeededName :: Name -> Renamer -> (Name, Renamer)
-freshSeededName seed (Renamer confs) = (new_n, Renamer (new_n:confs))
-  where
-    Name occ mdl unq = seed
-    occ' = freshStr 1 occ (S.fromList alls)
-    unq' = maxs + 1
-    alls = map nameOccStr confs
-    maxs = maximum (unq : map nameInt confs)
-    new_n = Name occ' mdl unq'
-
-freshNames :: [a] -> Renamer -> ([Name], Renamer)
-freshNames as confs = freshSeededNames seeds confs
-  where
-    seeds = [Name ("fs" ++ show i ++ "?") Nothing 0 | i <- [1..(length as)]]
+freshSeededName (Name n m _) (Renamer hm) =
+    let
+        i' = HM.lookupDefault 0 (n, m) hm
+        hm' = HM.insert (n, m) (i' + 1) hm
+    in
+    (Name n m i', Renamer hm')
 
 freshSeededNames :: [Name] -> Renamer -> ([Name], Renamer)
 freshSeededNames [] r = ([], r)
@@ -98,8 +69,11 @@ freshSeededNames (name:ns) r =
         (ns', confs'') = freshSeededNames ns confs'
     in
     (name':ns', confs'') 
-    
-    -- confs' = Renamer (name' : confs)
 
+freshName :: Renamer -> (Name, Renamer)
+freshName confs = freshSeededName seed confs
+  where
+    seed = Name "fs?" Nothing 0
 
-
+freshNames :: Int -> Renamer -> ([Name], Renamer)
+freshNames i confs = freshSeededNames (replicate i (Name "fs?" Nothing 0)) confs

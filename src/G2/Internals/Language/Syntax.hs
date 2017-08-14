@@ -5,8 +5,6 @@ module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
 
-import Data.Hashable
-
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
 
@@ -22,11 +20,6 @@ type Binds = [(Id, Expr)]
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
 data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord)
-
-instance Hashable Name where
-    hashWithSalt s (Name n m i) =
-        s `hashWithSalt` n `hashWithSalt` m `hashWithSalt` i
-
 
 data Id = Id Name Type deriving (Show, Eq, Read)
 
