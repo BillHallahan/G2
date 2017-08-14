@@ -11,7 +11,7 @@ data ExecState = ExecState { exec_stack :: Stack
                            , exec_code :: Code
                            , exec_names :: NameGen
                            , exec_paths :: [ExecCond]
-                           } deriving (Show, Eq)
+                           } deriving (Show, Eq, Read)
 
 fromState :: State -> ExecState
 fromState = undefined
