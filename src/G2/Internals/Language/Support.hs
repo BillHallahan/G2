@@ -14,6 +14,8 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
+-- | The State is something that is passed around in G2. It can be utilized to
+-- perform defunctionalization, execution, and SMT solving on.
 data State = State { expr_env :: ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: Expr
@@ -23,51 +25,47 @@ data State = State { expr_env :: ExprEnv
                    , func_table :: FuncInterps
                    } deriving (Show, Eq, Read)
 
+-- | Expression environments are mappings form names to expressions. These are
+-- typically used for variable lookups during execution.
 type ExprEnv = M.Map Name Expr
 
-type TypeEnv = M.Map Name TyAlg
+-- | Type environments map names of types to their appropriate types. However
+-- our primary interest with these is for dealing with algebraic data types,
+-- and we only store those information accordingly.
+type TypeEnv = M.Map Name AlgDataTy
 
---Used in the type environment
-data TyAlg = TyAlg [Name] [TyArg] deriving (Show, Eq, Read)
+-- | Algebraic data types are types constructed with parametrization of some
+-- names over types, and a list of data constructors for said type.
+data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
 
-data TyArg = DCArg DataCon
-           | FuncArg TyArg TyArg deriving (Show, Eq, Read)
-
+-- | Path conditions represent logical constraints on our current execution
+-- path. We can have path constraints enforced due to case/alt branching, due
+-- to assertion / assumptions made, or some externally coded factors.
 data PathCond = AltCond Expr AltMatch Bool
               | ExtCond Expr Bool
               deriving (Show, Eq, Read)
 
+-- | Function interpretation table. Maps functions to their interpretations.
 newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
                     deriving (Show, Eq, Read)
 
+-- | Functions can have a standard interpretation or be uninterpreted.
 data Interp = StdInterp | UnInterp deriving (Show, Eq, Read)
 
-tyArgType :: TyArg -> Type
-tyArgType (DCArg (DataCon n _ _)) = TyConApp n []
-tyArgType (DCArg (PrimCon I)) = TyInt
-tyArgType (DCArg (PrimCon F)) = TyFloat
-tyArgType (DCArg (PrimCon D)) = TyDouble
-tyArgType (DCArg (PrimCon C)) = TyChar
-tyArgType (DCArg (PrimCon B)) = TyBool
-tyArgType (FuncArg t1 t2) = TyFun (tyArgType t1) (tyArgType t2)
-
+-- | Do some schweeet lookups into the function interpretation table.
 lookupFuncInterps :: Name -> FuncInterps -> Maybe (Name, Interp)
 lookupFuncInterps name (FuncInterps fs) = M.lookup name fs
 
+-- | Add some of dem items into the function interpretation table.
 insertFuncInterps :: Name -> (Name, Interp) -> FuncInterps -> FuncInterps
 insertFuncInterps fun int (FuncInterps fs) = FuncInterps (M.insert fun int fs)
 
+-- | What??? You can also join function interpretation tables?! Note: only
+-- reasonable the union of their key set all map to the same elements.
 unionFuncInterps :: FuncInterps -> FuncInterps -> FuncInterps
 unionFuncInterps (FuncInterps fs1) (FuncInterps fs2) = FuncInterps $ M.union fs1 fs2
 
 -- | TypeClass definitions
-instance AST TyArg where
-    children (FuncArg t1 t2) = [t1, t2]
-    children _ = []
-
-    modifyChildren f (FuncArg t1 t2) = FuncArg (f t1) (f t2)
-    modifyChildren _ a = a
-
 instance ASTContainer State Expr where
     containedASTs s = ((containedASTs . type_env) s) ++
                       ((containedASTs . expr_env) s) ++
@@ -95,25 +93,13 @@ instance ASTContainer State Type where
                                 , path_conds = (modifyASTs f . path_conds) s
                                 , sym_links = (modifyASTs f . sym_links) s }
 
-instance ASTContainer TyAlg Expr where
+instance ASTContainer AlgDataTy Expr where
     containedASTs _ = []
     modifyContainedASTs _ a = a
 
-instance ASTContainer TyAlg Type where
-    containedASTs (TyAlg _ dc) = containedASTs dc
-    modifyContainedASTs f (TyAlg ns dc) = TyAlg ns (modifyContainedASTs f dc)
-
-instance ASTContainer TyArg Expr where
-    containedASTs _ = []
-    modifyContainedASTs _ a = a
-
-instance ASTContainer TyArg Type where
-    containedASTs (DCArg dc) = containedASTs dc
-    containedASTs (FuncArg t1 t2) = containedASTs t1 ++ containedASTs t2
-
-    modifyContainedASTs f (DCArg dc) = DCArg (modifyContainedASTs f dc)
-    modifyContainedASTs f (FuncArg t1 t2) =
-        FuncArg (modifyContainedASTs f t1) (modifyContainedASTs f t2)
+instance ASTContainer AlgDataTy Type where
+    containedASTs (AlgDataTy _ dcs) = containedASTs dcs
+    modifyContainedASTs f (AlgDataTy ns dcs) = AlgDataTy ns (modifyContainedASTs f dcs)
 
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
@@ -133,7 +119,10 @@ instance ASTContainer PathCond Type where
       where e' = modifyContainedASTs f e
             a' = modifyContainedASTs f a
 
-instance ASTContainer TyAlg TyArg where
-    containedASTs (TyAlg _ ta) = ta
 
-    modifyContainedASTs f (TyAlg n ta) = TyAlg n (modifyContainedASTs f ta)
+
+instance ASTContainer AlgDataTy DataCon where
+    containedASTs (AlgDataTy _ dcs) = dcs
+
+    modifyContainedASTs f (AlgDataTy ns dcs) = AlgDataTy ns (modifyContainedASTs f dcs)
+

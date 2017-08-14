@@ -132,3 +132,4 @@ data Type = TyVar Name Type
           | TyForAll TyBinder Type
           | TyBottom
           deriving (Show, Eq, Read)
+

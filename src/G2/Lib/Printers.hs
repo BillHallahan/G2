@@ -54,7 +54,7 @@ mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
 mkTypeEnvStr :: TypeEnv -> String
 mkTypeEnvStr tenv = intercalate "\n" (map ntStr (M.toList tenv))
   where
-        ntStr :: (Name, TyAlg) -> String
+        ntStr :: (Name, AlgDataTy) -> String
         ntStr (n, t) = show n ++ "\n" ++ sp4 ++ show t
 
 mkExprEnvStr :: ExprEnv -> String
