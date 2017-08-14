@@ -36,7 +36,7 @@ bindsToEnvObjList :: [(Id, Expr)] -> [(Name, EnvObj)]
 bindsToEnvObjList kvs = map (\(k, v) -> (idName k, ExprObj v)) kvs
 
 liftBinds :: [(Id, Expr)] -> Scope -> Scope
-liftBinds kvs scope = insertEnvObjList eobjs scope
+liftBinds kvs scope = insertEnvObjs eobjs scope
   where
     eobjs = map (\(k, v) -> (idName k, ExprObj v)) kvs
 

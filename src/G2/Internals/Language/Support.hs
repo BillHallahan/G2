@@ -14,7 +14,8 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
--- | The State is 
+-- | The State is something that is passed around in G2. It can be utilized to
+-- perform defunctionalization, execution, and SMT solving on.
 data State = State { expr_env :: ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: Expr
@@ -24,28 +25,43 @@ data State = State { expr_env :: ExprEnv
                    , func_table :: FuncInterps
                    } deriving (Show, Eq, Read)
 
+-- | Expression environments are mappings form names to expressions. These are
+-- typically used for variable lookups during execution.
 type ExprEnv = M.Map Name Expr
 
+-- | Type environments map names of types to their appropriate types. However
+-- our primary interest with these is for dealing with algebraic data types,
+-- and we only store those information accordingly.
 type TypeEnv = M.Map Name AlgDataTy
 
---Used in the type environment
+-- | Algebraic data types are types constructed with parametrization of some
+-- names over types, and a list of data constructors for said type.
 data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
 
+-- | Path conditions represent logical constraints on our current execution
+-- path. We can have path constraints enforced due to case/alt branching, due
+-- to assertion / assumptions made, or some externally coded factors.
 data PathCond = AltCond Expr AltMatch Bool
               | ExtCond Expr Bool
               deriving (Show, Eq, Read)
 
+-- | Function interpretation table. Maps functions to their interpretations.
 newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
                     deriving (Show, Eq, Read)
 
+-- | Functions can have a standard interpretation or be uninterpreted.
 data Interp = StdInterp | UnInterp deriving (Show, Eq, Read)
 
+-- | Do some schweeet lookups into the function interpretation table.
 lookupFuncInterps :: Name -> FuncInterps -> Maybe (Name, Interp)
 lookupFuncInterps name (FuncInterps fs) = M.lookup name fs
 
+-- | Add some of dem items into the function interpretation table.
 insertFuncInterps :: Name -> (Name, Interp) -> FuncInterps -> FuncInterps
 insertFuncInterps fun int (FuncInterps fs) = FuncInterps (M.insert fun int fs)
 
+-- | What??? You can also join function interpretation tables?! Note: only
+-- reasonable the union of their key set all map to the same elements.
 unionFuncInterps :: FuncInterps -> FuncInterps -> FuncInterps
 unionFuncInterps (FuncInterps fs1) (FuncInterps fs2) = FuncInterps $ M.union fs1 fs2
 
