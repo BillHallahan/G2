@@ -9,9 +9,9 @@ import qualified Data.Map as M
 data ExecState = ExecState { exec_stack :: Stack
                            , exec_scope :: Scope
                            , exec_code :: Code
-                           , exec_names :: Renamer
+                           , exec_names :: NameGen
                            , exec_paths :: [ExecCond]
-                           } deriving (Show, Eq, Read)
+                           } deriving (Show, Eq)
 
 fromState :: State -> ExecState
 fromState = undefined

@@ -17,11 +17,11 @@ import qualified Data.Map as M
 data State = State { expr_env :: ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: Expr
-                   , all_names :: Renamer
+                   , all_names :: NameGen
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
                    , func_table :: FuncInterps
-                   } deriving (Show, Eq, Read)
+                   } deriving (Show, Eq)
 
 type ExprEnv = M.Map Name Expr
 

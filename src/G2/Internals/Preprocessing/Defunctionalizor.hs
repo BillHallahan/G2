@@ -125,7 +125,7 @@ useApplyType s (t@(TyFun _ _)) =
 useApplyType _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
 
 --Creates the apply function
-createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> Renamer -> (Expr, Renamer)
+createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> NameGen -> (Expr, NameGen)
 createApplyFunc ts applyTypeName namesToFuncs r =
     let
         (new_names, r2) = freshSeededNames (replicate (length namesToFuncs) (Name "apply_match" Nothing 0)) r

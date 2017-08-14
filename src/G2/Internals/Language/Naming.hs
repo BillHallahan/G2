@@ -1,7 +1,7 @@
 module G2.Internals.Language.Naming
-    ( Renamer
+    ( NameGen
     , nameToStr
-    , renamer
+    , nameGen
     , freshName
     , freshNames
     , freshSeededName
@@ -11,18 +11,51 @@ module G2.Internals.Language.Naming
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
+import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import Data.List
+import qualified Data.Map as M
 
-newtype Renamer = Renamer (HM.HashMap (String, Maybe String) Int) deriving (Show, Eq, Read)
+-- | Renamer
+-- Allows consistent mapping of names to strings.
+data Renamer = Renamer StrGen (M.Map Name String)
 
-nameToStr :: Name -> String
-nameToStr = undefined
+data GNameGen a b c = GNameGen (a -> b) (a -> Int -> c) (HM.HashMap b Int)
+type NameGen = GNameGen Name (String, Maybe String) Name
+type StrGen = GNameGen String String String
 
-renamer :: Program -> Renamer
-renamer = Renamer
+instance Eq b => Eq (GNameGen a b c) where
+    (==) (GNameGen _ _ m) (GNameGen _ _ m') = m == m'
+
+instance Show b => Show (GNameGen a b c) where
+    show (GNameGen _ _ m) = show m
+
+-- | nameToStr
+-- Returns a unique String for a name,
+-- and a new renamer that has that Name to String mapping stored.
+-- You must keep using the same renamer "chain", there is no
+-- guarentee that nameToStr n r1 == nameToStr n r2 otherwise
+nameToStr :: Name -> Renamer -> (String, Renamer)
+nameToStr n@(Name na mo i) r@(Renamer sg m) =
+    let
+        lookup_s = M.lookup n m
+        s = case mo of
+                Just mo' -> na ++ mo'
+                Nothing -> na
+        (new_s, new_sg) = freshSeededName s sg
+        new_m = M.insert n new_s m
+    in
+    case lookup_s of
+        Just s' -> (s', r)
+        Nothing -> (new_s, Renamer new_sg new_m)
+
+nameGen :: Program -> NameGen
+nameGen = GNameGen (\(Name n m _) -> (n, m)) (\(Name n m _) i -> Name n m i)
         . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) i hm) HM.empty
         . allNames
+
+strGen :: StrGen
+strGen = GNameGen id (\s i -> s ++ "_" ++ show i) HM.empty
 
 allNames :: Program -> [Name]
 allNames prog = nub (binds ++ expr_names ++ type_names)
@@ -53,15 +86,16 @@ allNames prog = nub (binds ++ expr_names ++ type_names)
         typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
         typeTopNames _ = []
 
-freshSeededName :: Name -> Renamer -> (Name, Renamer)
-freshSeededName (Name n m _) (Renamer hm) =
+freshSeededName :: (Ord a, Eq b, Hashable b) => a -> GNameGen a b c -> (c, GNameGen a b c)
+freshSeededName n (GNameGen f g hm) =
     let
-        i' = HM.lookupDefault 0 (n, m) hm
-        hm' = HM.insert (n, m) (i' + 1) hm
+        k = f n
+        i' = HM.lookupDefault 0 k hm
+        hm' = HM.insert k (i' + 1) hm
     in
-    (Name n m i', Renamer hm')
+    (g n i', GNameGen f g hm')
 
-freshSeededNames :: [Name] -> Renamer -> ([Name], Renamer)
+freshSeededNames :: (Ord a, Eq b, Hashable b) => [a] -> GNameGen a b c -> ([c], GNameGen a b c)
 freshSeededNames [] r = ([], r)
 freshSeededNames (name:ns) r =
     let
@@ -70,10 +104,10 @@ freshSeededNames (name:ns) r =
     in
     (name':ns', confs'') 
 
-freshName :: Renamer -> (Name, Renamer)
+freshName :: NameGen -> (Name, NameGen)
 freshName confs = freshSeededName seed confs
   where
     seed = Name "fs?" Nothing 0
 
-freshNames :: Int -> Renamer -> ([Name], Renamer)
+freshNames :: Int -> NameGen -> ([Name], NameGen)
 freshNames i confs = freshSeededNames (replicate i (Name "fs?" Nothing 0)) confs
