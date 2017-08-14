@@ -121,6 +121,11 @@ instance AST Type where
     modifyChildren f (TyForAll b t)  = TyForAll b (f t)
     modifyChildren _ t               = t
 
+instance AST DataCon where
+    children _ = []
+    modifyChildren _ (DataCon n ty tys) = DataCon n ty tys
+    modifyChildren _ (PrimCon pcon) = PrimCon pcon
+
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
@@ -128,7 +133,6 @@ instance AST t => ASTContainer t t where
     containedASTs t = [t]
 
     modifyContainedASTs f t = f t
-
 
 instance ASTContainer Expr Type where
     containedASTs = eval go
@@ -153,7 +157,6 @@ instance ASTContainer Expr Type where
             go (Case m n as) = Case (modifyContainedASTs f m) n (modifyContainedASTs f as) 
             go (Type t) = Type (f t)
             go e = e
-
 
 instance ASTContainer Id Expr where
   containedASTs (Id _ _) = []
@@ -183,7 +186,7 @@ instance ASTContainer DataCon Type where
     containedASTs _ = []
 
     modifyContainedASTs f (DataCon n t ts) = DataCon n (f t) (map f ts)
-    modifyContainedASTs _ dc = dc
+    modifyContainedASTs _ (PrimCon pcon) = PrimCon pcon
 
 instance ASTContainer AltMatch Expr where
     containedASTs _ = []
@@ -204,6 +207,12 @@ instance ASTContainer Alt Type where
     containedASTs (Alt a e) = (containedASTs a) ++ (containedASTs e)
     modifyContainedASTs f (Alt a e) =
         Alt (modifyContainedASTs f a) (modifyContainedASTs f e)
+
+{-
+instance ASTContainer DataCon Expr where
+    containedASTs (DataCon _ _ _) = []
+    modifyContainedASTs f (DataCon n ty tys) = DataCon n ty tys
+-}
 
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)

@@ -44,7 +44,7 @@ useApplyType s (t@(TyFun _ _)) =
         --apply data type
         (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (all_names s)
         (applyConsNames, r3) = freshSeededNames (take (length funcs) . repeat $ Name "ApplyType" Nothing 0) r2
-        applyTypeAlg = TyAlg applyConsNames []
+        applyTypeAlg = AlgDataTy applyConsNames []
         applyTypeCon = TyConApp applyTypeName []
 
         namesToFuncs = zip applyConsNames funcs 
@@ -233,7 +233,7 @@ higherOrderFuncsExprEnv = filter (higherOrderFunc) . M.elems
 
 -- Get higher order types from the type environment
 higherOrderTypesTEnv :: TypeEnv -> [Type]
-higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map tyArgType . containedASTs $ M.elems tenv)
+higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map dataConType . containedASTs $ M.elems tenv)
 
 -- Returns whether the expr is a higher order function
 higherOrderFunc :: Expr -> Bool

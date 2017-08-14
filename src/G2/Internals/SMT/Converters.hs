@@ -140,11 +140,8 @@ typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =
     [SortDecl . map typeToSortDecl $ M.toList tenv]
         where
-            typeToSortDecl :: (Name, TyAlg) -> (SMTName, [DC])
-            typeToSortDecl (n, TyAlg _ dcs) = (nameToStr n, map tyArgToDC dcs)
-
-            tyArgToDC :: TyArg -> DC
-            tyArgToDC (DCArg dc) = dataConToDC dc
+            typeToSortDecl :: (Name, AlgDataTy) -> (SMTName, [DC])
+            typeToSortDecl (n, AlgDataTy _ dcs) = (nameToStr n, map dataConToDC dcs)
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =
