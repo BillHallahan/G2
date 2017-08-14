@@ -21,7 +21,7 @@ data State = State { expr_env :: ExprEnv
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
                    , func_table :: FuncInterps
-                   } deriving (Show, Eq)
+                   } deriving (Show, Eq, Read)
 
 type ExprEnv = M.Map Name Expr
 

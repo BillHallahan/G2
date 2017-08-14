@@ -11,51 +11,18 @@ module G2.Internals.Language.Naming
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
-import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import Data.List
-import qualified Data.Map as M
 
--- | Renamer
--- Allows consistent mapping of names to strings.
-data Renamer = Renamer StrGen (M.Map Name String)
+newtype NameGen = NameGen (HM.HashMap (String, Maybe String) Int) deriving (Show, Eq, Read)
 
-data GNameGen a b c = GNameGen (a -> b) (a -> Int -> c) (HM.HashMap b Int)
-type NameGen = GNameGen Name (String, Maybe String) Name
-type StrGen = GNameGen String String String
-
-instance Eq b => Eq (GNameGen a b c) where
-    (==) (GNameGen _ _ m) (GNameGen _ _ m') = m == m'
-
-instance Show b => Show (GNameGen a b c) where
-    show (GNameGen _ _ m) = show m
-
--- | nameToStr
--- Returns a unique String for a name,
--- and a new renamer that has that Name to String mapping stored.
--- You must keep using the same renamer "chain", there is no
--- guarentee that nameToStr n r1 == nameToStr n r2 otherwise
-nameToStr :: Name -> Renamer -> (String, Renamer)
-nameToStr n@(Name na mo i) r@(Renamer sg m) =
-    let
-        lookup_s = M.lookup n m
-        s = case mo of
-                Just mo' -> na ++ mo'
-                Nothing -> na
-        (new_s, new_sg) = freshSeededName s sg
-        new_m = M.insert n new_s m
-    in
-    case lookup_s of
-        Just s' -> (s', r)
-        Nothing -> (new_s, Renamer new_sg new_m)
+nameToStr :: Name -> String
+nameToStr = undefined
 
 nameGen :: Program -> NameGen
-nameGen = GNameGen (\(Name n m _) -> (n, m)) (\(Name n m _) i -> Name n m i)
+nameGen = NameGen
         . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) i hm) HM.empty
         . allNames
-
-strGen :: StrGen
-strGen = GNameGen id (\s i -> s ++ "_" ++ show i) HM.empty
 
 allNames :: Program -> [Name]
 allNames prog = nub (binds ++ expr_names ++ type_names)
@@ -86,16 +53,15 @@ allNames prog = nub (binds ++ expr_names ++ type_names)
         typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
         typeTopNames _ = []
 
-freshSeededName :: (Ord a, Eq b, Hashable b) => a -> GNameGen a b c -> (c, GNameGen a b c)
-freshSeededName n (GNameGen f g hm) =
+freshSeededName :: Name -> NameGen -> (Name, NameGen)
+freshSeededName (Name n m _) (NameGen hm) =
     let
-        k = f n
-        i' = HM.lookupDefault 0 k hm
-        hm' = HM.insert k (i' + 1) hm
+        i' = HM.lookupDefault 0 (n, m) hm
+        hm' = HM.insert (n, m) (i' + 1) hm
     in
-    (g n i', GNameGen f g hm')
+    (Name n m i', NameGen hm')
 
-freshSeededNames :: (Ord a, Eq b, Hashable b) => [a] -> GNameGen a b c -> ([c], GNameGen a b c)
+freshSeededNames :: [Name] -> NameGen -> ([Name], NameGen)
 freshSeededNames [] r = ([], r)
 freshSeededNames (name:ns) r =
     let
