@@ -18,6 +18,7 @@ module G2.Internals.Execution.Support
     , vlookupScope
     , insertEnvObj
     , insertEnvObjs
+    , insertRedirect
     ) where
 
 import G2.Internals.Language
@@ -63,7 +64,7 @@ newtype Stack = Stack [Frame] deriving (Show, Eq, Read)
 -- * Update frames contain the `Name` on which to inject a new thing into the
 --     expression environment after the current expression is done evaluating.
 data Frame = CaseFrame Id [Alt] Scope
-           | ApplyFrame Expr Scope
+           | ApplyFrame Expr
            | UpdateFrame Name
            deriving (Show, Eq, Read)
 
@@ -129,4 +130,9 @@ insertEnvObj (k, v) (Scope smap) = Scope (M.insert k (Right v) smap)
 -- | Insert multiple `EnvObj`s into the `Scope`.
 insertEnvObjs :: [(Name, EnvObj)] -> Scope -> Scope
 insertEnvObjs kvs scope = foldr insertEnvObj scope kvs
+
+-- | Insert `Scope` redirection. We make the left one point to where the right
+-- one is pointing at.
+insertRedirect :: (Name, Name) -> Scope -> Scope
+insertRedirect (name, tgt) (Scope smap) = Scope (M.insert name (Left tgt) smap)
 
