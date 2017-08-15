@@ -17,7 +17,8 @@ import Data.List
 newtype NameGen = NameGen (HM.HashMap (String, Maybe String) Int) deriving (Show, Eq, Read)
 
 nameToStr :: Name -> String
-nameToStr = undefined
+nameToStr (Name n (Just m) i) = n ++ "_j_m_" ++ m ++ "_" ++ show i
+nameToStr (Name n Nothing i) = n ++ "_j_a_" ++ show i
 
 nameGen :: Program -> NameGen
 nameGen = NameGen
@@ -52,6 +53,36 @@ allNames prog = nub (binds ++ expr_names ++ type_names)
         typeTopNames (TyConApp n _) = [n]
         typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
         typeTopNames _ = []
+
+rename :: Name -> Name -> Program -> Program
+rename old new = modifyASTs renameExpr . map renameBinds
+    where
+        renameBinds :: Binds -> Binds 
+        renameBinds = map renameT
+
+        renameId :: Id -> Id
+        renameId i@(Id n t) = if n == old then Id new t else i
+
+        renameT :: (Id, Expr) -> (Id, Expr)
+        renameT (i@(Id n t), e) = (renameId i, e)
+
+        renameExpr :: Expr -> Expr
+        renameExpr (Var i) = Var (renameId i)
+        renameExpr (Data d) = Data (renameDataCon d)
+        renameExpr (Lam i e) = Lam (renameId i) e
+        renameExpr (Let n e) = Let (renameBinds n) e
+        renameExpr (Case e i a) = Case e (renameId i) (map renameAlt a)
+
+        renameDataCon :: DataCon -> DataCon
+        renameDataCon d@(DataCon n t ts) = if n == old then DataCon new t ts else d
+        renameDataCon d = d
+
+        renameAlt :: Alt -> Alt
+        renameAlt (Alt am e) = Alt (renameAltMatch am) e
+
+        renameAltMatch :: AltMatch -> AltMatch
+        renameAltMatch (DataAlt dc i) = DataAlt (renameDataCon dc) (map renameId i)
+        renameAltMatch am = am 
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _) (NameGen hm) =

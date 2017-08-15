@@ -52,16 +52,16 @@ newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
 -- | Functions can have a standard interpretation or be uninterpreted.
 data Interp = StdInterp | UnInterp deriving (Show, Eq, Read)
 
--- | Do some schweeet lookups into the function interpretation table.
+-- | Do some lookups into the function interpretation table.
 lookupFuncInterps :: Name -> FuncInterps -> Maybe (Name, Interp)
 lookupFuncInterps name (FuncInterps fs) = M.lookup name fs
 
--- | Add some of dem items into the function interpretation table.
+-- | Add some items into the function interpretation table.
 insertFuncInterps :: Name -> (Name, Interp) -> FuncInterps -> FuncInterps
 insertFuncInterps fun int (FuncInterps fs) = FuncInterps (M.insert fun int fs)
 
--- | What??? You can also join function interpretation tables?! Note: only
--- reasonable the union of their key set all map to the same elements.
+-- | You can also join function interpretation tables?! Note: only
+-- reasonable if the union of their key set all map to the same elements.
 unionFuncInterps :: FuncInterps -> FuncInterps -> FuncInterps
 unionFuncInterps (FuncInterps fs1) (FuncInterps fs2) = FuncInterps $ M.union fs1 fs2
 

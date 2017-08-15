@@ -25,7 +25,7 @@ import G2.Internals.Language
 import qualified Data.Map as M
 
 -- | The execution state that we keep track of is different than the regular
--- G2 state. This is beacuse for execution we need more complicated data
+-- G2 state. This is because for execution we need more complicated data
 -- structures to make things more run smoothly in the rule reductions. However
 -- there are `fromState` and `toState` functions provided to extract and inject
 -- back the original values from `State`.
