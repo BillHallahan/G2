@@ -6,6 +6,10 @@ import G2.Internals.Preprocessing
 import G2.Internals.SMT
 
 
+-- | Initialize State with Assume / Assert Conditions
+initState :: [Name] -> [Binds] -> Maybe String -> Maybe String -> String -> State
+initState tycons binds m_assume m_assert entry = undefined
+
 run = undefined
 
 {-

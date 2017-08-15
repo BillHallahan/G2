@@ -18,11 +18,39 @@ main :: IO ()
 main = do
     putStrLn "Compiles!"
     (proj:src:entry:tail_args) <- getArgs
+
+    --Get args
+    let n_val = nVal tail_args
+    let m_assume = mAssume tail_args
+    let m_assert = mAssert tail_args
+
     (binds, tycons) <- hskToG2 proj src
     mapM_ (putStrLn . show) binds
     putStrLn "========================"
     mapM_ (putStrLn . show) tycons
 
+    let init_state = initState tycons binds m_assume m_assert
+
+    hhp <- getZ3ProcessHandles
+
+    putStrLn "End"
+
+
+mArg :: String -> [String] -> (String -> a) -> a -> a
+mArg s args f d = case elemIndex s args of
+               Nothing -> d
+               Just i -> if i >= length args
+                              then error ("Invalid use of " ++ s)
+                              else f (args !! (i + 1))
+
+nVal :: [String] -> Int
+nVal args = mArg "--n" args read 200
+
+mAssume :: [String] -> Maybe String
+mAssume args = mArg "--assume" args Just Nothing
+
+mAssert :: [String] -> Maybe String
+mAssert args = mArg "--assert" args Just Nothing
 
 {-
 main :: IO ()
@@ -60,13 +88,6 @@ main = do
         ) in_out
 
 
-mArg :: String -> [String] -> (String -> a) -> a -> a
-mArg s args f d = case elemIndex s args of
-               Nothing -> d
-               Just i -> if i >= length args
-                              then error ("Invalid use of " ++ s)
-                              else f (args !! (i + 1))
-
 lookupFromNamesMap :: M.Map Name Name -> Name -> Name
 lookupFromNamesMap nMap n =
     case M.lookup n nMap of
@@ -89,14 +110,5 @@ replaceDataConName conMap = modify replaceDataConName'
                         Just n' -> (Data (DataCon n' i t ts))
                         Nothing -> error (n ++ " not recognized.")
         replaceDataConName' e = e
-
-nVal :: [String] -> Int
-nVal args = mArg "--n" args read 200
-
-mAssume :: [String] -> Maybe String
-mAssume args = mArg "--assume" args Just Nothing
-
-mAssert :: [String] -> Maybe String
-mAssert args = mArg "--assert" args Just Nothing
 -}
 

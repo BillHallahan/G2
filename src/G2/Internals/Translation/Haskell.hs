@@ -28,7 +28,7 @@ mkIOString obj = runGhc (Just libdir) $ do
 
 type CompileClosure = ([(ModSummary, ModGuts)], DynFlags, HscEnv)
 
-hskToG2 :: FilePath -> FilePath -> IO ([[(G2.Id, G2.Expr)]], [G2.Name])
+hskToG2 :: FilePath -> FilePath -> IO ([G2.Binds], [G2.Name])
 hskToG2 proj src = do
     (sums_gutss, _, _) <- mkCompileClosure proj src
     let gutss = map snd sums_gutss
