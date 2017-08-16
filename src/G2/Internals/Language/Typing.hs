@@ -63,7 +63,7 @@ instance Typeable Expr where
     typeOf (Lit lit) = typeOf lit
     typeOf (Data dcon) = typeOf dcon
     typeOf (App fxpr axpr) = TyApp (typeOf fxpr) (typeOf axpr)
-    typeOf (Lam b expr ) = TyFun (typeOf b) (typeOf expr)
+    typeOf (Lam b expr) = TyFun (typeOf b) (typeOf expr)
     typeOf (Let _ expr) = typeOf expr
     typeOf (Case _ _ (a:_)) = typeOf a
     typeOf (Type ty) = ty

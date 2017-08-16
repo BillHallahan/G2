@@ -9,7 +9,7 @@ module G2.Internals.Language.Support
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
-import G2.Internals.Language.SymLinks
+import G2.Internals.Language.SymLinks hiding (filter)
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
@@ -51,6 +51,10 @@ newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
 
 -- | Functions can have a standard interpretation or be uninterpreted.
 data Interp = StdInterp | UnInterp deriving (Show, Eq, Read)
+
+-- | Naive expression lookup by only the occurrence name string.
+naiveLookup :: String -> ExprEnv -> [(Name, Expr)]
+naiveLookup key eenv = filter (\(Name occ _ _, _) -> occ == key) (M.toList eenv)
 
 emptyFuncInterps :: FuncInterps
 emptyFuncInterps = FuncInterps M.empty

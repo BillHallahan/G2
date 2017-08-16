@@ -31,7 +31,15 @@ main = do
 
     let init_state = initState binds tycons m_assume m_assert entry
 
-    putStrLn (mkStateStr init_state)
+    putStrLn $ show init_state
+    
+    let naives_adds = naiveLookup "add" (expr_env init_state)
+    putStrLn $ show naives_adds
+
+    putStrLn $ show $ typeOf $ snd $ head naives_adds
+    
+
+    -- putStrLn (mkStateStr init_state)
 
     -- hhp <- getZ3ProcessHandles
 
