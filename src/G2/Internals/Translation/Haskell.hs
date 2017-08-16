@@ -28,12 +28,13 @@ mkIOString obj = runGhc (Just libdir) $ do
 
 type CompileClosure = ([(ModSummary, ModGuts)], DynFlags, HscEnv)
 
-hskToG2 :: FilePath -> FilePath -> IO ([G2.Binds], [G2.Name])
+hskToG2 :: FilePath -> FilePath -> IO (G2.Program, [G2.ProgramType])
 hskToG2 proj src = do
     (sums_gutss, _, _) <- mkCompileClosure proj src
     let gutss = map snd sums_gutss
     let binds = concatMap (map mkBinds . mg_binds) gutss
-    let tycons = concatMap (map mkTyConName . mg_tcs) gutss
+    -- let tycons = concatMap (map mkTyConName . mg_tcs) gutss
+    let tycons = concatMap (map mkTyCon . mg_tcs) gutss
     return (binds, tycons)
 
 mkCompileClosure :: FilePath -> FilePath -> IO CompileClosure
@@ -137,6 +138,14 @@ mkType (ForAllTy b ty) = G2.TyForAll (mkTyBinder b) (mkType ty)
 mkType (LitTy _) = error "mkType: LitTy"
 mkType (CastTy _ _) = error "mkType: CastTy"
 mkType (CoercionTy _) = error "mkType: Coercion"
+
+mkTyCon :: TyCon -> (G2.Name, [G2.Name], [G2.DataCon])
+mkTyCon t =
+    let
+        dc = data_cons . algTyConRhs $ t
+    in
+    (mkName . tyConName $ t, [], map mkData dc)
+
 
 mkTyConName :: TyCon -> G2.Name
 mkTyConName = mkName . tyConName

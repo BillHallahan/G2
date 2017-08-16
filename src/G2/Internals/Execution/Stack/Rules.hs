@@ -115,7 +115,7 @@ stackReduce state @ ExecState { exec_stack = stack
     in Just (StkRuleEvalUnInt
             ,[state { exec_scope = insertEnvObj (idName var, SymObj sym) scope
                     , exec_code = Evaluate (Var var)
-                    , exec_names = confs}])
+                    , exec_names = re}])
 
   -- Push application RHS onto the stack. This is essentially the same as the
   -- original STG rules, but we pretend that every function is (appropriately)

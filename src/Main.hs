@@ -25,15 +25,17 @@ main = do
     let m_assert = mAssert tail_args
 
     (binds, tycons) <- hskToG2 proj src
-    mapM_ (putStrLn . show) binds
-    putStrLn "========================"
-    mapM_ (putStrLn . show) tycons
+    -- mapM_ (putStrLn . show) binds
+    -- putStrLn "========================"
+    -- mapM_ (putStrLn . show) tycons
 
-    let init_state = initState tycons binds m_assume m_assert
+    let init_state = initState binds tycons m_assume m_assert entry
 
-    hhp <- getZ3ProcessHandles
+    putStrLn (mkStateStr init_state)
 
-    putStrLn "End"
+    -- hhp <- getZ3ProcessHandles
+
+    -- putStrLn "End"
 
 
 mArg :: String -> [String] -> (String -> a) -> a -> a

@@ -7,6 +7,7 @@ module G2.Internals.Language.Syntax
 
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
+type ProgramType = (Name, [Name], [DataCon])
 
 -- | Typically `Binds` are categorized as recursive or non-recursive. This is
 -- because recursive let bindings require their local scopes of all bindings
