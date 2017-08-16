@@ -107,7 +107,7 @@ stackReduce state @ ExecState { exec_stack = stack
   -- again. This is the essense of memoization / single-evaluation in laziness.
   | Evaluate (Var var) <- code
   , Nothing <- vlookupScope var scope =
-    let (sname, re) = freshSeededName (idName var) confs
+    let (sname, confs') = freshSeededName (idName var) confs
         svar = Id sname (idType var)
         -- Nothing denotes that this is a "base" symbolic value that is not
         -- dependent on any other expressions.
@@ -115,7 +115,7 @@ stackReduce state @ ExecState { exec_stack = stack
     in Just (StkRuleEvalUnInt
             ,[state { exec_scope = insertEnvObj (idName var, SymObj sym) scope
                     , exec_code = Evaluate (Var var)
-                    , exec_names = confs}])
+                    , exec_names = confs'}])
 
   -- Push application RHS onto the stack. This is essentially the same as the
   -- original STG rules, but we pretend that every function is (appropriately)
