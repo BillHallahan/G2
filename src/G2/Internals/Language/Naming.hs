@@ -1,7 +1,7 @@
 module G2.Internals.Language.Naming
     ( NameGen
     , nameToStr
-    , nameGen
+    , mkNameGen
     , freshName
     , freshNames
     , freshSeededName
@@ -20,8 +20,8 @@ nameToStr :: Name -> String
 nameToStr (Name n (Just m) i) = n ++ "_j_m_" ++ m ++ "_" ++ show i
 nameToStr (Name n Nothing i) = n ++ "_j_a_" ++ show i
 
-nameGen :: Program -> NameGen
-nameGen = NameGen
+mkNameGen :: Program -> NameGen
+mkNameGen = NameGen
         . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) i hm) HM.empty
         . allNames
 

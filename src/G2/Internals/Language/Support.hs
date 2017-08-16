@@ -19,7 +19,7 @@ import qualified Data.Map as M
 data State = State { expr_env :: ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: Expr
-                   , all_names :: NameGen
+                   , nameGen :: NameGen
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
                    , func_table :: FuncInterps
@@ -51,6 +51,9 @@ newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
 
 -- | Functions can have a standard interpretation or be uninterpreted.
 data Interp = StdInterp | UnInterp deriving (Show, Eq, Read)
+
+emptyFuncInterps :: FuncInterps
+emptyFuncInterps = FuncInterps M.empty
 
 -- | Do some lookups into the function interpretation table.
 lookupFuncInterps :: Name -> FuncInterps -> Maybe (Name, Interp)

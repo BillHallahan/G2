@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Internals.Language.SymLinks ( SymLinks
+                                      , empty
                                       , lookupSymLinks
                                       , insertSymLinks
                                       , filter
@@ -19,6 +20,9 @@ import qualified Data.Map as M
 
 newtype SymLinks = SymLinks (M.Map Name (Name, Type, Maybe Int))
                  deriving (Show, Eq, Read)
+
+empty :: SymLinks
+empty = SymLinks M.empty
 
 lookupSymLinks :: Name -> SymLinks -> Maybe (Name, Type, Maybe Int)
 lookupSymLinks name (SymLinks smap) = M.lookup name smap
