@@ -70,7 +70,7 @@ mkSymLinks eenv entry args = (curr_expr, sym_links)
   where entry_expr = case (lookupExpr entry eenv) of
             Just ex -> ex
             Nothing -> error "Entry not found"
-        entry_type = exprType entry_expr
+        entry_type = typeOf entry_expr
         arg_names  = map fst args
         arg_types  = map snd args
         slt_rhs    = zip3 arg_names arg_types (map Just [1..])
@@ -92,7 +92,7 @@ initState tenv eenv m_assume m_assert entry =
   case M.lookup entry eenv of
     Just entry_ex ->
       let args'    = freshArgNames eenv entry
-          entry_ty = exprType entry_ex
+          entry_ty = typeOf entry_ex
           (expr', slt) = mkSymLinks eenv entry args'
 
           (expr'', assume_ty) = addAssumeAssert Assume m_assume args' eenv expr'
@@ -116,7 +116,7 @@ initState tenv eenv m_assume m_assert entry =
         addAssumeAssert f (Just a) args eenv e =
             case M.lookup a eenv of
                 Nothing -> error "Could not find function"
-                Just a_ex -> (f (fst $ mkSymLinks eenv a args) e, exprType a_ex)
+                Just a_ex -> (f (fst $ mkSymLinks eenv a args) e, typeOf a_ex)
 
 -- | Run n Times
 --   Run a state n times through the power of concatMap.

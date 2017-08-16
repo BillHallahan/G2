@@ -169,7 +169,7 @@ leadingHigherOrderTypes :: State -> [Type]
 leadingHigherOrderTypes s =
     let
         higherTExprEnv = higherOrderTypesTEnv . type_env $ s
-        higherExprEnv = map exprType . higherOrderFuncsExprEnv . expr_env $ s
+        higherExprEnv = map typeOf . higherOrderFuncsExprEnv . expr_env $ s
     in
     nub . concatMap leading $ higherTExprEnv ++ higherExprEnv
     where
@@ -188,7 +188,7 @@ passedToHigherOrder :: ExprEnv -> Type -> [Expr]
 passedToHigherOrder eenv t =
     let
         funcs = map (\n -> Var $ Id n t) (functionNamesOfType eenv t)
-        part_lams = concatMap (\e -> higherOrderArg e (exprType e)) (M.elems eenv)
+        part_lams = concatMap (\e -> higherOrderArg e (typeOf e)) (M.elems eenv)
     in
     nub (funcs ++ part_lams)
     where
@@ -205,7 +205,7 @@ higherOrderOfTypeFuncNames eenv ty =
     where
         -- Returns a list of all function types that must be passed to the given function
         functionsAccepted :: Expr -> [Type]
-        functionsAccepted = functionsAccepted' . exprType
+        functionsAccepted = functionsAccepted' . typeOf
             where
                 functionsAccepted' (TyFun t@(TyFun _ _) t') = t:functionsAccepted' t'
                 functionsAccepted' (TyApp t t') = functionsAccepted' t ++ functionsAccepted' t'
@@ -216,7 +216,7 @@ higherOrderOfTypeFuncNames eenv ty =
 -- Given a higher order function, returns the names and types of all higher order arguments
 higherOrderArgs :: Expr -> [(FuncName, Type)]
 higherOrderArgs l@(Lam (Id n _) e) =
-    case exprType l of
+    case typeOf l of
         TyFun t@(TyFun _ _) _ -> (n, t):higherOrderArgs e
         _ -> higherOrderArgs e
 -- higherOrderArgs (Lam n e (TyFun t@(TyFun _ _) _)) = (n, t):higherOrderArgs e
@@ -225,7 +225,7 @@ higherOrderArgs _ = []
 -- Returns all function names of the given type
 functionNamesOfType :: ExprEnv -> Type -> [FuncName]
 functionNamesOfType eenv t =
-    map fst . filter (\(_, e') -> exprType e' == t) . M.assocs $ eenv
+    map fst . filter (\(_, e') -> typeOf e' == t) . M.assocs $ eenv
 
 -- Get higher order functions from the expression environment
 higherOrderFuncsExprEnv :: ExprEnv -> [Expr]
@@ -233,11 +233,11 @@ higherOrderFuncsExprEnv = filter (higherOrderFunc) . M.elems
 
 -- Get higher order types from the type environment
 higherOrderTypesTEnv :: TypeEnv -> [Type]
-higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map dataConType . containedASTs $ M.elems tenv)
+higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map (typeOf :: Expr -> Type) . containedASTs $ M.elems tenv)
 
 -- Returns whether the expr is a higher order function
 higherOrderFunc :: Expr -> Bool
-higherOrderFunc e = higherOrderFuncType . exprType $ e
+higherOrderFunc e = higherOrderFuncType . typeOf $ e
 
 -- Returns whether the type is for a higher order function
 higherOrderFuncType :: Type -> Bool

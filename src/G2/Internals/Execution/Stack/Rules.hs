@@ -108,7 +108,7 @@ stackReduce state @ ExecState { exec_stack = stack
   | Evaluate (Var var) <- code
   , Nothing <- vlookupScope var scope =
     let (sname, re) = freshSeededName (idName var) confs
-        svar = Id sname (idType var)
+        svar = Id sname (typeOf var)
         -- Nothing denotes that this is a "base" symbolic value that is not
         -- dependent on any other expressions.
         sym = Symbol svar Nothing
@@ -242,7 +242,7 @@ stackReduce state @ ExecState { exec_stack = stack
   , Return (Var (Id name ty)) <- code
   , Just (SymObj (Symbol sid _)) <- lookupScope name scope =
   let (sname, confs') = freshSeededName (idName sid) confs
-      sres = Id sname (TyApp (idType sid) (exprType aexpr))
+      sres = Id sname (TyApp (typeOf sid) (typeOf aexpr))
       sym_app = Symbol sres (Just (App (Var sid) aexpr, scope))
   in Just (StkRuleReturnApplySym
           ,[state { exec_stack = stack'

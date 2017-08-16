@@ -105,6 +105,6 @@ replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
         replaceFuncSLT' e = e
 
         functionType :: State -> Name -> Maybe Type
-        functionType s n = exprType <$> M.lookup n (expr_env s)
+        functionType s n = typeOf <$> M.lookup n (expr_env s)
 -}
 

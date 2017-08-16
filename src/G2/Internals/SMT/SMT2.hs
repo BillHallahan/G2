@@ -237,4 +237,4 @@ solveExpr h_in h_out con headers e = do
     out <- getLinesUntil h_out (not . isPrefixOf "(let")
     _ <- evaluate (length out)
 
-    return $ parseToSMTAST headers out (typeToSMT . exprType $ e)
+    return $ parseToSMTAST headers out (typeToSMT . typeOf $ e)

@@ -55,14 +55,14 @@ stepAppCaseF :: State -> [State]
 stepAppCaseF state = [state {curr_expr = Case m as' t'}]
   where App (Case m as t) ae = curr_expr state
         as' = map (\(Alt (dc, pars), x) -> (Alt (dc, pars), App x ae)) as
-        t'  = exprType $ snd $ head as'
+        t'  = typeOf $ snd $ head as'
 
 -- | Step (App Expr Case)
 stepAppCaseA :: State -> [State]
 stepAppCaseA state = [state {curr_expr = Case m as' t'}]
   where App fe (Case m as t) = curr_expr state
         as' = map (\(Alt (dc, pars), x) -> (Alt (dc, pars), App fe x)) as
-        t'  = exprType $ snd $ head as'
+        t'  = typeOf $ snd $ head as'
 
 -- | Step App
 --   Favor LHS evaluation during Apps to emulate lazy evaluation.

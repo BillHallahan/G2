@@ -6,62 +6,66 @@ module G2.Internals.Language.Typing
 
 import G2.Internals.Language.Syntax
 
--- | `Type` of `Id`.
-idType :: Id -> Type
-idType (Id _ ty) = ty
+-- | Typeable typeclass.
+class Typeable a where
+    typeOf :: a -> Type
 
--- | `Type` of `Primitive`.
-primType :: Primitive -> Type
-primType Ge = TyBottom  -- TODO: fill in correctly.
-primType Gt = TyBottom
-primType Eq = TyBottom
-primType Lt = TyBottom
-primType Le = TyBottom
-primType And = TyBottom
-primType Or = TyBottom
-primType Not = TyBottom
-primType Implies = TyBottom
-primType Plus = TyBottom
-primType Minus = TyBottom
-primType Mult = TyBottom
-primType Div = TyBottom
-primType UNeg = TyBottom
-primType Assert = TyBottom
-primType Assume = TyBottom
 
--- | `Type` of `Lit`.
-litType :: Lit -> Type
-litType (LitInt _) = TyLitInt
-litType (LitFloat _) = TyLitFloat
-litType (LitDouble _) = TyLitDouble
-litType (LitChar _)   = TyLitChar
-litType (LitString _) = TyLitString
-litType (LitBool _) = TyBool
+-- | `Id` instance of `Typeable`.
+instance Typeable Id where
+    typeOf (Id _ ty) = ty
 
--- | `Type` of `DataCon`.
-dataConType :: DataCon -> Type
-dataConType (DataCon _ ty tys) = foldr TyFun ty tys
-dataConType (PrimCon I) = TyFun TyLitInt TyInt
-dataConType (PrimCon D) = TyFun TyLitDouble TyDouble
-dataConType (PrimCon F) = TyFun TyLitFloat TyFloat
-dataConType (PrimCon C) = TyFun TyLitChar TyChar
-dataConType (PrimCon B) = TyBool
+-- | `Primitive` instance of `Typeable`
+instance Typeable Primitive where
+    typeOf Ge = TyBottom  -- TODO: fill in correctly.
+    typeOf Gt = TyBottom
+    typeOf Eq = TyBottom
+    typeOf Lt = TyBottom
+    typeOf Le = TyBottom
+    typeOf And = TyBottom
+    typeOf Or = TyBottom
+    typeOf Not = TyBottom
+    typeOf Implies = TyBottom
+    typeOf Plus = TyBottom
+    typeOf Minus = TyBottom
+    typeOf Mult = TyBottom
+    typeOf Div = TyBottom
+    typeOf UNeg = TyBottom
+    typeOf Assert = TyBottom
+    typeOf Assume = TyBottom
 
--- | `Type` of `Alt`.
-altType :: Alt -> Type
-altType (Alt _ expr) = exprType expr
+-- | `Lit` instance of `Typeable`.
+instance Typeable Lit where
+    typeOf (LitInt _) = TyLitInt
+    typeOf (LitFloat _) = TyLitFloat
+    typeOf (LitDouble _) = TyLitDouble
+    typeOf (LitChar _)   = TyLitChar
+    typeOf (LitString _) = TyLitString
+    typeOf (LitBool _) = TyBool
 
--- | Expression Type
---   Gets the type of an expression.
-exprType :: Expr -> Type
-exprType (Var vid) = idType vid
-exprType (Prim prim) = primType prim
-exprType (Lit lit) = litType lit
-exprType (Data dcon) = dataConType dcon
-exprType (App fxpr axpr) = TyApp (exprType fxpr) (exprType axpr)
-exprType (Lam b expr ) = TyFun (idType b) (exprType expr)
-exprType (Let _ expr) = exprType expr
-exprType (Case _ _ (a:_)) = altType a
-exprType (Type ty) = ty
-exprType _ = TyBottom
+-- | `DataCon` instance of `Typeable`.
+instance Typeable DataCon where
+    typeOf (DataCon _ ty tys) = foldr TyFun ty tys
+    typeOf (PrimCon I) = TyFun TyLitInt TyInt
+    typeOf (PrimCon D) = TyFun TyLitDouble TyDouble
+    typeOf (PrimCon F) = TyFun TyLitFloat TyFloat
+    typeOf (PrimCon C) = TyFun TyLitChar TyChar
+    typeOf (PrimCon B) = TyBool
+
+-- | `Alt` instance of `Typeable`.
+instance Typeable Alt where
+    typeOf (Alt _ expr) = typeOf expr
+
+-- | `Expr` instance of `Typeable`.
+instance Typeable Expr where
+    typeOf (Var vid) = typeOf vid
+    typeOf (Prim prim) = typeOf prim
+    typeOf (Lit lit) = typeOf lit
+    typeOf (Data dcon) = typeOf dcon
+    typeOf (App fxpr axpr) = TyApp (typeOf fxpr) (typeOf axpr)
+    typeOf (Lam b expr ) = TyFun (typeOf b) (typeOf expr)
+    typeOf (Let _ expr) = typeOf expr
+    typeOf (Case _ _ (a:_)) = typeOf a
+    typeOf (Type ty) = ty
+    typeOf _ = TyBottom
 
