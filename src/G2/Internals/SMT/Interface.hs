@@ -1,21 +1,18 @@
-module G2.Internals.SMT.Interface
-    () where
-
-
-{-
-    ( satModelOutputs
-    , satModelOutput
-    , smtReady) where
+module G2.Internals.SMT.Interface (smtReady) where
+    -- ( satModelOutputs
+    -- , satModelOutput
+    -- , smtReady) where
 
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Monoid as Mon
 
-import G2.Internals.Core
+import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
+{-
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each is satisfiable.
 -- Returns a list of possible input/output pairs for the satisifiable states
@@ -52,6 +49,8 @@ satModelOutput con io s = do
 
     return (res, inArg, ex')
 
+-}
+
 -- | smtReady
 -- Given a list of states, returns only those that can be evaluated by the SMT solver
 smtReady :: [State] -> [State]
@@ -59,32 +58,33 @@ smtReady = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr
          . filter (\s -> not . containsBadExpr . curr_expr $ s)
 
 -- Returns if an Expr contains functions that are not just type constructors
-containsNonConsFunctions :: (ASTContainer m Expr) => TEnv -> m -> Bool
+containsNonConsFunctions :: (ASTContainer m Expr) => TypeEnv -> m -> Bool
 containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctions' tenv)
     where
-        containsFunctions' :: TEnv -> Expr -> Bool
-        containsFunctions' tenv (App (Var n _) _) = n `notElem` (constructors tenv)
+        containsFunctions' :: TypeEnv -> Expr -> Bool
+        containsFunctions' tenv (App (Var (Id n _)) _) = n `notElem` (constructors tenv)
         containsFunctions' _ _ = False
 
-        constructors :: TEnv -> [Name]
-        constructors = evalASTs constructors'
-            where
-                constructors' :: Type -> [Name]
-                constructors' (TyAlg _ dc) = [ n | (DataCon n _ _ _) <- dc]
-                constructors' _ = []
+        constructors :: TypeEnv -> [Name]
+        constructors = concat . map constructors' . M.elems
+            
+        constructors' :: AlgDataTy -> [Name]
+        constructors' (AlgDataTy _ dc) = [ n | (DataCon n _ _) <- dc]
 
 -- Returns true if an Expr contains any Expr that can't be handled by the SMT solver
 containsBadExpr :: (ASTContainer m Expr) => m -> Bool
 containsBadExpr = Mon.getAny . evalASTs (Mon.Any . containsBadExpr')
     where
         containsBadExpr' :: Expr -> Bool
-        containsBadExpr' (Var _ _) = False
-        containsBadExpr' (Prim _ _) = False
-        containsBadExpr' (Const _) = False
+        containsBadExpr' (Var _) = False
+        containsBadExpr' (Prim _) = False
+        containsBadExpr' (Lit _) = False
         containsBadExpr' (App _ _) = False
         containsBadExpr' (Data _) = False
         containsBadExpr' (Type _) = False
         containsBadExpr' _ = True
+
+{-
 
 -- TODO: MOVE THE BELOW FUNCTION
 
@@ -107,4 +107,3 @@ replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
         functionType :: State -> Name -> Maybe Type
         functionType s n = typeOf <$> M.lookup n (expr_env s)
 -}
-

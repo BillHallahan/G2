@@ -6,6 +6,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Tuple
 
+import Data.Maybe
+
 import G2.Lib.Printers
 
 import G2.Internals.Interface
@@ -16,7 +18,7 @@ import G2.Internals.SMT
 
 main :: IO ()
 main = do
-    putStrLn "Compiles!"
+    putStrLn "Compiles!!!"
     (proj:src:entry:tail_args) <- getArgs
 
     --Get args
@@ -29,14 +31,20 @@ main = do
     -- putStrLn "========================"
     -- mapM_ (putStrLn . show) tycons
 
+    let add = fromJust $ find (\(Id (Name n _ _) _, _) -> n == "add") (concat binds)
+    let t = (\((Id _ t), _) -> t) add
+    putStrLn ("\n\ntype of add = " ++ show t)
+
     let init_state = initState binds tycons m_assume m_assert entry
 
-    putStrLn $ show init_state
-    
-    let naives_adds = naiveLookup "add" (expr_env init_state)
-    putStrLn $ show naives_adds
+    -- putStrLn $ show init_state
 
-    putStrLn $ show $ typeOf $ snd $ head naives_adds
+    putStrLn "End"
+    
+    -- let naives_adds = naiveLookup "add" (expr_env init_state)
+    -- putStrLn $ show naives_adds
+
+    -- putStrLn $ show $ typeOf $ snd $ head naives_adds
     
 
     -- putStrLn (mkStateStr init_state)
