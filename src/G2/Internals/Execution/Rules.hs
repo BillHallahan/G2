@@ -11,9 +11,8 @@ data Rule = RuleEvalVal
           | RuleEvalVar | RuleEvalUnInt
           | RuleEvalApp
           | RuleEvalLet
-          | RuleEvalCaseData | RuleEvalCaseLit
-                                | RuleEvalCaseDefault
-          | RuleEvalCaseNonVal
+          | RuleEvalCaseData | RuleEvalCaseLit | RuleEvalCaseDefault
+                             | RuleCaseSym | RuleEvalCaseNonVal
 
           | RuleReturnUpdateVar | RuleReturnUpdateNonVar
           | RuleReturnCase
@@ -40,7 +39,7 @@ unApp expr = [expr]
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
 isValueForm :: Expr -> ExecExprEnv -> Bool
-isValueForm (Var var) eenv = case vlookupExecExprEnv var eenv of
+isValueForm (Var (Id name _)) eenv = case lookupExecExprEnv name eenv of
     Just (ExprObj _) -> False
     _ -> True
 isValueForm (App f a) _ = case unApp (App f a) of
@@ -62,6 +61,10 @@ liftBinds kvs eenv = insertEnvObjs (bindsToEnvObjs kvs) eenv
 defaultAlts :: [Alt] -> [Alt]
 defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 
+-- | Non-DEFAULT `Alt`s.
+nonDefaultAlts :: [Alt] -> [Alt]
+nonDefaultAlts alts = [a | a @ (Alt acon _) <- alts, acon /= Default]
+
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
 matchDataAlts dc alts = [a | a @ (Alt (DataAlt adc _) _) <- alts , dc == adc]
@@ -69,6 +72,20 @@ matchDataAlts dc alts = [a | a @ (Alt (DataAlt adc _) _) <- alts , dc == adc]
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
 matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
+
+-- | Negate an `ExecCond`.
+negateExecCond :: ExecCond -> ExecCond
+negateExecCond (ExecAltCond a e b v) = ExecAltCond a e (not b) v
+negateExecCond (ExecExtCond e b v) = ExecExtCond e (not b) v
+
+-- | Lift `ExecCond`s to a `ExecState` level.
+liftSymAlt :: ExecState -> Id -> Symbol -> Expr -> [ExecCond] -> ExecState
+liftSymAlt state cvar sym aexpr conds = state'
+  where
+    eenv = exec_eenv state
+    state' = state { exec_eenv = insertEnvObj (idName cvar) (SymObj sym) eenv
+                   , exec_code = Evaluate aexpr
+                   , exec_paths = conds ++ exec_paths state }
 
 -- | Funciton for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
@@ -95,7 +112,7 @@ stackReduce state @ ExecState { exec_stack = stack
   -- points to. After the latter is done evaluating, we pop the stack to add
   -- a redirection pointer into the heap.
   | Evaluate (Var var) <- code
-  , Just (ExprObj expr) <- vlookupExecExprEnv var eenv =
+  , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv =
     let frame = UpdateFrame (idName var)
     in ( RuleEvalVar
        , [state { exec_stack = pushExecStack frame stack
@@ -106,7 +123,7 @@ stackReduce state @ ExecState { exec_stack = stack
   -- by injecting it into the heap and then evaluating the same expression
   -- again. This is the essense of memoization / single-evaluation in laziness.
   | Evaluate (Var var) <- code
-  , Nothing <- vlookupExecExprEnv var eenv =
+  , Nothing <- lookupExecExprEnv (idName var) eenv =
     let (sname, re) = freshSeededName (idName var) confs
         svar = Id sname (typeOf var)
         -- Nothing denotes that this is a "base" symbolic value that is not
@@ -137,6 +154,30 @@ stackReduce state @ ExecState { exec_stack = stack
     , [state { exec_eenv = liftBinds binds eenv
              , exec_code = Evaluate expr }])
 
+  -- | If we are pointing to a symbolic value in the environment, handle it
+  -- appropriately by branching on every `Alt`.
+  | Evaluate (Case (Var var) cvar alts) <- code
+  , Just (SymObj sym) <- lookupExecExprEnv (idName var) eenv
+  , (ndefs, defs) <- (nonDefaultAlts alts, defaultAlts alts)
+  , length (ndefs ++ defs) > 0 =
+    let poss = map (\(Alt a e) -> (ExecAltCond a (Var var) True eenv, e)) ndefs
+        ndef_sts = map (\(c, e) -> liftSymAlt state cvar sym e [c]) poss
+        -- Now make the negatives
+        negs = map (\(c, _) -> negateExecCond c) poss
+        def_sts = map (\(Alt _ e) -> liftSymAlt state cvar sym e negs) defs
+    in (RuleCaseSym, ndef_sts ++ def_sts)
+
+  -- | Is the current expression able to match with a literal based `Alt`? If
+  -- so, we do the cvar binding, and proceed with evaluation of the body.
+  | Evaluate (Case (Lit lit) cvar alts) <- code
+  , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
+    let binds = [(cvar, Lit lit)]
+        cond = ExecAltCond (LitAlt lit) (Lit lit) True eenv
+    in ( RuleEvalCaseLit
+       , [state { exec_eenv = liftBinds binds eenv
+                , exec_code = Evaluate expr
+                , exec_paths = cond : paths }])
+
   -- Is the current expression able to match a data consturctor based `Alt`? If
   -- so, then we bind all the parameters to the appropriate arguments and
   -- proceed with the evaluation of the `Alt`'s expression. We also make sure
@@ -151,17 +192,6 @@ stackReduce state @ ExecState { exec_stack = stack
        , [state { exec_eenv = liftBinds binds eenv
                 , exec_code = Evaluate expr
                 , exec_paths = cond : paths}])
-
-  -- | Is the current expression able to match with a literal based `Alt`? If
-  -- so, we do the cvar binding, and proceed with evaluation of the body.
-  | Evaluate (Case (Lit lit) cvar alts) <- code
-  , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
-    let binds = [(cvar, Lit lit)]
-        cond = ExecAltCond (LitAlt lit) (Lit lit) True eenv
-    in ( RuleEvalCaseLit
-       , [state { exec_eenv = liftBinds binds eenv
-                , exec_code = Evaluate expr
-                , exec_paths = cond : paths }])
 
   -- | We are not able to match any of the stuff, and hit a DEFAULT instead? If
   -- so, we just perform the cvar binding and proceed with the alt expression.
@@ -190,8 +220,8 @@ stackReduce state @ ExecState { exec_stack = stack
 
   -- We are returning something and the first thing that we have on the stack
   -- is an `UpdateFrame`, this means that we add a redirection pointer to the
-  -- `ExecExprEnv`, and continue with execution. This is the equivalent of performing
-  -- memoization on values that we have seen.
+  -- `ExecExprEnv`, and continue with execution. This is the equivalent of
+  -- performing memoization on values that we have seen.
   | Just (UpdateFrame frm_name, stack') <- popExecStack stack
   , Return (Var (Id name ty)) <- code =
   ( RuleReturnUpdateVar
@@ -200,7 +230,8 @@ stackReduce state @ ExecState { exec_stack = stack
            , exec_code = Return (Var (Id name ty)) }])
 
   -- If the variable we are returning does not have a `Var` in it at the
-  -- immediate top level, then we have to insert it into the `ExecExprEnv` directly.
+  -- immediate top level, then we have to insert it into the `ExecExprEnv`
+  -- directly.
   | Just (UpdateFrame frm_name, stack') <- popExecStack stack
   , Return expr <- code =
   ( RuleReturnUpdateNonVar

@@ -15,7 +15,6 @@ module G2.Internals.Execution.Support
     , popExecStack
 
     , lookupExecExprEnv
-    , vlookupExecExprEnv
     , insertEnvObj
     , insertEnvObjs
     , insertRedirect
@@ -152,10 +151,6 @@ lookupExecExprEnv name (ExecExprEnv smap) = case M.lookup name smap of
     Just (Left redir) -> lookupExecExprEnv redir (ExecExprEnv smap)
     Just (Right eobj) -> Just eobj
     Nothing -> Nothing
-
--- | Lookup an `EnvObj` in the `ExecExprEnv` by `Id`.
-vlookupExecExprEnv :: Id -> ExecExprEnv -> Maybe EnvObj
-vlookupExecExprEnv var scope = lookupExecExprEnv (idName var) scope
 
 -- | Insert an `EnvObj` into the `ExecExprEnv`.
 insertEnvObj :: Name -> EnvObj -> ExecExprEnv -> ExecExprEnv
