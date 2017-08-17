@@ -19,7 +19,7 @@ import qualified Data.Map as M
 data State = State { expr_env :: ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: Expr
-                   , nameGen :: NameGen
+                   , name_gen :: NameGen
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
                    , func_table :: FuncInterps

@@ -1,9 +1,23 @@
--- | Configuration
+-- | Interface
 --   Module for interacting and interfacing with the symbolic execution engine.
-module G2.Internals.Execution.Configuration
-    () where
+module G2.Internals.Execution.Interface
+    (runNDepth) where
 
-{-
+import G2.Internals.Execution.Stack.Rules
+import G2.Internals.Execution.Support
+
+runNDepth :: [ExecState] -> Int -> [ExecState]
+runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)
+    where
+        runNDepth' :: [(ExecState, Int)] -> [ExecState]
+        runNDepth' [] = []
+        runNDepth' ((s, 0):xs) = s:runNDepth' xs
+        runNDepth' ((s, n):xs) =
+            let
+                s'' = map (\s' -> (s', n - 1)) (snd $ stackReduce s)
+            in
+            runNDepth' (s'' ++ xs)
+{- TODO: What here do we need?
 
     ( initState
     , runNBreadth

@@ -42,7 +42,7 @@ useApplyType s (t@(TyFun _ _)) =
         funcs = passedToHigherOrder (expr_env s) t
 
         --apply data type
-        (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (all_names s)
+        (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (name_gen s)
         (applyConsNames, r3) = freshSeededNames (take (length funcs) . repeat $ Name "ApplyType" Nothing 0) r2
         applyTypeAlg = AlgDataTy applyConsNames []
         applyTypeCon = TyConApp applyTypeName []
@@ -67,7 +67,7 @@ useApplyType s (t@(TyFun _ _)) =
                                                     Var (Id n' _) -> Just (a, (n', StdInterp))
                                                     _ -> Nothing) $ namesToFuncs
 
-        s2 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) (s {all_names = r5}) higherNameExprArgs
+        s2 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) (s {name_gen = r5}) higherNameExprArgs
 
         s3 = modifyASTs (applyTypeReplace t applyTypeCon) (s2 {curr_expr = newCurr_expr})
 

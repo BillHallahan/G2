@@ -21,6 +21,7 @@ data StackRule = StkRuleEvalVal
                                        | StkRuleReturnApplySym
 
                | StkRuleIdentity
+               | StkError
                deriving (Show, Eq, Read)
 
 -- | Unravels the application spine.
@@ -72,7 +73,7 @@ matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
 
 -- | Funciton for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
-stackReduce :: ExecState -> Maybe (StackRule, [ExecState])
+stackReduce :: ExecState -> (StackRule, [ExecState])
 stackReduce state @ ExecState { exec_stack = stack
                               , exec_scope = scope
                               , exec_code = code
@@ -87,8 +88,8 @@ stackReduce state @ ExecState { exec_stack = stack
   -- Our current thing is a value form, which means we can return it.
   | Evaluate expr <- code
   , isValueForm expr scope =
-    Just (StkRuleEvalVal
-         ,[state { exec_code = Return expr }])
+    ( StkRuleEvalVal
+    , [state { exec_code = Return expr }])
 
   -- If our variable points to something on the heap, we first push the current
   -- name of the variable onto the stack and evaluate the expression that it
@@ -97,9 +98,9 @@ stackReduce state @ ExecState { exec_stack = stack
   | Evaluate (Var var) <- code
   , Just (ExprObj expr) <- vlookupScope var scope =
     let frame = UpdateFrame (idName var)
-    in Just (StkRuleEvalVar
-            ,[state { exec_stack = pushStack frame stack
-                    , exec_code = Evaluate expr }])
+    in ( StkRuleEvalVar
+       , [state { exec_stack = pushStack frame stack
+                , exec_code = Evaluate expr }])
 
   -- If we encounter a vairable that is in scope, we treated it as a symbolic
   -- object and subject it to uninterpreted evaluation later on. This is done
@@ -112,10 +113,10 @@ stackReduce state @ ExecState { exec_stack = stack
         -- Nothing denotes that this is a "base" symbolic value that is not
         -- dependent on any other expressions.
         sym = Symbol svar Nothing
-    in Just (StkRuleEvalUnInt
-            ,[state { exec_scope = insertEnvObj (idName var, SymObj sym) scope
-                    , exec_code = Evaluate (Var var)
-                    , exec_names = re}])
+    in ( StkRuleEvalUnInt
+       , [state { exec_scope = insertEnvObj (idName var, SymObj sym) scope
+                , exec_code = Evaluate (Var var)
+                , exec_names = re}])
 
   -- Push application RHS onto the stack. This is essentially the same as the
   -- original STG rules, but we pretend that every function is (appropriately)
@@ -126,16 +127,16 @@ stackReduce state @ ExecState { exec_stack = stack
   -- Haskell heap during execution.
   | Evaluate (App fexpr aexpr) <- code =
     let frame = ApplyFrame aexpr
-    in Just (StkRuleEvalApp
-            ,[state { exec_stack = pushStack frame stack
-                    , exec_code = Evaluate fexpr }])
+    in ( StkRuleEvalApp
+       , [state { exec_stack = pushStack frame stack
+                , exec_code = Evaluate fexpr }])
 
   -- Lift all the let bindings into the environment and continue with scope and
   -- continue with evaluation of the let expression.
   | Evaluate (Let binds expr) <- code =
-    Just (StkRuleEvalLet
-         ,[state { exec_scope = liftBinds binds scope
-                 , exec_code = Evaluate expr }])
+    ( StkRuleEvalLet
+    , [state { exec_scope = liftBinds binds scope
+             , exec_code = Evaluate expr }])
 
   -- Is the current expression able to match a data consturctor based `Alt`? If
   -- so, then we bind all the parameters to the appropriate arguments and
@@ -146,27 +147,27 @@ stackReduce state @ ExecState { exec_stack = stack
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length args =
     let binds = (cvar, mexpr) : zip params args
-    in Just (StkRuleEvalCaseData
-            ,[state { exec_scope = liftBinds binds scope
-                    , exec_code = Evaluate expr }])
+    in (StkRuleEvalCaseData
+       , [state { exec_scope = liftBinds binds scope
+                , exec_code = Evaluate expr }])
 
   -- | Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
   | Evaluate (Case (Lit lit) cvar alts) <- code
   , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
     let binds = [(cvar, Lit lit)]
-    in Just (StkRuleEvalCaseLit
-            ,[state { exec_scope = liftBinds binds scope
-                    , exec_code = Evaluate expr }])
+    in (StkRuleEvalCaseLit
+       , [state { exec_scope = liftBinds binds scope
+                , exec_code = Evaluate expr }])
 
   -- | We are not able to match any of the stuff, and hit a DEFAULT instead? If
   -- so, we just perform the cvar binding and proceed with the alt expression.
   | Evaluate (Case mexpr cvar alts) <- code
   , (Alt _ expr):_ <- defaultAlts alts =
     let binds = [(cvar, mexpr)]
-    in Just (StkRuleEvalCaseDefault
-            ,[state { exec_scope = liftBinds binds scope
-                    , exec_code = Evaluate expr }])
+    in ( StkRuleEvalCaseDefault
+       , [state { exec_scope = liftBinds binds scope
+                , exec_code = Evaluate expr }])
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -176,9 +177,9 @@ stackReduce state @ ExecState { exec_stack = stack
   | Evaluate (Case mexpr cvar alts) <- code
   , not (isValueForm mexpr scope) =
     let frame = CaseFrame cvar alts scope
-    in Just (StkRuleEvalCaseNonVal
-            ,[state { exec_stack = pushStack frame stack
-                    , exec_code = Evaluate mexpr }])
+    in (StkRuleEvalCaseNonVal
+       , [state { exec_stack = pushStack frame stack
+                , exec_code = Evaluate mexpr }])
 
   -- Return forms the `Code`.
 
@@ -188,29 +189,29 @@ stackReduce state @ ExecState { exec_stack = stack
   -- memoization on values that we have seen.
   | Just (UpdateFrame frm_name, stack') <- popStack stack
   , Return (Var (Id name ty)) <- code =
-  Just (StkRuleReturnUpdateVar
-       ,[state { exec_stack = stack'
-               , exec_scope = insertRedirect (frm_name, name) scope
-               , exec_code = Return (Var (Id name ty)) }])
+  ( StkRuleReturnUpdateVar
+  , [state { exec_stack = stack'
+           , exec_scope = insertRedirect (frm_name, name) scope
+           , exec_code = Return (Var (Id name ty)) }])
 
   -- If the variable we are returning does not have a `Var` in it at the
   -- immediate top level, then we have to insert it into the `Scope` directly.
   | Just (UpdateFrame frm_name, stack') <- popStack stack
   , Return expr <- code =
-  Just (StkRuleReturnUpdateNonVar
-       ,[state { exec_stack = stack'
-               , exec_scope = insertEnvObj (frm_name, ExprObj expr) scope
-               , exec_code = Return expr }])
+  ( StkRuleReturnUpdateNonVar
+  , [state { exec_stack = stack'
+           , exec_scope = insertEnvObj (frm_name, ExprObj expr) scope
+           , exec_code = Return expr }])
 
   -- In the event that we are returning and we have a `CaseFrame` waiting for
   -- us at the top of the stack, we would simply inject it into the case
   -- expression. We do a lot of assumptions here about the form of expressions!
   | Just (CaseFrame cvar alts frm_scope, stack') <- popStack stack
   , Return expr <- code =
-  Just (StkRuleReturnCase
-       ,[state { exec_stack = stack'
-               , exec_scope = frm_scope
-               , exec_code = Evaluate (Case expr cvar alts) }])
+  ( StkRuleReturnCase
+  , [state { exec_stack = stack'
+           , exec_scope = frm_scope
+           , exec_code = Evaluate (Case expr cvar alts) }])
 
   -- When we have an `ApplyFrame` on the top of the stack, things might get a
   -- bit tricky, since we need to make sure that the thing we end up returning
@@ -219,20 +220,20 @@ stackReduce state @ ExecState { exec_stack = stack
   | Just (ApplyFrame aexpr, stack') <- popStack stack
   , Return (Lam b lexpr) <- code =
   let binds = [(b, aexpr)]
-  in Just (StkRuleReturnApplyLam
-          ,[state { exec_stack = stack'
-                  , exec_scope = liftBinds binds scope
-                  , exec_code = Evaluate lexpr }])
+  in ( StkRuleReturnApplyLam
+     , [state { exec_stack = stack'
+              , exec_scope = liftBinds binds scope
+              , exec_code = Evaluate lexpr }])
 
   -- When we have an `DataCon` application chain, we need to tack on the
   -- expression in the `ApplyFrame` at the end.
   | Just (ApplyFrame aexpr, stack') <- popStack stack
   , Return dexpr <- code
   , (Data _):xs <- unApp dexpr =
-  Just (StkRuleReturnApplyData
-       ,[state { exec_stack = stack'
-               , exec_scope = scope
-               , exec_code = Return (App dexpr aexpr) }])
+  ( StkRuleReturnApplyData
+  , [state { exec_stack = stack'
+           , exec_scope = scope
+           , exec_code = Return (App dexpr aexpr) }])
 
   -- When we have an symbolic variable pointer, the best we can do is make
   -- another variable and insert it into the `Scope`. This is the last
@@ -244,11 +245,11 @@ stackReduce state @ ExecState { exec_stack = stack
   let (sname, confs') = freshSeededName (idName sid) confs
       sres = Id sname (TyApp (typeOf sid) (typeOf aexpr))
       sym_app = Symbol sres (Just (App (Var sid) aexpr, scope))
-  in Just (StkRuleReturnApplySym
-          ,[state { exec_stack = stack'
-                  , exec_scope = insertEnvObj (sname, SymObj sym_app) scope
-                  , exec_code = Return (Var sres)
-                  , exec_names = confs' }])
+  in ( StkRuleReturnApplySym
+     , [state { exec_stack = stack'
+              , exec_scope = insertEnvObj (sname, SymObj sym_app) scope
+              , exec_code = Return (Var sres)
+              , exec_names = confs' }])
 
-  | otherwise = Nothing
+  | otherwise = (StkError, [])
 

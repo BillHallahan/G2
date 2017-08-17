@@ -37,7 +37,11 @@ main = do
 
     let init_state = initState binds tycons m_assume m_assert entry
 
-    -- putStrLn $ show init_state
+    putStrLn $ mkStateStr init_state
+
+    hhp <- getZ3ProcessHandles
+
+    in_out <- run smt2 hhp n_val init_state
 
     putStrLn "End"
     
