@@ -2,10 +2,15 @@ module G2.Internals.Interface ( initState
                               , run) where
 
 import G2.Internals.Language
+
 import G2.Internals.Preprocessing.Interface
+
 import G2.Internals.Execution.Interface
 import G2.Internals.Execution.Support
+
+import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
+
 import qualified G2.Internals.Language.SymLinks as Sym
 
 import G2.Lib.Printers
@@ -95,7 +100,7 @@ run con hhp n state = do
     let exec_states = runNDepth [exec_state] n
     let states = map (toState preproc_state) exec_states
     putStrLn ("\nNumber of execution states: " ++ (show (length states)))
-    return undefined
+    satModelOutputs con hhp states
 
 {-
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]

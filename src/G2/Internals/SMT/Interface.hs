@@ -1,7 +1,7 @@
-module G2.Internals.SMT.Interface (smtReady) where
-    -- ( satModelOutputs
-    -- , satModelOutput
-    -- , smtReady) where
+module G2.Internals.SMT.Interface
+    ( satModelOutputs
+    , satModelOutput
+    , smtReady) where
 
 import Data.List
 import qualified Data.Map as M
@@ -12,9 +12,10 @@ import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
-{-
+
 -- | satModelOutput
--- Given an smt converter and a list of states, checks if each is satisfiable.
+-- Given an smt converter and a list of states, checks if each of
+-- those that match the criteria of smtReady is satisfiable.
 -- Returns a list of possible input/output pairs for the satisifiable states
 satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [([Expr], Expr)]
 satModelOutputs con io s = do
@@ -22,11 +23,14 @@ satModelOutputs con io s = do
           . filter (\(s', es, e) -> s' == SAT && isJust es && isJust e)
           =<< mapM (satModelOutput con io) (smtReady s)
 
+
 -- | checkSatModelOutput
 -- Given an smt converter and a list state, checks if the states current expression
 -- and path constraints are satisfiable.  If they are, one possible input and output
 -- are also returned
 satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe [Expr], Maybe Expr)
+satModelOutput = undefined
+{-
 satModelOutput con io s = do
     let headers = toSMTHeaders s
     let formula = toSolver con headers
