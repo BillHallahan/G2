@@ -3,8 +3,8 @@
 module G2.Internals.Execution.Interface
     (runNDepth) where
 
-import G2.Internals.Execution.Stack.Rules
 import G2.Internals.Execution.Support
+import G2.Internals.Execution.Rules
 
 runNDepth :: [ExecState] -> Int -> [ExecState]
 runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)

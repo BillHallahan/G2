@@ -38,7 +38,7 @@ toSMTHeaders s =
     (map pathConsToSMT $ path_conds s)
 
 pathConsToSMT :: PathCond -> SMTHeader
-pathConsToSMT (AltCond e a b) =
+pathConsToSMT (AltCond a e b) =
     let
         exprSMT = exprToSMT e
         altSMT = altToSMT a

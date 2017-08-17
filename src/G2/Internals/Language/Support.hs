@@ -41,7 +41,7 @@ data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
 -- | Path conditions represent logical constraints on our current execution
 -- path. We can have path constraints enforced due to case/alt branching, due
 -- to assertion / assumptions made, or some externally coded factors.
-data PathCond = AltCond Expr AltMatch Bool
+data PathCond = AltCond AltMatch Expr Bool
               | ExtCond Expr Bool
               deriving (Show, Eq, Read)
 
@@ -110,7 +110,7 @@ instance ASTContainer AlgDataTy Type where
 
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
-    containedASTs (AltCond e _ _) = [e]
+    containedASTs (AltCond _ e _) = [e]
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
     modifyContainedASTs f (AltCond e a b) =
