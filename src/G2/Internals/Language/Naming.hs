@@ -1,5 +1,8 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module G2.Internals.Language.Naming
     ( NameGen
+    , Renamable (rename)
     , nameToStr
     , mkNameGen
     , freshName
@@ -54,35 +57,55 @@ allNames prog = nub (binds ++ expr_names ++ type_names)
         typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
         typeTopNames _ = []
 
-rename :: Name -> Name -> Program -> Program
-rename old new = modifyASTs renameExpr . map renameBinds
-    where
-        renameBinds :: Binds -> Binds 
-        renameBinds = map renameT
+class Renamable a where
+    rename :: Name -> Name -> a -> a
 
-        renameId :: Id -> Id
-        renameId i@(Id n t) = if n == old then Id new t else i
+instance Renamable Name where
+    rename old new n = if old == n then new else n
 
-        renameT :: (Id, Expr) -> (Id, Expr)
-        renameT (i@(Id n t), e) = (renameId i, e)
+instance Renamable Id where
+    rename old new (Id n t) = Id (rename old new n) (rename old new t)
 
-        renameExpr :: Expr -> Expr
-        renameExpr (Var i) = Var (renameId i)
-        renameExpr (Data d) = Data (renameDataCon d)
-        renameExpr (Lam i e) = Lam (renameId i) e
-        renameExpr (Let n e) = Let (renameBinds n) e
-        renameExpr (Case e i a) = Case e (renameId i) (map renameAlt a)
+instance Renamable Expr where
+    rename old new = modify rename'
+        where
+            rename' :: Expr -> Expr
+            rename' (Var i) = Var (rename old new i)
+            rename' (Data d) = Data (rename old new d)
+            rename' (Lam i e) = Lam (rename old new i) e
+            rename' (Let n e) = Let (rename old new n) e
+            rename' (Case e i a) =
+                Case e (rename old new i) (rename old new a)
+            rename' (Type t) = Type (rename old new t)
+            rename' e = e
 
-        renameDataCon :: DataCon -> DataCon
-        renameDataCon d@(DataCon n t ts) = if n == old then DataCon new t ts else d
-        renameDataCon d = d
+instance Renamable Type where
+    rename old new = modify rename'
+        where
+            rename' :: Type -> Type
+            rename' (TyVar n t) = TyVar (rename old new n) t
+            rename' (TyConApp n ts) = TyConApp (rename old new n) ts
+            rename' (TyForAll tb t) = TyForAll (rename old new tb) t
+            rename' t = t
 
-        renameAlt :: Alt -> Alt
-        renameAlt (Alt am e) = Alt (renameAltMatch am) e
+instance Renamable Alt where
+    rename old new (Alt am e) = Alt (rename old new am) (rename old new e)
 
-        renameAltMatch :: AltMatch -> AltMatch
-        renameAltMatch (DataAlt dc i) = DataAlt (renameDataCon dc) (map renameId i)
-        renameAltMatch am = am 
+instance Renamable DataCon where
+    rename old new (DataCon n t ts) =
+        DataCon (rename old new n) (rename old new t) (rename old new ts)
+
+instance Renamable AltMatch where
+    rename old new (DataAlt dc i) =
+        DataAlt (rename old new dc) (rename old new i)
+    rename _ _ am = am
+
+instance Renamable TyBinder where
+    rename old new (NamedTyBndr n) = NamedTyBndr (rename old new n)
+    rename _ _ tb = tb
+
+instance (Functor f, Renamable a) => Renamable (f a) where
+    rename old new = fmap (rename old new)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _) (NameGen hm) =

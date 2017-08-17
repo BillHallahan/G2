@@ -69,7 +69,6 @@ mkAssumeAssert p (Just f) var_ids inter pre_ex b =
             in
             App prim_app inter
         Right s -> error s
-
 mkAssumeAssert _ Nothing _ e _ _ = e
 
 findFunc :: String -> Binds -> Either (Id, Expr) String
