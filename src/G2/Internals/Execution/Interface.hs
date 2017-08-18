@@ -1,6 +1,7 @@
 -- | Interface
 --   Module for interacting and interfacing with the symbolic execution engine.
 module G2.Internals.Execution.Interface( runNDepth
+                                       , runNDepthHist
                                        , runNDepthCatchError) where
 
 import G2.Internals.Execution.Support
@@ -16,6 +17,19 @@ runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)
             let
                 (_, red) = stackReduce $ s
                 s'' = map (\s' -> (s', n - 1)) red
+            in
+            runNDepth' (s'' ++ xs)
+
+runNDepthHist :: [ExecState] -> Int -> [[(Maybe Rule, ExecState)]]
+runNDepthHist s n = runNDepth' (map (\s' -> ([(Nothing, s')], n)) s)
+    where
+        runNDepth' :: [([(Maybe Rule, ExecState)], Int)] -> [[(Maybe Rule, ExecState)]]
+        runNDepth' [] = []
+        runNDepth' ((rss, 0):xs) = rss:runNDepth' xs
+        runNDepth' ((rss@((r, s):_), n):xs) =
+            let
+                (r', red) = stackReduce $ s
+                s'' = map (\s' -> ((Just r', s'):rss, n - 1)) red
             in
             runNDepth' (s'' ++ xs)
 

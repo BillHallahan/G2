@@ -7,6 +7,7 @@ import G2.Internals.Preprocessing.Interface
 
 import G2.Internals.Execution.Interface
 import G2.Internals.Execution.Support
+import G2.Internals.Execution.Rules
 
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
@@ -93,18 +94,34 @@ findFunc s b =
         x:xs -> Right $ "Multiple functions with name " ++ s
         [] -> Right $ "No functions with name " ++ s
 
+
+elimNeighboringDups :: Eq a => [a] -> [a]
+elimNeighboringDups (x:y:xs) = if x == y then elimNeighboringDups (x:xs) else x:elimNeighboringDups (y:xs)
+elimNeighboringDups x = x
+
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
 run con hhp n state = do
     let preproc_state = runPreprocessing state
     let exec_state = fromState preproc_state
     
-    let exec_states_error = runNDepthCatchError [exec_state] n
+    let exec_states = runNDepthHist [exec_state] n
 
-    case exec_states_error of
-        Left xs -> return []
-        Right x -> do
-            putStrLn $ show x
-            return []
+    putStrLn ("\nNumber of states: " ++ (show (length exec_states)))
+
+    let exec_states_error = filter (any (\(r, _) -> r == Just RuleError)) exec_states
+
+    putStrLn ("\nNumber of error states: " ++ (show (length exec_states_error)))
+
+    let red_error = map (reverse . elimNeighboringDups) exec_states_error
+
+
+    mapM_ (mapM_ (\(r, s) -> do
+        putStrLn . show $ r
+        putStrLn . show . exec_code $ s
+        putStrLn "")) red_error
+
+
+    return []
 
     -- let exec_states = runNDepth [exec_state] n
     -- let states = map (toState preproc_state) exec_states

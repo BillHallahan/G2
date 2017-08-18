@@ -288,5 +288,5 @@ stackReduce state @ ExecState { exec_stack = stack
                     , exec_code = Return (Var sres)
                     , exec_names = confs' }])
 
-    | otherwise = (RuleError, [])
+    | otherwise = (RuleError, [state]) -- TODO: SET THIS BACK TO RETURN []
 
