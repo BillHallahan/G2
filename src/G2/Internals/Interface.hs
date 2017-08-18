@@ -100,7 +100,9 @@ run con hhp n state = do
     let exec_states = runNDepth [exec_state] n
     let states = map (toState preproc_state) exec_states
     putStrLn ("\nNumber of execution states: " ++ (show (length states)))
-    satModelOutputs con hhp states
+    ms <- satModelOutputs con hhp states
+    mapM (\(m, s) -> putStrLn ("Model:\n" ++ show m ++ "\nSMTAST:\n" ++ show s)) ms
+    return []
 
 {-
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]

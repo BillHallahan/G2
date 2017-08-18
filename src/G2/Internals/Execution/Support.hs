@@ -57,7 +57,7 @@ fromState State { expr_env = eenv
                            , exec_code = ex_code
                            , exec_names = confs
                            , exec_paths = ex_paths }
-    ex_eenv = ExecExprEnv $ M.fromList $ map eenvToExecEnv $ M.toList eenv
+    ex_eenv = ExecExprEnv $ M.map (Right . ExprObj) eenv
     ex_code = Evaluate expr
     ex_paths = map condToExecCond paths
 
