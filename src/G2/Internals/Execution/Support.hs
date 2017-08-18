@@ -42,8 +42,8 @@ condToExecCond (AltCond am expr b) = ExecAltCond am expr b empty_exec_eenv
 condToExecCond (ExtCond expr b) = ExecExtCond expr b empty_exec_eenv
 
 -- | `ExprEnv` kv pairs to `ExecExprEnv`'s.
-eenvToExecEnv :: (Name, Expr) -> (Name, Either Name EnvObj)
-eenvToExecEnv (name, expr) = (name, Right (ExprObj expr))
+eenvToExecEnv :: ExprEnv -> ExecExprEnv
+eenvToExecEnv = ExecExprEnv . M.map (Right . ExprObj)
 
 -- | `State` to `ExecState`.
 fromState :: State -> ExecState
@@ -57,13 +57,19 @@ fromState State { expr_env = eenv
                            , exec_code = ex_code
                            , exec_names = confs
                            , exec_paths = ex_paths }
-    ex_eenv = ExecExprEnv $ M.map (Right . ExprObj) eenv
+    ex_eenv = eenvToExecEnv eenv
     ex_code = Evaluate expr
     ex_paths = map condToExecCond paths
 
 -- | `ExecState` to `State`.
 toState :: State -> ExecState -> State
-toState = undefined
+toState s e_s = State { expr_env = undefined
+                      , type_env = type_env s
+                      , curr_expr = execCodeExpr . exec_code $ e_s
+                      , name_gen = name_gen s
+                      , path_conds = undefined
+                      , sym_links = sym_links s
+                      , func_table = func_table s }
 
 -- | Symbolic values have an `Id` for their name, as well as an optional
 -- scoping context to denote what they are derived from.
@@ -113,6 +119,10 @@ data EnvObj = ExprObj Expr
 data ExecCode = Evaluate Expr
               | Return Expr
               deriving (Show, Eq, Read)
+
+execCodeExpr :: ExecCode -> Expr
+execCodeExpr (Evaluate e) = e
+execCodeExpr (Return e) = e
 
 -- | The current logical conditions up to our current path of execution.
 -- Here the `ExecAltCond` denotes conditions from matching on data constructors
