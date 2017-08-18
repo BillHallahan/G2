@@ -57,7 +57,6 @@ mkCurrExpr m_assume m_assert s ng b =
                 
                 var_ex = Var f
                 app_ex = foldr (\vi e -> App e vi) var_ex var_ids
-                lam_ex = foldr (\i e -> Lam i e) app_ex ids
 
                 (name, ng'') = freshName ng'
                 id_name = Id name (typeOf f)
@@ -67,7 +66,7 @@ mkCurrExpr m_assume m_assert s ng b =
                 assert_ex = mkAssumeAssert Assert m_assert var_ids var_name assume_ex b
 
                 
-                let_ex = Let [(id_name, lam_ex)] assert_ex
+                let_ex = Let [(id_name, app_ex)] assert_ex
             in
             (let_ex, ng'')
         Right s -> error s
