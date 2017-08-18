@@ -1,7 +1,7 @@
 -- | Interface
 --   Module for interacting and interfacing with the symbolic execution engine.
-module G2.Internals.Execution.Interface
-    (runNDepth) where
+module G2.Internals.Execution.Interface( runNDepth
+                                       , runNDepthCatchError) where
 
 import G2.Internals.Execution.Support
 import G2.Internals.Execution.Rules
@@ -14,9 +14,27 @@ runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)
         runNDepth' ((s, 0):xs) = s:runNDepth' xs
         runNDepth' ((s, n):xs) =
             let
-                s'' = map (\s' -> (s', n - 1)) (snd $ stackReduce s)
+                (_, red) = stackReduce $ s
+                s'' = map (\s' -> (s', n - 1)) red
             in
             runNDepth' (s'' ++ xs)
+
+runNDepthCatchError :: [ExecState] -> Int -> Either [ExecState] ExecState
+runNDepthCatchError s n = runNDepth' (map (\s' -> (s', n)) s)
+    where
+        runNDepth' :: [(ExecState, Int)] -> Either [ExecState] ExecState
+        runNDepth' [] = Left []
+        runNDepth' ((s, 0):xs) =
+            case runNDepth' xs of
+                Left xs' -> Left (s:xs')
+                Right x -> Right x
+        runNDepth' ((s, n):xs) =
+            let
+                (r, red) = stackReduce $ s
+                s'' = map (\s' -> (s', n - 1)) red
+            in
+            if r == RuleError then Right s else runNDepth' (s'' ++ xs)
+
 {- TODO: What here do we need?
 
     ( initState

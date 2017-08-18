@@ -97,12 +97,21 @@ run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
 run con hhp n state = do
     let preproc_state = runPreprocessing state
     let exec_state = fromState preproc_state
-    let exec_states = runNDepth [exec_state] n
-    let states = map (toState preproc_state) exec_states
-    putStrLn ("\nNumber of execution states: " ++ (show (length states)))
-    ms <- satModelOutputs con hhp states
-    mapM (\(m, s) -> putStrLn ("Model:\n" ++ show m ++ "\nSMTAST:\n" ++ show s)) ms
-    return []
+    
+    let exec_states_error = runNDepthCatchError [exec_state] n
+
+    case exec_states_error of
+        Left xs -> return []
+        Right x -> do
+            putStrLn $ show x
+            return []
+
+    -- let exec_states = runNDepth [exec_state] n
+    -- let states = map (toState preproc_state) exec_states
+    -- putStrLn ("\nNumber of execution states: " ++ (show (length states)))
+    -- ms <- satModelOutputs con hhp states
+    -- mapM (\(m, s) -> putStrLn ("Model:\n" ++ show m ++ "\nSMTAST:\n" ++ show s)) ms
+    -- return []
 
 {-
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
