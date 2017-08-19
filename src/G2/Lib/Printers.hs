@@ -1,8 +1,11 @@
 module G2.Lib.Printers where
 
 import qualified G2.Internals.Language.SymLinks as Sym
+import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
+import G2.Internals.Execution.Support
+import G2.Internals.Execution.Rules
 
 import Data.List
 import qualified Data.Map as M
@@ -195,3 +198,75 @@ mkLitHaskell (LitBool b) = show b
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
+
+injNewLine :: [String] -> String
+injNewLine strs = intercalate "\n" strs
+
+injTuple :: [String] -> String
+injTuple strs = "(" ++ (intercalate "," strs) ++ ")"
+
+-- | More raw version of state dumps.
+pprExecStateStr :: ExecState -> String
+pprExecStateStr ex_state = injNewLine acc_strs
+  where
+    eenv_str = pprExecEEnvStr (exec_eenv ex_state)
+    stack_str = pprExecStackStr (exec_stack ex_state)
+    code_str = pprExecCodeStr (exec_code ex_state)
+    names_str = pprExecNamesStr (exec_names ex_state)
+    paths_str = pprExecPathsStr (exec_paths ex_state)
+    acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
+               , "----- [Env] -----------------------"
+               , eenv_str
+               , "----- [Stack] ---------------------"
+               , stack_str
+               , "----- [Code] ----------------------"
+               , code_str
+               , "----- [Names] ---------------------"
+               , names_str
+               , "----- [Paths] ---------------------"
+               , paths_str
+               , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
+
+pprExecEEnvStr :: ExecExprEnv -> String
+pprExecEEnvStr eenv = injNewLine kv_strs
+  where
+    kv_strs = map show $ execExprEnvToList eenv
+
+pprExecStackStr :: ExecStack -> String
+pprExecStackStr stack = injNewLine frame_strs
+  where
+    frame_strs = map pprExecFrameStr $ execStackToList stack
+
+pprExecFrameStr :: Frame -> String
+pprExecFrameStr frame = show frame
+
+pprExecCodeStr :: ExecCode -> String
+pprExecCodeStr code = show code
+
+pprExecNamesStr :: NameGen -> String
+pprExecNamesStr _ = ""
+
+pprExecPathsStr :: [ExecCond] -> String
+pprExecPathsStr paths = injNewLine cond_strs
+  where
+    cond_strs = map pprExecCondStr paths
+
+pprExecCondStr :: ExecCond -> String
+pprExecCondStr (ExecAltCond am expr b _) = injTuple acc_strs
+  where
+    am_str = show am
+    expr_str = show expr
+    b_str = show b
+    acc_strs = [am_str, expr_str, b_str]
+pprExecCondStr (ExecExtCond am b _) = injTuple acc_strs
+  where
+    am_str = show am
+    b_str = show b
+    acc_strs = [am_str, b_str]
+
+pprRunHistStr :: ([Rule], ExecState) -> String
+pprRunHistStr (rules, ex_state) = injNewLine acc_strs
+  where
+    rules_str = show rules
+    state_str = pprExecStateStr ex_state
+    acc_strs = [rules_str, state_str]
