@@ -163,7 +163,6 @@ instance ASTContainer Id Expr where
 
   modifyContainedASTs _ i = i
 
-
 instance ASTContainer Id Type where
   containedASTs (Id _ t) = [t]
 

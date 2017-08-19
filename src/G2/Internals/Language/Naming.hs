@@ -2,7 +2,8 @@
 
 module G2.Internals.Language.Naming
     ( NameGen
-    , Renamable (rename)
+    , Renamable (renaming)
+    , rename
     , nameToStr
     , mkNameGen
     , freshName
@@ -57,55 +58,68 @@ allNames prog = nub (binds ++ expr_names ++ type_names)
         typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
         typeTopNames _ = []
 
+rename :: Renamable a => Name -> NameGen -> a -> (a, NameGen)
+rename n ng x =
+    let
+        (new, ng') = freshSeededName n ng
+    in
+    (renaming n new x, ng')
+
+-- |Renamable a
+-- Given an old name and a new name, replaces the old name with the new name
+-- everywhere in the passed type.
+-- renaming should be used only to define an instance.  Use rename to perform the
+-- renaming instead
 class Renamable a where
-    rename :: Name -> Name -> a -> a
+    renaming :: Name -> Name -> a -> a
 
 instance Renamable Name where
-    rename old new n = if old == n then new else n
+    renaming old new n = if old == n then new else n
 
 instance Renamable Id where
-    rename old new (Id n t) = Id (rename old new n) (rename old new t)
+    renaming old new (Id n t) = Id (renaming old new n) (renaming old new t)
 
 instance Renamable Expr where
-    rename old new = modify rename'
+    renaming old new = modify renaming'
         where
-            rename' :: Expr -> Expr
-            rename' (Var i) = Var (rename old new i)
-            rename' (Data d) = Data (rename old new d)
-            rename' (Lam i e) = Lam (rename old new i) e
-            rename' (Let n e) = Let (rename old new n) e
-            rename' (Case e i a) =
-                Case e (rename old new i) (rename old new a)
-            rename' (Type t) = Type (rename old new t)
-            rename' e = e
+            renaming' :: Expr -> Expr
+            renaming' (Var i) = Var (renaming old new i)
+            renaming' (Data d) = Data (renaming old new d)
+            renaming' (Lam i e) = Lam (renaming old new i) e
+            renaming' (Let n e) = Let (renaming old new n) e
+            renaming' (Case e i a) =
+                Case e (renaming old new i) (renaming old new a)
+            renaming' (Type t) = Type (renaming old new t)
+            renaming' e = e
 
 instance Renamable Type where
-    rename old new = modify rename'
+    renaming old new = modify renaming'
         where
-            rename' :: Type -> Type
-            rename' (TyVar n t) = TyVar (rename old new n) t
-            rename' (TyConApp n ts) = TyConApp (rename old new n) ts
-            rename' (TyForAll tb t) = TyForAll (rename old new tb) t
-            rename' t = t
+            renaming' :: Type -> Type
+            renaming' (TyVar n t) = TyVar (renaming old new n) t
+            renaming' (TyConApp n ts) = TyConApp (renaming old new n) ts
+            renaming' (TyForAll tb t) = TyForAll (renaming old new tb) t
+            renaming' t = t
 
 instance Renamable Alt where
-    rename old new (Alt am e) = Alt (rename old new am) (rename old new e)
+    renaming old new (Alt am e) = Alt (renaming old new am) (renaming old new e)
 
 instance Renamable DataCon where
-    rename old new (DataCon n t ts) =
-        DataCon (rename old new n) (rename old new t) (rename old new ts)
+    renaming old new (DataCon n t ts) =
+        DataCon (renaming old new n) (renaming old new t) (renaming old new ts)
+    renaming _ _ d = d
 
 instance Renamable AltMatch where
-    rename old new (DataAlt dc i) =
-        DataAlt (rename old new dc) (rename old new i)
-    rename _ _ am = am
+    renaming old new (DataAlt dc i) =
+        DataAlt (renaming old new dc) (renaming old new i)
+    renaming _ _ am = am
 
 instance Renamable TyBinder where
-    rename old new (NamedTyBndr n) = NamedTyBndr (rename old new n)
-    rename _ _ tb = tb
+    renaming old new (NamedTyBndr n) = NamedTyBndr (renaming old new n)
+    renaming _ _ tb = tb
 
 instance (Functor f, Renamable a) => Renamable (f a) where
-    rename old new = fmap (rename old new)
+    renaming old new = fmap (renaming old new)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _) (NameGen hm) =
