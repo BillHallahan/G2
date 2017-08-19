@@ -105,55 +105,56 @@ stackReduce state @ ExecState { exec_stack = stack
     -- Our current thing is a value form, which means we can return it.
     | Evaluate expr <- code
     , isValueForm expr eenv =
-          ( RuleEvalVal
-          , [state { exec_code = Return expr }])
+        ( RuleEvalVal
+        , [state { exec_code = Return expr }])
 
-    -- If our variable points to something on the heap, we first push the current
-    -- name of the variable onto the stack and evaluate the expression that it
-    -- points to. After the latter is done evaluating, we pop the stack to add
-    -- a redirection pointer into the heap.
+    -- If our variable points to something on the heap, we first push the
+    -- current name of the variable onto the stack and evaluate the expression
+    -- that it points to. After the latter is done evaluating, we pop the
+    -- stack to add a redirection pointer into the heap.
     | Evaluate (Var var) <- code
     , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv =
-          let frame = UpdateFrame (idName var)
-          in ( RuleEvalVar
-             , [state { exec_stack = pushExecStack frame stack
-                      , exec_code = Evaluate expr }])
+        let frame = UpdateFrame (idName var)
+        in ( RuleEvalVar
+           , [state { exec_stack = pushExecStack frame stack
+                    , exec_code = Evaluate expr }])
 
     -- If we encounter a vairable that is in eenv, we treated it as a symbolic
-    -- object and subject it to uninterpreted evaluation later on. This is done
-    -- by injecting it into the heap and then evaluating the same expression
-    -- again. This is the essense of memoization / single-evaluation in laziness.
+    -- object and subject it to uninterpreted evaluation later on. This is
+    -- done by injecting it into the heap and then evaluating the same
+    -- expression again. This is the essense of memoization / single 
+    -- evaluation in laziness.
     | Evaluate (Var var) <- code
     , Nothing <- lookupExecExprEnv (idName var) eenv =
-          let (sname, re) = freshSeededName (idName var) confs
-              svar = Id sname (typeOf var)
-              -- Nothing denotes that this is a "base" symbolic value that is not
-              -- dependent on any other expressions.
-              sym = Symbol svar Nothing
-          in ( RuleEvalUnInt
-             , [state { exec_eenv = insertEnvObj (idName var) (SymObj sym) eenv
-                      , exec_code = Evaluate (Var var)
-                      , exec_names = re}])
+        let (sname, re) = freshSeededName (idName var) confs
+            svar = Id sname (typeOf var)
+            -- Nothing shows that this is a "base" symbolic value that is not
+            -- dependent on any other expressions.
+            sym = Symbol svar Nothing
+        in ( RuleEvalUnInt
+           , [state { exec_eenv = insertEnvObj (idName var) (SymObj sym) eenv
+                    , exec_code = Evaluate (Var var)
+                    , exec_names = re}])
 
     -- Push application RHS onto the stack. This is essentially the same as the
     -- original STG rules, but we pretend that every function is (appropriately)
     -- single argument. However one problem is that eenv sharing has a redundant
     -- representation because long `App` chains will all share the same eenv.
-    -- However given actual lazy evaluations within Haskell, all the `ExecExprEnv`s at
-    -- each frame would really be stored in a single location on the actuall
-    -- Haskell heap during execution.
+    -- However given actual lazy evaluations within Haskell, all the
+    -- `ExecExprEnv`s at each frame would really be stored in a single
+    -- location on the actual Haskell heap during execution.
     | Evaluate (App fexpr aexpr) <- code =
-          let frame = ApplyFrame aexpr
-          in ( RuleEvalApp
-             , [state { exec_stack = pushExecStack frame stack
-                      , exec_code = Evaluate fexpr }])
+        let frame = ApplyFrame aexpr
+        in ( RuleEvalApp
+           , [state { exec_stack = pushExecStack frame stack
+                    , exec_code = Evaluate fexpr }])
 
-    -- Lift all the let bindings into the environment and continue with eenv and
-    -- continue with evaluation of the let expression.
+    -- Lift all the let bindings into the environment and continue with eenv
+    -- and continue with evaluation of the let expression.
     | Evaluate (Let binds expr) <- code =
-          ( RuleEvalLet
-          , [state { exec_eenv = liftBinds binds eenv
-                   , exec_code = Evaluate expr }])
+        ( RuleEvalLet
+        , [state { exec_eenv = liftBinds binds eenv
+                 , exec_code = Evaluate expr }])
 
     -- | If we are pointing to a symbolic value in the environment, handle it
     -- appropriately by branching on every `Alt`.
@@ -161,49 +162,51 @@ stackReduce state @ ExecState { exec_stack = stack
     , Just (SymObj sym) <- lookupExecExprEnv (idName var) eenv
     , (ndefs, defs) <- (nonDefaultAlts alts, defaultAlts alts)
     , length (ndefs ++ defs) > 0 =
-          let poss = map (\(Alt a e) -> (ExecAltCond a (Var var) True eenv, e)) ndefs
-              ndef_sts = map (\(c, e) -> liftSymAlt state cvar sym e [c]) poss
-              -- Now make the negatives
-              negs = map (\(c, _) -> negateExecCond c) poss
-              def_sts = map (\(Alt _ e) -> liftSymAlt state cvar sym e negs) defs
-          in (RuleCaseSym, ndef_sts ++ def_sts)
+        let poss = map (\(Alt a e) ->
+                         (ExecAltCond a (Var var) True eenv, e)) ndefs
+            ndef_sts = map (\(c, e) -> liftSymAlt state cvar sym e [c]) poss
+            -- Now make the negatives
+            negs = map (\(c, _) -> negateExecCond c) poss
+            def_sts = map (\(Alt _ e) -> liftSymAlt state cvar sym e negs) defs
+        in (RuleCaseSym, ndef_sts ++ def_sts)
 
     -- | Is the current expression able to match with a literal based `Alt`? If
     -- so, we do the cvar binding, and proceed with evaluation of the body.
     | Evaluate (Case (Lit lit) cvar alts) <- code
     , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
-          let binds = [(cvar, Lit lit)]
-              cond = ExecAltCond (LitAlt lit) (Lit lit) True eenv
-          in ( RuleEvalCaseLit
-             , [state { exec_eenv = liftBinds binds eenv
-                      , exec_code = Evaluate expr
-                      , exec_paths = cond : paths }])
+        let binds = [(cvar, Lit lit)]
+            cond = ExecAltCond (LitAlt lit) (Lit lit) True eenv
+        in ( RuleEvalCaseLit
+           , [state { exec_eenv = liftBinds binds eenv
+                    , exec_code = Evaluate expr
+                    , exec_paths = cond : paths }])
 
-    -- Is the current expression able to match a data consturctor based `Alt`? If
-    -- so, then we bind all the parameters to the appropriate arguments and
+    -- Is the current expression able to match a data consturctor based `Alt`?
+    -- If so, then we bind all the parameters to the appropriate arguments and
     -- proceed with the evaluation of the `Alt`'s expression. We also make sure
     -- to perform the cvar binding.
     | Evaluate (Case mexpr cvar alts) <- code
     , (Data dcon):args <- unApp mexpr
     , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
     , length params == length args =
-          let binds = (cvar, mexpr) : zip params args
-              cond = ExecAltCond (DataAlt dcon params) mexpr True eenv
-          in ( RuleEvalCaseData
-             , [state { exec_eenv = liftBinds binds eenv
-                      , exec_code = Evaluate expr
-                      , exec_paths = cond : paths}])
+        let binds = (cvar, mexpr) : zip params args
+            cond = ExecAltCond (DataAlt dcon params) mexpr True eenv
+        in ( RuleEvalCaseData
+           , [state { exec_eenv = liftBinds binds eenv
+                    , exec_code = Evaluate expr
+                    , exec_paths = cond : paths}])
 
-    -- | We are not able to match any of the stuff, and hit a DEFAULT instead? If
-    -- so, we just perform the cvar binding and proceed with the alt expression.
+    -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
+    -- If so, we just perform the cvar binding and proceed with the alt
+    -- expression.
     | Evaluate (Case mexpr cvar alts) <- code
     , (Alt _ expr):_ <- defaultAlts alts =
-          let binds = [(cvar, mexpr)]
-              cond = ExecAltCond Default mexpr True eenv
-          in ( RuleEvalCaseDefault
-             , [state { exec_eenv = liftBinds binds eenv
-                      , exec_code = Evaluate expr
-                      , exec_paths = cond : paths }])
+        let binds = [(cvar, mexpr)]
+            cond = ExecAltCond Default mexpr True eenv
+        in ( RuleEvalCaseDefault
+           , [state { exec_eenv = liftBinds binds eenv
+                    , exec_code = Evaluate expr
+                    , exec_paths = cond : paths }])
 
     -- Case evaluation also uses the stack in graph reduction based evaluation
     -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -212,10 +215,10 @@ stackReduce state @ ExecState { exec_stack = stack
     -- forms should be handled by other RuleEvalCase* rules.
     | Evaluate (Case mexpr cvar alts) <- code
     , not (isValueForm mexpr eenv) =
-          let frame = CaseFrame cvar alts eenv
-          in ( RuleEvalCaseNonVal
-             , [state { exec_stack = pushExecStack frame stack
-                      , exec_code = Evaluate mexpr }])
+        let frame = CaseFrame cvar alts
+        in ( RuleEvalCaseNonVal
+           , [state { exec_stack = pushExecStack frame stack
+                    , exec_code = Evaluate mexpr }])
 
     -- Return forms the `ExecCode`.
 
@@ -242,12 +245,11 @@ stackReduce state @ ExecState { exec_stack = stack
 
     -- In the event that we are returning and we have a `CaseFrame` waiting for
     -- us at the top of the stack, we would simply inject it into the case
-    -- expression. We do a lot of assumptions here about the form of expressions!
-    | Just (CaseFrame cvar alts frm_eenv, stack') <- popExecStack stack
+    -- expression. We do some assumptions here about the form of expressions!
+    | Just (CaseFrame cvar alts, stack') <- popExecStack stack
     , Return expr <- code =
         ( RuleReturnCase
         , [state { exec_stack = stack'
-                 , exec_eenv = frm_eenv
                  , exec_code = Evaluate (Case expr cvar alts) }])
 
     -- When we have an `ApplyFrame` on the top of the stack, things might get a

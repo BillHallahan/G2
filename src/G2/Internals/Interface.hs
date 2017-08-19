@@ -103,8 +103,10 @@ run con hhp n state = do
     let preproc_state = runPreprocessing state
     let exec_state = fromState preproc_state
     
-    let exec_states = runNDepthHist [exec_state] n
+    -- let exec_states = runNDepthHist [exec_state] n
+    let exec_states = runNDepthHist' [exec_state] n
 
+  {-
     putStrLn ("\nNumber of states: " ++ (show (length exec_states)))
 
     let exec_states_error = filter (any (\(r, _) -> r == Just RuleError)) exec_states
@@ -119,7 +121,8 @@ run con hhp n state = do
         putStrLn . show . exec_code $ s
         putStrLn "")) red_error
 
-
+  -}
+    mapM (putStrLn . pprRunHistStr) exec_states 
     return []
 
     -- let exec_states = runNDepth [exec_state] n
