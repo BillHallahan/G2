@@ -1,12 +1,14 @@
 module PeanoTest where
 
-import G2.Internals.Core.Language
+import G2.Internals.Language
 
 import TestUtils
 
-zeroPeano = Data $ DataCon "Zero" 0 (TyConApp "Peano" []) []
+zeroPeano =
+    Data $ DataCon (Name "Zero" (Just "Peano") 0) (TyConApp (Name "Peano" (Just "Peano") 0) []) []
 
-succPeano x = App (Data $ DataCon "Succ" 0 (TyConApp "Peano" []) []) x
+succPeano x =
+    App (Data $ DataCon (Name "Succ" (Just "Peano") 0) (TyConApp (Name "Peano" (Just "Peano") 0) []) []) x
 
 peano_0_4 :: [Expr] -> Bool
 peano_0_4 [a, b] = a `eqIgT` zeroPeano && b `eqIgT` (succPeano . succPeano . succPeano . succPeano $ zeroPeano)

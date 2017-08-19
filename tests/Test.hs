@@ -8,10 +8,10 @@ import Test.Tasty.HUnit
 import GHC
 
 import G2.Internals.Interface
-import G2.Internals.Core as G2
+import G2.Internals.Language as G2
 import G2.Internals.Translation
 import G2.Internals.Preprocessing
-import G2.Internals.Symbolic
+import G2.Internals.Execution
 import G2.Internals.SMT
 
 
@@ -20,8 +20,6 @@ import qualified Data.Map  as M
 import Data.Maybe
 import qualified Data.Monoid as Mon
 import Data.Tuple
-
-import UnitTests
 
 import PeanoTest
 import HigherOrderMathTest
@@ -48,7 +46,6 @@ tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
         , testFileTests
-        , unitTests
         ]
 
 -- Test based on examples that are also good for demos
@@ -66,8 +63,8 @@ sampleTests =
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
                 , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
-                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x <= 100), AtLeast 1]
-                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Const (CInt x)] -> x > 100), AtLeast 1]
+                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
+                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
         ]
@@ -76,7 +73,7 @@ sampleTests =
 testFileTests = 
     return . testGroup "Samples"
         =<< sequence [
-                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" Nothing Nothing "f" 3 [RForAll (\[Const (CInt x), Const (CInt y), (Const (CInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
+                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" Nothing Nothing "f" 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), (Lit (LitInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
