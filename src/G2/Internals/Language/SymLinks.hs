@@ -12,6 +12,7 @@ module G2.Internals.Language.SymLinks ( SymLinks
                                       , namesTypes) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import Prelude hiding (filter, map)
 
@@ -53,3 +54,10 @@ instance ASTContainer SymLinks Type where
     containedASTs sym = M.elems $ map' (\(_, t, _) -> t) sym
     modifyContainedASTs f m =
         map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m
+
+instance Renamable SymLinks where
+    renaming old new (SymLinks m) =
+        SymLinks
+        . M.mapKeys (renaming old new)
+        . M.map (\(n, t, i) ->
+            (renaming old new n, renaming old new t, i)) $ m 

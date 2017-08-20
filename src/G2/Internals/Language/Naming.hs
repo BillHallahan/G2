@@ -86,7 +86,11 @@ instance Renamable Expr where
             renaming' (Var i) = Var (renaming old new i)
             renaming' (Data d) = Data (renaming old new d)
             renaming' (Lam i e) = Lam (renaming old new i) e
-            renaming' (Let n e) = Let (renaming old new n) e
+            renaming' (Let b e) =
+                let
+                    b' = map (\(n, e') -> (renaming old new n, e')) b
+                in
+                Let b' e
             renaming' (Case e i a) =
                 Case e (renaming old new i) (renaming old new a)
             renaming' (Type t) = Type (renaming old new t)

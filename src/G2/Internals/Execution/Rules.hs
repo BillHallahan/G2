@@ -74,13 +74,13 @@ matchDataAlts dc alts = [a | a @ (Alt (DataAlt adc _) _) <- alts , dc == adc]
 matchLitAlts :: Lit -> [Alt] -> [Alt]
 matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
 
--- | Negate an `ExecCond`.
-negateExecCond :: ExecCond -> ExecCond
-negateExecCond (ExecAltCond a e b v) = ExecAltCond a e (not b) v
-negateExecCond (ExecExtCond e b v) = ExecExtCond e (not b) v
+-- | Negate an `PathCond`.
+negateExecCond :: PathCond -> PathCond
+negateExecCond (AltCond a e b) = AltCond a e (not b)
+negateExecCond (ExtCond e b) = ExtCond e (not b)
 
--- | Lift `ExecCond`s to a `ExecState` level.
-liftSymAlt :: ExecState -> Id -> Symbol -> Expr -> [ExecCond] -> ExecState
+-- | Lift `PathCond`s to a `ExecState` level.
+liftSymAlt :: ExecState -> Id -> Symbol -> Expr -> [PathCond] -> ExecState
 liftSymAlt state cvar sym aexpr conds = state'
   where
     eenv = exec_eenv state
@@ -163,7 +163,7 @@ stackReduce state @ ExecState { exec_stack = stack
     , (ndefs, defs) <- (nonDefaultAlts alts, defaultAlts alts)
     , length (ndefs ++ defs) > 0 =
         let poss = map (\(Alt a e) ->
-                         (ExecAltCond a (Var var) True eenv, e)) ndefs
+                         (AltCond a (Var var) True, e)) ndefs
             ndef_sts = map (\(c, e) -> liftSymAlt state cvar sym e [c]) poss
             -- Now make the negatives
             negs = map (\(c, _) -> negateExecCond c) poss
@@ -175,7 +175,7 @@ stackReduce state @ ExecState { exec_stack = stack
     | Evaluate (Case (Lit lit) cvar alts) <- code
     , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
         let binds = [(cvar, Lit lit)]
-            cond = ExecAltCond (LitAlt lit) (Lit lit) True eenv
+            cond = AltCond (LitAlt lit) (Lit lit) True
         in ( RuleEvalCaseLit
            , [state { exec_eenv = liftBinds binds eenv
                     , exec_code = Evaluate expr
@@ -190,7 +190,7 @@ stackReduce state @ ExecState { exec_stack = stack
     , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
     , length params == length args =
         let binds = (cvar, mexpr) : zip params args
-            cond = ExecAltCond (DataAlt dcon params) mexpr True eenv
+            cond = AltCond (DataAlt dcon params) mexpr True
         in ( RuleEvalCaseData
            , [state { exec_eenv = liftBinds binds eenv
                     , exec_code = Evaluate expr
@@ -202,7 +202,7 @@ stackReduce state @ ExecState { exec_stack = stack
     | Evaluate (Case mexpr cvar alts) <- code
     , (Alt _ expr):_ <- defaultAlts alts =
         let binds = [(cvar, mexpr)]
-            cond = ExecAltCond Default mexpr True eenv
+            cond = AltCond Default mexpr True
         in ( RuleEvalCaseDefault
            , [state { exec_eenv = liftBinds binds eenv
                     , exec_code = Evaluate expr

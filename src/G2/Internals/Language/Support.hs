@@ -45,7 +45,8 @@ data PathCond = AltCond AltMatch Expr Bool
               | ExtCond Expr Bool
               deriving (Show, Eq, Read)
 
--- | Function interpretation table. Maps functions to their interpretations.
+-- | Function interpretation table.
+-- Maps ADT constructors representing functions to their interpretations.
 newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
                     deriving (Show, Eq, Read)
 
@@ -71,6 +72,21 @@ insertFuncInterps fun int (FuncInterps fs) = FuncInterps (M.insert fun int fs)
 -- reasonable if the union of their key set all map to the same elements.
 unionFuncInterps :: FuncInterps -> FuncInterps -> FuncInterps
 unionFuncInterps (FuncInterps fs1) (FuncInterps fs2) = FuncInterps $ M.union fs1 fs2
+
+-- | Replaces all of the names old in state with a name seeded by new_seed
+renameState :: Name -> Name -> State -> State
+renameState old new_seed s =
+    let
+        (new, ng') = freshSeededName new_seed (name_gen s)
+    in
+    State { expr_env = renaming old new (expr_env s)
+          , type_env = renaming old new (type_env s)
+          , curr_expr = renaming old new (curr_expr s)
+          , name_gen = ng'
+          , path_conds = renaming old new (path_conds s)
+          , sym_links = renaming old new (sym_links s)
+          , func_table = renaming old new (func_table s) }
+
 
 -- | TypeClass definitions
 instance ASTContainer State Expr where
@@ -126,10 +142,18 @@ instance ASTContainer PathCond Type where
       where e' = modifyContainedASTs f e
             a' = modifyContainedASTs f a
 
-
-
 instance ASTContainer AlgDataTy DataCon where
     containedASTs (AlgDataTy _ dcs) = dcs
 
     modifyContainedASTs f (AlgDataTy ns dcs) = AlgDataTy ns (modifyContainedASTs f dcs)
 
+instance Renamable AlgDataTy where
+    renaming old new (AlgDataTy n dc) = AlgDataTy (renaming old new n) (renaming old new dc)
+
+instance Renamable PathCond where
+    renaming old new (AltCond am e b) = AltCond (renaming old new am) (renaming old new e) b
+    renaming old new (ExtCond e b) = ExtCond (renaming old new e) b
+
+instance Renamable FuncInterps where
+    renaming old new (FuncInterps m) =
+        FuncInterps . M.mapKeys (renaming old new) . M.map (\(n, i) -> (renaming old new n, i)) $ m

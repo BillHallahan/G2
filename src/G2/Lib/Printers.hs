@@ -213,7 +213,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     stack_str = pprExecStackStr (exec_stack ex_state)
     code_str = pprExecCodeStr (exec_code ex_state)
     names_str = pprExecNamesStr (exec_names ex_state)
-    paths_str = pprExecPathsStr (exec_paths ex_state)
+    paths_str = pprPathsStr (exec_paths ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
                , eenv_str
@@ -246,19 +246,19 @@ pprExecCodeStr code = show code
 pprExecNamesStr :: NameGen -> String
 pprExecNamesStr _ = ""
 
-pprExecPathsStr :: [ExecCond] -> String
-pprExecPathsStr paths = injNewLine cond_strs
+pprPathsStr :: [PathCond] -> String
+pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprExecCondStr paths
 
-pprExecCondStr :: ExecCond -> String
-pprExecCondStr (ExecAltCond am expr b _) = injTuple acc_strs
+pprPathCondStr :: PathCond -> String
+pprPathCondStr (AltCond am expr b) = injTuple acc_strs
   where
     am_str = show am
     expr_str = show expr
     b_str = show b
     acc_strs = [am_str, expr_str, b_str]
-pprExecCondStr (ExecExtCond am b _) = injTuple acc_strs
+pprExecCondStr (ExtCond am b) = injTuple acc_strs
   where
     am_str = show am
     b_str = show b

@@ -9,7 +9,6 @@ module G2.Internals.Execution.Support
     , ExecExprEnv
     , EnvObj(..)
     , ExecCode(..)
-    , ExecCond(..)
 
     , pushExecStack
     , popExecStack
@@ -20,6 +19,7 @@ module G2.Internals.Execution.Support
     , insertEnvObjs
     , insertRedirect
     , execExprEnvToList
+    , renameExecState
     ) where
 
 import G2.Internals.Language
@@ -35,13 +35,8 @@ data ExecState = ExecState { exec_stack :: ExecStack
                            , exec_eenv :: ExecExprEnv
                            , exec_code :: ExecCode
                            , exec_names :: NameGen
-                           , exec_paths :: [ExecCond]
+                           , exec_paths :: [PathCond]
                            } deriving (Show, Eq, Read)
-
--- | Convert `PathCond` to `ExecCond`.
-condToExecCond :: PathCond -> ExecCond
-condToExecCond (AltCond am expr b) = ExecAltCond am expr b empty_exec_eenv
-condToExecCond (ExtCond expr b) = ExecExtCond expr b empty_exec_eenv
 
 -- | `ExprEnv` kv pairs to `ExecExprEnv`'s.
 eenvToExecEnv :: ExprEnv -> ExecExprEnv
@@ -58,10 +53,9 @@ fromState State { expr_env = eenv
                            , exec_eenv = ex_eenv
                            , exec_code = ex_code
                            , exec_names = confs
-                           , exec_paths = ex_paths }
+                           , exec_paths = paths }
     ex_eenv = eenvToExecEnv eenv
     ex_code = Evaluate expr
-    ex_paths = map condToExecCond paths
 
 -- | `ExecState` to `State`.
 toState :: State -> ExecState -> State
@@ -126,16 +120,6 @@ execCodeExpr :: ExecCode -> Expr
 execCodeExpr (Evaluate e) = e
 execCodeExpr (Return e) = e
 
--- | The current logical conditions up to our current path of execution.
--- Here the `ExecAltCond` denotes conditions from matching on data constructors
--- in `Case` statements, while `ExecExtCond` is from external conditions. These
--- are similar to their `State` counterparts, but are now augmented with a
--- `ExecExprEnv` to allow for further reduction later on / accurate referencing with
--- respect to their environment at the time of creation.
-data ExecCond = ExecAltCond AltMatch Expr Bool ExecExprEnv
-              | ExecExtCond Expr Bool ExecExprEnv
-              deriving (Show, Eq, Read)
-
 -- | `foldr` helper function that takes (A, B) into A -> B type inputs.
 foldrPair :: (a -> b -> c -> c) -> (a, b) -> c -> c
 foldrPair f (a, b) c = f a b c
@@ -185,3 +169,41 @@ insertRedirect k r (ExecExprEnv smap) = ExecExprEnv (M.insert k (Left r) smap)
 execExprEnvToList :: ExecExprEnv -> [(Name, Either Name EnvObj)]
 execExprEnvToList (ExecExprEnv eenv) = M.toList eenv
 
+-- | Replaces all of the names old in the ExecState with a name seeded by new_seed
+renameExecState :: Name -> Name -> ExecState -> ExecState
+renameExecState old new_seed s =
+    let
+        (new, ng') = freshSeededName new_seed (exec_names s)
+    in
+    ExecState { exec_stack = renaming old new (exec_stack s)
+              , exec_eenv = renaming old new (exec_eenv s)
+              , exec_code = renaming old new (exec_code s)
+              , exec_names = ng'
+              , exec_paths = renaming old new (exec_paths s) }
+
+
+-- | TypeClass definitions
+instance Renamable ExecStack where
+    renaming old new (ExecStack s) = ExecStack $ renaming old new s
+
+instance Renamable Symbol where
+    renaming old new (Symbol i (Just (e, env))) =
+        Symbol (renaming old new i) (Just (renaming old new e, renaming old new env))
+    renaming old new (Symbol i Nothing) = Symbol (renaming old new i) Nothing
+
+instance Renamable Frame where
+    renaming old new (CaseFrame i a) = CaseFrame (renaming old new i) (renaming old new a)
+    renaming old new (ApplyFrame e) = ApplyFrame (renaming old new e)
+    renaming old new (UpdateFrame n) = UpdateFrame (renaming old new n)
+
+instance Renamable ExecExprEnv where
+    renaming old new (ExecExprEnv e) = ExecExprEnv $ renaming old new e
+
+instance Renamable EnvObj where
+    renaming old new (ExprObj e) = ExprObj $ renaming old new e
+    renaming old new (SymObj e) = SymObj $ renaming old new e
+    renaming _ _ BLACKHOLE = BLACKHOLE  
+
+instance Renamable ExecCode where
+    renaming old new (Evaluate e) = Evaluate $ renaming old new e
+    renaming old new (Return e) = Return $ renaming old new e
