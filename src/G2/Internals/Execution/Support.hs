@@ -69,7 +69,7 @@ toState s e_s = State { expr_env = undefined
 
 -- | Symbolic values have an `Id` for their name, as well as an optional
 -- scoping context to denote what they are derived from.
-data Symbol = Symbol Id (Maybe (Expr, ExecExprEnv)) deriving (Show, Eq, Read)
+data Symbol = Symbol Id (Maybe Expr) deriving (Show, Eq, Read)
 
 -- | The reason hy Haskell does not enable stack traces by default is because
 -- the notion of a function call stack does not really exist in Haskell. The
@@ -187,8 +187,8 @@ instance Renamable ExecStack where
     renaming old new (ExecStack s) = ExecStack $ renaming old new s
 
 instance Renamable Symbol where
-    renaming old new (Symbol i (Just (e, env))) =
-        Symbol (renaming old new i) (Just (renaming old new e, renaming old new env))
+    renaming old new (Symbol i (Just e)) =
+        Symbol (renaming old new i) (Just (renaming old new e))
     renaming old new (Symbol i Nothing) = Symbol (renaming old new i) Nothing
 
 instance Renamable Frame where

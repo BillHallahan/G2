@@ -97,7 +97,6 @@ stackReduce state @ ExecState { exec_stack = stack
                               , exec_names = confs
                               , exec_paths = paths }
 
-
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
@@ -117,6 +116,7 @@ stackReduce state @ ExecState { exec_stack = stack
         let frame = UpdateFrame (idName var)
         in ( RuleEvalVar
            , [state { exec_stack = pushExecStack frame stack
+                    , exec_eenv = insertEnvObj (idName var) BLACKHOLE eenv
                     , exec_code = Evaluate expr }])
 
     -- If we encounter a vairable that is in eenv, we treated it as a symbolic
@@ -283,7 +283,7 @@ stackReduce state @ ExecState { exec_stack = stack
     , Just (SymObj (Symbol sid _)) <- lookupExecExprEnv name eenv =
         let (sname, confs') = freshSeededName (idName sid) confs
             sres = Id sname (TyApp (typeOf sid) (typeOf aexpr))
-            sym_app = Symbol sres (Just (App (Var sid) aexpr, eenv))
+            sym_app = Symbol sres (Just (App (Var sid) aexpr))
         in ( RuleReturnApplySym
            , [state { exec_stack = stack'
                     , exec_eenv = insertEnvObj sname (SymObj sym_app) eenv
