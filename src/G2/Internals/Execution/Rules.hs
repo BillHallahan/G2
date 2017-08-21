@@ -9,7 +9,8 @@ import G2.Internals.Language
 import G2.Internals.Execution.Support
 
 data Rule = RuleEvalVal
-          | RuleEvalVar | RuleEvalUnInt
+          | RuleEvalVarNonVal | RuleEvalVarVal
+          | RuleEvalUnInt
           | RuleEvalApp
           | RuleEvalLet
           | RuleEvalCaseData | RuleEvalCaseLit | RuleEvalCaseDefault
@@ -109,15 +110,24 @@ stackReduce state @ ExecState { exec_stack = stack
 
     -- If our variable points to something on the heap, we first push the
     -- current name of the variable onto the stack and evaluate the expression
-    -- that it points to. After the latter is done evaluating, we pop the
-    -- stack to add a redirection pointer into the heap.
+    -- that it points to only if it is not a value. After the latter is done
+    -- evaluating, we pop the stack to add a redirection pointer into the heap.
     | Evaluate (Var var) <- code
-    , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv =
+    , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv
+    , not (isValueForm expr eenv) =
         let frame = UpdateFrame (idName var)
-        in ( RuleEvalVar
+        in ( RuleEvalVarNonVal
            , [state { exec_stack = pushExecStack frame stack
                     , exec_eenv = insertEnvObj (idName var) BLACKHOLE eenv
                     , exec_code = Evaluate expr }])
+
+    -- If the target in our environment is already a value form, we do not
+    -- need to push additional redirects for updating later on.
+    | Evaluate (Var var) <- code
+    , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv
+    , isValueForm expr eenv =
+        ( RuleEvalVarVal
+        , [state { exec_code = Evaluate expr }])
 
     -- If we encounter a vairable that is in eenv, we treated it as a symbolic
     -- object and subject it to uninterpreted evaluation later on. This is
