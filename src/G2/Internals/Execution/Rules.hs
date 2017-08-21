@@ -43,7 +43,8 @@ unApp expr = [expr]
 isValueForm :: Expr -> ExecExprEnv -> Bool
 isValueForm (Var (Id name _)) eenv = case lookupExecExprEnv name eenv of
     Just (ExprObj _) -> False
-    _ -> True
+    Just _ -> True
+    Nothing -> False  -- Can still be symbolically lifted!
 isValueForm (App f a) _ = case unApp (App f a) of
   (Data _:_) -> True
   _ -> False

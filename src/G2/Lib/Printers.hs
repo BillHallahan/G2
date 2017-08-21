@@ -249,7 +249,7 @@ pprExecNamesStr _ = ""
 pprPathsStr :: [PathCond] -> String
 pprPathsStr paths = injNewLine cond_strs
   where
-    cond_strs = map pprExecCondStr paths
+    cond_strs = map pprPathCondStr paths
 
 pprPathCondStr :: PathCond -> String
 pprPathCondStr (AltCond am expr b) = injTuple acc_strs
@@ -258,7 +258,7 @@ pprPathCondStr (AltCond am expr b) = injTuple acc_strs
     expr_str = show expr
     b_str = show b
     acc_strs = [am_str, expr_str, b_str]
-pprExecCondStr (ExtCond am b) = injTuple acc_strs
+pprPathCondStr (ExtCond am b) = injTuple acc_strs
   where
     am_str = show am
     b_str = show b
