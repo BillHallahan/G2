@@ -1,6 +1,7 @@
 -- | Reduction Rules for ExecStack Execution Semantics
 module G2.Internals.Execution.Rules
   ( Rule (..)
+  , isExecValueForm
   , stackReduce
   ) where
 
@@ -40,17 +41,26 @@ unApp expr = [expr]
 --   `App`, which involves pushing the RHS onto the `ExecStack`.
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
-isValueForm :: Expr -> ExecExprEnv -> Bool
-isValueForm (Var (Id name _)) eenv = case lookupExecExprEnv name eenv of
+isExprValueForm :: Expr -> ExecExprEnv -> Bool
+isExprValueForm (Var (Id name _)) eenv = case lookupExecExprEnv name eenv of
     Just (ExprObj _) -> False
     Just _ -> True
     Nothing -> False  -- Can still be symbolically lifted!
-isValueForm (App f a) _ = case unApp (App f a) of
+isExprValueForm (App f a) _ = case unApp (App f a) of
   (Data _:_) -> True
   _ -> False
-isValueForm (Let _ _) _ = False
-isValueForm (Case _ _ _) _ = False
-isValueForm _ _ = True
+isExprValueForm (Let _ _) _ = False
+isExprValueForm (Case _ _ _) _ = False
+isExprValueForm _ _ = True
+
+-- | Is the execution state in a value form of some sort? This would entail:
+-- * The `ExecStack` is empty.
+-- * The `ExecCode` is in a `Return` form.
+isExecValueForm :: ExecState -> Bool
+isExecValueForm state | Nothing <- popExecStack (exec_stack state)
+                      , Return _ <- exec_code state = True
+                      
+                      | otherwise = False
 
 -- | Convert bind objects of `(Id, Expr)` pairs into `[(Name, EnvObj)]`s.
 bindsToEnvObjs :: [(Id, Expr)] -> [(Name, EnvObj)]
@@ -105,7 +115,7 @@ stackReduce state @ ExecState { exec_stack = stack
 
     -- Our current thing is a value form, which means we can return it.
     | Evaluate expr <- code
-    , isValueForm expr eenv =
+    , isExprValueForm expr eenv =
         ( RuleEvalVal
         , [state { exec_code = Return expr }])
 
@@ -115,7 +125,7 @@ stackReduce state @ ExecState { exec_stack = stack
     -- evaluating, we pop the stack to add a redirection pointer into the heap.
     | Evaluate (Var var) <- code
     , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv
-    , not (isValueForm expr eenv) =
+    , not (isExprValueForm expr eenv) =
         let frame = UpdateFrame (idName var)
         in ( RuleEvalVarNonVal
            , [state { exec_stack = pushExecStack frame stack
@@ -126,7 +136,7 @@ stackReduce state @ ExecState { exec_stack = stack
     -- need to push additional redirects for updating later on.
     | Evaluate (Var var) <- code
     , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv
-    , isValueForm expr eenv =
+    , isExprValueForm expr eenv =
         ( RuleEvalVarVal
         , [state { exec_code = Evaluate expr }])
 
@@ -225,7 +235,7 @@ stackReduce state @ ExecState { exec_stack = stack
     -- is only done when the matching expression is NOT in value form. Value
     -- forms should be handled by other RuleEvalCase* rules.
     | Evaluate (Case mexpr cvar alts) <- code
-    , not (isValueForm mexpr eenv) =
+    , not (isExprValueForm mexpr eenv) =
         let frame = CaseFrame cvar alts
         in ( RuleEvalCaseNonVal
            , [state { exec_stack = pushExecStack frame stack
@@ -300,6 +310,8 @@ stackReduce state @ ExecState { exec_stack = stack
                     , exec_eenv = insertEnvObj sname (SymObj sym_app) eenv
                     , exec_code = Return (Var sres)
                     , exec_names = confs' }])
+
+    | isExecValueForm state = (RuleIdentity, [state])
 
     | otherwise = (RuleError, [state]) -- TODO: SET THIS BACK TO RETURN []
 
