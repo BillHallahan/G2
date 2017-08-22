@@ -27,6 +27,15 @@ data Rule = RuleEvalVal
           | RuleError
            deriving (Show, Eq, Read)
 
+-- | Check whether or not a value is the result of symbolic application. This
+-- would require us to go through a chain of things to make sure that the LHS
+-- of the sequence of Apps is mapped to a Nothing -- effectively a normal form.
+isSymbolic :: Id -> ExecExprEnv -> Bool
+isSymbolic var eenv = case lookupExecExprEnv (idName var) eenv of
+    Just (App (Var fvar) _) -> isSymbolic fvar eenv
+    Just _ -> False
+    Nothing -> True
+
 -- | Unravels the application spine.
 unApp :: Expr -> [Expr]
 unApp (App f a) = unApp f ++ [a]
@@ -42,13 +51,11 @@ unApp expr = [expr]
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
 isExprValueForm :: Expr -> ExecExprEnv -> Bool
-isExprValueForm (Var (Id name _)) eenv = case lookupExecExprEnv name eenv of
-    Just (ExprObj _) -> False
-    Just _ -> True
-    Nothing -> False  -- Can still be symbolically lifted!
+isExprValueForm (Var var) eenv =
+    lookupExecExprEnv (idName var) eenv == Nothing || isSymbolic var eenv
 isExprValueForm (App f a) _ = case unApp (App f a) of
-  (Data _:_) -> True
-  _ -> False
+    (Data _:_) -> True
+    _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
 isExprValueForm _ _ = True
@@ -62,13 +69,18 @@ isExecValueForm state | Nothing <- popExecStack (exec_stack state)
                       
                       | otherwise = False
 
--- | Convert bind objects of `(Id, Expr)` pairs into `[(Name, EnvObj)]`s.
-bindsToEnvObjs :: [(Id, Expr)] -> [(Name, EnvObj)]
-bindsToEnvObjs kvs = map (\(k, v) -> (idName k, ExprObj v)) kvs
-
 -- | Inject binds into the eenv.
-liftBinds :: [(Id, Expr)] -> ExecExprEnv -> ExecExprEnv
-liftBinds kvs eenv = insertEnvObjs (bindsToEnvObjs kvs) eenv
+-- liftBinds :: [(Id, Expr)] -> ExecExprEnv -> ExecExprEnv
+-- liftBinds kvs eenv = insertExprs (map (\(k, v) -> (idName k, v)) kvs) eenv
+-- | Lift binds into the eenv while simultaneously performing 
+liftLet :: [(Id, Expr)] -> ExecExprEnv -> Expr -> NameGen ->
+           (ExecExprEnv, Expr, NameGen)
+liftLet kvs eenv expr ngen = (eenv', expr', ngen')
+  where
+    olds = map (idName . fst) kvs
+    (news, ngen') = freshSeededNames olds ngen
+    eenv' = insertExprs (zip news (map snd kvs)) eenv
+    expr' = renamings (zip olds news) expr 
 
 -- | DEFAULT `Alt`s.
 defaultAlts :: [Alt] -> [Alt]
@@ -91,6 +103,7 @@ negateExecCond :: PathCond -> PathCond
 negateExecCond (AltCond a e b) = AltCond a e (not b)
 negateExecCond (ExtCond e b) = ExtCond e (not b)
 
+{-
 -- | Lift `PathCond`s to a `ExecState` level.
 liftSymAlt :: ExecState -> Id -> Symbol -> Expr -> [PathCond] -> ExecState
 liftSymAlt state cvar sym aexpr conds = state'
@@ -99,6 +112,7 @@ liftSymAlt state cvar sym aexpr conds = state'
     state' = state { exec_eenv = insertEnvObj (idName cvar) (SymObj sym) eenv
                    , exec_code = Evaluate aexpr
                    , exec_paths = conds ++ exec_paths state }
+-}
 
 -- | Funciton for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
@@ -106,7 +120,7 @@ stackReduce :: ExecState -> (Rule, [ExecState])
 stackReduce state @ ExecState { exec_stack = stack
                               , exec_eenv = eenv
                               , exec_code = code
-                              , exec_names = confs
+                              , exec_names = ngen
                               , exec_paths = paths }
 
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
@@ -124,38 +138,20 @@ stackReduce state @ ExecState { exec_stack = stack
     -- that it points to only if it is not a value. After the latter is done
     -- evaluating, we pop the stack to add a redirection pointer into the heap.
     | Evaluate (Var var) <- code
-    , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv
+    , Just expr <- lookupExecExprEnv (idName var) eenv
     , not (isExprValueForm expr eenv) =
         let frame = UpdateFrame (idName var)
         in ( RuleEvalVarNonVal
            , [state { exec_stack = pushExecStack frame stack
-                    , exec_eenv = insertEnvObj (idName var) BLACKHOLE eenv
                     , exec_code = Evaluate expr }])
 
     -- If the target in our environment is already a value form, we do not
     -- need to push additional redirects for updating later on.
     | Evaluate (Var var) <- code
-    , Just (ExprObj expr) <- lookupExecExprEnv (idName var) eenv
+    , Just expr <- lookupExecExprEnv (idName var) eenv
     , isExprValueForm expr eenv =
         ( RuleEvalVarVal
         , [state { exec_code = Evaluate expr }])
-
-    -- If we encounter a vairable that is in eenv, we treated it as a symbolic
-    -- object and subject it to uninterpreted evaluation later on. This is
-    -- done by injecting it into the heap and then evaluating the same
-    -- expression again. This is the essense of memoization / single 
-    -- evaluation in laziness.
-    | Evaluate (Var var) <- code
-    , Nothing <- lookupExecExprEnv (idName var) eenv =
-        let (sname, re) = freshSeededName (idName var) confs
-            svar = Id sname (typeOf var)
-            -- Nothing shows that this is a "base" symbolic value that is not
-            -- dependent on any other expressions.
-            sym = Symbol svar Nothing
-        in ( RuleEvalUnInt
-           , [state { exec_eenv = insertEnvObj (idName var) (SymObj sym) eenv
-                    , exec_code = Evaluate (Var var)
-                    , exec_names = re}])
 
     -- Push application RHS onto the stack. This is essentially the same as the
     -- original STG rules, but we pretend that every function is (appropriately)
@@ -173,23 +169,11 @@ stackReduce state @ ExecState { exec_stack = stack
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
     | Evaluate (Let binds expr) <- code =
-        ( RuleEvalLet
-        , [state { exec_eenv = liftBinds binds eenv
-                 , exec_code = Evaluate expr }])
-
-    -- | If we are pointing to a symbolic value in the environment, handle it
-    -- appropriately by branching on every `Alt`.
-    | Evaluate (Case (Var var) cvar alts) <- code
-    , Just (SymObj sym) <- lookupExecExprEnv (idName var) eenv
-    , (ndefs, defs) <- (nonDefaultAlts alts, defaultAlts alts)
-    , length (ndefs ++ defs) > 0 =
-        let poss = map (\(Alt a e) ->
-                         (AltCond a (Var var) True, e)) ndefs
-            ndef_sts = map (\(c, e) -> liftSymAlt state cvar sym e [c]) poss
-            -- Now make the negatives
-            negs = map (\(c, _) -> negateExecCond c) poss
-            def_sts = map (\(Alt _ e) -> liftSymAlt state cvar sym e negs) defs
-        in (RuleCaseSym, ndef_sts ++ def_sts)
+      let (eenv', expr', ngen') = liftLet binds eenv expr ngen
+      in ( RuleEvalLet
+         , [state { exec_eenv = eenv'
+                  , exec_code = Evaluate expr'
+                  , exec_names = ngen' }])
 
     -- | Is the current expression able to match with a literal based `Alt`? If
     -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -197,10 +181,12 @@ stackReduce state @ ExecState { exec_stack = stack
     , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
         let binds = [(cvar, Lit lit)]
             cond = AltCond (LitAlt lit) (Lit lit) True
+            (eenv', expr', ngen') = liftLet binds eenv expr ngen
         in ( RuleEvalCaseLit
-           , [state { exec_eenv = liftBinds binds eenv
-                    , exec_code = Evaluate expr
-                    , exec_paths = cond : paths }])
+           , [state { exec_eenv = eenv'
+                    , exec_code = Evaluate expr'
+                    , exec_paths = cond : paths
+                    , exec_names = ngen }])
 
     -- Is the current expression able to match a data consturctor based `Alt`?
     -- If so, then we bind all the parameters to the appropriate arguments and
@@ -228,6 +214,22 @@ stackReduce state @ ExecState { exec_stack = stack
            , [state { exec_eenv = liftBinds binds eenv
                     , exec_code = Evaluate expr
                     , exec_paths = cond : paths }])
+
+    -- | If we are pointing to a symbolic value in the environment, handle it
+    -- appropriately by branching on every `Alt`.
+  {-
+    | Evaluate (Case (Var var) cvar alts) <- code
+    , Just (SymObj sym) <- lookupExecExprEnv (idName var) eenv
+    , (ndefs, defs) <- (nonDefaultAlts alts, defaultAlts alts)
+    , length (ndefs ++ defs) > 0 =
+        let poss = map (\(Alt a e) ->
+                         (AltCond a (Var var) True, e)) ndefs
+            ndef_sts = map (\(c, e) -> liftSymAlt state cvar sym e [c]) poss
+            -- Now make the negatives
+            negs = map (\(c, _) -> negateExecCond c) poss
+            def_sts = map (\(Alt _ e) -> liftSymAlt state cvar sym e negs) defs
+        in (RuleCaseSym, ndef_sts ++ def_sts)
+  -}
 
     -- Case evaluation also uses the stack in graph reduction based evaluation
     -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -261,7 +263,7 @@ stackReduce state @ ExecState { exec_stack = stack
     , Return expr <- code =
         ( RuleReturnUpdateNonVar
         , [state { exec_stack = stack'
-                 , exec_eenv = insertEnvObj frm_name (ExprObj expr) eenv
+                 , exec_eenv = insertExpr frm_name expr eenv
                  , exec_code = Return expr }])
 
     -- In the event that we are returning and we have a `CaseFrame` waiting for
@@ -295,6 +297,7 @@ stackReduce state @ ExecState { exec_stack = stack
                  , exec_eenv = eenv
                  , exec_code = Return (App dexpr aexpr) }])
 
+  {-
     -- When we have an symbolic variable pointer, the best we can do is make
     -- another variable and insert it into the `ExecExprEnv`. This is the last
     -- condition that we can reasonably handle without creating excessively long
@@ -302,14 +305,15 @@ stackReduce state @ ExecState { exec_stack = stack
     | Just (ApplyFrame aexpr, stack') <- popExecStack stack
     , Return (Var (Id name _)) <- code
     , Just (SymObj (Symbol sid _)) <- lookupExecExprEnv name eenv =
-        let (sname, confs') = freshSeededName (idName sid) confs
+        let (sname, ngen') = freshSeededName (idName sid) ngen
             sres = Id sname (TyApp (typeOf sid) (typeOf aexpr))
             sym_app = Symbol sres (Just (App (Var sid) aexpr))
         in ( RuleReturnApplySym
            , [state { exec_stack = stack'
                     , exec_eenv = insertEnvObj sname (SymObj sym_app) eenv
                     , exec_code = Return (Var sres)
-                    , exec_names = confs' }])
+                    , exec_names = ngen' }])
+  -}
 
     | isExecValueForm state = (RuleIdentity, [state])
 

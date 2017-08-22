@@ -3,11 +3,9 @@ module G2.Internals.Execution.Support
     , fromState
     , toState
 
-    , Symbol(..)
     , ExecStack
     , Frame(..)
     , ExecExprEnv
-    , EnvObj(..)
     , ExecCode(..)
 
     , pushExecStack
@@ -15,11 +13,13 @@ module G2.Internals.Execution.Support
     , execStackToList
 
     , lookupExecExprEnv
-    , insertEnvObj
-    , insertEnvObjs
+    , insertExpr
+    , insertExprs
     , insertRedirect
     , execExprEnvToList
+
     , renameExecState
+    , renamings
     ) where
 
 import G2.Internals.Language
@@ -40,7 +40,7 @@ data ExecState = ExecState { exec_stack :: ExecStack
 
 -- | `ExprEnv` kv pairs to `ExecExprEnv`'s.
 eenvToExecEnv :: ExprEnv -> ExecExprEnv
-eenvToExecEnv = ExecExprEnv . M.map (Right . ExprObj)
+eenvToExecEnv = ExecExprEnv . M.map Right
 
 -- | `State` to `ExecState`.
 fromState :: State -> ExecState
@@ -49,7 +49,7 @@ fromState State { expr_env = eenv
                 , name_gen = confs
                 , path_conds = paths } = exec_state
   where
-    exec_state = ExecState { exec_stack = empty_exec_stack
+    exec_state = ExecState { exec_stack = ExecStack []
                            , exec_eenv = ex_eenv
                            , exec_code = ex_code
                            , exec_names = confs
@@ -66,10 +66,6 @@ toState s e_s = State { expr_env = undefined
                       , path_conds = undefined
                       , sym_links = sym_links s
                       , func_table = func_table s }
-
--- | Symbolic values have an `Id` for their name, as well as an optional
--- scoping context to denote what they are derived from.
-data Symbol = Symbol Id (Maybe Expr) deriving (Show, Eq, Read)
 
 -- | The reason hy Haskell does not enable stack traces by default is because
 -- the notion of a function call stack does not really exist in Haskell. The
@@ -91,21 +87,13 @@ data Frame = CaseFrame Id [Alt]
            deriving (Show, Eq, Read)
 
 -- | From a user perspective, `ExecExprEnv`s are mappings from `Name` to
--- `EnvObj`s. however, because redirection pointers are included, this
+-- `Expr`s. however, because redirection pointers are included, this
 -- complicates things. Instead, we use the `Either` type to separate
 -- redirection and actual objects, so by using the supplied lookup functions,
 -- the user should never be returned a redirection pointer from `ExecExprEnv`
 -- lookups.
-newtype ExecExprEnv = ExecExprEnv (M.Map Name (Either Name EnvObj))
+newtype ExecExprEnv = ExecExprEnv (M.Map Name (Either Name Expr))
                     deriving (Show, Eq, Read)
-
--- | Environment objects can either by some expression object, or a symbolic
--- object that has been computed before. Lastly, they can be BLACKHOLEs that
--- Simon Peyton Jones claims to stop certain types of bad evaluations.
-data EnvObj = ExprObj Expr
-            | SymObj Symbol
-            | BLACKHOLE
-            deriving (Show, Eq, Read)
 
 -- | `ExecCode` is the current expression we have. We are either evaluating it, or
 -- it is in some terminal form that is simply returned. Technically we do not
@@ -124,10 +112,6 @@ execCodeExpr (Return e) = e
 foldrPair :: (a -> b -> c -> c) -> (a, b) -> c -> c
 foldrPair f (a, b) c = f a b c
 
--- | Empty `ExecStack`.
-empty_exec_stack :: ExecStack
-empty_exec_stack = ExecStack []
-
 -- | Push a `Frame` onto the `ExecStack`.
 pushExecStack :: Frame -> ExecStack -> ExecStack
 pushExecStack frame (ExecStack frames) = ExecStack (frame : frames)
@@ -141,24 +125,20 @@ popExecStack (ExecStack (frame:frames)) = Just (frame, ExecStack frames)
 execStackToList :: ExecStack -> [Frame]
 execStackToList (ExecStack frames) = frames
 
--- | Empty `ExecExprEnv`.
-empty_exec_eenv :: ExecExprEnv
-empty_exec_eenv = ExecExprEnv M.empty
-
--- | Lookup an `EnvObj` in the `ExecExprEnv` by `Name`.
-lookupExecExprEnv :: Name -> ExecExprEnv -> Maybe EnvObj
+-- | Lookup an `Expr` in the `ExecExprEnv` by `Name`.
+lookupExecExprEnv :: Name -> ExecExprEnv -> Maybe Expr
 lookupExecExprEnv name (ExecExprEnv smap) = case M.lookup name smap of
     Just (Left redir) -> lookupExecExprEnv redir (ExecExprEnv smap)
-    Just (Right eobj) -> Just eobj
+    Just (Right expr) -> Just expr
     Nothing -> Nothing
 
--- | Insert an `EnvObj` into the `ExecExprEnv`.
-insertEnvObj :: Name -> EnvObj -> ExecExprEnv -> ExecExprEnv
-insertEnvObj k v (ExecExprEnv smap) = ExecExprEnv (M.insert k (Right v) smap)
+-- | Insert an `Expr` into the `ExecExprEnv`.
+insertExpr :: Name -> Expr -> ExecExprEnv -> ExecExprEnv
+insertExpr k v (ExecExprEnv smap) = ExecExprEnv (M.insert k (Right v) smap)
 
--- | Insert multiple `EnvObj`s into the `ExecExprEnv`.
-insertEnvObjs :: [(Name, EnvObj)] -> ExecExprEnv -> ExecExprEnv
-insertEnvObjs kvs scope = foldr (foldrPair insertEnvObj) scope kvs
+-- | Insert multiple `Expr`s into the `ExecExprEnv`.
+insertExprs :: [(Name, Expr)] -> ExecExprEnv -> ExecExprEnv
+insertExprs kvs scope = foldr (foldrPair insertExpr) scope kvs
 
 -- | Insert `ExecExprEnv` redirection. We make the left one point to where the
 -- right one is pointing at.
@@ -166,8 +146,12 @@ insertRedirect :: Name -> Name -> ExecExprEnv -> ExecExprEnv
 insertRedirect k r (ExecExprEnv smap) = ExecExprEnv (M.insert k (Left r) smap)
 
 -- | Convert an `ExecExprEnv` to a list.
-execExprEnvToList :: ExecExprEnv -> [(Name, Either Name EnvObj)]
+execExprEnvToList :: ExecExprEnv -> [(Name, Either Name Expr)]
 execExprEnvToList (ExecExprEnv eenv) = M.toList eenv
+
+-- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
+renamings :: Renamable a => [(Name, Name)] -> a -> a
+renamings names a = foldr (foldrPair renaming) a names
 
 -- | Replaces all of the names old in the ExecState with a name seeded by new_seed
 renameExecState :: Name -> Name -> ExecState -> ExecState
@@ -181,15 +165,9 @@ renameExecState old new_seed s =
               , exec_names = ng'
               , exec_paths = renaming old new (exec_paths s) }
 
-
 -- | TypeClass definitions
 instance Renamable ExecStack where
     renaming old new (ExecStack s) = ExecStack $ renaming old new s
-
-instance Renamable Symbol where
-    renaming old new (Symbol i (Just e)) =
-        Symbol (renaming old new i) (Just (renaming old new e))
-    renaming old new (Symbol i Nothing) = Symbol (renaming old new i) Nothing
 
 instance Renamable Frame where
     renaming old new (CaseFrame i a) = CaseFrame (renaming old new i) (renaming old new a)
@@ -199,11 +177,8 @@ instance Renamable Frame where
 instance Renamable ExecExprEnv where
     renaming old new (ExecExprEnv e) = ExecExprEnv $ renaming old new e
 
-instance Renamable EnvObj where
-    renaming old new (ExprObj e) = ExprObj $ renaming old new e
-    renaming old new (SymObj e) = SymObj $ renaming old new e
-    renaming _ _ BLACKHOLE = BLACKHOLE  
-
 instance Renamable ExecCode where
     renaming old new (Evaluate e) = Evaluate $ renaming old new e
     renaming old new (Return e) = Return $ renaming old new e
+
+
