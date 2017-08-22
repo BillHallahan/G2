@@ -6,36 +6,36 @@ module G2.Internals.Language.Typing
 
 import G2.Internals.Language.Syntax
 
--- | Typeable typeclass.
-class Typeable a where
+-- | Typed typeclass.
+class Typed a where
     typeOf :: a -> Type
 
 
--- | `Id` instance of `Typeable`.
-instance Typeable Id where
+-- | `Id` instance of `Typed`.
+instance Typed Id where
     typeOf (Id _ ty) = ty
 
--- | `Primitive` instance of `Typeable`
-instance Typeable Primitive where
+-- | `Primitive` instance of `Typed`
+instance Typed Primitive where
     typeOf Ge = TyBottom  -- TODO: fill in correctly.
     typeOf Gt = TyBottom
     typeOf Eq = TyBottom
     typeOf Lt = TyBottom
     typeOf Le = TyBottom
-    typeOf And = TyBottom
-    typeOf Or = TyBottom
-    typeOf Not = TyBottom
-    typeOf Implies = TyBottom
+    typeOf And = TyFun TyBool (TyFun TyBool TyBool)
+    typeOf Or = TyFun TyBool (TyFun TyBool TyBool)
+    typeOf Not = TyFun TyBool TyBool
+    typeOf Implies = TyFun TyBool (TyFun TyBool TyBool)
     typeOf Plus = TyBottom
     typeOf Minus = TyBottom
     typeOf Mult = TyBottom
     typeOf Div = TyBottom
     typeOf UNeg = TyBottom
-    typeOf Assert = TyBottom
-    typeOf Assume = TyBottom
+    typeOf Assert = TyFun TyBool TyBool
+    typeOf Assume = TyFun TyBool TyBool
 
--- | `Lit` instance of `Typeable`.
-instance Typeable Lit where
+-- | `Lit` instance of `Typed`.
+instance Typed Lit where
     typeOf (LitInt _) = TyLitInt
     typeOf (LitFloat _) = TyLitFloat
     typeOf (LitDouble _) = TyLitDouble
@@ -43,8 +43,8 @@ instance Typeable Lit where
     typeOf (LitString _) = TyLitString
     typeOf (LitBool _) = TyBool
 
--- | `DataCon` instance of `Typeable`.
-instance Typeable DataCon where
+-- | `DataCon` instance of `Typed`.
+instance Typed DataCon where
     typeOf (DataCon _ ty tys) = foldr TyFun ty tys
     typeOf (PrimCon I) = TyFun TyLitInt TyInt
     typeOf (PrimCon D) = TyFun TyLitDouble TyDouble
@@ -52,12 +52,12 @@ instance Typeable DataCon where
     typeOf (PrimCon C) = TyFun TyLitChar TyChar
     typeOf (PrimCon B) = TyBool
 
--- | `Alt` instance of `Typeable`.
-instance Typeable Alt where
+-- | `Alt` instance of `Typed`.
+instance Typed Alt where
     typeOf (Alt _ expr) = typeOf expr
 
--- | `Expr` instance of `Typeable`.
-instance Typeable Expr where
+-- | `Expr` instance of `Typed`.
+instance Typed Expr where
     typeOf (Var vid) = typeOf vid
     typeOf (Prim prim) = typeOf prim
     typeOf (Lit lit) = typeOf lit
