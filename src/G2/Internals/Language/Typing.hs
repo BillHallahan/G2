@@ -22,17 +22,17 @@ instance Typed Primitive where
     typeOf Eq = TyBottom
     typeOf Lt = TyBottom
     typeOf Le = TyBottom
-    typeOf And = TyBottom
-    typeOf Or = TyBottom
-    typeOf Not = TyBottom
-    typeOf Implies = TyBottom
+    typeOf And = TyFun TyBool (TyFun TyBool TyBool)
+    typeOf Or = TyFun TyBool (TyFun TyBool TyBool)
+    typeOf Not = TyFun TyBool TyBool
+    typeOf Implies = TyFun TyBool (TyFun TyBool TyBool)
     typeOf Plus = TyBottom
     typeOf Minus = TyBottom
     typeOf Mult = TyBottom
     typeOf Div = TyBottom
     typeOf UNeg = TyBottom
-    typeOf Assert = TyBottom
-    typeOf Assume = TyBottom
+    typeOf Assert = TyFun TyBool TyBool
+    typeOf Assume = TyFun TyBool TyBool
 
 -- | `Lit` instance of `Typed`.
 instance Typed Lit where
