@@ -3,8 +3,8 @@
 
 module G2.Internals.Language.SymLinks ( SymLinks
                                       , empty
-                                      , lookupSymLinks
-                                      , insertSymLinks
+                                      , lookup
+                                      , insert
                                       , filter
                                       , map
                                       , map'
@@ -14,7 +14,7 @@ module G2.Internals.Language.SymLinks ( SymLinks
 import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
-import Prelude hiding (filter, map)
+import Prelude hiding (filter, map, lookup)
 
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -25,11 +25,11 @@ newtype SymLinks = SymLinks (M.Map Name (Name, Type, Maybe Int))
 empty :: SymLinks
 empty = SymLinks M.empty
 
-lookupSymLinks :: Name -> SymLinks -> Maybe (Name, Type, Maybe Int)
-lookupSymLinks name (SymLinks smap) = M.lookup name smap
+lookup :: Name -> SymLinks -> Maybe (Name, Type, Maybe Int)
+lookup name (SymLinks smap) = M.lookup name smap
 
-insertSymLinks :: Name -> (Name, Type, Maybe Int) -> SymLinks -> SymLinks
-insertSymLinks new old (SymLinks smap) = SymLinks (M.insert new old smap)
+insert :: Name -> (Name, Type, Maybe Int) -> SymLinks -> SymLinks
+insert new old (SymLinks smap) = SymLinks (M.insert new old smap)
 
 filter :: ((Name, Type, Maybe Int) -> Bool)  -> SymLinks -> SymLinks
 filter f (SymLinks s) = SymLinks $ M.filter f s
