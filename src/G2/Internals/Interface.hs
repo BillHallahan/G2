@@ -29,7 +29,7 @@ initState prog prog_typ m_assume m_assert f =
     State {
       expr_env = mkExprEnv . concat $ prog
     , type_env = mkTypeEnv prog_typ
-    , curr_expr = ce
+    , curr_expr = CurrExpr Evaluate ce
     , name_gen = ng'
     , path_conds = []
     , sym_links = Sym.empty

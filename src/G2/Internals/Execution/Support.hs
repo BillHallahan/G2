@@ -6,8 +6,6 @@ module G2.Internals.Execution.Support
     , ExecStack
     , Frame(..)
     , ExprEnv
-    , EvalOrReturn(..)
-    , CurrExpr(..)
 
     , pushExecStack
     , popExecStack
@@ -43,16 +41,15 @@ fromState State { expr_env = eenv
   where
     exec_state = ExecState { exec_stack = ExecStack []
                            , exec_eenv = eenv
-                           , exec_code = ex_code
+                           , exec_code = expr
                            , exec_names = confs
                            , exec_paths = paths }
-    ex_code = CurrExpr Evaluate expr
 
 -- | `ExecState` to `State`.
 toState :: State -> ExecState -> State
 toState s e_s = State { expr_env = undefined
                       , type_env = type_env s
-                      , curr_expr = execCodeExpr . exec_code $ e_s
+                      , curr_expr = exec_code e_s
                       , name_gen = name_gen s
                       , path_conds = undefined
                       , sym_links = sym_links s
@@ -76,21 +73,6 @@ data Frame = CaseFrame Id [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
            deriving (Show, Eq, Read)
-
--- | `CurrExpr` is the current expression we have. We are either evaluating it, or
--- it is in some terminal form that is simply returned. Technically we do not
--- need to make this distinction and can simply call a `isTerm` function or
--- equivalent to check, but this makes clearer distinctions for writing the
--- evaluation code.
-data EvalOrReturn = Evaluate
-                  | Return
-                  deriving (Show, Eq, Read)
-
-data CurrExpr = CurrExpr EvalOrReturn Expr
-              deriving (Show, Eq, Read)
-
-execCodeExpr :: CurrExpr -> Expr
-execCodeExpr (CurrExpr _ e) = e
 
 -- | Push a `Frame` onto the `ExecStack`.
 pushExecStack :: Frame -> ExecStack -> ExecStack
@@ -129,6 +111,3 @@ instance Renamable Frame where
     renaming old new (CaseFrame i a) = CaseFrame (renaming old new i) (renaming old new a)
     renaming old new (ApplyFrame e) = ApplyFrame (renaming old new e)
     renaming old new (UpdateFrame n) = UpdateFrame (renaming old new n)
-
-instance Renamable CurrExpr where
-    renaming old new (CurrExpr er e) = CurrExpr er $ renaming old new e

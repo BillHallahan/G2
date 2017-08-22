@@ -150,11 +150,14 @@ createApplyFunc ts applyTypeName namesToFuncs r =
     (Lam apply_arg_id arg_lams, r5)
 
 -- In e, replaces all eOld with eNew
-exprReplace :: Expr -> Expr -> Expr -> Expr
-exprReplace eOld eNew e =
-    if e == eOld
-        then modifyChildren (exprReplace eOld eNew) eNew 
-        else modifyChildren (exprReplace eOld eNew) e
+exprReplace :: ASTContainer e Expr => Expr -> Expr -> e -> e
+exprReplace eOld eNew = modifyContainedASTs (exprReplace')
+    where
+        exprReplace' :: Expr -> Expr
+        exprReplace' e =
+            if e == eOld
+                then modifyChildren (exprReplace eOld eNew) eNew 
+                else modifyChildren (exprReplace eOld eNew) e
 
 -- Given a TyFun type, an apply type, and a type, replaces all of the TyFun types with the apply type
 applyTypeReplace :: Type -> Type -> Type -> Type

@@ -19,7 +19,7 @@ import qualified Data.Map as M
 -- perform defunctionalization, execution, and SMT solving on.
 data State = State { expr_env :: E.ExprEnv
                    , type_env :: TypeEnv
-                   , curr_expr :: Expr
+                   , curr_expr :: CurrExpr
                    , name_gen :: NameGen
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
@@ -34,6 +34,18 @@ type TypeEnv = M.Map Name AlgDataTy
 -- | Algebraic data types are types constructed with parametrization of some
 -- names over types, and a list of data constructors for said type.
 data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
+
+-- | `CurrExpr` is the current expression we have. We are either evaluating it, or
+-- it is in some terminal form that is simply returned. Technically we do not
+-- need to make this distinction and can simply call a `isTerm` function or
+-- equivalent to check, but this makes clearer distinctions for writing the
+-- evaluation code.
+data EvalOrReturn = Evaluate
+                  | Return
+                  deriving (Show, Eq, Read)
+
+data CurrExpr = CurrExpr EvalOrReturn Expr
+              deriving (Show, Eq, Read)
 
 -- | Path conditions represent logical constraints on our current execution
 -- path. We can have path constraints enforced due to case/alt branching, due
@@ -121,6 +133,14 @@ instance ASTContainer AlgDataTy Type where
     containedASTs (AlgDataTy _ dcs) = containedASTs dcs
     modifyContainedASTs f (AlgDataTy ns dcs) = AlgDataTy ns (modifyContainedASTs f dcs)
 
+instance ASTContainer CurrExpr Expr where
+    containedASTs (CurrExpr _ e) = [e]
+    modifyContainedASTs f (CurrExpr er e) = CurrExpr er (f e)
+
+instance ASTContainer CurrExpr Type where
+    containedASTs (CurrExpr _ e) = containedASTs e
+    modifyContainedASTs f (CurrExpr er e) = CurrExpr er (modifyContainedASTs f e)
+
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
     containedASTs (AltCond _ e _) = [e]
@@ -146,6 +166,9 @@ instance ASTContainer AlgDataTy DataCon where
 
 instance Renamable AlgDataTy where
     renaming old new (AlgDataTy n dc) = AlgDataTy (renaming old new n) (renaming old new dc)
+
+instance Renamable CurrExpr where
+    renaming old new (CurrExpr er e) = CurrExpr er $ renaming old new e
 
 instance Renamable PathCond where
     renaming old new (AltCond am e b) = AltCond (renaming old new am) (renaming old new e) b

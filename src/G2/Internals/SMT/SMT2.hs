@@ -2,6 +2,7 @@
 -- It provides methods to construct formulas, as well as feed them to an external solver
 module G2.Internals.SMT.SMT2 where
 
+import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.Typing
 import G2.Internals.SMT.Language
@@ -26,7 +27,7 @@ smt2 = SMTConverter {
             setUpFormula h_in h_out formula
             checkSat' h_in h_out
 
-        , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars e -> do
+        , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars (CurrExpr _ e) -> do
             setUpFormula h_in h_out formula
             r <- checkSat' h_in h_out
             -- print r

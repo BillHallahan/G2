@@ -44,7 +44,7 @@ mkStateStr s = intercalate "\n\n" li
              ,"> Func Sym Link Table:\n" ++ fl]
         ts = mkTypeEnvStr . type_env $ s
         es = mkExprEnvStr . expr_env $ s
-        xs = mkExprStr . curr_expr $ s
+        xs = mkExprStr . (\(CurrExpr _ e) -> e) . curr_expr $ s
         ps = mkPCStr . path_conds $ s
         sl = mkSLTStr . sym_links $ s
         fl = mkFuncSLTStr . func_table $ s
