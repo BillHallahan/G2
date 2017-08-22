@@ -71,22 +71,26 @@ isExecValueForm state | Nothing <- popExecStack (exec_stack state)
 
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.
-liftLet :: [(Id, Expr)] -> ExecExprEnv -> Expr -> NameGen ->
+liftBinds :: [(Id, Expr)] -> ExecExprEnv -> Expr -> NameGen ->
            (ExecExprEnv, Expr, NameGen)
-liftLet kvs eenv expr ngen = (eenv', expr', ngen')
+liftBinds kvs eenv expr ngen = (eenv', expr', ngen')
   where
     olds = map (idName . fst) kvs
     (news, ngen') = freshSeededNames olds ngen
     eenv' = insertExprs (zip news (map snd kvs)) eenv
     expr' = renamings (zip olds news) expr
 
+-- | `DataCon` `Alt`s.
+dataAlts :: [Alt] -> [(DataCon, [Id], Expr)]
+dataAlts alts = [(dcon, ps, aexpr) | Alt (DataAlt dcon ps) aexpr <- alts]
+
+-- | `Lit` `Alt`s.
+litAlts :: [Alt] -> [(Lit, Expr)]
+litAlts alts = [(lit, aexpr) | Alt (LitAlt lit) aexpr <- alts]
+
 -- | DEFAULT `Alt`s.
 defaultAlts :: [Alt] -> [Alt]
 defaultAlts alts = [a | a @ (Alt Default _) <- alts]
-
--- | Non-DEFAULT `Alt`s.
-nonDefaultAlts :: [Alt] -> [Alt]
-nonDefaultAlts alts = [a | a @ (Alt acon _) <- alts, acon /= Default]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
@@ -97,23 +101,65 @@ matchLitAlts :: Lit -> [Alt] -> [Alt]
 matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
 
 -- | Negate an `PathCond`.
-negateExecCond :: PathCond -> PathCond
-negateExecCond (AltCond a e b) = AltCond a e (not b)
-negateExecCond (ExtCond e b) = ExtCond e (not b)
+negatePathCond :: PathCond -> PathCond
+negatePathCond (AltCond a e b) = AltCond a e (not b)
+negatePathCond (ExtCond e b) = ExtCond e (not b)
 
--- | Lift positive `ExecState`s from symbolic alt matching.
-
--- | Lift `PathCond`s to a `ExecState` level.
-
-{-
-liftSymAlt :: ExecState -> Id -> Symbol -> Expr -> [PathCond] -> ExecState
-liftSymAlt state cvar sym aexpr conds = state'
+-- | Lift positive datacon `ExecState`s from symbolic alt matching. This in
+-- part involves erasing all of the parameters from the environment by renaming
+-- their occurrence in the aexpr to something fresh.
+liftSymDataAlt :: ExecState -> Expr -> (DataCon, [Id], Expr) -> Id ->
+                  (ExecState, PathCond)
+liftSymDataAlt state mexpr (dcon, params, aexpr) cvar = (state', cond)
   where
     eenv = exec_eenv state
-    state' = state { exec_eenv = insertEnvObj (idName cvar) (SymObj sym) eenv
-                   , exec_code = Evaluate aexpr
-                   , exec_paths = conds ++ exec_paths state }
--}
+    paths = exec_paths state
+    ngen = exec_names state
+    -- Condition that was matched.
+    cond = AltCond (DataAlt dcon params) mexpr True
+    -- Make sure that the parameters do not conflict in their symbolic reps.
+    olds = map idName params
+    (news, ngen') = freshSeededNames olds ngen
+    aexpr' = renamings (zip olds news) aexpr
+    -- Now do a round of renaming for binding the cvar.
+    binds = [(cvar, mexpr)]
+    (eenv', aexpr'', ngen'') = liftBinds binds eenv aexpr' ngen'
+    state' = state { exec_eenv = eenv'
+                   , exec_code = Evaluate aexpr''
+                   , exec_paths = cond : paths
+                   , exec_names = ngen'' }
+
+-- | Lift literal alts found in symbolic case matching.
+liftSymLitAlt :: ExecState -> Expr -> (Lit, Expr) -> Id -> (ExecState, PathCond)
+liftSymLitAlt state mexpr (lit, aexpr) cvar = (state', cond)
+  where
+    eenv = exec_eenv state
+    paths = exec_paths state
+    ngen = exec_names state
+    -- Condition that was matched.
+    cond = AltCond (LitAlt lit) mexpr True
+    -- Bind the cvar.
+    binds = [(cvar, Lit lit)]
+    (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
+    state' = state { exec_eenv = eenv'
+                   , exec_code = Evaluate aexpr'
+                   , exec_paths = cond : paths
+                   , exec_names = ngen' }
+
+-- | Lift default alts found in symbolic case matching.
+liftSymDefAlt :: ExecState -> Expr -> [PathCond] -> Expr -> Id -> ExecState
+liftSymDefAlt state mexpr negatives aexpr cvar = state'
+  where
+    eenv = exec_eenv state
+    paths = exec_paths state
+    ngen = exec_names state
+    -- Bind the cvar.
+    binds = [(cvar, mexpr)]
+    (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
+    state' = state { exec_eenv = eenv'
+                   , exec_code = Evaluate aexpr'
+                   , exec_paths = negatives ++ paths
+                   , exec_names = ngen' }
 
 -- | Funciton for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
@@ -170,7 +216,7 @@ stackReduce state @ ExecState { exec_stack = stack
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
     | Evaluate (Let binds expr) <- code =
-        let (eenv', expr', ngen') = liftLet binds eenv expr ngen
+        let (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalLet
            , [state { exec_eenv = eenv'
                     , exec_code = Evaluate expr'
@@ -182,7 +228,7 @@ stackReduce state @ ExecState { exec_stack = stack
     , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
         let binds = [(cvar, Lit lit)]
             cond = AltCond (LitAlt lit) (Lit lit) True
-            (eenv', expr', ngen') = liftLet binds eenv expr ngen
+            (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseLit
            , [state { exec_eenv = eenv'
                     , exec_code = Evaluate expr'
@@ -199,7 +245,7 @@ stackReduce state @ ExecState { exec_stack = stack
     , length params == length args =
         let binds = (cvar, mexpr) : zip params args
             cond = AltCond (DataAlt dcon params) mexpr True
-            (eenv', expr', ngen') = liftLet binds eenv expr ngen
+            (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseData
            , [state { exec_eenv = eenv'
                     , exec_code = Evaluate expr'
@@ -213,7 +259,7 @@ stackReduce state @ ExecState { exec_stack = stack
     , (Alt _ expr):_ <- defaultAlts alts =
         let binds = [(cvar, mexpr)]
             cond = AltCond Default mexpr True
-            (eenv', expr', ngen') = liftLet binds eenv expr ngen
+            (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseDefault
            , [state { exec_eenv = eenv'
                     , exec_code = Evaluate expr'
@@ -222,19 +268,18 @@ stackReduce state @ ExecState { exec_stack = stack
 
     -- | If we are pointing to a symbolic value in the environment, handle it
     -- appropriately by branching on every `Alt`.
-  {-
     | Evaluate (Case (Var var) cvar alts) <- code
-    , Just (SymObj sym) <- lookupExecExprEnv (idName var) eenv
-    , (ndefs, defs) <- (nonDefaultAlts alts, defaultAlts alts)
-    , length (ndefs ++ defs) > 0 =
-        let poss = map (\(Alt a e) ->
-                         (AltCond a (Var var) True, e)) ndefs
-            ndef_sts = map (\(c, e) -> liftSymAlt state cvar sym e [c]) poss
-            -- Now make the negatives
-            negs = map (\(c, _) -> negateExecCond c) poss
-            def_sts = map (\(Alt _ e) -> liftSymAlt state cvar sym e negs) defs
-        in (RuleCaseSym, ndef_sts ++ def_sts)
-  -}
+    , isSymbolic var eenv
+    , (dalts, lalts, defs) <- (dataAlts alts, litAlts alts, defaultAlts alts)
+    , (length dalts + length lalts + length defs) > 0 =
+        let dsts_cs = map (\d -> liftSymDataAlt state (Var var) d cvar) dalts
+            lsts_cs = map (\l -> liftSymLitAlt state (Var var) l cvar) lalts
+            (data_sts, dconds) = unzip dsts_cs
+            (lit_sts, lconds) = unzip lsts_cs
+            negs = map negatePathCond (dconds ++ lconds)
+            def_sts = map (\(Alt _ aexpr) ->
+                           liftSymDefAlt state (Var var) negs aexpr cvar) defs
+        in (RuleCaseSym, data_sts ++ lit_sts ++ def_sts)
 
     -- Case evaluation also uses the stack in graph reduction based evaluation
     -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -287,7 +332,7 @@ stackReduce state @ ExecState { exec_stack = stack
     | Just (ApplyFrame aexpr, stack') <- popExecStack stack
     , Return (Lam b lexpr) <- code =
         let binds = [(b, aexpr)]
-            (eenv', lexpr', ngen') = liftLet binds eenv lexpr ngen
+            (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
         in ( RuleReturnApplyLam
            , [state { exec_stack = stack'
                     , exec_eenv = eenv'
