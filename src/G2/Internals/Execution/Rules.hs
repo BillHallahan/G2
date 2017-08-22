@@ -66,13 +66,11 @@ isExprValueForm _ _ = True
 isExecValueForm :: ExecState -> Bool
 isExecValueForm state | Nothing <- popExecStack (exec_stack state)
                       , Return _ <- exec_code state = True
-                      
+
                       | otherwise = False
 
--- | Inject binds into the eenv.
--- liftBinds :: [(Id, Expr)] -> ExecExprEnv -> ExecExprEnv
--- liftBinds kvs eenv = insertExprs (map (\(k, v) -> (idName k, v)) kvs) eenv
--- | Lift binds into the eenv while simultaneously performing 
+-- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
+-- seed values for the names.
 liftLet :: [(Id, Expr)] -> ExecExprEnv -> Expr -> NameGen ->
            (ExecExprEnv, Expr, NameGen)
 liftLet kvs eenv expr ngen = (eenv', expr', ngen')
@@ -80,7 +78,7 @@ liftLet kvs eenv expr ngen = (eenv', expr', ngen')
     olds = map (idName . fst) kvs
     (news, ngen') = freshSeededNames olds ngen
     eenv' = insertExprs (zip news (map snd kvs)) eenv
-    expr' = renamings (zip olds news) expr 
+    expr' = renamings (zip olds news) expr
 
 -- | DEFAULT `Alt`s.
 defaultAlts :: [Alt] -> [Alt]
@@ -103,8 +101,11 @@ negateExecCond :: PathCond -> PathCond
 negateExecCond (AltCond a e b) = AltCond a e (not b)
 negateExecCond (ExtCond e b) = ExtCond e (not b)
 
-{-
+-- | Lift positive `ExecState`s from symbolic alt matching.
+
 -- | Lift `PathCond`s to a `ExecState` level.
+
+{-
 liftSymAlt :: ExecState -> Id -> Symbol -> Expr -> [PathCond] -> ExecState
 liftSymAlt state cvar sym aexpr conds = state'
   where
@@ -169,11 +170,11 @@ stackReduce state @ ExecState { exec_stack = stack
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
     | Evaluate (Let binds expr) <- code =
-      let (eenv', expr', ngen') = liftLet binds eenv expr ngen
-      in ( RuleEvalLet
-         , [state { exec_eenv = eenv'
-                  , exec_code = Evaluate expr'
-                  , exec_names = ngen' }])
+        let (eenv', expr', ngen') = liftLet binds eenv expr ngen
+        in ( RuleEvalLet
+           , [state { exec_eenv = eenv'
+                    , exec_code = Evaluate expr'
+                    , exec_names = ngen' }])
 
     -- | Is the current expression able to match with a literal based `Alt`? If
     -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -303,24 +304,21 @@ stackReduce state @ ExecState { exec_stack = stack
                  , exec_eenv = eenv
                  , exec_code = Return (App dexpr aexpr) }])
 
-  {-
-    -- When we have an symbolic variable pointer, the best we can do is make
-    -- another variable and insert it into the `ExecExprEnv`. This is the last
-    -- condition that we can reasonably handle without creating excessively long
-    -- `App` spines, which is only okay for `Data` expressions.
-    | Just (ApplyFrame aexpr, stack') <- popExecStack stack
-    , Return (Var (Id name _)) <- code
-    , Just (SymObj (Symbol sid _)) <- lookupExecExprEnv name eenv =
-        let (sname, ngen') = freshSeededName (idName sid) ngen
-            sres = Id sname (TyApp (typeOf sid) (typeOf aexpr))
-            sym_app = Symbol sres (Just (App (Var sid) aexpr))
-        in ( RuleReturnApplySym
-           , [state { exec_stack = stack'
-                    , exec_eenv = insertEnvObj sname (SymObj sym_app) eenv
-                    , exec_code = Return (Var sres)
-                    , exec_names = ngen' }])
-  -}
+  -- When we return symbolic values on an `ApplyFrame`, introduce new name
+  -- mappings in the eenv to form this long symbolic normal form chain.
+  | Just (ApplyFrame aexpr, stack') <- popExecStack stack
+  , Return (Var var) <- code
+  , isSymbolic var eenv =
+      let (sname, ngen') = freshSeededName (idName var) ngen
+          sym_app = App (Var var) aexpr
+          svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
+      in ( RuleReturnApplySym
+         , [state { exec_stack = stack'
+                  , exec_eenv = insertExpr sname sym_app eenv
+                  , exec_code = Return (Var svar)
+                  , exec_names = ngen' }])
 
+    -- Our evaluation has hit a value.
     | isExecValueForm state = (RuleIdentity, [state])
 
     | otherwise = (RuleError, [state]) -- TODO: SET THIS BACK TO RETURN []
