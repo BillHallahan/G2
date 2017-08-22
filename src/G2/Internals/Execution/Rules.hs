@@ -186,7 +186,7 @@ stackReduce state @ ExecState { exec_stack = stack
            , [state { exec_eenv = eenv'
                     , exec_code = Evaluate expr'
                     , exec_paths = cond : paths
-                    , exec_names = ngen }])
+                    , exec_names = ngen' }])
 
     -- Is the current expression able to match a data consturctor based `Alt`?
     -- If so, then we bind all the parameters to the appropriate arguments and
@@ -198,10 +198,12 @@ stackReduce state @ ExecState { exec_stack = stack
     , length params == length args =
         let binds = (cvar, mexpr) : zip params args
             cond = AltCond (DataAlt dcon params) mexpr True
+            (eenv', expr', ngen') = liftLet binds eenv expr ngen
         in ( RuleEvalCaseData
-           , [state { exec_eenv = liftBinds binds eenv
-                    , exec_code = Evaluate expr
-                    , exec_paths = cond : paths}])
+           , [state { exec_eenv = eenv'
+                    , exec_code = Evaluate expr'
+                    , exec_paths = cond : paths
+                    , exec_names = ngen' }])
 
     -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
     -- If so, we just perform the cvar binding and proceed with the alt
@@ -210,10 +212,12 @@ stackReduce state @ ExecState { exec_stack = stack
     , (Alt _ expr):_ <- defaultAlts alts =
         let binds = [(cvar, mexpr)]
             cond = AltCond Default mexpr True
+            (eenv', expr', ngen') = liftLet binds eenv expr ngen
         in ( RuleEvalCaseDefault
-           , [state { exec_eenv = liftBinds binds eenv
-                    , exec_code = Evaluate expr
-                    , exec_paths = cond : paths }])
+           , [state { exec_eenv = eenv'
+                    , exec_code = Evaluate expr'
+                    , exec_paths = cond : paths
+                    , exec_names = ngen' }])
 
     -- | If we are pointing to a symbolic value in the environment, handle it
     -- appropriately by branching on every `Alt`.
@@ -282,10 +286,12 @@ stackReduce state @ ExecState { exec_stack = stack
     | Just (ApplyFrame aexpr, stack') <- popExecStack stack
     , Return (Lam b lexpr) <- code =
         let binds = [(b, aexpr)]
+            (eenv', lexpr', ngen') = liftLet binds eenv lexpr ngen
         in ( RuleReturnApplyLam
            , [state { exec_stack = stack'
-                    , exec_eenv = liftBinds binds eenv
-                    , exec_code = Evaluate lexpr }])
+                    , exec_eenv = eenv'
+                    , exec_code = Evaluate lexpr'
+                    , exec_names = ngen' }])
 
     -- When we have an `DataCon` application chain, we need to tack on the
     -- expression in the `ApplyFrame` at the end.
