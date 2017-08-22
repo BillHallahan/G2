@@ -12,6 +12,7 @@ import G2.Internals.Execution.Rules
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
+import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as Sym
 
 import G2.Lib.Printers
@@ -36,7 +37,7 @@ initState prog prog_typ m_assume m_assert f =
  }
 
 mkExprEnv :: Binds -> ExprEnv
-mkExprEnv = M.fromList . map (\(i, e) -> (idName i, e))
+mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
 
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, ts, dcs) -> (n, AlgDataTy ts dcs))

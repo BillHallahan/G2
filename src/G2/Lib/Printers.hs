@@ -1,5 +1,6 @@
 module G2.Lib.Printers where
 
+import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as Sym
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
@@ -19,7 +20,7 @@ sp4 = sp2 ++ sp2
 mkRawStateStr :: State -> String
 mkRawStateStr state = intercalate "\n" li
   where tenv_str  = intercalate "\n" $ map show $ M.toList $ type_env state
-        eenv_str  = intercalate "\n" $ map show $ M.toList $ expr_env state
+        eenv_str  = intercalate "\n" $ map show $ E.toList $ expr_env state
         cexpr_str = show $ curr_expr state
         pc_str    = intercalate "\n" $ map show $ path_conds state
         slt_str   = show $ sym_links state
@@ -61,7 +62,7 @@ mkTypeEnvStr tenv = intercalate "\n" (map ntStr (M.toList tenv))
         ntStr (n, t) = show n ++ "\n" ++ sp4 ++ show t
 
 mkExprEnvStr :: ExprEnv -> String
-mkExprEnvStr eenv = intercalate "\n" (map neStr (M.toList eenv))
+mkExprEnvStr eenv = intercalate "\n" (map neStr (E.toExprList eenv))
   where
         neStr :: (Name, Expr) -> String
         neStr (n, e) = show n ++ "\n" ++ sp4 ++ mkExprStr e
@@ -227,10 +228,10 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , paths_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
 
-pprExecEEnvStr :: ExecExprEnv -> String
+pprExecEEnvStr :: E.ExprEnv -> String
 pprExecEEnvStr eenv = injNewLine kv_strs
   where
-    kv_strs = map show $ execExprEnvToList eenv
+    kv_strs = map show $ E.toList eenv
 
 pprExecStackStr :: ExecStack -> String
 pprExecStackStr stack = injNewLine frame_strs
@@ -240,7 +241,7 @@ pprExecStackStr stack = injNewLine frame_strs
 pprExecFrameStr :: Frame -> String
 pprExecFrameStr frame = show frame
 
-pprExecCodeStr :: ExecCode -> String
+pprExecCodeStr :: CurrExpr -> String
 pprExecCodeStr code = show code
 
 pprExecNamesStr :: NameGen -> String

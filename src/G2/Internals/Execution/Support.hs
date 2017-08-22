@@ -5,23 +5,19 @@ module G2.Internals.Execution.Support
 
     , ExecStack
     , Frame(..)
-    , ExecExprEnv
-    , ExecCode(..)
+    , ExprEnv
+    , EvalOrReturn(..)
+    , CurrExpr(..)
 
     , pushExecStack
     , popExecStack
     , execStackToList
 
-    , lookupExecExprEnv
-    , insertExpr
-    , insertExprs
-    , insertRedirect
-    , execExprEnvToList
-
     , renameExecState
     , renamings
     ) where
 
+import G2.Internals.Language.ExprEnv
 import G2.Internals.Language
 
 import qualified Data.Map as M
@@ -32,15 +28,11 @@ import qualified Data.Map as M
 -- there are `fromState` and `toState` functions provided to extract and inject
 -- back the original values from `State`.
 data ExecState = ExecState { exec_stack :: ExecStack
-                           , exec_eenv :: ExecExprEnv
-                           , exec_code :: ExecCode
+                           , exec_eenv :: ExprEnv
+                           , exec_code :: CurrExpr
                            , exec_names :: NameGen
                            , exec_paths :: [PathCond]
                            } deriving (Show, Eq, Read)
-
--- | `ExprEnv` kv pairs to `ExecExprEnv`'s.
-eenvToExecEnv :: ExprEnv -> ExecExprEnv
-eenvToExecEnv = ExecExprEnv . M.map Right
 
 -- | `State` to `ExecState`.
 fromState :: State -> ExecState
@@ -50,12 +42,11 @@ fromState State { expr_env = eenv
                 , path_conds = paths } = exec_state
   where
     exec_state = ExecState { exec_stack = ExecStack []
-                           , exec_eenv = ex_eenv
+                           , exec_eenv = eenv
                            , exec_code = ex_code
                            , exec_names = confs
                            , exec_paths = paths }
-    ex_eenv = eenvToExecEnv eenv
-    ex_code = Evaluate expr
+    ex_code = CurrExpr Evaluate expr
 
 -- | `ExecState` to `State`.
 toState :: State -> ExecState -> State
@@ -86,31 +77,20 @@ data Frame = CaseFrame Id [Alt]
            | UpdateFrame Name
            deriving (Show, Eq, Read)
 
--- | From a user perspective, `ExecExprEnv`s are mappings from `Name` to
--- `Expr`s. however, because redirection pointers are included, this
--- complicates things. Instead, we use the `Either` type to separate
--- redirection and actual objects, so by using the supplied lookup functions,
--- the user should never be returned a redirection pointer from `ExecExprEnv`
--- lookups.
-newtype ExecExprEnv = ExecExprEnv (M.Map Name (Either Name Expr))
-                    deriving (Show, Eq, Read)
-
--- | `ExecCode` is the current expression we have. We are either evaluating it, or
+-- | `CurrExpr` is the current expression we have. We are either evaluating it, or
 -- it is in some terminal form that is simply returned. Technically we do not
 -- need to make this distinction and can simply call a `isTerm` function or
 -- equivalent to check, but this makes clearer distinctions for writing the
 -- evaluation code.
-data ExecCode = Evaluate Expr
-              | Return Expr
+data EvalOrReturn = Evaluate
+                  | Return
+                  deriving (Show, Eq, Read)
+
+data CurrExpr = CurrExpr EvalOrReturn Expr
               deriving (Show, Eq, Read)
 
-execCodeExpr :: ExecCode -> Expr
-execCodeExpr (Evaluate e) = e
-execCodeExpr (Return e) = e
-
--- | `foldr` helper function that takes (A, B) into A -> B type inputs.
-foldrPair :: (a -> b -> c -> c) -> (a, b) -> c -> c
-foldrPair f (a, b) c = f a b c
+execCodeExpr :: CurrExpr -> Expr
+execCodeExpr (CurrExpr _ e) = e
 
 -- | Push a `Frame` onto the `ExecStack`.
 pushExecStack :: Frame -> ExecStack -> ExecStack
@@ -125,33 +105,9 @@ popExecStack (ExecStack (frame:frames)) = Just (frame, ExecStack frames)
 execStackToList :: ExecStack -> [Frame]
 execStackToList (ExecStack frames) = frames
 
--- | Lookup an `Expr` in the `ExecExprEnv` by `Name`.
-lookupExecExprEnv :: Name -> ExecExprEnv -> Maybe Expr
-lookupExecExprEnv name (ExecExprEnv smap) = case M.lookup name smap of
-    Just (Left redir) -> lookupExecExprEnv redir (ExecExprEnv smap)
-    Just (Right expr) -> Just expr
-    Nothing -> Nothing
-
--- | Insert an `Expr` into the `ExecExprEnv`.
-insertExpr :: Name -> Expr -> ExecExprEnv -> ExecExprEnv
-insertExpr k v (ExecExprEnv smap) = ExecExprEnv (M.insert k (Right v) smap)
-
--- | Insert multiple `Expr`s into the `ExecExprEnv`.
-insertExprs :: [(Name, Expr)] -> ExecExprEnv -> ExecExprEnv
-insertExprs kvs scope = foldr (foldrPair insertExpr) scope kvs
-
--- | Insert `ExecExprEnv` redirection. We make the left one point to where the
--- right one is pointing at.
-insertRedirect :: Name -> Name -> ExecExprEnv -> ExecExprEnv
-insertRedirect k r (ExecExprEnv smap) = ExecExprEnv (M.insert k (Left r) smap)
-
--- | Convert an `ExecExprEnv` to a list.
-execExprEnvToList :: ExecExprEnv -> [(Name, Either Name Expr)]
-execExprEnvToList (ExecExprEnv eenv) = M.toList eenv
-
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renamings :: Renamable a => [(Name, Name)] -> a -> a
-renamings names a = foldr (foldrPair renaming) a names
+renamings names a = foldr (\(old, new) -> renaming old new) a names
 
 -- | Replaces all of the names old in the ExecState with a name seeded by new_seed
 renameExecState :: Name -> Name -> ExecState -> ExecState
@@ -174,10 +130,5 @@ instance Renamable Frame where
     renaming old new (ApplyFrame e) = ApplyFrame (renaming old new e)
     renaming old new (UpdateFrame n) = UpdateFrame (renaming old new n)
 
-instance Renamable ExecExprEnv where
-    renaming old new (ExecExprEnv e) = ExecExprEnv $ renaming old new e
-
-instance Renamable ExecCode where
-    renaming old new (Evaluate e) = Evaluate $ renaming old new e
-    renaming old new (Return e) = Return $ renaming old new e
-
+instance Renamable CurrExpr where
+    renaming old new (CurrExpr er e) = CurrExpr er $ renaming old new e

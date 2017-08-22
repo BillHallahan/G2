@@ -2,6 +2,7 @@ module G2.Internals.Preprocessing.Defunctionalizor
     (defunctionalize) where
 
 import G2.Internals.Language
+import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as SymLinks
 
 import Data.List
@@ -72,7 +73,7 @@ useApplyType s (t@(TyFun _ _)) =
         s3 = modifyASTs (applyTypeReplace t applyTypeCon) (s2 {curr_expr = newCurr_expr})
 
     in
-    s3 { expr_env = M.insert applyFuncName applyFunc (expr_env s3)
+    s3 { expr_env = E.insert applyFuncName applyFunc (expr_env s3)
         , type_env = M.insert applyTypeName applyTypeAlg (type_env s3)
         , sym_links = adjustSymLinks t applyTypeCon (sym_links s3)
         , func_table = unionFuncInterps newFuncs_interps (func_table s3)
@@ -87,7 +88,7 @@ useApplyType s (t@(TyFun _ _)) =
             let
                 e' = updateArgRefs' ty t' fn e ns
             in
-            st {expr_env = M.insert na e' (expr_env st)}
+            st {expr_env = E.insert na e' (expr_env st)}
 
         updateArgRefs' :: Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> Expr
         updateArgRefs' _ _ _ e [] = e
@@ -184,11 +185,11 @@ leadingHigherOrderTypes s =
 -- (1) all functions of type t from the expression environment
 -- (2) all expresions of type t that are passed into a higher order function,
 --     somewhere in the expression environment
-passedToHigherOrder :: ExprEnv -> Type -> [Expr]
+passedToHigherOrder :: E.ExprEnv -> Type -> [Expr]
 passedToHigherOrder eenv t =
     let
         funcs = map (\n -> Var $ Id n t) (functionNamesOfType eenv t)
-        part_lams = concatMap (\e -> higherOrderArg e (typeOf e)) (M.elems eenv)
+        part_lams = concatMap (\e -> higherOrderArg e (typeOf e)) (E.elems eenv)
     in
     nub (funcs ++ part_lams)
     where
@@ -199,9 +200,9 @@ passedToHigherOrder eenv t =
 
 -- Given an expression environment, gets the names and expressions of all higher order functions
 -- that accept the given type
-higherOrderOfTypeFuncNames :: ExprEnv -> Type -> [(FuncName, Expr)]
+higherOrderOfTypeFuncNames :: E.ExprEnv -> Type -> [(FuncName, Expr)]
 higherOrderOfTypeFuncNames eenv ty =
-    nub . filter (\(_, e) -> ty `elem` functionsAccepted e) . M.toList $ eenv
+    nub . filter (\(_, e) -> ty `elem` functionsAccepted e) . E.toExprList $ eenv
     where
         -- Returns a list of all function types that must be passed to the given function
         functionsAccepted :: Expr -> [Type]
@@ -223,13 +224,13 @@ higherOrderArgs l@(Lam (Id n _) e) =
 higherOrderArgs _ = []
 
 -- Returns all function names of the given type
-functionNamesOfType :: ExprEnv -> Type -> [FuncName]
+functionNamesOfType :: E.ExprEnv -> Type -> [FuncName]
 functionNamesOfType eenv t =
-    map fst . filter (\(_, e') -> typeOf e' == t) . M.assocs $ eenv
+    map fst . filter (\(_, e') -> typeOf e' == t) . E.toExprList $ eenv
 
 -- Get higher order functions from the expression environment
-higherOrderFuncsExprEnv :: ExprEnv -> [Expr]
-higherOrderFuncsExprEnv = filter (higherOrderFunc) . M.elems
+higherOrderFuncsExprEnv :: E.ExprEnv -> [Expr]
+higherOrderFuncsExprEnv = filter (higherOrderFunc) . E.elems
 
 -- Get higher order types from the type environment
 higherOrderTypesTEnv :: TypeEnv -> [Type]

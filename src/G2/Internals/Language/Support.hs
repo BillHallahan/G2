@@ -8,6 +8,7 @@ module G2.Internals.Language.Support
     ) where
 
 import G2.Internals.Language.AST
+import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Naming
 import G2.Internals.Language.SymLinks hiding (filter)
 import G2.Internals.Language.Syntax
@@ -16,7 +17,7 @@ import qualified Data.Map as M
 
 -- | The State is something that is passed around in G2. It can be utilized to
 -- perform defunctionalization, execution, and SMT solving on.
-data State = State { expr_env :: ExprEnv
+data State = State { expr_env :: E.ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: Expr
                    , name_gen :: NameGen
@@ -24,10 +25,6 @@ data State = State { expr_env :: ExprEnv
                    , sym_links :: SymLinks
                    , func_table :: FuncInterps
                    } deriving (Show, Eq, Read)
-
--- | Expression environments are mappings form names to expressions. These are
--- typically used for variable lookups during execution.
-type ExprEnv = M.Map Name Expr
 
 -- | Type environments map names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
@@ -54,8 +51,8 @@ newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
 data Interp = StdInterp | UnInterp deriving (Show, Eq, Read)
 
 -- | Naive expression lookup by only the occurrence name string.
-naiveLookup :: String -> ExprEnv -> [(Name, Expr)]
-naiveLookup key eenv = filter (\(Name occ _ _, _) -> occ == key) (M.toList eenv)
+naiveLookup :: String -> E.ExprEnv -> [(Name, Expr)]
+naiveLookup key = filter (\(Name occ _ _, _) -> occ == key) . E.toExprList
 
 emptyFuncInterps :: FuncInterps
 emptyFuncInterps = FuncInterps M.empty

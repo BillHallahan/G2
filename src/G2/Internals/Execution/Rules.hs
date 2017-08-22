@@ -6,6 +6,7 @@ module G2.Internals.Execution.Rules
   ) where
 
 import G2.Internals.Language
+import qualified G2.Internals.Language.ExprEnv as E
 
 import G2.Internals.Execution.Support
 
@@ -30,8 +31,8 @@ data Rule = RuleEvalVal
 -- | Check whether or not a value is the result of symbolic application. This
 -- would require us to go through a chain of things to make sure that the LHS
 -- of the sequence of Apps is mapped to a Nothing -- effectively a normal form.
-isSymbolic :: Id -> ExecExprEnv -> Bool
-isSymbolic var eenv = case lookupExecExprEnv (idName var) eenv of
+isSymbolic :: Id -> ExprEnv -> Bool
+isSymbolic var eenv = case E.lookup (idName var) eenv of
     Just (App (Var fvar) _) -> isSymbolic fvar eenv
     Just _ -> False
     Nothing -> True
@@ -50,9 +51,9 @@ unApp expr = [expr]
 --   `App`, which involves pushing the RHS onto the `ExecStack`.
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
-isExprValueForm :: Expr -> ExecExprEnv -> Bool
+isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
-    lookupExecExprEnv (idName var) eenv == Nothing || isSymbolic var eenv
+    E.lookup (idName var) eenv == Nothing || isSymbolic var eenv
 isExprValueForm (App f a) _ = case unApp (App f a) of
     (Data _:_) -> True
     _ -> False
@@ -65,19 +66,19 @@ isExprValueForm _ _ = True
 -- * The `ExecCode` is in a `Return` form.
 isExecValueForm :: ExecState -> Bool
 isExecValueForm state | Nothing <- popExecStack (exec_stack state)
-                      , Return _ <- exec_code state = True
+                      , CurrExpr Return _ <- exec_code state = True
 
                       | otherwise = False
 
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.
-liftBinds :: [(Id, Expr)] -> ExecExprEnv -> Expr -> NameGen ->
-           (ExecExprEnv, Expr, NameGen)
+liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
+           (E.ExprEnv, Expr, NameGen)
 liftBinds kvs eenv expr ngen = (eenv', expr', ngen')
   where
     olds = map (idName . fst) kvs
     (news, ngen') = freshSeededNames olds ngen
-    eenv' = insertExprs (zip news (map snd kvs)) eenv
+    eenv' = E.insertExprs (zip news (map snd kvs)) eenv
     expr' = renamings (zip olds news) expr
 
 -- | `DataCon` `Alt`s.
@@ -125,7 +126,7 @@ liftSymDataAlt state mexpr (dcon, params, aexpr) cvar = (state', cond)
     binds = [(cvar, mexpr)]
     (eenv', aexpr'', ngen'') = liftBinds binds eenv aexpr' ngen'
     state' = state { exec_eenv = eenv'
-                   , exec_code = Evaluate aexpr''
+                   , exec_code = CurrExpr Evaluate aexpr''
                    , exec_paths = cond : paths
                    , exec_names = ngen'' }
 
@@ -142,7 +143,7 @@ liftSymLitAlt state mexpr (lit, aexpr) cvar = (state', cond)
     binds = [(cvar, Lit lit)]
     (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
     state' = state { exec_eenv = eenv'
-                   , exec_code = Evaluate aexpr'
+                   , exec_code = CurrExpr Evaluate aexpr'
                    , exec_paths = cond : paths
                    , exec_names = ngen' }
 
@@ -157,7 +158,7 @@ liftSymDefAlt state mexpr negatives aexpr cvar = state'
     binds = [(cvar, mexpr)]
     (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
     state' = state { exec_eenv = eenv'
-                   , exec_code = Evaluate aexpr'
+                   , exec_code = CurrExpr Evaluate aexpr'
                    , exec_paths = negatives ++ paths
                    , exec_names = ngen' }
 
@@ -175,30 +176,30 @@ stackReduce state @ ExecState { exec_stack = stack
 -- The distinction is less clear here. For now :)
 
     -- Our current thing is a value form, which means we can return it.
-    | Evaluate expr <- code
+    | CurrExpr Evaluate expr <- code
     , isExprValueForm expr eenv =
         ( RuleEvalVal
-        , [state { exec_code = Return expr }])
+        , [state { exec_code = CurrExpr Return expr }])
 
     -- If our variable points to something on the heap, we first push the
     -- current name of the variable onto the stack and evaluate the expression
     -- that it points to only if it is not a value. After the latter is done
     -- evaluating, we pop the stack to add a redirection pointer into the heap.
-    | Evaluate (Var var) <- code
-    , Just expr <- lookupExecExprEnv (idName var) eenv
+    | CurrExpr Evaluate (Var var) <- code
+    , Just expr <- E.lookup (idName var) eenv
     , not (isExprValueForm expr eenv) =
         let frame = UpdateFrame (idName var)
         in ( RuleEvalVarNonVal
            , [state { exec_stack = pushExecStack frame stack
-                    , exec_code = Evaluate expr }])
+                    , exec_code = CurrExpr Evaluate expr }])
 
     -- If the target in our environment is already a value form, we do not
     -- need to push additional redirects for updating later on.
-    | Evaluate (Var var) <- code
-    , Just expr <- lookupExecExprEnv (idName var) eenv
+    | CurrExpr Evaluate (Var var) <- code
+    , Just expr <- E.lookup (idName var) eenv
     , isExprValueForm expr eenv =
         ( RuleEvalVarVal
-        , [state { exec_code = Evaluate expr }])
+        , [state { exec_code = CurrExpr Evaluate expr }])
 
     -- Push application RHS onto the stack. This is essentially the same as the
     -- original STG rules, but we pretend that every function is (appropriately)
@@ -207,31 +208,31 @@ stackReduce state @ ExecState { exec_stack = stack
     -- However given actual lazy evaluations within Haskell, all the
     -- `ExecExprEnv`s at each frame would really be stored in a single
     -- location on the actual Haskell heap during execution.
-    | Evaluate (App fexpr aexpr) <- code =
+    | CurrExpr Evaluate (App fexpr aexpr) <- code =
         let frame = ApplyFrame aexpr
         in ( RuleEvalApp
            , [state { exec_stack = pushExecStack frame stack
-                    , exec_code = Evaluate fexpr }])
+                    , exec_code = CurrExpr Evaluate fexpr }])
 
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
-    | Evaluate (Let binds expr) <- code =
+    | CurrExpr Evaluate (Let binds expr) <- code =
         let (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalLet
            , [state { exec_eenv = eenv'
-                    , exec_code = Evaluate expr'
+                    , exec_code = CurrExpr Evaluate expr'
                     , exec_names = ngen' }])
 
     -- | Is the current expression able to match with a literal based `Alt`? If
     -- so, we do the cvar binding, and proceed with evaluation of the body.
-    | Evaluate (Case (Lit lit) cvar alts) <- code
+    | CurrExpr Evaluate (Case (Lit lit) cvar alts) <- code
     , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
         let binds = [(cvar, Lit lit)]
             cond = AltCond (LitAlt lit) (Lit lit) True
             (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseLit
            , [state { exec_eenv = eenv'
-                    , exec_code = Evaluate expr'
+                    , exec_code = CurrExpr Evaluate expr'
                     , exec_paths = cond : paths
                     , exec_names = ngen' }])
 
@@ -239,7 +240,7 @@ stackReduce state @ ExecState { exec_stack = stack
     -- If so, then we bind all the parameters to the appropriate arguments and
     -- proceed with the evaluation of the `Alt`'s expression. We also make sure
     -- to perform the cvar binding.
-    | Evaluate (Case mexpr cvar alts) <- code
+    | CurrExpr Evaluate (Case mexpr cvar alts) <- code
     , (Data dcon):args <- unApp mexpr
     , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
     , length params == length args =
@@ -248,27 +249,27 @@ stackReduce state @ ExecState { exec_stack = stack
             (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseData
            , [state { exec_eenv = eenv'
-                    , exec_code = Evaluate expr'
+                    , exec_code = CurrExpr Evaluate expr'
                     , exec_paths = cond : paths
                     , exec_names = ngen' }])
 
     -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
     -- If so, we just perform the cvar binding and proceed with the alt
     -- expression.
-    | Evaluate (Case mexpr cvar alts) <- code
+    | CurrExpr Evaluate (Case mexpr cvar alts) <- code
     , (Alt _ expr):_ <- defaultAlts alts =
         let binds = [(cvar, mexpr)]
             cond = AltCond Default mexpr True
             (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseDefault
            , [state { exec_eenv = eenv'
-                    , exec_code = Evaluate expr'
+                    , exec_code = CurrExpr Evaluate expr'
                     , exec_paths = cond : paths
                     , exec_names = ngen' }])
 
     -- | If we are pointing to a symbolic value in the environment, handle it
     -- appropriately by branching on every `Alt`.
-    | Evaluate (Case (Var var) cvar alts) <- code
+    | CurrExpr Evaluate (Case (Var var) cvar alts) <- code
     , isSymbolic var eenv
     , (dalts, lalts, defs) <- (dataAlts alts, litAlts alts, defaultAlts alts)
     , (length dalts + length lalts + length defs) > 0 =
@@ -286,12 +287,12 @@ stackReduce state @ ExecState { exec_stack = stack
     -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
     -- is only done when the matching expression is NOT in value form. Value
     -- forms should be handled by other RuleEvalCase* rules.
-    | Evaluate (Case mexpr cvar alts) <- code
+    | CurrExpr Evaluate (Case mexpr cvar alts) <- code
     , not (isExprValueForm mexpr eenv) =
         let frame = CaseFrame cvar alts
         in ( RuleEvalCaseNonVal
            , [state { exec_stack = pushExecStack frame stack
-                    , exec_code = Evaluate mexpr }])
+                    , exec_code = CurrExpr Evaluate mexpr }])
 
     -- Return forms the `ExecCode`.
 
@@ -300,67 +301,67 @@ stackReduce state @ ExecState { exec_stack = stack
     -- `ExecExprEnv`, and continue with execution. This is the equivalent of
     -- performing memoization on values that we have seen.
     | Just (UpdateFrame frm_name, stack') <- popExecStack stack
-    , Return (Var (Id name ty)) <- code =
+    , CurrExpr Return (Var (Id name ty)) <- code =
         ( RuleReturnUpdateVar
         , [state { exec_stack = stack'
-                 , exec_eenv = insertRedirect frm_name name eenv
-                 , exec_code = Return (Var (Id name ty)) }])
+                 , exec_eenv = E.redirect frm_name name eenv
+                 , exec_code = CurrExpr Return (Var (Id name ty)) }])
 
     -- If the variable we are returning does not have a `Var` in it at the
     -- immediate top level, then we have to insert it into the `ExecExprEnv`
     -- directly.
     | Just (UpdateFrame frm_name, stack') <- popExecStack stack
-    , Return expr <- code =
+    , CurrExpr Return expr <- code =
         ( RuleReturnUpdateNonVar
         , [state { exec_stack = stack'
-                 , exec_eenv = insertExpr frm_name expr eenv
-                 , exec_code = Return expr }])
+                 , exec_eenv = E.insert frm_name expr eenv
+                 , exec_code = CurrExpr Return expr }])
 
     -- In the event that we are returning and we have a `CaseFrame` waiting for
     -- us at the top of the stack, we would simply inject it into the case
     -- expression. We do some assumptions here about the form of expressions!
     | Just (CaseFrame cvar alts, stack') <- popExecStack stack
-    , Return expr <- code =
+    , CurrExpr Return expr <- code =
         ( RuleReturnCase
         , [state { exec_stack = stack'
-                 , exec_code = Evaluate (Case expr cvar alts) }])
+                 , exec_code = CurrExpr Evaluate (Case expr cvar alts) }])
 
     -- When we have an `ApplyFrame` on the top of the stack, things might get a
     -- bit tricky, since we need to make sure that the thing we end up returning
     -- is appropriately a value. In the case of `Lam`, we need to perform
     -- application, and then go into the expression body.
     | Just (ApplyFrame aexpr, stack') <- popExecStack stack
-    , Return (Lam b lexpr) <- code =
+    , CurrExpr Return (Lam b lexpr) <- code =
         let binds = [(b, aexpr)]
             (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
         in ( RuleReturnApplyLam
            , [state { exec_stack = stack'
                     , exec_eenv = eenv'
-                    , exec_code = Evaluate lexpr'
+                    , exec_code = CurrExpr Evaluate lexpr'
                     , exec_names = ngen' }])
 
     -- When we have an `DataCon` application chain, we need to tack on the
     -- expression in the `ApplyFrame` at the end.
     | Just (ApplyFrame aexpr, stack') <- popExecStack stack
-    , Return dexpr <- code
+    , CurrExpr Return dexpr <- code
     , (Data _):_ <- unApp dexpr =
         ( RuleReturnApplyData
         , [state { exec_stack = stack'
                  , exec_eenv = eenv
-                 , exec_code = Return (App dexpr aexpr) }])
+                 , exec_code = CurrExpr Return (App dexpr aexpr) }])
 
   -- When we return symbolic values on an `ApplyFrame`, introduce new name
   -- mappings in the eenv to form this long symbolic normal form chain.
   | Just (ApplyFrame aexpr, stack') <- popExecStack stack
-  , Return (Var var) <- code
+  , CurrExpr Return (Var var) <- code
   , isSymbolic var eenv =
       let (sname, ngen') = freshSeededName (idName var) ngen
           sym_app = App (Var var) aexpr
           svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
       in ( RuleReturnApplySym
          , [state { exec_stack = stack'
-                  , exec_eenv = insertExpr sname sym_app eenv
-                  , exec_code = Return (Var svar)
+                  , exec_eenv = E.insert sname sym_app eenv
+                  , exec_code = CurrExpr Return (Var svar)
                   , exec_names = ngen' }])
 
     -- Our evaluation has hit a value.
