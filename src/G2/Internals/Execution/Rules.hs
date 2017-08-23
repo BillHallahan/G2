@@ -263,12 +263,18 @@ stackReduce state @ State { stack = stack
     | CurrExpr Evaluate (Case mexpr cvar alts) <- code
     , (Alt _ expr):_ <- defaultAlts alts =
         let binds = [(cvar, mexpr)]
-            cond = AltCond Default mexpr True
+
+            dalts = dataAlts alts
+            lalts = litAlts alts
+            (_, dconds)  = unzip $ map (\d -> liftSymDataAlt state mexpr d cvar) dalts
+            (_, lconds) = unzip $ map (\l -> liftSymLitAlt state mexpr l cvar) lalts
+            conds = map negatePathCond (dconds ++ lconds)
+
             (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseDefault
            , [state { expr_env = eenv'
                     , curr_expr = CurrExpr Evaluate expr'
-                    , path_conds = cond : paths
+                    , path_conds = conds ++ paths
                     , name_gen = ngen' }])
 
     -- | If we are pointing to a symbolic value in the environment, handle it
