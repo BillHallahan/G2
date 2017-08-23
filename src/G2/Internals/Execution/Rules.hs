@@ -266,8 +266,8 @@ stackReduce state @ State { stack = stack
 
             dalts = dataAlts alts
             lalts = litAlts alts
-            (_, dconds)  = unzip $ map (\d -> liftSymDataAlt state mexpr d cvar) dalts
-            (_, lconds) = unzip $ map (\l -> liftSymLitAlt state mexpr l cvar) lalts
+            dconds = map (\d -> snd $ liftSymDataAlt state mexpr d cvar) dalts
+            lconds = map (\l -> snd $ liftSymLitAlt state mexpr l cvar) lalts
             conds = map negatePathCond (dconds ++ lconds)
 
             (eenv', expr', ngen') = liftBinds binds eenv expr ngen
