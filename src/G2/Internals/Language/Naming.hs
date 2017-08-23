@@ -4,6 +4,7 @@ module G2.Internals.Language.Naming
     ( NameGen
     , Renamable (renaming)
     , rename
+    , rename'
     , nameToStr
     , mkNameGen
     , freshName
@@ -64,6 +65,14 @@ rename n ng x =
         (new, ng') = freshSeededName n ng
     in
     (renaming n new x, ng')
+
+rename' :: Renamable a => [Name] -> NameGen -> a -> (a, NameGen)
+rename' [] ng x = (x, ng)
+rename' (n:ns) ng x =
+    let
+        (x', ng') = rename n ng x
+    in
+    rename' ns ng' x'
 
 -- |Renamable a
 -- Given an old name and a new name, replaces the old name with the new name

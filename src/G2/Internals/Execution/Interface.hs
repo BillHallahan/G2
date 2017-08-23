@@ -5,13 +5,13 @@ module G2.Internals.Execution.Interface( runNDepth
                                        , runNDepthHist'
                                        , runNDepthCatchError) where
 
-import G2.Internals.Execution.Support
 import G2.Internals.Execution.Rules
+import G2.Internals.Language.Support
 
-runNDepth :: [ExecState] -> Int -> [ExecState]
+runNDepth :: [State] -> Int -> [State]
 runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)
     where
-        runNDepth' :: [(ExecState, Int)] -> [ExecState]
+        runNDepth' :: [(State, Int)] -> [State]
         runNDepth' [] = []
         runNDepth' ((s, 0):xs) = s:runNDepth' xs
         runNDepth' ((s, n):xs) =
@@ -21,10 +21,10 @@ runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)
             in
             runNDepth' (s'' ++ xs)
 
-runNDepthHist :: [ExecState] -> Int -> [[(Maybe Rule, ExecState)]]
+runNDepthHist :: [State] -> Int -> [[(Maybe Rule, State)]]
 runNDepthHist s n = runNDepth' (map (\s' -> ([(Nothing, s')], n)) s)
     where
-        runNDepth' :: [([(Maybe Rule, ExecState)], Int)] -> [[(Maybe Rule, ExecState)]]
+        runNDepth' :: [([(Maybe Rule, State)], Int)] -> [[(Maybe Rule, State)]]
         runNDepth' [] = []
         runNDepth' ((rss, 0):xs) = rss:runNDepth' xs
         runNDepth' ((rss@((r, s):_), n):xs) =
@@ -34,10 +34,10 @@ runNDepthHist s n = runNDepth' (map (\s' -> ([(Nothing, s')], n)) s)
             in
             runNDepth' (s'' ++ xs)
 
-runNDepthHist' :: [ExecState] -> Int -> [([Rule], ExecState)]
+runNDepthHist' :: [State] -> Int -> [([Rule], State)]
 runNDepthHist' states n = runNDepth' $ map (\s -> (([], s), n)) states
   where
-    runNDepth' :: [(([Rule], ExecState), Int)] -> [([Rule], ExecState)]
+    runNDepth' :: [(([Rule], State), Int)] -> [([Rule], State)]
     runNDepth' [] = []
     runNDepth' ((rss, 0):xs) = rss : runNDepth' xs
     runNDepth' ((rss@((rs, s), n)):xs) =
@@ -45,10 +45,10 @@ runNDepthHist' states n = runNDepth' $ map (\s -> (([], s), n)) states
             mod_info = map (\s -> ((rs ++ [app_rule], s), n - 1)) reduceds
         in runNDepth' (mod_info ++ xs)
 
-runNDepthCatchError :: [ExecState] -> Int -> Either [ExecState] ExecState
+runNDepthCatchError :: [State] -> Int -> Either [State] State
 runNDepthCatchError s n = runNDepth' (map (\s' -> (s', n)) s)
     where
-        runNDepth' :: [(ExecState, Int)] -> Either [ExecState] ExecState
+        runNDepth' :: [(State, Int)] -> Either [State] State
         runNDepth' [] = Left []
         runNDepth' ((s, 0):xs) =
             case runNDepth' xs of

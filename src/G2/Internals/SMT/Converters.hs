@@ -33,7 +33,7 @@ toSMTHeaders :: State -> [SMTHeader]
 toSMTHeaders s = 
     (typesToSMTSorts $ type_env s)
     ++
-    (createVarDecls . sltToSMTNameSorts $ sym_links s)
+    (createVarDecls . vars $ path_conds s)--sltToSMTNameSorts $ sym_links s)
     ++
     (map pathConsToSMT $ path_conds s)
 
@@ -119,14 +119,22 @@ altToSMT (LitAlt (LitBool b)) = VBool b
 altToSMT (DataAlt (PrimCon I) [i]) = V (nameToStr . idName $ i) SortInt
 altToSMT (DataAlt (PrimCon D) [d]) = V (nameToStr . idName $ d) SortDouble
 altToSMT (DataAlt (PrimCon F) [f]) = V (nameToStr . idName $ f) SortFloat
-altToSMT (DataAlt (DataCon n t@(TyConApp _ _) ts) ns) =
+altToSMT (DataAlt (DataCon n t ts) ns) =
     Cons (nameToStr n) (map f $ zip ns ts) (typeToSMT t)
     where
         f :: (Id, Type) -> SMTAST
         f (n', t') = V (nameToStr . idName $ n') (typeToSMT t')
+altToSMT am = error $ "Unhandled " ++ show am
 
 sltToSMTNameSorts :: SymLinks -> [(Name, Sort)]
 sltToSMTNameSorts = map (\(n, t) -> (n, typeToSMT t)) . SLT.namesTypes
+
+vars :: [PathCond] -> [(Name, Sort)]
+vars = evalASTs (vars')
+    where
+        vars' :: Expr -> [(Name, Sort)]
+        vars' (Var (Id n t)) = [(n, typeToSMT t)]
+        vars' _ = []
 
 typeToSMT :: Type -> Sort
 typeToSMT TyInt = SortInt
@@ -134,6 +142,7 @@ typeToSMT TyDouble = SortDouble
 typeToSMT TyFloat = SortFloat
 typeToSMT TyBool = SortBool
 typeToSMT (TyConApp n _) = Sort (nameToStr n) []
+typeToSMT (TyForAll AnonTyBndr t) = typeToSMT t
 typeToSMT _ = Sort "" []
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]

@@ -3,9 +3,9 @@ module G2.Lib.Printers where
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as Sym
 import G2.Internals.Language.Naming
+import G2.Internals.Language.Stack
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
-import G2.Internals.Execution.Support
 import G2.Internals.Execution.Rules
 
 import Data.List
@@ -61,7 +61,7 @@ mkTypeEnvStr tenv = intercalate "\n" (map ntStr (M.toList tenv))
         ntStr :: (Name, AlgDataTy) -> String
         ntStr (n, t) = show n ++ "\n" ++ sp4 ++ show t
 
-mkExprEnvStr :: ExprEnv -> String
+mkExprEnvStr :: E.ExprEnv -> String
 mkExprEnvStr eenv = intercalate "\n" (map neStr (E.toExprList eenv))
   where
         neStr :: (Name, Expr) -> String
@@ -207,14 +207,14 @@ injTuple :: [String] -> String
 injTuple strs = "(" ++ (intercalate "," strs) ++ ")"
 
 -- | More raw version of state dumps.
-pprExecStateStr :: ExecState -> String
+pprExecStateStr :: State -> String
 pprExecStateStr ex_state = injNewLine acc_strs
   where
-    eenv_str = pprExecEEnvStr (exec_eenv ex_state)
-    stack_str = pprExecStackStr (exec_stack ex_state)
-    code_str = pprExecCodeStr (exec_code ex_state)
-    names_str = pprExecNamesStr (exec_names ex_state)
-    paths_str = pprPathsStr (exec_paths ex_state)
+    eenv_str = pprExecEEnvStr (expr_env ex_state)
+    stack_str = pprStackStr (stack ex_state)
+    code_str = pprExecCodeStr (curr_expr ex_state)
+    names_str = pprExecNamesStr (name_gen ex_state)
+    paths_str = pprPathsStr (path_conds ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
                , eenv_str
@@ -233,10 +233,10 @@ pprExecEEnvStr eenv = injNewLine kv_strs
   where
     kv_strs = map show $ E.toList eenv
 
-pprExecStackStr :: ExecStack -> String
-pprExecStackStr stack = injNewLine frame_strs
+pprStackStr :: Stack Frame -> String
+pprStackStr stack = injNewLine frame_strs
   where
-    frame_strs = map pprExecFrameStr $ execStackToList stack
+    frame_strs = map pprExecFrameStr $ toList stack
 
 pprExecFrameStr :: Frame -> String
 pprExecFrameStr frame = show frame
@@ -265,7 +265,7 @@ pprPathCondStr (ExtCond am b) = injTuple acc_strs
     b_str = show b
     acc_strs = [am_str, b_str]
 
-pprRunHistStr :: ([Rule], ExecState) -> String
+pprRunHistStr :: ([Rule], State) -> String
 pprRunHistStr (rules, ex_state) = injNewLine acc_strs
   where
     rules_str = show rules

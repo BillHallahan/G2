@@ -29,6 +29,8 @@ smt2 = SMTConverter {
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars (CurrExpr _ e) -> do
             setUpFormula h_in h_out formula
+            -- putStrLn "\n\n"
+            -- putStrLn formula
             r <- checkSat' h_in h_out
             -- print r
             if r == SAT then do
@@ -46,7 +48,7 @@ smt2 = SMTConverter {
         , assert = function1 "assert"
         , sortDecl = \ns ->
             let
-                --TODO: SAME AS sortName in langauage, fix
+                --TODO: SAME AS sortName in language, fix
                 sortN :: Sort -> String
                 sortN SortInt = sortInt smt2
                 sortN SortFloat = sortFloat smt2
@@ -156,7 +158,7 @@ checkSat' :: Handle -> Handle -> IO Result
 checkSat' h_in h_out = do
     hPutStr h_in "(check-sat)\n"
 
-    r <- hWaitForInput h_out 10000
+    r <- hWaitForInput h_out (-1)
     if r then do
         out <- hGetLine h_out
         _ <- evaluate (length out)

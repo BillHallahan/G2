@@ -47,10 +47,6 @@ newtype ExprEnv = ExprEnv (M.Map Name (Either Name Expr))
 unwrapExprEnv :: ExprEnv -> M.Map Name (Either Name Expr)
 unwrapExprEnv (ExprEnv env) = env
 
--- | `foldr` helper function that takes (A, B) into A -> B type inputs.
-foldrPair :: (a -> b -> c -> c) -> (a, b) -> c -> c
-foldrPair f (a, b) c = f a b c
-
 empty :: ExprEnv
 empty = ExprEnv M.empty
 
@@ -83,7 +79,7 @@ insert :: Name -> Expr -> ExprEnv -> ExprEnv
 insert n e = ExprEnv . M.insert n (Right e) . unwrapExprEnv
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
-insertExprs kvs scope = foldr (foldrPair insert) scope kvs
+insertExprs kvs scope = foldr (uncurry insert) scope kvs
 
 redirect :: Name -> Name -> ExprEnv -> ExprEnv
 redirect n n' = ExprEnv . M.insert n (Left n') . unwrapExprEnv

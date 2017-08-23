@@ -6,13 +6,13 @@ import G2.Internals.Language
 import G2.Internals.Preprocessing.Interface
 
 import G2.Internals.Execution.Interface
-import G2.Internals.Execution.Support
 import G2.Internals.Execution.Rules
 
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
 import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
 import G2.Lib.Printers
@@ -34,9 +34,10 @@ initState prog prog_typ m_assume m_assert f =
     , path_conds = []
     , sym_links = Sym.empty
     , func_table = emptyFuncInterps
+    , stack = Stack.empty
  }
 
-mkExprEnv :: Binds -> ExprEnv
+mkExprEnv :: Binds -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
 
 mkTypeEnv :: [ProgramType] -> TypeEnv
@@ -102,18 +103,17 @@ elimNeighboringDups x = x
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
 run con hhp n state = do
     let preproc_state = runPreprocessing state
-    let exec_state = fromState preproc_state
     
-    -- let exec_states = runNDepthHist [exec_state] n
-    let exec_states = runNDepthHist' [exec_state] n
+    let exec_states = runNDepth [preproc_state] n
+    -- let exec_states = runNDepthHist' [preproc_state] n
+
+    ms <- satModelOutputs con hhp exec_states
 
   {-
-    putStrLn ("\nNumber of states: " ++ (show (length exec_states)))
-
     let exec_states_error = filter (any (\(r, _) -> r == Just RuleError)) exec_states
 
     putStrLn ("\nNumber of error states: " ++ (show (length exec_states_error)))
-
+    
     let red_error = map (reverse . elimNeighboringDups) exec_states_error
 
 
@@ -123,7 +123,10 @@ run con hhp n state = do
         putStrLn "")) red_error
 
   -}
-    mapM (putStrLn . pprRunHistStr) exec_states 
+    -- mapM (putStrLn . pprRunHistStr) exec_states
+    
+    -- putStrLn ("\nNumber of states: " ++ (show (length exec_states)))
+
     return []
 
     -- let exec_states = runNDepth [exec_state] n
