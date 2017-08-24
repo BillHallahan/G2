@@ -14,17 +14,17 @@ import G2.Internals.SMT.Language
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each is satisfiable.
 -- Returns a list of possible input/output pairs for the satisifiable states
-satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [([Expr], Expr)]
+satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [([Expr], Expr, out)]
 satModelOutputs con io s = do
-   return . map (\(_, es, e) -> (fromJust es, fromJust e))
-          . filter (\(s', es, e) -> s' == SAT && isJust es && isJust e)
+   return . map (\(_, es, e, f) -> (fromJust es, fromJust e, f))
+          . filter (\(s', es, e, _) -> s' == SAT && isJust es && isJust e)
           =<< mapM (satModelOutput con io) (smtReady s)
 
 -- | checkSatModelOutput
 -- Given an smt converter and a list state, checks if the states current expression
 -- and path constraints are satisfiable.  If they are, one possible input and output
 -- are also returned
-satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe [Expr], Maybe Expr)
+satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe [Expr], Maybe Expr, out)
 satModelOutput con io s = do
     let headers = toSMTHeaders s
     let formula = toSolver con headers
@@ -45,7 +45,7 @@ satModelOutput con io s = do
     -- Convert the output to an expression
     let ex' = fmap (replaceFuncSLT s . smtastToExpr) ex
 
-    return (res, inArg, ex')
+    return (res, inArg, ex', formula)
 
 -- | smtReady
 -- Given a list of states, returns only those that can be evaluated by the SMT solver

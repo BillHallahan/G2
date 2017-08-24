@@ -36,7 +36,7 @@ main = do
 
     in_out <- run smt2 hhp n_val init_state
 
-    mapM_ (\(inArg, ex) -> do
+    mapM_ (\(inArg, ex, formula) -> do
             let inArg' = map (maybeReplaceVarName revVarN) . map (replaceDataConName conN) $ inArg
             let ex' = replaceDataConName conN ex
 
@@ -45,7 +45,10 @@ main = do
 
             let funcOut = mkExprHaskell $ ex'
 
-            putStrLn (funcCall ++ " == " ++ funcOut)
+            putStrLn "-------------------------------------\n"
+            putStrLn $ "[Formula]\n" ++ show formula ++ "\n"
+            putStrLn $ "[Function call]\n" ++ funcCall ++ " -> " ++ funcOut ++ "\n"
+            -- putStrLn (funcCall ++ " == " ++ funcOut)
         ) in_out
 
 
