@@ -124,8 +124,7 @@ liftSymDataAlt state mexpr (dcon, params, aexpr) cvar = (state', cond)
     cond = AltCond (DataAlt dcon params) mexpr True
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
-    (news, ngen') = freshSeededNames olds ngen
-    aexpr' = renamings (zip olds news) aexpr
+    (aexpr', ngen') = rename' olds ngen aexpr
     -- Now do a round of renaming for binding the cvar.
     binds = [(cvar, mexpr)]
     (eenv', aexpr'', ngen'') = liftBinds binds eenv aexpr' ngen'
@@ -170,10 +169,10 @@ liftSymDefAlt state mexpr negatives aexpr cvar = state'
 -- semantics with heap memoization.
 stackReduce :: State -> (Rule, [State])
 stackReduce state @ State { stack = stack
-                              , expr_env = eenv
-                              , curr_expr = code
-                              , name_gen = ngen
-                              , path_conds = paths }
+                          , expr_env = eenv
+                          , curr_expr = code
+                          , name_gen = ngen
+                          , path_conds = paths }
 
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
