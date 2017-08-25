@@ -231,12 +231,10 @@ stackReduce state @ State { stack = stack
     | CurrExpr Evaluate (Case (Lit lit) cvar alts) <- code
     , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
         let binds = [(cvar, Lit lit)]
-            cond = AltCond (LitAlt lit) (Lit lit) True
             (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseLit
            , [state { expr_env = eenv'
                     , curr_expr = CurrExpr Evaluate expr'
-                    , path_conds = cond : paths
                     , name_gen = ngen' }])
 
     -- Is the current expression able to match a data consturctor based `Alt`?
@@ -248,12 +246,10 @@ stackReduce state @ State { stack = stack
     , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
     , length params == length args =
         let binds = (cvar, mexpr) : zip params args
-            cond = AltCond (DataAlt dcon params) mexpr True
             (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseData
            , [state { expr_env = eenv'
                     , curr_expr = CurrExpr Evaluate expr'
-                    , path_conds = cond : paths
                     , name_gen = ngen' }])
 
     -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
@@ -262,18 +258,10 @@ stackReduce state @ State { stack = stack
     | CurrExpr Evaluate (Case mexpr cvar alts) <- code
     , (Alt _ expr):_ <- defaultAlts alts =
         let binds = [(cvar, mexpr)]
-
-            dalts = dataAlts alts
-            lalts = litAlts alts
-            dconds = map (\d -> snd $ liftSymDataAlt state mexpr d cvar) dalts
-            lconds = map (\l -> snd $ liftSymLitAlt state mexpr l cvar) lalts
-            conds = map negatePathCond (dconds ++ lconds)
-
             (eenv', expr', ngen') = liftBinds binds eenv expr ngen
         in ( RuleEvalCaseDefault
            , [state { expr_env = eenv'
                     , curr_expr = CurrExpr Evaluate expr'
-                    , path_conds = conds ++ paths
                     , name_gen = ngen' }])
 
     -- | If we are pointing to a symbolic value in the environment, handle it
