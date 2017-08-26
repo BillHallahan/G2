@@ -207,70 +207,6 @@ stackReduce s @ State { stack = stack
     
     | otherwise = (RuleError, [s])
 
-srReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, E.ExprEnv, CurrExpr, NameGen)
-srReturn eenv (Var (Id name ty)) ng (UpdateFrame frm_name) =
-    -- We are returning something and the first thing that we have on the stack
-    -- is an `UpdateFrame`, this means that we add a redirection pointer to the
-    -- `ExecExprEnv`, and continue with execution. This is the equivalent of
-    -- performing memoization on values that we have seen.
-    ( RuleReturnUpdateVar
-    , E.redirect frm_name name eenv
-    , CurrExpr Return (Var $ Id name ty)
-    , ng)
-
-srReturn eenv expr ng (UpdateFrame frm_name) =
-    -- If the variable we are returning does not have a `Var` in it at the
-    -- immediate top level, then we have to insert it into the `ExecExprEnv`
-    -- directly.
-        ( RuleReturnUpdateNonVar
-        , E.insert frm_name expr eenv
-        , CurrExpr Return expr
-        , ng)
-srReturn eenv expr ng (CaseFrame cvar alts) =
-    -- In the event that we are returning and we have a `CaseFrame` waiting for
-    -- us at the top of the stack, we would simply inject it into the case
-    -- expression. We do some assumptions here about the form of expressions!
-    ( RuleReturnCase
-    , eenv
-    , CurrExpr Evaluate (Case expr cvar alts)
-    , ng)
-srReturn eenv (Lam b lexpr) ng (ApplyFrame aexpr) =
-    -- When we have an `ApplyFrame` on the top of the stack, things might get a
-    -- bit tricky, since we need to make sure that the thing we end up returning
-    -- is appropriately a value. In the case of `Lam`, we need to perform
-    -- application, and then go into the expression body.
-    let binds = [(b, aexpr)]
-        (eenv', lexpr', ng') = liftBinds binds eenv lexpr ng
-    in 
-    ( RuleReturnApplyLam
-    , eenv'
-    , CurrExpr Evaluate lexpr'
-    , ng')
-srReturn eenv dexpr@(App (Data _) _) ng (ApplyFrame aexpr) =
-    -- When we have an `DataCon` application chain, we need to tack on the
-    -- expression in the `ApplyFrame` at the end.
-    ( RuleReturnApplyData
-    , eenv
-    , CurrExpr Return (App dexpr aexpr)
-    , ng)
-srReturn eenv c@(Var var) ng (ApplyFrame aexpr)=
-    -- When we return symbolic values on an `ApplyFrame`, introduce new name
-    -- mappings in the eenv to form this long symbolic normal form chain.
-    if isSymbolic var eenv then
-        let 
-            (sname, ngen') = freshSeededName (idName var) ng
-            sym_app = App (Var var) aexpr
-            svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
-        in 
-        ( RuleReturnApplySym
-        , E.insert sname sym_app eenv
-        , CurrExpr Return (Var svar)
-        , ngen') 
-    else
-        (RuleError, eenv, CurrExpr Return c, ng)
-srReturn eenv c ng f = (RuleError, eenv, CurrExpr Return c, ng)
-
-
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
@@ -420,3 +356,66 @@ srEvaluateCase eenv mexpr bind alts ng
         , []
         , ng
         , Just frame)])
+
+srReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, E.ExprEnv, CurrExpr, NameGen)
+srReturn eenv (Var (Id name ty)) ng (UpdateFrame frm_name) =
+    -- We are returning something and the first thing that we have on the stack
+    -- is an `UpdateFrame`, this means that we add a redirection pointer to the
+    -- `ExecExprEnv`, and continue with execution. This is the equivalent of
+    -- performing memoization on values that we have seen.
+    ( RuleReturnUpdateVar
+    , E.redirect frm_name name eenv
+    , CurrExpr Return (Var $ Id name ty)
+    , ng)
+
+srReturn eenv expr ng (UpdateFrame frm_name) =
+    -- If the variable we are returning does not have a `Var` in it at the
+    -- immediate top level, then we have to insert it into the `ExecExprEnv`
+    -- directly.
+        ( RuleReturnUpdateNonVar
+        , E.insert frm_name expr eenv
+        , CurrExpr Return expr
+        , ng)
+srReturn eenv expr ng (CaseFrame cvar alts) =
+    -- In the event that we are returning and we have a `CaseFrame` waiting for
+    -- us at the top of the stack, we would simply inject it into the case
+    -- expression. We do some assumptions here about the form of expressions!
+    ( RuleReturnCase
+    , eenv
+    , CurrExpr Evaluate (Case expr cvar alts)
+    , ng)
+srReturn eenv (Lam b lexpr) ng (ApplyFrame aexpr) =
+    -- When we have an `ApplyFrame` on the top of the stack, things might get a
+    -- bit tricky, since we need to make sure that the thing we end up returning
+    -- is appropriately a value. In the case of `Lam`, we need to perform
+    -- application, and then go into the expression body.
+    let binds = [(b, aexpr)]
+        (eenv', lexpr', ng') = liftBinds binds eenv lexpr ng
+    in 
+    ( RuleReturnApplyLam
+    , eenv'
+    , CurrExpr Evaluate lexpr'
+    , ng')
+srReturn eenv dexpr@(App (Data _) _) ng (ApplyFrame aexpr) =
+    -- When we have an `DataCon` application chain, we need to tack on the
+    -- expression in the `ApplyFrame` at the end.
+    ( RuleReturnApplyData
+    , eenv
+    , CurrExpr Return (App dexpr aexpr)
+    , ng)
+srReturn eenv c@(Var var) ng (ApplyFrame aexpr)=
+    -- When we return symbolic values on an `ApplyFrame`, introduce new name
+    -- mappings in the eenv to form this long symbolic normal form chain.
+    if isSymbolic var eenv then
+        let 
+            (sname, ngen') = freshSeededName (idName var) ng
+            sym_app = App (Var var) aexpr
+            svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
+        in 
+        ( RuleReturnApplySym
+        , E.insert sname sym_app eenv
+        , CurrExpr Return (Var svar)
+        , ngen') 
+    else
+        (RuleError, eenv, CurrExpr Return c, ng)
+srReturn eenv c ng f = (RuleError, eenv, CurrExpr Return c, ng)
