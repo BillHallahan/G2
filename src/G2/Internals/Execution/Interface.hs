@@ -9,7 +9,7 @@ import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
 
 runNDepth :: [State] -> Int -> [State]
-runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)
+runNDepth states depth = runNDepth' (map (\s' -> (s', depth)) states)
     where
         runNDepth' :: [(State, Int)] -> [State]
         runNDepth' [] = []
@@ -22,12 +22,12 @@ runNDepth s n = runNDepth' (map (\s' -> (s', n)) s)
             runNDepth' (s'' ++ xs)
 
 runNDepthHist :: [State] -> Int -> [[(Maybe Rule, State)]]
-runNDepthHist s n = runNDepth' (map (\s' -> ([(Nothing, s')], n)) s)
+runNDepthHist states d = runNDepth' (map (\s' -> ([(Nothing, s')], d)) states)
     where
         runNDepth' :: [([(Maybe Rule, State)], Int)] -> [[(Maybe Rule, State)]]
         runNDepth' [] = []
         runNDepth' ((rss, 0):xs) = rss:runNDepth' xs
-        runNDepth' ((rss@((r, s):_), n):xs) =
+        runNDepth' ((rss@((_, s):_), n):xs) =
             let
                 (r', red) = stackReduce $ s
                 s'' = map (\s' -> ((Just r', s'):rss, n - 1)) red
@@ -35,18 +35,18 @@ runNDepthHist s n = runNDepth' (map (\s' -> ([(Nothing, s')], n)) s)
             runNDepth' (s'' ++ xs)
 
 runNDepthHist' :: [State] -> Int -> [([Rule], State)]
-runNDepthHist' states n = runNDepth' $ map (\s -> (([], s), n)) states
+runNDepthHist' states d = runNDepth' $ map (\s -> (([], s), d)) states
   where
     runNDepth' :: [(([Rule], State), Int)] -> [([Rule], State)]
     runNDepth' [] = []
     runNDepth' ((rss, 0):xs) = rss : runNDepth' xs
-    runNDepth' ((rss@((rs, s), n)):xs) =
+    runNDepth' ((((rs, s), n)):xs) =
         let (app_rule, reduceds) = stackReduce s
-            mod_info = map (\s -> ((rs ++ [app_rule], s), n - 1)) reduceds
+            mod_info = map (\s' -> ((rs ++ [app_rule], s'), n - 1)) reduceds
         in runNDepth' (mod_info ++ xs)
 
 runNDepthCatchError :: [State] -> Int -> Either [State] State
-runNDepthCatchError s n = runNDepth' (map (\s' -> (s', n)) s)
+runNDepthCatchError states d = runNDepth' (map (\s' -> (s', d)) states)
     where
         runNDepth' :: [(State, Int)] -> Either [State] State
         runNDepth' [] = Left []

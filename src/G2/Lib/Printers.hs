@@ -234,9 +234,9 @@ pprExecEEnvStr eenv = injNewLine kv_strs
     kv_strs = map show $ E.toList eenv
 
 pprStackStr :: Stack Frame -> String
-pprStackStr stack = injNewLine frame_strs
+pprStackStr stk = injNewLine frame_strs
   where
-    frame_strs = map pprExecFrameStr $ toList stack
+    frame_strs = map pprExecFrameStr $ toList stk
 
 pprExecFrameStr :: Frame -> String
 pprExecFrameStr frame = show frame

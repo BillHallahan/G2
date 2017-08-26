@@ -72,19 +72,19 @@ isExecValueForm state | Nothing <- pop (stack state)
                       | otherwise = False
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
-renamings :: Renamable a => [(Name, Name)] -> a -> a
-renamings names a = foldr (\(old, new) -> renaming old new) a names
+renames :: Renamable a => [(Name, Name)] -> a -> a
+renames names a = foldr (\(old, new) -> rename old new) a names
 
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
-           (E.ExprEnv, Expr, NameGen)
+             (E.ExprEnv, Expr, NameGen)
 liftBinds kvs eenv expr ngen = (eenv', expr', ngen')
   where
     olds = map (idName . fst) kvs
     (news, ngen') = freshSeededNames olds ngen
     eenv' = E.insertExprs (zip news (map snd kvs)) eenv
-    expr' = renamings (zip olds news) expr
+    expr' = renames (zip olds news) expr
 
 -- | `DataCon` `Alt`s.
 dataAlts :: [Alt] -> [(DataCon, [Id], Expr)]
@@ -111,22 +111,24 @@ negatePathCond :: PathCond -> PathCond
 negatePathCond (AltCond a e b) = AltCond a e (not b)
 negatePathCond (ExtCond e b) = ExtCond e (not b)
 
+type LiftSymResult = (E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)
+
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
--- part involves erasing all of the parameters from the environment by renaming
+-- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
 liftSymDataAlt :: E.ExprEnv -> Expr -> NameGen -> (DataCon, [Id], Expr) -> Id ->
-                  (E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)
-liftSymDataAlt eenv mexpr ng (dcon, params, aexpr) cvar = ret
+                  LiftSymResult
+liftSymDataAlt eenv mexpr ngen (dcon, params, aexpr) cvar = res
   where
     -- Condition that was matched.
     cond = AltCond (DataAlt dcon params) mexpr True
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
-    (aexpr', ng') = rename' olds ng aexpr
-    -- Now do a round of renaming for binding the cvar.
+    (aexpr', ng') = doRenames olds ngen aexpr
+    -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
     (eenv', aexpr'', ngen'') = liftBinds binds eenv aexpr' ng'
-    ret = ( eenv'
+    res = ( eenv'
           , CurrExpr Evaluate aexpr''
           , [cond]
           , ngen''
@@ -134,32 +136,32 @@ liftSymDataAlt eenv mexpr ng (dcon, params, aexpr) cvar = ret
 
 -- | Lift literal alts found in symbolic case matching.
 liftSymLitAlt :: E.ExprEnv -> Expr -> NameGen -> (Lit, Expr) -> Id ->
-                 (E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)
-liftSymLitAlt eenv mexpr ng (lit, aexpr) cvar = ret
+                 LiftSymResult
+liftSymLitAlt eenv mexpr ngen (lit, aexpr) cvar = res
   where
     -- Condition that was matched.
     cond = AltCond (LitAlt lit) mexpr True
     -- Bind the cvar.
     binds = [(cvar, Lit lit)]
-    (eenv', aexpr', ng') = liftBinds binds eenv aexpr ng
-    ret = ( eenv'
+    (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
+    res = ( eenv'
           , CurrExpr Evaluate aexpr'
           , [cond]
-          , ng'
+          , ngen'
           , Nothing)
 
 -- | Lift default alts found in symbolic case matching.
 liftSymDefAlt :: E.ExprEnv -> Expr -> NameGen -> [PathCond] -> Expr -> Id ->
-                 (E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)
-liftSymDefAlt eenv mexpr ng negatives aexpr cvar = ret
+                 LiftSymResult
+liftSymDefAlt eenv mexpr ngen negatives aexpr cvar = res
   where
     -- Bind the cvar.
     binds = [(cvar, mexpr)]
-    (eenv', aexpr', ng') = liftBinds binds eenv aexpr ng
-    ret = (eenv
+    (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
+    res = ( eenv'
           , CurrExpr Evaluate aexpr'
           , negatives
-          , ng'
+          , ngen'
           , Nothing)
 
 -- | Funciton for performing rule reductions based on stack based evaluation
@@ -170,75 +172,74 @@ liftSymDefAlt eenv mexpr ng negatives aexpr cvar = ret
 -- The distinction is less clear here. For now :)
 
 stackReduce :: State -> (Rule, [State])
-stackReduce s @ State { stack = stack
+stackReduce s @ State { stack = stk
                       , expr_env = eenv
                       , curr_expr = cexpr
-                      , name_gen = ng
+                      , name_gen = ngen
                       , path_conds = paths }
-    | isExecValueForm s =
-        (RuleIdentity, [s])
-    
-    | CurrExpr Evaluate expr <- cexpr 
-    , isExprValueForm expr eenv =
-        -- Our current thing is a value form, which means we can return it.
-        (RuleEvalVal, [s { curr_expr = CurrExpr Return expr }])
-    
-    | CurrExpr Evaluate expr <- cexpr =
-        let
-            (r, new) = srEvaluate eenv expr ng
-        in
-        (r, map (\(eenv', cexpr', paths', ng', f) ->
-                    s { expr_env = eenv'
-                      , curr_expr = cexpr'
-                      , path_conds = paths' ++ paths
-                      , name_gen = ng'
-                      , stack = maybe stack (\f' -> push f' stack) f}) new)
-    | CurrExpr Return expr <- cexpr
-    , Just (f, stack') <- pop stack =
-        let
-            (r, eenv', cexpr', ng') = srReturn eenv expr ng f
-        in
-        (r, [s {
-                 expr_env = eenv'
-               , curr_expr = cexpr'
-               , name_gen = ng'
-               , stack = stack'
-               }])
-    
-    | otherwise = (RuleError, [s])
+  | isExecValueForm s =
+      (RuleIdentity, [s])
+
+  | CurrExpr Evaluate expr <- cexpr
+  , isExprValueForm expr eenv =
+      -- Our current thing is a value form, which means we can return it.
+      (RuleEvalVal, [s { curr_expr = CurrExpr Return expr }])
+
+  | CurrExpr Evaluate expr <- cexpr =
+      let (rule, eval_results) = reduceEvaluate eenv expr ngen
+          states = map (\(eenv', cexpr', paths', ngen', f) ->
+                         s { expr_env = eenv'
+                           , curr_expr = cexpr'
+                           , path_conds = paths' ++ paths
+                           , name_gen = ngen'
+                           , stack = maybe stk (\f' -> push f' stk) f})
+                       eval_results
+      in (rule, states)
+
+  | CurrExpr Return expr <- cexpr
+  , Just (f, stk') <- pop stk =
+      let (rule, (eenv', cexpr', ngen')) = reduceReturn eenv expr ngen f
+      in (rule, [s { expr_env = eenv'
+                   , curr_expr = cexpr'
+                   , name_gen = ngen'
+                   , stack = stk' }])
+
+  | otherwise = (RuleError, [s])
+
+-- | Result of a Evaluate reduction.
+type EvaluateResult = [(E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)]
 
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-srEvaluate :: E.ExprEnv -> Expr -> NameGen -> (Rule, [(E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)])
-srEvaluate eenv (Var var) ng =
-    case E.lookup (idName var) eenv of
-        Just expr ->
-            if isExprValueForm expr eenv then
-                -- If the target in our environment is already a value form, we do not
-                -- need to push additional redirects for updating later on.
-                (RuleEvalVarVal
-                , [(eenv
+reduceEvaluate :: E.ExprEnv -> Expr -> NameGen -> (Rule, EvaluateResult)
+reduceEvaluate eenv (Var var) ngen = case E.lookup (idName var) eenv of
+    Just expr ->
+      -- If the target in our environment is already a value form, we do not
+      -- need to push additional redirects for updating later on.
+      if isExprValueForm expr eenv
+        then ( RuleEvalVarVal
+             , [( eenv
                 , CurrExpr Evaluate expr
                 , []
-                , ng
+                , ngen
                 , Nothing)])
-            else
-                -- If our variable points to something on the heap, we first push the
-                -- current name of the variable onto the stack and evaluate the expression
-                -- that it points to only if it is not a value. After the latter is done
-                -- evaluating, we pop the stack to add a redirection pointer into the heap.
-                let
-                    frame = UpdateFrame (idName var)
-                in
-                ( RuleEvalVarNonVal
-                , [(eenv
-                , CurrExpr Evaluate expr
-                , []
-                , ng
-                , Just frame)])
-        Nothing -> error "Lookup was Nothing"
-srEvaluate eenv (App fexpr aexpr) ng =
+
+        -- If our variable points to something on the heap, we first push the
+        -- current name of the variable onto the stack and evaluate the
+        -- expression that it points to only if it is not a value. After the
+        -- latter is done evaluating, we pop the stack to add a redirection
+        -- pointer into the heap.
+        else let frame = UpdateFrame (idName var)
+             in ( RuleEvalVarNonVal
+                , [( eenv
+                   , CurrExpr Evaluate expr
+                   , []
+                   , ngen
+                   , Just frame)])
+    Nothing -> error "reduceEvaluate: lookup was Nothing"
+
+reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- Push application RHS onto the stack. This is essentially the same as the
     -- original STG rules, but we pretend that every function is (appropriately)
     -- single argument. However one problem is that eenv sharing has a redundant
@@ -246,176 +247,176 @@ srEvaluate eenv (App fexpr aexpr) ng =
     -- However given actual lazy evaluations within Haskell, all the
     -- `ExecExprEnv`s at each frame would really be stored in a single
     -- location on the actual Haskell heap during execution.
-    let
-        frame = ApplyFrame aexpr
-    in 
-    ( RuleEvalApp
-    , [(eenv
-    , CurrExpr Evaluate fexpr
-    , []
-    , ng
-    , Just frame)])
-srEvaluate eenv (Let binds expr) ng =
+    let frame = ApplyFrame aexpr
+    in ( RuleEvalApp
+       , [( eenv
+          , CurrExpr Evaluate fexpr
+          , []
+          , ngen
+          , Just frame)])
+
+reduceEvaluate eenv (Let binds expr) ngen =
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
-    let
-        (eenv', expr', ng') = liftBinds binds eenv expr ng
-    in
-    ( RuleEvalLet
-    , [(eenv'
-    , CurrExpr Evaluate expr'
-    , []
-    , ng'
-    , Nothing)])
-srEvaluate eenv (Case mexpr cvar alts) ng =
-    srEvaluateCase eenv mexpr cvar alts ng
-srEvaluate eenv c ng =
-    (RuleError, [(eenv, CurrExpr Evaluate c, [], ng, Nothing)])
+    let (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+    in ( RuleEvalLet
+       , [( eenv'
+          , CurrExpr Evaluate expr'
+          , []
+          , ngen'
+          , Nothing)])
 
-srEvaluateCase ::
-    E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen
-            -> (Rule, [(E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)])
-srEvaluateCase eenv mexpr bind alts ng
-    | (Lit lit) <- mexpr
-    , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
-        -- | Is the current expression able to match with a literal based `Alt`? If
-        -- so, we do the cvar binding, and proceed with evaluation of the body.
-        let
-            binds = [(bind, Lit lit)]
-            (eenv', expr', ng') = liftBinds binds eenv expr ng
-        in 
-        ( RuleEvalCaseLit
-        , [(eenv'
-        , CurrExpr Evaluate expr'
-        , []
-        , ng'
-        , Nothing)])
+reduceEvaluate eenv (Case mexpr cvar alts) ngen =
+    reduceCase eenv mexpr cvar alts ngen
 
-    | (Data dcon):args <- unApp mexpr
-    , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
-    , length params == length args =
-        -- Is the current expression able to match a data consturctor based `Alt`?
-        -- If so, then we bind all the parameters to the appropriate arguments and
-        -- proceed with the evaluation of the `Alt`'s expression. We also make sure
-        -- to perform the cvar binding.
-        let
-            binds = (bind, mexpr) : zip params args
-            (eenv', expr', ng') = liftBinds binds eenv expr ng
-        in
-        ( RuleEvalCaseData
-        , [(eenv'
-        , CurrExpr Evaluate expr'
-        , []
-        , ng'
-        , Nothing)] )
+reduceEvaluate eenv c ngen =
+    (RuleError, [(eenv, CurrExpr Evaluate c, [], ngen, Nothing)])
 
-    | (Alt _ expr):_ <- defaultAlts alts =
-        -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
-        -- If so, we just perform the cvar binding and proceed with the alt
-        -- expression.
-        let
-            binds = [(bind, mexpr)]
-            (eenv', expr', ng') = liftBinds binds eenv expr ng
-        in
-        ( RuleEvalCaseDefault
-        , [(eenv'
-        , CurrExpr Evaluate expr'
-        , []
-        , ng'
-        , Nothing)])
+-- | Result of a Case reduction.
+type CaseResult = [(E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)]
 
-    | (Var var) <- mexpr
-    , isSymbolic var eenv
-    , (dalts, lalts, defs) <- (dataAlts alts, litAlts alts, defaultAlts alts)
-    , (length dalts + length lalts + length defs) > 0 =
-        -- | If we are pointing to a symbolic value in the environment, handle it
-        -- appropriately by branching on every `Alt`.
-        let 
-            dsts_cs = map (\d -> liftSymDataAlt eenv (Var var) ng d bind) dalts
-            lsts_cs = map (\l -> liftSymLitAlt eenv (Var var) ng l bind) lalts
-            (_, _, dconds, _, _) = unzip5 dsts_cs
-            (_, _, lconds, _, _) = unzip5 lsts_cs
-            negs = map (negatePathCond) $ concat (dconds ++ lconds)
-            def_sts = map (\(Alt _ aexpr) ->
-                           liftSymDefAlt eenv (Var var) ng negs aexpr bind) defs
-        in
-        (RuleCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
+-- | Handle the Case forms of Evaluate.
+reduceCase :: E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, CaseResult)
+reduceCase eenv mexpr bind alts ngen
+  -- | Is the current expression able to match with a literal based `Alt`? If
+  -- so, we do the cvar binding, and proceed with evaluation of the body.
+  | (Lit lit) <- mexpr
+  , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
+      let binds = [(bind, Lit lit)]
+          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+      in ( RuleEvalCaseLit
+         , [( eenv'
+            , CurrExpr Evaluate expr'
+            , []
+            , ngen'
+            , Nothing)])
 
-    | not (isExprValueForm mexpr eenv) =
-        -- Case evaluation also uses the stack in graph reduction based evaluation
-        -- semantics. The case's binding variable and alts are pushed onto the stack
-        -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
-        -- is only done when the matching expression is NOT in value form. Value
-        -- forms should be handled by other RuleEvalCase* rules.
-        let
-            frame = CaseFrame bind alts
-        in
-        ( RuleEvalCaseNonVal
-        , [(eenv
-        , CurrExpr Evaluate mexpr
-        , []
-        , ng
-        , Just frame)])
+  -- Is the current expression able to match a data consturctor based `Alt`?
+  -- If so, then we bind all the parameters to the appropriate arguments and
+  -- proceed with the evaluation of the `Alt`'s expression. We also make sure
+  -- to perform the cvar binding.
+  | (Data dcon):args <- unApp mexpr
+  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
+  , length params == length args =
+      let binds = (bind, mexpr) : zip params args
+          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+      in ( RuleEvalCaseData
+         , [( eenv'
+            , CurrExpr Evaluate expr'
+            , []
+            , ngen'
+            , Nothing)] )
 
-srReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, E.ExprEnv, CurrExpr, NameGen)
-srReturn eenv (Var (Id name ty)) ng (UpdateFrame frm_name) =
-    -- We are returning something and the first thing that we have on the stack
-    -- is an `UpdateFrame`, this means that we add a redirection pointer to the
-    -- `ExecExprEnv`, and continue with execution. This is the equivalent of
-    -- performing memoization on values that we have seen.
-    ( RuleReturnUpdateVar
-    , E.redirect frm_name name eenv
+  -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
+  -- If so, we just perform the cvar binding and proceed with the alt
+  -- expression.
+  | (Alt _ expr):_ <- defaultAlts alts =
+      let binds = [(bind, mexpr)]
+          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+      in ( RuleEvalCaseDefault
+         , [( eenv'
+            , CurrExpr Evaluate expr'
+            , []
+            , ngen'
+            , Nothing)])
+
+  -- | If we are pointing to a symbolic value in the environment, handle it
+  -- appropriately by branching on every `Alt`.
+  | (Var var) <- mexpr
+  , isSymbolic var eenv
+  , (dalts, lalts, defs) <- (dataAlts alts, litAlts alts, defaultAlts alts)
+  , (length dalts + length lalts + length defs) > 0 =
+      let dsts_cs = map (\d -> liftSymDataAlt eenv (Var var) ngen d bind) dalts
+          lsts_cs = map (\l -> liftSymLitAlt eenv (Var var) ngen l bind) lalts
+          (_, _, dconds, _, _) = unzip5 dsts_cs
+          (_, _, lconds, _, _) = unzip5 lsts_cs
+          negs = map (negatePathCond) $ concat (dconds ++ lconds)
+          def_sts = map (\(Alt _ aexpr) ->
+                         liftSymDefAlt eenv (Var var) ngen negs aexpr bind) defs
+      in (RuleCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
+
+  -- Case evaluation also uses the stack in graph reduction based evaluation
+  -- semantics. The case's binding variable and alts are pushed onto the stack
+  -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
+  -- is only done when the matching expression is NOT in value form. Value
+  -- forms should be handled by other RuleEvalCase* rules.
+  | not (isExprValueForm mexpr eenv) =
+      let frame = CaseFrame bind alts
+      in ( RuleEvalCaseNonVal
+         , [( eenv
+            , CurrExpr Evaluate mexpr
+            , []
+            , ngen
+            , Just frame)])
+  
+  | otherwise = error "reduceCase: bad case passed in"
+
+-- | Result of a Return reduction.
+type ReturnResult = (E.ExprEnv, CurrExpr, NameGen)
+
+-- | Handle the Return states.
+reduceReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, ReturnResult)
+
+-- We are returning something and the first thing that we have on the stack
+-- is an `UpdateFrame`, this means that we add a redirection pointer to the
+-- `ExecExprEnv`, and continue with execution. This is the equivalent of
+-- performing memoization on values that we have seen.
+reduceReturn eenv (Var (Id name ty)) ngen (UpdateFrame frm_name) =
+  ( RuleReturnUpdateVar
+  , ( E.redirect frm_name name eenv
     , CurrExpr Return (Var $ Id name ty)
-    , ng)
+    , ngen))
 
-srReturn eenv expr ng (UpdateFrame frm_name) =
-    -- If the variable we are returning does not have a `Var` in it at the
-    -- immediate top level, then we have to insert it into the `ExecExprEnv`
-    -- directly.
-        ( RuleReturnUpdateNonVar
-        , E.insert frm_name expr eenv
-        , CurrExpr Return expr
-        , ng)
-srReturn eenv expr ng (CaseFrame cvar alts) =
-    -- In the event that we are returning and we have a `CaseFrame` waiting for
-    -- us at the top of the stack, we would simply inject it into the case
-    -- expression. We do some assumptions here about the form of expressions!
-    ( RuleReturnCase
-    , eenv
+-- If the variable we are returning does not have a `Var` in it at the
+-- immediate top level, then we have to insert it into the `ExecExprEnv`
+-- directly.
+reduceReturn eenv expr ngen (UpdateFrame frm_name) =
+  ( RuleReturnUpdateNonVar
+  , ( E.insert frm_name expr eenv
+    , CurrExpr Return expr
+    , ngen))
+
+-- In the event that we are returning and we have a `CaseFrame` waiting for
+-- us at the top of the stack, we would simply inject it into the case
+-- expression. We do some assumptions here about the form of expressions!
+reduceReturn eenv expr ngen (CaseFrame cvar alts) =
+  ( RuleReturnCase
+  , ( eenv
     , CurrExpr Evaluate (Case expr cvar alts)
-    , ng)
-srReturn eenv (Lam b lexpr) ng (ApplyFrame aexpr) =
-    -- When we have an `ApplyFrame` on the top of the stack, things might get a
-    -- bit tricky, since we need to make sure that the thing we end up returning
-    -- is appropriately a value. In the case of `Lam`, we need to perform
-    -- application, and then go into the expression body.
-    let binds = [(b, aexpr)]
-        (eenv', lexpr', ng') = liftBinds binds eenv lexpr ng
-    in 
-    ( RuleReturnApplyLam
-    , eenv'
-    , CurrExpr Evaluate lexpr'
-    , ng')
-srReturn eenv dexpr@(App (Data _) _) ng (ApplyFrame aexpr) =
-    -- When we have an `DataCon` application chain, we need to tack on the
-    -- expression in the `ApplyFrame` at the end.
-    ( RuleReturnApplyData
-    , eenv
+    , ngen))
+
+-- When we have an `ApplyFrame` on the top of the stack, things might get a
+-- bit tricky, since we need to make sure that the thing we end up returning
+-- is appropriately a value. In the case of `Lam`, we need to perform
+-- application, and then go into the expression body.
+reduceReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
+  let binds = [(b, aexpr)]
+      (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
+  in ( RuleReturnApplyLam
+     , ( eenv'
+       , CurrExpr Evaluate lexpr'
+       , ngen'))
+
+-- When we have an `DataCon` application chain, we need to tack on the
+-- expression in the `ApplyFrame` at the end.
+reduceReturn eenv dexpr@(App (Data _) _) ngen (ApplyFrame aexpr) =
+  ( RuleReturnApplyData
+  , ( eenv
     , CurrExpr Return (App dexpr aexpr)
-    , ng)
-srReturn eenv c@(Var var) ng (ApplyFrame aexpr)=
-    -- When we return symbolic values on an `ApplyFrame`, introduce new name
-    -- mappings in the eenv to form this long symbolic normal form chain.
-    if isSymbolic var eenv then
-        let 
-            (sname, ngen') = freshSeededName (idName var) ng
-            sym_app = App (Var var) aexpr
-            svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
-        in 
-        ( RuleReturnApplySym
-        , E.insert sname sym_app eenv
-        , CurrExpr Return (Var svar)
-        , ngen') 
-    else
-        (RuleError, eenv, CurrExpr Return c, ng)
-srReturn eenv c ng f = (RuleError, eenv, CurrExpr Return c, ng)
+    , ngen))
+
+-- When we return symbolic values on an `ApplyFrame`, introduce new name
+-- mappings in the eenv to form this long symbolic normal form chain.
+reduceReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
+  if not (isSymbolic var eenv)
+    then (RuleError, (eenv, CurrExpr Return c, ngen))
+    else let (sname, ngen') = freshSeededName (idName var) ngen
+             sym_app = App (Var var) aexpr
+             svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
+         in ( RuleReturnApplySym
+            , ( E.insert sname sym_app eenv
+              , CurrExpr Return (Var svar)
+              , ngen'))
+
+reduceReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
+

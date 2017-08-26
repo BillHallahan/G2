@@ -56,8 +56,9 @@ instance ASTContainer SymLinks Type where
         map (\(n, t, i) -> (n, modifyContainedASTs f t, i)) m
 
 instance Renamable SymLinks where
-    renaming old new (SymLinks m) =
+    rename old new (SymLinks m) =
         SymLinks
-        . M.mapKeys (renaming old new)
+        . M.mapKeys (rename old new)
         . M.map (\(n, t, i) ->
-            (renaming old new n, renaming old new t, i)) $ m 
+            (rename old new n, rename old new t, i)) $ m 
+

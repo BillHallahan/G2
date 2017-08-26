@@ -57,6 +57,7 @@ exprToSMT (Lit c) =
         LitInt i -> VInt i
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
+        err -> error $ "exprToSMT: invalid Expr: " ++ show err
 exprToSMT (Data (DataCon n t _)) = V (nameToStr n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
@@ -70,11 +71,12 @@ exprToSMT a@(App _ _) =
         getFunc p@(Prim _) = p
         getFunc (App a' _) = getFunc a'
         getFunc d@(Data _) = d 
+        getFunc err = error $ "getFunc: invalid Expr: " ++ show err
 
         getArgs :: Expr -> [Expr]
         getArgs (App a1 a2) = getArgs a1 ++ [a2]
         getArgs _ = []
-exprToSMT e = error ("Unhandled expression " ++ show e)
+exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
 
 -- | funcToSMT
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
@@ -96,6 +98,7 @@ funcToSMT1Var f a
 
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
+funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
 funcToSMT2Prim And a1 a2 = exprToSMT a1 :&& exprToSMT a2
@@ -110,6 +113,7 @@ funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
 funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
 funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
+funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 altToSMT :: AltMatch -> SMTAST
 altToSMT (LitAlt (LitInt i)) = VInt i
@@ -155,6 +159,7 @@ typesToSMTSorts tenv =
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =
                 DC (nameToStr n) $ map typeToSMT ts
+            dataConToDC err = error $ "dataConToDC: invalid DataCon: " ++ show err
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []
@@ -201,6 +206,7 @@ toSolverAST con (Cons n asts s) =
     cons con n asts' s
 
 toSolverAST con (V n s) = varName con n s
+toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
 -- | toSolverSortDecl
 toSolverSortDecl :: SMTConverter ast out io -> [(SMTName, [DC])] -> out

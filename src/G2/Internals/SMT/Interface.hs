@@ -3,7 +3,6 @@ module G2.Internals.SMT.Interface
     , satModelOutput
     , smtReady) where
 
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Monoid as Mon
@@ -32,7 +31,7 @@ satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe Mo
 satModelOutput con io s = do
     let headers = toSMTHeaders s
     let formula = toSolver con headers
-    let vars = map (\(n, s) -> (nameToStr n, s)) . sltToSMTNameSorts $ sym_links s
+    let vars = map (\(n, t) -> (nameToStr n, t)) . sltToSMTNameSorts $ sym_links s
 
     (res, m, ex) <- checkSatGetModelGetExpr con io formula headers vars (curr_expr s)
 
@@ -64,7 +63,7 @@ containsNonConsFunctions :: (ASTContainer m Expr) => TypeEnv -> m -> Bool
 containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctions' tenv)
     where
         containsFunctions' :: TypeEnv -> Expr -> Bool
-        containsFunctions' tenv (App (Var (Id n _)) _) = n `notElem` (constructors tenv)
+        containsFunctions' tv (App (Var (Id n _)) _) = n `notElem` (constructors tv)
         containsFunctions' _ _ = False
 
         constructors :: TypeEnv -> [Name]

@@ -195,6 +195,7 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
             case sName of
                 Just n' -> Cons n (map correctConsTypes smts) n'
                 Nothing -> error ("Sort constructor " ++ (show n) ++ "not found in correctConsTypes")
+        correctConsTypes err = error $ "correctConsTypes: invalid SMTAST: " ++ show err
 
         consNameToSort :: M.Map SMTName Sort
         consNameToSort = 

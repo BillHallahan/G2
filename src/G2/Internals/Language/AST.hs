@@ -207,12 +207,6 @@ instance ASTContainer Alt Type where
     modifyContainedASTs f (Alt a e) =
         Alt (modifyContainedASTs f a) (modifyContainedASTs f e)
 
-{-
-instance ASTContainer DataCon Expr where
-    containedASTs (DataCon _ _ _) = []
-    modifyContainedASTs f (DataCon n ty tys) = DataCon n ty tys
--}
-
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)
 

@@ -103,23 +103,18 @@ data Frame = CaseFrame Id [Alt]
            | UpdateFrame Name
            deriving (Show, Eq, Read)
 
-
-
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Name -> Name -> State -> State
 renameState old new_seed s =
-    let
-        (new, ng') = freshSeededName new_seed (name_gen s)
-    in
-    State { expr_env = renaming old new (expr_env s)
-          , type_env = renaming old new (type_env s)
-          , curr_expr = renaming old new (curr_expr s)
-          , name_gen = ng'
-          , path_conds = renaming old new (path_conds s)
-          , sym_links = renaming old new (sym_links s)
-          , func_table = renaming old new (func_table s)
-          , stack = stack s}
-
+    let (new, ng') = freshSeededName new_seed (name_gen s)
+    in State { expr_env = rename old new (expr_env s)
+             , type_env = rename old new (type_env s)
+             , curr_expr = rename old new (curr_expr s)
+             , name_gen = ng'
+             , path_conds = rename old new (path_conds s)
+             , sym_links = rename old new (sym_links s)
+             , func_table = rename old new (func_table s)
+             , stack = stack s}
 
 -- | TypeClass definitions
 instance ASTContainer State Expr where
@@ -212,20 +207,21 @@ instance ASTContainer Frame Type where
     modifyContainedASTs _ fr = fr
 
 instance Renamable AlgDataTy where
-    renaming old new (AlgDataTy n dc) = AlgDataTy (renaming old new n) (renaming old new dc)
+    rename old new (AlgDataTy n dc) = AlgDataTy (rename old new n) (rename old new dc)
 
 instance Renamable CurrExpr where
-    renaming old new (CurrExpr er e) = CurrExpr er $ renaming old new e
+    rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
 
 instance Renamable PathCond where
-    renaming old new (AltCond am e b) = AltCond (renaming old new am) (renaming old new e) b
-    renaming old new (ExtCond e b) = ExtCond (renaming old new e) b
+    rename old new (AltCond am e b) = AltCond (rename old new am) (rename old new e) b
+    rename old new (ExtCond e b) = ExtCond (rename old new e) b
 
 instance Renamable FuncInterps where
-    renaming old new (FuncInterps m) =
-        FuncInterps . M.mapKeys (renaming old new) . M.map (\(n, i) -> (renaming old new n, i)) $ m
+    rename old new (FuncInterps m) =
+        FuncInterps . M.mapKeys (rename old new) . M.map (\(n, i) -> (rename old new n, i)) $ m
 
 instance Renamable Frame where
-    renaming old new (CaseFrame i a) = CaseFrame (renaming old new i) (renaming old new a)
-    renaming old new (ApplyFrame e) = ApplyFrame (renaming old new e)
-    renaming old new (UpdateFrame n) = UpdateFrame (renaming old new n)
+    rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
+    rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
+    rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
+

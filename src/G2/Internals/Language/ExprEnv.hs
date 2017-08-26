@@ -132,4 +132,5 @@ instance ASTContainer ExprEnv Type where
     modifyContainedASTs f = modifyContainedASTs f
 
 instance Renamable ExprEnv where
-    renaming old new = ExprEnv . renaming old new . unwrapExprEnv
+    rename old new = ExprEnv . rename old new . unwrapExprEnv
+
