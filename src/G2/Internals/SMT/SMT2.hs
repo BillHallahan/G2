@@ -9,12 +9,16 @@ import G2.Internals.SMT.ParseSMT
 import G2.Internals.SMT.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
+import Data.Char
 import Data.List
 import qualified Data.Map as M
 import Data.Ratio
 import System.IO
 import System.Process
 import GHC.IO.Handle
+
+strip :: String -> String
+strip = dropWhile isSpace . dropWhileEnd isSpace
 
 type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
 
@@ -62,14 +66,14 @@ smt2 = SMTConverter {
                         s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ " " ++ (sortN _s) ++ ")") $ si
                     in
                     if s /= [] then
-                        "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
+                        strip $ "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
                     else
-                        n ++ " " ++ dcHandler dc
+                        strip $ n ++ " " ++ dcHandler dc
             in
             "(declare-datatypes () ("
             ++ (foldr (\(n, dc) e -> 
-                "(" ++ n ++ " " ++ (dcHandler dc) ++ ") " ++ e) "" ns) ++  "))"
-        , varDecl = \n s -> "(declare-const " ++ n ++ " " ++ s ++ ")"
+                "(" ++ n ++ " " ++ (dcHandler dc) ++ ")" ++ e) "" ns) ++ "))\n"
+        , varDecl = \n s -> "(declare-const " ++ n ++ " " ++ s ++ ")\n"
         
         , (.>=) = function2 ">="
         , (.>) = function2 ">"

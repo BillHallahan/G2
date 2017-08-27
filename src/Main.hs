@@ -46,7 +46,7 @@ main = do
             let funcOut = mkExprHaskell $ ex'
 
             putStrLn "-------------------------------------\n"
-            putStrLn $ "[Formula]\n" ++ show formula ++ "\n"
+            putStrLn $ "[Formula]\n" ++ formula ++ "\n"
             putStrLn $ "[Function call]\n" ++ funcCall ++ " -> " ++ funcOut ++ "\n"
             -- putStrLn (funcCall ++ " == " ++ funcOut)
         ) in_out
