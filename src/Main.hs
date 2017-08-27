@@ -3,8 +3,11 @@ module Main where
 import System.Environment
 
 import Data.List
+import Data.List.Split
 import qualified Data.Map as M
 import Data.Tuple
+
+import Text.Regex
 
 import G2.Lib.Printers
 
@@ -13,6 +16,13 @@ import G2.Internals.Core
 import G2.Internals.Translation
 import G2.Internals.Symbolic
 import G2.Internals.SMT
+
+pprFormula :: String -> String
+pprFormula raw = intercalate "\n" unqs
+  where
+    regex = mkRegex "[_][0-9][0-9]*"
+    str1 = subRegex regex raw ""
+    unqs = nub $ map strip $ splitOn "\n" str1
 
 main :: IO ()
 main = do
@@ -46,7 +56,7 @@ main = do
             let funcOut = mkExprHaskell $ ex'
 
             putStrLn "-------------------------------------\n"
-            putStrLn $ "[Formula]\n" ++ formula ++ "\n"
+            putStrLn $ "[Formula]\n" ++ pprFormula formula ++ "\n"
             putStrLn $ "[Function call]\n" ++ funcCall ++ " -> " ++ funcOut ++ "\n"
             -- putStrLn (funcCall ++ " == " ++ funcOut)
         ) in_out

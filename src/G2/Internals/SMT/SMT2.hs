@@ -120,7 +120,7 @@ functionList :: String -> [String] -> String
 functionList f xs = "(" ++ f ++ " " ++ (intercalate " " xs) ++ ")" 
 
 function1 :: String -> String -> String
-function1 f a = "(" ++ f ++ " " ++ a ++ ")"
+function1 f a = "(" ++ f ++ " " ++ a ++ ")\n"
 
 function2 :: String -> String -> String -> String
 function2 f a b = "(" ++ f ++ " " ++ a ++ " " ++ b ++ ")"
