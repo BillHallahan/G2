@@ -18,11 +18,14 @@ data Rule = RuleEvalVal
           | RuleEvalLet
           | RuleEvalCaseData | RuleEvalCaseLit | RuleEvalCaseDefault
                              | RuleCaseSym | RuleEvalCaseNonVal
+          | RuleEvalAssume | RuleEvalAssert
 
-          | RuleReturnUpdateVar | RuleReturnUpdateNonVar
-          | RuleReturnCase
-          | RuleReturnApplyLam | RuleReturnApplyData
-                                  | RuleReturnApplySym
+          | RuleReturnEUpdateVar | RuleReturnEUpdateNonVar
+          | RuleReturnECase
+          | RuleReturnEApplyLam | RuleReturnEApplyData
+                                | RuleReturnEApplySym
+
+          | RuleReturnCAssume | RuleReturnCAssert
 
           | RuleIdentity
 
@@ -66,10 +69,17 @@ isExprValueForm _ _ = True
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
 isExecValueForm :: State -> Bool
-isExecValueForm state | Nothing <- pop (exec_stack state)
+isExecValueForm state | Nothing <- pop (cond_stack state)
+                      , Nothing <- pop (exec_stack state)
                       , CurrExpr Return _ <- curr_expr state = True
 
                       | otherwise = False
+
+-- | Is conditional statement
+isCondStmt :: Primitive -> Bool
+isCondStmt Assert = True
+isCondStmt Assume = True
+isCondStmt _ = False
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Renamable a => [(Name, Name)] -> a -> a
@@ -186,6 +196,14 @@ reduce s @ State { exec_stack = estk
       -- Our current thing is a value form, which means we can return it.
       (RuleEvalVal, [s { curr_expr = CurrExpr Return expr }])
 
+  | CurrExpr Evaluate expr <- cexpr
+  , App (App (Prim prim) lcond) lexpr <- expr
+  , isCondStmt prim =
+      let (rule, cstmt) = reduceCondStmt prim
+      in (rule, [s { exec_stack = push (ExprFrame lexpr) estk
+                   , cond_stack = push cstmt cstk
+                   , curr_expr = CurrExpr Evaluate lcond }])
+
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = reduceEvaluate eenv expr ngen
           states = map (\(eenv', cexpr', paths', ngen', f) ->
@@ -198,8 +216,19 @@ reduce s @ State { exec_stack = estk
       in (rule, states)
 
   | CurrExpr Return expr <- cexpr
+  , Just (cstmt, cstk') <- pop cstk
+  , Just (efrm, estk') <- pop estk
+  , ExprFrame frm_expr <- efrm =
+      let (rule, cond) = reduceCReturn cstmt expr
+      in (rule, [s { exec_stack = estk'
+                   , cond_stack = cstk'
+                   , curr_expr = CurrExpr Evaluate frm_expr
+                   , path_conds = cond : paths }])
+
+  | CurrExpr Return expr <- cexpr
+  , Nothing <- pop cstk
   , Just (f, estk') <- pop estk =
-      let (rule, (eenv', cexpr', ngen')) = reduceReturn eenv expr ngen f
+      let (rule, (eenv', cexpr', ngen')) = reduceEReturn eenv expr ngen f
       in (rule, [s { expr_env = eenv'
                    , curr_expr = cexpr'
                    , name_gen = ngen'
@@ -353,17 +382,17 @@ reduceCase eenv mexpr bind alts ngen
   | otherwise = error "reduceCase: bad case passed in"
 
 -- | Result of a Return reduction.
-type ReturnResult = (E.ExprEnv, CurrExpr, NameGen)
+type EReturnResult = (E.ExprEnv, CurrExpr, NameGen)
 
 -- | Handle the Return states.
-reduceReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, ReturnResult)
+reduceEReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, EReturnResult)
 
 -- We are returning something and the first thing that we have on the stack
 -- is an `UpdateFrame`, this means that we add a redirection pointer to the
 -- `ExecExprEnv`, and continue with execution. This is the equivalent of
 -- performing memoization on values that we have seen.
-reduceReturn eenv (Var (Id name ty)) ngen (UpdateFrame frm_name) =
-  ( RuleReturnUpdateVar
+reduceEReturn eenv (Var (Id name ty)) ngen (UpdateFrame frm_name) =
+  ( RuleReturnEUpdateVar
   , ( E.redirect frm_name name eenv
     , CurrExpr Return (Var $ Id name ty)
     , ngen))
@@ -371,8 +400,8 @@ reduceReturn eenv (Var (Id name ty)) ngen (UpdateFrame frm_name) =
 -- If the variable we are returning does not have a `Var` in it at the
 -- immediate top level, then we have to insert it into the `ExecExprEnv`
 -- directly.
-reduceReturn eenv expr ngen (UpdateFrame frm_name) =
-  ( RuleReturnUpdateNonVar
+reduceEReturn eenv expr ngen (UpdateFrame frm_name) =
+  ( RuleReturnEUpdateNonVar
   , ( E.insert frm_name expr eenv
     , CurrExpr Return expr
     , ngen))
@@ -380,8 +409,8 @@ reduceReturn eenv expr ngen (UpdateFrame frm_name) =
 -- In the event that we are returning and we have a `CaseFrame` waiting for
 -- us at the top of the stack, we would simply inject it into the case
 -- expression. We do some assumptions here about the form of expressions!
-reduceReturn eenv expr ngen (CaseFrame cvar alts) =
-  ( RuleReturnCase
+reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
+  ( RuleReturnECase
   , ( eenv
     , CurrExpr Evaluate (Case expr cvar alts)
     , ngen))
@@ -390,34 +419,47 @@ reduceReturn eenv expr ngen (CaseFrame cvar alts) =
 -- bit tricky, since we need to make sure that the thing we end up returning
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
-reduceReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
+reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
   let binds = [(b, aexpr)]
       (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
-  in ( RuleReturnApplyLam
+  in ( RuleReturnEApplyLam
      , ( eenv'
        , CurrExpr Evaluate lexpr'
        , ngen'))
 
 -- When we have an `DataCon` application chain, we need to tack on the
 -- expression in the `ApplyFrame` at the end.
-reduceReturn eenv dexpr@(App (Data _) _) ngen (ApplyFrame aexpr) =
-  ( RuleReturnApplyData
+reduceEReturn eenv dexpr@(App (Data _) _) ngen (ApplyFrame aexpr) =
+  ( RuleReturnEApplyData
   , ( eenv
     , CurrExpr Return (App dexpr aexpr)
     , ngen))
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.
-reduceReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
+reduceEReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
   if not (isSymbolic var eenv)
     then (RuleError, (eenv, CurrExpr Return c, ngen))
     else let (sname, ngen') = freshSeededName (idName var) ngen
              sym_app = App (Var var) aexpr
              svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
-         in ( RuleReturnApplySym
+         in ( RuleReturnEApplySym
             , ( E.insert sname sym_app eenv
               , CurrExpr Return (Var svar)
               , ngen'))
 
-reduceReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
+reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
+
+type CondStmtResult = (Rule, CondStmt)
+
+reduceCondStmt :: Primitive -> CondStmtResult
+reduceCondStmt Assume = (RuleEvalAssume, AssumeCond)
+reduceCondStmt Assert = (RuleEvalAssert, AssertCond)
+reduceCondStmt err = error $ "reduceCondStmt: invalid primitive" ++ show err
+
+type CReturnResult = (Rule, PathCond)
+
+reduceCReturn :: CondStmt -> Expr -> CReturnResult
+reduceCReturn AssumeCond expr = (RuleReturnCAssume, ExtCond expr True)
+reduceCReturn AssertCond expr = (RuleReturnCAssert, ExtCond expr False)
 
