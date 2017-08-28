@@ -2,7 +2,7 @@
 module G2.Internals.Execution.Rules
   ( Rule (..)
   , isExecValueForm
-  , stackReduce
+  , reduce
   ) where
 
 import G2.Internals.Language
@@ -66,7 +66,7 @@ isExprValueForm _ _ = True
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
 isExecValueForm :: State -> Bool
-isExecValueForm state | Nothing <- pop (stack state)
+isExecValueForm state | Nothing <- pop (exec_stack state)
                       , CurrExpr Return _ <- curr_expr state = True
 
                       | otherwise = False
@@ -171,12 +171,13 @@ liftSymDefAlt eenv mexpr ngen negatives aexpr cvar = res
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
 
-stackReduce :: State -> (Rule, [State])
-stackReduce s @ State { stack = stk
-                      , expr_env = eenv
-                      , curr_expr = cexpr
-                      , name_gen = ngen
-                      , path_conds = paths }
+reduce :: State -> (Rule, [State])
+reduce s @ State { exec_stack = estk
+                 , cond_stack = cstk
+                 , expr_env = eenv
+                 , curr_expr = cexpr
+                 , name_gen = ngen
+                 , path_conds = paths }
   | isExecValueForm s =
       (RuleIdentity, [s])
 
@@ -192,17 +193,17 @@ stackReduce s @ State { stack = stk
                            , curr_expr = cexpr'
                            , path_conds = paths' ++ paths
                            , name_gen = ngen'
-                           , stack = maybe stk (\f' -> push f' stk) f})
+                           , exec_stack = maybe estk (\f' -> push f' estk) f})
                        eval_results
       in (rule, states)
 
   | CurrExpr Return expr <- cexpr
-  , Just (f, stk') <- pop stk =
+  , Just (f, estk') <- pop estk =
       let (rule, (eenv', cexpr', ngen')) = reduceReturn eenv expr ngen f
       in (rule, [s { expr_env = eenv'
                    , curr_expr = cexpr'
                    , name_gen = ngen'
-                   , stack = stk' }])
+                   , exec_stack = estk' }])
 
   | otherwise = (RuleError, [s])
 

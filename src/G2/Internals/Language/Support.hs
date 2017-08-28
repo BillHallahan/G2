@@ -25,7 +25,8 @@ data State = State { expr_env :: E.ExprEnv
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
                    , func_table :: FuncInterps
-                   , stack :: Stack Frame
+                   , exec_stack :: Stack Frame
+                   , cond_stack :: Stack CondStmt
                    } deriving (Show, Eq, Read)
 
 -- | Type environments map names of types to their appropriate types. However
@@ -55,6 +56,9 @@ data CurrExpr = CurrExpr EvalOrReturn Expr
 data PathCond = AltCond AltMatch Expr Bool
               | ExtCond Expr Bool
               deriving (Show, Eq, Read)
+
+-- | Conditional constraints assumption and assertions
+data CondStmt = AssumeCond | AssertCond deriving (Show, Eq, Read)
 
 -- | Function interpretation table.
 -- Maps ADT constructors representing functions to their interpretations.
@@ -101,6 +105,7 @@ unionFuncInterps (FuncInterps fs1) (FuncInterps fs2) = FuncInterps $ M.union fs1
 data Frame = CaseFrame Id [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
+           | ExprFrame Expr
            deriving (Show, Eq, Read)
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
@@ -114,7 +119,8 @@ renameState old new_seed s =
              , path_conds = rename old new (path_conds s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
-             , stack = stack s}
+             , exec_stack = exec_stack s
+             , cond_stack = cond_stack s }
 
 -- | TypeClass definitions
 instance ASTContainer State Expr where
@@ -123,14 +129,16 @@ instance ASTContainer State Expr where
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       ((containedASTs . sym_links) s) ++
-                      ((containedASTs . stack) s)
+                      ((containedASTs . exec_stack) s) ++
+                      ((containedASTs . cond_stack) s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
-                                , stack = (modifyContainedASTs f . stack) s }
+                                , exec_stack = (modifyContainedASTs f . exec_stack) s
+                                , cond_stack = (modifyContainedASTs f . cond_stack) s }
 
 
 instance ASTContainer State Type where
@@ -139,14 +147,16 @@ instance ASTContainer State Type where
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       ((containedASTs . sym_links) s) ++
-                      ((containedASTs . stack) s)
+                      ((containedASTs . exec_stack) s) ++
+                      ((containedASTs . cond_stack) s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
-                                , stack = (modifyContainedASTs f . stack) s }
+                                , exec_stack = (modifyContainedASTs f . exec_stack) s
+                                , cond_stack = (modifyContainedASTs f . cond_stack) s}
 
 instance ASTContainer AlgDataTy Expr where
     containedASTs _ = []
@@ -206,6 +216,16 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
 
+instance ASTContainer CondStmt Expr where
+    containedASTs _ = []
+
+    modifyContainedASTs _ c = c
+
+instance ASTContainer CondStmt Type where
+    containedASTs _ = []
+
+    modifyContainedASTs _ c = c
+
 instance Renamable AlgDataTy where
     rename old new (AlgDataTy n dc) = AlgDataTy (rename old new n) (rename old new dc)
 
@@ -224,4 +244,5 @@ instance Renamable Frame where
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
+    rename old new (ExprFrame e) = ExprFrame (rename old new e)
 

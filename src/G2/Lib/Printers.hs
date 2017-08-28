@@ -211,15 +211,18 @@ pprExecStateStr :: State -> String
 pprExecStateStr ex_state = injNewLine acc_strs
   where
     eenv_str = pprExecEEnvStr (expr_env ex_state)
-    stack_str = pprStackStr (stack ex_state)
+    estk_str = pprExecStackStr (exec_stack ex_state)
+    cstk_str = pprCondStackStr (cond_stack ex_state)
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen ex_state)
     paths_str = pprPathsStr (path_conds ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
                , eenv_str
-               , "----- [Stack] ---------------------"
-               , stack_str
+               , "----- [Exec Stack] ----------------"
+               , estk_str
+               , "----- [Cond Stack] ----------------"
+               , cstk_str
                , "----- [Code] ----------------------"
                , code_str
                , "----- [Names] ---------------------"
@@ -233,10 +236,15 @@ pprExecEEnvStr eenv = injNewLine kv_strs
   where
     kv_strs = map show $ E.toList eenv
 
-pprStackStr :: Stack Frame -> String
-pprStackStr stk = injNewLine frame_strs
+pprExecStackStr :: Stack Frame -> String
+pprExecStackStr stk = injNewLine frame_strs
   where
     frame_strs = map pprExecFrameStr $ toList stk
+
+pprCondStackStr :: Stack CondStmt -> String
+pprCondStackStr stk = injNewLine frame_strs
+  where
+    frame_strs = map show $ toList stk
 
 pprExecFrameStr :: Frame -> String
 pprExecFrameStr frame = show frame

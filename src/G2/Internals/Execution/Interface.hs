@@ -16,7 +16,7 @@ runNDepth states depth = runNDepth' (map (\s' -> (s', depth)) states)
         runNDepth' ((s, 0):xs) = s:runNDepth' xs
         runNDepth' ((s, n):xs) =
             let
-                (_, red) = stackReduce $ s
+                (_, red) = reduce $ s
                 s'' = map (\s' -> (s', n - 1)) red
             in
             runNDepth' (s'' ++ xs)
@@ -29,7 +29,7 @@ runNDepthHist states d = runNDepth' (map (\s' -> ([(Nothing, s')], d)) states)
         runNDepth' ((rss, 0):xs) = rss:runNDepth' xs
         runNDepth' ((rss@((_, s):_), n):xs) =
             let
-                (r', red) = stackReduce $ s
+                (r', red) = reduce $ s
                 s'' = map (\s' -> ((Just r', s'):rss, n - 1)) red
             in
             runNDepth' (s'' ++ xs)
@@ -41,7 +41,7 @@ runNDepthHist' states d = runNDepth' $ map (\s -> (([], s), d)) states
     runNDepth' [] = []
     runNDepth' ((rss, 0):xs) = rss : runNDepth' xs
     runNDepth' ((((rs, s), n)):xs) =
-        let (app_rule, reduceds) = stackReduce s
+        let (app_rule, reduceds) = reduce s
             mod_info = map (\s' -> ((rs ++ [app_rule], s'), n - 1)) reduceds
         in runNDepth' (mod_info ++ xs)
 
@@ -56,7 +56,7 @@ runNDepthCatchError states d = runNDepth' (map (\s' -> (s', d)) states)
                 Right x -> Right x
         runNDepth' ((s, n):xs) =
             let
-                (r, red) = stackReduce $ s
+                (r, red) = reduce $ s
                 s'' = map (\s' -> (s', n - 1)) red
             in
             if r == RuleError then Right s else runNDepth' (s'' ++ xs)
@@ -118,7 +118,9 @@ freshArgNames eenv entry = zip arg_names arg_types
                             , path_cons    = []
                             , sym_links    = M.empty
                             , func_interps = M.empty
-                            , all_names    = M.empty }
+                            , all_names    = M.empty
+                            , exec_stack   = Stack.empty
+                            , cond_stack   = Stack.empty }
 
 -- | Make Symbolic Links
 --   Construct a the current expression and a symbolic link table given the
@@ -163,7 +165,9 @@ initState tenv eenv m_assume m_assert entry =
                                      , path_cons    = []
                                      , sym_links    = slt
                                      , func_interps = M.empty
-                                     , all_names    = M.empty }
+                                     , all_names    = M.empty
+                                     , exec_stack   = Stack.empty
+                                     , cond_stack   = Stack.empty }
                    all_names = allNamesMap pre_state
                in pre_state {all_names = all_names}
           else error "Type(s) mismatch for Assume or Assert\n"
