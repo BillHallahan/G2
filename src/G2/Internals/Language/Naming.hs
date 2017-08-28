@@ -28,8 +28,8 @@ nameToStr (Name n Nothing i) = n ++ "_j_a_" ++ show i
 
 mkNameGen :: Program -> NameGen
 mkNameGen = NameGen
-        . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) i hm) HM.empty
-        . allNames
+    . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) HM.empty
+    . allNames
 
 allNames :: Program -> [Name]
 allNames prog = nub (binds ++ expr_names ++ type_names)

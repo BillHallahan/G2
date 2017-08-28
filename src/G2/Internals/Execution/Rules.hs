@@ -134,10 +134,10 @@ liftSymDataAlt eenv mexpr ngen (dcon, params, aexpr) cvar = res
     cond = AltCond (DataAlt dcon params) mexpr True
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
-    (aexpr', ng') = doRenames olds ngen aexpr
+    (aexpr', ngen') = doRenames olds ngen aexpr
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
-    (eenv', aexpr'', ngen'') = liftBinds binds eenv aexpr' ng'
+    (eenv', aexpr'', ngen'') = liftBinds binds eenv aexpr' ngen'
     res = ( eenv'
           , CurrExpr Evaluate aexpr''
           , [cond]

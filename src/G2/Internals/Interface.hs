@@ -106,9 +106,12 @@ run con hhp n state = do
     let preproc_state = runPreprocessing state
     
     let exec_states = runNDepth [preproc_state] n
-    -- let exec_states = runNDepthHist' [preproc_state] n
+
+    putStrLn $ "states: " ++ (show $ length exec_states)
+    mapM (putStrLn . pprExecStateStr) exec_states
 
     ms <- satModelOutputs con hhp exec_states
+    -- ms <- satModelOutputs con hhp (map snd exec_states)
 
   {-
     let exec_states_error = filter (any (\(r, _) -> r == Just RuleError)) exec_states

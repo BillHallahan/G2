@@ -1,12 +1,29 @@
 -- | Interface
 --   Module for interacting and interfacing with the symbolic execution engine.
-module G2.Internals.Execution.Interface( runNDepth
-                                       , runNDepthHist
-                                       , runNDepthHist'
-                                       , runNDepthCatchError) where
+module G2.Internals.Execution.Interface
+    ( runNBreadth
+    , runNBreadthHist
+    , runNDepth
+    , runNDepthHist
+    , runNDepthHist'
+    , runNDepthCatchError) where
 
 import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
+
+runNBreadth :: [State] -> Int -> [State]
+runNBreadth [] _ = []
+runNBreadth states 0 = states
+runNBreadth states n = runNBreadth (concatMap (snd . reduce) states) (n - 1)
+
+runNBreadthHist :: [([Rule], State)] -> Int -> [([Rule], State)]
+runNBreadthHist [] _ = []
+runNBreadthHist rss 0 = rss
+runNBreadthHist rss n = runNBreadthHist (concatMap go rss) (n - 1)
+  where
+    go :: ([Rule], State) -> [([Rule], State)]
+    go (rules, state) = let (rule, states) = reduce state
+                        in map (\s -> (rules ++ [rule], s)) states
 
 runNDepth :: [State] -> Int -> [State]
 runNDepth states depth = runNDepth' (map (\s' -> (s', depth)) states)
