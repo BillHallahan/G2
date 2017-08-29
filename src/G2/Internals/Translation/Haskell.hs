@@ -133,19 +133,19 @@ mkAltMatch (DEFAULT) _ = G2.Default
 mkType :: Type -> G2.Type
 mkType (TyVarTy v) = G2.TyVar (mkName (V.varName v)) (mkType (varType v))
 mkType (AppTy t1 t2) = G2.TyApp (mkType t1) (mkType t2)
-mkType (TyConApp tc ts) = G2.TyConApp (mkTyConName tc) (map mkType ts)
 mkType (ForAllTy b ty) = G2.TyForAll (mkTyBinder b) (mkType ty)
 mkType (LitTy _) = error "mkType: LitTy"
 mkType (CastTy _ _) = error "mkType: CastTy"
 mkType (CoercionTy _) = error "mkType: Coercion"
+mkType (TyConApp tc ts) = if not (isFunTyCon tc)
+    then G2.TyConApp (mkTyConName tc) (map mkType ts)
+    else case ts of
+        (t1:t2:[]) -> G2.TyFun (mkType t1) (mkType t2)
+        _ -> error "mkType: non-arity 2 FunTyCon from GHC"
 
 mkTyCon :: TyCon -> (G2.Name, [G2.Name], [G2.DataCon])
-mkTyCon t =
-    let
-        dc = data_cons . algTyConRhs $ t
-    in
-    (mkName . tyConName $ t, [], map mkData dc)
-
+mkTyCon t = (mkName . tyConName $ t, [], map mkData dc)
+  where dc = data_cons . algTyConRhs $ t
 
 mkTyConName :: TyCon -> G2.Name
 mkTyConName = mkName . tyConName
