@@ -16,6 +16,8 @@ import Data.Ratio
 import System.IO
 import System.Process
 
+import Debug.Trace
+
 type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
 
 smt2 :: SMT2Converter
@@ -24,20 +26,20 @@ smt2 = SMTConverter {
         , merge = (++)
 
         , checkSat = \(h_in, h_out, _) formula -> do
-            setUpFormula h_in h_out formula
+            setUpFormula h_in formula
             checkSat' h_in h_out
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars (CurrExpr _ e) -> do
-            setUpFormula h_in h_out formula
+            setUpFormula h_in formula
             putStrLn "\n\n"
             putStrLn formula
             r <- checkSat' h_in h_out
             print r
             if r == SAT then do
                 model <- return =<< getModel h_in h_out vars
-                -- putStrLn "======"
-                -- putStrLn (show model)
-                -- putStrLn "======"
+                putStrLn "======"
+                putStrLn (show model)
+                putStrLn "======"
                 let m = parseModel headers model
 
                 expr <- solveExpr h_in h_out smt2 headers e
@@ -147,9 +149,8 @@ getZ3ProcessHandles = do
 
 -- | setUpFormula
 -- Writes a function to Z3
-setUpFormula :: Handle -> Handle -> String -> IO ()
-setUpFormula h_in _ form = do
-    -- putStrLn form
+setUpFormula :: Handle -> String -> IO ()
+setUpFormula h_in form = do
     hPutStr h_in "(reset)"
     hPutStr h_in form
 
@@ -168,9 +169,9 @@ checkSat' h_in h_out = do
         else if out == "unsat" then
             return UNSAT
         else
-            return Unknown
+            return (Unknown out)
     else do
-        return Unknown
+        return (Unknown "")
 
 parseModel :: [SMTHeader] -> [(SMTName, String, Sort)] -> Model
 parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty
@@ -214,21 +215,44 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
 
 getModel :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModel h_in h_out ns = do
-    hPutStr h_in "(set-option :model_evaluator.completion true)\n"
+    trace (show "ns == " ++ show ns ++ "\n") $ hPutStr h_in "(set-option :model_evaluator.completion true)\n"
     getModel' ns
     where
         getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
         getModel' [] = return []
         getModel' ((n, s):nss) = do
             hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
-            out <- getLinesUntil h_out (not . isPrefixOf "(let")
+            out <- getLinesMatchParens h_out
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 
             return . (:) (n, out, s) =<< getModel' nss
 
+getLinesMatchParens :: Handle -> IO String
+getLinesMatchParens h_out = getLinesMatchParens' h_out 0
+
+getLinesMatchParens' :: Handle -> Int -> IO String
+getLinesMatchParens' h_out n = do
+    out <- hGetLine h_out
+    _ <- evaluate (length out)
+
+    let open = countElem '(' out
+    let close = countElem ')' out
+    let n' = n + open - close
+
+    if n' == 0 then
+        return out
+    else do
+        out' <- getLinesMatchParens' h_out n'
+        return $ out ++ out'
+
+countElem ::Eq a => a -> [a] -> Int
+countElem x [] = 0
+countElem x (y:ys) = (if x == y then 1 else 0)  + countElem x ys 
+
 getLinesUntil :: Handle -> (String -> Bool) -> IO String
 getLinesUntil h_out p = do
     out <- hGetLine h_out
+    _ <- evaluate (length out)
     if p out then
         return out
     else

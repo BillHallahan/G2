@@ -11,8 +11,6 @@ import qualified G2.Internals.Language.ExprEnv as E
 
 import Data.List
 
-import qualified Debug.Trace as T
-
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal | RuleEvalVarVal
           | RuleEvalUnInt

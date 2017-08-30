@@ -31,7 +31,8 @@ satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe Mo
 satModelOutput con io s = do
     let headers = toSMTHeaders s
     let formula = toSolver con headers
-    let vars = map (\(n, t) -> (nameToStr n, t)) . sltToSMTNameSorts $ sym_links s
+    let vars = map (\(Id n t) -> (nameToStr n, typeToSMT t)) (input_ids s)
+    -- let vars = map (\(n, t) -> (nameToStr n, t)) . sltToSMTNameSorts $ sym_links s
 
     (res, m, ex) <- checkSatGetModelGetExpr con io formula headers vars (curr_expr s)
 

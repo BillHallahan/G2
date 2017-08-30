@@ -20,11 +20,13 @@ import G2.Lib.Printers
 import Data.List
 import qualified Data.Map as M
 
+import Debug.Trace
+
 initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> String -> State
 initState prog prog_typ m_assume m_assert f =
     let
         ng = mkNameGen prog
-        (ce, ng') = mkCurrExpr m_assume m_assert f ng . concat $ prog
+        (ce, ids, ng') = mkCurrExpr m_assume m_assert f ng . concat $ prog
     in
     State {
       expr_env = mkExprEnv . concat $ prog
@@ -32,6 +34,7 @@ initState prog prog_typ m_assume m_assert f =
     , curr_expr = CurrExpr Evaluate ce
     , name_gen = ng'
     , path_conds = []
+    , input_ids = ids
     , sym_links = Sym.empty
     , func_table = emptyFuncInterps
     , exec_stack = Stack.empty
@@ -48,7 +51,7 @@ args :: Type -> [Type]
 args (TyFun t ts) = t:args ts  
 args _ = []
 
-mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> Binds -> (Expr, NameGen)
+mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> Binds -> (Expr, [Id], NameGen)
 mkCurrExpr m_assume m_assert s ng b =
     case findFunc s b of
         Left (f, ex) -> 
@@ -71,7 +74,7 @@ mkCurrExpr m_assume m_assert s ng b =
                 
                 let_ex = Let [(id_name, app_ex)] assert_ex
             in
-            (let_ex, ng'')
+            (let_ex, ids, ng'')
         Right s -> error s
 
 mkAssumeAssert :: Primitive -> Maybe String -> [Expr] -> Expr -> Expr -> Binds -> Expr
@@ -105,7 +108,7 @@ run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
 run con hhp n state = do
     let preproc_state = runPreprocessing state
     
-    let exec_states = runNDepth [preproc_state] n
+    let exec_states = runNBreadth [preproc_state] n
 
     putStrLn $ "states: " ++ (show $ length exec_states)
     mapM (putStrLn . pprExecStateStr) exec_states

@@ -24,6 +24,7 @@ data State = State { expr_env :: E.ExprEnv
                    , name_gen :: NameGen
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
+                   , input_ids :: [Id]
                    , func_table :: FuncInterps
                    , exec_stack :: Stack Frame
                    , cond_stack :: Stack CondStmt
@@ -117,6 +118,7 @@ renameState old new_seed s =
              , curr_expr = rename old new (curr_expr s)
              , name_gen = ng'
              , path_conds = rename old new (path_conds s)
+             , input_ids = rename old new (input_ids s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
              , exec_stack = exec_stack s

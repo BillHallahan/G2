@@ -14,6 +14,7 @@ module G2.Internals.SMT.Converters
     , sortToType
     , modelAsExpr -} ) where
 
+import Data.List
 import qualified Data.Map as M
 
 -- import G2.Internals.Translation.HaskellPrelude

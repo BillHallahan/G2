@@ -67,7 +67,7 @@ data DC = DC SMTName [Sort] deriving (Show, Eq)
 
 data Result = SAT
             | UNSAT
-            | Unknown
+            | Unknown String
             deriving (Show, Eq)
 
 
