@@ -128,6 +128,9 @@ instance Renamable TyBinder where
 instance (Functor f, Renamable a) => Renamable (f a) where
     rename old new = fmap (rename old new)
 
+instance {-# OVERLAPPING #-} (Renamable a, Renamable b) => Renamable (a, b) where
+    rename old new (a, b) = (rename old new a, rename old new b)
+
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _) (NameGen hm) = (Name n m i', NameGen hm')
   where i' = HM.lookupDefault 0 (n, m) hm
