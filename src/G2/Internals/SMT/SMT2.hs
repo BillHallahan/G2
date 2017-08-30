@@ -31,15 +31,15 @@ smt2 = SMTConverter {
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars (CurrExpr _ e) -> do
             setUpFormula h_in formula
-            putStrLn "\n\n"
-            putStrLn formula
+            -- putStrLn "\n\n"
+            -- putStrLn formula
             r <- checkSat' h_in h_out
-            print r
+            -- print r
             if r == SAT then do
                 model <- return =<< getModel h_in h_out vars
-                putStrLn "======"
-                putStrLn (show model)
-                putStrLn "======"
+                -- putStrLn "======"
+                -- putStrLn (show model)
+                -- putStrLn "======"
                 let m = parseModel headers model
 
                 expr <- solveExpr h_in h_out smt2 headers e
@@ -215,7 +215,7 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
 
 getModel :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModel h_in h_out ns = do
-    trace (show "ns == " ++ show ns ++ "\n") $ hPutStr h_in "(set-option :model_evaluator.completion true)\n"
+    hPutStr h_in "(set-option :model_evaluator.completion true)\n"
     getModel' ns
     where
         getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
