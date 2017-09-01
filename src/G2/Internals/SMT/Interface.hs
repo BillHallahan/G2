@@ -16,7 +16,7 @@ import G2.Internals.SMT.Language
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
 -- Returns a list of possible input/output pairs for the satisifiable states
-satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [(Model, SMTAST)]--IO [([Expr], Expr)]
+satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [([Expr], Expr)]--IO [([Expr], Expr)]
 satModelOutputs con io s = do
    return . map (\(_, es, e) -> (fromJust es, fromJust e))
           . filter (\(s', es, e) -> s' == SAT && isJust es && isJust e)
@@ -27,16 +27,23 @@ satModelOutputs con io s = do
 -- Given an smt converter and a list state, checks if the states current expression
 -- and path constraints are satisfiable.  If they are, one possible input and output
 -- are also returned
-satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe Model, Maybe SMTAST) --IO (Result, Maybe [Expr], Maybe Expr)
+satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe [Expr], Maybe Expr) --IO (Result, Maybe [Expr], Maybe Expr)
 satModelOutput con io s = do
     let headers = toSMTHeaders s
     let formula = toSolver con headers
     let vars = map (\(Id n t) -> (nameToStr n, typeToSMT t)) (input_ids s)
-    -- let vars = map (\(n, t) -> (nameToStr n, t)) . sltToSMTNameSorts $ sym_links s
 
     (res, m, ex) <- checkSatGetModelGetExpr con io formula headers vars (curr_expr s)
 
-    return (res, m, ex)
+    let input = fmap modelAsExpr m
+
+    let input' = case input of 
+            Just inp  -> Just $ map (\(Id n _) -> inp M.! n) (input_ids s)
+            Nothing -> Nothing
+
+    let ex' = fmap smtastToExpr ex
+
+    return (res, input', ex')
     {-
     -- Determine the input
     let inArg = case (fmap (replaceFuncSLT s . modelAsExpr) m) of

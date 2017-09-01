@@ -10,12 +10,12 @@ module G2.Internals.SMT.Converters
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
-    {- , smtastToExpr
-    , sortToType
-    , modelAsExpr -} ) where
+    , smtastToExpr
+    , modelAsExpr ) where
 
 import Data.List
 import qualified Data.Map as M
+import Data.Maybe
 
 -- import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Language.Naming
@@ -34,22 +34,26 @@ toSMTHeaders :: State -> [SMTHeader]
 toSMTHeaders s = 
     (typesToSMTSorts $ type_env s)
     ++
-    (createVarDecls . vars $ path_conds s)--sltToSMTNameSorts $ sym_links s)
+    (createVarDecls s)
     ++
-    (map pathConsToSMT $ path_conds s)
+    (pathConsToSMT $ path_conds s)
 
-pathConsToSMT :: PathCond -> SMTHeader
-pathConsToSMT (AltCond a e b) =
+pathConsToSMT :: [PathCond] -> [SMTHeader]
+pathConsToSMT = catMaybes . map pathConsToSMT'
+
+pathConsToSMT' :: PathCond -> Maybe SMTHeader
+pathConsToSMT' (AltCond a e b) =
     let
         exprSMT = exprToSMT e
         altSMT = altToSMT a
     in
-    Assert $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
-pathConsToSMT (ExtCond e b) =
+    Just . Assert $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
+pathConsToSMT' (ExtCond e b) =
     let
         exprSMT = exprToSMT e
     in
-    Assert $ if b then exprSMT else (:!) exprSMT
+    Just . Assert $ if b then exprSMT else (:!) exprSMT
+pathConsToSMT' (PCExists _) = Nothing
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -134,12 +138,24 @@ altToSMT am = error $ "Unhandled " ++ show am
 sltToSMTNameSorts :: SymLinks -> [(Name, Sort)]
 sltToSMTNameSorts = map (\(n, t) -> (n, typeToSMT t)) . SLT.namesTypes
 
+createVarDecls :: State -> [(SMTHeader)]
+createVarDecls = nub . createVarDecls' . vars . path_conds
+
+createVarDecls' :: [(Name, Sort)] -> [SMTHeader]
+createVarDecls' [] = []
+createVarDecls' ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls' xs
+
 vars :: [PathCond] -> [(Name, Sort)]
-vars = evalASTs (vars')
+vars [] = []
+vars (PCExists i:xs) = idToNameSort i : vars xs
+vars (p:xs)= evalASTs (vars') p ++ vars xs
     where
         vars' :: Expr -> [(Name, Sort)]
-        vars' (Var (Id n t)) = [(n, typeToSMT t)]
+        vars' (Var i) = [idToNameSort i]
         vars' _ = []
+
+idToNameSort :: Id -> (Name, Sort)
+idToNameSort (Id n t) = (n, typeToSMT t)
 
 typeToSMT :: Type -> Sort
 typeToSMT TyInt = SortInt
@@ -161,10 +177,6 @@ typesToSMTSorts tenv =
             dataConToDC (DataCon n _ ts) =
                 DC (nameToStr n) $ map typeToSMT ts
             dataConToDC err = error $ "dataConToDC: invalid DataCon: " ++ show err
-
-createVarDecls :: [(Name, Sort)] -> [SMTHeader]
-createVarDecls [] = []
-createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
 
 -- | toSolver
 toSolver :: SMTConverter ast out io -> [SMTHeader] -> out
@@ -218,22 +230,21 @@ toSolverVarDecl :: SMTConverter ast out io -> SMTName -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 -- | smtastToExpr
-{- TODO:
 smtastToExpr :: SMTAST -> Expr
 smtastToExpr (VInt i) = Lit $ LitInt i
 smtastToExpr (VFloat f) = Lit $ LitFloat f
 smtastToExpr (VDouble d) = Lit $ LitDouble d
 smtastToExpr (VBool b) = Lit $ LitBool b
-smtastToExpr (Cons n smts s) = foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon n 0 (sortToType s) [])) smts
-smtastToExpr (V n s) = Var $ Id n (sortToType s)
+smtastToExpr (Cons n smts s) =
+    foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon (strToName n) (sortToType s) [])) smts
+smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
 
 sortToType :: Sort -> Type
-sortToType (SortInt) = TyConApp "Int" []
-sortToType (SortFloat) = TyConApp "Float" []
-sortToType (SortDouble) = TyConApp "Double" []
-sortToType (SortBool) = TyConApp "Bool" []
-sortToType (Sort n xs) = TyConApp n (map sortToType xs)
+sortToType (SortInt) = TyInt
+sortToType (SortFloat) = TyFloat
+sortToType (SortDouble) = TyDouble
+sortToType (SortBool) = TyBool
+sortToType (Sort n xs) = TyConApp (strToName n) (map sortToType xs)
 
 modelAsExpr :: Model -> ExprModel
-modelAsExpr = M.map smtastToExpr
--}
+modelAsExpr = M.mapKeys strToName . M.map smtastToExpr

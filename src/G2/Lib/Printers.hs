@@ -161,28 +161,34 @@ mkExprHaskell :: Expr -> String
 mkExprHaskell ex = mkExprHaskell' ex 0
     where
         mkExprHaskell' :: Expr -> Int -> String
-        mkExprHaskell' (Var ids) _ = mkIdStr ids
+        mkExprHaskell' (Var ids) _ = mkIdHaskell ids
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
-        mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdStr ids ++ " -> " ++ mkExprHaskell' e i
+        mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
         mkExprHaskell' (App e1 e2@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' e2 i ++ ")"
         mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
-        mkExprHaskell' (Data (DataCon n _ _)) _ = show n
+        mkExprHaskell' (Data d) _ = mkDataConHaskell d
         mkExprHaskell' (Case e _ ae) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
                                         ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
         mkExprHaskell' e _ = show e ++ " NOT SUPPORTED"
+
+        mkIdHaskell :: Id -> String
+        mkIdHaskell (Id n _) = mkNameHaskell n
+
+        mkNameHaskell :: Name -> String
+        mkNameHaskell (Name n _ _) = n
 
         mkAltHaskell :: Int -> Alt -> String
         mkAltHaskell i (Alt am e) =
             off i ++ mkAltMatchHaskell am ++ " -> " ++ mkExprHaskell' e i
 
         mkAltMatchHaskell :: AltMatch -> String
-        mkAltMatchHaskell (DataAlt dc ids) = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdStr ids)
+        mkAltMatchHaskell (DataAlt dc ids) = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdHaskell ids)
         mkAltMatchHaskell (LitAlt l) = mkLitHaskell l
         mkAltMatchHaskell Default = "_"
 
         mkDataConHaskell :: DataCon -> String
-        mkDataConHaskell (DataCon n _ _) = show n
+        mkDataConHaskell (DataCon n _ _) = mkNameHaskell n
         mkDataConHaskell (PrimCon _) = ""
 
         off :: Int -> String
@@ -272,6 +278,7 @@ pprPathCondStr (ExtCond am b) = injTuple acc_strs
     am_str = show am
     b_str = show b
     acc_strs = [am_str, b_str]
+pprPathCondStr (PCExists p) = show p
 
 pprRunHistStr :: ([Rule], State) -> String
 pprRunHistStr (rules, ex_state) = injNewLine acc_strs

@@ -22,6 +22,7 @@ executable G2
                        , containers >= 0.5 && < 0.6
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc
+                       , MissingH
                        , mtl
                        , reducers
                        , parsec
@@ -38,6 +39,7 @@ test-suite test
                        , containers >= 0.5 && < 0.6
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc
+                       , MissingH
                        , reducers
                        , parsec
                        , process

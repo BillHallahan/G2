@@ -33,7 +33,7 @@ initState prog prog_typ m_assume m_assert f =
     , type_env = mkTypeEnv prog_typ
     , curr_expr = CurrExpr Evaluate ce
     , name_gen = ng'
-    , path_conds = []
+    , path_conds = map PCExists ids
     , input_ids = ids
     , sym_links = Sym.empty
     , func_table = emptyFuncInterps
@@ -113,7 +113,7 @@ run con hhp n state = do
     putStrLn $ "states: " ++ (show $ length exec_states)
     mapM (putStrLn . pprExecStateStr) exec_states
 
-    ms <- satModelOutputs con hhp exec_states
+    satModelOutputs con hhp exec_states
     -- ms <- satModelOutputs con hhp (map snd exec_states)
 
   {-
@@ -133,8 +133,6 @@ run con hhp n state = do
     -- mapM (putStrLn . pprRunHistStr) exec_states
     
     -- putStrLn ("\nNumber of states: " ++ (show (length exec_states)))
-
-    return []
 
     -- let exec_states = runNDepth [exec_state] n
     -- let states = map (toState preproc_state) exec_states

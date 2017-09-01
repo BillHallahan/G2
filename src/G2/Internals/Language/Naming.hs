@@ -6,7 +6,10 @@ module G2.Internals.Language.Naming
     , doRename
     , doRenames
     , nameToStr
+    , strToName
     , mkNameGen
+    , exprNames
+    , typeNames
     , freshName
     , freshNames
     , freshSeededName
@@ -18,13 +21,25 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.HashMap.Lazy as HM
 import Data.List
+import Data.List.Utils
 
 newtype NameGen = NameGen (HM.HashMap (String, Maybe String) Int)
                 deriving (Show, Eq, Read)
 
+-- This relies on NameCleaner eliminating all '_', to preserve uniqueness
 nameToStr :: Name -> String
-nameToStr (Name n (Just m) i) = n ++ "_j_m_" ++ m ++ "_" ++ show i
-nameToStr (Name n Nothing i) = n ++ "_j_a_" ++ show i
+nameToStr (Name n (Just m) i) = n ++ "_m_" ++ m ++ "_" ++ show i
+nameToStr (Name n Nothing i) = n ++ "_n__" ++ show i
+
+-- Inverse of nameToStr
+strToName :: String -> Name
+strToName str =
+    let
+        (n, _:q:_:mi) = breakList (\s -> isPrefixOf "_m_" s || isPrefixOf "_n_" s) str
+        (m, _:i) = break ((==) '_') mi
+        m' = if q == 'm' then Just m else Nothing
+    in
+    Name n m' (read i :: Int)
 
 mkNameGen :: Program -> NameGen
 mkNameGen = NameGen
@@ -35,31 +50,37 @@ allNames :: Program -> [Name]
 allNames prog = nub (binds ++ expr_names ++ type_names)
   where
     binds = concatMap (map (idName . fst)) prog
-    expr_names = evalASTs exprTopNames prog
-    type_names = evalASTs typeTopNames prog
+    expr_names = exprNames prog
+    type_names = typeNames prog
 
-    exprTopNames :: Expr -> [Name]
-    exprTopNames (Var var) = [idName var]
-    exprTopNames (Lam b _) = [idName b]
-    exprTopNames (Let kvs _) = map (idName . fst) kvs
-    exprTopNames (Case _ cvar as) = idName cvar :
-                                    concatMap (\(Alt am _) -> altMatchNames am)
-                                              as
-    exprTopNames _ = []
+exprNames :: (ASTContainer m Expr) => m -> [Name]
+exprNames = evalASTs exprTopNames
 
-    altMatchNames :: AltMatch -> [Name]
-    altMatchNames (DataAlt dc i) = dataConName dc ++ (map idName i)
-    altMatchNames _ = []
+exprTopNames :: Expr -> [Name]
+exprTopNames (Var var) = [idName var]
+exprTopNames (Lam b _) = [idName b]
+exprTopNames (Let kvs _) = map (idName . fst) kvs
+exprTopNames (Case _ cvar as) = idName cvar :
+                                concatMap (\(Alt am _) -> altMatchNames am)
+                                          as
+exprTopNames _ = []
 
-    dataConName :: DataCon -> [Name]
-    dataConName (DataCon n _ _) = [n]
-    dataConName _ = []
+altMatchNames :: AltMatch -> [Name]
+altMatchNames (DataAlt dc i) = dataConName dc ++ (map idName i)
+altMatchNames _ = []
 
-    typeTopNames :: Type -> [Name]
-    typeTopNames (TyVar n _) = [n]
-    typeTopNames (TyConApp n _) = [n]
-    typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
-    typeTopNames _ = []
+dataConName :: DataCon -> [Name]
+dataConName (DataCon n _ _) = [n]
+dataConName _ = []
+
+typeNames :: (ASTContainer m Type) => m -> [Name]
+typeNames = evalASTs typeTopNames
+
+typeTopNames :: Type -> [Name]
+typeTopNames (TyVar n _) = [n]
+typeTopNames (TyConApp n _) = [n]
+typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
+typeTopNames _ = []
 
 doRename :: Renamable a => Name -> NameGen -> a -> (a, NameGen)
 doRename n ngen x = (rename n n' x, ngen')

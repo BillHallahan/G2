@@ -28,9 +28,6 @@ main = do
 
     (binds, tycons) <- hskToG2 proj src
 
-    let add = fromJust $ find (\(Id (Name n _ _) _, _) -> n == "add") (concat binds)
-    let t = (\((Id _ t), _) -> t) add
-
     let init_state = initState binds tycons m_assume m_assert entry
 
     -- putStrLn $ mkStateStr init_state
@@ -38,6 +35,15 @@ main = do
     hhp <- getZ3ProcessHandles
 
     in_out <- run smt2 hhp n_val init_state
+
+    mapM_ (\(inArg, ex) -> do
+            let funcCall = mkExprHaskell 
+                         . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
+
+            let funcOut = mkExprHaskell $ ex
+
+            putStrLn (funcCall)
+        ) in_out
 
     putStrLn "End"
     

@@ -11,6 +11,7 @@ import G2.Internals.SMT.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Data.List
+import Data.List.Utils (countElem)
 import qualified Data.Map as M
 import Data.Ratio
 import System.IO
@@ -244,10 +245,6 @@ getLinesMatchParens' h_out n = do
     else do
         out' <- getLinesMatchParens' h_out n'
         return $ out ++ out'
-
-countElem ::Eq a => a -> [a] -> Int
-countElem x [] = 0
-countElem x (y:ys) = (if x == y then 1 else 0)  + countElem x ys 
 
 getLinesUntil :: Handle -> (String -> Bool) -> IO String
 getLinesUntil h_out p = do

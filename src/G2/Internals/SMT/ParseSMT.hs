@@ -78,6 +78,6 @@ doubleFloatExpr = do
         Nothing -> return (VDouble r)
 
 parseSMT :: String -> SMTAST
-parseSMT s = case parse smtParser "" s of
+parseSMT s = case parse smtParser s s of
     Left e -> error $ show e
     Right r -> r

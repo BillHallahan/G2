@@ -56,6 +56,7 @@ data CurrExpr = CurrExpr EvalOrReturn Expr
 -- to assertion / assumptions made, or some externally coded factors.
 data PathCond = AltCond AltMatch Expr Bool
               | ExtCond Expr Bool
+              | PCExists Id
               deriving (Show, Eq, Read)
 
 -- | Conditional constraints assumption and assertions
@@ -179,20 +180,24 @@ instance ASTContainer CurrExpr Type where
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
     containedASTs (AltCond _ e _) = [e]
+    containedASTs (PCExists _) = []
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
     modifyContainedASTs f (AltCond e a b) =
         AltCond (modifyContainedASTs f e) a b
+    modifyContainedASTs _ pc = pc
 
 instance ASTContainer PathCond Type where
     containedASTs (ExtCond e _)   = containedASTs e
     containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
+    containedASTs (PCExists i) = containedASTs i
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
       where e' = modifyContainedASTs f e
     modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
       where e' = modifyContainedASTs f e
             a' = modifyContainedASTs f a
+    modifyContainedASTs f (PCExists i) = PCExists (modifyContainedASTs f i)
 
 instance ASTContainer AlgDataTy DataCon where
     containedASTs (AlgDataTy _ dcs) = dcs
@@ -237,6 +242,7 @@ instance Renamable CurrExpr where
 instance Renamable PathCond where
     rename old new (AltCond am e b) = AltCond (rename old new am) (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
+    rename old new (PCExists i) = PCExists (rename old new i)
 
 instance Renamable FuncInterps where
     rename old new (FuncInterps m) =
