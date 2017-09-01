@@ -12,9 +12,6 @@ import qualified Data.Map as M
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
--- import G2.Internals.Core.Renamer
-
-import Debug.Trace
 
 allowedStartSymbols =
     ['a'..'z']
@@ -25,7 +22,7 @@ allowedStartSymbols =
 allowedSymbol = allowedStartSymbols ++ ['0'..'9'] ++ ['@', '.']
 
 cleanNames :: State -> State
-cleanNames s = trace (show $ allNames s) $ cleanNames' s (allNames s)
+cleanNames s = cleanNames' s (allNames s)
 
 cleanNames' :: State -> [Name] -> State
 cleanNames' s [] = s

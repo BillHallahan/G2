@@ -20,8 +20,6 @@ import G2.Lib.Printers
 import Data.List
 import qualified Data.Map as M
 
-import Debug.Trace
-
 initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> String -> State
 initState prog prog_typ m_assume m_assert f =
     let
@@ -69,8 +67,7 @@ mkCurrExpr m_assume m_assert s ng b =
                 var_name = Var id_name
 
                 assume_ex = mkAssumeAssert Assume m_assume var_ids var_name var_name b
-                assert_ex = mkAssumeAssert Assert m_assert var_ids var_name assume_ex b
-
+                assert_ex = mkAssumeAssert Assert m_assert var_ids assume_ex var_name b
                 
                 let_ex = Let [(id_name, app_ex)] assert_ex
             in
@@ -110,8 +107,8 @@ run con hhp n state = do
     
     let exec_states = runNBreadth [preproc_state] n
 
-    putStrLn $ "states: " ++ (show $ length exec_states)
-    mapM (putStrLn . pprExecStateStr) exec_states
+    -- putStrLn $ "states: " ++ (show $ length exec_states)
+    -- mapM (putStrLn . pprExecStateStr) exec_states
 
     satModelOutputs con hhp exec_states
     -- ms <- satModelOutputs con hhp (map snd exec_states)

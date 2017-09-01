@@ -11,6 +11,8 @@ import qualified G2.Internals.Language.ExprEnv as E
 
 import Data.List
 
+import Debug.Trace
+
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal | RuleEvalVarVal
           | RuleEvalUnInt
@@ -225,7 +227,7 @@ reduce s @ State { exec_stack = estk
   , Just (efrm, estk') <- pop estk
   , ExprFrame frm_expr <- efrm =
       let (rule, cond) = reduceCReturn cstmt expr
-      in (rule, [s { exec_stack = estk'
+      in trace "HERE" $ (rule, [s { exec_stack = estk'
                    , cond_stack = cstk'
                    , curr_expr = CurrExpr Evaluate frm_expr
                    , path_conds = cond : paths }])
