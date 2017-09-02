@@ -1,12 +1,13 @@
 module G2.Internals.SMT.Interface
     ( satModelOutputs
     , satModelOutput
-    , smtReady) where
+    ) where
 
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Monoid as Mon
 
+import G2.Internals.Execution.Rules
 import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
@@ -20,7 +21,7 @@ satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [([Expr], Expr
 satModelOutputs con io s = do
    return . map (\(_, es, e) -> (fromJust es, fromJust e))
           . filter (\(s', es, e) -> s' == SAT && isJust es && isJust e)
-          =<< mapM (satModelOutput con io) (smtReady s)
+          =<< mapM (satModelOutput con io) (filter isExecValueForm s)
 
 
 -- | checkSatModelOutput
@@ -59,39 +60,6 @@ satModelOutput con io s = do
     let ex' = fmap (replaceFuncSLT s . smtastToExpr) ex
 
     return (res, inArg, ex') -}
-
--- | smtReady
--- Given a list of states, returns only those that can be evaluated by the SMT solver
-smtReady :: [State] -> [State]
-smtReady = filter (\s -> not . containsNonConsFunctions (type_env s) . curr_expr $ s)
-         . filter (\s -> not . containsBadExpr . curr_expr $ s)
-
--- Returns if an Expr contains functions that are not just type constructors
-containsNonConsFunctions :: (ASTContainer m Expr) => TypeEnv -> m -> Bool
-containsNonConsFunctions tenv = Mon.getAny . evalASTs (Mon.Any . containsFunctions' tenv)
-    where
-        containsFunctions' :: TypeEnv -> Expr -> Bool
-        containsFunctions' tv (App (Var (Id n _)) _) = n `notElem` (constructors tv)
-        containsFunctions' _ _ = False
-
-        constructors :: TypeEnv -> [Name]
-        constructors = concat . map constructors' . M.elems
-            
-        constructors' :: AlgDataTy -> [Name]
-        constructors' (AlgDataTy _ dc) = [ n | (DataCon n _ _) <- dc]
-
--- Returns true if an Expr contains any Expr that can't be handled by the SMT solver
-containsBadExpr :: (ASTContainer m Expr) => m -> Bool
-containsBadExpr = Mon.getAny . evalASTs (Mon.Any . containsBadExpr')
-    where
-        containsBadExpr' :: Expr -> Bool
-        containsBadExpr' (Var _) = False
-        containsBadExpr' (Prim _) = False
-        containsBadExpr' (Lit _) = False
-        containsBadExpr' (App _ _) = False
-        containsBadExpr' (Data _) = False
-        containsBadExpr' (Type _) = False
-        containsBadExpr' _ = True
 
 {-
 

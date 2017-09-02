@@ -35,9 +35,9 @@ smt2 = SMTConverter {
             -- putStrLn "\n\n"
             -- putStrLn formula
             r <- checkSat' h_in h_out
-            -- print r
+            -- putStrLn $ "r = " ++ show r
             if r == SAT then do
-                model <- return =<< getModel h_in h_out vars
+                model <- getModel h_in h_out vars
                 -- putStrLn "======"
                 -- putStrLn (show model)
                 -- putStrLn "======"
@@ -196,7 +196,7 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
             in
             case sName of
                 Just n' -> Cons n (map correctConsTypes smts) n'
-                Nothing -> error ("Sort constructor " ++ (show n) ++ "not found in correctConsTypes")
+                Nothing -> error ("Sort constructor " ++ (show n) ++ " not found in correctConsTypes\n\n" ++ str)
         correctConsTypes err = error $ "correctConsTypes: invalid SMTAST: " ++ show err
 
         consNameToSort :: M.Map SMTName Sort
