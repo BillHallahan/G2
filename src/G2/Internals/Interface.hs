@@ -36,7 +36,6 @@ initState prog prog_typ m_assume m_assert f =
     , sym_links = Sym.empty
     , func_table = emptyFuncInterps
     , exec_stack = Stack.empty
-    , cond_stack = Stack.empty
  }
 
 mkExprEnv :: Binds -> E.ExprEnv
