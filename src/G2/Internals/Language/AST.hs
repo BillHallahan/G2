@@ -180,6 +180,10 @@ instance ASTContainer Type Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
+instance ASTContainer DataCon Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ d = d
+
 instance ASTContainer DataCon Type where
     containedASTs (DataCon _ t ts) = containedASTs (t:ts)
     containedASTs _ = []
@@ -211,6 +215,17 @@ instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance {-# OVERLAPPING #-} (ASTContainer c t, ASTContainer d t) => ASTContainer (c, d) t where
+    containedASTs (x, y) = containedASTs x ++ containedASTs y
+
+    modifyContainedASTs f (x, y) = (modifyContainedASTs f x, modifyContainedASTs f y)
+
+instance {-# OVERLAPPING #-} 
+    (ASTContainer c t, ASTContainer d t, ASTContainer e t) => ASTContainer (c, d, e) t where
+        containedASTs (x, y, z) = containedASTs x ++ containedASTs y ++ containedASTs z
+
+        modifyContainedASTs f (x, y, z) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z)
 
 -- | Miscellaneous Instances
 --   These instances exist so that we can use them in other types that contain

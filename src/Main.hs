@@ -26,7 +26,7 @@ main = do
     let m_assume = mAssume tail_args
     let m_assert = mAssert tail_args
 
-    (binds, tycons) <- hskToG2 proj src
+    (binds, tycons) <- translation proj src
 
     let init_state = initState binds tycons m_assume m_assert entry
 
