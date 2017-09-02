@@ -71,8 +71,7 @@ isExprValueForm _ _ = True
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
 isExecValueForm :: State -> Bool
-isExecValueForm state | Nothing <- pop (cond_stack state)
-                      , Nothing <- pop (exec_stack state)
+isExecValueForm state | Nothing <- pop (exec_stack state)
                       , CurrExpr Return _ <- curr_expr state = True
 
                       | otherwise = False
@@ -82,6 +81,12 @@ isCondStmt :: Primitive -> Bool
 isCondStmt Assert = True
 isCondStmt Assume = True
 isCondStmt _ = False
+
+-- | Is conditional frame?
+isCondFrame :: Frame -> Bool
+isCondFrame (AssumeFrame _) = True
+isCondFrame (AssertFrame _) = True
+isCondFrame _ = False
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Renamable a => [(Name, Name)] -> a -> a
@@ -122,7 +127,7 @@ matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
 negatePathCond :: PathCond -> PathCond
 negatePathCond (AltCond a e b) = AltCond a e (not b)
 negatePathCond (ExtCond e b) = ExtCond e (not b)
-
+negatePathCond (PCExists i) = PCExists i
 
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
@@ -190,7 +195,6 @@ liftSymDefAlt' eenv mexpr ngen negatives cvar (Alt _ aexpr) = res
 
 reduce :: State -> (Rule, [State])
 reduce s @ State { exec_stack = estk
-                 , cond_stack = cstk
                  , expr_env = eenv
                  , curr_expr = cexpr
                  , name_gen = ngen
@@ -206,10 +210,17 @@ reduce s @ State { exec_stack = estk
   | CurrExpr Evaluate expr <- cexpr
   , App (App (Prim prim) lcond) lexpr <- expr
   , isCondStmt prim =
-      let (rule, cstmt) = reduceCondStmt prim
-      in (rule, [s { exec_stack = push (ExprFrame lexpr) estk
-                   , cond_stack = push cstmt cstk
+      let (rule, frame) = reduceCondStmt prim lexpr
+      in (rule, [s { exec_stack = push frame estk
                    , curr_expr = CurrExpr Evaluate lcond }])
+  
+  | CurrExpr Return expr <- cexpr
+  , Just (frame, estk') <- pop estk
+  , isCondFrame frame =
+      let (rule, (fexpr, cond)) = reduceCReturn frame expr
+      in (rule, [s { exec_stack = estk'
+                   , curr_expr = CurrExpr Evaluate fexpr
+                   , path_conds = cond : paths }])
 
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = reduceEvaluate eenv expr ngen
@@ -223,17 +234,6 @@ reduce s @ State { exec_stack = estk
       in (rule, states)
 
   | CurrExpr Return expr <- cexpr
-  , Just (cstmt, cstk') <- pop cstk
-  , Just (efrm, estk') <- pop estk
-  , ExprFrame frm_expr <- efrm =
-      let (rule, cond) = reduceCReturn cstmt expr
-      in trace "HERE" $ (rule, [s { exec_stack = estk'
-                   , cond_stack = cstk'
-                   , curr_expr = CurrExpr Evaluate frm_expr
-                   , path_conds = cond : paths }])
-
-  | CurrExpr Return expr <- cexpr
-  , Nothing <- pop cstk
   , Just (f, estk') <- pop estk =
       let (rule, (eenv', cexpr', ngen')) = reduceEReturn eenv expr ngen f
       in (rule, [s { expr_env = eenv'
@@ -458,16 +458,17 @@ reduceEReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
 
 reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
 
-type CondStmtResult = (Rule, CondStmt)
+type CondStmtResult = (Rule, Frame)
 
-reduceCondStmt :: Primitive -> CondStmtResult
-reduceCondStmt Assume = (RuleEvalAssume, AssumeCond)
-reduceCondStmt Assert = (RuleEvalAssert, AssertCond)
-reduceCondStmt err = error $ "reduceCondStmt: invalid primitive" ++ show err
+reduceCondStmt :: Primitive -> Expr -> CondStmtResult
+reduceCondStmt Assume expr = (RuleEvalAssume, AssumeFrame expr)
+reduceCondStmt Assert expr = (RuleEvalAssert, AssertFrame expr)
+reduceCondStmt err _ = error $ "reduceCondStmt: invalid primitive" ++ show err
 
-type CReturnResult = (Rule, PathCond)
+type CReturnResult = (Rule, (Expr, PathCond))
 
-reduceCReturn :: CondStmt -> Expr -> CReturnResult
-reduceCReturn AssumeCond expr = (RuleReturnCAssume, ExtCond expr True)
-reduceCReturn AssertCond expr = (RuleReturnCAssert, ExtCond expr False)
+reduceCReturn :: Frame -> Expr -> CReturnResult
+reduceCReturn (AssumeFrame f) e = (RuleReturnCAssume, (f, ExtCond e True))
+reduceCReturn (AssertFrame f) e = (RuleReturnCAssert, (f, ExtCond e False))
+reduceCReturn _ _ = error $" reduceCReturn: invalid frame"
 
