@@ -86,9 +86,10 @@ exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
 -- | funcToSMT
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
-funcToSMT (Var (Id n t)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
+funcToSMT (Var (Id n t)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t) -- TODO : DO WE NEED THIS???
 funcToSMT (Prim p) [a] = funcToSMT1Prim p a
 funcToSMT (Prim p) [a1, a2] = funcToSMT2Prim p a1 a2
+funcToSMT (Prim p) [a1, a2, a3, a4] = funcToSMT4Prim p a1 a2 a3 a4
 funcToSMT (Data (DataCon n t _)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
 funcToSMT e@(Data _) [a] = funcToSMT1Var e a
 funcToSMT e _ = error ("Unrecognized " ++ show e ++ " in funcToSMT")
@@ -108,17 +109,19 @@ funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
 funcToSMT2Prim And a1 a2 = exprToSMT a1 :&& exprToSMT a2
 funcToSMT2Prim Or a1 a2 = exprToSMT a1 :|| exprToSMT a2
-funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
-funcToSMT2Prim Gt a1 a2 = exprToSMT a1 :> exprToSMT a2
-funcToSMT2Prim Eq a1 a2 = exprToSMT a1 := exprToSMT a2
-funcToSMT2Prim Lt a1 a2 = exprToSMT a1 :< exprToSMT a2
-funcToSMT2Prim Le a1 a2 = exprToSMT a1 :<= exprToSMT a2
 funcToSMT2Prim Implies a1 a2 = exprToSMT a1 :=> exprToSMT a2
-funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
-funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
-funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
-funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
-funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
+
+funcToSMT4Prim :: Primitive -> Expr -> Expr -> Expr -> Expr -> SMTAST
+funcToSMT4Prim Ge _ _ a1 a2 = exprToSMT a1 :>= exprToSMT a2
+funcToSMT4Prim Gt _ _ a1 a2 = exprToSMT a1 :> exprToSMT a2
+funcToSMT4Prim Eq _ _ a1 a2 = exprToSMT a1 := exprToSMT a2
+funcToSMT4Prim Lt _ _ a1 a2 = exprToSMT a1 :< exprToSMT a2
+funcToSMT4Prim Le _ _ a1 a2 = exprToSMT a1 :<= exprToSMT a2
+funcToSMT4Prim Plus _ _ a1 a2 = exprToSMT a1 :+ exprToSMT a2
+funcToSMT4Prim Minus _ _ a1 a2 = exprToSMT a1 :- exprToSMT a2
+funcToSMT4Prim Mult _ _ a1 a2 = exprToSMT a1 :* exprToSMT a2
+funcToSMT4Prim Div _ _ a1 a2 = exprToSMT a1 :/ exprToSMT a2
+funcToSMT4Prim op _ _ lhs rhs = error $ "funcToSMT4Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 altToSMT :: AltMatch -> SMTAST
 altToSMT (LitAlt (LitInt i)) = VInt i

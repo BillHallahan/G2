@@ -73,15 +73,14 @@ mkCurrExpr m_assume m_assert s ng b =
             (let_ex, ids, ng'')
         Right s -> error s
 
-mkAssumeAssert :: Primitive -> Maybe String -> [Expr] -> Expr -> Expr -> Binds -> Expr
+mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> [Expr] -> Expr -> Expr -> Binds -> Expr
 mkAssumeAssert p (Just f) var_ids inter pre_ex b =
     case findFunc f b of
         Left (f, ex) -> 
             let
                 app_ex = foldr (\vi e -> App e vi) (Var f) (pre_ex:var_ids)
-                prim_app = App (Prim p) app_ex
             in
-            App prim_app inter
+            p app_ex inter
         Right s -> error s
 mkAssumeAssert _ Nothing _ e _ _ = e
 
@@ -104,7 +103,7 @@ run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
 run con hhp n state = do
     let preproc_state = runPreprocessing state
     
-    -- putStrLn . pprExecStateStr $ preproc_state
+    putStrLn . pprExecStateStr $ preproc_state
 
     let exec_states = runNBreadth [preproc_state] n
 

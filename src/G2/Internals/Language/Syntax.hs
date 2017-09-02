@@ -46,6 +46,8 @@ data Expr = Var Id
           | Let Binds Expr
           | Case Expr Id [Alt]
           | Type Type
+          | Assume Expr Expr
+          | Assert Expr Expr
           deriving (Show, Eq, Read)
 
 -- | Primitives
@@ -55,6 +57,7 @@ data Expr = Var Id
 data Primitive = Ge
                | Gt
                | Eq
+               | Neq
                | Lt
                | Le
                | And
@@ -66,8 +69,6 @@ data Primitive = Ge
                | Mult
                | Div
                | UNeg
-               | Assert
-               | Assume
                deriving (Show, Eq, Read)
 
 -- | Literals for denoting unwrapped types such as Int#, Double#. These would

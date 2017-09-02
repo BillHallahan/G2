@@ -31,8 +31,6 @@ instance Typed Primitive where
     typeOf Mult = TyBottom
     typeOf Div = TyBottom
     typeOf UNeg = TyBottom
-    typeOf Assert = TyFun TyBool TyBool
-    typeOf Assume = TyFun TyBool TyBool
 
 -- | `Lit` instance of `Typed`.
 instance Typed Lit where
@@ -67,5 +65,8 @@ instance Typed Expr where
     typeOf (Let _ expr) = typeOf expr
     typeOf (Case _ _ (a:_)) = typeOf a
     typeOf (Type ty) = ty
+    typeOf (Assert _ e) = typeOf e
+    typeOf (Assume _ e) = typeOf e
+
     typeOf _ = TyBottom
 

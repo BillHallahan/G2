@@ -60,11 +60,13 @@ unApp expr = [expr]
 isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
     E.lookup (idName var) eenv == Nothing || isSymbolic var eenv
-isExprValueForm (App f a) _ = case unApp (App f a) of
+isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Data _:_) -> True
     _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
+isExprValueForm (Assume _ _) _ = False
+isExprValueForm (Assert _ _) _ = False
 isExprValueForm _ _ = True
 
 -- | Is the execution state in a value form of some sort? This would entail:
@@ -77,9 +79,9 @@ isExecValueForm state | Nothing <- pop (exec_stack state)
                       | otherwise = False
 
 -- | Is conditional statement
-isCondStmt :: Primitive -> Bool
-isCondStmt Assert = True
-isCondStmt Assume = True
+isCondStmt :: Expr -> Bool
+isCondStmt (Assert _ _) = True
+isCondStmt (Assume _ _) = True
 isCondStmt _ = False
 
 -- | Is conditional frame?
@@ -208,19 +210,15 @@ reduce s @ State { exec_stack = estk
       (RuleEvalVal, [s { curr_expr = CurrExpr Return expr }])
 
   | CurrExpr Evaluate expr <- cexpr
-  , App (App (Prim prim) lcond) lexpr <- expr
-  , isCondStmt prim =
-      let (rule, frame) = reduceCondStmt prim lexpr
-      in (rule, [s { exec_stack = push frame estk
-                   , curr_expr = CurrExpr Evaluate lcond }])
-  
-  | CurrExpr Return expr <- cexpr
-  , Just (frame, estk') <- pop estk
-  , isCondFrame frame =
-      let (rule, (fexpr, cond)) = reduceCReturn frame expr
-      in (rule, [s { exec_stack = estk'
-                   , curr_expr = CurrExpr Evaluate fexpr
-                   , path_conds = cond : paths }])
+  , (Assume pre lexpr) <- expr =
+      let frame = AssumeFrame lexpr
+      in (RuleEvalAssume, [s { exec_stack = push frame estk
+                             , curr_expr = CurrExpr Evaluate pre }])
+
+  | CurrExpr Evaluate expr <- cexpr
+  , Assert pre lexpr <- expr =
+      let expr' = Assume (App (Prim Not) pre) lexpr
+      in (RuleReturnCAssert, [s { curr_expr = CurrExpr Evaluate expr' }])
 
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = reduceEvaluate eenv expr ngen
@@ -232,6 +230,14 @@ reduce s @ State { exec_stack = estk
                            , exec_stack = maybe estk (\f' -> push f' estk) f})
                        eval_results
       in (rule, states)
+
+  | CurrExpr Return expr <- cexpr
+  , Just (frame, estk') <- pop estk
+  , isCondFrame frame =
+      let (rule, (fexpr, cond)) = reduceCReturn frame expr
+      in (rule, [s { exec_stack = estk'
+                   , curr_expr = CurrExpr Evaluate fexpr
+                   , path_conds = cond : paths }])
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- pop estk =
@@ -460,10 +466,10 @@ reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
 
 type CondStmtResult = (Rule, Frame)
 
-reduceCondStmt :: Primitive -> Expr -> CondStmtResult
-reduceCondStmt Assume expr = (RuleEvalAssume, AssumeFrame expr)
-reduceCondStmt Assert expr = (RuleEvalAssert, AssertFrame expr)
-reduceCondStmt err _ = error $ "reduceCondStmt: invalid primitive" ++ show err
+reduceCondStmt :: Expr -> CondStmtResult
+reduceCondStmt (Assume expr _) = (RuleEvalAssume, AssumeFrame expr)
+reduceCondStmt (Assert expr _) = (RuleEvalAssert, AssertFrame expr)
+reduceCondStmt err = error $ "reduceCondStmt: invalid primitive" ++ show err
 
 type CReturnResult = (Rule, (Expr, PathCond))
 
