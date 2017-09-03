@@ -58,7 +58,8 @@ unApp expr = [expr]
 isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
     E.lookup (idName var) eenv == Nothing || isSymbolic var eenv
-isExprValueForm (App f a) eenv = case unApp (App f a) of
+isExprValueForm (App f a) _ = case unApp (App f a) of
+    (Prim _:_) -> True
     (Data _:_) -> True
     _ -> False
 isExprValueForm (Let _ _) _ = False
@@ -288,12 +289,12 @@ reduceEvaluate eenv (Case mexpr cvar alts) ngen =
     reduceCase eenv mexpr cvar alts ngen
 
 reduceEvaluate eenv (Assume pre lexpr) ngen =
-    let frame = AssumeFrame lexpr in
-    (RuleEvalAssume, [( eenv
-                      , CurrExpr Evaluate pre
-                      , []
-                      , ngen
-                      , Just frame)])
+    let frame = AssumeFrame lexpr
+    in (RuleEvalAssume, [( eenv
+                         , CurrExpr Evaluate pre
+                         , []
+                         , ngen
+                         , Just frame)])
 reduceEvaluate eenv (Assert pre lexpr) ngen =
     (RuleEvalCAssert, [( eenv
                          , CurrExpr Evaluate (Assume (App (Prim Not) pre) lexpr)
@@ -452,3 +453,4 @@ reduceEReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
               , ngen'))
 
 reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
+

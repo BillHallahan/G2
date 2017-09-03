@@ -22,6 +22,7 @@ instance Typed Primitive where
     typeOf Eq = TyBottom
     typeOf Lt = TyBottom
     typeOf Le = TyBottom
+    typeOf Neq = TyBottom
     typeOf And = TyFun TyBool (TyFun TyBool TyBool)
     typeOf Or = TyFun TyBool (TyFun TyBool TyBool)
     typeOf Not = TyFun TyBool TyBool

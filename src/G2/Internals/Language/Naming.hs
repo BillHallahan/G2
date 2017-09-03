@@ -14,6 +14,7 @@ module G2.Internals.Language.Naming
     , freshNames
     , freshSeededName
     , freshSeededNames
+    , progNames
     ) where
 
 import G2.Internals.Language.AST
@@ -44,10 +45,10 @@ strToName str =
 mkNameGen :: Program -> NameGen
 mkNameGen = NameGen
     . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) HM.empty
-    . allNames
+    . progNames
 
-allNames :: Program -> [Name]
-allNames prog = nub (binds ++ expr_names ++ type_names)
+progNames :: Program -> [Name]
+progNames prog = nub (binds ++ expr_names ++ type_names)
   where
     binds = concatMap (map (idName . fst)) prog
     expr_names = exprNames prog
