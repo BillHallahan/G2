@@ -104,7 +104,6 @@ data Frame = CaseFrame Id [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
            | AssumeFrame Expr
-           | AssertFrame Expr
            deriving (Show, Eq, Read)
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
@@ -200,27 +199,23 @@ instance ASTContainer Frame Expr where
     containedASTs (CaseFrame _ a) = containedASTs a
     containedASTs (ApplyFrame e) = [e]
     containedASTs (AssumeFrame e) = [e]
-    containedASTs (AssertFrame e) = [e]
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i a) = CaseFrame i (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (f e)
-    modifyContainedASTs f (AssertFrame e) = AssertFrame (f e)
     modifyContainedASTs _ fr = fr
 
 instance ASTContainer Frame Type where
     containedASTs (CaseFrame i a) = containedASTs i ++ containedASTs a
     containedASTs (ApplyFrame e) = containedASTs e
     containedASTs (AssumeFrame e) = containedASTs e
-    containedASTs (AssertFrame e) = containedASTs e
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i a) =
         CaseFrame (modifyContainedASTs f i) (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
-    modifyContainedASTs f (AssertFrame e) = AssertFrame (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
 
 instance Renamable AlgDataTy where
@@ -243,6 +238,3 @@ instance Renamable Frame where
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
-    rename old new (AssertFrame e) = AssertFrame (rename old new e)
-
-
