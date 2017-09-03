@@ -60,15 +60,11 @@ cascadeArity1 prim =
 cascadeArity2 :: Primitive -> Expr
 cascadeArity2 prim =
     Lam (idN 1) (Lam (idN 2)
-        (Case (Var (idN 1))
-              (idN 101)
-              [Alt Default
-                   (Case (Var (idN 2))
-                         (idN 102)
-                         [Alt Default
-                              (App (App (Prim prim)
-                                        (Var (idN 101)))
-                                   (Var (idN 102)))])]))
+        (Case (Var (idN 1)) (idN 101) [Alt Default
+        (Case (Var (idN 2)) (idN 102) [Alt Default
+              (App (App (Prim prim)
+                        (Var (idN 101)))
+                   (Var (idN 102)))])]))
 
 cascadeArity3 :: Primitive -> Expr
 cascadeArity3 prim =

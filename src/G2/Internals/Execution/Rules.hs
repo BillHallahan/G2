@@ -340,19 +340,6 @@ reduceCase eenv mexpr bind alts ngen
             , ngen'
             , Nothing)] )
 
-  -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
-  -- If so, we just perform the cvar binding and proceed with the alt
-  -- expression.
-  | (Alt _ expr):_ <- defaultAlts alts =
-      let binds = [(bind, mexpr)]
-          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
-      in ( RuleEvalCaseDefault
-         , [( eenv'
-            , CurrExpr Evaluate expr'
-            , []
-            , ngen'
-            , Nothing)])
-
   -- | If we are pointing to a symbolic value in the environment, handle it
   -- appropriately by branching on every `Alt`.
   | var@(Var n) <- mexpr
@@ -382,7 +369,20 @@ reduceCase eenv mexpr bind alts ngen
             , []
             , ngen
             , Just frame)])
-  
+
+   -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
+  -- If so, we just perform the cvar binding and proceed with the alt
+  -- expression.
+  | (Alt _ expr):_ <- defaultAlts alts =
+      let binds = [(bind, mexpr)]
+          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+      in ( RuleEvalCaseDefault
+         , [( eenv'
+            , CurrExpr Evaluate expr'
+            , []
+            , ngen'
+            , Nothing)])
+ 
   | otherwise = error "reduceCase: bad case passed in"
 
 -- | Result of a Return reduction.
