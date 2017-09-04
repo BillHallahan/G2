@@ -297,7 +297,7 @@ reduceEvaluate eenv (Assume pre lexpr) ngen =
                          , Just frame)])
 reduceEvaluate eenv (Assert pre lexpr) ngen =
     (RuleEvalCAssert, [( eenv
-                         , CurrExpr Evaluate (Assume (App (Prim Not) pre) lexpr)
+                         , CurrExpr Evaluate (Assume (App mkNot pre) lexpr)
                          , []
                          , ngen
                          , Nothing)])

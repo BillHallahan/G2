@@ -5,6 +5,8 @@ module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
 
+import Data.Foldable
+
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
 type ProgramType = (Name, [Name], [DataCon])
@@ -135,3 +137,65 @@ data Type = TyVar Name Type
           | TyBottom
           deriving (Show, Eq, Read)
 
+-- | Primitive smart constructors
+-- These constructors should alway be used to create primitives.  They ensure eager
+-- evaluation of the primitives arguments in the Evaluation step.
+mkPrim :: Int -> Primitive -> Expr
+mkPrim n p =
+    let
+        ids = map (\n' -> Id (Name "a" Nothing n') TyBottom) [1..n]
+        binds = map (\n' -> Id (Name "b" Nothing n') TyBottom) [1..n]
+
+        varIds = map Var ids
+        varBinds = map Var binds
+
+        apps = foldl' (App) (Prim p) varBinds
+        cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
+        lams = foldr (Lam) cases ids
+    in
+    lams
+
+mkGe :: Expr
+mkGe = mkPrim 4 Ge
+
+mkGt :: Expr
+mkGt = mkPrim 4 Gt
+
+mkEq :: Expr
+mkEq = mkPrim 4 Eq
+
+mkNeq :: Expr
+mkNeq = mkPrim 4 Neq
+
+mkLt :: Expr
+mkLt = mkPrim 4 Lt
+
+mkLe :: Expr
+mkLe = mkPrim 4 Le
+
+mkAnd :: Expr
+mkAnd = mkPrim 2 And
+
+mkOr :: Expr
+mkOr = mkPrim 2 Or
+
+mkNot :: Expr
+mkNot = mkPrim 1 Not
+
+mkImplies :: Expr
+mkImplies = mkPrim 2 Implies
+
+mkPlus :: Expr
+mkPlus = mkPrim 4 Plus
+
+mkMinus :: Expr
+mkMinus = mkPrim 4 Minus
+
+mkMult :: Expr
+mkMult = mkPrim 4 Mult
+
+mkDiv :: Expr
+mkDiv = mkPrim 4 Div
+
+mkUNeg :: Expr
+mkUNeg = mkPrim 3 UNeg
