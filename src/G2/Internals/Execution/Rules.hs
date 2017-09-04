@@ -10,11 +10,14 @@ import G2.Internals.Language.Stack
 import qualified G2.Internals.Language.ExprEnv as E
 
 import Data.List
+import Data.Maybe
 
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal | RuleEvalVarVal
           | RuleEvalUnInt
           | RuleEvalApp
+          | RuleEvalPrimAlreadyNorm
+          | RuleEvalPrimToNorm
           | RuleEvalLet
           | RuleEvalCaseData | RuleEvalCaseLit | RuleEvalCaseDefault
                              | RuleCaseSym | RuleEvalCaseNonVal
@@ -46,6 +49,13 @@ unApp :: Expr -> [Expr]
 unApp (App f a) = unApp f ++ [a]
 unApp expr = [expr]
 
+-- | Ravels the application spine
+mkApp :: [Expr] -> Expr
+mkApp [] = error "mkApp: empty list"
+mkApp (e:[]) = e
+mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
+
+
 -- | If something is in "value form", then it is essentially ready to be
 -- returned and popped off the heap. This will be the SSTG equivalent of having
 -- Return vs Evaluate for the ExecCode of the `State`.
@@ -59,7 +69,7 @@ isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
     E.lookup (idName var) eenv == Nothing || isSymbolic var eenv
 isExprValueForm (App f a) _ = case unApp (App f a) of
-    (Prim _:_) -> True
+    -- (Prim _:_) -> True
     (Data _:_) -> True
     _ -> False
 isExprValueForm (Let _ _) _ = False
@@ -175,6 +185,11 @@ liftSymDefAlt' eenv mexpr ngen negatives cvar (Alt _ aexpr) = res
           , ngen'
           , Nothing)
 
+-- | Attempts to reduce a Var from the eenv.
+varReduce :: E.ExprEnv -> Expr -> Expr
+varReduce eenv (Var i) = fromMaybe (Var i) (E.lookup (idName i) eenv)
+varReduce _ e = e
+
 -- | Funciton for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
 
@@ -266,13 +281,32 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- However given actual lazy evaluations within Haskell, all the
     -- `ExecExprEnv`s at each frame would really be stored in a single
     -- location on the actual Haskell heap during execution.
-    let frame = ApplyFrame aexpr
-    in ( RuleEvalApp
-       , [( eenv
-          , CurrExpr Evaluate fexpr
-          , []
-          , ngen
-          , Just frame)])
+    case unApp (App fexpr aexpr) of
+        ((Prim prim):args) ->
+            if all (\a -> isExprValueForm a eenv) args
+                then ( RuleEvalPrimAlreadyNorm
+                     , [( eenv
+                        , CurrExpr Return (App fexpr aexpr)
+                        , []
+                        , ngen
+                        , Nothing)])
+                else let args' = map (varReduce eenv) args
+                     in ( RuleEvalPrimToNorm
+                        , [( eenv
+                           -- This may need to be Evaluate if there are more
+                           -- than one redirections.
+                           , CurrExpr Evaluate (mkApp (Prim prim : args'))
+                           , []
+                           , ngen
+                           , Nothing)])
+        _ ->
+            let frame = ApplyFrame aexpr
+            in ( RuleEvalApp
+               , [( eenv
+                  , CurrExpr Evaluate fexpr
+                  , []
+                  , ngen
+                  , Just frame)])
 
 reduceEvaluate eenv (Let binds expr) ngen =
     -- Lift all the let bindings into the environment and continue with eenv
