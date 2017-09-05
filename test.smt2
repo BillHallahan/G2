@@ -1,3 +1,0 @@
-(declare-datatypes () ((Peano_j_m_Peano_8214565720323784707 (Succ_j_m_Peano_8214565720323784706 (F_Peano_j_m_Peano_82145657203237847070 Peano_j_m_Peano_8214565720323784707)) Zero_j_m_Peano_8214565720323784705 ) ))(declare-const p_j_a_6989586621679015453 Peano_j_m_Peano_8214565720323784707)(declare-const fs?_j_a_0 Peano_j_m_Peano_8214565720323784707)(assert (= p_j_a_6989586621679015453 Zero_j_m_Peano_8214565720323784705))(assert (= fs?_j_a_0 (Succ_j_m_Peano_8214565720323784706 p_j_a_6989586621679015453)))
-
-(check-sat)

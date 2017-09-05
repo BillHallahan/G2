@@ -1,6 +1,5 @@
 module G2.Internals.SMT.Interface
     ( satModelOutputs
-    , satModelOutput
     ) where
 
 import qualified Data.Map as M
@@ -21,7 +20,7 @@ satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [([Expr], Expr
 satModelOutputs con io s = do
    return . map (\(_, es, e) -> (fromJust es, fromJust e))
           . filter (\(s', es, e) -> s' == SAT && isJust es && isJust e)
-          =<< mapM (satModelOutput con io) (filter isExecValueForm s)
+          =<< mapM (satModelOutput con io . simplifyPrims) (filter isExecValueForm s)
 
 
 -- | checkSatModelOutput
@@ -60,6 +59,15 @@ satModelOutput con io s = do
     let ex' = fmap (replaceFuncSLT s . smtastToExpr) ex
 
     return (res, inArg, ex') -}
+
+
+{- TODO: This function is hacky- would be better to correctly handle typeclasses... -}
+simplifyPrims :: ASTContainer t Expr => t -> t
+simplifyPrims = modifyASTs simplifyPrims'
+
+simplifyPrims' :: Expr -> Expr
+simplifyPrims' (App (App (App (App (Prim e) _) _) a) b) = App (App (Prim e) a) b
+simplifyPrims' e = e
 
 {-
 

@@ -6,21 +6,27 @@ module G2.Internals.Translation.PrimInject
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
-primInject :: ASTContainer p Expr => p -> p
-primInject = modifyASTs primInject'
+primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
+primInject = modifyASTs primInjectE
 
-primInject' :: Expr -> Expr
-primInject' (Var (Id (Name "!" _ _) _)) = mkNot
-primInject' (Var (Id (Name "&&" _ _) _)) = mkAnd
-primInject' (Var (Id (Name "||" _ _) _)) = mkOr
-primInject' (Var (Id (Name ">=" _ _) _)) = mkGe
-primInject' (Var (Id (Name ">" _ _) _)) = mkGt
-primInject' (Var (Id (Name "==" _ _) _)) = mkEq
-primInject' (Var (Id (Name "/=" _ _) _)) = mkNeq
-primInject' (Var (Id (Name "<" _ _) _)) = mkLt
-primInject' (Var (Id (Name "<=" _ _) _)) = mkLe
-primInject' (Var (Id (Name "+" _ _) _)) = mkPlus
-primInject' (Var (Id (Name "-" _ _) _)) = mkMinus
-primInject' (Var (Id (Name "*" _ _) _)) = mkMult
-primInject' (Var (Id (Name "/" _ _) _)) = mkDiv
-primInject' e = e
+primInjectE :: Expr -> Expr
+primInjectE (Var (Id (Name "!" _ _) _)) = mkNot
+primInjectE (Var (Id (Name "&&" _ _) _)) = mkAnd
+primInjectE (Var (Id (Name "||" _ _) _)) = mkOr
+primInjectE (Var (Id (Name ">=" _ _) _)) = mkGe
+primInjectE (Var (Id (Name ">" _ _) _)) = mkGt
+primInjectE (Var (Id (Name "==" _ _) _)) = mkEq
+primInjectE (Var (Id (Name "/=" _ _) _)) = mkNeq
+primInjectE (Var (Id (Name "<" _ _) _)) = mkLt
+primInjectE (Var (Id (Name "<=" _ _) _)) = mkLe
+primInjectE (Var (Id (Name "+" _ _) _)) = mkPlus
+primInjectE (Var (Id (Name "-" _ _) _)) = mkMinus
+primInjectE (Var (Id (Name "*" _ _) _)) = mkMult
+primInjectE (Var (Id (Name "/" _ _) _)) = mkDiv
+
+primInjectE (Var (Id (Name "I#" _ _) _)) = Data $ PrimCon I
+primInjectE (Var (Id (Name "D#" _ _) _)) = Data $ PrimCon D
+primInjectE (Var (Id (Name "F#" _ _) _)) = Data $ PrimCon F
+primInjectE (Var (Id (Name "C#" _ _) _)) = Data $ PrimCon C
+
+primInjectE e = e

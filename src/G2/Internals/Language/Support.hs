@@ -24,10 +24,14 @@ data State = State { expr_env :: E.ExprEnv
                    , name_gen :: NameGen
                    , path_conds :: [PathCond]
                    , sym_links :: SymLinks
-                   , input_ids :: [Id]
+                   , input_ids :: InputIds
                    , func_table :: FuncInterps
                    , exec_stack :: Stack Frame
                    } deriving (Show, Eq, Read)
+
+-- | The InputIds are a list of the variable names passed as input to the
+-- function being symbolically executed
+type InputIds = [Id]
 
 -- | Type environments map names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,

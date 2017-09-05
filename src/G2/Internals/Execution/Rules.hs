@@ -67,10 +67,10 @@ mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
 --   `Case`, which involves pattern decomposition and stuff.
 isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
-    E.lookup (idName var) eenv == Nothing || isSymbolic var eenv
-isExprValueForm (App f a) _ = case unApp (App f a) of
-    -- (Prim _:_) -> True
-    (Data _:_) -> True
+    E.lookup (idName var) eenv == Nothing
+isExprValueForm (App f a) eenv = case unApp (App f a) of
+    (Prim _:xs) -> all (flip isExprValueForm eenv) xs
+    (Data _:xs) -> all (flip isExprValueForm eenv) xs
     _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
