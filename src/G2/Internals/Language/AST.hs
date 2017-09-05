@@ -97,6 +97,8 @@ instance AST Expr where
     children (Lam _ e) = [e]
     children (Let bind e) = e : containedASTs bind
     children (Case m _ as) = m : map (\(Alt _ e) -> e) as
+    children (Assume e e') = [e, e']
+    children (Assert e e') = [e, e']
     children _  = []
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
@@ -106,6 +108,8 @@ instance AST Expr where
       where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
         mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
+    modifyChildren f (Assume e e') = Assume (f e) (f e')
+    modifyChildren f (Assert e e') = Assert (f e) (f e')
     modifyChildren _ e = e
 
 instance AST Type where
@@ -144,6 +148,8 @@ instance ASTContainer Expr Type where
             go (Let bnd e) = containedASTs bnd ++ containedASTs e
             go (Case e _ as) = (containedASTs e) ++ (containedASTs as)
             go (Type t) = [t]
+            go (Assume e e') = (containedASTs e) ++ (containedASTs e')
+            go (Assert e e') = (containedASTs e) ++ (containedASTs e')
             go _ = []
 
     modifyContainedASTs f = modify go
@@ -156,6 +162,8 @@ instance ASTContainer Expr Type where
             go (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
             go (Case m n as) = Case (modifyContainedASTs f m) n (modifyContainedASTs f as) 
             go (Type t) = Type (f t)
+            go (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
+            go (Assert e e') = Assert (modifyContainedASTs f e) (modifyContainedASTs f e')
             go e = e
 
 instance ASTContainer Id Expr where

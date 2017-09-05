@@ -187,7 +187,7 @@ liftSymDefAlt' eenv mexpr ngen negatives cvar (Alt _ aexpr) = res
 
 -- | Attempts to reduce a Var from the eenv.
 varReduce :: E.ExprEnv -> Expr -> Expr
-varReduce eenv (Var i) = fromMaybe (Var i) (E.lookup (idName i) eenv)
+varReduce eenv (Var i) = fromMaybe (Var i) (return . varReduce eenv =<< E.lookup (idName i) eenv)
 varReduce _ e = e
 
 -- | Funciton for performing rule reductions based on stack based evaluation

@@ -28,6 +28,8 @@ main = do
 
     (binds, tycons) <- translation proj src
 
+    print binds
+
     let init_state = initState binds tycons m_assume m_assert entry
 
     -- putStrLn $ mkStateStr init_state
