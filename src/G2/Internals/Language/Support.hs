@@ -242,3 +242,4 @@ instance Renamable Frame where
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
+
