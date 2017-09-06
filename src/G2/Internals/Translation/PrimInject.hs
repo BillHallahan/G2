@@ -34,9 +34,7 @@ primInjectE (Var (Id (Name "I#" _ _) _)) = Data $ PrimCon I
 primInjectE (Var (Id (Name "D#" _ _) _)) = Data $ PrimCon D
 primInjectE (Var (Id (Name "F#" _ _) _)) = Data $ PrimCon F
 primInjectE (Var (Id (Name "C#" _ _) _)) = Data $ PrimCon C
-
 primInjectE e = e
-
 
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
 dataInject prog progTy = 
@@ -56,3 +54,14 @@ dataInject' _ e = e
 conName :: DataCon -> Maybe (Name, [Type])
 conName (DataCon n _ ts) = Just (n, ts)
 conName _ = Nothing
+
+primTyInject :: Program -> [(Name, Type)] -> Program
+primTyInject prog prims = undefined
+
+primTyInject' :: Expr -> [(Name, Type)] -> Expr
+primTyInject' (Prim p _) prims = mkTypedPrim p prims
+primTyInject' expr _ = expr
+
+mkTypedPrim :: Primitive -> [(Name, Type)] -> Expr
+mkTypedPrim = undefined
+

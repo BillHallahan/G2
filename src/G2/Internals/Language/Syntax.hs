@@ -149,7 +149,7 @@ mkPrim n p =
         varIds = map Var ids
         varBinds = map Var binds
 
-        apps = foldl' (App) (Prim p) varBinds
+        apps = foldl' (App) (Prim p TyBottom) varBinds
         cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
         lams = foldr (Lam) cases ids
     in

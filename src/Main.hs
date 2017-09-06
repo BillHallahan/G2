@@ -19,14 +19,14 @@ import G2.Internals.SMT
 main :: IO ()
 main = do
     putStrLn "Compiles!!!"
-    (proj:src:entry:tail_args) <- getArgs
+    (proj:src:prims:entry:tail_args) <- getArgs
 
     --Get args
     let n_val = nVal tail_args
     let m_assume = mAssume tail_args
     let m_assert = mAssert tail_args
 
-    (binds, tycons) <- translation proj src
+    (binds, tycons) <- translation proj src prims
 
     print binds
 

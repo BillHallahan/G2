@@ -66,7 +66,7 @@ simplifyPrims :: ASTContainer t Expr => t -> t
 simplifyPrims = modifyASTs simplifyPrims'
 
 simplifyPrims' :: Expr -> Expr
-simplifyPrims' (App (App (App (App (Prim e) _) _) a) b) = App (App (Prim e) a) b
+simplifyPrims' (App (App (App (App (Prim e t) _) _) a) b) = App (App (Prim e t) a) b
 simplifyPrims' e = e
 
 {-

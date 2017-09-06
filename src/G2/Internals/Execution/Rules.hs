@@ -69,7 +69,7 @@ isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
     E.lookup (idName var) eenv == Nothing || isSymbolic var eenv
 isExprValueForm (App f a) eenv = case unApp (App f a) of
-    (Prim _:xs) -> all (flip isExprValueForm eenv) xs
+    (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
     (Data _:xs) -> True
     (v@(Var _):xs) -> isExprValueForm v eenv
     _ -> False
@@ -283,13 +283,13 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- `ExecExprEnv`s at each frame would really be stored in a single
     -- location on the actual Haskell heap during execution.
     case unApp (App fexpr aexpr) of
-        ((Prim prim):args) ->
+        ((Prim prim ty):args) ->
             let args' = map (varReduce eenv) args
             in ( RuleEvalPrimToNorm
                 , [( eenv
                    -- This may need to be Evaluate if there are more
                    -- than one redirections.
-                   , CurrExpr Evaluate (mkApp (Prim prim : args'))
+                   , CurrExpr Evaluate (mkApp (Prim prim ty : args'))
                    , []
                    , ngen
                    , Nothing)])
