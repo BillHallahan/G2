@@ -67,10 +67,11 @@ mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
 --   `Case`, which involves pattern decomposition and stuff.
 isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
-    E.lookup (idName var) eenv == Nothing
+    E.lookup (idName var) eenv == Nothing || isSymbolic var eenv
 isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Prim _:xs) -> all (flip isExprValueForm eenv) xs
     (Data _:xs) -> True
+    (v@(Var _):xs) -> isExprValueForm v eenv
     _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
@@ -283,22 +284,15 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- location on the actual Haskell heap during execution.
     case unApp (App fexpr aexpr) of
         ((Prim prim):args) ->
-            if all (\a -> isExprValueForm a eenv) args
-                then ( RuleEvalPrimAlreadyNorm
-                     , [( eenv
-                        , CurrExpr Return (App fexpr aexpr)
-                        , []
-                        , ngen
-                        , Nothing)])
-                else let args' = map (varReduce eenv) args
-                     in ( RuleEvalPrimToNorm
-                        , [( eenv
-                           -- This may need to be Evaluate if there are more
-                           -- than one redirections.
-                           , CurrExpr Evaluate (mkApp (Prim prim : args'))
-                           , []
-                           , ngen
-                           , Nothing)])
+            let args' = map (varReduce eenv) args
+            in ( RuleEvalPrimToNorm
+                , [( eenv
+                   -- This may need to be Evaluate if there are more
+                   -- than one redirections.
+                   , CurrExpr Evaluate (mkApp (Prim prim : args'))
+                   , []
+                   , ngen
+                   , Nothing)])
         _ ->
             let frame = ApplyFrame aexpr
             in ( RuleEvalApp
@@ -417,8 +411,7 @@ reduceCase eenv mexpr bind alts ngen
             , ngen'
             , Nothing)])
  
-  | (Data dcon):args <- unApp mexpr = error $ (show mexpr) ++ "\n\n" ++ show (matchDataAlts dcon alts) ++ "\n\n" ++ (show alts)
-  | otherwise = error $ "reduceCase: bad case passed in\n"  ++ (show mexpr) ++ "\n\n" ++ (show alts)
+  | otherwise = error $ "reduceCase: bad case passed in"
 
 -- | Result of a Return reduction.
 type EReturnResult = (E.ExprEnv, CurrExpr, NameGen)

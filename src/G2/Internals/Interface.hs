@@ -105,12 +105,17 @@ run con hhp n state = do
     
     putStrLn . pprExecStateStr $ preproc_state
 
-    let exec_states = runNBreadthHist [([], preproc_state)] n
+    -- let exec_states = runNBreadthHist [([], preproc_state)] n
 
-    putStrLn $ "states: " ++ (show $ length exec_states)
-    mapM ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st))) exec_states
+    -- putStrLn $ "states: " ++ (show $ length exec_states)
+    -- mapM ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st))) exec_states
 
-    satModelOutputs con hhp (map snd exec_states)
+    -- satModelOutputs con hhp (map snd exec_states)
+
+
+
+    return []
+
     -- ms <- satModelOutputs con hhp (map snd exec_states)
 
   {-

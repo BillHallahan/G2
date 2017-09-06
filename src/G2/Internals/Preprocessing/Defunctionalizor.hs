@@ -28,7 +28,7 @@ type ApplyTypeName = Name
 defunctionalize :: State -> State
 defunctionalize s =
     case leadingHigherOrderTypes s of
-            (t:_) -> defunctionalize . useApplyType s $ t
+            (t:_) -> defunctionalize $ useApplyType s t
             _ -> s
 
 -- Given a state and a leading higher order function type
