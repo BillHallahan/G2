@@ -24,7 +24,7 @@ import Prelude ()
 (&&) = undefined
 
 (||) :: Bool -> Bool -> Bool
-(||s) = undefined
+(||) = undefined
 
 not :: Bool -> Bool
 not = undefined
