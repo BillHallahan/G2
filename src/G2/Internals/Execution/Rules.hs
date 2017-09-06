@@ -70,7 +70,7 @@ isExprValueForm (Var var) eenv =
     E.lookup (idName var) eenv == Nothing
 isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Prim _:xs) -> all (flip isExprValueForm eenv) xs
-    (Data _:xs) -> all (flip isExprValueForm eenv) xs
+    (Data _:xs) -> True
     _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
@@ -417,7 +417,8 @@ reduceCase eenv mexpr bind alts ngen
             , ngen'
             , Nothing)])
  
-  | otherwise = error "reduceCase: bad case passed in"
+  | (Data dcon):args <- unApp mexpr = error $ (show mexpr) ++ "\n\n" ++ show (matchDataAlts dcon alts) ++ "\n\n" ++ (show alts)
+  | otherwise = error $ "reduceCase: bad case passed in\n"  ++ (show mexpr) ++ "\n\n" ++ (show alts)
 
 -- | Result of a Return reduction.
 type EReturnResult = (E.ExprEnv, CurrExpr, NameGen)

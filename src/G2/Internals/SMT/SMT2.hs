@@ -32,16 +32,16 @@ smt2 = SMTConverter {
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars (CurrExpr _ e) -> do
             setUpFormula h_in formula
-            -- putStrLn "\n\n"
-            -- putStrLn formula
+            putStrLn "\n\n"
+            putStrLn formula
             r <- checkSat' h_in h_out
-            -- putStrLn $ "r = " ++ show r
+            putStrLn $ "r = " ++ show r
             putStrLn $ show vars
             if r == SAT then do
                 model <- getModel h_in h_out vars
-                -- putStrLn "======"
-                -- putStrLn (show model)
-                -- putStrLn "======"
+                putStrLn "======"
+                putStrLn (show model)
+                putStrLn "======"
                 let m = parseModel headers model
 
                 expr <- solveExpr h_in h_out smt2 headers e
@@ -75,6 +75,7 @@ smt2 = SMTConverter {
             "(declare-datatypes () ("
             ++ (foldr (\(n, dc) e -> 
                 "(" ++ n ++ " " ++ (dcHandler dc) ++ ") " ++ e) "" ns) ++  "))"
+            
         , varDecl = \n s -> "(declare-const " ++ n ++ " " ++ s ++ ")"
         
         , (.>=) = function2 ">="
@@ -224,9 +225,7 @@ getModel h_in h_out ns = do
         getModel' [] = return []
         getModel' ((n, s):nss) = do
             hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
-            putStrLn $ "in = " ++ "(eval " ++ n ++ " :completion)\n"
             out <- getLinesMatchParens h_out
-            putStrLn $ "out = " ++ out
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 
             return . (:) (n, out, s) =<< getModel' nss

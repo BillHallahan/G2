@@ -6,4 +6,4 @@ import G2.Internals.Translation.PrimReplace
 import G2.Internals.Translation.PrimInject
 
 translation :: FilePath -> FilePath -> IO (Program, [ProgramType])
-translation m p = return . primInject =<< hskToG2 m p
+translation m p = return . uncurry dataInject . primInject =<< hskToG2 m p
