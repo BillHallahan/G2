@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Internals.Language.Naming
-    ( NameGen
+    ( nameOccStr
+    , NameGen
     , Renamable (rename)
     , doRename
     , doRenames
@@ -23,6 +24,9 @@ import G2.Internals.Language.Syntax
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.List.Utils
+
+nameOccStr :: Name -> String
+nameOccStr (Name occ _ _) = occ
 
 newtype NameGen = NameGen (HM.HashMap (String, Maybe String) Int)
                 deriving (Show, Eq, Read)

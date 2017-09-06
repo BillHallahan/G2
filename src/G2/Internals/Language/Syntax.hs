@@ -137,65 +137,71 @@ data Type = TyVar Name Type
           | TyBottom
           deriving (Show, Eq, Read)
 
--- | Primitive smart constructors
--- These constructors should alway be used to create primitives.  They ensure eager
--- evaluation of the primitives arguments in the Evaluation step.
-mkPrim :: Int -> Primitive -> Expr
-mkPrim n p =
-    let
-        ids = map (\n' -> Id (Name "a" Nothing n') TyBottom) [1..n]
-        binds = map (\n' -> Id (Name "b" Nothing n') TyBottom) [1..n]
+-- | Primitive arity.
+primArity :: Primitive -> Int
+primArity Not = 1
+primArity And = 2
+primArity Or = 2
+primArity Ge = 4
+primArity Gt = 4
+primArity Eq = 4
+primArity Neq = 4
+primArity Le = 4
+primArity Lt = 4
+primArity Plus = 4
+primArity Minus = 4
+primArity Mult = 4
+primArity Div = 4
 
-        varIds = map Var ids
-        varBinds = map Var binds
+primStr :: Primitive -> String
+primStr Not = "!"
+primStr And = "&&"
+primStr Or = "||"
+primStr Ge = ">="
+primStr Gt = ">"
+primStr Eq = "=="
+primStr Neq = "/="
+primStr Le = "<="
+primStr Lt = "<"
+primStr Plus = "+"
+primStr Minus = "-"
+primStr Mult = "*"
+primStr Div = "/"
 
-        apps = foldl' (App) (Prim p TyBottom) varBinds
-        cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
-        lams = foldr (Lam) cases ids
-    in
-    lams
+strToPrim :: String -> Primitive
+strToPrim "!" = Not
+strToPrim "&&" = And
+strToPrim "||" = Or
+strToPrim ">=" = Ge
+strToPrim ">" = Gt
+strToPrim "==" = Eq
+strToPrim "/=" = Neq
+strToPrim "<=" = Le
+strToPrim "<" = Lt
+strToPrim "+" = Plus
+strToPrim "-" = Minus
+strToPrim "*" = Mult
+strToPrim "/" = Div
 
-mkGe :: Expr
-mkGe = mkPrim 4 Ge
+findPrim :: Primitive -> [(Name, Type)] -> (Name, Type)
+findPrim prim [] = error $ "findPrim: not found: " ++ primStr prim
+findPrim prim (p@(Name occ _ _, _):ps) =
+    if primStr prim == occ then p else findPrim prim ps
 
-mkGt :: Expr
-mkGt = mkPrim 4 Gt
+mkPrim :: [(Name, Type)] -> Name -> Expr
+mkPrim primtys name@(Name occ _ _) = foldr Lam cases ids
+  where
+    prim = strToPrim occ
+    arity = primArity prim
+    ty = snd $ head $ filter (\p -> name == fst p) primtys
 
-mkEq :: Expr
-mkEq = mkPrim 4 Eq
+    ids = map (\n' -> Id (Name "a" Nothing n') TyBottom) [1..arity]
+    binds = map (\n' -> Id (Name "b" Nothing n') TyBottom) [1..arity]
 
-mkNeq :: Expr
-mkNeq = mkPrim 4 Neq
+    varIds = map Var ids
+    varBinds = map Var binds
 
-mkLt :: Expr
-mkLt = mkPrim 4 Lt
+    apps = foldl' App (Prim prim ty) varBinds
+    cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
 
-mkLe :: Expr
-mkLe = mkPrim 4 Le
 
-mkAnd :: Expr
-mkAnd = mkPrim 2 And
-
-mkOr :: Expr
-mkOr = mkPrim 2 Or
-
-mkNot :: Expr
-mkNot = mkPrim 1 Not
-
-mkImplies :: Expr
-mkImplies = mkPrim 2 Implies
-
-mkPlus :: Expr
-mkPlus = mkPrim 4 Plus
-
-mkMinus :: Expr
-mkMinus = mkPrim 4 Minus
-
-mkMult :: Expr
-mkMult = mkPrim 4 Mult
-
-mkDiv :: Expr
-mkDiv = mkPrim 4 Div
-
-mkUNeg :: Expr
-mkUNeg = mkPrim 3 UNeg

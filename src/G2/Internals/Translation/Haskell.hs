@@ -5,6 +5,7 @@ module G2.Internals.Translation.Haskell
     , hskToG2
     , mkIOString
     , mkPrims
+    , prim_list
     ) where
 
 import qualified G2.Internals.Language as G2

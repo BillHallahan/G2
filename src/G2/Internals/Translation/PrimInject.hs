@@ -5,7 +5,9 @@ module G2.Internals.Translation.PrimInject
     ) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
+import G2.Internals.Translation.Haskell
 
 import Data.List
 import Data.Maybe
@@ -55,13 +57,18 @@ conName :: DataCon -> Maybe (Name, [Type])
 conName (DataCon n _ ts) = Just (n, ts)
 conName _ = Nothing
 
-primTyInject :: Program -> [(Name, Type)] -> Program
-primTyInject prog prims = undefined
+occFind :: Name -> [Name] -> Maybe Name
+occFind _ [] = Nothing
+occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
+                         then Just n
+                         else occFind key ns
 
-primTyInject' :: Expr -> [(Name, Type)] -> Expr
-primTyInject' (Prim p _) prims = mkTypedPrim p prims
-primTyInject' expr _ = expr
+mergeProgs :: Program -> [(Name, Type)] -> Program
+mergeProgs prog pdefs = injects : prog
+  where
+    prog_names = progNames prog
+    used = filter (\n -> (nameOccStr n) `elem` prim_list) prog_names
 
-mkTypedPrim :: Primitive -> [(Name, Type)] -> Expr
-mkTypedPrim = undefined
+    defs = map (\(n, t) -> (fromMaybe n $ occFind n used, t)) pdefs
+    injects = map (\(n, t) -> (Id n t, mkPrim defs n)) defs
 
