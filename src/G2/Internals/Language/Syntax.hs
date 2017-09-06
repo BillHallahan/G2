@@ -41,7 +41,7 @@ idName (Id name _) = name
 --   * Type expression wrappers for who knows what
 data Expr = Var Id
           | Lit Lit
-          | Prim Primitive Type
+          | Prim Primitive
           | Data DataCon
           | App Expr Expr
           | Lam Id Expr

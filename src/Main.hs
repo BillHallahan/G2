@@ -45,6 +45,7 @@ main = do
             let funcOut = mkExprHaskell $ ex
 
             putStrLn (funcCall)
+            -- putStrLn (functOut)
         ) in_out
 
     putStrLn "End"
