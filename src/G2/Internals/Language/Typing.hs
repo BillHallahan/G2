@@ -57,11 +57,18 @@ instance Typed Alt where
 
 -- | `Expr` instance of `Typed`.
 instance Typed Expr where
-    typeOf (Var vid) = typeOf vid
+    typeOf (Var v) = typeOf v
     typeOf (Prim prim) = typeOf prim
     typeOf (Lit lit) = typeOf lit
     typeOf (Data dcon) = typeOf dcon
-    typeOf (App fxpr axpr) = TyApp (typeOf fxpr) (typeOf axpr)
+    typeOf (App fxpr axpr) =
+        let
+            tfxpr = typeOf fxpr
+            taxpr = typeOf axpr
+        in
+        case tfxpr of
+            TyFun t1 t2 -> t2 -- if t1 == tfxpr then t2 else TyBottom -- TODO: We should really have this if check- but can't because of TyBottom being introdduced elsewhere...
+            _ -> TyBottom
     typeOf (Lam b expr) = TyFun (typeOf b) (typeOf expr)
     typeOf (Let _ expr) = typeOf expr
     typeOf (Case _ _ (a:_)) = typeOf a
@@ -71,3 +78,6 @@ instance Typed Expr where
 
     typeOf _ = TyBottom
 
+
+typeEq :: (Typed a) => a -> a -> Bool
+typeEq = undefined

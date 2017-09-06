@@ -133,6 +133,7 @@ mkAltMatch (DEFAULT) _ = G2.Default
 mkType :: Type -> G2.Type
 mkType (TyVarTy v) = G2.TyVar (mkName (V.varName v)) (mkType (varType v))
 mkType (AppTy t1 t2) = G2.TyApp (mkType t1) (mkType t2)
+mkType (ForAllTy (Anon t) ty) = G2.TyFun (mkType t) (mkType ty)
 mkType (ForAllTy b ty) = G2.TyForAll (mkTyBinder b) (mkType ty)
 mkType (LitTy _) = error "mkType: LitTy"
 mkType (CastTy _ _) = error "mkType: CastTy"

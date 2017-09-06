@@ -9,6 +9,8 @@ import Data.List
 import Data.Maybe
 import qualified Data.Map as M
 
+import Debug.Trace
+
 {-Defunctionalizor
 
 We need to eliminate higher order functions to
@@ -28,7 +30,7 @@ type ApplyTypeName = Name
 defunctionalize :: State -> State
 defunctionalize s =
     case leadingHigherOrderTypes s of
-            (t:_) -> defunctionalize $ useApplyType s t
+            (t:_) -> trace (show $ leadingHigherOrderTypes s) defunctionalize $ useApplyType s t
             _ -> s
 
 -- Given a state and a leading higher order function type
@@ -73,6 +75,10 @@ useApplyType s (t@(TyFun _ _)) =
         s3 = modifyASTs (applyTypeReplace t applyTypeCon) (s2 {curr_expr = newCurr_expr})
 
     in
+    trace ("----") $
+    trace (show $ map (\(n, e) -> (n, typeOf e)) $ E.toExprList (expr_env s)) $
+    trace ("----") $
+    trace (show t ++ "\n" ++ show funcs ++ "\n" ++ show applyTypeName ++ "\n" ++ show applyConsNames)
     s3 { expr_env = E.insert applyFuncName applyFunc (expr_env s3)
         , type_env = M.insert applyTypeName applyTypeAlg (type_env s3)
         , sym_links = adjustSymLinks t applyTypeCon (sym_links s3)

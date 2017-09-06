@@ -5,6 +5,7 @@ import G2.Internals.Preprocessing.Defunctionalizor
 import G2.Internals.Preprocessing.NameCleaner
 
 runPreprocessing :: State -> State
-runPreprocessing = defunctionalize . cleanNames
+runPreprocessing = defunctionalize 
+                 . cleanNames
 
 
