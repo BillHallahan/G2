@@ -5,7 +5,9 @@ module G2.Internals.Translation.PrimInject
     ) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
+import G2.Internals.Translation.Haskell
 
 import Data.List
 import Data.Maybe
@@ -34,9 +36,7 @@ primInjectE (Var (Id (Name "I#" _ _) _)) = Data $ PrimCon I
 primInjectE (Var (Id (Name "D#" _ _) _)) = Data $ PrimCon D
 primInjectE (Var (Id (Name "F#" _ _) _)) = Data $ PrimCon F
 primInjectE (Var (Id (Name "C#" _ _) _)) = Data $ PrimCon C
-
 primInjectE e = e
-
 
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
 dataInject prog progTy = 
@@ -56,3 +56,19 @@ dataInject' _ e = e
 conName :: DataCon -> Maybe (Name, [Type])
 conName (DataCon n _ ts) = Just (n, ts)
 conName _ = Nothing
+
+occFind :: Name -> [Name] -> Maybe Name
+occFind _ [] = Nothing
+occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
+                         then Just n
+                         else occFind key ns
+
+mergeProgs :: Program -> [(Name, Type)] -> Program
+mergeProgs prog pdefs = injects : prog
+  where
+    prog_names = progNames prog
+    used = filter (\n -> (nameOccStr n) `elem` prim_list) prog_names
+
+    defs = map (\(n, t) -> (fromMaybe n $ occFind n used, t)) pdefs
+    injects = map (\(n, t) -> (Id n t, mkPrim defs n)) defs
+

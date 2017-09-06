@@ -58,7 +58,7 @@ instance Typed Alt where
 -- | `Expr` instance of `Typed`.
 instance Typed Expr where
     typeOf (Var v) = typeOf v
-    typeOf (Prim prim) = typeOf prim
+    typeOf (Prim prim ty) = ty
     typeOf (Lit lit) = typeOf lit
     typeOf (Data dcon) = typeOf dcon
     typeOf (App fxpr axpr) =
@@ -81,3 +81,4 @@ instance Typed Expr where
 
 typeEq :: (Typed a) => a -> a -> Bool
 typeEq = undefined
+

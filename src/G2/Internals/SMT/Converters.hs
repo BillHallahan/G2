@@ -73,7 +73,7 @@ exprToSMT a@(App _ _) =
     where
         getFunc :: Expr -> Expr
         getFunc v@(Var _) = v
-        getFunc p@(Prim _) = p
+        getFunc p@(Prim _ _) = p
         getFunc (App a' _) = getFunc a'
         getFunc d@(Data _) = d 
         getFunc err = error $ "getFunc: invalid Expr: " ++ show err
@@ -87,16 +87,16 @@ exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
 funcToSMT (Var (Id n t)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t) -- TODO : DO WE NEED THIS???
-funcToSMT (Prim p) [a] = funcToSMT1Prim p a
-funcToSMT (Prim p) [a1, a2] = funcToSMT2Prim p a1 a2
+funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
+funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
 -- funcToSMT (Prim p) [a1, a2, a3, a4] = funcToSMT4Prim p a1 a2 a3 a4
 funcToSMT (Data (DataCon n t _)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
 funcToSMT e@(Data _) [a] = funcToSMT1Var e a
 funcToSMT e _ = error ("Unrecognized " ++ show e ++ " in funcToSMT")
 
 funcToSMT1Var :: Expr -> Expr -> SMTAST
+funcToSMT1Var (Prim UNeg _) a = Neg (exprToSMT a)
 funcToSMT1Var f a
-    | f == Prim (UNeg) = Neg (exprToSMT a)
     | f == Data (PrimCon I) = exprToSMT a
     | f == Data (PrimCon F) = exprToSMT a
     | f == Data (PrimCon D) = exprToSMT a

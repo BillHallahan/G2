@@ -4,6 +4,8 @@ module G2.Internals.Translation.Haskell
     , mkCompileClosure
     , hskToG2
     , mkIOString
+    , mkPrims
+    , prim_list
     ) where
 
 import qualified G2.Internals.Language as G2
@@ -26,8 +28,6 @@ mkIOString obj = runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
     return (showPpr dflags obj)
 
-type CompileClosure = ([(ModSummary, ModGuts)], DynFlags, HscEnv)
-
 hskToG2 :: FilePath -> FilePath -> IO (G2.Program, [G2.ProgramType])
 hskToG2 proj src = do
     (sums_gutss, _, _) <- mkCompileClosure proj src
@@ -36,6 +36,8 @@ hskToG2 proj src = do
     -- let tycons = concatMap (map mkTyConName . mg_tcs) gutss
     let tycons = concatMap (map mkTyCon . mg_tcs) gutss
     return (binds, tycons)
+
+type CompileClosure = ([(ModSummary, ModGuts)], DynFlags, HscEnv)
 
 mkCompileClosure :: FilePath -> FilePath -> IO CompileClosure
 mkCompileClosure proj src = runGhc (Just libdir) $ do
@@ -79,18 +81,18 @@ filterPrimOp (G2.Id name ty) = expr
     G2.Name occ mb_mdl _ = name
     ghc_tys = "GHC.Types"
     expr = case (mb_mdl == Just ghc_tys, occ) of
-                (True, ">=") -> G2.Prim G2.Ge
-                (True, ">") -> G2.Prim G2.Gt
-                (True, "==") -> G2.Prim G2.Eq
-                (True, "<=") -> G2.Prim G2.Le
-                (True, "<") -> G2.Prim G2.Lt
-                (True, "&&") -> G2.Prim G2.And
-                (True, "||") -> G2.Prim G2.Or
-                (True, "not") -> G2.Prim G2.Not
-                (True, "+") -> G2.Prim G2.Plus
-                (True, "-") -> G2.Prim G2.Minus
-                (True, "*") -> G2.Prim G2.Mult
-                (True, "/") -> G2.Prim G2.Div
+                (True, ">=") -> G2.Prim G2.Ge G2.TyBottom
+                (True, ">") -> G2.Prim G2.Gt G2.TyBottom
+                (True, "==") -> G2.Prim G2.Eq G2.TyBottom
+                (True, "<=") -> G2.Prim G2.Le G2.TyBottom
+                (True, "<") -> G2.Prim G2.Lt G2.TyBottom
+                (True, "&&") -> G2.Prim G2.And G2.TyBottom
+                (True, "||") -> G2.Prim G2.Or G2.TyBottom
+                (True, "not") -> G2.Prim G2.Not G2.TyBottom
+                (True, "+") -> G2.Prim G2.Plus G2.TyBottom
+                (True, "-") -> G2.Prim G2.Minus G2.TyBottom
+                (True, "*") -> G2.Prim G2.Mult G2.TyBottom
+                (True, "/") -> G2.Prim G2.Div G2.TyBottom
                 _ -> G2.Var (G2.Id name ty)
 
 mkName :: Name -> G2.Name
@@ -177,4 +179,15 @@ mkDataName datacon = (mkName . dataConName) datacon
 mkTyBinder :: TyBinder -> G2.TyBinder
 mkTyBinder (Anon _) = G2.AnonTyBndr
 mkTyBinder (Named v _) = G2.NamedTyBndr (mkName (V.varName v))
+
+prim_list = [">=", ">", "==", "<=", "<",
+             "&&", "||", "not",
+             "+", "-", "*", "/" ]
+
+mkPrims :: FilePath -> IO [(G2.Name, G2.Type)]
+mkPrims prims = runGhc (Just libdir) $ do
+    setSessionDynFlags =<< getSessionDynFlags
+    core <- compileToCoreSimplified prims
+    let vars = map fst $ concatMap mkBinds (cm_binds core)
+    return $ map (\v -> (G2.idName v, G2.typeOf v)) vars
 
