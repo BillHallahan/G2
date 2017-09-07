@@ -28,7 +28,7 @@ main = do
 
     (binds, tycons) <- translation proj src prims
 
-    print binds
+    -- print binds
 
     let init_state = initState binds tycons m_assume m_assert entry
 

@@ -1,6 +1,6 @@
 module PrimDefs where
 
-import Prelude ()
+import Prelude (Eq, Ord, Num, Bool, undefined)
 
 (>=) :: Ord a => a -> a -> Bool
 (>=) = undefined

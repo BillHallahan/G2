@@ -7,6 +7,8 @@ module G2.Internals.Language.Syntax
 
 import Data.Foldable
 
+import Debug.Trace
+
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
 type ProgramType = (Name, [Name], [DataCon])
@@ -41,7 +43,7 @@ idName (Id name _) = name
 --   * Type expression wrappers for who knows what
 data Expr = Var Id
           | Lit Lit
-          | Prim Primitive
+          | Prim Primitive Type
           | Data DataCon
           | App Expr Expr
           | Lam Id Expr
@@ -154,7 +156,7 @@ primArity Mult = 4
 primArity Div = 4
 
 primStr :: Primitive -> String
-primStr Not = "!"
+primStr Not = "not"
 primStr And = "&&"
 primStr Or = "||"
 primStr Ge = ">="
@@ -169,7 +171,7 @@ primStr Mult = "*"
 primStr Div = "/"
 
 strToPrim :: String -> Primitive
-strToPrim "!" = Not
+strToPrim "not" = Not
 strToPrim "&&" = And
 strToPrim "||" = Or
 strToPrim ">=" = Ge
@@ -188,8 +190,8 @@ findPrim prim [] = error $ "findPrim: not found: " ++ primStr prim
 findPrim prim (p@(Name occ _ _, _):ps) =
     if primStr prim == occ then p else findPrim prim ps
 
-mkPrim :: [(Name, Type)] -> Name -> Expr
-mkPrim primtys name@(Name occ _ _) = foldr Lam cases ids
+mkRawPrim :: [(Name, Type)] -> Name -> Expr
+mkRawPrim primtys name@(Name occ _ _) = foldr Lam cases ids
   where
     prim = strToPrim occ
     arity = primArity prim
@@ -203,5 +205,3 @@ mkPrim primtys name@(Name occ _ _) = foldr Lam cases ids
 
     apps = foldl' App (Prim prim ty) varBinds
     cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
-
-

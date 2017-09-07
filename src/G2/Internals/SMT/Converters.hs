@@ -121,17 +121,17 @@ funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT4Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
--- funcToSMT4Prim :: Primitive -> Expr -> Expr -> Expr -> Expr -> SMTAST
--- funcToSMT4Prim Ge _ _ a1 a2 = exprToSMT a1 :>= exprToSMT a2
--- funcToSMT4Prim Gt _ _ a1 a2 = exprToSMT a1 :> exprToSMT a2
--- funcToSMT4Prim Eq _ _ a1 a2 = exprToSMT a1 := exprToSMT a2
--- funcToSMT4Prim Lt _ _ a1 a2 = exprToSMT a1 :< exprToSMT a2
--- funcToSMT4Prim Le _ _ a1 a2 = exprToSMT a1 :<= exprToSMT a2
--- funcToSMT4Prim Plus _ _ a1 a2 = exprToSMT a1 :+ exprToSMT a2
--- funcToSMT4Prim Minus _ _ a1 a2 = exprToSMT a1 :- exprToSMT a2
--- funcToSMT4Prim Mult _ _ a1 a2 = exprToSMT a1 :* exprToSMT a2
--- funcToSMT4Prim Div _ _ a1 a2 = exprToSMT a1 :/ exprToSMT a2
--- funcToSMT4Prim op _ _ lhs rhs = error $ "funcToSMT4Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
+funcToSMT4Prim :: Primitive -> Expr -> Expr -> Expr -> Expr -> SMTAST
+funcToSMT4Prim Ge _ _ a1 a2 = exprToSMT a1 :>= exprToSMT a2
+funcToSMT4Prim Gt _ _ a1 a2 = exprToSMT a1 :> exprToSMT a2
+funcToSMT4Prim Eq _ _ a1 a2 = exprToSMT a1 := exprToSMT a2
+funcToSMT4Prim Lt _ _ a1 a2 = exprToSMT a1 :< exprToSMT a2
+funcToSMT4Prim Le _ _ a1 a2 = exprToSMT a1 :<= exprToSMT a2
+funcToSMT4Prim Plus _ _ a1 a2 = exprToSMT a1 :+ exprToSMT a2
+funcToSMT4Prim Minus _ _ a1 a2 = exprToSMT a1 :- exprToSMT a2
+funcToSMT4Prim Mult _ _ a1 a2 = exprToSMT a1 :* exprToSMT a2
+funcToSMT4Prim Div _ _ a1 a2 = exprToSMT a1 :/ exprToSMT a2
+funcToSMT4Prim op _ _ lhs rhs = error $ "funcToSMT4Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 altToSMT :: AltMatch -> SMTAST
 altToSMT (LitAlt (LitInt i)) = VInt i

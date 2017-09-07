@@ -8,6 +8,7 @@ module G2.Internals.Language.ExprEnv
     , size
     , member
     , lookup
+    , primLookUp
     , insert
     , insertExprs
     , redirect
@@ -69,34 +70,15 @@ lookup name (ExprEnv smap) =
         Just (Right expr) -> Just expr
         Nothing -> Nothing
 
-occLookup :: String -> ExprEnv -> [(Name, Either Name Expr)]
-occLookup key eenv = []
-  where
-    modRhs :: Either Name Expr -> Either String Expr
-    modRhs (Left name) = Left (nameOccStr name)
-    modRhs (Right expr) = Right expr
+primLookUp :: Primitive -> ExprEnv -> Expr
+primLookUp p eenv = case occLookup (primStr p) (Just "GHC.Classes") eenv of
+    Just e -> e
+    Nothing -> error $ "Unrecognized prim"
 
-    elist :: [(Name, Either Name Expr)]
-    elist = toList eenv
-
-    -- senv = M.fromList $ map (\(k, v) -> (nameOccStr k, modRhs v)) elist
-    senv :: [(String, Either String Expr)]
-    senv = map (\(k, v) -> (nameOccStr k, modRhs v)) elist
-
-
-{-
-occLookup :: String -> ExprEnv -> Maybe Expr
-occLookup key eenv = go key senv
-  where
-    senv :: M.Map String (Either Name Expr)
-    senv = M.fromList $ map (\(k, v) -> (nameOccStr k, v)) $ toList eenv
-
-    go :: String -> M.Map String (Either Name Expr) -> Maybe Expr
-    go key senv = case M.lookup key senv of
-        Just (Left redir) -> occLookup (nameOccStr redir) eenv
-        Just (Right expr) -> Just expr
-        Nothing -> Nothing
--}
+occLookup :: String -> Maybe String -> ExprEnv -> Maybe Expr
+occLookup n m = 
+    fmap snd . L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) 
+           . M.toList . M.map (\(Right e) -> e) . M.filter (isRight) . unwrapExprEnv
 
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =
