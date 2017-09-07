@@ -176,7 +176,7 @@ typeToSMT TyDouble = SortDouble
 typeToSMT TyFloat = SortFloat
 typeToSMT TyBool = SortBool
 typeToSMT (TyConApp n _) = Sort (nameToStr n) []
-typeToSMT (TyForAll AnonTyBndr t) = typeToSMT t
+typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT _ = Sort "" []
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]

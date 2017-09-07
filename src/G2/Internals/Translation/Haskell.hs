@@ -177,8 +177,8 @@ mkDataName :: DataCon -> G2.Name
 mkDataName datacon = (mkName . dataConName) datacon
 
 mkTyBinder :: TyBinder -> G2.TyBinder
-mkTyBinder (Anon _) = G2.AnonTyBndr
-mkTyBinder (Named v _) = G2.NamedTyBndr (mkName (V.varName v))
+mkTyBinder (Anon t) = G2.AnonTyBndr (mkType t)
+mkTyBinder (Named v _) = G2.NamedTyBndr (mkId v)
 
 prim_list = [">=", ">", "==", "<=", "<",
              "&&", "||", "not",

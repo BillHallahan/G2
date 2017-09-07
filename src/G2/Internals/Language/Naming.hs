@@ -84,7 +84,7 @@ typeNames = evalASTs typeTopNames
 typeTopNames :: Type -> [Name]
 typeTopNames (TyVar n _) = [n]
 typeTopNames (TyConApp n _) = [n]
-typeTopNames (TyForAll (NamedTyBndr n) _) = [n]
+typeTopNames (TyForAll (NamedTyBndr v) _) = [idName v]
 typeTopNames _ = []
 
 doRename :: Renamable a => Name -> NameGen -> a -> (a, NameGen)
