@@ -8,7 +8,7 @@ module G2.Internals.Language.ExprEnv
     , size
     , member
     , lookup
-    , primLookUp
+    , occLookup
     , insert
     , insertExprs
     , redirect
@@ -69,11 +69,6 @@ lookup name (ExprEnv smap) =
         Just (Left redir) -> lookup redir (ExprEnv smap)
         Just (Right expr) -> Just expr
         Nothing -> Nothing
-
-primLookUp :: Primitive -> ExprEnv -> Expr
-primLookUp p eenv = case occLookup (primStr p) (Just "GHC.Classes") eenv of
-    Just e -> e
-    Nothing -> error $ "Unrecognized prim"
 
 occLookup :: String -> Maybe String -> ExprEnv -> Maybe Expr
 occLookup n m = 

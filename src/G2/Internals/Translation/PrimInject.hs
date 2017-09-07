@@ -7,6 +7,7 @@ module G2.Internals.Translation.PrimInject
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
+import G2.Internals.Language.Primitives
 import G2.Internals.Language.Syntax
 import G2.Internals.Translation.Haskell
 
