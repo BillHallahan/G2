@@ -217,19 +217,25 @@ pprExecStateStr :: State -> String
 pprExecStateStr ex_state = injNewLine acc_strs
   where
     eenv_str = pprExecEEnvStr (expr_env ex_state)
+    tenv_str = pprTEnvStr (type_env ex_state)
     estk_str = pprExecStackStr (exec_stack ex_state)
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen ex_state)
+    input_str = pprInputIdsStr (input_ids ex_state)
     paths_str = pprPathsStr (path_conds ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
                , eenv_str
+               , "----- [TEnv] -----------------------"
+               , tenv_str
                , "----- [Exec Stack] ----------------"
                , estk_str
                , "----- [Code] ----------------------"
                , code_str
                , "----- [Names] ---------------------"
                , names_str
+               , "----- [Input Ids] ---------------------"
+               , input_str
                , "----- [Paths] ---------------------"
                , paths_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
@@ -238,6 +244,11 @@ pprExecEEnvStr :: E.ExprEnv -> String
 pprExecEEnvStr eenv = injNewLine kv_strs
   where
     kv_strs = map show $ E.toList eenv
+
+pprTEnvStr :: TypeEnv -> String
+pprTEnvStr tenv = injNewLine kv_strs
+  where
+    kv_strs = map show $ M.toList tenv
 
 pprExecStackStr :: Stack Frame -> String
 pprExecStackStr stk = injNewLine frame_strs
@@ -257,6 +268,11 @@ pprPathsStr :: [PathCond] -> String
 pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprPathCondStr paths
+
+pprInputIdsStr :: InputIds -> String
+pprInputIdsStr i = injNewLine id_strs
+  where
+    id_strs = map show i
 
 pprPathCondStr :: PathCond -> String
 pprPathCondStr (AltCond am expr b) = injTuple acc_strs

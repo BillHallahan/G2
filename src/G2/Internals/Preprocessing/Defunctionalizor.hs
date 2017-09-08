@@ -47,9 +47,11 @@ useApplyType s (t@(TyFun _ _)) =
 
         --apply data type
         (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (name_gen s)
-        (applyConsNames, r3) = freshSeededNames (take (length funcs) . repeat $ Name "ApplyType" Nothing 0) r2
-        applyTypeAlg = AlgDataTy applyConsNames []
         applyTypeCon = TyConApp applyTypeName []
+        
+        (applyConsNames, r3) = freshSeededNames (take (length funcs) . repeat $ Name "ApplyCon" Nothing 0) r2
+        applyDCs = map (\n -> DataCon n applyTypeCon []) applyConsNames
+        applyTypeAlg = AlgDataTy [] applyDCs
 
         namesToFuncs = zip applyConsNames funcs 
 
@@ -62,9 +64,8 @@ useApplyType s (t@(TyFun _ _)) =
         higherNameExpr = higherOrderOfTypeFuncNames (expr_env s) t
         higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) higherNameExpr
 
-        funcsInSLT = funcsInSymLink t (sym_links s)
 
-        newCurr_expr = foldr (\n -> exprReplace (Var $ Id n t) (Var $ Id n applyTypeCon)) (curr_expr s) funcsInSLT
+        newCurr_expr = foldr (\i@(Id n _) -> exprReplace (Var i) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
 
         newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
@@ -82,6 +83,7 @@ useApplyType s (t@(TyFun _ _)) =
         , type_env = M.insert applyTypeName applyTypeAlg (type_env s4)
         , sym_links = adjustSymLinks t applyTypeCon (sym_links s4)
         , input_ids = adjustInputIds t applyTypeCon (input_ids s4)
+        , path_conds = adjustPathConds t applyTypeCon (path_conds s4)
         , func_table = unionFuncInterps newFuncs_interps (func_table s4)
     }
     where
@@ -252,10 +254,6 @@ functionNamesOfType :: E.ExprEnv -> Type -> [FuncName]
 functionNamesOfType eenv t =
     map fst . filter (\(_, e') -> typeOf e' == t) . E.toExprList $ eenv
 
--- Gets the names of all functions in the symbolic link table, that are of the given type
-funcsInSymLink :: Type -> SymLinks -> [FuncName]
-funcsInSymLink t = SymLinks.names . SymLinks.filter (\(_, t', _) -> t == t')
-
 -- Changes all Lambda id's of Type rt to Type at
 adjustLambdas :: (ASTContainer m Expr) => Type -> Type -> m -> m
 adjustLambdas rt at = modifyASTs (adjustLambdas')
@@ -271,3 +269,11 @@ adjustSymLinks rt at = SymLinks.map (\(n, t, i) -> (n, if t == rt then at else t
 -- In the input ids, changes all Types rt to Type at
 adjustInputIds :: Type -> Type -> InputIds -> InputIds
 adjustInputIds rt at = map (\i@(Id n t) -> if t == rt then Id n at else i)
+
+-- In the path conds PCExists, changes all Types rt to Type at
+adjustPathConds :: Type -> Type -> [PathCond] -> [PathCond]
+adjustPathConds rt at = map (adjustPathCond rt at)
+
+adjustPathCond :: Type -> Type -> PathCond -> PathCond
+adjustPathCond rt at pc@(PCExists (Id n t)) = if t == rt then PCExists (Id n at) else pc
+adjustPathCond _ _ _ = error "Bad path cond in defunctionalization."

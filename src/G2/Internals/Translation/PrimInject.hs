@@ -17,7 +17,7 @@ import Data.Maybe
 import Debug.Trace
 
 primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
-primInject = modifyASTs primInjectE
+primInject = modifyASTs primInjectT . modifyASTs primInjectE
 
 primInjectE :: Expr -> Expr
 primInjectE (Var (Id (Name "I#" _ _) _)) = Data $ PrimCon I
@@ -25,6 +25,11 @@ primInjectE (Var (Id (Name "D#" _ _) _)) = Data $ PrimCon D
 primInjectE (Var (Id (Name "F#" _ _) _)) = Data $ PrimCon F
 primInjectE (Var (Id (Name "C#" _ _) _)) = Data $ PrimCon C
 primInjectE e = e
+
+primInjectT :: Type -> Type
+primInjectT (TyConApp (Name "Int" _ _) _) = TyInt
+primInjectT t = t
+
 
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
 dataInject prog progTy = 
