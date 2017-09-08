@@ -9,9 +9,6 @@ import Data.List
 import Data.Maybe
 import qualified Data.Map as M
 
-import Debug.Trace
-import G2.Lib.Printers
-
 {-Defunctionalizor
 
 We need to eliminate higher order functions to
@@ -237,7 +234,7 @@ higherOrderOfTypeFuncNames eenv ty =
         functionsAccepted :: Expr -> [Type]
         functionsAccepted = evalASTs functionsAccepted' . typeOf
             where
-                functionsAccepted' (TyFun t@(TyFun _ _) t') = [t]
+                functionsAccepted' (TyFun t@(TyFun _ _) _) = [t]
                 functionsAccepted' _ = []
 
 -- Given a higher order function, returns the names and types of all higher order arguments

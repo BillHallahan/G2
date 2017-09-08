@@ -14,6 +14,7 @@ import G2.Internals.SMT.Language hiding (Assert)
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
+import qualified G2.Internals.Language.Typing
 
 import G2.Lib.Printers
 
@@ -101,6 +102,12 @@ elimNeighboringDups x = x
 
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
 run con hhp n state = do
+
+    mapM_ (\(n, e) -> do
+                     putStrLn $ show n
+                     print $ typeOf e
+                     putStrLn "") $ E.toExprList (expr_env state)
+
     putStrLn . pprExecStateStr $ state
 
     let preproc_state = runPreprocessing state
@@ -109,8 +116,8 @@ run con hhp n state = do
 
     let exec_states = runNBreadthHist [([], preproc_state)] n
 
-    putStrLn $ "states: " ++ (show $ length exec_states)
-    mapM ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st))) exec_states
+    -- putStrLn $ "states: " ++ (show $ length exec_states)
+    -- mapM ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st))) exec_states
 
     satModelOutputs con hhp (map snd exec_states)
 

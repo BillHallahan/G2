@@ -28,6 +28,9 @@ primInjectE e = e
 
 primInjectT :: Type -> Type
 primInjectT (TyConApp (Name "Int" _ _) _) = TyInt
+primInjectT (TyConApp (Name "Float" _ _) _) = TyFloat
+primInjectT (TyConApp (Name "Double" _ _) _) = TyDouble
+primInjectT (TyConApp (Name "Char" _ _) _) = TyChar
 primInjectT t = t
 
 

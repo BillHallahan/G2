@@ -11,14 +11,19 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
+import Debug.Trace
+
 -- | Typed typeclass.
 class Typed a where
     typeOf :: a -> Type
+    typeOf' :: M.Map Name Type -> a -> Type
+
+    typeOf = typeOf' M.empty
 
 
 -- | `Id` instance of `Typed`.
 instance Typed Id where
-    typeOf (Id _ ty) = ty
+    typeOf' m (Id _ ty) = typeOf' m ty
 
 -- | `Primitive` instance of `Typed`
 instance Typed Primitive where
@@ -38,6 +43,8 @@ instance Typed Primitive where
     typeOf Div = TyBottom
     typeOf UNeg = TyBottom
 
+    typeOf' _ = typeOf
+
 -- | `Lit` instance of `Typed`.
 instance Typed Lit where
     typeOf (LitInt _) = TyLitInt
@@ -47,44 +54,61 @@ instance Typed Lit where
     typeOf (LitString _) = TyLitString
     typeOf (LitBool _) = TyBool
 
+    typeOf' _ = typeOf
+
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
-    typeOf (DataCon _ ty tys) = foldr TyFun ty tys
-    typeOf (PrimCon I) = TyFun TyLitInt TyInt
-    typeOf (PrimCon D) = TyFun TyLitDouble TyDouble
-    typeOf (PrimCon F) = TyFun TyLitFloat TyFloat
-    typeOf (PrimCon C) = TyFun TyLitChar TyChar
-    typeOf (PrimCon B) = TyBool
+    typeOf' m (DataCon _ ty tys) = foldr TyFun (typeOf' m ty) tys
+    typeOf' _ (PrimCon I) = TyFun TyLitInt TyInt
+    typeOf' _ (PrimCon D) = TyFun TyLitDouble TyDouble
+    typeOf' _ (PrimCon F) = TyFun TyLitFloat TyFloat
+    typeOf' _ (PrimCon C) = TyFun TyLitChar TyChar
+    typeOf' _ (PrimCon B) = TyBool
 
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
-    typeOf (Alt _ expr) = typeOf expr
+    typeOf' m (Alt _ expr) = typeOf' m expr
 
 -- | `Expr` instance of `Typed`.
 instance Typed Expr where
-    typeOf (Var v) = typeOf v
-    typeOf (Lit lit) = typeOf lit
-    typeOf (Prim prim ty) = ty
-    typeOf (Data dcon) = typeOf dcon
-    typeOf (App fxpr axpr) =
+    typeOf' m (Var v) = typeOf' m v
+    typeOf' m (Lit lit) = typeOf' m lit
+    typeOf' m (Prim prim ty) = ty
+    typeOf' m (Data dcon) = typeOf' m dcon
+    typeOf' m (App fxpr axpr) =
         let
-            tfxpr = typeOf fxpr
-            taxpr = typeOf axpr
+            tfxpr = typeOf' m fxpr
+            taxpr = typeOf' m axpr
         in
         case tfxpr of
-            TyForAll _ t2 -> t2
-            TyFun t1 t2 -> t2 -- if t1 == tfxpr then t2 else TyBottom -- TODO: We should really have this if check- but can't because of TyBottom being introdduced elsewhere...
+            TyForAll (NamedTyBndr i) t2 -> trace ("fa axpr = " ++ show axpr) typeOf' (M.insert (idName i) taxpr m) t2
+            TyFun t1 t2 -> trace ("tf axpr = " ++ show axpr) t2 -- if t1 == tfxpr then t2 else TyBottom -- TODO: We should really have this if check- but can't because of TyBottom being introdduced elsewhere...
             _ -> TyBottom
-    typeOf (Lam b expr) = TyFun (typeOf b) (typeOf expr)
-    typeOf (Let _ expr) = typeOf expr
-    typeOf (Case _ _ (a:_)) = typeOf a
-    typeOf (Type ty) = ty
-    typeOf (Assert _ e) = typeOf e
-    typeOf (Assume _ e) = typeOf e
+    typeOf' m (Lam b expr) = TyFun (typeOf' m b) (typeOf' m expr)
+    typeOf' m (Let _ expr) = typeOf' m expr
+    typeOf' m (Case _ _ (a:_)) = typeOf' m a
+    typeOf' m (Type ty) = ty
+    typeOf' m (Assert _ e) = typeOf' m e
+    typeOf' m (Assume _ e) = typeOf' m e
 
+instance Typed Type where
+    typeOf = typeOf' M.empty
+
+    typeOf' m v@(TyVar n _) =
+        case M.lookup n m of
+            Just t -> t
+            Nothing -> v
+    typeOf' m (TyFun (TyForAll (NamedTyBndr i) t') t'') = 
+        let
+            m' = M.insert (idName i) t'' m
+        in
+        typeOf' m' t'
+    typeOf' m (TyFun t t') = TyFun (typeOf' m t) (typeOf' m t')
+    typeOf' _ t = t
 
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
+-- TODO: FIX THIS FUNCTION
 (.::) :: Typed t => t -> t -> Bool
 (.::) t1 t2 = specializesTo M.empty (typeOf t1) (typeOf t2)
 
