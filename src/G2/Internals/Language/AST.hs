@@ -116,13 +116,13 @@ instance AST Type where
     children (TyFun tf ta) = [tf, ta]
     children (TyApp tf ta) = [tf, ta]
     children (TyConApp _ ts) = ts
-    children (TyForAll _ t)  = [t]
+    children (TyForAll b t)  = containedASTs b ++ [t]
     children _ = []
 
     modifyChildren f (TyFun tf ta)   = TyFun (f tf) (f ta)
     modifyChildren f (TyApp tf ta)   = TyApp (f tf) (f ta)
     modifyChildren f (TyConApp b ts) = TyConApp b (map f ts)
-    modifyChildren f (TyForAll b t)  = TyForAll b (f t)
+    modifyChildren f (TyForAll b t)  = TyForAll (modifyContainedASTs f b) (f t)
     modifyChildren _ t               = t
 
 instance AST DataCon where
@@ -218,6 +218,17 @@ instance ASTContainer Alt Type where
     containedASTs (Alt a e) = (containedASTs a) ++ (containedASTs e)
     modifyContainedASTs f (Alt a e) =
         Alt (modifyContainedASTs f a) (modifyContainedASTs f e)
+
+instance ASTContainer TyBinder Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ b = b
+
+instance ASTContainer TyBinder Type where
+    containedASTs (AnonTyBndr t) = [t]
+    containedASTs (NamedTyBndr i) = containedASTs i
+
+    modifyContainedASTs f (AnonTyBndr t) = AnonTyBndr (f t)
+    modifyContainedASTs f (NamedTyBndr i) = NamedTyBndr (modifyContainedASTs f i)
 
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)

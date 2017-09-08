@@ -10,6 +10,7 @@ import Data.Maybe
 import qualified Data.Map as M
 
 import Debug.Trace
+import G2.Lib.Printers
 
 {-Defunctionalizor
 
@@ -30,7 +31,7 @@ type ApplyTypeName = Name
 defunctionalize :: State -> State
 defunctionalize s =
     case leadingHigherOrderTypes s of
-            (t:_) -> trace (show $ leadingHigherOrderTypes s) defunctionalize $ useApplyType s t
+            (t:_) -> defunctionalize $ useApplyType s t
             _ -> s
 
 -- Given a state and a leading higher order function type
@@ -74,15 +75,14 @@ useApplyType s (t@(TyFun _ _)) =
 
         s3 = modifyASTs (applyTypeReplace t applyTypeCon) (s2 {curr_expr = newCurr_expr})
 
+        s4 = adjustLambdas t applyTypeCon s3
+
     in
-    trace ("----") $
-    trace (show $ map (\(n, e) -> (n, typeOf e)) $ E.toExprList (expr_env s)) $
-    trace ("----") $
-    trace (show t ++ "\n" ++ show funcs ++ "\n" ++ show applyTypeName ++ "\n" ++ show applyConsNames)
-    s3 { expr_env = E.insert applyFuncName applyFunc (expr_env s3)
-        , type_env = M.insert applyTypeName applyTypeAlg (type_env s3)
-        , sym_links = adjustSymLinks t applyTypeCon (sym_links s3)
-        , func_table = unionFuncInterps newFuncs_interps (func_table s3)
+    s4 { expr_env = E.insert applyFuncName applyFunc (expr_env s4)
+        , type_env = M.insert applyTypeName applyTypeAlg (type_env s4)
+        , sym_links = adjustSymLinks t applyTypeCon (sym_links s4)
+        , input_ids = adjustInputIds t applyTypeCon (input_ids s4)
+        , func_table = unionFuncInterps newFuncs_interps (func_table s4)
     }
     where
         argList :: Type -> [Type]
@@ -190,6 +190,24 @@ leadingHigherOrderTypes s =
         leading' (TyFun t@(TyFun _ _) _) = [t]
         leading' _ = []
 
+-- Get higher order types from the type environment
+higherOrderTypesTEnv :: TypeEnv -> [Type]
+higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map (typeOf :: Expr -> Type) . containedASTs $ M.elems tenv)
+
+-- Get higher order functions from the expression environment
+higherOrderFuncsExprEnv :: E.ExprEnv -> [Expr]
+higherOrderFuncsExprEnv = filter (higherOrderFunc) . E.elems
+
+-- Returns whether the expr is a higher order function
+higherOrderFunc :: Expr -> Bool
+higherOrderFunc e = higherOrderFuncType $ typeOf e
+
+-- Returns whether the type is for a higher order function
+higherOrderFuncType :: Type -> Bool
+higherOrderFuncType (TyFun (TyFun _ _) _) = True
+higherOrderFuncType (TyFun t t') = higherOrderFuncType t || higherOrderFuncType t'
+higherOrderFuncType _ = False
+
 -- Given a function type t, gets a list of:
 -- (1) all functions of type t from the expression environment
 -- (2) all expresions of type t that are passed into a higher order function,
@@ -215,12 +233,9 @@ higherOrderOfTypeFuncNames eenv ty =
     where
         -- Returns a list of all function types that must be passed to the given function
         functionsAccepted :: Expr -> [Type]
-        functionsAccepted = functionsAccepted' . typeOf
+        functionsAccepted = evalASTs functionsAccepted' . typeOf
             where
-                functionsAccepted' (TyFun t@(TyFun _ _) t') = t:functionsAccepted' t'
-                functionsAccepted' (TyApp t t') = functionsAccepted' t ++ functionsAccepted' t'
-                functionsAccepted' (TyConApp _ ts) = concatMap functionsAccepted' ts
-                functionsAccepted' (TyForAll _ t) = functionsAccepted' t
+                functionsAccepted' (TyFun t@(TyFun _ _) t') = [t]
                 functionsAccepted' _ = []
 
 -- Given a higher order function, returns the names and types of all higher order arguments
@@ -237,29 +252,22 @@ functionNamesOfType :: E.ExprEnv -> Type -> [FuncName]
 functionNamesOfType eenv t =
     map fst . filter (\(_, e') -> typeOf e' == t) . E.toExprList $ eenv
 
--- Get higher order functions from the expression environment
-higherOrderFuncsExprEnv :: E.ExprEnv -> [Expr]
-higherOrderFuncsExprEnv = filter (higherOrderFunc) . E.elems
-
--- Get higher order types from the type environment
-higherOrderTypesTEnv :: TypeEnv -> [Type]
-higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map (typeOf :: Expr -> Type) . containedASTs $ M.elems tenv)
-
--- Returns whether the expr is a higher order function
-higherOrderFunc :: Expr -> Bool
-higherOrderFunc e = higherOrderFuncType . typeOf $ e
-
--- Returns whether the type is for a higher order function
-higherOrderFuncType :: Type -> Bool
-higherOrderFuncType (TyFun (TyFun _ _) _) = True
-higherOrderFuncType (TyFun t t') = higherOrderFuncType t || higherOrderFuncType t'
-higherOrderFuncType (TyApp t t') = higherOrderFuncType t || higherOrderFuncType t'
-higherOrderFuncType _ = False
-
 -- Gets the names of all functions in the symbolic link table, that are of the given type
 funcsInSymLink :: Type -> SymLinks -> [FuncName]
 funcsInSymLink t = SymLinks.names . SymLinks.filter (\(_, t', _) -> t == t')
 
+-- Changes all Lambda id's of Type rt to Type at
+adjustLambdas :: (ASTContainer m Expr) => Type -> Type -> m -> m
+adjustLambdas rt at = modifyASTs (adjustLambdas')
+    where
+        adjustLambdas' :: Expr -> Expr
+        adjustLambdas' l@(Lam (Id n t) e) = if t == rt then Lam (Id n at) e else l
+        adjustLambdas' e = e
+
 -- In the symbolic link table, changes all Types rt to Type at
 adjustSymLinks :: Type -> Type -> SymLinks -> SymLinks
 adjustSymLinks rt at = SymLinks.map (\(n, t, i) -> (n, if t == rt then at else t, i))
+
+-- In the input ids, changes all Types rt to Type at
+adjustInputIds :: Type -> Type -> InputIds -> InputIds
+adjustInputIds rt at = map (\i@(Id n t) -> if t == rt then Id n at else i)

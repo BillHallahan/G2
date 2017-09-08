@@ -131,6 +131,7 @@ instance ASTContainer State Expr where
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       ((containedASTs . sym_links) s) ++
+                      ((containedASTs . input_ids) s) ++
                       ((containedASTs . exec_stack) s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
@@ -138,6 +139,7 @@ instance ASTContainer State Expr where
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
+                                , input_ids = (modifyContainedASTs f . input_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s }
 
 
@@ -147,6 +149,7 @@ instance ASTContainer State Type where
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       ((containedASTs . sym_links) s) ++
+                      ((containedASTs . input_ids) s) ++
                       ((containedASTs . exec_stack) s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
@@ -154,6 +157,7 @@ instance ASTContainer State Type where
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
+                                , input_ids = (modifyContainedASTs f . input_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s }
 
 instance ASTContainer AlgDataTy Expr where

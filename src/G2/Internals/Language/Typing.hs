@@ -82,6 +82,7 @@ instance Typed Expr where
     typeOf (Assert _ e) = typeOf e
     typeOf (Assume _ e) = typeOf e
 
+
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> t -> Bool

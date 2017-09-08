@@ -32,6 +32,7 @@ import Prelude hiding( filter
                      , lookup
                      , map
                      , null)
+import Data.Coerce
 import Data.Either
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -46,7 +47,7 @@ newtype ExprEnv = ExprEnv (M.Map Name (Either Name Expr))
                   deriving (Show, Eq, Read)
 
 unwrapExprEnv :: ExprEnv -> M.Map Name (Either Name Expr)
-unwrapExprEnv (ExprEnv env) = env
+unwrapExprEnv = coerce
 
 empty :: ExprEnv
 empty = ExprEnv M.empty
@@ -135,7 +136,7 @@ instance ASTContainer ExprEnv Expr where
 
 instance ASTContainer ExprEnv Type where
     containedASTs = containedASTs . elems
-    modifyContainedASTs f = modifyContainedASTs f
+    modifyContainedASTs f = map (modifyContainedASTs f)
 
 instance Renamable ExprEnv where
     rename old new = ExprEnv . rename old new . unwrapExprEnv
