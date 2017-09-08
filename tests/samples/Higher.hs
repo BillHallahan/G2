@@ -21,3 +21,6 @@ fixed f x = f x == f (f x)
 
 main = undefined
 
+
+add :: Num n => n -> n -> n
+add a b = a + b

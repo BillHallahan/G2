@@ -1,7 +1,8 @@
 module G2.Internals.Language.Primitives where
 
 import qualified G2.Internals.Language.ExprEnv as E	
-import G2.Internals.Language.Syntax 
+import G2.Internals.Language.Syntax
+import G2.Internals.Language.Typing
 
 import Data.Foldable
 
@@ -60,11 +61,16 @@ mkRawPrim :: [(Name, Type)] -> Name -> Expr
 mkRawPrim primtys name@(Name occ _ _) = foldr Lam cases ids
   where
     prim = strToPrim occ
-    arity = primArity prim
-    ty = snd $ head $ filter (\p -> name == fst p) primtys
+    arity = primArity 
 
-    ids = map (\n' -> Id (Name "a" Nothing n') TyBottom) [1..arity]
-    binds = map (\n' -> Id (Name "b" Nothing n') TyBottom) [1..arity]
+    ty = snd . head $ filter (\p -> name == fst p) primtys
+    (forall_ids, ty') = splitTyForAlls ty
+    fun_tys = splitTyFuns ty'
+
+    tys = (map typeOf forall_ids) ++ fun_tys
+
+    ids = map (\(i, t) -> Id (Name "a" Nothing i) t) $ zip [1..] (init tys)
+    binds = map (\(i, t) -> Id (Name "b" Nothing i) t) $ zip [1..] (init tys)
 
     varIds = map Var ids
     varBinds = map Var binds

@@ -1,10 +1,15 @@
 -- | Type Checker
 --   Provides type checking capabilities over G2 Language.
 module G2.Internals.Language.Typing
-    ( module G2.Internals.Language.Typing
+    ( Typed (..)
+    , (.::)
+    , splitTyForAlls
+    , splitTyFuns
     ) where
 
 import G2.Internals.Language.Syntax
+
+import qualified Data.Map as M
 
 -- | Typed typeclass.
 class Typed a where
@@ -58,8 +63,8 @@ instance Typed Alt where
 -- | `Expr` instance of `Typed`.
 instance Typed Expr where
     typeOf (Var v) = typeOf v
-    typeOf (Prim prim ty) = ty
     typeOf (Lit lit) = typeOf lit
+    typeOf (Prim prim ty) = ty
     typeOf (Data dcon) = typeOf dcon
     typeOf (App fxpr axpr) =
         let
@@ -67,6 +72,7 @@ instance Typed Expr where
             taxpr = typeOf axpr
         in
         case tfxpr of
+            TyForAll _ t2 -> t2
             TyFun t1 t2 -> t2 -- if t1 == tfxpr then t2 else TyBottom -- TODO: We should really have this if check- but can't because of TyBottom being introdduced elsewhere...
             _ -> TyBottom
     typeOf (Lam b expr) = TyFun (typeOf b) (typeOf expr)
@@ -76,9 +82,33 @@ instance Typed Expr where
     typeOf (Assert _ e) = typeOf e
     typeOf (Assume _ e) = typeOf e
 
-    typeOf _ = TyBottom
+-- | Returns if the first type given is a specialization of the second,
+-- i.e. if given t1, t2, returns true iff t1 :: t2
+(.::) :: Typed t => t -> t -> Bool
+(.::) t1 t2 = specializesTo M.empty (typeOf t1) (typeOf t2)
 
+specializesTo :: M.Map Name Type -> Type -> Type -> Bool
+specializesTo m (TyVar n t) (TyVar n' t') = specializesTo m t t'
+specializesTo m (TyFun t1 t2) (TyFun t1' t2') =
+    specializesTo m t1 t1' && specializesTo m t2 t2'
+specializesTo m (TyApp t1 t2) (TyApp t1' t2') =
+    specializesTo m t1 t1' && specializesTo m t2 t2'
+specializesTo m (TyConApp n ts) (TyConApp n' ts') =
+    length ts == length ts' 
+    && all (\(t, t') -> specializesTo m t t') (zip ts ts')
+specializesTo m (TyForAll b t) (TyForAll b' t') = specializesTo m t t'
+specializesTo _ t t' = t == t'
 
-typeEq :: (Typed a) => a -> a -> Bool
-typeEq = undefined
+-- | Turns TyForAll types into a list of types
+splitTyForAlls :: Type -> ([Id], Type)
+splitTyForAlls (TyForAll (NamedTyBndr i) t) = 
+    let
+        (i', t') = splitTyForAlls t
+    in
+    (i:i', t')
+splitTyForAlls t = ([], t)
 
+-- | Turns TyFun types into a list of types
+splitTyFuns :: Type -> [Type]
+splitTyFuns (TyFun t t') = t:splitTyFuns t'
+splitTyFuns t = [t]
