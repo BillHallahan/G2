@@ -386,7 +386,8 @@ reduceCase eenv mexpr bind alts ngen
 
   -- We bind value form primitive applications to a new var.  This allows
   -- RuleCaseSym to run in the next call to reduce.
-  -- | (Prim _ t:_) <- unApp mexpr =
+  -- | (Prim _ t:_) <- unApp mexpr
+  -- , isExprValueForm mexpr eenv =
   --   let
   --       (n, ngen') = freshName ngen
   --       t' = returnType t
