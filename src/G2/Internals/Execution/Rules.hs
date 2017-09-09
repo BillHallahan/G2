@@ -20,7 +20,8 @@ data Rule = RuleEvalVal
           | RuleEvalPrimToNorm
           | RuleEvalLet
           | RuleEvalCaseData | RuleEvalCaseLit | RuleEvalCaseDefault
-                             | RuleCaseSym | RuleEvalCasePrim | RuleEvalCaseNonVal
+                             | RuleEvalCaseSym | RuleEvalCasePrim
+                             | RuleEvalCaseNonVal
           | RuleEvalAssume | RuleEvalAssert
 
           | RuleReturnEUpdateVar | RuleReturnEUpdateNonVar
@@ -382,23 +383,23 @@ reduceCase eenv mexpr bind alts ngen
           (_, _, lconds, _, _) = unzip5 lsts_cs
           negs = map (negatePathCond) $ concat (dconds ++ lconds)
           def_sts = liftSymDefAlt eenv var ngen negs bind defs
-      in (RuleCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
+      in (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
 
-  -- We bind value form primitive applications to a new var.  This allows
-  -- RuleCaseSym to run in the next call to reduce.
-  -- | (Prim _ t:_) <- unApp mexpr
-  -- , isExprValueForm mexpr eenv =
-  --   let
-  --       (n, ngen') = freshName ngen
-  --       t' = returnType t
-  --       mexpr' = Var $ Id n t'
-  --   in (RuleEvalCasePrim
-  --      , [( eenv
-  --         , CurrExpr Evaluate mexpr'
-  --         , []
-  --         , ngen'
-  --         , Nothing)])
-
+  -- Because we cannoy directly evaluate primitive application, we likewise
+  -- perform symbolic branching directly.
+  | (Prim _ t:_) <- unApp mexpr
+  , isExprValueForm mexpr eenv
+  , dalts <- dataAlts alts
+  , lalts <- litAlts alts
+  , defs <- defaultAlts alts
+  , (length dalts + length lalts + length defs) > 0 =
+      let dsts_cs = liftSymDataAlt eenv mexpr ngen bind dalts
+          lsts_cs = liftSymLitAlt eenv mexpr ngen bind lalts
+          (_, _, dconds, _, _) = unzip5 dsts_cs
+          (_, _, lconds, _, _) = unzip5 lsts_cs
+          negs = map (negatePathCond) $ concat (dconds ++ lconds)
+          def_sts = liftSymDefAlt eenv mexpr ngen negs bind defs
+      in (RuleEvalCasePrim, dsts_cs ++ lsts_cs ++ def_sts)
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
