@@ -20,7 +20,7 @@ data Rule = RuleEvalVal
           | RuleEvalPrimToNorm
           | RuleEvalLet
           | RuleEvalCaseData | RuleEvalCaseLit | RuleEvalCaseDefault
-                             | RuleCaseSym | RuleEvalCaseNonVal
+                             | RuleCaseSym | RuleEvalCasePrim | RuleEvalCaseNonVal
           | RuleEvalAssume | RuleEvalAssert
 
           | RuleReturnEUpdateVar | RuleReturnEUpdateNonVar
@@ -384,6 +384,21 @@ reduceCase eenv mexpr bind alts ngen
           def_sts = liftSymDefAlt eenv var ngen negs bind defs
       in (RuleCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
 
+  -- We bind value form primitive applications to a new var.  This allows
+  -- RuleCaseSym to run in the next call to reduce.
+  -- | (Prim _ t:_) <- unApp mexpr =
+  --   let
+  --       (n, ngen') = freshName ngen
+  --       t' = returnType t
+  --       mexpr' = Var $ Id n t'
+  --   in (RuleEvalCasePrim
+  --      , [( eenv
+  --         , CurrExpr Evaluate mexpr'
+  --         , []
+  --         , ngen'
+  --         , Nothing)])
+
+
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
   -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
@@ -411,7 +426,7 @@ reduceCase eenv mexpr bind alts ngen
             , ngen'
             , Nothing)])
  
-  | otherwise = error $ "reduceCase: bad case passed in"
+  | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 
 -- | Result of a Return reduction.
 type EReturnResult = (E.ExprEnv, CurrExpr, NameGen)

@@ -3,6 +3,7 @@
 module G2.Internals.Language.Typing
     ( Typed (..)
     , (.::)
+    , returnType
     , splitTyForAlls
     , splitTyFuns
     ) where
@@ -81,8 +82,8 @@ instance Typed Expr where
             taxpr = typeOf' m axpr
         in
         case tfxpr of
-            TyForAll (NamedTyBndr i) t2 -> trace ("fa axpr = " ++ show axpr) typeOf' (M.insert (idName i) taxpr m) t2
-            TyFun t1 t2 -> trace ("tf axpr = " ++ show axpr) t2 -- if t1 == tfxpr then t2 else TyBottom -- TODO: We should really have this if check- but can't because of TyBottom being introdduced elsewhere...
+            TyForAll (NamedTyBndr i) t2 -> typeOf' (M.insert (idName i) taxpr m) t2
+            TyFun t1 t2 ->  t2 -- if t1 == tfxpr then t2 else TyBottom -- TODO: We should really have this if check- but can't because of TyBottom being introdduced elsewhere...
             _ -> TyBottom
     typeOf' m (Lam b expr) = TyFun (typeOf' m b) (typeOf' m expr)
     typeOf' m (Let _ expr) = typeOf' m expr
@@ -123,6 +124,14 @@ specializesTo m (TyConApp n ts) (TyConApp n' ts') =
     && all (\(t, t') -> specializesTo m t t') (zip ts ts')
 specializesTo m (TyForAll b t) (TyForAll b' t') = specializesTo m t t'
 specializesTo _ t t' = t == t'
+
+returnType :: (Typed t) => t -> Type
+returnType = returnType' . typeOf
+
+returnType' :: Type -> Type
+returnType' (TyForAll _ t) = returnType' t
+returnType' (TyFun _ t) = returnType' t
+returnType' t = t
 
 -- | Turns TyForAll types into a list of types
 splitTyForAlls :: Type -> ([Id], Type)

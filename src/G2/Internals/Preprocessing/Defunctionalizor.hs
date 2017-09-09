@@ -62,7 +62,7 @@ useApplyType s (t@(TyFun _ _)) =
         higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) higherNameExpr
 
 
-        newCurr_expr = foldr (\i@(Id n _) -> exprReplace (Var i) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
+        newCurr_expr = foldr (\i@(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
 
         newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
