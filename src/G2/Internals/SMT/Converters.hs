@@ -92,7 +92,7 @@ funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
 -- funcToSMT (Prim p) [a1, a2, a3, a4] = funcToSMT4Prim p a1 a2 a3 a4
 funcToSMT (Data (DataCon n t _)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
 funcToSMT e@(Data _) [a] = funcToSMT1Var e a
-funcToSMT e _ = error ("Unrecognized " ++ show e ++ " in funcToSMT")
+funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Var :: Expr -> Expr -> SMTAST
 funcToSMT1Var (Prim UNeg _) a = Neg (exprToSMT a)

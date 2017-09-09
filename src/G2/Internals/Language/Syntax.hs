@@ -7,8 +7,6 @@ module G2.Internals.Language.Syntax
 
 import Data.Foldable
 
-import Debug.Trace
-
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
 type ProgramType = (Name, [Name], [DataCon])

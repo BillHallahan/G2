@@ -93,13 +93,17 @@ evalContainedASTs f = mconcat . map f . containedASTs
 
 -- | Instance Expr of AST
 instance AST Expr where
+    children (Var _) = []
+    children (Lit _) = []
+    children (Prim _ _) = []
+    children (Data _) = []
     children (App f a) = [f, a]
     children (Lam _ e) = [e]
     children (Let bind e) = e : containedASTs bind
     children (Case m _ as) = m : map (\(Alt _ e) -> e) as
+    children (Type _) = []
     children (Assume e e') = [e, e']
     children (Assert e e') = [e, e']
-    children _  = []
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
     modifyChildren f (Lam b e) = Lam b (f e)
@@ -143,24 +147,26 @@ instance ASTContainer Expr Type where
       where
             go :: Expr -> [Type]
             go (Var i) = containedASTs i
+            go (Prim _ t) = [t]
             go (Data dc) = containedASTs dc
             go (Lam b e) = containedASTs b ++ containedASTs e
             go (Let bnd e) = containedASTs bnd ++ containedASTs e
-            go (Case e _ as) = (containedASTs e) ++ (containedASTs as)
+            go (Case e i as) = containedASTs e ++ containedASTs i ++ containedASTs as
             go (Type t) = [t]
-            go (Assume e e') = (containedASTs e) ++ (containedASTs e')
-            go (Assert e e') = (containedASTs e) ++ (containedASTs e')
+            go (Assume e e') = containedASTs e ++ containedASTs e'
+            go (Assert e e') = containedASTs e ++ containedASTs e'
             go _ = []
 
     modifyContainedASTs f = modify go
       where
             go :: Expr -> Expr
             go (Var i) = Var (modifyContainedASTs f i)
+            go (Prim p t) = Prim p (modifyContainedASTs f t)
             go (Data dc) = Data (modifyContainedASTs f dc)
             go (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
             go (Lam b e) = Lam (modifyContainedASTs f b) (modifyContainedASTs f e)
             go (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
-            go (Case m n as) = Case (modifyContainedASTs f m) n (modifyContainedASTs f as) 
+            go (Case m i as) = Case (modifyContainedASTs f m) (modifyContainedASTs f i) (modifyContainedASTs f as) 
             go (Type t) = Type (f t)
             go (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
             go (Assert e e') = Assert (modifyContainedASTs f e) (modifyContainedASTs f e')

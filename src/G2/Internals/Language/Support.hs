@@ -126,21 +126,21 @@ renameState old new_seed s =
 
 -- | TypeClass definitions
 instance ASTContainer State Expr where
-    containedASTs s = ((containedASTs . type_env) s) ++
-                      ((containedASTs . expr_env) s) ++
-                      ((containedASTs . curr_expr) s) ++
-                      ((containedASTs . path_conds) s) ++
-                      ((containedASTs . sym_links) s) ++
-                      ((containedASTs . input_ids) s) ++
-                      ((containedASTs . exec_stack) s)
+    containedASTs s = (containedASTs $ type_env s) ++
+                      (containedASTs $ expr_env s) ++
+                      (containedASTs $ curr_expr s) ++
+                      (containedASTs $ path_conds s) ++
+                      (containedASTs $ sym_links s) ++
+                      (containedASTs $ input_ids s) ++
+                      (containedASTs $ exec_stack s)
 
-    modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
-                                , expr_env  = (modifyContainedASTs f . expr_env) s
-                                , curr_expr = (modifyContainedASTs f . curr_expr) s
-                                , path_conds = (modifyContainedASTs f . path_conds) s
-                                , sym_links = (modifyContainedASTs f . sym_links) s
-                                , input_ids = (modifyContainedASTs f . input_ids) s
-                                , exec_stack = (modifyContainedASTs f . exec_stack) s }
+    modifyContainedASTs f s = s { type_env  = modifyContainedASTs f $ type_env s
+                                , expr_env  = modifyContainedASTs f $ expr_env s
+                                , curr_expr = modifyContainedASTs f $ curr_expr s
+                                , path_conds = modifyContainedASTs f $ path_conds s
+                                , sym_links = modifyContainedASTs f $ sym_links s
+                                , input_ids = modifyContainedASTs f $ input_ids s
+                                , exec_stack = modifyContainedASTs f $ exec_stack s }
 
 
 instance ASTContainer State Type where
@@ -182,8 +182,8 @@ instance ASTContainer PathCond Expr where
     containedASTs (PCExists _) = []
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
-    modifyContainedASTs f (AltCond e a b) =
-        AltCond (modifyContainedASTs f e) a b
+    modifyContainedASTs f (AltCond a e b) =
+        AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
     modifyContainedASTs _ pc = pc
 
 instance ASTContainer PathCond Type where

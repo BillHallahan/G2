@@ -12,8 +12,6 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
-import Debug.Trace
-
 -- | Typed typeclass.
 class Typed a where
     typeOf :: a -> Type
