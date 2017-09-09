@@ -46,7 +46,9 @@ useApplyType s (t@(TyFun _ _)) =
         (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (name_gen s)
         applyTypeCon = TyConApp applyTypeName []
         
-        (applyConsNames, r3) = freshSeededNames (take (length funcs) . repeat $ Name "ApplyCon" Nothing 0) r2
+        (applyConsNames, r3) = freshSeededNames (map (\e -> case e of
+                                                            Var (Id n _) -> n
+                                                            _ -> Name "ApplyCon" Nothing 0) funcs) r2--(take (length funcs) . repeat $ Name "ApplyCon" Nothing 0) r2
         applyDCs = map (\n -> DataCon n applyTypeCon []) applyConsNames
         applyTypeAlg = AlgDataTy [] applyDCs
 
@@ -62,7 +64,7 @@ useApplyType s (t@(TyFun _ _)) =
         higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) higherNameExpr
 
 
-        newCurr_expr = foldr (\i@(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
+        newCurr_expr = foldr (\(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
 
         newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
@@ -78,7 +80,6 @@ useApplyType s (t@(TyFun _ _)) =
     in
     s4 { expr_env = E.insert applyFuncName applyFunc (expr_env s4)
         , type_env = M.insert applyTypeName applyTypeAlg (type_env s4)
-        , sym_links = adjustSymLinks t applyTypeCon (sym_links s4)
         , input_ids = adjustInputIds t applyTypeCon (input_ids s4)
         , path_conds = adjustPathConds t applyTypeCon (path_conds s4)
         , func_table = unionFuncInterps newFuncs_interps (func_table s4)
@@ -258,10 +259,6 @@ adjustLambdas rt at = modifyASTs (adjustLambdas')
         adjustLambdas' :: Expr -> Expr
         adjustLambdas' l@(Lam (Id n t) e) = if t == rt then Lam (Id n at) e else l
         adjustLambdas' e = e
-
--- In the symbolic link table, changes all Types rt to Type at
-adjustSymLinks :: Type -> Type -> SymLinks -> SymLinks
-adjustSymLinks rt at = SymLinks.map (\(n, t, i) -> (n, if t == rt then at else t, i))
 
 -- In the input ids, changes all Types rt to Type at
 adjustInputIds :: Type -> Type -> InputIds -> InputIds

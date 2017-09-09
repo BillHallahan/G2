@@ -6,7 +6,6 @@
 module G2.Internals.SMT.Converters
     ( toSMTHeaders
     , toSolver
-    , sltToSMTNameSorts
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
@@ -147,9 +146,6 @@ altToSMT (DataAlt (DataCon n t ts) ns) =
         f :: (Id, Type) -> SMTAST
         f (n', t') = V (nameToStr . idName $ n') (typeToSMT t')
 altToSMT am = error $ "Unhandled " ++ show am
-
-sltToSMTNameSorts :: SymLinks -> [(Name, Sort)]
-sltToSMTNameSorts = map (\(n, t) -> (n, typeToSMT t)) . SLT.namesTypes
 
 createVarDecls :: State -> [(SMTHeader)]
 createVarDecls = nub . createVarDecls' . vars . path_conds

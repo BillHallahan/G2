@@ -15,7 +15,7 @@ fourthPower :: Double -> Double
 fourthPower x = square x * square x
 
 fixed :: (Double -> Double) -> Double -> Bool
-fixed f x = f x == f (f x)
+fixed f x = x == (f x)
 
 negative :: (Double -> Double) -> Double -> Bool
 negative f x = f x < 0

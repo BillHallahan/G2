@@ -148,11 +148,8 @@ mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a+
 -}
 
 mkSLTStr :: SymLinks -> String
-mkSLTStr = intercalate "\n" . map (\(k, (n, t, i)) -> 
-                                                show k ++ " <- " ++ show n ++ "  (" ++ show t ++ ")"
-                                                ++ case i of
-                                                        Just x -> "  " ++ show x
-                                                        Nothing -> "") . M.toList . Sym.map' id
+mkSLTStr = intercalate "\n" . map (\(k, n) -> 
+                                                show k ++ " <- " ++ show n) . M.toList . Sym.map' id
 
 mkFuncSLTStr :: FuncInterps -> String
 mkFuncSLTStr = show
