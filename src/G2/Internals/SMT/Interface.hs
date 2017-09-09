@@ -18,7 +18,6 @@ import G2.Internals.SMT.Language
 -- Returns a list of satisifable states, along with possible input/output pairs
 satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [(State, [Expr], Expr)]
 satModelOutputs con io states = do
-   mapM_ (print . simplifyPrims) states 
    return . map (\(s, _, es, e) -> (s, fromJust es, fromJust e))
           . filter (\(_, r, es, e) -> r == SAT && isJust es && isJust e)
           =<< mapM (\s -> do
