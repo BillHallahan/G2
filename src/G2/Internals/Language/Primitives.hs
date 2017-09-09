@@ -6,22 +6,6 @@ import G2.Internals.Language.Typing
 
 import Data.Foldable
 
--- | Primitive arity.
-primArity :: Primitive -> Int
-primArity Not = 1
-primArity And = 2
-primArity Or = 2
-primArity Ge = 4
-primArity Gt = 4
-primArity Eq = 4
-primArity Neq = 4
-primArity Le = 4
-primArity Lt = 4
-primArity Plus = 4
-primArity Minus = 4
-primArity Mult = 4
-primArity Div = 4
-
 primStr :: Primitive -> String
 primStr Not = "not"
 primStr And = "&&"
@@ -61,7 +45,6 @@ mkRawPrim :: [(Name, Type)] -> Name -> Expr
 mkRawPrim primtys name@(Name occ _ _) = foldr Lam cases ids
   where
     prim = strToPrim occ
-    arity = primArity 
 
     ty = snd . head $ filter (\p -> name == fst p) primtys
     (forall_ids, ty') = splitTyForAlls ty

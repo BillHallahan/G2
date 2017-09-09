@@ -24,6 +24,9 @@ primInjectE (Var (Id (Name "I#" _ _) _)) = Data $ PrimCon I
 primInjectE (Var (Id (Name "D#" _ _) _)) = Data $ PrimCon D
 primInjectE (Var (Id (Name "F#" _ _) _)) = Data $ PrimCon F
 primInjectE (Var (Id (Name "C#" _ _) _)) = Data $ PrimCon C
+primInjectE (Var (Id (Name "True" _ _) _)) = Lit $ LitBool True
+primInjectE (Var (Id (Name "False" _ _) _)) = Lit $ LitBool False
+primInjectE (Case e i a) = Case e i (map primInjectAlt a)
 primInjectE e = e
 
 primInjectT :: Type -> Type
@@ -31,8 +34,16 @@ primInjectT (TyConApp (Name "Int" _ _) _) = TyInt
 primInjectT (TyConApp (Name "Float" _ _) _) = TyFloat
 primInjectT (TyConApp (Name "Double" _ _) _) = TyDouble
 primInjectT (TyConApp (Name "Char" _ _) _) = TyChar
+primInjectT (TyConApp (Name "Bool" _ _) _) = TyBool
 primInjectT t = t
 
+primInjectAlt :: Alt -> Alt
+primInjectAlt (Alt a e) = Alt (primInjectAltMatch a) e
+
+primInjectAltMatch :: AltMatch -> AltMatch
+primInjectAltMatch (DataAlt (DataCon (Name "True" _ _) _ _) _) = LitAlt (LitBool True)
+primInjectAltMatch (DataAlt (DataCon (Name "False" _ _) _ _) _) = LitAlt (LitBool False)
+primInjectAltMatch d = d
 
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
 dataInject prog progTy = 

@@ -36,14 +36,13 @@ smt2 = SMTConverter {
             -- putStrLn formula
             r <- checkSat' h_in h_out
             -- putStrLn $ "r = " ++ show r
-            -- putStrLn $ show vars
             if r == SAT then do
                 model <- getModel h_in h_out vars
-                putStrLn "======"
-                putStrLn formula
-                putStrLn ""
-                putStrLn (show model)
-                putStrLn "======"
+                -- putStrLn "======"
+                -- putStrLn formula
+                -- putStrLn ""
+                -- putStrLn (show model)
+                -- putStrLn "======"
                 let m = parseModel headers model
 
                 expr <- solveExpr h_in h_out smt2 headers e
