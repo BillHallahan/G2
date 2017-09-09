@@ -369,26 +369,10 @@ reduceCase eenv mexpr bind alts ngen
             , ngen'
             , Nothing)] )
 
-  -- | If we are pointing to a symbolic value in the environment, handle it
-  -- appropriately by branching on every `Alt`.
-  | var@(Var n) <- mexpr
-  , isSymbolic n eenv
-  , dalts <- dataAlts alts
-  , lalts <- litAlts alts
-  , defs <- defaultAlts alts
-  , (length dalts + length lalts + length defs) > 0 =
-      let dsts_cs = liftSymDataAlt eenv var ngen bind dalts
-          lsts_cs = liftSymLitAlt eenv var ngen bind lalts
-          (_, _, dconds, _, _) = unzip5 dsts_cs
-          (_, _, lconds, _, _) = unzip5 lsts_cs
-          negs = map (negatePathCond) $ concat (dconds ++ lconds)
-          def_sts = liftSymDefAlt eenv var ngen negs bind defs
-      in (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
-
-  -- Because we cannoy directly evaluate primitive application, we likewise
-  -- perform symbolic branching directly.
-  | (Prim _ t:_) <- unApp mexpr
-  , isExprValueForm mexpr eenv
+  -- | If we are pointing to something in expr value form, that is not addressed
+  -- by some previous case, we handle it by branching on every `Alt`, and adding
+  -- path constraints.
+  | isExprValueForm mexpr eenv
   , dalts <- dataAlts alts
   , lalts <- litAlts alts
   , defs <- defaultAlts alts
@@ -399,7 +383,7 @@ reduceCase eenv mexpr bind alts ngen
           (_, _, lconds, _, _) = unzip5 lsts_cs
           negs = map (negatePathCond) $ concat (dconds ++ lconds)
           def_sts = liftSymDefAlt eenv mexpr ngen negs bind defs
-      in (RuleEvalCasePrim, dsts_cs ++ lsts_cs ++ def_sts)
+      in (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack

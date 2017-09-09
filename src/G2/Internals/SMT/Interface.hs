@@ -15,12 +15,14 @@ import G2.Internals.SMT.Language
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
--- Returns a list of possible input/output pairs for the satisifiable states
-satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [([Expr], Expr)]--IO [([Expr], Expr)]
-satModelOutputs con io s = do
-   return . map (\(_, es, e) -> (fromJust es, fromJust e))
-          . filter (\(s', es, e) -> s' == SAT && isJust es && isJust e)
-          =<< mapM (satModelOutput con io . simplifyPrims) (filter isExecValueForm s)
+-- Returns a list of satisifable states, along with possible input/output pairs
+satModelOutputs :: SMTConverter ast out io -> io -> [State] -> IO [(State, [Expr], Expr)]
+satModelOutputs con io states = do
+   return . map (\(s, _, es, e) -> (s, fromJust es, fromJust e))
+          . filter (\(s, r, es, e) -> r == SAT && isJust es && isJust e)
+          =<< mapM (\s -> do
+                            (r, es, e) <- satModelOutput con io $ simplifyPrims s
+                            return (s, r, es, e)) (filter isExecValueForm states)
 
 
 -- | checkSatModelOutput

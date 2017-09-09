@@ -38,12 +38,15 @@ main = do
 
     in_out <- run smt2 hhp n_val init_state
 
-    mapM_ (\(inArg, ex) -> do
+    putStrLn "----------------\n----------------"
+
+    mapM_ (\(st, inArg, ex) -> do
             let funcCall = mkExprHaskell 
                          . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
             let funcOut = mkExprHaskell $ ex
 
+            --putStrLn $ pprPathsStr (path_conds st)
             putStrLn (funcCall)
             -- putStrLn (functOut)
         ) in_out

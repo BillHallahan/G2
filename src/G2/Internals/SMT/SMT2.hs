@@ -32,14 +32,16 @@ smt2 = SMTConverter {
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars (CurrExpr _ e) -> do
             setUpFormula h_in formula
-            putStrLn "\n\n"
-            putStrLn formula
+            -- putStrLn "\n\n"
+            -- putStrLn formula
             r <- checkSat' h_in h_out
-            putStrLn $ "r = " ++ show r
-            putStrLn $ show vars
+            -- putStrLn $ "r = " ++ show r
+            -- putStrLn $ show vars
             if r == SAT then do
                 model <- getModel h_in h_out vars
                 putStrLn "======"
+                putStrLn formula
+                putStrLn ""
                 putStrLn (show model)
                 putStrLn "======"
                 let m = parseModel headers model

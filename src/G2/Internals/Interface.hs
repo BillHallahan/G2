@@ -100,7 +100,7 @@ elimNeighboringDups :: Eq a => [a] -> [a]
 elimNeighboringDups (x:y:xs) = if x == y then elimNeighboringDups (x:xs) else x:elimNeighboringDups (y:xs)
 elimNeighboringDups x = x
 
-run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
+run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Expr], Expr)]
 run con hhp n state = do
 
     mapM_ (\(n, e) -> do
@@ -113,7 +113,7 @@ run con hhp n state = do
     let preproc_state = runPreprocessing state
     
     putStrLn . pprExecStateStr $ preproc_state
-    
+
     let exec_states = runNBreadthHist [([], preproc_state)] n
 
     putStrLn $ "states: " ++ (show $ length exec_states)
