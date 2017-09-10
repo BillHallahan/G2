@@ -8,8 +8,10 @@ module G2.Internals.Language.ExprEnv
     , size
     , member
     , lookup
+    , isSymbolic
     , occLookup
     , insert
+    , insertSymbolic
     , insertExprs
     , redirect
     , (!)
@@ -38,22 +40,27 @@ import qualified Data.List as L
 import qualified Data.Map as M
 
 -- | From a user perspective, `ExprEnv`s are mappings from `Name` to
--- `Expr`s. however, because redirection pointers are included, this
--- complicates things. Instead, we use the `Either` type to separate
--- redirection and actual objects, so by using the supplied lookup functions,
--- the user should never be returned a redirection pointer from `ExecExprEnv`
--- lookups.
-newtype ExprEnv = ExprEnv (M.Map Name (Either Name Expr))
+-- `Expr`s. however, there are two complications:
+--  1) Redirection pointers can map two names to the same expr
+--  2) Certain names are symbolic.  This means they represent a symbolic variable
+--     Nonsymbolic names map to an ExprObj, symbolic names to a SymObj.
+ 
+data EnvObj = ExprObj Expr
+            | RedirObj Name
+            | SymbObj Id
+            deriving (Show, Eq, Read)
+
+newtype ExprEnv = ExprEnv (M.Map Name EnvObj)
                   deriving (Show, Eq, Read)
 
-unwrapExprEnv :: ExprEnv -> M.Map Name (Either Name Expr)
+unwrapExprEnv :: ExprEnv -> M.Map Name EnvObj
 unwrapExprEnv = coerce
 
 empty :: ExprEnv
 empty = ExprEnv M.empty
 
 singleton :: Name -> Expr -> ExprEnv
-singleton n e = ExprEnv $ M.singleton n (Right e)
+singleton n e = ExprEnv $ M.singleton n (ExprObj e)
 
 null :: ExprEnv -> Bool
 null = M.null . unwrapExprEnv
@@ -65,40 +72,58 @@ member :: Name -> ExprEnv -> Bool
 member n = M.member n . unwrapExprEnv
 
 lookup :: Name -> ExprEnv -> Maybe Expr
-lookup name (ExprEnv smap) = 
-    case M.lookup name smap of
-        Just (Left redir) -> lookup redir (ExprEnv smap)
-        Just (Right expr) -> Just expr
+lookup n (ExprEnv smap) = 
+    case M.lookup n smap of
+        Just (ExprObj expr) -> Just expr
+        Just (RedirObj redir) -> lookup redir (ExprEnv smap)
+        Just (SymbObj i) -> Just $ Var i
         Nothing -> Nothing
 
+isSymbolic :: Name -> ExprEnv -> Bool
+isSymbolic n (ExprEnv eenv) =
+    case M.lookup n eenv of
+        Just (SymbObj _) -> True
+        _ -> False
+
+-- TODO
 occLookup :: String -> Maybe String -> ExprEnv -> Maybe Expr
 occLookup n m = 
-    fmap snd . L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) 
-           . M.toList . M.map (\(Right e) -> e) . M.filter (isRight) . unwrapExprEnv
+    fmap snd . L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
+           . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) . unwrapExprEnv
 
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =
     case env' M.! n of
-        Left n' -> env ! n'
-        Right e -> e
+        RedirObj n' -> env ! n'
+        ExprObj e -> e
+        SymbObj i -> Var i
 
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
-insert n e = ExprEnv . M.insert n (Right e) . unwrapExprEnv
+insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv
+
+insertSymbolic :: Name -> Id -> ExprEnv -> ExprEnv
+insertSymbolic n i = ExprEnv. M.insert n (SymbObj i) . unwrapExprEnv
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
 
 redirect :: Name -> Name -> ExprEnv -> ExprEnv
-redirect n n' = ExprEnv . M.insert n (Left n') . unwrapExprEnv
+redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 
 map :: (Expr -> Expr) -> ExprEnv -> ExprEnv
-map f = ExprEnv . M.map (either (Left) (Right . f)) . unwrapExprEnv
+map f = mapWithKey (\_ -> f)
 
+-- Maps (SymbObj v) iff f v is also a Var
+-- Does not affect redirects
 mapWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
 mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
     where
-        f' :: Name -> Either Name Expr -> Either Name Expr
-        f' n (Right e) = Right $ f n e
+        f' :: Name -> EnvObj -> EnvObj
+        f' n (ExprObj e) = ExprObj $ f n e
+        f' n s@(SymbObj i) = 
+            case f n (Var i) of
+                Var i' -> SymbObj i'
+                _ -> s
         f' _ n = n
 
 filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
@@ -107,17 +132,19 @@ filter p = filterWithKey (\_ -> p)
 filterWithKey :: (Name -> Expr -> Bool) -> ExprEnv -> ExprEnv
 filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
     where
-        p' :: Name -> (Either Name Expr) -> Bool
-        p' n (Left n') = p n (env ! n')
-        p' n (Right e) = p n e
+        p' :: Name -> EnvObj -> Bool
+        p' n (RedirObj n') = p n (env ! n')
+        p' n (ExprObj e) = p n e
+        p' n (SymbObj i) = p n (Var i)
 
 keys :: ExprEnv -> [Name]
 keys = M.keys . unwrapExprEnv
 
+--TODO
 elems :: ExprEnv -> [Expr]
-elems = rights . M.elems . unwrapExprEnv
+elems = exprObjs . M.elems . unwrapExprEnv
 
-toList :: ExprEnv -> [(Name, Either Name Expr)]
+toList :: ExprEnv -> [(Name, EnvObj)]
 toList = M.toList . unwrapExprEnv
 
 -- | Creates a list of Name to Expr coorespondences
@@ -128,8 +155,12 @@ toExprList env@(ExprEnv env') =
     . M.mapWithKey (\k _ -> env ! k) $ env'
 
 fromExprList :: [(Name, Expr)] -> ExprEnv
-fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, Right e))
+fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
 
+-- Symbolic objects will be returned by calls to eval functions, however
+-- calling AST modify functions on the expressions in an ExprEnv will have
+-- no effect on contained symbolic objects, unless the returned type is also a Var.
+-- This is to mantain the invariant that a symbolic object is just a Var
 instance ASTContainer ExprEnv Expr where
     containedASTs = elems
     modifyContainedASTs f = map f
@@ -138,6 +169,51 @@ instance ASTContainer ExprEnv Type where
     containedASTs = containedASTs . elems
     modifyContainedASTs f = map (modifyContainedASTs f)
 
+instance ASTContainer EnvObj Expr where
+    containedASTs (ExprObj e) = [e]
+    containedASTs (RedirObj r) = []
+    containedASTs (SymbObj i) = [Var i]
+
+    modifyContainedASTs f (ExprObj e) = ExprObj (f e)
+    modifyContainedASTs f s@(SymbObj i) =
+        case f (Var i) of
+            (Var i') -> SymbObj i'
+            _ -> s
+    modifyContainedASTs _ r = r
+
+instance ASTContainer EnvObj Type where
+    containedASTs (ExprObj e) = containedASTs e
+    containedASTs (RedirObj r) = []
+    containedASTs (SymbObj i) = containedASTs i
+
+    modifyContainedASTs f (ExprObj e) = ExprObj (modifyContainedASTs f e)
+    modifyContainedASTs f (SymbObj i) = SymbObj (modifyContainedASTs f i)
+    modifyContainedASTs _ r = r
+
 instance Renamable ExprEnv where
     rename old new = ExprEnv . rename old new . unwrapExprEnv
 
+instance Renamable EnvObj where
+    rename old new (ExprObj e) = ExprObj $ rename old new e
+    rename old new (RedirObj r) = RedirObj $ rename old new r
+    rename old new (SymbObj s) = SymbObj $ rename old new s
+
+-- Helpers for EnvObjs
+
+isExprObj :: EnvObj -> Bool
+isExprObj (ExprObj _) = True
+isExprObj _ = False
+
+isRedirObj :: EnvObj -> Bool
+isRedirObj (RedirObj _) = True
+isRedirObj _ = False
+
+isSymbObj :: EnvObj -> Bool
+isSymbObj (ExprObj _) = True
+isSymbObj _ = False
+
+exprObjs :: [EnvObj]  -> [Expr]
+exprObjs [] = []
+exprObjs (ExprObj e:xs) = e:exprObjs xs
+exprObjs (SymbObj i:xs) = Var i:exprObjs xs
+exprObjs (_:xs) = exprObjs xs

@@ -12,6 +12,8 @@ import qualified G2.Internals.Language.ExprEnv as E
 import Data.List
 import Data.Maybe
 
+import Debug.Trace
+
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal | RuleEvalVarVal
           | RuleEvalUnInt
@@ -187,10 +189,13 @@ liftSymDefAlt' eenv mexpr ngen negatives cvar (Alt _ aexpr) = res
           , ngen'
           , Nothing)
 
--- | Attempts to reduce a Var from the eenv.
-varReduce :: E.ExprEnv -> Expr -> Expr
-varReduce eenv (Var i) = fromMaybe (Var i) (return . varReduce eenv =<< E.lookup (idName i) eenv)
-varReduce _ e = e
+-- | Attempts to reduce all Vars from the eenv.
+varReduce :: (ASTContainer e Expr) => E.ExprEnv -> e -> e
+varReduce eenv = modifyASTs (varReduce' eenv)
+
+varReduce' :: E.ExprEnv -> Expr -> Expr
+varReduce' eenv v@(Var i@(Id (Name n _ _) _)) = fromMaybe v (return . varReduce eenv =<< E.lookup (idName i) eenv)                          
+varReduce' _ e = e
 
 -- | Funciton for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
@@ -218,7 +223,7 @@ reduce s @ State { exec_stack = estk
           states = map (\(eenv', cexpr', paths', ngen', f) ->
                          s { expr_env = eenv'
                            , curr_expr = cexpr'
-                           , path_conds = paths' ++ paths
+                           , path_conds = (varReduce eenv' paths') ++ paths
                            , name_gen = ngen'
                            , exec_stack = maybe estk (\f' -> push f' estk) f})
                        eval_results
@@ -230,7 +235,7 @@ reduce s @ State { exec_stack = estk
       in ( RuleReturnCAssume
          , [s { exec_stack = estk'
               , curr_expr = CurrExpr Evaluate fexpr
-              , path_conds = cond : paths }])
+              , path_conds = (varReduce eenv cond) : paths }])
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- pop estk =
@@ -285,7 +290,7 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- location on the actual Haskell heap during execution.
     case unApp (App fexpr aexpr) of
         ((Prim prim ty):args) ->
-            let args' = map (varReduce eenv) args
+            let args' = varReduce eenv args
             in ( RuleEvalPrimToNorm
                 , [( eenv
                    -- This may need to be Evaluate if there are more

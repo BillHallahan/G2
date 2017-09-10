@@ -46,7 +46,7 @@ main = do
 
             let funcOut = mkExprHaskell $ ex
 
-            putStrLn $ pprPathsStr (path_conds st)
+            -- putStrLn $ pprExecStateStr st
             putStrLn (funcCall)
             -- putStrLn (functOut)
         ) in_out
