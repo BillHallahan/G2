@@ -26,9 +26,10 @@ initState prog prog_typ m_assume m_assert f =
     let
         ng = mkNameGen prog
         (ce, ids, ng') = mkCurrExpr m_assume m_assert f ng . concat $ prog
+        eenv' = mkExprEnv . concat $ prog
     in
     State {
-      expr_env = mkExprEnv . concat $ prog
+      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' ids
     , type_env = mkTypeEnv prog_typ
     , curr_expr = CurrExpr Evaluate ce
     , name_gen = ng'

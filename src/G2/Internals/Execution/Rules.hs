@@ -70,7 +70,7 @@ mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
 --   `Case`, which involves pattern decomposition and stuff.
 isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
-    E.lookup (idName var) eenv == Nothing || isSymbolic (idName var) eenv
+    E.lookup (idName var) eenv == Nothing || E.isSymbolic (idName var) eenv
 isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
     (Data _:xs) -> True
@@ -194,7 +194,12 @@ varReduce :: (ASTContainer e Expr) => E.ExprEnv -> e -> e
 varReduce eenv = modifyASTs (varReduce' eenv)
 
 varReduce' :: E.ExprEnv -> Expr -> Expr
-varReduce' eenv v@(Var i@(Id (Name n _ _) _)) = fromMaybe v (return . varReduce eenv =<< E.lookup (idName i) eenv)                          
+varReduce' eenv v@(Var (Id n _)) = 
+    if E.isSymbolic n eenv then
+        v
+    else
+        fromMaybe v $ return . varReduce eenv =<< E.lookup n eenv
+    --fromMaybe v (return . varReduce eenv =<< E.lookup (idName i) eenv)                          
 varReduce' _ e = e
 
 -- | Funciton for performing rule reductions based on stack based evaluation
@@ -476,7 +481,7 @@ reduceEReturn eenv dexpr@(App (Data _) _) ngen (ApplyFrame aexpr) =
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.
 reduceEReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
-  if not (isSymbolic (idName var) eenv)
+  if not (E.isSymbolic (idName var) eenv)
     then (RuleError, (eenv, CurrExpr Return c, ngen))
     else let (sname, ngen') = freshSeededName (idName var) ngen
              sym_app = App (Var var) aexpr
