@@ -60,7 +60,7 @@ mArg s args f d = case elemIndex s args of
                               else f (args !! (i + 1))
 
 nVal :: [String] -> Int
-nVal args = mArg "--n" args read 200
+nVal args = mArg "--n" args read 500
 
 mAssume :: [String] -> Maybe String
 mAssume args = mArg "--assume" args Just Nothing

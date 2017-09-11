@@ -1,5 +1,12 @@
 module Peano where
 
+
+-- class LookAtMe a where
+-- 	lookAtThis :: a -> a
+
+-- instance LookAtMe Peano where
+-- 	lookAtThis p = p
+
 data Peano = Succ Peano | Zero
 
 add :: Peano -> Peano -> Peano

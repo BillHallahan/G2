@@ -40,7 +40,9 @@ defunctionalize s =
 useApplyType :: State -> Type -> State
 useApplyType s (t@(TyFun _ _)) =
     let
-        funcs = passedToHigherOrder (expr_env s) t
+        nonInputIdsEenv = E.filterWithKey (\n _ -> n `notElem` (map idName $ input_ids s)) $ expr_env s
+
+        funcs = passedToHigherOrder nonInputIdsEenv t
 
         --apply data type
         (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (name_gen s)

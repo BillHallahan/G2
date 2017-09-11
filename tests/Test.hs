@@ -49,6 +49,7 @@ tests = return . testGroup "Tests"
         ]
 
 -- Test based on examples that are also good for demos
+sampleTest :: TestTree
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
@@ -70,6 +71,7 @@ sampleTests =
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
+testFileTests :: TestTree
 testFileTests = 
     return . testGroup "Samples"
         =<< sequence [

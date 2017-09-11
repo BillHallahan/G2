@@ -104,7 +104,7 @@ elimNeighboringDups x = x
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Expr], Expr)]
 run con hhp n state = do
 
-    -- putStrLn . pprExecStateStr $ state
+    putStrLn . pprExecStateStr $ state
 
     let preproc_state = runPreprocessing state
     

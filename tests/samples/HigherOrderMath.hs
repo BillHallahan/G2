@@ -5,14 +5,14 @@ abs2 x
     | x >= 0 = x 
     | otherwise = 0 - x --If this 0 isn't here, error!
 
--- square :: Double -> Double
--- square x = x * x
+square :: Double -> Double
+square x = x * x
 
--- negativeSquare :: Double -> Double
--- negativeSquare x = 0 - square x
+negativeSquare :: Double -> Double
+negativeSquare x = 0 - square x
 
--- fourthPower :: Double -> Double
--- fourthPower x = square x * square x
+fourthPower :: Double -> Double
+fourthPower x = square x * square x
 
 fixed :: (Double -> Double) -> Double -> Bool
 fixed f x = x == (f x)
