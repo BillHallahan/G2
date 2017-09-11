@@ -38,15 +38,6 @@ data Rule = RuleEvalVal
           | RuleError
            deriving (Show, Eq, Read)
 
--- | Check whether or not a value is the result of symbolic application. This
--- would require us to go through a chain of things to make sure that the LHS
--- of the sequence of Apps is mapped to a Nothing -- effectively a normal form.
-isSymbolic :: Name -> E.ExprEnv -> Bool
-isSymbolic var eenv = case E.lookup var eenv of
-    Just (App (Var fvar) _) -> isSymbolic (idName fvar) eenv
-    Just _ -> False
-    Nothing -> True
-
 -- | Unravels the application spine.
 unApp :: Expr -> [Expr]
 unApp (App f a) = unApp f ++ [a]
