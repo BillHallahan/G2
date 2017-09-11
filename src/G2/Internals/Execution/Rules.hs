@@ -41,9 +41,9 @@ data Rule = RuleEvalVal
 -- | Check whether or not a value is the result of symbolic application. This
 -- would require us to go through a chain of things to make sure that the LHS
 -- of the sequence of Apps is mapped to a Nothing -- effectively a normal form.
-isSymbolic :: Id -> E.ExprEnv -> Bool
-isSymbolic var eenv = case E.lookup (idName var) eenv of
-    Just (App (Var fvar) _) -> isSymbolic fvar eenv
+isSymbolic :: Name -> E.ExprEnv -> Bool
+isSymbolic var eenv = case E.lookup var eenv of
+    Just (App (Var fvar) _) -> isSymbolic (idName fvar) eenv
     Just _ -> False
     Nothing -> True
 
@@ -70,7 +70,7 @@ mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
 --   `Case`, which involves pattern decomposition and stuff.
 isExprValueForm :: Expr -> E.ExprEnv -> Bool
 isExprValueForm (Var var) eenv =
-    E.lookup (idName var) eenv == Nothing || isSymbolic var eenv
+    E.lookup (idName var) eenv == Nothing || isSymbolic (idName var) eenv
 isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
     (Data _:xs) -> True
@@ -476,7 +476,7 @@ reduceEReturn eenv dexpr@(App (Data _) _) ngen (ApplyFrame aexpr) =
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.
 reduceEReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
-  if not (isSymbolic var eenv)
+  if not (isSymbolic (idName var) eenv)
     then (RuleError, (eenv, CurrExpr Return c, ngen))
     else let (sname, ngen') = freshSeededName (idName var) ngen
              sym_app = App (Var var) aexpr
