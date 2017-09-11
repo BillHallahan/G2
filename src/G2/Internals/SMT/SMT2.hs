@@ -32,20 +32,21 @@ smt2 = SMTConverter {
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars (CurrExpr _ e) -> do
             setUpFormula h_in formula
-            -- putStrLn "\n\n"
-            -- putStrLn formula
+            putStrLn "\n\n"
+            putStrLn formula
             r <- checkSat' h_in h_out
-            -- putStrLn $ "r = " ++ show r
+            putStrLn $ "r = " ++ show r
             if r == SAT then do
                 model <- getModel h_in h_out vars
                 putStrLn "======"
-                putStrLn formula
-                putStrLn ""
+                -- putStrLn formula
+                -- putStrLn ""
                 putStrLn (show model)
                 putStrLn "======"
                 let m = parseModel headers model
 
                 expr <- solveExpr h_in h_out smt2 headers e
+                putStrLn (show expr)
                 return (r, Just m, Just expr)
             else do
                 return (r, Nothing, Nothing)
@@ -249,20 +250,11 @@ getLinesMatchParens' h_out n = do
         out' <- getLinesMatchParens' h_out n'
         return $ out ++ out'
 
-getLinesUntil :: Handle -> (String -> Bool) -> IO String
-getLinesUntil h_out p = do
-    out <- hGetLine h_out
-    _ <- evaluate (length out)
-    if p out then
-        return out
-    else
-        return . (++) (out ++ "\n") =<< getLinesUntil h_out p
-
 solveExpr :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> Expr -> IO SMTAST
 solveExpr h_in h_out con headers e = do
     let smt = toSolverAST con $ exprToSMT e
     hPutStr h_in ("(eval " ++ smt ++ " :completion)\n")
-    out <- getLinesUntil h_out (not . isPrefixOf "(let")
+    out <- getLinesMatchParens h_out
     _ <- evaluate (length out)
 
     return $ parseToSMTAST headers out (typeToSMT . typeOf $ e)

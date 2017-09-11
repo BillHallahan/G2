@@ -148,16 +148,22 @@ altToSMT (DataAlt (DataCon n t ts) ns) =
 altToSMT am = error $ "Unhandled " ++ show am
 
 createVarDecls :: State -> [(SMTHeader)]
-createVarDecls = nub . createVarDecls' . vars . path_conds
+createVarDecls s = nub . createVarDecls' $ 
+                        (pcVars $ path_conds s)
+                     ++ (vars $ curr_expr s)
 
 createVarDecls' :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls' [] = []
 createVarDecls' ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls' xs
 
-vars :: [PathCond] -> [(Name, Sort)]
-vars [] = []
-vars (PCExists i:xs) = idToNameSort i : vars xs
-vars (p:xs)= evalASTs (vars') p ++ vars xs
+pcVars :: [PathCond] -> [(Name, Sort)]
+pcVars [] = []
+pcVars (PCExists i:xs) = idToNameSort i : pcVars xs
+pcVars (p:xs)= vars p ++ pcVars xs
+    where
+
+vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]
+vars = evalASTs vars'
     where
         vars' :: Expr -> [(Name, Sort)]
         vars' (Var i) = [idToNameSort i]

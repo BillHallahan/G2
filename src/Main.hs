@@ -47,8 +47,7 @@ main = do
             let funcOut = mkExprHaskell $ ex
 
             -- putStrLn $ pprExecStateStr st
-            putStrLn (funcCall)
-            -- putStrLn (functOut)
+            putStrLn (funcCall ++ " = " ++ funcOut)
         ) in_out
 
     putStrLn "End"

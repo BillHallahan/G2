@@ -207,7 +207,7 @@ reduce s @ State { exec_stack = estk
                  , name_gen = ngen
                  , path_conds = paths }
   | isExecValueForm s =
-      (RuleIdentity, [s])
+      (RuleIdentity, [s {curr_expr = varReduce eenv cexpr}])
 
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
