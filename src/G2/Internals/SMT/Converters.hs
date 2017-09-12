@@ -94,7 +94,6 @@ funcToSMT e@(Data _) [a] = funcToSMT1Var e a
 funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Var :: Expr -> Expr -> SMTAST
-funcToSMT1Var (Prim UNeg _) a = Neg (exprToSMT a)
 funcToSMT1Var f a
     | f == Data (PrimCon I) = exprToSMT a
     | f == Data (PrimCon F) = exprToSMT a
@@ -102,6 +101,7 @@ funcToSMT1Var f a
     | otherwise = error ("Unhandled function " ++ show f ++ " in funcToSMT1.")
 
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
+funcToSMT1Prim Negate a = Neg (exprToSMT a)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 

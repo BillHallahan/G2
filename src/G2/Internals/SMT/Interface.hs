@@ -4,7 +4,6 @@ module G2.Internals.SMT.Interface
 
 import qualified Data.Map as M
 import Data.Maybe
-import qualified Data.Monoid as Mon
 
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
@@ -68,6 +67,7 @@ simplifyPrims :: ASTContainer t Expr => t -> t
 simplifyPrims = modifyASTs simplifyPrims'
 
 simplifyPrims' :: Expr -> Expr
+simplifyPrims' (App (App (App (Prim Negate t) _) _) a) = App (Prim Negate t) a
 simplifyPrims' (App (App (App (App (Prim p t) _) _) a) b) = App (App (Prim p t) a) b
 simplifyPrims' e = e
 

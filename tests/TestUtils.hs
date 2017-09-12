@@ -5,7 +5,7 @@ import G2.Internals.Language
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'
 eqIgT (Lit c) (Lit c') = c == c'
-eqIgT (Prim p) (Prim p') = p == p'
+eqIgT (Prim p _) (Prim p' _) = p == p'
 eqIgT (Lam n e) (Lam n' e') = eqIgIds n n' && e `eqIgT` e'
 eqIgT (App e1 e2) (App e1' e2') = e1 `eqIgT` e1' && e2 `eqIgT` e2'
 eqIgT (Data (DataCon n _ _)) (Data (DataCon n' _ _)) = eqIgNames n n'

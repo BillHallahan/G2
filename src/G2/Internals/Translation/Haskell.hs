@@ -182,7 +182,7 @@ mkTyBinder (Named v _) = G2.NamedTyBndr (mkId v)
 
 prim_list = [">=", ">", "==", "<=", "<",
              "&&", "||", "not",
-             "+", "-", "*", "/" ]
+             "+", "-", "*", "/", "negate" ]
 
 mkPrims :: FilePath -> IO [(G2.Name, G2.Type)]
 mkPrims prims = runGhc (Just libdir) $ do

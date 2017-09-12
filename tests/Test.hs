@@ -44,12 +44,13 @@ main = defaultMain =<< tests
 
 tests = return . testGroup "Tests"
     =<< sequence [
-          sampleTests
-        , testFileTests
+          -- sampleTests
+        -- , 
+        testFileTests
         ]
 
 -- Test based on examples that are also good for demos
-sampleTest :: TestTree
+sampleTests :: IO TestTree
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
@@ -71,7 +72,7 @@ sampleTests =
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
-testFileTests :: TestTree
+testFileTests :: IO TestTree
 testFileTests = 
     return . testGroup "Samples"
         =<< sequence [
@@ -83,9 +84,9 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
                 -- , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
-                --     [ RExists (\[Const(CDouble x), y] -> x == 2 && y == (Data $ PrimCon DTrue))
+                    -- [ RExists (\[Const(CDouble x), y] -> x == 2 && y == (Data $ PrimCon DTrue))
                 --     , RExists (\[Const(CDouble x), y] -> x == 1 && y == (Data $ PrimCon DFalse))
-                --     , RExists (\[Const(CDouble x), y] -> x /= 2 && x /= 1 && y == (Data $ PrimCon DFalse))]
+                    -- , RExists (\[Const(CDouble x), y] -> x /= 2 && x /= 1 && y == (Data $ PrimCon DFalse))]
         ]
 
 
@@ -130,13 +131,15 @@ checkExpr' exprs i reqList =
 
 testFile :: String -> String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src m_assume m_assert entry = do
-    (binds, tycons) <- translation proj src
+    (binds, tycons) <- translation proj src "./defs/PrimDefs.hs"
 
     let init_state = initState binds tycons m_assume m_assert entry
 
     hhp <- getZ3ProcessHandles
 
-    run smt2 hhp 400 init_state
+    r <- run smt2 hhp 400 init_state
+
+    return $ map (\(_, i, o) -> (i, o)) r
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False

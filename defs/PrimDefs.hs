@@ -44,3 +44,5 @@ implies :: Bool -> Bool -> Bool
 (/) :: (Num a) => a -> a -> a
 (/) = undefined
 
+negate :: (Num a) => a -> a
+negate = undefined

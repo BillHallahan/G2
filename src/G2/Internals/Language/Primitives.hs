@@ -20,6 +20,8 @@ primStr Plus = "+"
 primStr Minus = "-"
 primStr Mult = "*"
 primStr Div = "/"
+primStr Negate = "negate"
+
 
 strToPrim :: String -> Primitive
 strToPrim "not" = Not
@@ -35,6 +37,7 @@ strToPrim "+" = Plus
 strToPrim "-" = Minus
 strToPrim "*" = Mult
 strToPrim "/" = Div
+strToPrim "negate" = Negate
 
 findPrim :: Primitive -> [(Name, Type)] -> (Name, Type)
 findPrim prim [] = error $ "findPrim: not found: " ++ primStr prim
@@ -106,3 +109,6 @@ mkMult = mkPrim Mult
 
 mkDiv :: E.ExprEnv -> Expr
 mkDiv = mkPrim Div
+
+mkNegate :: E.ExprEnv -> Expr
+mkNegate = mkPrim Negate

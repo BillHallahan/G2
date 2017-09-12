@@ -40,7 +40,7 @@ instance Typed Primitive where
     typeOf Minus = TyBottom
     typeOf Mult = TyBottom
     typeOf Div = TyBottom
-    typeOf UNeg = TyBottom
+    typeOf Negate = TyBottom
 
     typeOf' _ = typeOf
 
