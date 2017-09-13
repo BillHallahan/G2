@@ -12,5 +12,5 @@ f x =
 z :: (Int -> Int) -> Int -> Int
 z f x = f (f x)
 
-output32 :: Int -> Int -> Int -> Bool
-output32 _ _ = (32 ==)
+output32 :: Int -> Int -> Bool
+output32 _ = (32 ==)

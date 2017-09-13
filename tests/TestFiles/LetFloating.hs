@@ -8,5 +8,5 @@ f x =
     in
     y x
 
-output6 :: Int -> Int -> Int -> Bool
-output6 _ _ x = (6 == x)
+output6 :: Int -> Int -> Bool
+output6 _ = (6 ==)
