@@ -86,6 +86,8 @@ testFileTests =
                     -- [ RExists (\[Lit (LitDouble x), y] -> x == 2 && y == (Lit $ LitBool True))
                 --     , RExists (\[Const(CDouble x), y] -> x == 1 && y == (Data $ PrimCon DFalse))
                     -- , RExists (\[Lit (LitDouble x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
+
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" (Just "output6") Nothing "f" 1 [Exactly 1, RExists (\[Lit (LitInt x)] -> x == 2)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" (Just "output32") Nothing "f" 1 [Exactly 1, RExists (\[Lit (LitInt x)] -> x == 4)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" (Just "output19") Nothing "f" 1 [Exactly 1, RExists (\[Lit (LitInt x), Lit (LitInt y)] -> x == 2 && y == 8)]
         ]
