@@ -5,6 +5,7 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
 import Data.Foldable
+import Data.Maybe
 
 primStr :: Primitive -> String
 primStr Not = "not"
@@ -23,21 +24,22 @@ primStr Div = "/"
 primStr Negate = "negate"
 
 
-strToPrim :: String -> Primitive
-strToPrim "not" = Not
-strToPrim "&&" = And
-strToPrim "||" = Or
-strToPrim ">=" = Ge
-strToPrim ">" = Gt
-strToPrim "==" = Eq
-strToPrim "/=" = Neq
-strToPrim "<=" = Le
-strToPrim "<" = Lt
-strToPrim "+" = Plus
-strToPrim "-" = Minus
-strToPrim "*" = Mult
-strToPrim "/" = Div
-strToPrim "negate" = Negate
+strToPrim :: String -> Maybe Primitive
+strToPrim "not" = Just Not
+strToPrim "&&" = Just And
+strToPrim "||" = Just Or
+strToPrim ">=" = Just Ge
+strToPrim ">" = Just Gt
+strToPrim "==" = Just Eq
+strToPrim "/=" = Just Neq
+strToPrim "<=" = Just Le
+strToPrim "<" = Just Lt
+strToPrim "+" = Just Plus
+strToPrim "-" = Just Minus
+strToPrim "*" = Just Mult
+strToPrim "/" = Just Div
+strToPrim "negate" = Just Negate
+strToPrim _ = Nothing
 
 findPrim :: Primitive -> [(Name, Type)] -> (Name, Type)
 findPrim prim [] = error $ "findPrim: not found: " ++ primStr prim
@@ -45,7 +47,10 @@ findPrim prim (p@(Name occ _ _, _):ps) =
     if primStr prim == occ then p else findPrim prim ps
 
 mkRawPrim :: [(Name, Type)] -> Name -> Expr
-mkRawPrim primtys name@(Name occ _ _) = foldr Lam cases ids
+mkRawPrim primtys name@(Name occ _ _) = 
+        case prim of
+            Just _ -> foldr Lam cases ids
+            Nothing -> Prim Undefined TyBottom
   where
     prim = strToPrim occ
 
@@ -61,7 +66,7 @@ mkRawPrim primtys name@(Name occ _ _) = foldr Lam cases ids
     varIds = map Var ids
     varBinds = map Var binds
 
-    apps = foldl' App (Prim prim ty) varBinds
+    apps = foldl' App (Prim (fromJust prim) ty) varBinds
     cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
 
 -- | Primitive lookup helpers

@@ -127,7 +127,7 @@ liftLetBinds' eenv ng ((Id n t, b):xs) e =
     let
         --Lift to ExprEnv
         (n', ng') = freshSeededName n ng
-        (b', fv, ng'') = freeVarsToLams eenv ng' b
+        (b', fv, ng'') = freeVarsToLams eenv ng' n b
         eenv' = E.insert n' b' eenv
 
         --Replace Vars in function
@@ -139,10 +139,10 @@ liftLetBinds' eenv ng ((Id n t, b):xs) e =
 -- Adjusts the free variables of am expression to have new, lambda bound names
 -- Returns this new expression, a list of the old ids in the order of their corresponding
 -- lambdas, and a new namgen
-freeVarsToLams :: E.ExprEnv -> NameGen -> Expr -> (Expr, [Id], NameGen)
-freeVarsToLams eenv ng e =
+freeVarsToLams :: E.ExprEnv -> NameGen -> Name -> Expr -> (Expr, [Id], NameGen)
+freeVarsToLams eenv ng n e =
     let
-        fv = freeVars eenv e
+        fv = filter (\i' -> idName i' /= n) $ freeVars eenv e
         fvN = map idName fv
         fvT = map typeOf fv
 
@@ -154,21 +154,6 @@ freeVarsToLams eenv ng e =
         e'' = foldr (Lam) e' frId
     in
     (e'', fv, ng')    
-
---Returns the free (unbound by a Lambda, Let, or the Expr Env) variables of an expr
-freeVars :: ASTContainer m Expr => E.ExprEnv -> m -> [Id]
-freeVars eenv = evalASTsM (freeVars' eenv)
-
--- returns (bound variables, free variables)for use with evalASTsM
-freeVars' :: E.ExprEnv -> [Id] -> Expr -> ([Id], [Id])
-freeVars' _ _ (Let b _) = (map fst b, [])
-freeVars' _ _ (Lam b _) = ([b], [])
-freeVars' eenv bound (Var i) =
-    if E.member (idName i) eenv || i `elem` bound then
-        ([], [])
-    else
-        ([], [i])
-freeVars' _ _ _ = ([], [])
 
 --Replaces all instances of old with new in the AST
 replaceAST :: (Eq e, AST e) => e -> e -> e -> e

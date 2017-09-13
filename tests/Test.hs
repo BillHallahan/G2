@@ -24,7 +24,6 @@ import Data.Tuple
 import PeanoTest
 import HigherOrderMathTest
 
-
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
 --     RForall f -- All the returned inputs satisfy the function f
@@ -62,7 +61,7 @@ sampleTests =
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
-                -- , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
+                , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
                 -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
                 -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
@@ -87,9 +86,10 @@ testFileTests =
                 --     , RExists (\[Const(CDouble x), y] -> x == 1 && y == (Data $ PrimCon DFalse))
                     -- , RExists (\[Lit (LitDouble x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" (Just "output6") Nothing "f" 1 [Exactly 1, RExists (\[Lit (LitInt x)] -> x == 2)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" (Just "output32") Nothing "f" 1 [Exactly 1, RExists (\[Lit (LitInt x)] -> x == 4)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" (Just "output19") Nothing "f" 1 [Exactly 1, RExists (\[Lit (LitInt x), Lit (LitInt y)] -> x == 2 && y == 8)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 15)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 4)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating4.hs" (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
         ]
 
 
@@ -98,6 +98,8 @@ checkExpr proj src m_assume m_assert entry i reqList = do
     exprs <- return . map fst =<< testFile proj src m_assume m_assert entry
 
     let ch = checkExpr' exprs i reqList
+
+    putStrLn $ "exprs = " ++ show exprs
 
     return . testCase src
         $ assertBool ("Assume/Assert for file " ++ src ++ 

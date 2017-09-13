@@ -71,6 +71,7 @@ data Primitive = Ge
                | Mult
                | Div
                | Negate
+               | Undefined
                deriving (Show, Eq, Read)
 
 -- | Literals for denoting unwrapped types such as Int#, Double#. These would

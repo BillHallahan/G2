@@ -61,6 +61,7 @@ exprToSMT (Lit c) =
         LitInt i -> VInt i
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
+        LitBool b -> VBool b
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
 exprToSMT (Data (DataCon n t _)) = V (nameToStr n) (typeToSMT t)
 exprToSMT a@(App _ _) =

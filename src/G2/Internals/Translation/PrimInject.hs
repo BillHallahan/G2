@@ -74,8 +74,8 @@ mergeProgs :: Program -> [(Name, Type)] -> Program
 mergeProgs prog pdefs = injects : prog
   where
     prog_names = progNames prog
-    used = filter (\n -> (nameOccStr n) `elem` prim_list) prog_names
+    (prims, nonPrims) = partition (\n -> (nameOccStr n) `elem` prim_list) prog_names
 
-    defs = map (\(n, t) -> (fromMaybe n $ occFind n used, t)) pdefs
+    defs = map (\(n, t) -> (fromMaybe n $ occFind n prims, t)) pdefs
     defs' = filter (\(n, _) -> (nameOccStr n) `elem` prim_list) defs
-    injects = map (\(n, t) -> (Id n t, mkRawPrim defs' n)) defs'
+    injects = map (\(n, t) -> (Id n t, mkRawPrim defs n)) defs'

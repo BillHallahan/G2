@@ -3,14 +3,10 @@ module LetFloating2 where
 f :: Int -> Int
 f x =
     let
-        g = \y -> y + 1 + h 4
-        h = \y -> y + 2 + i
-        i = 7
+        {-# NOINLINE g #-}
+        g = \y -> y + 1
     in
-    z g x
+    g x
 
-z :: (Int -> Int) -> Int -> Int
-z f x = f (f x)
-
-output32 :: Int -> Int -> Bool
-output32 _ = (32 ==)
+output16 :: Int -> Int -> Bool
+output16 _ = (16 ==)

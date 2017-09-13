@@ -2,6 +2,7 @@
 --   Export module for G2.Internals.Language.
 module G2.Internals.Language
     ( module G2.Internals.Language.AST
+    , module G2.Internals.Language.Expr
     , module G2.Internals.Language.Naming
     , module G2.Internals.Language.Primitives
     , module G2.Internals.Language.Support
@@ -10,6 +11,7 @@ module G2.Internals.Language
     ) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.Expr
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Primitives
 import G2.Internals.Language.Support

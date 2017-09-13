@@ -1,14 +1,19 @@
 module LetFloating3 where
 
-f :: Int -> Int -> Int
-f x y = x + g y
-    where
-        g :: Int -> Int
-        g z = 
-            let
-                h = \q -> q + 1
-            in
-            z + h z
+f :: Int -> Int
+f x =
+    let
+    	{-# NOINLINE g #-}
+        g = \y -> y + 1 + h 4
+        {-# NOINLINE h #-}
+        h = \y -> y + 2 + i
+        {-# NOINLINE i #-}
+        i = 7
+    in
+    z g x
 
-output19 :: Int -> Int -> Int -> Bool
-output19 _ _ = (19 ==)
+z :: (Int -> Int) -> Int -> Int
+z f x = f (f x)
+
+output32 :: Int -> Int -> Bool
+output32 _ = (32 ==)

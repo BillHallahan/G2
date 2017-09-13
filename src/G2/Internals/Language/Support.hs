@@ -4,6 +4,7 @@
 module G2.Internals.Language.Support
     ( module G2.Internals.Language.AST
     , module G2.Internals.Language.Support
+    , E.ExprEnv
     , SymLinks
     ) where
 
