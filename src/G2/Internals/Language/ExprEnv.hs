@@ -24,6 +24,8 @@ module G2.Internals.Language.ExprEnv
     , toList
     , toExprList
     , fromExprList
+    , isRedirect
+    , isRoot
     ) where
 
 import G2.Internals.Language.AST
@@ -157,6 +159,19 @@ toExprList env@(ExprEnv env') =
 
 fromExprList :: [(Name, Expr)] -> ExprEnv
 fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
+
+-- Returns True iff n is a redirect in the ExprEnv
+isRedirect :: Name -> ExprEnv -> Bool
+isRedirect n (ExprEnv eenv) =
+    case M.lookup n eenv of
+        Just (RedirObj _) -> True
+        _ -> False
+
+isRoot :: Name -> ExprEnv -> Bool
+isRoot n (ExprEnv eenv) =
+    case M.lookup n eenv of
+        Just (ExprObj _) -> True
+        _ -> False
 
 -- Symbolic objects will be returned by calls to eval functions, however
 -- calling AST modify functions on the expressions in an ExprEnv will have

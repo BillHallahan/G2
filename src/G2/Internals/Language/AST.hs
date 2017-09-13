@@ -58,6 +58,16 @@ modifyFixM f = go f mempty
 eval :: (AST t, Monoid a) => (t -> a) -> t -> a
 eval f t = (f t) `mappend` (evalChildren (eval f) t)
 
+evalM :: (AST t, Monoid a, Monoid b) => (b -> t -> (b, a)) -> t -> a
+evalM f = go f mempty
+    where
+        go :: (AST t, Monoid a, Monoid b) => (b -> t -> (b, a)) -> b -> t -> a
+        go g b t = let
+                        (b', a') = g b t
+                        b'' = b `mappend` b'
+                   in
+                   a' `mappend` evalChildren (go g b'') t
+
 -- | Evaluation of Children
 evalChildren :: (AST t, Monoid a) => (t -> a) -> t -> a
 evalChildren f = mconcat . (map f) . children
@@ -85,6 +95,9 @@ modifyASTsFix f = modifyContainedASTs (modifyFix f)
 -- | Runs eval on all the ASTs in the container, and uses mappend to results.
 evalASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
 evalASTs f = evalContainedASTs (eval f)
+
+evalASTsM :: (ASTContainer t e, Monoid a, Monoid b) => (b -> e -> (b, a)) -> t -> a
+evalASTsM f = evalContainedASTs (evalM f)
 
 -- | Runs a function on all the ASTs in the container, and uses mappend to
 -- combine the results.

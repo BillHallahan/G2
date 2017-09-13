@@ -219,6 +219,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen ex_state)
     input_str = pprInputIdsStr (input_ids ex_state)
+    funcs_str = pprFuncTableStr (func_table ex_state)
     paths_str = pprPathsStr (path_conds ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
@@ -233,6 +234,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , names_str
                , "----- [Input Ids] ---------------------"
                , input_str
+               , "----- [Func Table] ---------------------"
+               , funcs_str
                , "----- [Paths] ---------------------"
                , paths_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
@@ -270,6 +273,11 @@ pprInputIdsStr :: InputIds -> String
 pprInputIdsStr i = injNewLine id_strs
   where
     id_strs = map show i
+
+pprFuncTableStr :: FuncInterps -> String
+pprFuncTableStr (FuncInterps funcs) = injNewLine funcs_strs
+  where
+    funcs_strs = map show (M.toList funcs)
 
 pprPathCondStr :: PathCond -> String
 pprPathCondStr (AltCond am expr b) = injTuple acc_strs

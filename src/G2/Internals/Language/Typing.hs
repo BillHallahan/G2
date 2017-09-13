@@ -3,6 +3,7 @@
 module G2.Internals.Language.Typing
     ( Typed (..)
     , (.::)
+    , hasFuncType
     , returnType
     , splitTyForAlls
     , splitTyFuns
@@ -86,9 +87,11 @@ instance Typed Expr where
     typeOf' m (Lam b expr) = TyFun (typeOf' m b) (typeOf' m expr)
     typeOf' m (Let _ expr) = typeOf' m expr
     typeOf' m (Case _ _ (a:_)) = typeOf' m a
+    typeOf' m (Case _ _ _) = TyBottom
     typeOf' m (Type ty) = ty
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
+    typeOf' _ e = error $ "unknown " ++ show e
 
 instance Typed Type where
     typeOf = typeOf' M.empty
@@ -122,6 +125,13 @@ specializesTo m (TyConApp n ts) (TyConApp n' ts') =
     && all (\(t, t') -> specializesTo m t t') (zip ts ts')
 specializesTo m (TyForAll b t) (TyForAll b' t') = specializesTo m t t'
 specializesTo _ t t' = t == t'
+
+hasFuncType :: (Typed t) => t -> Bool
+hasFuncType t =
+    case typeOf t of
+        (TyFun _ _) -> True
+        (TyForAll _ _)  -> True
+        _ -> False
 
 returnType :: (Typed t) => t -> Type
 returnType = returnType' . typeOf

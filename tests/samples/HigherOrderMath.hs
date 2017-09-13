@@ -3,13 +3,13 @@ module HigherOrderMath where
 abs2 :: Double -> Double
 abs2 x
     | x >= 0 = x 
-    | otherwise = 0 - x --If this 0 isn't here, error!
+    | otherwise = -x
 
 square :: Double -> Double
 square x = x * x
 
 negativeSquare :: Double -> Double
-negativeSquare x = 0 - square x
+negativeSquare x = -(square x)
 
 fourthPower :: Double -> Double
 fourthPower x = square x * square x

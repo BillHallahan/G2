@@ -44,9 +44,8 @@ main = defaultMain =<< tests
 
 tests = return . testGroup "Tests"
     =<< sequence [
-          -- sampleTests
-        -- , 
-        testFileTests
+          sampleTests
+        , testFileTests
         ]
 
 -- Test based on examples that are also good for demos
@@ -61,14 +60,14 @@ sampleTests =
                 , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
-                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists abs2Neg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
-                , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
+                -- , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
-                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
-                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
-                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
-                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
+                -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
+                -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
+                -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
+                -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -84,9 +83,11 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
                 -- , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
-                    -- [ RExists (\[Const(CDouble x), y] -> x == 2 && y == (Data $ PrimCon DTrue))
+                    -- [ RExists (\[Lit (LitDouble x), y] -> x == 2 && y == (Lit $ LitBool True))
                 --     , RExists (\[Const(CDouble x), y] -> x == 1 && y == (Data $ PrimCon DFalse))
-                    -- , RExists (\[Const(CDouble x), y] -> x /= 2 && x /= 1 && y == (Data $ PrimCon DFalse))]
+                    -- , RExists (\[Lit (LitDouble x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" (Just "output32") Nothing "f" 1 [Exactly 1, RExists (\[Lit (LitInt x)] -> x == 4)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" (Just "output19") Nothing "f" 1 [Exactly 1, RExists (\[Lit (LitInt x), Lit (LitInt y)] -> x == 2 && y == 8)]
         ]
 
 
@@ -137,7 +138,7 @@ testFile proj src m_assume m_assert entry = do
 
     hhp <- getZ3ProcessHandles
 
-    r <- run smt2 hhp 400 init_state
+    r <- run smt2 hhp 600 init_state
 
     return $ map (\(_, i, o) -> (i, o)) r
 

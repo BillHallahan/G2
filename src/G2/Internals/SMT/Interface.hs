@@ -70,27 +70,3 @@ simplifyPrims' :: Expr -> Expr
 simplifyPrims' (App (App (App (Prim Negate t) _) _) a) = App (Prim Negate t) a
 simplifyPrims' (App (App (App (App (Prim p t) _) _) a) b) = App (App (Prim p t) a) b
 simplifyPrims' e = e
-
-{-
-
--- TODO: MOVE THE BELOW FUNCTION
-
---Switches every occurence of a Var in the Func SLT from datatype to function
-replaceFuncSLT :: ASTContainer m Expr => State -> m -> m
-replaceFuncSLT s e = modifyASTs replaceFuncSLT' e
-    where
-        replaceFuncSLT' :: Expr -> Expr
-        replaceFuncSLT' v@(Data (DataCon n _ t _)) =
-            let
-                n' = M.lookup n (func_interps s)
-            in
-            case n' of
-                    Just (n'', _) -> Var n'' (case functionType s n'' of
-                                                Just t -> t
-                                                Nothing -> TyBottom)
-                    Nothing -> v
-        replaceFuncSLT' e = e
-
-        functionType :: State -> Name -> Maybe Type
-        functionType s n = typeOf <$> M.lookup n (expr_env s)
--}

@@ -85,8 +85,8 @@ lookupFuncInterps name (FuncInterps fs) = M.lookup name fs
 insertFuncInterps :: Name -> (Name, Interp) -> FuncInterps -> FuncInterps
 insertFuncInterps fun int (FuncInterps fs) = FuncInterps (M.insert fun int fs)
 
--- | You can also join function interpretation tables?! Note: only
--- reasonable if the union of their key set all map to the same elements.
+-- | You can also join function interpretation tables
+-- Note: only reasonable if the union of their key set all map to the same elements.
 unionFuncInterps :: FuncInterps -> FuncInterps -> FuncInterps
 unionFuncInterps (FuncInterps fs1) (FuncInterps fs2) = FuncInterps $ M.union fs1 fs2
 

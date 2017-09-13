@@ -11,10 +11,13 @@ import G2.Internals.Execution.Rules
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
+import G2.Internals.Postprocessing.Undefunctionalize
+
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 import qualified G2.Internals.Language.Typing
+
 
 import G2.Lib.Printers
 
@@ -104,11 +107,13 @@ elimNeighboringDups x = x
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Expr], Expr)]
 run con hhp n state = do
 
-    -- putStrLn . pprExecStateStr $ state
+    putStrLn . pprExecStateStr $ state
+
+    putStrLn "After start"
 
     let preproc_state = runPreprocessing state
     
-    -- putStrLn . pprExecStateStr $ preproc_state
+    putStrLn . pprExecStateStr $ preproc_state
 
     let exec_states = runNBreadthHist [([], preproc_state)] n
 
@@ -116,7 +121,9 @@ run con hhp n state = do
     mapM_ (\(rs, st) -> putStrLn $ pprExecStateStr st) exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprPathsStr (path_conds st)))) exec_states
 
-    satModelOutputs con hhp (map snd exec_states)
+    sm <- satModelOutputs con hhp (map snd exec_states)
+
+    return $ map (\sm@(s, _, _) -> undefunctionalize s sm) sm
 
     -- ms <- satModelOutputs con hhp (map snd exec_states)
 

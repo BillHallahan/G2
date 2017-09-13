@@ -22,10 +22,6 @@ abs2NonNeg :: [Expr] -> Bool
 abs2NonNeg [f, (Lit (LitDouble x))] = f `eqIgT` abs2 && x >= 0
 abs2NonNeg _ = False
 
-abs2Neg :: [Expr] -> Bool
-abs2Neg [f, (Lit (LitDouble x))] = f `eqIgT` abs2 && x < 0
-abs2Neg _ = False
-
 squareRes :: [Expr] -> Bool
 squareRes [f, (Lit (LitDouble x))] = f `eqIgT` square && (x == 0 || x == 1)
 squareRes _ = False
