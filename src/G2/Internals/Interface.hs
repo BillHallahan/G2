@@ -104,7 +104,7 @@ elimNeighboringDups x = x
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Expr], Expr)]
 run con hhp n state = do
 
-    -- putStrLn . pprExecStateStr $ state
+    putStrLn . pprExecStateStr $ state
 
     let preproc_state = runPreprocessing state
     
@@ -112,7 +112,7 @@ run con hhp n state = do
 
     let exec_states = runNBreadthHist [([], preproc_state)] n
 
-    putStrLn $ "states: " ++ (show $ length exec_states)
+    -- putStrLn $ "states: " ++ (show $ length exec_states)
     mapM_ (\(rs, st) -> putStrLn $ pprExecStateStr st) exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprPathsStr (path_conds st)))) exec_states
 
