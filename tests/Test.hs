@@ -91,7 +91,7 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 4)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating4.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/Guards.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x <= 100 && x /= 80)
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Guards.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x <= 100 && x /= 91)
 
                 --, checkExpr "tests/TestFiles/" "tests/TestFiles/Infinite.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x <= 100 && x /= 80)]
         ]
