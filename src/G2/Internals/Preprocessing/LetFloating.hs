@@ -7,8 +7,6 @@ import Data.Foldable
 import Data.List
 import Data.Monoid hiding (Alt)
 
-import Debug.Trace
-
 -- We lift all let bindings to functions into the expr env.
 -- This is needed to allow for defunctionalization, as if a function is in a let
 -- clause, rather than the expr env, it cannot be called by the apply function
@@ -60,7 +58,7 @@ letFloat' eenv ng =
     let
         hasLet = filter (hasHigherOrderLetBinds) . E.toExprList $ E.filterWithKey (\n _ -> E.isRoot n eenv) eenv
     in
-    trace ("hasLet = " ++ show hasLet) $ letFloat'' hasLet eenv ng
+    letFloat'' hasLet eenv ng
 
 letFloat'' :: [(Name, Expr)] -> E.ExprEnv -> NameGen -> (E.ExprEnv, NameGen)
 letFloat'' [] eenv ng = (eenv, ng)
@@ -70,7 +68,7 @@ letFloat'' ((n,e):ne) eenv ng =
 
         eenv'' = E.insert n e' eenv'
     in
-    trace ("n = " ++ show n ++ "\n---") $ letFloat'' ne eenv'' ng'
+    letFloat'' ne eenv'' ng'
 
 liftLetBinds :: E.ExprEnv -> NameGen -> Expr -> (Expr, E.ExprEnv, NameGen)
 liftLetBinds eenv ng (Let b e) =
@@ -80,7 +78,7 @@ liftLetBinds eenv ng (Let b e) =
 
         (e'', eenv'', ng'') = liftLetBinds eenv' ng' e'
     in
-    trace ("funcs = " ++ show funcs ++ "\n---\nnot funcs = " ++ show notFuncs ++ "\n---") $  (Let notFuncs e'', eenv'', ng'')
+    (Let notFuncs e'', eenv'', ng'')
 liftLetBinds eenv ng (App e1 e2) =
     let
         (e1', eenv', ng') = liftLetBinds eenv ng e1

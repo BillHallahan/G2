@@ -117,9 +117,10 @@ run con hhp n state = do
 
     let exec_states = runNBreadthHist [([], preproc_state)] n
 
-    -- putStrLn $ "states: " ++ (show $ length exec_states)
+    putStrLn $ "states: " ++ (show $ length exec_states)
     -- mapM_ (\(rs, st) -> putStrLn $ pprExecStateStr st) exec_states
-    -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprPathsStr (path_conds st)))) exec_states
+    -- mapM_ (\(rs, st) -> (putStrLn $ pprPathsStr (path_conds st)) >> putStrLn "---") exec_states
+    -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st) >> putStrLn "---")) (filter (isExecValueForm . snd) exec_states)
 
     sm <- satModelOutputs con hhp (map snd exec_states)
 

@@ -46,7 +46,7 @@ smt2 = SMTConverter {
                 let m = parseModel headers model
 
                 expr <- solveExpr h_in h_out smt2 headers e
-                putStrLn (show expr)
+                -- putStrLn (show expr)
                 return (r, Just m, Just expr)
             else do
                 return (r, Nothing, Nothing)

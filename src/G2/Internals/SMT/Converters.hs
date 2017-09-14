@@ -160,8 +160,12 @@ createVarDecls' ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls' xs
 pcVars :: [PathCond] -> [(Name, Sort)]
 pcVars [] = []
 pcVars (PCExists i:xs) = idToNameSort i : pcVars xs
+pcVars (AltCond am e _:xs) = amVars am ++ vars e ++ pcVars xs
 pcVars (p:xs)= vars p ++ pcVars xs
-    where
+
+amVars :: AltMatch -> [(Name, Sort)]
+amVars (DataAlt dc i) = map idToNameSort i
+amVars _ = []
 
 vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]
 vars = evalASTs vars'

@@ -43,7 +43,7 @@ main = defaultMain =<< tests
 
 tests = return . testGroup "Tests"
     =<< sequence [
-          sampleTests
+           sampleTests
         , testFileTests
         ]
 
@@ -52,19 +52,19 @@ sampleTests :: IO TestTree
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                -- , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
+                  checkExpr "tests/samples/" "tests/samples/Peano.hs" 615 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
                 -- , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
-                  checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
-                , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
-                , checkExpr "tests/samples/" "tests/samples/Peano.hs" (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
+                , checkExpr "tests/samples/" "tests/samples/Peano.hs" 400 (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
+                , checkExpr "tests/samples/" "tests/samples/Peano.hs" 600 (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
+                , checkExpr "tests/samples/" "tests/samples/Peano.hs" 400 (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
-                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
-                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
-                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
+                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
+                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, RExists pythagoreanRes, AtLeast 2]
                 , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
-                -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
-                -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
+                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
+                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
                 -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
                 -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
         ]
@@ -76,26 +76,26 @@ testFileTests =
         =<< sequence [
                   checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" Nothing Nothing "f" 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), (Lit (LitInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
                 -- , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
                     -- [ RExists (\[Lit (LitDouble x), y] -> x == 2 && y == (Lit $ LitBool True))
                 --     , RExists (\[Const(CDouble x), y] -> x == 1 && y == (Data $ PrimCon DFalse))
                     -- , RExists (\[Lit (LitDouble x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 15)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 4)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating4.hs" (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" 400 (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 15)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 4)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating4.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
         ]
 
 
-checkExpr :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
-checkExpr proj src m_assume m_assert entry i reqList = do
-    exprs <- return . map fst =<< testFile proj src m_assume m_assert entry
+checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExpr proj src steps m_assume m_assert entry i reqList = do
+    exprs <- return . map fst =<< testFile proj src steps m_assume m_assert entry
 
     let ch = checkExpr' exprs i reqList
 
@@ -109,7 +109,7 @@ checkExpr proj src m_assume m_assert entry i reqList = do
 
 checkExprWithOutput :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprWithOutput proj src m_assume m_assert entry i reqList = do
-    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src m_assume m_assert entry
+    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src 400 m_assume m_assert entry
 
     let ch = checkExpr' (exprs) i reqList
 
@@ -134,15 +134,15 @@ checkExpr' exprs i reqList =
     in
     argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
 
-testFile :: String -> String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
-testFile proj src m_assume m_assert entry = do
+testFile :: String -> String -> Int -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
+testFile proj src steps m_assume m_assert entry = do
     (binds, tycons) <- translation proj src "./defs/PrimDefs.hs"
 
     let init_state = initState binds tycons m_assume m_assert entry
 
     hhp <- getZ3ProcessHandles
 
-    r <- run smt2 hhp 600 init_state
+    r <- run smt2 hhp steps init_state
 
     return $ map (\(_, i, o) -> (i, o)) r
 
