@@ -1,9 +1,9 @@
 module Guards where
 
-f :: Int -> Int
+f :: Bool -> Int
 f x
-    | x > 100 = x
-    | otherwise = x
+    | x = 1
+    | otherwise = 0
 
-g :: Int -> Int -> Bool
-g x y = x <= 100 && y /= 91
+g :: Bool -> Int -> Bool
+g x y = x && y /= 0
