@@ -6,4 +6,4 @@ f x
     | otherwise = 0
 
 g :: Bool -> Int -> Bool
-g x y = x && y /= 0
+g x y = y /= 0
