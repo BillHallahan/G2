@@ -83,6 +83,7 @@ smt2 = SMTConverter {
         , (.>=) = function2 ">="
         , (.>) = function2 ">"
         , (.=) = function2 "="
+        , (./=) = \x -> function1 "not" . function2 "=" x
         , (.<=) = function2 "<="
         , (.<) = function2 "<"
 

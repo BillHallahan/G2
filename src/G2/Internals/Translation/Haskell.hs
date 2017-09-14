@@ -180,7 +180,7 @@ mkTyBinder :: TyBinder -> G2.TyBinder
 mkTyBinder (Anon t) = G2.AnonTyBndr (mkType t)
 mkTyBinder (Named v _) = G2.NamedTyBndr (mkId v)
 
-prim_list = [">=", ">", "==", "<=", "<",
+prim_list = [">=", ">", "==", "/=", "<=", "<",
              "&&", "||", "not",
              "+", "-", "*", "/", "negate" ]
 

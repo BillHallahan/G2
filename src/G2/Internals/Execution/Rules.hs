@@ -207,7 +207,7 @@ reduce s @ State { exec_stack = estk
                  , name_gen = ngen
                  , path_conds = paths }
   | isExecValueForm s =
-      (RuleIdentity, [s {curr_expr = varReduce eenv cexpr}])
+      (RuleIdentity, [s {curr_expr = varReduce eenv cexpr, path_conds = varReduce eenv paths}])
 
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
@@ -219,7 +219,7 @@ reduce s @ State { exec_stack = estk
           states = map (\(eenv', cexpr', paths', ngen', f) ->
                          s { expr_env = eenv'
                            , curr_expr = cexpr'
-                           , path_conds = (varReduce eenv' paths') ++ paths
+                           , path_conds = paths' ++ paths
                            , name_gen = ngen'
                            , exec_stack = maybe estk (\f' -> push f' estk) f})
                        eval_results
@@ -231,7 +231,7 @@ reduce s @ State { exec_stack = estk
       in ( RuleReturnCAssume
          , [s { exec_stack = estk'
               , curr_expr = CurrExpr Evaluate fexpr
-              , path_conds = (varReduce eenv cond) : paths }])
+              , path_conds = cond : paths }])
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- pop estk =

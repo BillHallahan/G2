@@ -30,6 +30,7 @@ data SMTHeader = Assert SMTAST
 data SMTAST = (:>=) SMTAST SMTAST
             | (:>) SMTAST SMTAST
             | (:=) SMTAST SMTAST
+            | (:/=) SMTAST SMTAST
             | (:<) SMTAST SMTAST
             | (:<=) SMTAST SMTAST
 
@@ -92,6 +93,7 @@ data SMTConverter ast out io =
         , (.>=) :: ast -> ast -> ast
         , (.>) :: ast -> ast -> ast
         , (.=) :: ast -> ast -> ast
+        , (./=) :: ast -> ast -> ast
         , (.<) :: ast -> ast -> ast
         , (.<=) :: ast -> ast -> ast
 
@@ -137,6 +139,7 @@ instance AST SMTAST where
     children (x :>= y) = [x, y]
     children (x :> y) = [x, y]
     children (x := y) = [x, y]
+    children (x :/= y) = [x, y]
     children (x :< y) = [x, y]
     children (x :<= y) = [x, y]
 
@@ -161,6 +164,7 @@ instance AST SMTAST where
     modifyChildren f (x :>= y) = f x :>= f y
     modifyChildren f (x :> y) = f x :> f y
     modifyChildren f (x := y) = f x := f y
+    modifyChildren f (x :/= y) = f x :/= f y
     modifyChildren f (x :< y) = f x :< f y
     modifyChildren f (x :<= y) = f x :<= f y
 

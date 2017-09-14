@@ -113,6 +113,7 @@ funcToSMT2Prim Implies a1 a2 = exprToSMT a1 :=> exprToSMT a2
 funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
 funcToSMT2Prim Gt a1 a2 = exprToSMT a1 :> exprToSMT a2
 funcToSMT2Prim Eq a1 a2 = exprToSMT a1 := exprToSMT a2
+funcToSMT2Prim Neq a1 a2 = exprToSMT a1 :/= exprToSMT a2
 funcToSMT2Prim Lt a1 a2 = exprToSMT a1 :< exprToSMT a2
 funcToSMT2Prim Le a1 a2 = exprToSMT a1 :<= exprToSMT a2
 funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
@@ -211,6 +212,7 @@ toSolverAST :: SMTConverter ast out io -> SMTAST -> ast
 toSolverAST con (x :>= y) = (.>=) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :> y) = (.>) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x := y) = (.=) con (toSolverAST con x) (toSolverAST con y)
+toSolverAST con (x :/= y) = (./=) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :< y) = (.<) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :<= y) = (.<=) con (toSolverAST con x) (toSolverAST con y)
 
