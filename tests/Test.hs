@@ -65,8 +65,8 @@ sampleTests =
 
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
-                -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
-                -- , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
+                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 1000 (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
+                , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 1000 (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -93,7 +93,7 @@ testFileTests =
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Guards.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitBool x)] -> x)]
 
-                --, checkExpr "tests/TestFiles/" "tests/TestFiles/Infinite.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x <= 100 && x /= 80)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Infinite.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x <= 100 && x /= 80)]
         ]
 
 
