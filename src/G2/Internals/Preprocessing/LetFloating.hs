@@ -11,39 +11,6 @@ import Data.Monoid hiding (Alt)
 -- This is needed to allow for defunctionalization, as if a function is in a let
 -- clause, rather than the expr env, it cannot be called by the apply function
 
--- letFloat :: State -> State
--- letFloat s =
---     let
---         lb = filter (hasFuncType . typeOf . fst) $ letBinds s
---     in
---     insertBinds lb $ elimBinds (map fst lb) s
-
--- insertBinds :: Binds -> State -> State
--- insertBinds b s = s {expr_env = foldr (\(Id n _, e) -> E.insert n e) (expr_env s) b}
-
--- letBinds :: (ASTContainer m Expr) => m -> Binds
--- letBinds = evalASTs letBinds'
-
--- letBinds' :: Expr -> Binds
--- letBinds' (Let b _) = b
--- letBinds' _ = []
-
--- -- Given a list of 
--- elimBinds :: (ASTContainer m Expr) => [Id] -> m -> m
--- elimBinds is = modifyASTs (elimBinds' is)
-
--- elimBinds' :: [Id] -> Expr -> Expr
--- elimBinds' is (Let b e) = Let (filter (\(i, e) -> i `notElem` is) b) e
--- elimBinds' _ e = e
-
--- -- Returns all Ids bound to functions by Let Expr's
--- funcLetBinds :: (ASTContainer m Expr) => m -> [Id]
--- funcLetBinds = evalASTs (funcLetBinds')
-
--- funcLetBinds' :: Expr -> [Id]
--- funcLetBinds' (Let b _) = filter (hasFuncType) $ map fst b
--- funcLetBinds' _ = []
-
 letFloat :: State -> State
 letFloat s@State { expr_env = eenv
                  , name_gen = ng} =
@@ -126,7 +93,8 @@ liftLetBinds' eenv ng ((Id n t, b):xs) e =
         --Lift to ExprEnv
         (n', ng') = freshSeededName n ng
         (b', fv, ng'') = freeVarsToLams eenv ng' n b
-        eenv' = E.insert n' b' eenv
+        b'' = rename n n' b'
+        eenv' = E.insert n' b'' eenv
 
         --Replace Vars in function
         newCall = foldr App (Var (Id n' t)) (map Var fv)

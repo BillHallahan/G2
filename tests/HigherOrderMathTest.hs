@@ -13,6 +13,7 @@ sub1 = Var (Id (Name "sub1" (Just "HigherOrderMath") 0) TyBool)
 
 add = Var (Id (Name "add" (Just "HigherOrderMath") 0) TyBool)
 sub = Var (Id (Name "sub" (Just "HigherOrderMath") 0) TyBool)
+approxSqrt = Var (Id (Name "approxSqrt" (Just "HigherOrderMath") 0) TyBool)
 pythagorean = Var (Id (Name "pythagorean" (Just "HigherOrderMath") 0) TyBool)
 
 notNegativeAt0 = Var (Id (Name "notNegativeAt0" (Just "HigherOrderMath") 0) TyBottom)
@@ -39,6 +40,9 @@ addRes [f, (Lit (LitDouble x))] = f `eqIgT` add && x > 0
 
 subRes :: [Expr] -> Bool
 subRes [f, (Lit (LitDouble x))] = f `eqIgT` sub && x < 0
+
+approxSqrtRes :: [Expr] -> Bool
+approxSqrtRes [f, (Lit (LitDouble x))] = f `eqIgT` approxSqrt && x > 0
 
 pythagoreanRes :: [Expr] -> Bool
 pythagoreanRes [f, (Lit (LitDouble x))] = f `eqIgT` pythagorean && x /= 0

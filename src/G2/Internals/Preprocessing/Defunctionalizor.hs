@@ -50,7 +50,7 @@ useApplyType s (t@(TyFun _ _)) =
         
         (applyConsNames, r3) = freshSeededNames (map (\e -> case e of
                                                             Var (Id n _) -> n
-                                                            _ -> Name "ApplyCon" Nothing 0) funcs) r2--(take (length funcs) . repeat $ Name "ApplyCon" Nothing 0) r2
+                                                            _ -> Name "ApplyCon" Nothing 0) funcs) r2
         applyDCs = map (\n -> DataCon n applyTypeCon []) applyConsNames
         applyTypeAlg = AlgDataTy [] applyDCs
 

@@ -3,7 +3,7 @@ module LetFloating3 where
 f :: Int -> Int
 f x =
     let
-    	{-# NOINLINE g #-}
+        {-# NOINLINE g #-}
         g = \y -> y + 1 + h 4
         {-# NOINLINE h #-}
         h = \y -> y + 2 + i
