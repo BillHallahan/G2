@@ -7,10 +7,9 @@ module G2.Internals.Preprocessing.FreeBind (freeVarsBind) where
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
 
-freeVarsBind :: State -> State
-freeVarsBind s@State {expr_env = eenv} =
+freeVarsBind :: ExprEnv -> ExprEnv
+freeVarsBind eenv =
 	let
 		fv = freeVars eenv eenv
-		eenv' = foldr (\i -> E.insertSymbolic (idName i) i) eenv fv
 	in
-	s {expr_env = eenv'}
+	foldr (\i -> E.insertSymbolic (idName i) i) eenv fv

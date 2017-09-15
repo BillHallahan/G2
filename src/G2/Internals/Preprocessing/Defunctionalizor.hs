@@ -25,17 +25,18 @@ apply_a_b :: A_B -> a -> b, is created.
 type FuncName = Name
 type ApplyTypeName = Name
 
-defunctionalize :: State -> State
-defunctionalize s =
-    case leadingHigherOrderTypes s of
-            (t:_) -> defunctionalize $ let (eenv, tenv, e, ng, ids, pcs, ft) = useApplyType s t in s { expr_env = eenv 
-                                                                                                     , type_env = tenv
-                                                                                                     , curr_expr = e
-                                                                                                     , name_gen = ng
-                                                                                                     , input_ids = ids
-                                                                                                     , path_conds = pcs
-                                                                                                     , func_table = ft}
-            _ -> s
+defunctionalize :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, TypeEnv, NameGen, FuncInterps)
+defunctionalize eenv tenv ng = defunctionalize' eenv tenv ng (FuncInterps M.empty)
+
+defunctionalize' :: ExprEnv -> TypeEnv -> NameGen -> FuncInterps -> (ExprEnv, TypeEnv, NameGen, FuncInterps)
+defunctionalize' eenv tenv ng ft =
+    case leadingHigherOrderTypes eenv tenv of
+            (t:_) -> 
+                let 
+                    (eenv', tenv', ng', ft') = useApplyType eenv tenv ng ft t
+                in
+                defunctionalize' eenv' tenv' ng' ft'
+            _ -> (eenv, tenv, ng, ft)
 
 -- Given a state and a leading higher order function type
 -- adjusts the state to use apply types instead.
@@ -43,36 +44,34 @@ defunctionalize s =
 --   (1) Creating the apply datatype, and an apply constructor for each function of that type
 --   (2) Create an apply function
 --   (3) Adjust all relevant higher order functions
-useApplyType :: State -> Type -> (ExprEnv, TypeEnv, CurrExpr, NameGen, InputIds, [PathCond], FuncInterps)
-useApplyType s (t@(TyFun _ _)) =
+useApplyType :: ExprEnv -> TypeEnv -> NameGen -> FuncInterps -> Type -> (ExprEnv, TypeEnv, NameGen, FuncInterps)
+useApplyType eenv tenv ng ft (t@(TyFun _ _)) =
     let
-        nonInputIdsEenv = E.filterWithKey (\n _ -> n `notElem` (map idName $ input_ids s)) $ expr_env s
-
-        funcs = passedToHigherOrder nonInputIdsEenv t
+        funcs = passedToHigherOrder eenv t
 
         --apply data type
-        (applyTypeName, r2) = freshSeededName (Name "ApplyType" Nothing 0) (name_gen s)
+        (applyTypeName, ng2) = freshSeededName (Name "ApplyType" Nothing 0) ng
         applyTypeCon = TyConApp applyTypeName []
         
-        (applyConsNames, r3) = freshSeededNames (map (\e -> case e of
+        (applyConsNames, ng3) = freshSeededNames (map (\e -> case e of
                                                             Var (Id n _) -> n
-                                                            _ -> Name "ApplyCon" Nothing 0) funcs) r2
+                                                            _ -> Name "ApplyCon" Nothing 0) funcs) ng2
         applyDCs = map (\n -> DataCon n applyTypeCon []) applyConsNames
         applyTypeAlg = AlgDataTy [] applyDCs
 
         namesToFuncs = zip applyConsNames funcs 
 
         --function
-        (applyFuncName, r4) = freshSeededName (Name "applyFunc" Nothing 0) r3
+        (applyFuncName, ng4) = freshSeededName (Name "applyFunc" Nothing 0) ng3
         args = argList t
-        (applyFunc, r5) = createApplyFunc args applyTypeName namesToFuncs r4
+        (applyFunc, ng5) = createApplyFunc args applyTypeName namesToFuncs ng4
 
         --adjustment
-        higherNameExpr = higherOrderOfTypeFuncNames (expr_env s) t
+        higherNameExpr = higherOrderOfTypeFuncNames eenv t
         higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) higherNameExpr
 
 
-        newCurr_expr = foldr (\(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
+        -- newCurr_expr = foldr (\(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
 
 
         newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
@@ -80,41 +79,32 @@ useApplyType s (t@(TyFun _ _)) =
                                                     Var (Id n' _) -> Just (a, (n', StdInterp))
                                                     _ -> Nothing) $ namesToFuncs
 
-        s2 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) (s {name_gen = r5}) higherNameExprArgs
+        eenv' = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) eenv higherNameExprArgs
 
-        s3 = foldr (\(n, e) -> modifyASTs (sndAppReplaceEx e n t applyTypeCon)) s2 namesToFuncs
+        eenv'' = foldr (\(n, e) -> modifyASTs (sndAppReplaceEx e n t applyTypeCon)) eenv' namesToFuncs
 
-        s4 = modifyASTs (applyTypeReplace t applyTypeCon) (s3 {curr_expr = newCurr_expr})
+        eenv''' = modifyASTs (applyTypeReplace t applyTypeCon) eenv''
 
-        s5 = adjustLambdas t applyTypeCon s4
+        eenv'''' = adjustLambdas t applyTypeCon eenv'''
 
-        new_expr_env = foldr (\(Id n _) -> exprReplace (Var $ Id n t) (Var $ Id n applyTypeCon)) (expr_env s5) (input_ids s5)
+        -- eenv''''' = foldr (\(Id n _) -> exprReplace (Var $ Id n t) (Var $ Id n applyTypeCon)) eenv'''' (input_ids s5)
 
     in
-    ( E.insert applyFuncName applyFunc new_expr_env
-    , M.insert applyTypeName applyTypeAlg (type_env s5)
-    , curr_expr s5
-    , name_gen s5
-    , adjustInputIds t applyTypeCon (input_ids s5)
-    , adjustPathConds t applyTypeCon (path_conds s5)
-    , unionFuncInterps newFuncs_interps (func_table s5))
-    -- s5 { expr_env = E.insert applyFuncName applyFunc new_expr_env
-    --     , type_env = M.insert applyTypeName applyTypeAlg (type_env s5)
-    --     , input_ids = adjustInputIds t applyTypeCon (input_ids s5)
-    --     , path_conds = adjustPathConds t applyTypeCon (path_conds s5)
-    --     , func_table = unionFuncInterps newFuncs_interps (func_table s5)
-    -- }
+    ( E.insert applyFuncName applyFunc eenv''''
+    , M.insert applyTypeName applyTypeAlg tenv
+    , ng5
+    , unionFuncInterps newFuncs_interps ft)
     where
         argList :: Type -> [Type]
         argList (TyFun ty ty') = ty:argList ty'
         argList ty = [ty]
 
-        updateArgRefs :: FuncName -> Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> State -> State
-        updateArgRefs na ty t' fn e ns st =
+        updateArgRefs :: FuncName -> Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> ExprEnv -> ExprEnv
+        updateArgRefs na ty t' fn e ns eenv =
             let
                 e' = updateArgRefs' ty t' fn e ns
             in
-            st {expr_env = E.insertPreserving na e' (expr_env st) }
+            E.insertPreserving na e' eenv
 
         updateArgRefs' :: Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> Expr
         updateArgRefs' _ _ _ e [] = e
@@ -157,7 +147,7 @@ useApplyType s (t@(TyFun _ _)) =
                     if e' == repEx then App e (Data (DataCon n at [])) else a
                 sndAppReplaceEx' e = e
 
-useApplyType _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
+useApplyType _ _ _ _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
 
 --Creates the apply function
 createApplyFunc :: [Type] -> ApplyTypeName -> [(Name, Expr)] -> NameGen -> (Expr, NameGen)
@@ -203,11 +193,11 @@ applyTypeReplace tOld tNew t@(TyFun t'@(TyFun _ _) t'') =
 applyTypeReplace _ _ t = t
 
 -- Get all function types that are passed into any function
-leadingHigherOrderTypes :: State -> [Type]
-leadingHigherOrderTypes s =
+leadingHigherOrderTypes :: ExprEnv -> TypeEnv -> [Type]
+leadingHigherOrderTypes eenv tenv =
     let
-        higherTExprEnv = higherOrderTypesTEnv . type_env $ s
-        higherExprEnv = map typeOf . higherOrderFuncsExprEnv . expr_env $ s
+        higherTExprEnv = higherOrderTypesTEnv $ tenv
+        higherExprEnv = map typeOf . higherOrderFuncsExprEnv  $ eenv
     in
     nub . concatMap leading $ higherTExprEnv ++ higherExprEnv
     where

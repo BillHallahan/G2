@@ -11,17 +11,8 @@ import Data.Monoid hiding (Alt)
 -- This is needed to allow for defunctionalization, as if a function is in a let
 -- clause, rather than the expr env, it cannot be called by the apply function
 
-letFloat :: State -> State
-letFloat s@State { expr_env = eenv
-                 , name_gen = ng} =
-            let
-                (eenv', ng') = letFloat' eenv ng
-            in
-            s { expr_env = eenv'
-              , name_gen = ng' }
-
-letFloat' :: E.ExprEnv -> NameGen -> (E.ExprEnv, NameGen)
-letFloat' eenv ng =
+letFloat :: E.ExprEnv -> NameGen -> (E.ExprEnv, NameGen)
+letFloat eenv ng =
     let
         hasLet = filter (hasHigherOrderLetBinds) . E.toExprList $ E.filterWithKey (\n _ -> E.isRoot n eenv) eenv
     in

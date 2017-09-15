@@ -1,5 +1,5 @@
 module G2.Internals.Interface ( initState
-                                             , run) where
+                              , run) where
 
 import G2.Internals.Language
 
@@ -28,18 +28,21 @@ initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> String 
 initState prog prog_typ m_assume m_assert f =
     let
         ng = mkNameGen prog
-        (ce, ids, ng') = mkCurrExpr m_assume m_assert f ng . concat $ prog
+        (ce, ids, ng') = mkCurrExpr m_assume m_assert f (name_gen s) (expr_env s)
         eenv' = mkExprEnv prog
+
+
+        s = runPreprocessing (State {expr_env = eenv', type_env = mkTypeEnv prog_typ, name_gen = ng})
     in
     State {
-      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' ids
-    , type_env = mkTypeEnv prog_typ
+      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) (expr_env s) ids
+    , type_env = (type_env s)
     , curr_expr = CurrExpr Evaluate ce
     , name_gen = ng'
     , path_conds = map PCExists ids
     , input_ids = ids
     , sym_links = Sym.empty
-    , func_table = emptyFuncInterps
+    , func_table = (func_table s)
     , exec_stack = Stack.empty
  }
 
@@ -53,9 +56,9 @@ args :: Type -> [Type]
 args (TyFun t ts) = t:args ts  
 args _ = []
 
-mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> Binds -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert s ng b =
-    case findFunc s b of
+mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> ExprEnv -> (Expr, [Id], NameGen)
+mkCurrExpr m_assume m_assert s ng eenv =
+    case findFunc s eenv of
         Left (f, ex) -> 
             let
                 typs = args . typeOf $ ex
@@ -70,17 +73,17 @@ mkCurrExpr m_assume m_assert s ng b =
                 id_name = Id name (typeOf f)
                 var_name = Var id_name
 
-                assume_ex = mkAssumeAssert Assume m_assume var_ids var_name var_name b
-                assert_ex = mkAssumeAssert Assert m_assert var_ids assume_ex var_name b
+                assume_ex = mkAssumeAssert Assume m_assume var_ids var_name var_name eenv
+                assert_ex = mkAssumeAssert Assert m_assert var_ids assume_ex var_name eenv
                 
                 let_ex = Let [(id_name, app_ex)] assert_ex
             in
             (let_ex, ids, ng'')
         Right s -> error s
 
-mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> [Expr] -> Expr -> Expr -> Binds -> Expr
-mkAssumeAssert p (Just f) var_ids inter pre_ex b =
-    case findFunc f b of
+mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
+mkAssumeAssert p (Just f) var_ids inter pre_ex eenv =
+    case findFunc f eenv of
         Left (f, ex) -> 
             let
                 app_ex = foldr (\vi e -> App e vi) (Var f) (pre_ex:var_ids)
@@ -89,13 +92,13 @@ mkAssumeAssert p (Just f) var_ids inter pre_ex b =
         Right s -> error s
 mkAssumeAssert _ Nothing _ e _ _ = e
 
-findFunc :: String -> Binds -> Either (Id, Expr) String
-findFunc s b = 
+findFunc :: String -> ExprEnv -> Either (Id, Expr) String
+findFunc s eenv = 
     let
-        match = filter (\(Id (Name n _ _) _, _) -> n == s) b
+        match = E.toExprList $ E.filterWithKey (\(Name n _ _) _ -> n == s) eenv
     in
     case match of
-        [fe] -> Left fe
+        [(n, e)] -> Left (Id n (typeOf e) , e)
         x:xs -> Right $ "Multiple functions with name " ++ s
         [] -> Right $ "No functions with name " ++ s
 
@@ -111,11 +114,11 @@ run con hhp n state = do
 
     -- putStrLn "After start"
 
-    let preproc_state = runPreprocessing state
+    -- let preproc_state = runPreprocessing state
     
     -- putStrLn . pprExecStateStr $ preproc_state
 
-    let exec_states = runNBreadthHist [([], preproc_state)] n
+    let exec_states = runNBreadthHist [([], state)] n
 
     -- putStrLn $ "states: " ++ (show $ length exec_states)
     -- mapM_ (\(rs, st) -> putStrLn $ pprExecStateStr st) exec_states

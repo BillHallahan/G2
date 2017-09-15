@@ -7,9 +7,14 @@ import G2.Internals.Preprocessing.LetFloating
 import G2.Internals.Preprocessing.NameCleaner
 
 runPreprocessing :: State -> State
-runPreprocessing = defunctionalize
-				 . letFloat
-				 . freeVarsBind
-                 . cleanNames
-
-
+runPreprocessing s =
+	let
+		s' = cleanNames s
+		eenv = freeVarsBind $ expr_env s
+		(eenv', ng) = letFloat eenv (name_gen s)
+		(eenv'', tenv, ng', ft) = defunctionalize eenv' (type_env s) ng
+	in
+	s { expr_env = eenv''
+	  , type_env = tenv
+	  , name_gen = ng'
+	  , func_table = ft }
