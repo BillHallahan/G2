@@ -35,7 +35,7 @@ smt2 = SMTConverter {
             -- putStrLn "\n\n"
             -- putStrLn formula
             r <- checkSat' h_in h_out
-            -- putStrLn $ "r = " ++ show r
+            putStrLn $ "r =  " ++ show r
             if r == SAT then do
                 model <- getModel h_in h_out vars
                 -- putStrLn "======"
