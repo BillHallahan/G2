@@ -1,5 +1,5 @@
 module G2.Internals.Interface ( initState
-                              , run) where
+                                             , run) where
 
 import G2.Internals.Language
 
@@ -29,7 +29,7 @@ initState prog prog_typ m_assume m_assert f =
     let
         ng = mkNameGen prog
         (ce, ids, ng') = mkCurrExpr m_assume m_assert f ng . concat $ prog
-        eenv' = mkExprEnv . concat $ prog
+        eenv' = mkExprEnv prog
     in
     State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' ids
@@ -43,8 +43,8 @@ initState prog prog_typ m_assume m_assert f =
     , exec_stack = Stack.empty
  }
 
-mkExprEnv :: Binds -> E.ExprEnv
-mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
+mkExprEnv :: Program -> E.ExprEnv
+mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, ts, dcs) -> (n, AlgDataTy ts dcs))

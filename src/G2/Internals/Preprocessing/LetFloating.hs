@@ -97,7 +97,7 @@ liftLetBinds' eenv ng ((Id n t, b):xs) e =
         eenv' = E.insert n' b'' eenv
 
         --Replace Vars in function
-        newCall = foldr App (Var (Id n' t)) (map Var fv)
+        newCall = foldl' App (Var (Id n' t)) (map Var fv)
         e' = replaceAST (Var (Id n t)) newCall e
     in
     liftLetBinds' eenv' ng'' xs e'

@@ -200,7 +200,7 @@ instance ASTContainer ExprEnv Type where
 
 instance ASTContainer EnvObj Expr where
     containedASTs (ExprObj e) = [e]
-    containedASTs (RedirObj r) = []
+    containedASTs (RedirObj _) = []
     containedASTs (SymbObj i) = [Var i]
 
     modifyContainedASTs f (ExprObj e) = ExprObj (f e)
@@ -212,7 +212,7 @@ instance ASTContainer EnvObj Expr where
 
 instance ASTContainer EnvObj Type where
     containedASTs (ExprObj e) = containedASTs e
-    containedASTs (RedirObj r) = []
+    containedASTs (RedirObj _) = []
     containedASTs (SymbObj i) = containedASTs i
 
     modifyContainedASTs f (ExprObj e) = ExprObj (modifyContainedASTs f e)

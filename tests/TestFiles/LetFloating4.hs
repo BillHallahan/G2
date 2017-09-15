@@ -1,16 +1,15 @@
 module LetFloating4 where
 
-f :: Int -> Int -> Int
-f x y = x + g y
-    where
-    	{-# NOINLINE g #-}
-        g :: Int -> Int
-        g z = 
-            let
-            	{-# NOINLINE h #-}
-                h = \q -> q + 1
-            in
-            z + h z
+f :: Int -> Int
+f x =
+    let
+        {-# NOINLINE g #-}
+        g = \y -> y + 1
+    in
+    z g x
 
-output19 :: Int -> Int -> Int -> Bool
-output19 _ _ = (19 ==)
+z :: (Int -> Int) -> Int -> Int
+z f x = f x
+
+output12 :: Int -> Int -> Bool
+output12 _ = (12 ==)

@@ -5,21 +5,15 @@ module Main where
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import GHC
-
 import G2.Internals.Interface
 import G2.Internals.Language as G2
 import G2.Internals.Translation
-import G2.Internals.Preprocessing
-import G2.Internals.Execution
 import G2.Internals.SMT
 
 
-import Data.List
 import qualified Data.Map  as M
 import Data.Maybe
 import qualified Data.Monoid as Mon
-import Data.Tuple
 
 import PeanoTest
 import HigherOrderMathTest
@@ -61,7 +55,10 @@ sampleTests =
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
+
+                -- The below test fails because Z3 returns unknown.
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
+                
                 , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
@@ -90,7 +87,9 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" 400 (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 15)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 4)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating4.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating4.hs" 400 (Just "output12") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 11)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 1 [RExists (\[x, y] -> x == y), AtLeast 1]
 

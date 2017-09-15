@@ -28,7 +28,13 @@ type ApplyTypeName = Name
 defunctionalize :: State -> State
 defunctionalize s =
     case leadingHigherOrderTypes s of
-            (t:_) -> defunctionalize $ useApplyType s t
+            (t:_) -> defunctionalize $ let (eenv, tenv, e, ng, ids, pcs, ft) = useApplyType s t in s { expr_env = eenv 
+                                                                                                     , type_env = tenv
+                                                                                                     , curr_expr = e
+                                                                                                     , name_gen = ng
+                                                                                                     , input_ids = ids
+                                                                                                     , path_conds = pcs
+                                                                                                     , func_table = ft}
             _ -> s
 
 -- Given a state and a leading higher order function type
@@ -37,7 +43,7 @@ defunctionalize s =
 --   (1) Creating the apply datatype, and an apply constructor for each function of that type
 --   (2) Create an apply function
 --   (3) Adjust all relevant higher order functions
-useApplyType :: State -> Type -> State
+useApplyType :: State -> Type -> (ExprEnv, TypeEnv, CurrExpr, NameGen, InputIds, [PathCond], FuncInterps)
 useApplyType s (t@(TyFun _ _)) =
     let
         nonInputIdsEenv = E.filterWithKey (\n _ -> n `notElem` (map idName $ input_ids s)) $ expr_env s
@@ -76,19 +82,28 @@ useApplyType s (t@(TyFun _ _)) =
 
         s2 = foldr (\(n, e, a) -> updateArgRefs n t applyTypeCon applyFuncName e a) (s {name_gen = r5}) higherNameExprArgs
 
-        s3 = modifyASTs (applyTypeReplace t applyTypeCon) (s2 {curr_expr = newCurr_expr})
+        s3 = foldr (\(n, e) -> modifyASTs (sndAppReplaceEx e n t applyTypeCon)) s2 namesToFuncs
 
-        s4 = adjustLambdas t applyTypeCon s3
+        s4 = modifyASTs (applyTypeReplace t applyTypeCon) (s3 {curr_expr = newCurr_expr})
 
-        new_expr_env = foldr (\(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (expr_env s4) (input_ids s)
+        s5 = adjustLambdas t applyTypeCon s4
+
+        new_expr_env = foldr (\(Id n _) -> exprReplace (Var $ Id n t) (Var $ Id n applyTypeCon)) (expr_env s5) (input_ids s5)
 
     in
-    s4 { expr_env = E.insert applyFuncName applyFunc new_expr_env
-        , type_env = M.insert applyTypeName applyTypeAlg (type_env s4)
-        , input_ids = adjustInputIds t applyTypeCon (input_ids s4)
-        , path_conds = adjustPathConds t applyTypeCon (path_conds s4)
-        , func_table = unionFuncInterps newFuncs_interps (func_table s4)
-    }
+    ( E.insert applyFuncName applyFunc new_expr_env
+    , M.insert applyTypeName applyTypeAlg (type_env s5)
+    , curr_expr s5
+    , name_gen s5
+    , adjustInputIds t applyTypeCon (input_ids s5)
+    , adjustPathConds t applyTypeCon (path_conds s5)
+    , unionFuncInterps newFuncs_interps (func_table s5))
+    -- s5 { expr_env = E.insert applyFuncName applyFunc new_expr_env
+    --     , type_env = M.insert applyTypeName applyTypeAlg (type_env s5)
+    --     , input_ids = adjustInputIds t applyTypeCon (input_ids s5)
+    --     , path_conds = adjustPathConds t applyTypeCon (path_conds s5)
+    --     , func_table = unionFuncInterps newFuncs_interps (func_table s5)
+    -- }
     where
         argList :: Type -> [Type]
         argList (TyFun ty ty') = ty:argList ty'
@@ -107,16 +122,16 @@ useApplyType s (t@(TyFun _ _)) =
             let
                 funcType = TyFun at ty
 
-                e' = fstAppReplace funcType fn n t' e
-                e'' = sndAppReplace n t' at e'
+                e' = fstAppReplace fn n funcType t' e
+                e'' = sndAppReplace fn n t' at e'
             in
             if ty == t' then updateArgRefs' ty at fn e'' ns else updateArgRefs' ty at fn e ns
 
         -- This adjusts for when the function with the given name is in the first position in an app
         -- This means that the function is being called
         -- We change the call to the function, to a call to the apply function, and pass in the correct constructor
-        fstAppReplace :: Type -> FuncName -> FuncName -> Type -> Expr -> Expr
-        fstAppReplace tn fn n ty = modify (fstAppReplace')
+        fstAppReplace :: FuncName -> FuncName -> Type -> Type -> Expr -> Expr
+        fstAppReplace fn n tn ty = modify (fstAppReplace')
             where
                 fstAppReplace' :: Expr -> Expr
                 fstAppReplace' a@(App e e') =
@@ -126,13 +141,21 @@ useApplyType s (t@(TyFun _ _)) =
         -- This adjusts for when the function with the given name is in the second position in an app
         -- This means that the function is being passed
         -- It simply swaps the type of the function, from a function type to an applytype
-        sndAppReplace :: FuncName -> Type -> Type -> Expr -> Expr
-        sndAppReplace n ty at = modify (sndAppReplace')
+        sndAppReplace :: FuncName -> FuncName -> Type -> Type -> Expr -> Expr
+        sndAppReplace fn n ty at = modify (sndAppReplace')
             where
                 sndAppReplace' :: Expr -> Expr
                 sndAppReplace' a@(App e e') =
-                    if e' == Var (Id n ty) then App e (Var (Id n at)) else a
+                    if e' == Var (Id fn ty) then App e (Var (Id n at)) else a
                 sndAppReplace' e = e
+
+        sndAppReplaceEx :: Expr -> FuncName -> Type -> Type -> Expr -> Expr
+        sndAppReplaceEx repEx n ty at = modify (sndAppReplaceEx')
+            where
+                sndAppReplaceEx' :: Expr -> Expr
+                sndAppReplaceEx' a@(App e e') =
+                    if e' == repEx then App e (Data (DataCon n at [])) else a
+                sndAppReplaceEx' e = e
 
 useApplyType _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
 

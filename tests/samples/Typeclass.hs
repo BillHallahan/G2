@@ -14,5 +14,5 @@ instance Number Peano where
     isZero Zero = True
     isZero _ = False
 
-main = undefined
-
+test :: Peano -> Peano
+test p = add (Succ p) p
