@@ -12,6 +12,7 @@ module G2.Internals.Language.ExprEnv
     , occLookup
     , insert
     , insertSymbolic
+    , insertPreserving
     , insertExprs
     , redirect
     , (!)
@@ -106,6 +107,18 @@ insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv
 
 insertSymbolic :: Name -> Id -> ExprEnv -> ExprEnv
 insertSymbolic n i = ExprEnv. M.insert n (SymbObj i) . unwrapExprEnv
+
+-- Inserts into the expr env, preserving the EnvObj type
+-- Will make no changes if this is not possible
+insertPreserving :: Name -> Expr -> ExprEnv -> ExprEnv
+insertPreserving n e eenv
+    | isSymbolic n eenv
+    , (Var i) <- e =
+        insertSymbolic n i eenv
+    | isSymbolic n eenv || isRedirect n eenv =
+        eenv
+    | otherwise = insert n e eenv
+
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs

@@ -82,10 +82,10 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
-                -- , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
-                    -- [ RExists (\[Lit (LitDouble x), y] -> x == 2 && y == (Lit $ LitBool True))
-                --     , RExists (\[Const(CDouble x), y] -> x == 1 && y == (Data $ PrimCon DFalse))
-                    -- , RExists (\[Lit (LitDouble x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" 400 Nothing Nothing "f" 2
+                    [ RExists (\[Lit (LitDouble x), y] -> x == 2 && y == (Lit $ LitBool True))
+                    , RExists (\[Lit(LitDouble x), y] -> x == 1 && y == (Lit $ LitBool False))
+                    , RExists (\[Lit (LitDouble x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" 400 (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 15)]

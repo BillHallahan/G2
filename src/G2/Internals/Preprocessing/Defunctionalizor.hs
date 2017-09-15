@@ -68,6 +68,7 @@ useApplyType s (t@(TyFun _ _)) =
 
         newCurr_expr = foldr (\(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
 
+
         newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
                                                     Var (Id n' _) -> Just (a, (n', StdInterp))
@@ -79,8 +80,10 @@ useApplyType s (t@(TyFun _ _)) =
 
         s4 = adjustLambdas t applyTypeCon s3
 
+        new_expr_env = foldr (\(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (expr_env s4) (input_ids s)
+
     in
-    s4 { expr_env = E.insert applyFuncName applyFunc (expr_env s4)
+    s4 { expr_env = E.insert applyFuncName applyFunc new_expr_env
         , type_env = M.insert applyTypeName applyTypeAlg (type_env s4)
         , input_ids = adjustInputIds t applyTypeCon (input_ids s4)
         , path_conds = adjustPathConds t applyTypeCon (path_conds s4)
@@ -96,7 +99,7 @@ useApplyType s (t@(TyFun _ _)) =
             let
                 e' = updateArgRefs' ty t' fn e ns
             in
-            st {expr_env = E.insert na e' (expr_env st)}
+            st {expr_env = E.insertPreserving na e' (expr_env st) }
 
         updateArgRefs' :: Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> Expr
         updateArgRefs' _ _ _ e [] = e
