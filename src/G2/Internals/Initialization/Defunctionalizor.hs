@@ -1,4 +1,4 @@
-module G2.Internals.Preprocessing.Defunctionalizor
+module G2.Internals.Initialization.Defunctionalizor
     (defunctionalize) where
 
 import G2.Internals.Language
@@ -173,16 +173,6 @@ createApplyFunc ts applyTypeName namesToFuncs r =
     in
     (Lam apply_arg_id arg_lams, r5)
 
--- In e, replaces all eOld with eNew
-exprReplace :: ASTContainer e Expr => Expr -> Expr -> e -> e
-exprReplace eOld eNew = modifyContainedASTs (exprReplace')
-    where
-        exprReplace' :: Expr -> Expr
-        exprReplace' e =
-            if e == eOld
-                then modifyChildren (exprReplace eOld eNew) eNew 
-                else modifyChildren (exprReplace eOld eNew) e
-
 -- Given a TyFun type, an apply type, and a type, replaces all of the TyFun types with the apply type
 applyTypeReplace :: Type -> Type -> Type -> Type
 applyTypeReplace tOld tNew t@(TyFun t'@(TyFun _ _) t'') =
@@ -277,15 +267,3 @@ adjustLambdas rt at = modifyASTs (adjustLambdas')
         adjustLambdas' :: Expr -> Expr
         adjustLambdas' l@(Lam (Id n t) e) = if t == rt then Lam (Id n at) e else l
         adjustLambdas' e = e
-
--- In the input ids, changes all Types rt to Type at
-adjustInputIds :: Type -> Type -> InputIds -> InputIds
-adjustInputIds rt at = map (\i@(Id n t) -> if t == rt then Id n at else i)
-
--- In the path conds PCExists, changes all Types rt to Type at
-adjustPathConds :: Type -> Type -> [PathCond] -> [PathCond]
-adjustPathConds rt at = map (adjustPathCond rt at)
-
-adjustPathCond :: Type -> Type -> PathCond -> PathCond
-adjustPathCond rt at pc@(PCExists (Id n t)) = if t == rt then PCExists (Id n at) else pc
-adjustPathCond _ _ _ = error "Bad path cond in defunctionalization."

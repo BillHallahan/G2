@@ -1,4 +1,4 @@
-module G2.Internals.Preprocessing.LetFloating (letFloat) where
+module G2.Internals.Initialization.LetFloating (letFloat) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E

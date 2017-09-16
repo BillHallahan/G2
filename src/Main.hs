@@ -10,7 +10,7 @@ import Data.Maybe
 
 import G2.Lib.Printers
 
-import G2.Internals.Initialization.Interface
+import G2.Internals.Interface
 import G2.Internals.Language
 import G2.Internals.Translation
 import G2.Internals.Execution

@@ -3,6 +3,8 @@ module G2.Internals.Interface ( initState
 
 import G2.Internals.Language
 
+import G2.Internals.Initialization.Interface
+
 import G2.Internals.Preprocessing.Interface
 
 import G2.Internals.Execution.Interface
@@ -27,22 +29,23 @@ import qualified Data.Map as M
 initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> String -> State
 initState prog prog_typ m_assume m_assert f =
     let
+        eenv = mkExprEnv prog
+        tenv = mkTypeEnv prog_typ
         ng = mkNameGen prog
-        (ce, ids, ng') = mkCurrExpr m_assume m_assert f (name_gen s) (expr_env s)
-        eenv' = mkExprEnv prog
 
+        (eenv', tenv', ng', ft) = runInitialization eenv tenv ng
 
-        s = runPreprocessing (State {expr_env = eenv', type_env = mkTypeEnv prog_typ, name_gen = ng})
+        (ce, ids, ng'') = mkCurrExpr m_assume m_assert f ng' eenv'
     in
     State {
-      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) (expr_env s) ids
-    , type_env = (type_env s)
+      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' ids
+    , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
-    , name_gen = ng'
+    , name_gen =  ng''
     , path_conds = map PCExists ids
     , input_ids = ids
     , sym_links = Sym.empty
-    , func_table = (func_table s)
+    , func_table = ft
     , exec_stack = Stack.empty
  }
 
@@ -114,11 +117,11 @@ run con hhp n state = do
 
     -- putStrLn "After start"
 
-    -- let preproc_state = runPreprocessing state
+    let preproc_state = runPreprocessing state
     
     -- putStrLn . pprExecStateStr $ preproc_state
 
-    let exec_states = runNBreadthHist [([], state)] n
+    let exec_states = runNBreadthHist [([], preproc_state)] n
 
     -- putStrLn $ "states: " ++ (show $ length exec_states)
     -- mapM_ (\(rs, st) -> putStrLn $ pprExecStateStr st) exec_states
@@ -128,43 +131,3 @@ run con hhp n state = do
     sm <- satModelOutputs con hhp (map snd exec_states)
 
     return $ map (\sm@(s, _, _) -> undefunctionalize s sm) sm
-
-    -- ms <- satModelOutputs con hhp (map snd exec_states)
-
-  {-
-    let exec_states_error = filter (any (\(r, _) -> r == Just RuleError)) exec_states
-
-    putStrLn ("\nNumber of error states: " ++ (show (length exec_states_error)))
-    
-    let red_error = map (reverse . elimNeighboringDups) exec_states_error
-
-
-    mapM_ (mapM_ (\(r, s) -> do
-        putStrLn . show $ r
-        putStrLn . show . exec_code $ s
-        putStrLn "")) red_error
-
-  -}
-    -- mapM (putStrLn . pprRunHistStr) exec_states
-    
-    -- putStrLn ("\nNumber of states: " ++ (show (length exec_states)))
-
-    -- let exec_states = runNDepth [exec_state] n
-    -- let states = map (toState preproc_state) exec_states
-    -- putStrLn ("\nNumber of execution states: " ++ (show (length states)))
-    -- ms <- satModelOutputs con hhp states
-    -- mapM (\(m, s) -> putStrLn ("Model:\n" ++ show m ++ "\nSMTAST:\n" ++ show s)) ms
-    -- return []
-
-{-
-run :: SMTConverter ast out io -> io -> Int -> State -> IO [([Expr], Expr)]
-run con hhp n state = do
-    let preproc_state = runPreprocessing state
-
-    let states = runNDepth [preproc_state] n
-
-    putStrLn ("\nNumber of execution states: " ++ (show (length states)))
-
-
-    satModelOutputs con hhp states
--}

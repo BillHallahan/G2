@@ -1,4 +1,4 @@
-module G2.Internals.Preprocessing.FreeBind (freeVarsBind) where
+module G2.Internals.Initialization.FreeBind (freeVarsBind) where
 
 -- We bind all free variables in the Expr Env to symbolic variables.
 -- This prevents errors when Let Floating, if (for example) the Num typeclass

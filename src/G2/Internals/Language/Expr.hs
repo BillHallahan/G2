@@ -1,4 +1,5 @@
-module G2.Internals.Language.Expr (freeVars) where
+module G2.Internals.Language.Expr ( freeVars
+								  , exprReplace) where
 
 import G2.Internals.Language.AST
 import qualified G2.Internals.Language.ExprEnv as E
@@ -18,3 +19,13 @@ freeVars' eenv bound (Var i) =
     else
         ([], [i])
 freeVars' _ _ _ = ([], [])
+
+-- In e, replaces all eOld with eNew
+exprReplace :: ASTContainer e Expr => Expr -> Expr -> e -> e
+exprReplace eOld eNew = modifyContainedASTs (exprReplace')
+    where
+        exprReplace' :: Expr -> Expr
+        exprReplace' e =
+            if e == eOld
+                then modifyChildren (exprReplace eOld eNew) eNew 
+                else modifyChildren (exprReplace eOld eNew) e
