@@ -8,9 +8,9 @@ import G2.Internals.Initialization.LetFloating
 
 runInitialization :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, TypeEnv, NameGen, FuncInterps)
 runInitialization eenv tenv ng =
-	let
-		eenv' = freeVarsBind eenv
-		(eenv'', ng') = letFloat eenv' ng
-		(eenv''', tenv', ng'', ft) = defunctionalize eenv'' tenv ng'
-	in
-	(eenv''', tenv', ng'', ft)
+    let
+        eenv' = freeVarsBind eenv
+        (eenv'', ng') = letFloat eenv' ng
+        (eenv''', tenv', ng'', ft) = defunctionalize eenv'' tenv ng'
+    in
+    (eenv''', tenv', ng'', ft)

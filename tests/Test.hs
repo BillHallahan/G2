@@ -17,6 +17,7 @@ import qualified Data.Monoid as Mon
 
 import PeanoTest
 import HigherOrderMathTest
+import DefuncTest
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
@@ -78,6 +79,8 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
+
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" Nothing Nothing "f" 1 [RExists defunc1Add1, RExists defunc1Multiply2, Exactly 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" 400 Nothing Nothing "f" 2
                     [ RExists (\[Lit (LitDouble x), y] -> x == 2 && y == (Lit $ LitBool True))

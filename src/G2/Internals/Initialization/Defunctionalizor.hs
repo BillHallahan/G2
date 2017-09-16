@@ -9,6 +9,8 @@ import Data.List
 import Data.Maybe
 import qualified Data.Map as M
 
+import Debug.Trace
+
 {-Defunctionalizor
 
 We need to eliminate higher order functions to
@@ -35,7 +37,7 @@ defunctionalize' eenv tenv ng ft =
                 let 
                     (eenv', tenv', ng', ft') = useApplyType eenv tenv ng ft t
                 in
-                defunctionalize' eenv' tenv' ng' ft'
+                trace ("adjust type = " ++ show t) $ defunctionalize' eenv' tenv' ng' ft'
             _ -> (eenv, tenv, ng, ft)
 
 -- Given a state and a leading higher order function type
@@ -71,9 +73,6 @@ useApplyType eenv tenv ng ft (t@(TyFun _ _)) =
         higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) higherNameExpr
 
 
-        -- newCurr_expr = foldr (\(Id n _) -> exprReplace (Var $ (Id n t)) (Var $ Id n applyTypeCon)) (curr_expr s) (input_ids s)
-
-
         newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
                                                 case n of
                                                     Var (Id n' _) -> Just (a, (n', StdInterp))
@@ -87,11 +86,10 @@ useApplyType eenv tenv ng ft (t@(TyFun _ _)) =
 
         eenv'''' = adjustLambdas t applyTypeCon eenv'''
 
-        -- eenv''''' = foldr (\(Id n _) -> exprReplace (Var $ Id n t) (Var $ Id n applyTypeCon)) eenv'''' (input_ids s5)
-
+        tenv' = modifyTypeEnv t applyTypeCon tenv
     in
     ( E.insert applyFuncName applyFunc eenv''''
-    , M.insert applyTypeName applyTypeAlg tenv
+    , M.insert applyTypeName applyTypeAlg tenv'
     , ng5
     , unionFuncInterps newFuncs_interps ft)
     where
@@ -116,36 +114,6 @@ useApplyType eenv tenv ng ft (t@(TyFun _ _)) =
                 e'' = sndAppReplace fn n t' at e'
             in
             if ty == t' then updateArgRefs' ty at fn e'' ns else updateArgRefs' ty at fn e ns
-
-        -- This adjusts for when the function with the given name is in the first position in an app
-        -- This means that the function is being called
-        -- We change the call to the function, to a call to the apply function, and pass in the correct constructor
-        fstAppReplace :: FuncName -> FuncName -> Type -> Type -> Expr -> Expr
-        fstAppReplace fn n tn ty = modify (fstAppReplace')
-            where
-                fstAppReplace' :: Expr -> Expr
-                fstAppReplace' a@(App e e') =
-                    if e == Var (Id n ty) then App (App (Var (Id fn tn)) e) e' else a
-                fstAppReplace' e = e
-
-        -- This adjusts for when the function with the given name is in the second position in an app
-        -- This means that the function is being passed
-        -- It simply swaps the type of the function, from a function type to an applytype
-        sndAppReplace :: FuncName -> FuncName -> Type -> Type -> Expr -> Expr
-        sndAppReplace fn n ty at = modify (sndAppReplace')
-            where
-                sndAppReplace' :: Expr -> Expr
-                sndAppReplace' a@(App e e') =
-                    if e' == Var (Id fn ty) then App e (Var (Id n at)) else a
-                sndAppReplace' e = e
-
-        sndAppReplaceEx :: Expr -> FuncName -> Type -> Type -> Expr -> Expr
-        sndAppReplaceEx repEx n ty at = modify (sndAppReplaceEx')
-            where
-                sndAppReplaceEx' :: Expr -> Expr
-                sndAppReplaceEx' a@(App e e') =
-                    if e' == repEx then App e (Data (DataCon n at [])) else a
-                sndAppReplaceEx' e = e
 
 useApplyType _ _ _ _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
 
@@ -172,6 +140,36 @@ createApplyFunc ts applyTypeName namesToFuncs r =
         arg_lams = foldr (\(a, t) e -> Lam (Id a t) e) case_final (zip args ts)
     in
     (Lam apply_arg_id arg_lams, r5)
+
+-- This adjusts for when the function with the given name is in the first position in an app
+-- This means that the function is being called
+-- We change the call to the function, to a call to the apply function, and pass in the correct constructor
+fstAppReplace :: FuncName -> FuncName -> Type -> Type -> Expr -> Expr
+fstAppReplace fn n tn ty = modify (fstAppReplace')
+    where
+        fstAppReplace' :: Expr -> Expr
+        fstAppReplace' a@(App e e') =
+            if e == Var (Id n ty) then App (App (Var (Id fn tn)) e) e' else a
+        fstAppReplace' e = e
+
+-- This adjusts for when the function with the given name is in the second position in an app
+-- This means that the function is being passed
+-- It simply swaps the type of the function, from a function type to an applytype
+sndAppReplace :: FuncName -> FuncName -> Type -> Type -> Expr -> Expr
+sndAppReplace fn n ty at = modify (sndAppReplace')
+    where
+        sndAppReplace' :: Expr -> Expr
+        sndAppReplace' a@(App e e') =
+            if e' == Var (Id fn ty) then App e (Var (Id n at)) else a
+        sndAppReplace' e = e
+
+sndAppReplaceEx :: Expr -> FuncName -> Type -> Type -> Expr -> Expr
+sndAppReplaceEx repEx n ty at = modify (sndAppReplaceEx')
+    where
+        sndAppReplaceEx' :: Expr -> Expr
+        sndAppReplaceEx' a@(App e e') =
+            if e' == repEx then App e (Data (DataCon n at [])) else a
+        sndAppReplaceEx' e = e
 
 -- Given a TyFun type, an apply type, and a type, replaces all of the TyFun types with the apply type
 applyTypeReplace :: Type -> Type -> Type -> Type
@@ -200,7 +198,7 @@ leadingHigherOrderTypes eenv tenv =
 
 -- Get higher order types from the type environment
 higherOrderTypesTEnv :: TypeEnv -> [Type]
-higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map (typeOf :: Expr -> Type) . containedASTs $ M.elems tenv)
+higherOrderTypesTEnv tenv = filter (higherOrderFuncType) (map (typeOf :: Type -> Type) . containedASTs $ M.elems tenv)
 
 -- Get higher order functions from the expression environment
 higherOrderFuncsExprEnv :: E.ExprEnv -> [Expr]
@@ -252,13 +250,12 @@ higherOrderArgs l@(Lam (Id n _) e) =
     case typeOf l of
         TyFun t@(TyFun _ _) _ -> (n, t):higherOrderArgs e
         _ -> higherOrderArgs e
--- higherOrderArgs (Lam n e (TyFun t@(TyFun _ _) _)) = (n, t):higherOrderArgs e
 higherOrderArgs _ = []
 
 -- Returns all function names of the given type
 functionNamesOfType :: E.ExprEnv -> Type -> [FuncName]
 functionNamesOfType eenv t =
-    map fst . filter (\(_, e') -> typeOf e' == t) . E.toExprList $ eenv
+    map fst . filter (\(n, e') -> not (E.isSymbolic n eenv) && typeOf e' == t) . E.toExprList $ eenv
 
 -- Changes all Lambda id's of Type rt to Type at
 adjustLambdas :: (ASTContainer m Expr) => Type -> Type -> m -> m
@@ -267,3 +264,19 @@ adjustLambdas rt at = modifyASTs (adjustLambdas')
         adjustLambdas' :: Expr -> Expr
         adjustLambdas' l@(Lam (Id n t) e) = if t == rt then Lam (Id n at) e else l
         adjustLambdas' e = e
+
+----
+-- Updating the type environment
+----
+
+modifyTypeEnv :: Type -> Type -> TypeEnv -> TypeEnv
+modifyTypeEnv t nt = M.map (modifyTypeEnv' t nt)
+
+modifyTypeEnv' :: Type -> Type -> AlgDataTy -> AlgDataTy
+modifyTypeEnv' t nt (AlgDataTy n dc) = AlgDataTy n (map (modifyDC t nt) dc)
+
+modifyDC :: Type -> Type -> DataCon -> DataCon
+modifyDC t nt (DataCon n t' ts) = DataCon n (modifyASTs (applyTypeReplace t nt) t') (modifyASTs (rep t nt) ts)
+
+rep :: Type -> Type -> Type -> Type
+rep t nt c = if t == c then nt else c
