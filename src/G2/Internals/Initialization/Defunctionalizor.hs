@@ -69,8 +69,7 @@ useApplyType eenv tenv ng ft (t@(TyFun _ _)) =
         (applyFunc, ng5) = createApplyFunc args applyTypeName namesToFuncs ng4
 
         --adjustment
-        higherNameExpr = higherOrderOfTypeFuncNames eenv t
-        higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) higherNameExpr
+        higherNameExprArgs = map (\(n, e) -> (n, e, higherOrderArgs e)) $ E.toExprList eenv
 
 
         newFuncs_interps = FuncInterps $ M.fromList . catMaybes . map (\(a, n) -> 
@@ -84,11 +83,13 @@ useApplyType eenv tenv ng ft (t@(TyFun _ _)) =
 
         eenv''' = modifyASTs (applyTypeReplace t applyTypeCon) eenv''
 
-        eenv'''' = adjustLambdas t applyTypeCon eenv'''
+        eenv'''' = adjustLambdasAndDataCons t applyTypeCon eenv'''
+
+        eenv''''' = modifyDCInExpr t applyTypeCon eenv''''
 
         tenv' = modifyTypeEnv t applyTypeCon tenv
     in
-    ( E.insert applyFuncName applyFunc eenv''''
+    ( E.insert applyFuncName applyFunc eenv'''''
     , M.insert applyTypeName applyTypeAlg tenv'
     , ng5
     , unionFuncInterps newFuncs_interps ft)
@@ -96,24 +97,6 @@ useApplyType eenv tenv ng ft (t@(TyFun _ _)) =
         argList :: Type -> [Type]
         argList (TyFun ty ty') = ty:argList ty'
         argList ty = [ty]
-
-        updateArgRefs :: FuncName -> Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> ExprEnv -> ExprEnv
-        updateArgRefs na ty t' fn e ns eenv =
-            let
-                e' = updateArgRefs' ty t' fn e ns
-            in
-            E.insertPreserving na e' eenv
-
-        updateArgRefs' :: Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> Expr
-        updateArgRefs' _ _ _ e [] = e
-        updateArgRefs' ty at fn e ((n, t'):ns) =
-            let
-                funcType = TyFun at ty
-
-                e' = fstAppReplace fn n funcType t' e
-                e'' = sndAppReplace fn n t' at e'
-            in
-            if ty == t' then updateArgRefs' ty at fn e'' ns else updateArgRefs' ty at fn e ns
 
 useApplyType _ _ _ _ t = error ("Non-TyFun type " ++ show t ++ " given to createApplyType.")
 
@@ -141,6 +124,24 @@ createApplyFunc ts applyTypeName namesToFuncs r =
     in
     (Lam apply_arg_id arg_lams, r5)
 
+updateArgRefs :: FuncName -> Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> ExprEnv -> ExprEnv
+updateArgRefs na ty t' fn e ns eenv =
+    let
+        e' = updateArgRefs' ty t' fn e ns
+    in
+    E.insertPreserving na e' eenv
+
+updateArgRefs' :: Type -> Type -> FuncName -> Expr -> [(FuncName, Type)] -> Expr
+updateArgRefs' _ _ _ e [] = e
+updateArgRefs' ty at fn e ((n, t'):ns) =
+    let
+        funcType = TyFun at ty
+
+        e' = fstAppReplace fn n funcType t' e
+        e'' = sndAppReplace fn n t' at e'
+    in
+    if ty == t' then updateArgRefs' ty at fn e'' ns else updateArgRefs' ty at fn e ns
+
 -- This adjusts for when the function with the given name is in the first position in an app
 -- This means that the function is being called
 -- We change the call to the function, to a call to the apply function, and pass in the correct constructor
@@ -160,7 +161,7 @@ sndAppReplace fn n ty at = modify (sndAppReplace')
     where
         sndAppReplace' :: Expr -> Expr
         sndAppReplace' a@(App e e') =
-            if e' == Var (Id fn ty) then App e (Var (Id n at)) else a
+            if e' == Var (Id n ty) then App e (Var (Id n at)) else a
         sndAppReplace' e = e
 
 sndAppReplaceEx :: Expr -> FuncName -> Type -> Type -> Expr -> Expr
@@ -179,6 +180,26 @@ applyTypeReplace tOld tNew t@(TyFun t'@(TyFun _ _) t'') =
     else
         t
 applyTypeReplace _ _ t = t
+
+modifyDCInExpr :: (ASTContainer m Expr) => Type -> Type -> m -> m
+modifyDCInExpr t nt = modifyASTs (modifyDCInExpr')
+    where
+        modifyDCInExpr' :: Expr -> Expr
+        modifyDCInExpr' (Data d) = Data $ modifyDC t nt d
+        modifyDCInExpr' (Case e i a) = Case e i (map modifyDCInAlt a)
+        modifyDCInExpr' e = e
+
+        modifyDCInAlt :: Alt -> Alt
+        modifyDCInAlt (Alt (DataAlt dc i) e) = Alt (DataAlt (modifyDC t nt dc) i) e
+        modifyDCInAlt a = a
+
+modifyDC :: Type -> Type -> DataCon -> DataCon
+modifyDC t nt (DataCon n t' ts) = DataCon n (modifyASTs (applyTypeReplace t nt) t') (modifyASTs (rep t nt) ts)
+    where
+        rep :: Type -> Type -> Type -> Type
+        rep t nt c = if t == c then nt else c
+modifyDC _ _ dc = dc
+
 
 -- Get all function types that are passed into any function
 leadingHigherOrderTypes :: ExprEnv -> TypeEnv -> [Type]
@@ -231,26 +252,22 @@ passedToHigherOrder eenv t =
         higherOrderArg (App _ a) (TyFun _ t') = higherOrderArg a t'
         higherOrderArg _ _ = []
 
--- Given an expression environment, gets the names and expressions of all higher order functions
--- that accept the given type
-higherOrderOfTypeFuncNames :: E.ExprEnv -> Type -> [(FuncName, Expr)]
-higherOrderOfTypeFuncNames eenv ty =
-    nub . filter (\(_, e) -> ty `elem` functionsAccepted e) . E.toExprList $ eenv
-    where
-        -- Returns a list of all function types that must be passed to the given function
-        functionsAccepted :: Expr -> [Type]
-        functionsAccepted = evalASTs functionsAccepted' . typeOf
-            where
-                functionsAccepted' (TyFun t@(TyFun _ _) _) = [t]
-                functionsAccepted' _ = []
-
 -- Given a higher order function, returns the names and types of all higher order arguments
 higherOrderArgs :: Expr -> [(FuncName, Type)]
-higherOrderArgs l@(Lam (Id n _) e) =
+higherOrderArgs e = eval higherOrderArgs' e
+
+higherOrderArgs' :: Expr -> [(FuncName, Type)]
+higherOrderArgs' l@(Lam (Id n _) e) =
     case typeOf l of
-        TyFun t@(TyFun _ _) _ -> (n, t):higherOrderArgs e
-        _ -> higherOrderArgs e
-higherOrderArgs _ = []
+        TyFun t@(TyFun _ _) _ -> [(n, t)]
+        _ -> []
+higherOrderArgs' (Case _ _ a) = trace ("alt = " ++ show (concatMap higherOrderArgsAlt a)) $  concatMap higherOrderArgsAlt a
+higherOrderArgs' _ = []
+
+higherOrderArgsAlt :: Alt -> [(FuncName, Type)]
+higherOrderArgsAlt (Alt (DataAlt (DataCon _ _ ts) i) _) = map (\(Id n t) -> (n, t)) $ filter (hasFuncType) i
+higherOrderArgsAlt _ = []
+
 
 -- Returns all function names of the given type
 functionNamesOfType :: E.ExprEnv -> Type -> [FuncName]
@@ -258,12 +275,20 @@ functionNamesOfType eenv t =
     map fst . filter (\(n, e') -> not (E.isSymbolic n eenv) && typeOf e' == t) . E.toExprList $ eenv
 
 -- Changes all Lambda id's of Type rt to Type at
-adjustLambdas :: (ASTContainer m Expr) => Type -> Type -> m -> m
-adjustLambdas rt at = modifyASTs (adjustLambdas')
+adjustLambdasAndDataCons :: (ASTContainer m Expr) => Type -> Type -> m -> m
+adjustLambdasAndDataCons rt at = modifyASTs (adjustLambdasAndDataCons')
     where
-        adjustLambdas' :: Expr -> Expr
-        adjustLambdas' l@(Lam (Id n t) e) = if t == rt then Lam (Id n at) e else l
-        adjustLambdas' e = e
+        adjustLambdasAndDataCons' :: Expr -> Expr
+        adjustLambdasAndDataCons' (Lam i e) = Lam (adjustId i) e--if t == rt then Lam (Id n at) e else l
+        adjustLambdasAndDataCons' (Case m i a) = Case m i $ map adjustAlt a
+        adjustLambdasAndDataCons' e = e
+
+        adjustAlt :: Alt -> Alt
+        adjustAlt (Alt (DataAlt dc i) e) = Alt (DataAlt dc (map adjustId i)) e
+        adjustAlt a = a
+
+        adjustId :: Id -> Id
+        adjustId i@(Id n t) = if t == rt then Id n at else i
 
 ----
 -- Updating the type environment
@@ -274,9 +299,3 @@ modifyTypeEnv t nt = M.map (modifyTypeEnv' t nt)
 
 modifyTypeEnv' :: Type -> Type -> AlgDataTy -> AlgDataTy
 modifyTypeEnv' t nt (AlgDataTy n dc) = AlgDataTy n (map (modifyDC t nt) dc)
-
-modifyDC :: Type -> Type -> DataCon -> DataCon
-modifyDC t nt (DataCon n t' ts) = DataCon n (modifyASTs (applyTypeReplace t nt) t') (modifyASTs (rep t nt) ts)
-
-rep :: Type -> Type -> Type -> Type
-rep t nt c = if t == c then nt else c

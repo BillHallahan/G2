@@ -18,6 +18,7 @@ import qualified Data.Monoid as Mon
 import PeanoTest
 import HigherOrderMathTest
 import DefuncTest
+import TestUtils
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
@@ -38,7 +39,7 @@ main = defaultMain =<< tests
 
 tests = return . testGroup "Tests"
     =<< sequence [
-           sampleTests
+          sampleTests
         , testFileTests
         ]
 
@@ -94,7 +95,9 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 1 [RExists (\[x, y] -> x == y), AtLeast 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
+
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Guards.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitBool x)] -> x)]
 
@@ -117,7 +120,7 @@ checkExpr proj src steps m_assume m_assert entry i reqList = do
 checkExprWithOutput :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprWithOutput proj src m_assume m_assert entry i reqList = do
     exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src 400 m_assume m_assert entry
-
+    putStrLn $ show exprs
     let ch = checkExpr' (exprs) i reqList
 
     return . testCase src

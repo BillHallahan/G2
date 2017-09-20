@@ -223,10 +223,10 @@ instance ASTContainer AltMatch Expr where
     modifyContainedASTs _ e = e
 
 instance ASTContainer AltMatch Type where
-    containedASTs (DataAlt dc _) = containedASTs dc
+    containedASTs (DataAlt dc i) = containedASTs dc ++ containedASTs i
     containedASTs _ = []
 
-    modifyContainedASTs f (DataAlt dc i) = DataAlt (modifyContainedASTs f dc) i
+    modifyContainedASTs f (DataAlt dc i) = DataAlt (modifyContainedASTs f dc) (modifyContainedASTs f i)
     modifyContainedASTs _ e = e
 
 instance ASTContainer Alt Expr where
