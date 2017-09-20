@@ -229,7 +229,7 @@ toSolverAST con (x :* y) = (.*) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :/ y) = (./) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
 
-toSolverAST con (Tester n) = tester con n
+toSolverAST con (Tester n) = tester con $ nameToStr n
 
 toSolverAST con (Ite x y z) =
     ite con (toSolverAST con x) (toSolverAST con y) (toSolverAST con z)
