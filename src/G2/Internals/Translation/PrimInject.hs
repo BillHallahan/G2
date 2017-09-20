@@ -35,6 +35,11 @@ primInjectT (TyConApp (Name "Float" _ _) _) = TyFloat
 primInjectT (TyConApp (Name "Double" _ _) _) = TyDouble
 primInjectT (TyConApp (Name "Char" _ _) _) = TyChar
 primInjectT (TyConApp (Name "Bool" _ _) _) = TyBool
+-- TODO: Reevaluate this - do we need to split between Int and Int#?
+primInjectT (TyConApp (Name "Int#" _ _) _) = TyInt
+primInjectT (TyConApp (Name "Float#" _ _) _) = TyFloat
+primInjectT (TyConApp (Name "Double#" _ _) _) = TyDouble
+primInjectT (TyConApp (Name "Char#" _ _) _) = TyChar
 primInjectT t = t
 
 primInjectAlt :: Alt -> Alt

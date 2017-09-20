@@ -44,6 +44,8 @@ main = do
             let funcCall = mkExprHaskell 
                          . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
+            putStrLn $ pprExecStateStr st
+
             let funcOut = mkExprHaskell $ ex
 
             putStrLn (funcCall ++ " = " ++ funcOut)

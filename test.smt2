@@ -1,0 +1,5 @@
+(declare-datatypes () ((CList_m_GetNth_8214565720323784707 (Cons_m_GetNth_8214565720323784706 (F_Int0 Int) (F_CList_m_GetNth_82145657203237847071 CList_m_GetNth_8214565720323784707)) Nil_m_GetNth_8214565720323784705 ) ))(declare-const x_n__6989586621679015417 Int)(declare-const ds_n__7205759403792799943 CList_m_GetNth_8214565720323784707)(declare-const fs?_n__0 CList_m_GetNth_8214565720323784707)(declare-const fs?_n__1 Int)(declare-const xs_n__6989586621679015422 CList_m_GetNth_8214565720323784707)(declare-const ds_n__7205759403792799939 Int)(assert (not (= fs?_n__0 (Cons_m_GetNth_8214565720323784706 x_n__6989586621679015417 ds_n__7205759403792799943))))(assert (and (<= 0 fs?_n__1) (< fs?_n__1 (+ 1 0))))(assert (= xs_n__6989586621679015422 Nil_m_GetNth_8214565720323784705))(assert (= fs?_n__0 (Cons_m_GetNth_8214565720323784706 ds_n__7205759403792799939 xs_n__6989586621679015422)))
+
+
+(check-sat)
+(get-model)

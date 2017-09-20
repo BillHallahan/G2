@@ -5,6 +5,7 @@ data A = A (Int -> Int)
 
 f :: A -> A
 f (A g) = B (g 2)
+f x = x
 
 add1 :: Int -> Int
 add1 x = x + 1

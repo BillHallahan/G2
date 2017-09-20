@@ -195,12 +195,12 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
         correctTypes _ a = a
 
         correctConsTypes :: SMTAST -> SMTAST
-        correctConsTypes (Cons n smts _) =
+        correctConsTypes (Cons n smts (Sort _ sorts)) =
             let
                 sName = M.lookup n consNameToSort
             in
             case sName of
-                Just n' -> Cons n (map correctConsTypes smts) n'
+                Just n' -> Cons n (map (uncurry correctTypes) (zip (repeat SortFloat) smts)) n' -- TODO : Fix SortFloat to be correct here...
                 Nothing -> error ("Sort constructor " ++ (show n) ++ " not found in correctConsTypes\n\n" ++ str)
         correctConsTypes err = error $ "correctConsTypes: invalid SMTAST: " ++ show err
 
