@@ -119,7 +119,7 @@ elimNeighboringDups x = x
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr)]
 run con hhp n state = do
 
-    putStrLn . pprExecStateStr $ state
+    -- putStrLn . pprExecStateStr $ state
 
     -- putStrLn "After start"
 

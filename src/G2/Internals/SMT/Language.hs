@@ -45,6 +45,8 @@ data SMTAST = (:>=) SMTAST SMTAST
             | (:/) SMTAST SMTAST
             | Neg SMTAST --Unary negation
 
+            | Tester Name
+
             | Ite SMTAST SMTAST SMTAST
             | SLet (SMTName, SMTAST) SMTAST
 
@@ -107,6 +109,8 @@ data SMTConverter ast out io =
         , (.*) :: ast -> ast -> ast
         , (./) :: ast -> ast -> ast
         , neg :: ast -> ast
+
+        , tester :: SMTName -> ast
 
         , ite :: ast -> ast -> ast -> ast
 

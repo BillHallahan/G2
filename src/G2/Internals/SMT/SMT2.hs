@@ -98,6 +98,8 @@ smt2 = SMTConverter {
         , (./) = function2 "/"
         , neg = function1 "-"
 
+        , tester = \n -> "is-" ++ n
+
         , ite = function3 "ite"
 
         , int = show

@@ -275,6 +275,14 @@ instance {-# OVERLAPPING #-}
 --   These instances exist so that we can use them in other types that contain
 --   ASTs and still consider those types ASTContainers. For example (Expr, Bool)
 --   should be an ASTContainer.
+instance ASTContainer Lit Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ t = t
+
+instance ASTContainer Lit Type where
+    containedASTs _ = []
+    modifyContainedASTs _ t = t
+
 instance ASTContainer Bool Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t

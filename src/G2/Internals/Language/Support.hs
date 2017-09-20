@@ -60,6 +60,7 @@ data CurrExpr = CurrExpr EvalOrReturn Expr
 -- to assertion / assumptions made, or some externally coded factors.
 data PathCond = AltCond AltMatch Expr Bool
               | ExtCond Expr Bool
+              | ConsCond DataCon Expr Bool
               | PCExists Id
               deriving (Show, Eq, Read)
 
@@ -180,16 +181,20 @@ instance ASTContainer CurrExpr Type where
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
     containedASTs (AltCond _ e _) = [e]
+    containedASTs (ConsCond _ e _) = [e]
     containedASTs (PCExists _) = []
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
     modifyContainedASTs f (AltCond a e b) =
         AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
+    modifyContainedASTs f (ConsCond dc e b) =
+        ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
     modifyContainedASTs _ pc = pc
 
 instance ASTContainer PathCond Type where
     containedASTs (ExtCond e _)   = containedASTs e
     containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
+    containedASTs (ConsCond dcl e _) = containedASTs dcl ++ containedASTs e
     containedASTs (PCExists i) = containedASTs i
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
@@ -197,6 +202,8 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
       where e' = modifyContainedASTs f e
             a' = modifyContainedASTs f a
+    modifyContainedASTs f (ConsCond dc e b) =
+        ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
     modifyContainedASTs f (PCExists i) = PCExists (modifyContainedASTs f i)
 
 instance ASTContainer AlgDataTy DataCon where
