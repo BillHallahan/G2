@@ -40,11 +40,12 @@ main = do
 
     putStrLn "----------------\n----------------"
 
-    mapM_ (\(st, inArg, ex) -> do
+    mapM_ (\(st, rs, inArg, ex) -> do
             let funcCall = mkExprHaskell 
                          . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
-            putStrLn $ pprExecStateStr st
+            -- mapM_ (print) rs
+            -- putStrLn $ pprExecStateStr st
 
             let funcOut = mkExprHaskell $ ex
 

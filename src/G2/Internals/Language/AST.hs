@@ -265,6 +265,12 @@ instance {-# OVERLAPPING #-}
 
         modifyContainedASTs f (x, y, z) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z)
 
+instance {-# OVERLAPPING #-} 
+    (ASTContainer c t, ASTContainer d t, ASTContainer e t, ASTContainer g t) => ASTContainer (c, d, e, g) t where
+        containedASTs (x, y, z, w) = containedASTs x ++ containedASTs y ++ containedASTs z ++ containedASTs w
+
+        modifyContainedASTs f (x, y, z, w) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z, modifyContainedASTs f w)
+
 -- | Miscellaneous Instances
 --   These instances exist so that we can use them in other types that contain
 --   ASTs and still consider those types ASTContainers. For example (Expr, Bool)

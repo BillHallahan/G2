@@ -9,8 +9,6 @@ import Data.List
 import Data.Maybe
 import qualified Data.Map as M
 
-import Debug.Trace
-
 {-Defunctionalizor
 
 We need to eliminate higher order functions to
@@ -37,7 +35,7 @@ defunctionalize' eenv tenv ng ft =
                 let 
                     (eenv', tenv', ng', ft') = useApplyType eenv tenv ng ft t
                 in
-                trace ("adjust type = " ++ show t) $ defunctionalize' eenv' tenv' ng' ft'
+                defunctionalize' eenv' tenv' ng' ft'
             _ -> (eenv, tenv, ng, ft)
 
 -- Given a state and a leading higher order function type
@@ -261,7 +259,7 @@ higherOrderArgs' l@(Lam (Id n _) e) =
     case typeOf l of
         TyFun t@(TyFun _ _) _ -> [(n, t)]
         _ -> []
-higherOrderArgs' (Case _ _ a) = trace ("alt = " ++ show (concatMap higherOrderArgsAlt a)) $  concatMap higherOrderArgsAlt a
+higherOrderArgs' (Case _ _ a) = concatMap higherOrderArgsAlt a
 higherOrderArgs' _ = []
 
 higherOrderArgsAlt :: Alt -> [(FuncName, Type)]

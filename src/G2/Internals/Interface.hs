@@ -26,6 +26,8 @@ import G2.Lib.Printers
 import Data.List
 import qualified Data.Map as M
 
+import Debug.Trace
+
 initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> String -> State
 initState prog prog_typ m_assume m_assert f =
     let
@@ -55,8 +57,12 @@ mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, ts, dcs) -> (n, AlgDataTy ts dcs))
 
-args :: Type -> [Type]
-args (TyFun t ts) = t:args ts  
+-- args :: Type -> [Type]
+-- args (TyFun t ts) = t:args ts  
+-- args _ = []
+
+args :: Expr -> [Type]
+args (Lam (Id _ t) e) = t:args e  
 args _ = []
 
 mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> ExprEnv -> (Expr, [Id], NameGen)
@@ -64,8 +70,8 @@ mkCurrExpr m_assume m_assert s ng eenv =
     case findFunc s eenv of
         Left (f, ex) -> 
             let
-                typs = args . typeOf $ ex
-                (names, ng') = freshNames (length typs) ng
+                typs = args ex -- args $ typeOf ex
+                (names, ng') = trace (" s = " ++ s ++ " typs = " ++ show (typeOf ex)) $ freshNames (length typs) ng
                 ids = map (uncurry Id) $ zip names typs
                 var_ids = reverse $ map Var ids
                 
@@ -110,10 +116,10 @@ elimNeighboringDups :: Eq a => [a] -> [a]
 elimNeighboringDups (x:y:xs) = if x == y then elimNeighboringDups (x:xs) else x:elimNeighboringDups (y:xs)
 elimNeighboringDups x = x
 
-run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Expr], Expr)]
+run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr)]
 run con hhp n state = do
 
-    -- putStrLn . pprExecStateStr $ state
+    putStrLn . pprExecStateStr $ state
 
     -- putStrLn "After start"
 
@@ -124,10 +130,12 @@ run con hhp n state = do
     let exec_states = runNBreadthHist [([], preproc_state)] n
 
     -- putStrLn $ "states: " ++ (show $ length exec_states)
-    -- mapM_ (\(rs, st) -> putStrLn $ pprExecStateStr st) exec_states
+    -- mapM_ (\(rs, st) -> do
+    --     putStrLn $ show rs
+    --     putStrLn $ pprExecStateStr st) exec_states
     -- mapM_ (\(rs, st) -> (putStrLn $ pprPathsStr (path_conds st)) >> putStrLn "---") exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st) >> putStrLn "---")) (filter (isExecValueForm . snd) exec_states)
 
-    sm <- satModelOutputs con hhp (map snd exec_states)
+    sm <- satModelOutputs con hhp exec_states
 
-    return $ map (\sm@(s, _, _) -> undefunctionalize s sm) sm
+    return $ map (\sm@(s, _, _, _) -> undefunctionalize s sm) sm

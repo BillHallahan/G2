@@ -1,3 +1,6 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 -- | Reduction Rules for Stack Execution Semantics
 module G2.Internals.Execution.Rules
   ( Rule (..)
@@ -5,6 +8,7 @@ module G2.Internals.Execution.Rules
   , reduce
   ) where
 
+import G2.Internals.Language.AST
 import G2.Internals.Language
 import G2.Internals.Language.Stack
 import qualified G2.Internals.Language.ExprEnv as E
@@ -37,6 +41,10 @@ data Rule = RuleEvalVal
 
           | RuleError
            deriving (Show, Eq, Read)
+
+instance AST e => ASTContainer Rule e where
+    containedASTs _ = []
+    modifyContainedASTs _ r = r
 
 -- | Unravels the application spine.
 unApp :: Expr -> [Expr]

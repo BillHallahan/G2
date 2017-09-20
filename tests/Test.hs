@@ -98,6 +98,12 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" Nothing Nothing "f" 2 
+                        [ RExists (\[(App x y), (App z w)] -> dataConHasName "A" x && dataConHasName "B" y && dataConHasName "A" z && dataConHasName "C" w)
+                        , RExists (\[x, y] -> dataConHasName "B" x && dataConHasName "C" y)
+                        , RExists (\[x, (App y (App z w))] -> dataConHasName "C" x && dataConHasName "A" y && dataConHasName "A" z && dataConHasName "B" w)
+                        , RExists (\[x, (App y z)] -> dataConHasName "A" y && dataConHasName "B" z)
+                        , AtLeast 4]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Guards.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitBool x)] -> x)]
 
@@ -154,7 +160,7 @@ testFile proj src steps m_assume m_assert entry = do
 
     r <- run smt2 hhp steps init_state
 
-    return $ map (\(_, i, o) -> (i, o)) r
+    return $ map (\(_, _, i, o) -> (i, o)) r
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
