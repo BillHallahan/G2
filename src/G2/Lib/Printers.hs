@@ -291,6 +291,12 @@ pprPathCondStr (ExtCond am b) = injTuple acc_strs
     am_str = show am
     b_str = show b
     acc_strs = [am_str, b_str]
+pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
+  where
+    d_str = show d
+    expr_str = show expr
+    b_str = show b
+    acc_strs = [d_str, expr_str, b_str]
 pprPathCondStr (PCExists p) = show p
 
 pprRunHistStr :: ([Rule], State) -> String
