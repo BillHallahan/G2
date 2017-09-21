@@ -119,7 +119,7 @@ elimNeighboringDups x = x
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr)]
 run con hhp n state = do
 
-    -- putStrLn . pprExecStateStr $ state
+    putStrLn . pprExecStateStr $ state
 
     -- putStrLn "After start"
 
@@ -129,10 +129,12 @@ run con hhp n state = do
 
     let exec_states = runNBreadthHist [([], preproc_state)] n
 
-    -- putStrLn $ "states: " ++ (show $ length exec_states)
-    -- mapM_ (\(rs, st) -> do
-    --     putStrLn $ show rs
-    --     putStrLn $ pprExecStateStr st) exec_states
+    let ident_states = filter ((==) RuleIdentity . last . fst) exec_states
+
+    putStrLn $ "states: " ++ (show $ length ident_states)
+    mapM_ (\(rs, st) -> do
+        putStrLn $ show rs
+        putStrLn $ pprExecStateStr st) ident_states
     -- mapM_ (\(rs, st) -> (putStrLn $ pprPathsStr (path_conds st)) >> putStrLn "---") exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st) >> putStrLn "---")) (filter (isExecValueForm . snd) exec_states)
 
