@@ -390,7 +390,7 @@ reduceCase eenv mexpr bind alts ngen
           lsts_cs = liftSymLitAlt eenv mexpr ngen bind lalts
           (_, _, dconds, _, _) = unzip5 dsts_cs
           (_, _, lconds, _, _) = unzip5 lsts_cs
-          negs = map (negatePathCond) $ concat (dconds ++ lconds)
+          negs = map (\(d, _, _) -> ConsCond d mexpr False) dalts
           def_sts = liftSymDefAlt eenv mexpr ngen negs bind defs
       in (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
 
