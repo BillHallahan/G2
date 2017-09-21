@@ -53,7 +53,10 @@ pathConsToSMT' (ExtCond e b) =
     in
     Just . Assert $ if b then exprSMT else (:!) exprSMT
 pathConsToSMT' (ConsCond (DataCon n _ _) e b) =
-    Just . Assert $ if b then Tester n else (:!) $ Tester n
+    let
+        exprSMT = exprToSMT e
+    in
+    Just . Assert $ if b then Tester n exprSMT else (:!) $ Tester n exprSMT
 pathConsToSMT' (PCExists _) = Nothing
 
 exprToSMT :: Expr -> SMTAST
@@ -229,7 +232,7 @@ toSolverAST con (x :* y) = (.*) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :/ y) = (./) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
 
-toSolverAST con (Tester n) = tester con $ nameToStr n
+toSolverAST con (Tester n e) = tester con (nameToStr n) (toSolverAST con e)
 
 toSolverAST con (Ite x y z) =
     ite con (toSolverAST con x) (toSolverAST con y) (toSolverAST con z)

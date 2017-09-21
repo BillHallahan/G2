@@ -39,8 +39,8 @@ smt2 = SMTConverter {
             if r == SAT then do
                 model <- getModel h_in h_out vars
                 putStrLn "======"
-                putStrLn formula
-                putStrLn ""
+                -- putStrLn formula
+                -- putStrLn ""
                 putStrLn (show model)
                 putStrLn "======"
                 let m = parseModel headers model
@@ -98,7 +98,7 @@ smt2 = SMTConverter {
         , (./) = function2 "/"
         , neg = function1 "-"
 
-        , tester = \n -> "is-" ++ n
+        , tester = \n e -> "(is-" ++ n ++ " " ++ e ++ ")"
 
         , ite = function3 "ite"
 
