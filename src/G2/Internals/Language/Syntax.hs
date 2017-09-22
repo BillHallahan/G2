@@ -24,7 +24,7 @@ type Binds = [(Id, Expr)]
 -- module name is some variant of @Just \"Data.Map\"@.
 data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord)
 
-data Id = Id Name Type deriving (Show, Eq, Read)
+data Id = Id Name Type deriving (Show, Eq, Ord, Read)
 
 idName :: Id -> Name
 idName (Id name _) = name
@@ -117,7 +117,7 @@ data Alt = Alt AltMatch Expr deriving (Show, Eq, Read)
 -- | TyBinder is used only in the `TyForAll`
 data TyBinder = AnonTyBndr Type
               | NamedTyBndr Id
-              deriving (Show, Eq, Read)
+              deriving (Show, Eq, Ord, Read)
 
 -- | Types are decomposed as follows:
 -- * Type variables correspond to the aliasing of a type
@@ -136,4 +136,4 @@ data Type = TyVar Name Type
           | TyConApp Name [Type]
           | TyForAll TyBinder Type
           | TyBottom
-          deriving (Show, Eq, Read)
+          deriving (Show, Eq, Ord, Read)
