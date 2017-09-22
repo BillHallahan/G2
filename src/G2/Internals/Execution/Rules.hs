@@ -378,6 +378,7 @@ reduceCase eenv mexpr bind alts ngen
             , ngen'
             , Nothing)] )
 
+
   -- | If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
   -- path constraints.
@@ -390,7 +391,9 @@ reduceCase eenv mexpr bind alts ngen
           lsts_cs = liftSymLitAlt eenv mexpr ngen bind lalts
           (_, _, dconds, _, _) = unzip5 dsts_cs
           (_, _, lconds, _, _) = unzip5 lsts_cs
-          negs = map (\(d, _, _) -> ConsCond d mexpr False) dalts
+          dnegs = map (\(d, _, _) -> ConsCond d mexpr False) dalts
+          lnegs = map (\(AltCond a e b) -> AltCond a e (not b)) (concat lconds)
+          negs = dnegs ++ lnegs
           def_sts = liftSymDefAlt eenv mexpr ngen negs bind defs
       in (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
 

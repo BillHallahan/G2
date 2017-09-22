@@ -14,7 +14,7 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
 
 allowedStartSymbols =
-    ['a'..'z']
+    ['a'..'z'] ++ ['A'..'Z']
     ++ ['~', '!', '$', '%', '^', '&', '*'
        --, '_' -- We eliminate this so we can use _ to seperate in string conversion
        , '-', '+', '=', '<', '>', '?', '/']
@@ -22,7 +22,7 @@ allowedStartSymbols =
 allowedSymbol = allowedStartSymbols ++ ['0'..'9'] ++ ['@', '.']
 
 cleanNames :: State -> State
-cleanNames s = cleanNames' s (allNames s)
+cleanNames s = s --cleanNames' s (allNames s)
 
 cleanNames' :: State -> [Name] -> State
 cleanNames' s [] = s
@@ -37,8 +37,11 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns) =
         n'' = "$" ++ n'
 
         (new_name, ng') = freshSeededName (Name n'' m' i) ng
+
+        new_state = renameState name new_name $ s {name_gen = ng'}
     in
-    renameState name new_name $ s {name_gen = ng'}
+    cleanNames' new_state ns
+    
 
 allNames :: State -> [Name]
 allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)

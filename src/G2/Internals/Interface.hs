@@ -65,6 +65,17 @@ args :: Expr -> [Type]
 args (Lam (Id _ t) e) = t:args e  
 args _ = []
 
+
+mkStrict :: Expr -> NameGen -> (Expr, NameGen)
+mkStrict e ng =
+    let
+        (bound, ng') = freshName ng
+        bound_id = Id bound (typeOf e)
+        bound_var = Var bound_id
+        c = Case e bound_id [Alt Default bound_var]
+    in
+    (c, ng)
+
 mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> ExprEnv -> (Expr, [Id], NameGen)
 mkCurrExpr m_assume m_assert s ng eenv =
     case findFunc s eenv of

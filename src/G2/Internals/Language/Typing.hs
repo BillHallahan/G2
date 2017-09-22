@@ -58,7 +58,7 @@ instance Typed Lit where
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
-    typeOf' m (DataCon _ ty tys) = foldr TyFun (typeOf' m ty) tys
+    typeOf' m (DataCon _ ty tys) = ty
     typeOf' _ (PrimCon I) = TyFun TyLitInt TyInt
     typeOf' _ (PrimCon D) = TyFun TyLitDouble TyDouble
     typeOf' _ (PrimCon F) = TyFun TyLitFloat TyFloat
