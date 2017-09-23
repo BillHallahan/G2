@@ -28,6 +28,10 @@ main = do
 
     (binds, tycons) <- translation proj src prims
 
+    -- mapM_ (putStrLn . show) binds
+
+    putStrLn $ "typechecks? " ++ (show $ fint .:: poly1)
+
     -- print binds
 
     let init_state = initState binds tycons m_assume m_assert entry

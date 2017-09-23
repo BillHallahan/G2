@@ -8,3 +8,9 @@ instance Test Int where
 
 f :: Int -> Int
 f x = test x
+
+polySnd a b = b
+
+typedSnd :: Int -> Int -> Int
+typedSnd a b = b
+
