@@ -15,6 +15,7 @@ import G2.Internals.SMT.Language hiding (Assert)
 
 import G2.Internals.Postprocessing.Undefunctionalize
 
+import qualified G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
@@ -35,9 +36,9 @@ initState prog prog_typ m_assume m_assert f =
         tenv = mkTypeEnv prog_typ
         ng = mkNameGen prog
 
-        (eenv', tenv', ng', ft) = runInitialization eenv tenv ng
+        (eenv', tenv', ng', ft, walkers) = runInitialization eenv tenv ng
 
-        (ce, ids, ng'') = mkCurrExpr m_assume m_assert f ng' eenv'
+        (ce, ids, ng'') = mkCurrExpr m_assume m_assert f ng' eenv' walkers
     in
     State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' ids
@@ -48,6 +49,7 @@ initState prog prog_typ m_assume m_assert f =
     , input_ids = ids
     , sym_links = Sym.empty
     , func_table = ft
+    , type_walkers = walkers
     , exec_stack = Stack.empty
  }
 
@@ -65,29 +67,20 @@ args :: Expr -> [Type]
 args (Lam (Id _ t) e) = t:args e  
 args _ = []
 
-
-mkStrict :: Expr -> NameGen -> (Expr, NameGen)
-mkStrict e ng =
-    let
-        (bound, ng') = freshName ng
-        bound_id = Id bound (typeOf e)
-        bound_var = Var bound_id
-        c = Case e bound_id [Alt Default bound_var]
-    in
-    (c, ng)
-
-mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> ExprEnv -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert s ng eenv =
+mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> ExprEnv -> Walkers -> (Expr, [Id], NameGen)
+mkCurrExpr m_assume m_assert s ng eenv walkers =
     case findFunc s eenv of
         Left (f, ex) -> 
             let
                 typs = args ex -- args $ typeOf ex
-                (names, ng') = trace (" s = " ++ s ++ " typs = " ++ show (typeOf ex)) $ freshNames (length typs) ng
+                (names, ng') = freshNames (length typs) ng
                 ids = map (uncurry Id) $ zip names typs
                 var_ids = reverse $ map Var ids
                 
                 var_ex = Var f
                 app_ex = foldr (\vi e -> App e vi) var_ex var_ids
+
+                strict_app_ex = mkStrict walkers app_ex
 
                 (name, ng'') = freshName ng'
                 id_name = Id name (typeOf f)
@@ -96,7 +89,7 @@ mkCurrExpr m_assume m_assert s ng eenv =
                 assume_ex = mkAssumeAssert Assume m_assume var_ids var_name var_name eenv
                 assert_ex = mkAssumeAssert Assert m_assert var_ids assume_ex var_name eenv
                 
-                let_ex = Let [(id_name, app_ex)] assert_ex
+                let_ex = Let [(id_name, strict_app_ex)] assert_ex
             in
             (let_ex, ids, ng'')
         Right s -> error s
@@ -135,7 +128,7 @@ run con hhp n state = do
     -- putStrLn "After start"
 
     let preproc_state = runPreprocessing state
-    
+
     -- putStrLn . pprExecStateStr $ preproc_state
 
     let exec_states = runNBreadthHist [([], preproc_state)] n

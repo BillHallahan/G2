@@ -27,6 +27,7 @@ data State = State { expr_env :: E.ExprEnv
                    , sym_links :: SymLinks
                    , input_ids :: InputIds
                    , func_table :: FuncInterps
+                   , type_walkers :: Walkers
                    , exec_stack :: Stack Frame
                    } deriving (Show, Eq, Read)
 
@@ -71,6 +72,8 @@ newtype FuncInterps = FuncInterps (M.Map Name (Name, Interp))
 
 -- | Functions can have a standard interpretation or be uninterpreted.
 data Interp = StdInterp | UnInterp deriving (Show, Eq, Read)
+
+type Walkers = M.Map Name Id
 
 -- | Naive expression lookup by only the occurrence name string.
 naiveLookup :: String -> E.ExprEnv -> [(Name, Expr)]
@@ -124,6 +127,7 @@ renameState old new_seed s =
              , input_ids = rename old new (input_ids s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
+             , type_walkers = rename old new (type_walkers s)
              , exec_stack = exec_stack s }
 
 -- | TypeClass definitions

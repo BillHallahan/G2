@@ -1,9 +1,14 @@
 module G2.Internals.Language.Expr ( freeVars
-								  , exprReplace) where
+								  , exprReplace
+								  , mkStrict) where
 
 import G2.Internals.Language.AST
 import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.Typing
+
+import qualified Data.Map as M
 
 --Returns the free (unbound by a Lambda, Let, or the Expr Env) variables of an expr
 freeVars :: ASTContainer m Expr => E.ExprEnv -> m -> [Id]
@@ -29,3 +34,17 @@ exprReplace eOld eNew = modifyContainedASTs (exprReplace')
             if e == eOld
                 then modifyChildren (exprReplace eOld eNew) eNew 
                 else modifyChildren (exprReplace eOld eNew) e
+
+-- Forces the complete evaluation of an expression
+mkStrict :: (ASTContainer m Expr) => Walkers -> m -> m
+mkStrict w = modifyContainedASTs (mkStrict' w)
+
+mkStrict' :: Walkers -> Expr -> Expr
+mkStrict' w e =
+    let
+        ret = returnType e
+        f = case ret of
+            (TyConApp n _) -> App (Var $ w M.! n)
+            _ -> id
+    in
+    f e

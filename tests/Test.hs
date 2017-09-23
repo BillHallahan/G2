@@ -21,6 +21,8 @@ import GetNthTest
 import DefuncTest
 import TestUtils
 
+import Debug.Trace
+
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
 --     RForall f -- All the returned inputs satisfy the function f
@@ -51,9 +53,9 @@ sampleTests =
         =<< sequence [
                   checkExpr "tests/samples/" "tests/samples/Peano.hs" 620 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
                 , checkExpr "tests/samples/" "tests/samples/Peano.hs" 400 (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
-                , checkExpr "tests/samples/" "tests/samples/Peano.hs" 600 (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
+                , checkExpr "tests/samples/" "tests/samples/Peano.hs" 650 (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
                 , checkExpr "tests/samples/" "tests/samples/Peano.hs" 400 (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
-                , checkExpr "tests/samples/" "tests/samples/Peano.hs" 500 (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
+                , checkExpr "tests/samples/" "tests/samples/Peano.hs" 550 (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
@@ -112,7 +114,7 @@ testFileTests =
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Infinite.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x <= 100 && x /= 80)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Strictness1.hs" Nothing Nothing "f" 2 [AtLeast 1, RExists (\[(App x (Lit (LitInt y)))] -> dataConHasName "A" x && y == 9)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Strictness1.hs" Nothing Nothing "f" 1 [AtLeast 1, RExists (\[(App x (Lit (LitInt y)))] -> dataConHasName "A" x && y == 9)]
         ]
 
 
