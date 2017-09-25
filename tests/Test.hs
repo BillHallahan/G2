@@ -19,6 +19,7 @@ import PeanoTest
 import HigherOrderMathTest
 import GetNthTest
 import DefuncTest
+import CaseTest
 import TestUtils
 
 import Debug.Trace
@@ -51,7 +52,7 @@ sampleTests :: IO TestTree
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  checkExpr "tests/samples/" "tests/samples/Peano.hs" 620 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
+                  checkExpr "tests/samples/" "tests/samples/Peano.hs" 700 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
                 , checkExpr "tests/samples/" "tests/samples/Peano.hs" 400 (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
                 , checkExpr "tests/samples/" "tests/samples/Peano.hs" 650 (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
                 , checkExpr "tests/samples/" "tests/samples/Peano.hs" 400 (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
@@ -104,10 +105,10 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" Nothing Nothing "f" 2 
-                        [ RExists (\[(App x y), (App z w)] -> dataConHasName "A" x && dataConHasName "B" y && dataConHasName "A" z && dataConHasName "C" w)
-                        , RExists (\[x, y] -> dataConHasName "B" x && dataConHasName "C" y)
-                        , RExists (\[x, (App y (App z w))] -> dataConHasName "C" x && dataConHasName "A" y && dataConHasName "A" z && dataConHasName "B" w)
-                        , RExists (\[x, (App y z)] -> dataConHasName "A" y && dataConHasName "B" z)
+                        [ RExists exists1
+                        , RExists exists2
+                        , RExists exists3
+                        , RExists exists4
                         , AtLeast 4]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Guards.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitBool x)] -> x)]
