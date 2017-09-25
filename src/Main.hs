@@ -30,7 +30,7 @@ main = do
 
     -- mapM_ (putStrLn . show) binds
 
-    putStrLn $ "typechecks? " ++ (show $ fint .:: poly1)
+    -- putStrLn $ "typechecks? " ++ (show $ fint .:: poly1)
 
     -- print binds
 
@@ -51,8 +51,8 @@ main = do
             -- mapM_ (print) rs
             -- putStrLn $ pprExecStateStr st
 
-            print inArg
-            print ex
+            -- print inArg
+            -- print ex
 
             let funcOut = mkExprHaskell $ ex
 
