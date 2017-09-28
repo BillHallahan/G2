@@ -14,4 +14,4 @@ length (Cons _ xs) = 1 + length xs
 length Nil = 0
 
 getNthContract :: CList -> Int -> Int -> Bool
-getNthContract xs i _ = 0 <= i && i < length xs  
+getNthContract xs i _ = 0 <= i && i < length xs

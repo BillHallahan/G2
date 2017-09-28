@@ -70,10 +70,6 @@ smt2 = SMTConverter {
                         s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ " " ++ (sortN _s) ++ ")") $ si
                     in
                     "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
-                    -- if s /= [] then
-                    --     "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
-                    -- else
-                    --     n ++ " " ++ dcHandler dc
             in
             "(declare-datatypes () ("
             ++ (foldr (\(n, dc) e -> 

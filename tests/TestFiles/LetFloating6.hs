@@ -11,7 +11,7 @@ f x =
     z h x
 
 z :: (Int -> Int) -> Int -> Int
-z f x = f x
+z g x = g x
 
 output32 :: Int -> Int -> Bool
 output32 _ = (32 ==)

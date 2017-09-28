@@ -5,6 +5,7 @@ import G2.Internals.Language.Support
 import G2.Internals.Initialization.CreateWalks
 import G2.Internals.Initialization.Defunctionalizor
 import G2.Internals.Initialization.FreeBind
+import G2.Internals.Initialization.Functionalizer
 import G2.Internals.Initialization.LetFloating
 
 runInitialization :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, TypeEnv, NameGen, FuncInterps, Walkers)
