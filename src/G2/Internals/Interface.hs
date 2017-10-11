@@ -35,7 +35,7 @@ initState prog prog_typ m_assume m_assert f =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
-        ng = mkNameGen prog
+        ng = mkNameGen prog prog_typ
 
         (eenv', tenv', ng', ft, at, walkers) = runInitialization eenv tenv ng
 

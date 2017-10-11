@@ -46,17 +46,19 @@ strToName str =
     in
     Name n m' (read i :: Int)
 
-mkNameGen :: Program -> NameGen
-mkNameGen = NameGen
+mkNameGen :: Program -> [ProgramType] -> NameGen
+mkNameGen prog progTypes =
+    NameGen
     . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) HM.empty
-    . progNames
+    $ names prog ++ names progTypes
 
 progNames :: Program -> [Name]
-progNames prog = nub (binds ++ expr_names ++ type_names)
-  where
-    binds = concatMap (map (idName . fst)) prog
-    expr_names = exprNames prog
-    type_names = typeNames prog
+progNames prog = names prog
+  -- nub (binds ++ expr_names ++ type_names)
+  -- where
+  --   binds = concatMap (map (idName . fst)) prog
+  --   expr_names = exprNames prog
+  --   type_names = typeNames prog
 
 exprNames :: (ASTContainer m Expr) => m -> [Name]
 exprNames = evalASTs exprTopNames
@@ -199,6 +201,11 @@ instance {-# OVERLAPPING #-} (Named a, Named b) => Named (a, b) where
     names (a, b) = names a ++ names b
 
     rename old new (a, b) = (rename old new a, rename old new b)
+
+instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) where
+    names (a, b, c) = names a ++ names b ++ names c
+
+    rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _) (NameGen hm) = (Name n m i', NameGen hm')
