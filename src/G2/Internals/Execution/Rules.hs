@@ -98,12 +98,14 @@ renames names a = foldr (\(old, new) -> rename old new) a names
 -- seed values for the names.
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen)
-liftBinds kvs eenv expr ngen = (eenv', expr', ngen')
+liftBinds binds eenv expr ngen = (eenv', expr', ngen')
   where
-    olds = map (idName . fst) kvs
+    olds = map (idName . fst) binds
     (news, ngen') = freshSeededNames olds ngen
-    eenv' = E.insertExprs (zip news (map snd kvs)) eenv
     expr' = renames (zip olds news) expr
+    binds' = renames (zip olds news) binds
+
+    eenv' = E.insertExprs (zip news (map snd binds')) eenv
 
 -- | `DataCon` `Alt`s.
 dataAlts :: [Alt] -> [(DataCon, [Id], Expr)]
