@@ -54,9 +54,9 @@ main = do
             -- print inArg
             -- print ex
 
-            let funcOut = mkExprHaskell $ ex
+            -- let funcOut = mkExprHaskell $ ex
 
-            putStrLn (funcCall ++ " = " ++ funcOut)
+            putStrLn $ funcCall -- ++ " = " ++ funcOut
         ) in_out
 
     putStrLn "End"

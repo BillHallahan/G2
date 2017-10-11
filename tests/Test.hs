@@ -60,12 +60,12 @@ sampleTests =
 
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
-                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
+                -- , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
 
                 -- The below test fails because Z3 returns unknown.
-                , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
+                -- , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
                 
-                , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
+                -- , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
@@ -87,8 +87,8 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
+                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
+                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
                     [ RExists (\[Lit (LitInt x), y] -> x == 2 && y == (Lit $ LitBool True))
@@ -102,7 +102,7 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
+                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" Nothing Nothing "f" 2 
