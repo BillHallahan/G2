@@ -22,7 +22,6 @@ import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 import qualified G2.Internals.Language.Typing
 
-
 import G2.Lib.Printers
 
 import Data.List
@@ -71,11 +70,7 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
         Left (f, ex) -> 
             let
                 typs = args ex
-                -- (names, ng') = freshNames (length typs) ng
-                -- ids = map (uncurry Id) $ zip names typs
-                -- var_ids = reverse $ map Var ids
                 (var_ids, ids, ng') = mkInputs at ng typs
-
                 
                 var_ex = Var f
                 app_ex = foldr (\vi e -> App e vi) var_ex var_ids
@@ -154,10 +149,10 @@ run con hhp n state = do
 
     let ident_states = filter ((==) RuleIdentity . last . fst) exec_states
 
-    -- putStrLn $ "states: " ++ (show $ length ident_states)
-    -- mapM_ (\(rs, st) -> do
-    --     putStrLn $ show rs
-    --     putStrLn $ pprExecStateStr st) exec_states
+    putStrLn $ "states: " ++ (show $ length ident_states)
+    mapM_ (\(rs, st) -> do
+        putStrLn $ show rs
+        putStrLn $ pprExecStateStr st) exec_states
     -- mapM_ (\(rs, st) -> (putStrLn $ pprPathsStr (path_conds st)) >> putStrLn "---") exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st) >> putStrLn "---")) (filter (isExecValueForm . snd) exec_states)
 

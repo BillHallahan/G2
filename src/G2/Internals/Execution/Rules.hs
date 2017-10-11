@@ -102,7 +102,7 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen')
   where
     olds = map (idName . fst) binds
     (news, ngen') = freshSeededNames olds ngen
-    expr' = renames (zip olds news) expr
+    expr' = trace (show news) $ renames (zip olds news) expr
     binds' = renames (zip olds news) binds
 
     eenv' = E.insertExprs (zip news (map snd binds')) eenv
@@ -405,7 +405,6 @@ reduceCase eenv mexpr bind alts ngen
   , (length dalts + length lalts + length defs) > 0 =
       let dsts_cs = liftSymDataAlt eenv mexpr ngen bind dalts
           lsts_cs = liftSymLitAlt eenv mexpr ngen bind lalts
-          (_, _, dconds, _, _) = unzip5 dsts_cs
           (_, _, lconds, _, _) = unzip5 lsts_cs
           dnegs = map (\(d, _, _) -> ConsCond d mexpr False) dalts
           lnegs = map (\(AltCond a e b) -> AltCond a e (not b)) (concat lconds)
@@ -426,19 +425,6 @@ reduceCase eenv mexpr bind alts ngen
             , []
             , ngen
             , Just frame)])
-
-   -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
-  -- If so, we just perform the cvar binding and proceed with the alt
-  -- expression.
-  -- | (Alt _ expr):_ <- defaultAlts alts =
-  --     let binds = [(bind, mexpr)]
-  --         (eenv', expr', ngen') = liftBinds binds eenv expr ngen
-  --     in ( RuleEvalCaseDefault
-  --        , [( eenv'
-  --           , CurrExpr Evaluate expr'
-  --           , []
-  --           , ngen'
-  --           , Nothing)])
  
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 
@@ -502,7 +488,7 @@ reduceEReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
   if not (E.isSymbolic (idName var) eenv)
     then (RuleError, (eenv, CurrExpr Return c, ngen))
     else let (sname, ngen') = freshSeededName (idName var) ngen
-             sym_app = App (Var var) aexpr
+             sym_app = trace (show sname) App (Var var) aexpr
              svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
          in ( RuleReturnEApplySym
             , ( E.insert sname sym_app eenv

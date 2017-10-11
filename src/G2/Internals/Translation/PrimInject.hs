@@ -78,7 +78,7 @@ occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
 mergeProgs :: Program -> [(Name, Type)] -> Program
 mergeProgs prog pdefs = injects : prog
   where
-    prog_names = progNames prog
+    prog_names = names prog 
     (prims, nonPrims) = partition (\n -> (nameOccStr n) `elem` prim_list) prog_names
 
     defs = map (\(n, t) -> (fromMaybe n $ occFind n prims, t)) pdefs

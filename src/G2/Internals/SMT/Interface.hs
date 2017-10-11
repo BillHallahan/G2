@@ -10,21 +10,6 @@ import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
-
--- | satModelOutput
--- Given an smt converter and a list of states, checks if each of
--- those that match the criteria of smtReady is satisfiable.
--- Returns a list of satisifable states, along with possible input/output pairs
--- satModelOutputs :: SMTConverter ast out io -> io -> [([Rule], State)] -> IO [(State, [Rule], [Expr], Expr)]
--- satModelOutputs con io states = do
---    let states' = filter ((==) RuleIdentity . last . fst) states
-
---    return . map (\(s, rs, _, es, e) -> (s, rs, fromJust es, fromJust e))
---           . filter (\(_, _, res, es, e) -> res == SAT && isJust es && isJust e)
---           =<< mapM (\(rs, s) -> do
---                             (res, es, e) <- satModelOutput con io $ simplifyPrims s
---                             return (s, rs, res, es, e)) (filter (isExecValueForm . snd) states)
-
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
@@ -63,21 +48,6 @@ satModelOutput con io s = do
     let ex' = fmap smtastToExpr ex
 
     return (res, input', ex')
-    {-
-    -- Determine the input
-    let inArg = case (fmap (replaceFuncSLT s . modelAsExpr) m) of
-            Just m' -> 
-                    let argOrder = map (\(n, _, _) -> n)
-                                   . sortOn (\(_, _, x) -> fromJust x)
-                                   . filter (\(_, _, x) -> isJust x) 
-                                   . M.elems $ sym_links s in
-                    Just $ map (\n -> fromJust $ M.lookup n m') argOrder
-            Nothing -> Nothing
-
-    -- Convert the output to an expression
-    let ex' = fmap (replaceFuncSLT s . smtastToExpr) ex
-
-    return (res, inArg, ex') -}
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State

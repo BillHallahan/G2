@@ -15,7 +15,6 @@ module G2.Internals.Language.Naming
     , freshNames
     , freshSeededName
     , freshSeededNames
-    , progNames
     ) where
 
 import G2.Internals.Language.AST
@@ -24,6 +23,8 @@ import G2.Internals.Language.Syntax
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.List.Utils
+
+import Debug.Trace
 
 nameOccStr :: Name -> String
 nameOccStr (Name occ _ _) = occ
@@ -51,14 +52,6 @@ mkNameGen prog progTypes =
     NameGen
     . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) HM.empty
     $ names prog ++ names progTypes
-
-progNames :: Program -> [Name]
-progNames prog = names prog
-  -- nub (binds ++ expr_names ++ type_names)
-  -- where
-  --   binds = concatMap (map (idName . fst)) prog
-  --   expr_names = exprNames prog
-  --   type_names = typeNames prog
 
 exprNames :: (ASTContainer m Expr) => m -> [Name]
 exprNames = evalASTs exprTopNames
@@ -208,13 +201,13 @@ instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) wher
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
-freshSeededName (Name n m _) (NameGen hm) = (Name n m i', NameGen hm')
+freshSeededName (Name n m _) (NameGen hm) = trace ("naming " ++ show (Name n m i')) $ (Name n m i', NameGen hm')
   where i' = HM.lookupDefault 0 (n, m) hm
         hm' = HM.insert (n, m) (i' + 1) hm
 
 freshSeededNames :: [Name] -> NameGen -> ([Name], NameGen)
 freshSeededNames [] r = ([], r)
-freshSeededNames (name:ns) r = (name':ns', ngen'') 
+freshSeededNames (name:ns) r = trace ("naming2 " ++ show name') $  (name':ns', ngen'') 
   where (name', ngen') = freshSeededName name r
         (ns', ngen'') = freshSeededNames ns ngen'
 
