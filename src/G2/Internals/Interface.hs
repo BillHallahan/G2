@@ -15,6 +15,7 @@ import G2.Internals.SMT.Language hiding (Assert)
 
 import G2.Internals.Postprocessing.Undefunctionalize
 
+import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as Stack
@@ -38,7 +39,7 @@ initState prog prog_typ m_assume m_assert f =
 
         (eenv', tenv', ng', ft, at, walkers) = runInitialization eenv tenv ng
 
-        (ce, ids, ng'') = mkCurrExpr m_assume m_assert f ng' eenv' walkers
+        (ce, ids, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' walkers
     in
     State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' ids
@@ -60,23 +61,21 @@ mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, ts, dcs) -> (n, AlgDataTy ts dcs))
 
--- args :: Type -> [Type]
--- args (TyFun t ts) = t:args ts  
--- args _ = []
-
 args :: Expr -> [Type]
 args (Lam (Id _ t) e) = t:args e  
 args _ = []
 
-mkCurrExpr :: Maybe String -> Maybe String -> String -> NameGen -> ExprEnv -> Walkers -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert s ng eenv walkers =
+mkCurrExpr :: Maybe String -> Maybe String -> String -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> (Expr, [Id], NameGen)
+mkCurrExpr m_assume m_assert s at ng eenv walkers =
     case findFunc s eenv of
         Left (f, ex) -> 
             let
-                typs = args ex -- args $ typeOf ex
-                (names, ng') = freshNames (length typs) ng
-                ids = map (uncurry Id) $ zip names typs
-                var_ids = reverse $ map Var ids
+                typs = args ex
+                -- (names, ng') = freshNames (length typs) ng
+                -- ids = map (uncurry Id) $ zip names typs
+                -- var_ids = reverse $ map Var ids
+                (var_ids, ids, ng') = mkInputs at ng typs
+
                 
                 var_ex = Var f
                 app_ex = foldr (\vi e -> App e vi) var_ex var_ids
@@ -94,6 +93,25 @@ mkCurrExpr m_assume m_assert s ng eenv walkers =
             in
             (let_ex, ids, ng'')
         Right s -> error s
+
+mkInputs :: ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
+mkInputs at ng [] = ([], [], ng)
+mkInputs at ng (t:ts) =
+    let
+        (name, ng') = freshName ng
+
+
+        (t', fv) =
+            case AT.lookup t at of
+                Just (t'', f) -> (TyConApp t'' [], App (Var f))
+                Nothing -> (t, id)
+
+        i = Id name t'
+        var_id = fv $ Var i
+
+        (ev, ei, ng'') = mkInputs at ng' ts
+    in
+    (ev ++ [var_id], i:ei, ng'')
 
 mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
 mkAssumeAssert p (Just f) var_ids inter pre_ex eenv =
