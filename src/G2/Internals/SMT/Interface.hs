@@ -15,13 +15,31 @@ import G2.Internals.SMT.Language
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
 -- Returns a list of satisifable states, along with possible input/output pairs
+-- satModelOutputs :: SMTConverter ast out io -> io -> [([Rule], State)] -> IO [(State, [Rule], [Expr], Expr)]
+-- satModelOutputs con io states = do
+--    let states' = filter ((==) RuleIdentity . last . fst) states
+
+--    return . map (\(s, rs, _, es, e) -> (s, rs, fromJust es, fromJust e))
+--           . filter (\(_, _, res, es, e) -> res == SAT && isJust es && isJust e)
+--           =<< mapM (\(rs, s) -> do
+--                             (res, es, e) <- satModelOutput con io $ simplifyPrims s
+--                             return (s, rs, res, es, e)) (filter (isExecValueForm . snd) states)
+
+-- | satModelOutput
+-- Given an smt converter and a list of states, checks if each of
+-- those that match the criteria of smtReady is satisfiable.
+-- Returns a list of satisifable states, along with possible input/output pairs
 satModelOutputs :: SMTConverter ast out io -> io -> [([Rule], State)] -> IO [(State, [Rule], [Expr], Expr)]
 satModelOutputs con io states = do
-   return . map (\(s, rs, _, es, e) -> (s, rs, fromJust es, fromJust e))
-          . filter (\(_, _, res, es, e) -> res == SAT && isJust es && isJust e)
-          =<< mapM (\(rs, s) -> do
+    let states' = filter (isExecValueForm . snd) states
+  
+    let states'' = map (\(r, s) -> (r, filterTEnv s)) states'
+
+    return . map (\(s, rs, _, es, e) -> (s, rs, fromJust es, fromJust e))
+           . filter (\(_, _, res, es, e) -> res == SAT && isJust es && isJust e)
+           =<< mapM (\(rs, s) -> do
                             (res, es, e) <- satModelOutput con io $ simplifyPrims s
-                            return (s, rs, res, es, e)) (filter (isExecValueForm . snd) states)
+                            return (s, rs, res, es, e)) states''
 
 
 -- | checkSatModelOutput
@@ -61,6 +79,16 @@ satModelOutput con io s = do
 
     return (res, inArg, ex') -}
 
+-- Remove all types from the type environment that contain a function
+filterTEnv :: State -> State
+filterTEnv s@State {type_env = type_env} = s {type_env = M.filter filterTEnv' type_env}
+
+filterTEnv' :: AlgDataTy -> Bool
+filterTEnv' (AlgDataTy _ dc) = not $ any filterTEnv'' dc
+
+filterTEnv'' :: DataCon -> Bool
+filterTEnv'' (DataCon _ _ ts) = any (hasFuncType) ts
+filterTEnv'' _ = False
 
 {- TODO: This function is hacky- would be better to correctly handle typeclasses... -}
 simplifyPrims :: ASTContainer t Expr => t -> t

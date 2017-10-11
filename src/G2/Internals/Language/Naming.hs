@@ -3,7 +3,7 @@
 module G2.Internals.Language.Naming
     ( nameOccStr
     , NameGen
-    , Renamable (rename)
+    , Named (names, rename)
     , doRename
     , doRenames
     , nameToStr
@@ -87,30 +87,52 @@ typeTopNames (TyConApp n _) = [n]
 typeTopNames (TyForAll (NamedTyBndr v) _) = [idName v]
 typeTopNames _ = []
 
-doRename :: Renamable a => Name -> NameGen -> a -> (a, NameGen)
+doRename :: Named a => Name -> NameGen -> a -> (a, NameGen)
 doRename n ngen x = (rename n n' x, ngen')
   where (n', ngen') = freshSeededName n ngen
 
-doRenames :: Renamable a => [Name] -> NameGen -> a -> (a, NameGen)
+doRenames :: Named a => [Name] -> NameGen -> a -> (a, NameGen)
 doRenames [] ngen x = (x, ngen)
 doRenames (n:ns) ngen x = doRenames ns ngen' x'
   where (x', ngen') = doRename n ngen x
 
--- |Renamable a
+renameAll :: (Named a) => a -> NameGen ->(a, NameGen)
+renameAll x ng =
+    let
+        old = nub $ names x
+    in
+    doRenames old ng x
+
+-- | Named a
 -- Given an old name and a new name, replaces the old name with the new name
 -- everywhere in the passed type.
 -- rename should be used only to define an instance.  Use rename to perform the
 -- rename instead
-class Renamable a where
+class Named a where
+    names :: a -> [Name]
     rename :: Name -> Name -> a -> a
 
-instance Renamable Name where
+instance Named Name where
+    names n = [n]
     rename old new n = if old == n then new else n
 
-instance Renamable Id where
+instance Named Id where
+    names (Id n t) = n:names t
     rename old new (Id n t) = Id (rename old new n) (rename old new t)
 
-instance Renamable Expr where
+instance Named Expr where
+    names = eval go
+        where
+            go :: Expr -> [Name]
+            go (Var i) = names i
+            go (Prim _ t) = names t
+            go (Data d) = names d
+            go (Lam i _) = names i
+            go (Let b _) = concatMap (names . fst) b
+            go (Case _ i a) = names i ++ concatMap (names . altMatch) a
+            go (Type t) = names t
+            go _ = []
+
     rename old new = modify go
       where
         go :: Expr -> Expr
@@ -125,7 +147,14 @@ instance Renamable Expr where
         go (Type t) = Type (rename old new t)
         go e = e
 
-instance Renamable Type where
+instance Named Type where
+    names = eval go
+        where
+            go (TyVar n _) = [n]
+            go (TyConApp n _) = [n]
+            go (TyForAll b _) = names b
+            go _ = []
+
     rename old new = modify go
       where
         go :: Type -> Type
@@ -134,27 +163,41 @@ instance Renamable Type where
         go (TyForAll tb t) = TyForAll (rename old new tb) t
         go t = t
 
-instance Renamable Alt where
+instance Named Alt where
+    names (Alt am e) = names am ++ names e
+
     rename old new (Alt am e) = Alt (rename old new am) (rename old new e)
 
-instance Renamable DataCon where
+instance Named DataCon where
+    names (DataCon n t ts) = n:(names t ++ concatMap names ts)
+    names _ = []
+
     rename old new (DataCon n t ts) =
         DataCon (rename old new n) (rename old new t) (rename old new ts)
     rename _ _ d = d
 
-instance Renamable AltMatch where
+instance Named AltMatch where
+    names (DataAlt dc i) = names dc ++ names i
+    names _ = []
+
     rename old new (DataAlt dc i) =
         DataAlt (rename old new dc) (rename old new i)
     rename _ _ am = am
 
-instance Renamable TyBinder where
+instance Named TyBinder where
+    names (NamedTyBndr i) = names i
+    names _ = []
+
     rename old new (NamedTyBndr n) = NamedTyBndr (rename old new n)
     rename _ _ tb = tb
 
-instance (Functor f, Renamable a) => Renamable (f a) where
+instance (Foldable f, Functor f, Named a) => Named (f a) where
+    names = foldMap names
     rename old new = fmap (rename old new)
 
-instance {-# OVERLAPPING #-} (Renamable a, Renamable b) => Renamable (a, b) where
+instance {-# OVERLAPPING #-} (Named a, Named b) => Named (a, b) where
+    names (a, b) = names a ++ names b
+
     rename old new (a, b) = (rename old new a, rename old new b)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
@@ -175,4 +218,3 @@ freshName ngen = freshSeededName seed ngen
 
 freshNames :: Int -> NameGen -> ([Name], NameGen)
 freshNames i ngen = freshSeededNames (replicate i (Name "fs?" Nothing 0)) ngen
-

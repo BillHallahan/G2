@@ -114,6 +114,9 @@ data AltMatch = DataAlt DataCon [Id]
 -- evaluated provided that the `AltMatch` successfully matches.
 data Alt = Alt AltMatch Expr deriving (Show, Eq, Read)
 
+altMatch :: Alt -> AltMatch
+altMatch (Alt am _) = am
+
 -- | TyBinder is used only in the `TyForAll`
 data TyBinder = AnonTyBndr Type
               | NamedTyBndr Id

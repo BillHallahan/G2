@@ -4,15 +4,17 @@
 module G2.Internals.Language.Support
     ( module G2.Internals.Language.AST
     , module G2.Internals.Language.Support
+    , AT.ApplyTypes
     , E.ExprEnv
     , SymLinks
     ) where
 
+import qualified G2.Internals.Language.ApplyTypes as AT
 import G2.Internals.Language.AST
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Stack
-import G2.Internals.Language.SymLinks hiding (filter)
+import G2.Internals.Language.SymLinks hiding (filter, map)
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
@@ -28,6 +30,7 @@ data State = State { expr_env :: E.ExprEnv
                    , input_ids :: InputIds
                    , func_table :: FuncInterps
                    , type_walkers :: Walkers
+                   , apply_types :: AT.ApplyTypes
                    , exec_stack :: Stack Frame
                    } deriving (Show, Eq, Read)
 
@@ -127,6 +130,7 @@ renameState old new_seed s =
              , input_ids = rename old new (input_ids s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
+             , apply_types = rename old new (apply_types s)
              , type_walkers = rename old new (type_walkers s)
              , exec_stack = exec_stack s }
 
@@ -238,22 +242,37 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
 
-instance Renamable AlgDataTy where
+instance Named AlgDataTy where
+    names (AlgDataTy n dc) = n ++ names dc
+
     rename old new (AlgDataTy n dc) = AlgDataTy (rename old new n) (rename old new dc)
 
-instance Renamable CurrExpr where
+instance Named CurrExpr where
+    names (CurrExpr _ e) = names e
+
     rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
 
-instance Renamable PathCond where
+instance Named PathCond where
+    names (AltCond am e _) = names am ++ names e
+    names (ExtCond e _) = names e
+    names (PCExists i) = names i
+
     rename old new (AltCond am e b) = AltCond (rename old new am) (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
     rename old new (PCExists i) = PCExists (rename old new i)
 
-instance Renamable FuncInterps where
+instance Named FuncInterps where
+    names (FuncInterps m) = M.keys m ++ (map fst $ M.elems m) 
+
     rename old new (FuncInterps m) =
         FuncInterps . M.mapKeys (rename old new) . M.map (\(n, i) -> (rename old new n, i)) $ m
 
-instance Renamable Frame where
+instance Named Frame where
+    names (CaseFrame i a) = names i ++ names a
+    names (ApplyFrame e) = names e
+    names (UpdateFrame n) = [n]
+    names (AssumeFrame e) = names e
+
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)

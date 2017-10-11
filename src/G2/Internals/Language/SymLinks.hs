@@ -39,8 +39,8 @@ map f (SymLinks s) = SymLinks $ M.map f s
 map' :: (Name -> b)  -> SymLinks -> M.Map Name b
 map' f (SymLinks s) = M.map f s
 
-names :: SymLinks -> [Name]
-names (SymLinks s) = M.keys s
+symNames :: SymLinks -> [Name]
+symNames (SymLinks s) = M.keys s
 
 instance ASTContainer SymLinks Expr where
     containedASTs _ = []
@@ -50,7 +50,9 @@ instance ASTContainer SymLinks Type where
     containedASTs sym = []
     modifyContainedASTs _ m = m
 
-instance Renamable SymLinks where
+instance Named SymLinks where
+    names (SymLinks m) = M.keys m ++ names (M.elems m)
+
     rename old new (SymLinks m) =
         SymLinks
         . M.mapKeys (rename old new)

@@ -88,6 +88,7 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
                     [ RExists (\[Lit (LitInt x), y] -> x == 2 && y == (Lit $ LitBool True))

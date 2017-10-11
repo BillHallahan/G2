@@ -91,7 +91,7 @@ isExecValueForm state | Nothing <- pop (exec_stack state)
                       | otherwise = False
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
-renames :: Renamable a => [(Name, Name)] -> a -> a
+renames :: Named a => [(Name, Name)] -> a -> a
 renames names a = foldr (\(old, new) -> rename old new) a names
 
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
@@ -378,6 +378,20 @@ reduceCase eenv mexpr bind alts ngen
             , ngen'
             , Nothing)] )
 
+  -- | We are not able to match any constructor but don't have a symbolic variable?
+  -- We hit a DEFAULT instead.
+  -- We perform the cvar binding and proceed with the alt
+  -- expression.
+  | (Data dcon):_ <- unApp mexpr
+  , (Alt _ expr):_ <- defaultAlts alts =
+      let binds = [(bind, mexpr)]
+          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+      in ( RuleEvalCaseDefault
+         , [( eenv'
+            , CurrExpr Evaluate expr'
+            , []
+            , ngen'
+            , Nothing)])
 
   -- | If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
@@ -414,15 +428,15 @@ reduceCase eenv mexpr bind alts ngen
    -- | We are not able to match any of the stuff, and hit a DEFAULT instead?
   -- If so, we just perform the cvar binding and proceed with the alt
   -- expression.
-  | (Alt _ expr):_ <- defaultAlts alts =
-      let binds = [(bind, mexpr)]
-          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
-      in ( RuleEvalCaseDefault
-         , [( eenv'
-            , CurrExpr Evaluate expr'
-            , []
-            , ngen'
-            , Nothing)])
+  -- | (Alt _ expr):_ <- defaultAlts alts =
+  --     let binds = [(bind, mexpr)]
+  --         (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+  --     in ( RuleEvalCaseDefault
+  --        , [( eenv'
+  --           , CurrExpr Evaluate expr'
+  --           , []
+  --           , ngen'
+  --           , Nothing)])
  
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 

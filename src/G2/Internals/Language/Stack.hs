@@ -37,6 +37,7 @@ instance {-# OVERLAPPING #-} ASTContainer a Type => ASTContainer (Stack a) Type 
     containedASTs (Stack s) = containedASTs s
     modifyContainedASTs f (Stack s) = Stack $ modifyContainedASTs f s
 
-instance Renamable a => Renamable (Stack a) where
-    rename old new (Stack s) = Stack $ rename old new s
+instance Named a => Named (Stack a) where
+    names (Stack s) = names s
 
+    rename old new (Stack s) = Stack $ rename old new s

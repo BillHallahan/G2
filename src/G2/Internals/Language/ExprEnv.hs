@@ -219,10 +219,16 @@ instance ASTContainer EnvObj Type where
     modifyContainedASTs f (SymbObj i) = SymbObj (modifyContainedASTs f i)
     modifyContainedASTs _ r = r
 
-instance Renamable ExprEnv where
+instance Named ExprEnv where
+    names (ExprEnv eenv) = names (M.elems eenv) ++ names eenv
+
     rename old new = ExprEnv . rename old new . unwrapExprEnv
 
-instance Renamable EnvObj where
+instance Named EnvObj where
+    names (ExprObj e) = names e
+    names (RedirObj r) = [r]
+    names (SymbObj s) = names s
+
     rename old new (ExprObj e) = ExprObj $ rename old new e
     rename old new (RedirObj r) = RedirObj $ rename old new r
     rename old new (SymbObj s) = SymbObj $ rename old new s

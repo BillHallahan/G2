@@ -36,7 +36,7 @@ initState prog prog_typ m_assume m_assert f =
         tenv = mkTypeEnv prog_typ
         ng = mkNameGen prog
 
-        (eenv', tenv', ng', ft, walkers) = runInitialization eenv tenv ng
+        (eenv', tenv', ng', ft, at, walkers) = runInitialization eenv tenv ng
 
         (ce, ids, ng'') = mkCurrExpr m_assume m_assert f ng' eenv' walkers
     in
@@ -50,6 +50,7 @@ initState prog prog_typ m_assume m_assert f =
     , sym_links = Sym.empty
     , func_table = ft
     , type_walkers = walkers
+    , apply_types = at
     , exec_stack = Stack.empty
  }
 
