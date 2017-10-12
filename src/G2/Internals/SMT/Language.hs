@@ -7,7 +7,7 @@ module G2.Internals.SMT.Language
     ( module G2.Internals.SMT.Language
     , module G2.Internals.Language.AST) where
 
-import G2.Internals.Language.Support (CurrExpr)
+import G2.Internals.Language.Support (ExprEnv, CurrExpr)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.AST
 
@@ -86,7 +86,7 @@ data SMTConverter ast out io =
         , merge :: out -> out -> out
 
         , checkSat :: io -> out -> IO Result
-        , checkSatGetModelGetExpr :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> CurrExpr -> IO (Result, Maybe Model, Maybe SMTAST)
+        , checkSatGetModelGetExpr :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe Model, Maybe Expr)
 
         , assert :: ast -> out
         , sortDecl :: [(SMTName, [DC])] -> out

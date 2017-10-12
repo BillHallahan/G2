@@ -46,18 +46,6 @@ instance AST e => ASTContainer Rule e where
     containedASTs _ = []
     modifyContainedASTs _ r = r
 
--- | Unravels the application spine.
-unApp :: Expr -> [Expr]
-unApp (App f a) = unApp f ++ [a]
-unApp expr = [expr]
-
--- | Ravels the application spine
-mkApp :: [Expr] -> Expr
-mkApp [] = error "mkApp: empty list"
-mkApp (e:[]) = e
-mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
-
-
 -- | If something is in "value form", then it is essentially ready to be
 -- returned and popped off the heap. This will be the SSTG equivalent of having
 -- Return vs Evaluate for the ExecCode of the `State`.
@@ -154,6 +142,7 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
     eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
 
     (cond', aexpr') = renames (zip olds news) (cond, aexpr)
+
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
     (eenv'', aexpr'', ngen'') = liftBinds binds eenv' aexpr' ngen'

@@ -9,6 +9,7 @@ import G2.Internals.Preprocessing.Interface
 
 import G2.Internals.Execution.Interface
 import G2.Internals.Execution.Rules
+import G2.Internals.Execution.PrimitiveEval
 
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
@@ -158,4 +159,6 @@ run con hhp n state = do
 
     sm <- satModelOutputs con hhp exec_states
 
-    return $ map (\sm@(s, _, _, _) -> undefunctionalize s sm) sm
+    let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm
+
+    return $ map (\sm@(s, _, _, _) -> undefunctionalize s sm) sm'

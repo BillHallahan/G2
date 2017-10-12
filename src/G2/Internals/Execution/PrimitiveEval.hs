@@ -1,16 +1,52 @@
 {-# LANGUAGE Rank2Types #-}
 
-module G2.Internals.Execution.PrimitiveEval (evalPrim) where
+module G2.Internals.Execution.PrimitiveEval ( evalPrims
+                                            , evalPrim) where
 
+import G2.Internals.Language.AST
+import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
 
-evalPrim :: Primitive -> [Expr] -> Expr
-evalPrim p [Lit x] = evalPrim1 p x
-evalPrim p [_, _, Lit x, Lit y] = evalPrim2 p x y
+import Debug.Trace
+
+evalPrims :: Expr -> Expr
+evalPrims a@(App x y) =
+    case unApp a of
+        [p@(Prim _ _), l] -> evalPrim [p, evalPrims l]
+        [p@(Prim _ _), l1, l2] -> evalPrim [p, evalPrims l1, evalPrims l2]
+        [p@(Prim _ _), _, _, l1, l2] -> evalPrim [p, evalPrims l1, evalPrims l2]
+        _ -> App (evalPrims x) (evalPrims y)
+evalPrims e = modifyChildren evalPrims e
+
+evalPrim :: [Expr] -> Expr
+evalPrim xs
+    | [Prim p _, x] <- xs
+    , Lit x' <- getLit x =
+        evalPrim1 p x'
+
+    | [Prim p _, x, y] <- xs
+    , Lit x' <- getLit x
+    , Lit y' <- getLit y =
+        evalPrim2 p x' y'
+
+    | [Prim p _, _, _, x, y] <- xs
+    , Lit x' <- getLit x
+    , Lit y' <- getLit y =
+        evalPrim2 p x' y'
+
+    | otherwise = mkApp xs
+-- evalPrim [Prim p _, Lit x] = evalPrim1 p x
+-- evalPrim [Prim p _, Lit x, Lit y] = evalPrim2 p x y
+-- evalPrim [Prim p _, _, _, Lit x, Lit y] = evalPrim2 p x y
+-- evalPrim xs = mkApp  (xs)
+
+getLit :: Expr -> Expr
+getLit l@(Lit _) = l
+getLit (App _ l@(Lit _)) = l
+getLit x = x
 
 evalPrim1 :: Primitive -> Lit -> Expr
 evalPrim1 Not (LitBool b) = Lit $ LitBool (not b)
-
 evalPrim1 Negate (LitInt x) = Lit $ LitInt (-x)
 evalPrim1 Negate (LitFloat x) = Lit $ LitFloat (-x)
 evalPrim1 Negate (LitDouble x) = Lit $ LitDouble (-x)

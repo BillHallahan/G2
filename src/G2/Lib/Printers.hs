@@ -160,6 +160,7 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         mkExprHaskell' :: Expr -> Int -> String
         mkExprHaskell' (Var ids) _ = mkIdHaskell ids
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
+        mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
         mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
         mkExprHaskell' (App e1 e2@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' e2 i ++ ")"
         mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
@@ -167,7 +168,7 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         mkExprHaskell' (Case e _ ae) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
                                         ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
-        mkExprHaskell' e _ = show e ++ " NOT SUPPORTED"
+        mkExprHaskell' e _ = "e = " ++ show e ++ " NOT SUPPORTED"
 
         mkIdHaskell :: Id -> String
         mkIdHaskell (Id n _) = mkNameHaskell n
@@ -198,6 +199,23 @@ mkLitHaskell (LitDouble r) = "(" ++ show r ++ ")"
 mkLitHaskell (LitChar c) = [c]
 mkLitHaskell (LitString s) = s
 mkLitHaskell (LitBool b) = show b
+
+mkPrimHaskell :: Primitive -> String
+mkPrimHaskell Ge = ">="
+mkPrimHaskell Gt = ">"
+mkPrimHaskell Eq = "=="
+mkPrimHaskell Neq = "/="
+mkPrimHaskell Lt = "<"
+mkPrimHaskell Le = "<="
+mkPrimHaskell And = "&&"
+mkPrimHaskell Or = "||"
+mkPrimHaskell Not = "not"
+mkPrimHaskell Plus = "+"
+mkPrimHaskell Minus = "-"
+mkPrimHaskell Mult = "*"
+mkPrimHaskell Div = "/"
+mkPrimHaskell Negate = "-"
+mkPrimHaskell Undefined = "undefined"
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""

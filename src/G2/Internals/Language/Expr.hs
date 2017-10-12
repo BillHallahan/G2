@@ -1,4 +1,11 @@
-module G2.Internals.Language.Expr ( freeVars
+{-# LANGUAGE IncoherentInstances #-}
+
+module G2.Internals.Language.Expr ( unApp
+                                  , mkApp
+                                  , replaceASTs
+                                  , vars
+                                  , symbVars
+                                  , freeVars
 								  , exprReplace
 								  , mkStrict) where
 
@@ -9,6 +16,36 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
 import qualified Data.Map as M
+
+-- | Unravels the application spine.
+unApp :: Expr -> [Expr]
+unApp (App f a) = unApp f ++ [a]
+unApp expr = [expr]
+
+-- | Ravels the application spine
+mkApp :: [Expr] -> Expr
+mkApp [] = error "mkApp: empty list"
+mkApp (e:[]) = e
+mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
+
+--Replaces all instances of old with new in the AST
+replaceASTs :: (Eq e, AST e) => e -> e -> e -> e
+replaceASTs old new e = if e == old then new else modifyChildren (replaceASTs old new) e
+
+--Returns all Vars in an ASTContainer
+vars :: (ASTContainer m Expr) => m -> [Expr]
+vars = evalASTs vars'
+
+vars' :: Expr -> [Expr]
+vars' v@(Var _) = [v]
+vars' _ = []
+
+symbVars :: (ASTContainer m Expr) => ExprEnv -> m -> [Expr]
+symbVars eenv = filter (symbVars' eenv) . vars
+
+symbVars' :: ExprEnv -> Expr -> Bool
+symbVars' eenv (Var (Id n _)) = E.isSymbolic n eenv
+symbVars' _ _ = False
 
 --Returns the free (unbound by a Lambda, Let, or the Expr Env) variables of an expr
 freeVars :: ASTContainer m Expr => E.ExprEnv -> m -> [Id]

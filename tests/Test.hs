@@ -87,8 +87,8 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
-                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
-                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
                     [ RExists (\[Lit (LitInt x), y] -> x == 2 && y == (Lit $ LitBool True))
@@ -102,7 +102,7 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
 
-                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" Nothing Nothing "f" 2 
@@ -118,8 +118,8 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Strictness1.hs" Nothing Nothing "f" 1 [AtLeast 1, RExists (\[(App x (Lit (LitInt y)))] -> dataConHasName "A" x && y == 9)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), Lit (LitInt y)] -> x == 4 && y == 1)
-                                                                                                           , RExists (\[Lit (LitInt x), Lit (LitInt y)] -> x /= 4 && y == 1) ]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
+                                                                                                           , RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
         ]
 
 

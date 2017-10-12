@@ -37,7 +37,7 @@ satModelOutput con io s = do
     let formula = toSolver con headers
     let vars = map (\(Id n t) -> (nameToStr n, typeToSMT t)) (input_ids s)
 
-    (res, m, ex) <- checkSatGetModelGetExpr con io formula headers vars (curr_expr s)
+    (res, m, ex) <- checkSatGetModelGetExpr con io formula headers vars (expr_env s) (curr_expr s)
 
     let input = fmap modelAsExpr m
 
@@ -45,9 +45,7 @@ satModelOutput con io s = do
             Just inp  -> Just $ map (\(Id n _) -> inp M.! n) (input_ids s)
             Nothing -> Nothing
 
-    let ex' = fmap smtastToExpr ex
-
-    return (res, input', ex')
+    return (res, input', ex)
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State

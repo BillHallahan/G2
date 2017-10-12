@@ -2,6 +2,7 @@
 -- It provides methods to construct formulas, as well as feed them to an external solver
 module G2.Internals.SMT.SMT2 where
 
+import G2.Internals.Language.Expr
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.Typing
@@ -30,7 +31,7 @@ smt2 = SMTConverter {
             setUpFormula h_in formula
             checkSat' h_in h_out
 
-        , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars (CurrExpr _ e) -> do
+        , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars eenv (CurrExpr _ e) -> do
             setUpFormula h_in formula
             putStrLn "\n\n"
             putStrLn formula
@@ -45,7 +46,7 @@ smt2 = SMTConverter {
                 -- putStrLn "======"
                 let m = parseModel headers model
 
-                expr <- solveExpr h_in h_out smt2 headers e
+                expr <- solveExpr h_in h_out smt2 headers eenv e
                 -- putStrLn (show expr)
                 return (r, Just m, Just expr)
             else do
@@ -250,8 +251,23 @@ getLinesMatchParens' h_out n = do
         out' <- getLinesMatchParens' h_out n'
         return $ out ++ out'
 
-solveExpr :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> Expr -> IO SMTAST
-solveExpr h_in h_out con headers e = do
+solveExpr :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> ExprEnv -> Expr -> IO Expr
+solveExpr h_in h_out con headers eenv e = do
+    let vs = symbVars eenv e
+    vs' <- solveExpr' h_in h_out con headers vs
+    let vs'' = map smtastToExpr vs'
+    
+    return $ foldr (uncurry replaceASTs) e (zip vs vs'')
+
+solveExpr'  :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> [Expr] -> IO [SMTAST]
+solveExpr' h_in h_out con headers [] = return []
+solveExpr' h_in h_out con headers (v:vs) = do
+    v' <- solveExpr'' h_in h_out con headers v
+    vs' <- solveExpr' h_in h_out con headers vs
+    return (v':vs')
+
+solveExpr'' :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> Expr -> IO SMTAST
+solveExpr'' h_in h_out con headers e = do
     let smt = toSolverAST con $ exprToSMT e
     hPutStr h_in ("(eval " ++ smt ++ " :completion)\n")
     out <- getLinesMatchParens h_out

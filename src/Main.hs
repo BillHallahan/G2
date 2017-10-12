@@ -51,8 +51,8 @@ main = do
             -- mapM_ (print) rs
             -- putStrLn $ pprExecStateStr st
 
-            -- print inArg
-            -- print ex
+            print inArg
+            print ex
 
             let funcOut = mkExprHaskell $ ex
 
