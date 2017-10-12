@@ -102,7 +102,7 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen')
   where
     olds = map (idName . fst) binds
     (news, ngen') = freshSeededNames olds ngen
-    expr' = trace (show news) $ renames (zip olds news) expr
+    expr' = renames (zip olds news) expr
     binds' = renames (zip olds news) binds
 
     eenv' = E.insertExprs (zip news (map snd binds')) eenv
@@ -144,13 +144,20 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
   where
     -- Condition that was matched.
     cond = AltCond (DataAlt dcon params) mexpr True
+
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
-    ((cond', aexpr'), ngen') = doRenames olds ngen (cond, aexpr)
+    (news, ngen') = freshSeededNames olds ngen
+
+    --Update the expr environment
+    newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
+    eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
+
+    (cond', aexpr') = renames (zip olds news) (cond, aexpr)
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
-    (eenv', aexpr'', ngen'') = liftBinds binds eenv aexpr' ngen'
-    res = ( eenv'
+    (eenv'', aexpr'', ngen'') = liftBinds binds eenv' aexpr' ngen'
+    res = ( eenv''
           , CurrExpr Evaluate aexpr''
           , [cond']
           , ngen''
@@ -174,21 +181,38 @@ liftSymLitAlt' eenv mexpr ngen cvar (lit, aexpr) = res
           , ngen'
           , Nothing)
 
-liftSymDefAlt :: E.ExprEnv -> Expr -> NameGen -> [PathCond] ->  Id -> [Alt] -> [EvaluateResult]
-liftSymDefAlt eenv mexpr ngen negatives cvar = map (liftSymDefAlt' eenv mexpr ngen negatives cvar)
+liftSymDefAlt :: E.ExprEnv -> Expr -> NameGen ->  Id -> [Alt] -> [EvaluateResult]
+liftSymDefAlt eenv mexpr ngen cvar as =
+    let
+        aexpr = defAltExpr as
+    in
+    case aexpr of
+        Just aexpr' -> liftSymDefAlt' eenv mexpr aexpr' ngen cvar as
+        _ -> []
 
--- | Lift default alts found in symbolic case matching.
-liftSymDefAlt' :: E.ExprEnv -> Expr -> NameGen -> [PathCond] ->  Id -> Alt -> EvaluateResult
-liftSymDefAlt' eenv mexpr ngen negatives cvar (Alt _ aexpr) = res
-  where
-    -- Bind the cvar.
-    binds = [(cvar, mexpr)]
-    (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
-    res = ( eenv'
-          , CurrExpr Evaluate aexpr'
-          , negatives
-          , ngen'
-          , Nothing)
+liftSymDefAlt' :: E.ExprEnv -> Expr -> Expr -> NameGen ->  Id -> [Alt] -> [EvaluateResult]
+liftSymDefAlt' eenv mexpr aexpr ngen cvar as =
+    let
+        conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch as)
+
+        binds = [(cvar, mexpr)]
+        (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
+    in
+    [( eenv'
+     , CurrExpr Evaluate aexpr'
+     , conds
+     , ngen'
+     , Nothing)]
+
+defAltExpr :: [Alt] -> Maybe Expr
+defAltExpr [] = Nothing
+defAltExpr (Alt Default e:_) = Just e
+defAltExpr (_:xs) = defAltExpr xs
+
+liftSymDefAltPCs :: Expr -> AltMatch -> Maybe PathCond
+liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
+liftSymDefAltPCs mexpr lit@(LitAlt _) = Just $ AltCond lit mexpr False
+liftSymDefAltPCs _ Default = Nothing
 
 -- | Attempts to reduce all Vars from the eenv.
 varReduce :: (ASTContainer e Expr) => E.ExprEnv -> e -> e
@@ -203,7 +227,7 @@ varReduce' eenv v@(Var (Id n _)) =
     --fromMaybe v (return . varReduce eenv =<< E.lookup (idName i) eenv)                          
 varReduce' _ e = e
 
--- | Funciton for performing rule reductions based on stack based evaluation
+-- | Function for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
 
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
@@ -403,14 +427,12 @@ reduceCase eenv mexpr bind alts ngen
   , lalts <- litAlts alts
   , defs <- defaultAlts alts
   , (length dalts + length lalts + length defs) > 0 =
-      let dsts_cs = liftSymDataAlt eenv mexpr ngen bind dalts
+      let 
+          dsts_cs = liftSymDataAlt eenv mexpr ngen bind dalts
           lsts_cs = liftSymLitAlt eenv mexpr ngen bind lalts
-          (_, _, lconds, _, _) = unzip5 lsts_cs
-          dnegs = map (\(d, _, _) -> ConsCond d mexpr False) dalts
-          lnegs = map (\(AltCond a e b) -> AltCond a e (not b)) (concat lconds)
-          negs = dnegs ++ lnegs
-          def_sts = liftSymDefAlt eenv mexpr ngen negs bind defs
-      in (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
+          def_sts = liftSymDefAlt eenv mexpr ngen bind alts
+      in
+      (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -488,7 +510,7 @@ reduceEReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
   if not (E.isSymbolic (idName var) eenv)
     then (RuleError, (eenv, CurrExpr Return c, ngen))
     else let (sname, ngen') = freshSeededName (idName var) ngen
-             sym_app = trace (show sname) App (Var var) aexpr
+             sym_app = App (Var var) aexpr
              svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
          in ( RuleReturnEApplySym
             , ( E.insert sname sym_app eenv

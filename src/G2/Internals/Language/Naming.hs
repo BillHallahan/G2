@@ -6,6 +6,7 @@ module G2.Internals.Language.Naming
     , Named (names, rename)
     , doRename
     , doRenames
+    , renameAll
     , nameToStr
     , strToName
     , mkNameGen
@@ -88,10 +89,10 @@ doRename n ngen x = (rename n n' x, ngen')
 
 doRenames :: Named a => [Name] -> NameGen -> a -> (a, NameGen)
 doRenames [] ngen x = (x, ngen)
-doRenames (n:ns) ngen x = doRenames ns ngen' x'
+doRenames (n:ns) ngen x = trace ("n = " ++ show n) doRenames ns ngen' x'
   where (x', ngen') = doRename n ngen x
 
-renameAll :: (Named a) => a -> NameGen ->(a, NameGen)
+renameAll :: (Named a) => a -> NameGen -> (a, NameGen)
 renameAll x ng =
     let
         old = nub $ names x
@@ -201,13 +202,13 @@ instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) wher
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
-freshSeededName (Name n m _) (NameGen hm) = trace ("naming " ++ show (Name n m i')) $ (Name n m i', NameGen hm')
+freshSeededName (Name n m _) (NameGen hm) = (Name n m i', NameGen hm')
   where i' = HM.lookupDefault 0 (n, m) hm
         hm' = HM.insert (n, m) (i' + 1) hm
 
 freshSeededNames :: [Name] -> NameGen -> ([Name], NameGen)
 freshSeededNames [] r = ([], r)
-freshSeededNames (name:ns) r = trace ("naming2 " ++ show name') $  (name':ns', ngen'') 
+freshSeededNames (name:ns) r = (name':ns', ngen'') 
   where (name', ngen') = freshSeededName name r
         (ns', ngen'') = freshSeededNames ns ngen'
 
