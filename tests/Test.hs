@@ -120,6 +120,11 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
                                                                                                            , RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
+                
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(\[_, Prim e _] -> e == Error)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "g" 2 [AtLeast 1, RForAll(\[_, Prim e _] -> e == Error)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error2.hs" Nothing Nothing "f" 1 [AtLeast 1, RForAll(\[Prim e _] -> e == Error)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error3.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(\[_, Prim e _] -> e == Error)]
         ]
 
 
