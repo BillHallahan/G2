@@ -10,7 +10,7 @@ module G2.Internals.Execution.Rules
 
 import G2.Internals.Language.AST
 import G2.Internals.Language
-import G2.Internals.Language.Stack
+import qualified G2.Internals.Language.Stack as S
 import qualified G2.Internals.Language.ExprEnv as E
 
 import Data.Maybe
@@ -70,7 +70,7 @@ isExprValueForm _ _ = True
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
 isExecValueForm :: State -> Bool
-isExecValueForm state | Nothing <- pop (exec_stack state)
+isExecValueForm state | Nothing <- S.pop (exec_stack state)
                       , CurrExpr Return _ <- curr_expr state = True
 
                       | otherwise = False
@@ -224,6 +224,10 @@ reduce s @ State { exec_stack = estk
   | isExecValueForm s =
       (RuleIdentity, [s {curr_expr = varReduce eenv cexpr, path_conds = varReduce eenv paths}])
 
+  | CurrExpr Evaluate expr@(App fexpr aexpr) <- cexpr
+  , (Prim Error ty):args <- unApp expr =
+      (RuleError, [s {curr_expr = CurrExpr Return (Prim Error TyBottom), exec_stack = S.empty}])
+
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
       -- Our current thing is a value form, which means we can return it.
@@ -236,12 +240,12 @@ reduce s @ State { exec_stack = estk
                            , curr_expr = cexpr'
                            , path_conds = paths' ++ paths
                            , name_gen = ngen'
-                           , exec_stack = maybe estk (\f' -> push f' estk) f})
+                           , exec_stack = maybe estk (\f' -> S.push f' estk) f})
                        eval_results
       in (rule, states)
 
   | CurrExpr Return expr <- cexpr
-  , Just (AssumeFrame fexpr, estk') <- pop estk =
+  , Just (AssumeFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr True
       in ( RuleReturnCAssume
          , [s { exec_stack = estk'
@@ -249,7 +253,7 @@ reduce s @ State { exec_stack = estk
               , path_conds = cond : paths }])
 
   | CurrExpr Return expr <- cexpr
-  , Just (AssertFrame fexpr, estk') <- pop estk =
+  , Just (AssertFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr False
       in ( RuleReturnCAssert
          , [s { exec_stack = estk'
@@ -257,7 +261,7 @@ reduce s @ State { exec_stack = estk
               , assertions = cond : asserts }])
 
   | CurrExpr Return expr <- cexpr
-  , Just (f, estk') <- pop estk =
+  , Just (f, estk') <- S.pop estk =
       let (rule, (eenv', cexpr', ngen')) = reduceEReturn eenv expr ngen f
       in (rule, [s { expr_env = eenv'
                    , curr_expr = cexpr'
