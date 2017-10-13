@@ -166,7 +166,7 @@ testFile :: String -> String -> Int -> Maybe String -> Maybe String -> String ->
 testFile proj src steps m_assume m_assert entry = do
     (binds, tycons) <- translation proj src "./defs/PrimDefs.hs"
 
-    let init_state = initState binds tycons m_assume m_assert entry
+    let init_state = initState binds tycons m_assume m_assert (isJust m_assert) entry
 
     hhp <- getZ3ProcessHandles
 

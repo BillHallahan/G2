@@ -215,6 +215,7 @@ mkPrimHaskell Minus = "-"
 mkPrimHaskell Mult = "*"
 mkPrimHaskell Div = "/"
 mkPrimHaskell Negate = "-"
+mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
 
 duplicate :: String -> Int -> String

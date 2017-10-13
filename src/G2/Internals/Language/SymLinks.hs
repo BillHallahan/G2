@@ -8,6 +8,7 @@ module G2.Internals.Language.SymLinks ( SymLinks
                                       , filter
                                       , map
                                       , map'
+                                      , keys
                                       , names) where
 
 import G2.Internals.Language.AST
@@ -15,7 +16,6 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import Prelude hiding (filter, map, lookup)
 
-import qualified Data.List as L
 import qualified Data.Map as M
 
 newtype SymLinks = SymLinks (M.Map Name Name)
@@ -39,15 +39,15 @@ map f (SymLinks s) = SymLinks $ M.map f s
 map' :: (Name -> b)  -> SymLinks -> M.Map Name b
 map' f (SymLinks s) = M.map f s
 
-symNames :: SymLinks -> [Name]
-symNames (SymLinks s) = M.keys s
+keys :: SymLinks -> [Name]
+keys (SymLinks s) = M.keys s
 
 instance ASTContainer SymLinks Expr where
     containedASTs _ = []
     modifyContainedASTs _ m = m
 
 instance ASTContainer SymLinks Type where
-    containedASTs sym = []
+    containedASTs _ = []
     modifyContainedASTs _ m = m
 
 instance Named SymLinks where

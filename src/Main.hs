@@ -3,9 +3,6 @@ module Main where
 import System.Environment
 
 import Data.List
-import qualified Data.Map as M
-import Data.Tuple
-
 import Data.Maybe
 
 import G2.Lib.Printers
@@ -13,12 +10,11 @@ import G2.Lib.Printers
 import G2.Internals.Interface
 import G2.Internals.Language
 import G2.Internals.Translation
-import G2.Internals.Execution
 import G2.Internals.SMT
 
 main :: IO ()
 main = do
-    putStrLn "Compiles!!!"
+    -- putStrLn "Compiles!!!"
     (proj:src:prims:entry:tail_args) <- getArgs
 
     --Get args
@@ -34,7 +30,7 @@ main = do
 
     -- print binds
 
-    let init_state = initState binds tycons m_assume m_assert entry
+    let init_state = initState binds tycons m_assume m_assert (isJust m_assert) entry
 
     -- putStrLn $ mkStateStr init_state
 
@@ -42,24 +38,24 @@ main = do
 
     in_out <- run smt2 hhp n_val init_state
 
-    putStrLn "----------------\n----------------"
+    -- putStrLn "----------------\n----------------"
 
-    mapM_ (\(st, rs, inArg, ex) -> do
+    mapM_ (\(_, _, inArg, ex) -> do
             let funcCall = mkExprHaskell 
                          . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
             -- mapM_ (print) rs
             -- putStrLn $ pprExecStateStr st
 
-            print inArg
-            print ex
+            -- print inArg
+            -- print ex
 
             let funcOut = mkExprHaskell $ ex
 
             putStrLn $ funcCall ++ " = " ++ funcOut
         ) in_out
 
-    putStrLn "End"
+    -- putStrLn "End"
     
 mArg :: String -> [String] -> (String -> a) -> a -> a
 mArg s args f d = case elemIndex s args of

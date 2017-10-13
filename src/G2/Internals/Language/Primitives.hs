@@ -1,6 +1,6 @@
 module G2.Internals.Language.Primitives where
 
-import qualified G2.Internals.Language.ExprEnv as E	
+import qualified G2.Internals.Language.ExprEnv as E 
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
@@ -8,21 +8,23 @@ import Data.Foldable
 import Data.Maybe
 
 primStr :: Primitive -> String
-primStr Not = "not"
-primStr And = "&&"
-primStr Or = "||"
 primStr Ge = ">="
 primStr Gt = ">"
 primStr Eq = "=="
 primStr Neq = "/="
-primStr Le = "<="
 primStr Lt = "<"
+primStr Le = "<="
+primStr And = "&&"
+primStr Or = "||"
+primStr Not = "not"
+primStr Implies = "implies"
 primStr Plus = "+"
 primStr Minus = "-"
 primStr Mult = "*"
 primStr Div = "/"
 primStr Negate = "negate"
-
+primStr Error = "error"
+primStr Undefined = "undefined"
 
 strToPrim :: String -> Maybe Primitive
 strToPrim "not" = Just Not
@@ -39,6 +41,7 @@ strToPrim "-" = Just Minus
 strToPrim "*" = Just Mult
 strToPrim "/" = Just Div
 strToPrim "negate" = Just Negate
+strToPrim "error" = Just Error
 strToPrim _ = Nothing
 
 findPrim :: Primitive -> [(Name, Type)] -> (Name, Type)

@@ -1,6 +1,6 @@
 module PrimDefs where
 
-import Prelude (Eq, Ord, Num, Bool, undefined)
+import Prelude (Eq, Ord, Num, Bool, Char, undefined)
 
 (>=) :: Ord a => a -> a -> Bool
 (>=) = undefined
@@ -46,3 +46,6 @@ implies :: Bool -> Bool -> Bool
 
 negate :: (Num a) => a -> a
 negate = undefined
+
+error :: [Char] -> a
+error = undefined

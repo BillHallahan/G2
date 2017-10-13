@@ -5,8 +5,6 @@ module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
 
-import Data.Foldable
-
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
 type ProgramType = (Name, [Name], [DataCon])
@@ -71,6 +69,7 @@ data Primitive = Ge
                | Mult
                | Div
                | Negate
+               | Error
                | Undefined
                deriving (Show, Eq, Read)
 

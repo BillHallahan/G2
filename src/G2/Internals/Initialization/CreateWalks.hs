@@ -6,11 +6,8 @@ module G2.Internals.Initialization.CreateWalks (createWalks) where
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
 
-import Data.Foldable
 import qualified Data.Map as M
 import Data.Maybe
-
-import Debug.Trace
 
 createWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, Walkers, NameGen)
 createWalks eenv tenv ng = 
@@ -52,20 +49,20 @@ fstDataConAltMatch (dc@(DataCon _ _ ts):dcs) ns ng =
     let
         (arg_names, ng1) = freshNames (length ts) ng
         arg_ids = map (uncurry Id) (zip arg_names ts)
-        (arg_expr, ng2) = argExpr ns ng1 arg_ids
 
         am = DataAlt dc arg_ids
-        (e, ng3) = sndDataConAltMatch arg_ids ns (Data dc) ng2 --foldl' App (Data dc) arg_expr
+        (e, ng3) = sndDataConAltMatch arg_ids ns (Data dc) ng1
 
         alt = Alt am e
 
         (t, ng4) = fstDataConAltMatch dcs ns ng3
     in
     (alt:t, ng4)
+fstDataConAltMatch (_:xs) ns ng = fstDataConAltMatch xs ns ng
 
 sndDataConAltMatch :: [Id] -> [(Name, Id)] -> Expr -> NameGen -> (Expr, NameGen)
 sndDataConAltMatch [] _ dc ng = (dc, ng)
-sndDataConAltMatch (i@(Id n t):xs) ns dc ng =
+sndDataConAltMatch (i@(Id _ t):xs) ns dc ng =
     let
         (b, ng') = freshName ng
         b_id = Id b t
@@ -81,25 +78,3 @@ sndDataConAltMatch (i@(Id n t):xs) ns dc ng =
         am = [Alt Default e]
     in
     (case_e am, ng'')
-
-argExpr :: [(Name, Id)] -> NameGen -> [Id] -> ([Expr], NameGen)
-argExpr _ ng [] = ([], ng)
-argExpr ns ng (i@(Id _ t@(TyConApp n _)):xs) =
-    let
-        f_id = fromJust $ lookup n ns
-        f_var = Var f_id
-
-        (es, ng') = argExpr ns ng xs
-    in
-    (App f_var (Var i):es, ng')
-argExpr ns ng (i:xs) =
-    let
-        (bind, ng2) = freshName ng
-        bind_id = Id bind (typeOf i)
-        bind_var = Var bind_id
-
-        e = Case (Var i) bind_id [Alt Default bind_var]
-
-        (es, ng3) = argExpr ns ng2 xs
-    in
-    (e:es, ng3)

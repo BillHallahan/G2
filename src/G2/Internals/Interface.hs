@@ -17,21 +17,16 @@ import G2.Internals.SMT.Language hiding (Assert)
 import G2.Internals.Postprocessing.Undefunctionalize
 
 import qualified G2.Internals.Language.ApplyTypes as AT
-import qualified G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
-import qualified G2.Internals.Language.Typing
+
+import qualified Data.Map as M
 
 import G2.Lib.Printers
 
-import Data.List
-import qualified Data.Map as M
-
-import Debug.Trace
-
-initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> String -> State
-initState prog prog_typ m_assume m_assert f =
+initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> Bool -> String -> State
+initState prog prog_typ m_assume m_assert useAssert f =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
@@ -47,6 +42,7 @@ initState prog prog_typ m_assume m_assert f =
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
     , path_conds = map PCExists ids
+    , assertions = if useAssert then [] else [trueCond]
     , input_ids = ids
     , sym_links = Sym.empty
     , func_table = ft
@@ -54,6 +50,9 @@ initState prog prog_typ m_assume m_assert f =
     , apply_types = at
     , exec_stack = Stack.empty
  }
+
+trueCond :: PathCond
+trueCond = ExtCond (Lit (LitBool True)) True
 
 mkExprEnv :: Program -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
@@ -88,10 +87,10 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
                 let_ex = Let [(id_name, strict_app_ex)] assert_ex
             in
             (let_ex, ids, ng'')
-        Right s -> error s
+        Right s' -> error s'
 
 mkInputs :: ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
-mkInputs at ng [] = ([], [], ng)
+mkInputs _ ng [] = ([], [], ng)
 mkInputs at ng (t:ts) =
     let
         (name, ng') = freshName ng
@@ -112,9 +111,9 @@ mkInputs at ng (t:ts) =
 mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
 mkAssumeAssert p (Just f) var_ids inter pre_ex eenv =
     case findFunc f eenv of
-        Left (f, ex) -> 
+        Left (f', _) -> 
             let
-                app_ex = foldr (\vi e -> App e vi) (Var f) (pre_ex:var_ids)
+                app_ex = foldr (\vi e -> App e vi) (Var f') (pre_ex:var_ids)
             in
             p app_ex inter
         Right s -> error s
@@ -127,13 +126,8 @@ findFunc s eenv =
     in
     case match of
         [(n, e)] -> Left (Id n (typeOf e) , e)
-        x:xs -> Right $ "Multiple functions with name " ++ s
+        _:_ -> Right $ "Multiple functions with name " ++ s
         [] -> Right $ "No functions with name " ++ s
-
-
-elimNeighboringDups :: Eq a => [a] -> [a]
-elimNeighboringDups (x:y:xs) = if x == y then elimNeighboringDups (x:xs) else x:elimNeighboringDups (y:xs)
-elimNeighboringDups x = x
 
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr)]
 run con hhp n state = do

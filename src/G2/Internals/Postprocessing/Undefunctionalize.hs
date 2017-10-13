@@ -3,14 +3,12 @@ module G2.Internals.Postprocessing.Undefunctionalize (undefunctionalize) where
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
 
-import qualified Data.Map as M
-
 --Switches every occurence of a Var in the Func SLT from datatype to function
 undefunctionalize :: ASTContainer m Expr => State -> m -> m
 undefunctionalize s e = modifyASTs (replaceFuncSLT s) e
 
 replaceFuncSLT :: State -> Expr -> Expr
-replaceFuncSLT s v@(Data (DataCon n t _)) =
+replaceFuncSLT s v@(Data (DataCon n _ _)) =
     let
         n' = lookupFuncInterps n (func_table s)
     in

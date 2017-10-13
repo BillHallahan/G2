@@ -6,8 +6,8 @@ module G2.Internals.Language.Expr ( unApp
                                   , vars
                                   , symbVars
                                   , freeVars
-								  , exprReplace
-								  , mkStrict) where
+                                  , exprReplace
+                                  , mkStrict) where
 
 import G2.Internals.Language.AST
 import qualified G2.Internals.Language.ExprEnv as E

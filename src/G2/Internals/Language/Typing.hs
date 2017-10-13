@@ -43,6 +43,7 @@ instance Typed Primitive where
     typeOf Mult = TyBottom
     typeOf Div = TyBottom
     typeOf Negate = TyBottom
+    typeOf Undefined = TyBottom
 
     typeOf' _ = typeOf
 
@@ -59,7 +60,7 @@ instance Typed Lit where
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
-    typeOf' m (DataCon _ ty tys) = ty
+    typeOf' _ (DataCon _ ty _) = ty
     typeOf' _ (PrimCon I) = TyFun TyLitInt TyInt
     typeOf' _ (PrimCon D) = TyFun TyLitDouble TyDouble
     typeOf' _ (PrimCon F) = TyFun TyLitFloat TyFloat
@@ -74,7 +75,7 @@ instance Typed Alt where
 instance Typed Expr where
     typeOf' m (Var v) = typeOf' m v
     typeOf' m (Lit lit) = typeOf' m lit
-    typeOf' m (Prim prim ty) = ty
+    typeOf' _ (Prim _ ty) = ty
     typeOf' m (Data dcon) = typeOf' m dcon
     typeOf' m (App fxpr axpr) =
         let
@@ -83,7 +84,7 @@ instance Typed Expr where
         in
         case tfxpr of
             TyForAll (NamedTyBndr i) t2 -> typeOf' (M.insert (idName i) taxpr m) t2
-            TyFun t1 t2 ->  t2 -- if t1 == tfxpr then t2 else TyBottom -- TODO: 
+            TyFun _ t2 ->  t2  -- if t1 == tfxpr then t2 else TyBottom -- TODO: 
                                -- We should really have this if check- but
                                -- can't because of TyBottom being introdduced
                                -- elsewhere...
@@ -91,11 +92,10 @@ instance Typed Expr where
     typeOf' m (Lam b expr) = TyFun (typeOf' m b) (typeOf' m expr)
     typeOf' m (Let _ expr) = typeOf' m expr
     typeOf' m (Case _ _ (a:_)) = typeOf' m a
-    typeOf' m (Case _ _ _) = TyBottom
-    typeOf' m (Type ty) = ty
+    typeOf' _ (Case _ _ _) = TyBottom
+    typeOf' _ (Type ty) = ty
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
-    typeOf' _ e = error $ "unknown " ++ show e
 
 instance Typed Type where
     typeOf = typeOf' M.empty
@@ -130,7 +130,7 @@ specializesTo m s (TyFun t1 t2) (TyFun t1' t2') =
     specializesTo m s t1 t1' && specializesTo m s t2 t2'
 specializesTo m s (TyApp t1 t2) (TyApp t1' t2') =
     specializesTo m s t1 t1' && specializesTo m s t2 t2'
-specializesTo m s (TyConApp n ts) (TyConApp n' ts') =
+specializesTo m s (TyConApp _ ts) (TyConApp _ ts') =
     length ts == length ts' &&
     all (\(t, t') -> specializesTo m s t t') (zip ts ts')
 -- Unhandled function type.
@@ -142,7 +142,7 @@ specializesTo m s (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
 -- Forall / forall bindings.
 specializesTo m s (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
     specializesTo m s t1 t1' && specializesTo m s t2 t2'
-specializesTo m s (TyForAll (NamedTyBndr (Id n t1)) t2)
+specializesTo m s (TyForAll (NamedTyBndr (Id _ t1)) t2)
                 (TyForAll (NamedTyBndr (Id n' t1')) t2') =
     specializesTo (M.insert n' t1 m) (S.insert t1' s) t2 t2'
 -- The rest.

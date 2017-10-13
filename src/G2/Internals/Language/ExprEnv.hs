@@ -38,7 +38,6 @@ import Prelude hiding( filter
                      , map
                      , null)
 import Data.Coerce
-import Data.Either
 import qualified Data.List as L
 import qualified Data.Map as M
 
@@ -238,14 +237,6 @@ instance Named EnvObj where
 isExprObj :: EnvObj -> Bool
 isExprObj (ExprObj _) = True
 isExprObj _ = False
-
-isRedirObj :: EnvObj -> Bool
-isRedirObj (RedirObj _) = True
-isRedirObj _ = False
-
-isSymbObj :: EnvObj -> Bool
-isSymbObj (ExprObj _) = True
-isSymbObj _ = False
 
 exprObjs :: [EnvObj]  -> [Expr]
 exprObjs [] = []

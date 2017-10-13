@@ -19,7 +19,6 @@ import Data.Maybe
 -- import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Support
-import qualified G2.Internals.Language.SymLinks as SLT
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.SMT.Language
 
@@ -35,29 +34,34 @@ toSMTHeaders s =
     ++
     (createVarDecls s)
     ++
-    (pathConsToSMT $ path_conds s)
+    (pathConsToSMTHeaders $ path_conds s)
+    ++
+    [assertionsToSMTHeaders $ assertions s]
 
-pathConsToSMT :: [PathCond] -> [SMTHeader]
-pathConsToSMT = catMaybes . map pathConsToSMT'
+pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
+pathConsToSMTHeaders = map Assert . mapMaybe pathConsToSMT
 
-pathConsToSMT' :: PathCond -> Maybe SMTHeader
-pathConsToSMT' (AltCond a e b) =
+assertionsToSMTHeaders :: [PathCond] -> SMTHeader
+assertionsToSMTHeaders = Assert . foldr (:||) (VBool False) . mapMaybe pathConsToSMT
+
+pathConsToSMT :: PathCond -> Maybe SMTAST
+pathConsToSMT (AltCond a e b) =
     let
         exprSMT = exprToSMT e
         altSMT = altToSMT a
     in
-    Just . Assert $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
-pathConsToSMT' (ExtCond e b) =
+    Just $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
+pathConsToSMT (ExtCond e b) =
     let
         exprSMT = exprToSMT e
     in
-    Just . Assert $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT' (ConsCond (DataCon n _ _) e b) =
+    Just $ if b then exprSMT else (:!) exprSMT
+pathConsToSMT (ConsCond (DataCon n _ _) e b) =
     let
         exprSMT = exprToSMT e
     in
-    Just . Assert $ if b then Tester n exprSMT else (:!) $ Tester n exprSMT
-pathConsToSMT' (PCExists _) = Nothing
+    Just $ if b then Tester n exprSMT else (:!) $ Tester n exprSMT
+pathConsToSMT (PCExists _) = Nothing
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -125,19 +129,7 @@ funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
 funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
 funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
-funcToSMT2Prim op lhs rhs = error $ "funcToSMT4Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
-
-funcToSMT4Prim :: Primitive -> Expr -> Expr -> Expr -> Expr -> SMTAST
-funcToSMT4Prim Ge _ _ a1 a2 = exprToSMT a1 :>= exprToSMT a2
-funcToSMT4Prim Gt _ _ a1 a2 = exprToSMT a1 :> exprToSMT a2
-funcToSMT4Prim Eq _ _ a1 a2 = exprToSMT a1 := exprToSMT a2
-funcToSMT4Prim Lt _ _ a1 a2 = exprToSMT a1 :< exprToSMT a2
-funcToSMT4Prim Le _ _ a1 a2 = exprToSMT a1 :<= exprToSMT a2
-funcToSMT4Prim Plus _ _ a1 a2 = exprToSMT a1 :+ exprToSMT a2
-funcToSMT4Prim Minus _ _ a1 a2 = exprToSMT a1 :- exprToSMT a2
-funcToSMT4Prim Mult _ _ a1 a2 = exprToSMT a1 :* exprToSMT a2
-funcToSMT4Prim Div _ _ a1 a2 = exprToSMT a1 :/ exprToSMT a2
-funcToSMT4Prim op _ _ lhs rhs = error $ "funcToSMT4Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
+funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 altToSMT :: AltMatch -> SMTAST
 altToSMT (LitAlt (LitInt i)) = VInt i
@@ -170,7 +162,7 @@ pcVars (AltCond am e _:xs) = amVars am ++ vars e ++ pcVars xs
 pcVars (p:xs)= vars p ++ pcVars xs
 
 amVars :: AltMatch -> [(Name, Sort)]
-amVars (DataAlt dc i) = map idToNameSort i
+amVars (DataAlt _ i) = map idToNameSort i
 amVars _ = []
 
 vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]

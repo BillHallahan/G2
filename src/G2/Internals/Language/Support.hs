@@ -26,6 +26,7 @@ data State = State { expr_env :: E.ExprEnv
                    , curr_expr :: CurrExpr
                    , name_gen :: NameGen
                    , path_conds :: [PathCond]
+                   , assertions :: [PathCond]
                    , sym_links :: SymLinks
                    , input_ids :: InputIds
                    , func_table :: FuncInterps
@@ -116,6 +117,7 @@ data Frame = CaseFrame Id [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
            | AssumeFrame Expr
+           | AssertFrame Expr
            deriving (Show, Eq, Read)
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
@@ -127,6 +129,7 @@ renameState old new_seed s =
              , curr_expr = rename old new (curr_expr s)
              , name_gen = ng'
              , path_conds = rename old new (path_conds s)
+             , assertions = rename old new (assertions s)
              , input_ids = rename old new (input_ids s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
@@ -140,6 +143,7 @@ instance ASTContainer State Expr where
                       (containedASTs $ expr_env s) ++
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
+                      (containedASTs $ assertions s) ++
                       (containedASTs $ sym_links s) ++
                       (containedASTs $ input_ids s) ++
                       (containedASTs $ exec_stack s)
@@ -148,6 +152,7 @@ instance ASTContainer State Expr where
                                 , expr_env  = modifyContainedASTs f $ expr_env s
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
+                                , assertions = modifyContainedASTs f $ assertions s
                                 , sym_links = modifyContainedASTs f $ sym_links s
                                 , input_ids = modifyContainedASTs f $ input_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s }
@@ -158,6 +163,7 @@ instance ASTContainer State Type where
                       ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
+                      ((containedASTs . assertions) s) ++
                       ((containedASTs . sym_links) s) ++
                       ((containedASTs . input_ids) s) ++
                       ((containedASTs . exec_stack) s)
@@ -166,6 +172,7 @@ instance ASTContainer State Type where
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
+                                , assertions = (modifyContainedASTs f . assertions) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
                                 , input_ids = (modifyContainedASTs f . input_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s }
@@ -223,23 +230,27 @@ instance ASTContainer Frame Expr where
     containedASTs (CaseFrame _ a) = containedASTs a
     containedASTs (ApplyFrame e) = [e]
     containedASTs (AssumeFrame e) = [e]
+    containedASTs (AssertFrame e) = [e]
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i a) = CaseFrame i (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (f e)
+    modifyContainedASTs f (AssertFrame e) = AssertFrame (f e)
     modifyContainedASTs _ fr = fr
 
 instance ASTContainer Frame Type where
     containedASTs (CaseFrame i a) = containedASTs i ++ containedASTs a
     containedASTs (ApplyFrame e) = containedASTs e
     containedASTs (AssumeFrame e) = containedASTs e
+    containedASTs (AssertFrame e) = containedASTs e
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i a) =
         CaseFrame (modifyContainedASTs f i) (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
+    modifyContainedASTs f (AssertFrame e) = AssertFrame (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
 
 instance Named AlgDataTy where
@@ -255,10 +266,12 @@ instance Named CurrExpr where
 instance Named PathCond where
     names (AltCond am e _) = names am ++ names e
     names (ExtCond e _) = names e
+    names (ConsCond d e _) = names d ++  names e
     names (PCExists i) = names i
 
     rename old new (AltCond am e b) = AltCond (rename old new am) (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
+    rename old new (ConsCond d e b) = ConsCond (rename old new d) (rename old new e) b
     rename old new (PCExists i) = PCExists (rename old new i)
 
 instance Named FuncInterps where
@@ -272,8 +285,10 @@ instance Named Frame where
     names (ApplyFrame e) = names e
     names (UpdateFrame n) = [n]
     names (AssumeFrame e) = names e
+    names (AssertFrame e) = names e
 
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
+    rename old new (AssertFrame e) = AssertFrame (rename old new e)

@@ -13,10 +13,7 @@ import G2.Internals.Language
 import G2.Internals.Language.Stack
 import qualified G2.Internals.Language.ExprEnv as E
 
-import Data.List
 import Data.Maybe
-
-import Debug.Trace
 
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal | RuleEvalVarVal
@@ -35,7 +32,7 @@ data Rule = RuleEvalVal
           | RuleReturnEApplyLam | RuleReturnEApplyData
                                 | RuleReturnEApplySym
 
-          | RuleReturnCAssume | RuleEvalCAssert
+          | RuleReturnCAssume | RuleReturnCAssert
 
           | RuleIdentity
 
@@ -60,8 +57,8 @@ isExprValueForm (Var var) eenv =
     E.lookup (idName var) eenv == Nothing || E.isSymbolic (idName var) eenv
 isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
-    (Data _:xs) -> True
-    (v@(Var _):xs) -> isExprValueForm v eenv
+    (Data _:_) -> True
+    (v@(Var _):_) -> isExprValueForm v eenv
     _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
@@ -80,7 +77,7 @@ isExecValueForm state | Nothing <- pop (exec_stack state)
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Named a => [(Name, Name)] -> a -> a
-renames names a = foldr (\(old, new) -> rename old new) a names
+renames n a = foldr (\(old, new) -> rename old new) a n
 
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.
@@ -114,12 +111,6 @@ matchDataAlts dc alts = [a | a @ (Alt (DataAlt adc _) _) <- alts , dc == adc]
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
 matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
-
--- | Negate an `PathCond`.
-negatePathCond :: PathCond -> PathCond
-negatePathCond (AltCond a e b) = AltCond a e (not b)
-negatePathCond (ExtCond e b) = ExtCond e (not b)
-negatePathCond (PCExists i) = PCExists i
 
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
@@ -228,7 +219,8 @@ reduce s @ State { exec_stack = estk
                  , expr_env = eenv
                  , curr_expr = cexpr
                  , name_gen = ngen
-                 , path_conds = paths }
+                 , path_conds = paths
+                 , assertions = asserts }
   | isExecValueForm s =
       (RuleIdentity, [s {curr_expr = varReduce eenv cexpr, path_conds = varReduce eenv paths}])
 
@@ -255,6 +247,14 @@ reduce s @ State { exec_stack = estk
          , [s { exec_stack = estk'
               , curr_expr = CurrExpr Evaluate fexpr
               , path_conds = cond : paths }])
+
+  | CurrExpr Return expr <- cexpr
+  , Just (AssertFrame fexpr, estk') <- pop estk =
+      let cond = ExtCond expr False
+      in ( RuleReturnCAssert
+         , [s { exec_stack = estk'
+              , curr_expr = CurrExpr Evaluate fexpr
+              , assertions = cond : asserts }])
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- pop estk =
@@ -349,11 +349,12 @@ reduceEvaluate eenv (Assume pre lexpr) ngen =
                          , ngen
                          , Just frame)])
 reduceEvaluate eenv (Assert pre lexpr) ngen =
-    (RuleEvalCAssert, [( eenv
-                         , CurrExpr Evaluate (Assume (App (mkNot eenv) pre) lexpr)
+    let frame = AssertFrame lexpr
+    in (RuleEvalAssert, [( eenv
+                         , CurrExpr Evaluate pre
                          , []
                          , ngen
-                         , Nothing)])
+                         , Just frame)])
 
 reduceEvaluate eenv c ngen =
     (RuleError, [(eenv, CurrExpr Evaluate c, [], ngen, Nothing)])
@@ -397,7 +398,7 @@ reduceCase eenv mexpr bind alts ngen
   -- We hit a DEFAULT instead.
   -- We perform the cvar binding and proceed with the alt
   -- expression.
-  | (Data dcon):_ <- unApp mexpr
+  | (Data _):_ <- unApp mexpr
   , (Alt _ expr):_ <- defaultAlts alts =
       let binds = [(bind, mexpr)]
           (eenv', expr', ngen') = liftBinds binds eenv expr ngen
