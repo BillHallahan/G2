@@ -25,8 +25,8 @@ import qualified Data.Map as M
 
 import G2.Lib.Printers
 
-initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> Bool -> String -> State
-initState prog prog_typ m_assume m_assert useAssert f =
+initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> Maybe String -> Bool -> String -> State
+initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
@@ -35,9 +35,11 @@ initState prog prog_typ m_assume m_assert useAssert f =
         (eenv', tenv', ng', ft, at, walkers) = runInitialization eenv tenv ng
 
         (ce, ids, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' walkers
+
+        eenv'' = checkReaches eenv' m_reaches
     in
     State {
-      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' ids
+      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv'' ids
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
@@ -89,6 +91,13 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
             (let_ex, ids, ng'')
         Right s' -> error s'
 
+checkReaches :: ExprEnv -> Maybe String -> ExprEnv
+checkReaches eenv Nothing = eenv
+checkReaches eenv (Just s) =
+    case findFunc s eenv of
+        Left (Id n _, e) -> E.insert n (Assert mkFalse e) eenv
+        Right err -> error err
+
 mkInputs :: ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs _ ng [] = ([], [], ng)
 mkInputs at ng (t:ts) =
@@ -138,7 +147,7 @@ run con hhp n state = do
 
     let preproc_state = runPreprocessing state
 
-    -- putStrLn . pprExecStateStr $ preproc_state
+    putStrLn . pprExecStateStr $ preproc_state
 
     let exec_states = runNBreadthHist [([], preproc_state)] n
 

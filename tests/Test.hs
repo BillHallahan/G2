@@ -73,6 +73,8 @@ sampleTests =
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 1000 (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
 
                 , checkExprWithOutput "tests/samples/" "tests/samples/GetNth.hs" Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
+
+                , checkExprReaches "tests/samples/" "tests/samples/GetNthErr.hs" Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -121,16 +123,16 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
                                                                                                            , RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
                 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(\[_, Prim e _] -> e == Error)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "g" 2 [AtLeast 1, RForAll(\[_, Prim e _] -> e == Error)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error2.hs" Nothing Nothing "f" 1 [AtLeast 1, RForAll(\[Prim e _] -> e == Error)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error3.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(\[_, Prim e _] -> e == Error)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "g" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error2.hs" Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error3.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
         ]
 
 
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExpr proj src steps m_assume m_assert entry i reqList = do
-    exprs <- return . map fst =<< testFile proj src steps m_assume m_assert entry
+    exprs <- return . map fst =<< testFile proj src steps m_assume m_assert Nothing entry
 
     let ch = checkExpr' exprs i reqList
 
@@ -142,7 +144,19 @@ checkExpr proj src steps m_assume m_assert entry i reqList = do
 
 checkExprWithOutput :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprWithOutput proj src m_assume m_assert entry i reqList = do
-    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src 400 m_assume m_assert entry
+    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src 400 m_assume m_assert Nothing entry
+    putStrLn $ show exprs
+    let ch = checkExpr' (exprs) i reqList
+
+    return . testCase src
+        $ assertBool ("Assume/Assert for file " ++ src ++ 
+                      " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
+                                      "[" ++ (fromMaybe "" m_assert) ++ "] " ++
+                                              entry ++ " failed.\n") ch
+
+checkExprReaches :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprReaches proj src m_assume m_assert m_reaches entry i reqList = do
+    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src 400 m_assume m_assert m_reaches entry
     putStrLn $ show exprs
     let ch = checkExpr' (exprs) i reqList
 
@@ -167,11 +181,11 @@ checkExpr' exprs i reqList =
     in
     argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
 
-testFile :: String -> String -> Int -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
-testFile proj src steps m_assume m_assert entry = do
+testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
+testFile proj src steps m_assume m_assert m_reaches entry = do
     (binds, tycons) <- translation proj src "./defs/PrimDefs.hs"
 
-    let init_state = initState binds tycons m_assume m_assert (isJust m_assert) entry
+    let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
     hhp <- getZ3ProcessHandles
 
@@ -181,6 +195,12 @@ testFile proj src steps m_assume m_assert entry = do
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
+
+errors :: [Expr] -> Bool
+errors e =
+    case last e of
+        Prim Error _ -> True
+        _ -> False
 
 -- CLEAN THIS UP!
 lookupFromNamesMap :: M.Map G2.Name G2.Name -> G2.Name -> G2.Name

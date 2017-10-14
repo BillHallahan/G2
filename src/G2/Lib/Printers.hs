@@ -240,6 +240,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     input_str = pprInputIdsStr (input_ids ex_state)
     funcs_str = pprFuncTableStr (func_table ex_state)
     paths_str = pprPathsStr (path_conds ex_state)
+    assert_str = pprPathsStr (assertions ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
                , eenv_str
@@ -257,6 +258,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , funcs_str
                , "----- [Paths] ---------------------"
                , paths_str
+               , "----- [Assertions] ---------------------"
+               , assert_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
 
 pprExecEEnvStr :: E.ExprEnv -> String

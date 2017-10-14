@@ -2,6 +2,8 @@
 
 module G2.Internals.Language.Expr ( unApp
                                   , mkApp
+                                  , mkTrue
+                                  , mkFalse
                                   , replaceASTs
                                   , vars
                                   , symbVars
@@ -27,6 +29,12 @@ mkApp :: [Expr] -> Expr
 mkApp [] = error "mkApp: empty list"
 mkApp (e:[]) = e
 mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
+
+mkTrue :: Expr
+mkTrue = Lit $ LitBool True
+
+mkFalse :: Expr
+mkFalse = Lit $ LitBool False
 
 --Replaces all instances of old with new in the AST
 replaceASTs :: (Eq e, AST e) => e -> e -> e -> e

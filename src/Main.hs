@@ -21,6 +21,7 @@ main = do
     let n_val = nVal tail_args
     let m_assume = mAssume tail_args
     let m_assert = mAssert tail_args
+    let m_reaches = mReaches tail_args
 
     (binds, tycons) <- translation proj src prims
 
@@ -30,7 +31,7 @@ main = do
 
     -- print binds
 
-    let init_state = initState binds tycons m_assume m_assert (isJust m_assert) entry
+    let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
     -- putStrLn $ mkStateStr init_state
 
@@ -73,3 +74,5 @@ mAssume args = mArg "--assume" args Just Nothing
 mAssert :: [String] -> Maybe String
 mAssert args = mArg "--assert" args Just Nothing
 
+mReaches :: [String] -> Maybe String
+mReaches args = mArg "--reaches" args Just Nothing
