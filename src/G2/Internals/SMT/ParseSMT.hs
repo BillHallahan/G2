@@ -24,7 +24,7 @@ smtDef =
              , Token.reservedNames = ["let", "-"]}
 
 ident :: [Char]
-ident = ['~', '!', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
+ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
 
 smtLexer :: Token.TokenParser st
 smtLexer = Token.makeTokenParser smtDef

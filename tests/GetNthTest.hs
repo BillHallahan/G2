@@ -2,8 +2,6 @@ module GetNthTest where
 
 import G2.Internals.Language
 
-import TestUtils
-
 data CList = Cons Int CList | Nil
 
 getNth :: CList -> Int -> Int 
@@ -17,3 +15,4 @@ toCList _ = Nil
 
 getNthTest :: [Expr] -> Bool
 getNthTest [cl, (Lit (LitInt i)), (Lit (LitInt a))] = getNth (toCList cl) i == a
+getNthTest _ = False

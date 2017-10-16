@@ -4,9 +4,11 @@ import G2.Internals.Language
 
 import TestUtils
 
+zeroPeano :: Expr
 zeroPeano =
     Data $ DataCon (Name "Zero" (Just "Peano") 0) (TyConApp (Name "Peano" (Just "Peano") 0) []) []
 
+succPeano :: Expr -> Expr
 succPeano x =
     App (Data $ DataCon (Name "Succ" (Just "Peano") 0) (TyConApp (Name "Peano" (Just "Peano") 0) []) []) x
 

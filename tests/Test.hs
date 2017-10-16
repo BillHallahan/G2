@@ -127,6 +127,9 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "g" 2 [AtLeast 1, RForAll(errors)]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error2.hs" Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error3.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" Nothing Nothing "abs'" 2 [Exactly 2]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" Nothing Nothing "xswitch" 2 [AtLeast 10]
         ]
 
 
@@ -148,7 +151,7 @@ checkExprWithOutput proj src m_assume m_assert entry i reqList =
 
 checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprReaches proj src steps m_assume m_assert m_reaches entry i reqList = do
-    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src steps m_assume m_assert m_reaches entry
+    exprs <- return . map (\(inp, out) -> inp ++ [out]) =<<  testFile proj src steps m_assume m_assert m_reaches entry
     putStrLn $ show exprs
     let ch = checkExpr' (exprs) i reqList
 

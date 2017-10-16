@@ -221,7 +221,11 @@ instance ASTContainer EnvObj Type where
 instance Named ExprEnv where
     names (ExprEnv eenv) = names (M.elems eenv) ++ names eenv
 
-    rename old new = ExprEnv . rename old new . unwrapExprEnv
+    rename old new =
+        ExprEnv 
+        . M.mapKeys (\k -> if k == old then new else k)
+        . rename old new
+        . unwrapExprEnv
 
 instance Named EnvObj where
     names (ExprObj e) = names e

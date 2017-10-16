@@ -224,8 +224,8 @@ reduce s @ State { exec_stack = estk
   | isExecValueForm s =
       (RuleIdentity, [s {curr_expr = varReduce eenv cexpr, path_conds = varReduce eenv paths}])
 
-  | CurrExpr Evaluate expr@(App fexpr aexpr) <- cexpr
-  , (Prim Error ty):args <- unApp expr =
+  | CurrExpr Evaluate expr@(App _ _) <- cexpr
+  , (Prim Error _):_ <- unApp expr =
       (RuleError, [s {curr_expr = CurrExpr Return (Prim Error TyBottom), exec_stack = S.empty}])
 
   | CurrExpr Evaluate expr <- cexpr
@@ -483,6 +483,7 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
+  {-
   let oldty = typeOf b
       newty = typeOf aexpr
       binds = [(retype oldty newty b, aexpr)]
@@ -492,15 +493,15 @@ reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
      , ( eenv'
        , CurrExpr Evaluate lexpr''
        , ngen'))
-
-  {-
+  -}
+  
   let binds = [(b, aexpr)]
       (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLam
      , ( eenv'
        , CurrExpr Evaluate lexpr'
        , ngen'))
-  -}
+  
 
 -- When we have an `DataCon` application chain, we need to tack on the
 -- expression in the `ApplyFrame` at the end.

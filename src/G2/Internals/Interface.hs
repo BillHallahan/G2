@@ -147,20 +147,20 @@ run con hhp n state = do
 
     let preproc_state = runPreprocessing state
 
-    putStrLn . pprExecStateStr $ preproc_state
+    -- putStrLn . pprExecStateStr $ preproc_state
 
-    let exec_states = runNBreadthHist [([], preproc_state)] n
+    let exec_states = runNDepth [preproc_state] n
 
     -- putStrLn $ "states: " ++ (show $ length exec_states)
     -- mapM_ (\(rs, st) -> do
     --     putStrLn $ show rs
     --     putStrLn $ pprExecStateStr st) exec_states
-    let ident_states = filter ((==) RuleIdentity . last . fst) exec_states
+    -- let ident_states = filter ((==) RuleIdentity . last . fst) exec_states
 
     -- putStrLn $ "states: " ++ (show $ length ident_states)
-    mapM_ (\(rs, st) -> do
-         putStrLn $ show rs
-         putStrLn $ pprExecStateStr st) exec_states
+    -- mapM_ (\(rs, st) -> do
+    --      putStrLn $ show rs
+    --      putStrLn $ pprExecStateStr st) exec_states
     -- mapM_ (\(rs, st) -> (putStrLn $ pprPathsStr (path_conds st)) >> putStrLn "---") exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st) >> putStrLn "---")) (filter (isExecValueForm . snd) exec_states)
 

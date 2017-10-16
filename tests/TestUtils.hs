@@ -11,7 +11,7 @@ eqIgT (App e1 e2) (App e1' e2') = e1 `eqIgT` e1' && e2 `eqIgT` e2'
 eqIgT (Data (DataCon n _ _)) (Data (DataCon n' _ _)) = eqIgNames n n'
 eqIgT (Data (PrimCon p)) (Data (PrimCon p')) = p == p'
 eqIgT (Type _) (Type _)= True
-eqIgT e e' = False
+eqIgT _ _ = False
 
 
 eqIgIds :: Id -> Id -> Bool

@@ -17,30 +17,37 @@ allowedStartSymbols :: [Char]
 allowedStartSymbols =
     ['a'..'z'] ++ ['A'..'Z']
     ++ ['~', '!', '$', '%', '^', '&', '*'
-       --, '_' -- We eliminate this so we can use _ to seperate in string conversion
+       --, '_' -- We eliminate '_' so we can use '_' to seperate in string conversions
        , '-', '+', '=', '<', '>', '?', '/']
 
 allowedSymbol :: [Char]
 allowedSymbol = allowedStartSymbols ++ ['0'..'9'] ++ ['@', '.']
 
+allowedName :: Name -> Bool
+allowedName (Name n m _) =
+       all (`elem` allowedSymbol) n
+    && all (`elem` allowedSymbol) (maybe "" (id) m)
+    && (head n) `elem` allowedStartSymbols
+
 cleanNames :: State -> State
-cleanNames s = s --cleanNames' s (allNames s)
+cleanNames s = cleanNames' s (allNames s)
 
 cleanNames' :: State -> [Name] -> State
 cleanNames' s [] = s
-cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns) =
+cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns) 
+    | allowedName name = cleanNames' s ns
+    | otherwise =
     let
         n' = filter (\x -> x `elem` allowedSymbol) n
         m' = fmap (filter $ \x -> x `elem` allowedSymbol) m
 
-        -- No reserved symbols start with a $, this also ensures starting with allowed symbol
-        -- We prepend a "$" to ensure that, when we append numbers in the SMT solver,
-        -- we don't have conflicts with existing names ending in numbers.
+        -- No reserved symbols start with a $, this ensures starting with an allowed symbol
         n'' = "$" ++ n'
 
         (new_name, ng') = freshSeededName (Name n'' m' i) ng
 
-        new_state = renameState name new_name $ s {name_gen = ng'}
+        new_state = renameState name new_name 
+                  $ s { name_gen = ng'}
     in
     cleanNames' new_state ns
     

@@ -125,7 +125,9 @@ renameState :: Name -> Name -> State -> State
 renameState old new_seed s =
     let (new, ng') = freshSeededName new_seed (name_gen s)
     in State { expr_env = rename old new (expr_env s)
-             , type_env = rename old new (type_env s)
+             , type_env =
+                  M.mapKeys (\k -> if k == old then new else k)
+                  $ rename old new (type_env s)
              , curr_expr = rename old new (curr_expr s)
              , name_gen = ng'
              , path_conds = rename old new (path_conds s)
