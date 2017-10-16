@@ -177,11 +177,12 @@ idToNameSort :: Id -> (Name, Sort)
 idToNameSort (Id n t) = (n, typeToSMT t)
 
 typeToSMT :: Type -> Sort
+typeToSMT (TyVar n _) = Sort (nameToStr n) []
 typeToSMT TyInt = SortInt
 typeToSMT TyDouble = SortDouble
 typeToSMT TyFloat = SortFloat
 typeToSMT TyBool = SortBool
-typeToSMT (TyConApp n _) = Sort (nameToStr n) []
+typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT _ = Sort "" []
 
@@ -190,7 +191,7 @@ typesToSMTSorts tenv =
     [SortDecl . map typeToSortDecl $ M.toList tenv]
         where
             typeToSortDecl :: (Name, AlgDataTy) -> (SMTName, [SMTName], [DC])
-            typeToSortDecl (n, AlgDataTy _ dcs) = (nameToStr n, [], map dataConToDC dcs)
+            typeToSortDecl (n, AlgDataTy ns dcs) = (nameToStr n, map nameToStr ns, map dataConToDC dcs)
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =

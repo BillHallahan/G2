@@ -130,6 +130,8 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" Nothing Nothing "abs'" 2 [Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" Nothing Nothing "xswitch" 2 [AtLeast 10]
+
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" Nothing Nothing "f" 3 [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
         ]
 
 

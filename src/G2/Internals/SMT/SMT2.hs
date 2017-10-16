@@ -53,14 +53,6 @@ smt2 = SMTConverter {
         , assert = function1 "assert"
         , sortDecl = \ns ->
             let
-                --TODO: SAME AS sortName in language, fix
-                sortN :: Sort -> String
-                sortN SortInt = sortInt smt2
-                sortN SortFloat = sortFloat smt2
-                sortN SortDouble = sortDouble smt2
-                sortN SortBool = sortBool smt2
-                sortN (Sort n s) = sortADT smt2 n s
-
                 dcHandler :: [DC] -> String
                 dcHandler [] = ""
                 dcHandler (DC n s:dc) =
@@ -112,7 +104,7 @@ smt2 = SMTConverter {
         , sortFloat = "Real"
         , sortDouble = "Real"
         , sortBool = "Bool"
-        , sortADT = \n _ -> n
+        , sortADT = \n ts -> if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map sortN ts) ++ ")"
 
         , cons = \n asts _ ->
             if asts /= [] then
@@ -133,6 +125,14 @@ function2 f a b = "(" ++ f ++ " " ++ a ++ " " ++ b ++ ")"
 
 function3 :: String -> String -> String -> String -> String
 function3 f a b c = "(" ++ f ++ " " ++ a ++ " " ++ b ++ " " ++ c ++ ")"
+
+--TODO: SAME AS sortName in language, fix
+sortN :: Sort -> String
+sortN SortInt = sortInt smt2
+sortN SortFloat = sortFloat smt2
+sortN SortDouble = sortDouble smt2
+sortN SortBool = sortBool smt2
+sortN (Sort n s) = sortADT smt2 n s
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
