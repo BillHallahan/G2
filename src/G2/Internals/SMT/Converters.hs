@@ -260,6 +260,7 @@ smtastToExpr (VBool b) = Lit $ LitBool b
 smtastToExpr (Cons n smts s) =
     foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon (strToName n) (sortToType s) [])) smts
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
+smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
 sortToType :: Sort -> Type
 sortToType (SortInt) = TyInt

@@ -25,8 +25,6 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.List.Utils
 
-import Debug.Trace
-
 nameOccStr :: Name -> String
 nameOccStr (Name occ _ _) = occ
 
@@ -89,7 +87,7 @@ doRename n ngen x = (rename n n' x, ngen')
 
 doRenames :: Named a => [Name] -> NameGen -> a -> (a, NameGen)
 doRenames [] ngen x = (x, ngen)
-doRenames (n:ns) ngen x = trace ("n = " ++ show n) doRenames ns ngen' x'
+doRenames (n:ns) ngen x = doRenames ns ngen' x'
   where (x', ngen') = doRename n ngen x
 
 renameAll :: (Named a) => a -> NameGen -> (a, NameGen)

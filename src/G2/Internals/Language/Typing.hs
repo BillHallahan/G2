@@ -15,10 +15,9 @@ import G2.Internals.Language.Syntax
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-import Debug.Trace
 
 sub :: Type -> Type -> Type -> Type
-sub old new test = trace ("\nold = " ++ show old ++ "\nnew =" ++ show new) $ if old == test then new else test
+sub old new test = if old == test then new else test
 
 -- | Typed typeclass.
 class Typed a where

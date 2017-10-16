@@ -152,7 +152,7 @@ checkExprWithOutput proj src m_assume m_assert entry i reqList =
 checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprReaches proj src steps m_assume m_assert m_reaches entry i reqList = do
     exprs <- return . map (\(inp, out) -> inp ++ [out]) =<<  testFile proj src steps m_assume m_assert m_reaches entry
-    putStrLn $ show exprs
+    
     let ch = checkExpr' (exprs) i reqList
 
     return . testCase src
