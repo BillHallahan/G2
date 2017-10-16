@@ -7,8 +7,6 @@ import G2.Internals.Language.AST
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
 
-import Debug.Trace
-
 evalPrims :: Expr -> Expr
 evalPrims a@(App x y) =
     case unApp a of
@@ -50,6 +48,7 @@ evalPrim1 Not (LitBool b) = Lit $ LitBool (not b)
 evalPrim1 Negate (LitInt x) = Lit $ LitInt (-x)
 evalPrim1 Negate (LitFloat x) = Lit $ LitFloat (-x)
 evalPrim1 Negate (LitDouble x) = Lit $ LitDouble (-x)
+evalPrim1 _ _ = error "Primitive given wrong number of arguments"
 
 evalPrim2 :: Primitive -> Lit -> Lit -> Expr
 evalPrim2 Ge x y = evalPrim2NumBool (>=) x y
@@ -63,20 +62,26 @@ evalPrim2 Plus x y = evalPrim2Num (+) x y
 evalPrim2 Minus x y = evalPrim2Num (-) x y
 evalPrim2 Mult x y = evalPrim2Num (*) x y
 evalPrim2 Div x y = evalPrim2Fractional (/) x y
+evalPrim2 _ _ _ = error "Primitive given wrong number of arguments"
 
 evalPrim2NumBool :: (forall a . Ord a => a -> a -> Bool) -> Lit -> Lit -> Expr
 evalPrim2NumBool f (LitInt x) (LitInt y) = Lit . LitBool $ f x y
 evalPrim2NumBool f (LitFloat x) (LitFloat y) = Lit . LitBool $ f x y
 evalPrim2NumBool f (LitDouble x) (LitDouble y) = Lit . LitBool $ f x y
+evalPrim2NumBool _ _ _ = error "Primitive given wrong type of arguments"
 
 evalPrim2Bool :: (Bool -> Bool -> Bool) -> Lit -> Lit -> Expr
 evalPrim2Bool f (LitBool x) (LitBool y) = Lit . LitBool $ f x y
+evalPrim2Bool _ _ _ = error "Primitive given wrong type of arguments"
+
 
 evalPrim2Num  :: (forall a . Num a => a -> a -> a) -> Lit -> Lit -> Expr
 evalPrim2Num f (LitInt x) (LitInt y) = Lit . LitInt $ f x y
 evalPrim2Num f (LitFloat x) (LitFloat y) = Lit . LitFloat $ f x y
 evalPrim2Num f (LitDouble x) (LitDouble y) = Lit . LitDouble $ f x y
+evalPrim2Num _ _ _ = error "Primitive given wrong type of arguments"
 
 evalPrim2Fractional  :: (forall a . Fractional a => a -> a -> a) -> Lit -> Lit -> Expr
 evalPrim2Fractional f (LitFloat x) (LitFloat y) = Lit . LitFloat $ f x y
 evalPrim2Fractional f (LitDouble x) (LitDouble y) = Lit . LitDouble $ f x y
+evalPrim2Fractional _ _ _ = error "Primitive given wrong type of arguments"

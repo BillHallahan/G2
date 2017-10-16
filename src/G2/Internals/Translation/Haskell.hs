@@ -180,13 +180,14 @@ mkTyBinder :: TyBinder -> G2.TyBinder
 mkTyBinder (Anon t) = G2.AnonTyBndr (mkType t)
 mkTyBinder (Named v _) = G2.NamedTyBndr (mkId v)
 
+prim_list :: [String]
 prim_list = [">=", ">", "==", "/=", "<=", "<",
              "&&", "||", "not",
              "+", "-", "*", "/", "negate", "error" ]
 
 mkPrims :: FilePath -> IO [(G2.Name, G2.Type)]
 mkPrims prims = runGhc (Just libdir) $ do
-    setSessionDynFlags =<< getSessionDynFlags
+    _ <- setSessionDynFlags =<< getSessionDynFlags
     core <- compileToCoreSimplified prims
     let vars = map fst $ concatMap mkBinds (cm_binds core)
     return $ map (\v -> (G2.idName v, G2.typeOf v)) vars

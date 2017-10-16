@@ -8,10 +8,12 @@ import Data.Ratio
 -- This is not complete!  It currently only covers the small amount of the SMT
 -- language needed to parse models
 
+import Text.Parsec (Parsec)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
+smtDef :: LanguageDef st
 smtDef =
     emptyDef { Token.commentStart = ""
              , Token.commentEnd = ""
@@ -21,15 +23,28 @@ smtDef =
              , Token.identLetter = alphaNum <|> oneOf ident
              , Token.reservedNames = ["let", "-"]}
 
+ident :: [Char]
 ident = ['~', '!', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
 
+smtLexer :: Token.TokenParser st
 smtLexer = Token.makeTokenParser smtDef
 
+identifier :: Parsec String st String
 identifier = Token.identifier smtLexer
+
+reserved :: String -> Parsec String st ()
 reserved = Token.reserved smtLexer
+
+integer :: Parsec String st Integer
 integer = Token.integer smtLexer
+
+floatT :: Parsec String st Double
 floatT = Token.float smtLexer
+
+whiteSpace :: Parsec String st ()
 whiteSpace = Token.whiteSpace smtLexer
+
+parens :: Parsec String st a -> Parsec String st a
 parens = Token.parens smtLexer
 
 smtParser :: Parser SMTAST

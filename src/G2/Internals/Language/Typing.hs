@@ -43,6 +43,7 @@ instance Typed Primitive where
     typeOf Mult = TyBottom
     typeOf Div = TyBottom
     typeOf Negate = TyBottom
+    typeOf Error = TyBottom
     typeOf Undefined = TyBottom
 
     typeOf' _ = typeOf

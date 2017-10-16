@@ -18,8 +18,6 @@ import Data.Ratio
 import System.IO
 import System.Process
 
-import Debug.Trace
-
 type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
 
 smt2 :: SMT2Converter
@@ -31,14 +29,14 @@ smt2 = SMTConverter {
             setUpFormula h_in formula
             checkSat' h_in h_out
 
-        , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vars eenv (CurrExpr _ e) -> do
+        , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) -> do
             setUpFormula h_in formula
             -- putStrLn "\n\n"
             -- putStrLn formula
             r <- checkSat' h_in h_out
             -- putStrLn $ "r =  " ++ show r
             if r == SAT then do
-                model <- getModel h_in h_out vars
+                model <- getModel h_in h_out vs
                 -- putStrLn "======"
                 -- putStrLn formula
                 -- putStrLn ""
@@ -195,7 +193,7 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
         correctTypes _ a = a
 
         correctConsTypes :: SMTAST -> SMTAST
-        correctConsTypes (Cons n smts (Sort _ sorts)) =
+        correctConsTypes (Cons n smts (Sort _ _)) =
             let
                 sName = M.lookup n consNameToSort
             in
@@ -260,7 +258,7 @@ solveExpr h_in h_out con headers eenv e = do
     return $ foldr (uncurry replaceASTs) e (zip vs vs'')
 
 solveExpr'  :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> [Expr] -> IO [SMTAST]
-solveExpr' h_in h_out con headers [] = return []
+solveExpr' _ _ _ _ [] = return []
 solveExpr' h_in h_out con headers (v:vs) = do
     v' <- solveExpr'' h_in h_out con headers v
     vs' <- solveExpr' h_in h_out con headers vs

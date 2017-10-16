@@ -13,12 +13,14 @@ import qualified Data.Map as M
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
 
+allowedStartSymbols :: [Char]
 allowedStartSymbols =
     ['a'..'z'] ++ ['A'..'Z']
     ++ ['~', '!', '$', '%', '^', '&', '*'
        --, '_' -- We eliminate this so we can use _ to seperate in string conversion
        , '-', '+', '=', '<', '>', '?', '/']
 
+allowedSymbol :: [Char]
 allowedSymbol = allowedStartSymbols ++ ['0'..'9'] ++ ['@', '.']
 
 cleanNames :: State -> State

@@ -10,10 +10,7 @@ import G2.Internals.Language as G2
 import G2.Internals.Translation
 import G2.Internals.SMT
 
-
-import qualified Data.Map  as M
 import Data.Maybe
-import qualified Data.Monoid as Mon
 
 import PeanoTest
 import HigherOrderMathTest
@@ -22,7 +19,6 @@ import DefuncTest
 import CaseTest
 import TestUtils
 
-import Debug.Trace
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
@@ -38,14 +34,18 @@ data Reqs = RForAll ([Expr] -> Bool)
           | Exactly Int
 
 main :: IO ()
-main = defaultMain =<< tests
+main = defaultMain
+       =<< tests
 
-
+tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
         , testFileTests
         ]
+
+timeout :: Timeout
+timeout = mkTimeout 1
 
 -- Test based on examples that are also good for demos
 sampleTests :: IO TestTree
@@ -74,7 +74,7 @@ sampleTests =
 
                 , checkExprWithOutput "tests/samples/" "tests/samples/GetNth.hs" Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
 
-                , checkExprReaches "tests/samples/" "tests/samples/GetNthErr.hs" Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
+                , checkExprReaches "tests/samples/" "tests/samples/GetNthErr.hs" 400 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -143,20 +143,12 @@ checkExpr proj src steps m_assume m_assert entry i reqList = do
                                               entry ++ " failed.\n") ch
 
 checkExprWithOutput :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprWithOutput proj src m_assume m_assert entry i reqList = do
-    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src 400 m_assume m_assert Nothing entry
-    putStrLn $ show exprs
-    let ch = checkExpr' (exprs) i reqList
+checkExprWithOutput proj src m_assume m_assert entry i reqList =
+    checkExprReaches proj src 400 m_assume m_assert Nothing entry i reqList
 
-    return . testCase src
-        $ assertBool ("Assume/Assert for file " ++ src ++ 
-                      " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
-                                      "[" ++ (fromMaybe "" m_assert) ++ "] " ++
-                                              entry ++ " failed.\n") ch
-
-checkExprReaches :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprReaches proj src m_assume m_assert m_reaches entry i reqList = do
-    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src 400 m_assume m_assert m_reaches entry
+checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprReaches proj src steps m_assume m_assert m_reaches entry i reqList = do
+    exprs <- return . map (\(a, b) -> a ++ [b]) =<<  testFile proj src steps m_assume m_assert m_reaches entry
     putStrLn $ show exprs
     let ch = checkExpr' (exprs) i reqList
 
@@ -167,7 +159,6 @@ checkExprReaches proj src m_assume m_assert m_reaches entry i reqList = do
                                               entry ++ " failed.\n") ch
 
 -- | Checks conditions on given expressions
---   Helper for checkExprOutput checkExprReach
 checkExpr' :: [[Expr]] -> Int -> [Reqs] -> Bool
 checkExpr' exprs i reqList =
     let
@@ -201,21 +192,3 @@ errors e =
     case last e of
         Prim Error _ -> True
         _ -> False
-
--- CLEAN THIS UP!
-lookupFromNamesMap :: M.Map G2.Name G2.Name -> G2.Name -> G2.Name
-lookupFromNamesMap nMap n =
-    case M.lookup n nMap of
-                Just f -> f
-                Nothing -> error ("Function " ++ show n ++ " not recognized.")
-
-
-replaceDataConName :: M.Map G2.Name G2.Name -> Expr -> Expr
-replaceDataConName conMap = modify (replaceDataConName' conMap)
-    where
-        replaceDataConName' :: M.Map G2.Name G2.Name -> Expr -> Expr
-        replaceDataConName' conMap (Data (DataCon n t ts)) =
-            case M.lookup n conMap of
-                        Just n' -> (Data (DataCon n' t ts))
-                        Nothing -> error (show n ++ " not recognized.")
-        replaceDataConName' _ e = e

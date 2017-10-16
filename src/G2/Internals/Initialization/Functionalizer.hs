@@ -143,12 +143,12 @@ mkApplyTypeMap ng appToFunc appT funcT =
         (lamName, ng3) = freshName ng2
         lamId = Id lamName appT
 
-        c = Case (Var lamId) caseId $ map (mkApplyTypeMap' caseId appT funcT) appToFunc
+        c = Case (Var lamId) caseId $ map (mkApplyTypeMap' appT funcT) appToFunc
     in
     (Lam lamId c, ng3)
 
-mkApplyTypeMap' :: Id -> Type -> Type -> (Name, Name) -> Alt
-mkApplyTypeMap' i appT funcT (app, func) = 
+mkApplyTypeMap' :: Type -> Type -> (Name, Name) -> Alt
+mkApplyTypeMap' appT funcT (app, func) = 
     let
         am = DataAlt (DataCon app appT []) []
         e = Var $ Id func funcT
@@ -237,7 +237,7 @@ functionalizableADTTypes (n:ns) tenv eenv at ng =
     functionalizableADTTypes ns tenv2 eenv2 at ng2
 
 functionalizableADTType :: Name -> Id -> AlgDataTy -> TypeEnv -> ExprEnv -> NameGen -> ApplyTypes -> (TypeEnv, ExprEnv, NameGen)
-functionalizableADTType appTypeN (Id appFuncN _) a@(AlgDataTy ns dc) tenv eenv ng at =
+functionalizableADTType appTypeN (Id appFuncN _) (AlgDataTy ns dc) tenv eenv ng at =
     let
         -- Create a new Apply Data Type, and put it in the Type Environment 
         (appDCs, ng2) = mkAppliedDCs at ng appTypeN dc
@@ -309,14 +309,7 @@ mkAppliedToAlts at ng ((appDC@(DataCon _ _ appTs), funcDC@(DataCon _ _ funcTs)):
 mkAppliedToAlts at ng (_:xs) = mkAppliedToAlts at ng xs
 
 mkAppliedToAlts' :: ApplyTypes -> Type -> Id -> Expr
-mkAppliedToAlts' at t i@(Id n _) =
+mkAppliedToAlts' at t i =
     case AT.applyTypeFunc t at of
         Just f -> App (Var f) (Var i)
         Nothing -> Var i
-
--- Replaces all of the old type with the new type in the ASTContainer
-replaceType :: (ASTContainer m Type) => Type -> Type -> m -> m
-replaceType old new = modifyASTs (replaceType' old new)
-
-replaceType' :: Type -> Type -> Type -> Type
-replaceType' old new ty = if old == ty then new else ty

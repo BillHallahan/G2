@@ -62,6 +62,7 @@ pathConsToSMT (ConsCond (DataCon n _ _) e b) =
     in
     Just $ if b then Tester n exprSMT else (:!) $ Tester n exprSMT
 pathConsToSMT (PCExists _) = Nothing
+pathConsToSMT _ = error "Invalid path condition."
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)

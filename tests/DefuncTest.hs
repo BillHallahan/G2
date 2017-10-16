@@ -14,28 +14,45 @@ dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0) (TyConApp (Name "A" (Just "
 b :: Expr -> Expr
 b = App (dataB)
 
+add1 :: Expr
 add1 = Var (Id (Name "add1" (Just "Defunc1") 0) TyInt) 
+
+multiply2 :: Expr
 multiply2 = Var (Id (Name "multiply2" (Just "Defunc1") 0) TyInt) 
 
+defunc1Add1 :: [Expr] -> Bool
 defunc1Add1 [x, y] = x `eqIgT` a (add1) &&  y `eqIgT` b (Lit $ LitInt 3)
+defunc1Add1 _ = False
 
+defunc1Multiply2 :: [Expr] -> Bool
 defunc1Multiply2 [x, y] = x `eqIgT` a (multiply2) && y `eqIgT` b (Lit $ LitInt 4)
+defunc1Multiply2 _ = False
 
+defuncB :: [Expr] -> Bool
 defuncB [App x _, App y _] = x `eqIgT` dataB && y `eqIgT` dataB
 defuncB _ = False
 
 -- Defunc2
 
+add1D2 :: Expr
 add1D2 = Var (Id (Name "add1" (Just "Defunc2") 0) TyInt)
 
+sub1D2 :: Expr
 sub1D2 = Var (Id (Name "sub1" (Just "Defunc2") 0) TyInt)
 
+squareD2 :: Expr
 squareD2 = Var (Id (Name "square" (Just "Defunc2") 0) TyInt) 
 
+iListI :: Expr
 iListI = Data $ DataCon (Name "I" (Just "Defunc2") 0) (TyConApp (Name "IList" (Just "Defunc2") 0) []) []
+
+iListNil :: Expr
 iListNil = Data $ DataCon (Name "INil" (Just "Defunc2") 0) (TyConApp (Name "IList" (Just "Defunc2") 0) []) []
 
+fListF :: Expr
 fListF = Data $ DataCon (Name "F" (Just "Defunc2") 0) (TyConApp (Name "FList" (Just "Defunc2") 0) []) []
+
+fListNil :: Expr
 fListNil = Data $ DataCon (Name "FNil" (Just "Defunc2") 0) (TyConApp (Name "FList" (Just "Defunc2") 0) []) []
 
 add1Def :: Int -> Int

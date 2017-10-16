@@ -35,9 +35,9 @@ satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe [E
 satModelOutput con io s = do
     let headers = toSMTHeaders s
     let formula = toSolver con headers
-    let vars = map (\(Id n t) -> (nameToStr n, typeToSMT t)) (input_ids s)
+    let vs = map (\(Id n t) -> (nameToStr n, typeToSMT t)) (input_ids s)
 
-    (res, m, ex) <- checkSatGetModelGetExpr con io formula headers vars (expr_env s) (curr_expr s)
+    (res, m, ex) <- checkSatGetModelGetExpr con io formula headers vs (expr_env s) (curr_expr s)
 
     let input = fmap modelAsExpr m
 
@@ -49,7 +49,7 @@ satModelOutput con io s = do
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State
-filterTEnv s@State {type_env = type_env} = s {type_env = M.filter filterTEnv' type_env}
+filterTEnv s@State {type_env = tenv} = s {type_env = M.filter filterTEnv' tenv}
 
 filterTEnv' :: AlgDataTy -> Bool
 filterTEnv' (AlgDataTy _ dc) = not $ any filterTEnv'' dc

@@ -140,6 +140,7 @@ mkPCStr = intercalate "\n" . map mkPCStr'
             "PC: (" ++ mkExprStr e ++ (if b then " = " else "/=") ++ show a
         mkPCStr' (ExtCond e b) =
             "PC: " ++ (if b then "" else "not ") ++ "(" ++ mkExprStr e ++ ")"
+        mkPCStr' x = show x
 
 {-
 mkPCStr [] = ""
@@ -217,6 +218,7 @@ mkPrimHaskell Div = "/"
 mkPrimHaskell Negate = "-"
 mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
+mkPrimHaskell Implies = "undefined"
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""

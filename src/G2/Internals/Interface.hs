@@ -151,9 +151,7 @@ run con hhp n state = do
 
     let exec_states = runNBreadthHist [([], preproc_state)] n
 
-    let ident_states = filter ((==) RuleIdentity . last . fst) exec_states
-
-    -- putStrLn $ "states: " ++ (show $ length ident_states)
+    -- putStrLn $ "states: " ++ (show $ length exec_states)
     -- mapM_ (\(rs, st) -> do
     --     putStrLn $ show rs
     --     putStrLn $ pprExecStateStr st) exec_states
@@ -164,4 +162,4 @@ run con hhp n state = do
 
     let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm
 
-    return $ map (\sm@(s, _, _, _) -> undefunctionalize s sm) sm'
+    return $ map (\sm''@(s, _, _, _) -> undefunctionalize s sm'') sm'
