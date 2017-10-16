@@ -9,22 +9,30 @@ module G2.Internals.Language.Typing
     , splitTyFuns
     ) where
 
+import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 import qualified Data.Set as S
 
+sub :: Type -> Type -> Type -> Type
+sub old new test = if old == test then new else test
+
 -- | Typed typeclass.
 class Typed a where
     typeOf :: a -> Type
+    typeOf = typeOf' M.empty
+
     typeOf' :: M.Map Name Type -> a -> Type
 
-    typeOf = typeOf' M.empty
+    retype :: Type -> Type -> a -> a
 
 
 -- | `Id` instance of `Typed`.
 instance Typed Id where
     typeOf' m (Id _ ty) = typeOf' m ty
+
+    retype old new (Id name ty) = Id name (sub old new ty)
 
 -- | `Primitive` instance of `Typed`
 instance Typed Primitive where
@@ -48,6 +56,8 @@ instance Typed Primitive where
 
     typeOf' _ = typeOf
 
+    retype _ _ prim = prim
+
 -- | `Lit` instance of `Typed`.
 instance Typed Lit where
     typeOf (LitInt _) = TyLitInt
@@ -58,6 +68,8 @@ instance Typed Lit where
     typeOf (LitBool _) = TyBool
 
     typeOf' _ = typeOf
+    
+    retype _ _ lit = lit
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
@@ -68,10 +80,21 @@ instance Typed DataCon where
     typeOf' _ (PrimCon C) = TyFun TyLitChar TyChar
     typeOf' _ (PrimCon B) = TyBool
 
+    retype old new (DataCon name ty tys) =
+      DataCon name (sub old new ty) (map (sub old new) tys)
+    retype _ _ primcon = primcon
+
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
     typeOf' m (Alt _ expr) = typeOf' m expr
 
+    retype old new (Alt am expr) = Alt am' (retype old new expr)
+      where
+        am' = case am of
+          DataAlt dcon ids -> DataAlt (retype old new dcon)
+                                      (map (retype old new) ids)
+          otherwise -> otherwise
+          
 -- | `Expr` instance of `Typed`.
 instance Typed Expr where
     typeOf' m (Var v) = typeOf' m v
@@ -97,6 +120,22 @@ instance Typed Expr where
     typeOf' _ (Type ty) = ty
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
+    
+    retype old new = modify go
+      where
+        go :: Expr -> Expr
+        go (Var i) = Var (retype old new i)
+        go (Prim p ty) = Prim (retype old new p) (retype old new ty)
+        go (Data d) = Data (retype old new d)
+        go (App fe ae) = App (retype old new fe) (retype old new ae)
+        go (Lam i e) = Lam (retype old new i) (retype old new e)
+        go (Let b e) =
+          let b' = map (\(n, r) -> (retype old new n, retype old new r)) b
+          in Let b' (retype old new e)
+        go (Case e i a) =
+          Case (retype old new e) (retype old new i) (map (retype old new) a)
+        go (Type t) = Type (retype old new t)
+        go e = e
 
 instance Typed Type where
     typeOf = typeOf' M.empty
@@ -112,6 +151,8 @@ instance Typed Type where
         typeOf' m' t'
     typeOf' m (TyFun t t') = TyFun (typeOf' m t) (typeOf' m t')
     typeOf' _ t = t
+
+    retype = sub
 
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
