@@ -189,8 +189,8 @@ typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =
     [SortDecl . map typeToSortDecl $ M.toList tenv]
         where
-            typeToSortDecl :: (Name, AlgDataTy) -> (SMTName, [DC])
-            typeToSortDecl (n, AlgDataTy _ dcs) = (nameToStr n, map dataConToDC dcs)
+            typeToSortDecl :: (Name, AlgDataTy) -> (SMTName, [SMTName], [DC])
+            typeToSortDecl (n, AlgDataTy _ dcs) = (nameToStr n, [], map dataConToDC dcs)
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =
@@ -244,7 +244,7 @@ toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
 -- | toSolverSortDecl
-toSolverSortDecl :: SMTConverter ast out io -> [(SMTName, [DC])] -> out
+toSolverSortDecl :: SMTConverter ast out io -> [(SMTName, [SMTName],  [DC])] -> out
 toSolverSortDecl = sortDecl
 
 -- | toSolverVarDecl

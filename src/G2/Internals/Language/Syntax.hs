@@ -116,7 +116,7 @@ data Alt = Alt AltMatch Expr deriving (Show, Eq, Read)
 altMatch :: Alt -> AltMatch
 altMatch (Alt am _) = am
 
--- | TyBinder is used only in the `TyForAll`
+-- | TyBinder is used only in the `TyForAll` and `AlgDataTy`
 data TyBinder = AnonTyBndr Type
               | NamedTyBndr Id
               deriving (Show, Eq, Ord, Read)

@@ -31,10 +31,10 @@ smt2 = SMTConverter {
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) -> do
             setUpFormula h_in formula
-            -- putStrLn "\n\n"
-            -- putStrLn formula
+            putStrLn "\n\n"
+            putStrLn formula
             r <- checkSat' h_in h_out
-            -- putStrLn $ "r =  " ++ show r
+            putStrLn $ "r =  " ++ show r
             if r == SAT then do
                 model <- getModel h_in h_out vs
                 -- putStrLn "======"
@@ -69,9 +69,11 @@ smt2 = SMTConverter {
                         s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ " " ++ (sortN _s) ++ ")") $ si
                     in
                     "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
+
+                binders = intercalate " " $ concatMap (\(_, s, _) -> s) ns
             in
-            "(declare-datatypes () ("
-            ++ (foldr (\(n, dc) e -> 
+            "(declare-datatypes (" ++ binders ++ ") ("
+            ++ (foldr (\(n, _, dc) e -> 
                 "(" ++ n ++ " " ++ (dcHandler dc) ++ ") " ++ e) "" ns) ++  "))"
             
         , varDecl = \n s -> "(declare-const " ++ n ++ " " ++ s ++ ")"
@@ -207,7 +209,7 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
             let
                 nameDC = concat [x | (SortDecl x) <- headers]
             in
-            M.fromList $ concatMap (\(n, dcs) -> [(dcn, Sort n []) | (DC dcn _) <- dcs]) nameDC
+            M.fromList $ concatMap (\(n, _, dcs) -> [(dcn, Sort n []) | (DC dcn _) <- dcs]) nameDC
 
         elimLets :: SMTAST -> SMTAST
         elimLets (SLet (n, a) a') = modifyFix (replaceLets n a) a'

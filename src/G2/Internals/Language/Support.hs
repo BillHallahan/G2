@@ -256,7 +256,7 @@ instance ASTContainer Frame Type where
     modifyContainedASTs _ fr = fr
 
 instance Named AlgDataTy where
-    names (AlgDataTy n dc) = n ++ names dc
+    names (AlgDataTy _ dc) = names dc
 
     rename old new (AlgDataTy n dc) = AlgDataTy (rename old new n) (rename old new dc)
 

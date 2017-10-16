@@ -164,6 +164,8 @@ run con hhp n state = do
     -- mapM_ (\(rs, st) -> (putStrLn $ pprPathsStr (path_conds st)) >> putStrLn "---") exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st) >> putStrLn "---")) (filter (isExecValueForm . snd) exec_states)
 
+    putStrLn "Got states"
+
     sm <- satModelOutputs con hhp exec_states
 
     let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm

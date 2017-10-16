@@ -146,9 +146,10 @@ mkType (TyConApp tc ts) = if not (isFunTyCon tc)
         (t1:t2:[]) -> G2.TyFun (mkType t1) (mkType t2)
         _ -> error "mkType: non-arity 2 FunTyCon from GHC"
 
-mkTyCon :: TyCon -> (G2.Name, [G2.Name], [G2.DataCon])
+mkTyCon :: TyCon -> G2.ProgramType
 mkTyCon t = (mkName . tyConName $ t, [], map mkData dc)
-  where dc = if isDataTyCon t then data_cons . algTyConRhs $ t else []
+  where 
+    dc = if isDataTyCon t then data_cons . algTyConRhs $ t else []
 
 mkTyConName :: TyCon -> G2.Name
 mkTyConName = mkName . tyConName
