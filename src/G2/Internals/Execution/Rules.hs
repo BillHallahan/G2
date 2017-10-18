@@ -213,62 +213,95 @@ varReduce' _ e = e
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-
 reduce :: State -> (Rule, [State])
-reduce s @ State { exec_stack = estk
+reduce s = 
+    let
+        (rule, res) = reduce' s
+    in
+    (rule
+    , map (
+        \(eenv, cexpr, pc, asserts, ng, st) ->
+            s { expr_env = eenv
+              , curr_expr = cexpr
+              , path_conds = pc ++ (if rule == RuleIdentity then varReduce eenv else id) (path_conds s)
+              , assertions = asserts ++ (assertions s)
+              , name_gen = ng
+              , exec_stack = st }
+        ) res)
+
+-- | Result of a Evaluate reduction.
+type ReduceResult = (E.ExprEnv, CurrExpr, [PathCond], [PathCond], NameGen, S.Stack Frame)
+
+reduce' :: State -> (Rule, [ReduceResult])
+reduce' s @ State { exec_stack = estk
                  , expr_env = eenv
                  , curr_expr = cexpr
                  , name_gen = ngen
                  , path_conds = paths
                  , assertions = asserts }
   | isExecValueForm s =
-      (RuleIdentity, [s {curr_expr = varReduce eenv cexpr, path_conds = varReduce eenv paths}])
+      (RuleIdentity, [(eenv, varReduce eenv cexpr, [], [], ngen, estk)])
 
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
   , (Prim Error _):_ <- unApp expr =
-      (RuleError, [s {curr_expr = CurrExpr Return (Prim Error TyBottom), exec_stack = S.empty}])
+      (RuleError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], ngen, S.empty)])
+      --(RuleError, [s {curr_expr = CurrExpr Return (Prim Error TyBottom), exec_stack = S.empty}])
 
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
       -- Our current thing is a value form, which means we can return it.
-      (RuleEvalVal, [s { curr_expr = CurrExpr Return expr }])
+      (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], ngen, estk) ])
 
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = reduceEvaluate eenv expr ngen
           states = map (\(eenv', cexpr', paths', ngen', f) ->
+                        ( eenv'
+                        , cexpr'
+                        , paths'
+                        , []
+                        , ngen'
+                        , maybe estk (\f' -> S.push f' estk) f))
+                       eval_results
+          {- states = map (\(eenv', cexpr', paths', ngen', f) ->
                          s { expr_env = eenv'
                            , curr_expr = cexpr'
                            , path_conds = paths' ++ paths
                            , name_gen = ngen'
                            , exec_stack = maybe estk (\f' -> S.push f' estk) f})
-                       eval_results
+                       eval_results -}
       in (rule, states)
 
   | CurrExpr Return expr <- cexpr
   , Just (AssumeFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr True
-      in ( RuleReturnCAssume
+      in 
+         (RuleReturnCAssume, [(eenv, CurrExpr Evaluate fexpr, [cond], [], ngen, estk')])
+         {- ( RuleReturnCAssume
          , [s { exec_stack = estk'
               , curr_expr = CurrExpr Evaluate fexpr
-              , path_conds = cond : paths }])
+              , path_conds = cond : paths }]) -}
 
   | CurrExpr Return expr <- cexpr
   , Just (AssertFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr False
-      in ( RuleReturnCAssert
+      in 
+         (RuleReturnCAssert, [(eenv, CurrExpr Evaluate fexpr, [], [cond], ngen, estk')])
+         {- ( RuleReturnCAssert
          , [s { exec_stack = estk'
               , curr_expr = CurrExpr Evaluate fexpr
-              , assertions = cond : asserts }])
+              , assertions = cond : asserts }]) -}
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- S.pop estk =
       let (rule, (eenv', cexpr', ngen')) = reduceEReturn eenv expr ngen f
-      in (rule, [s { expr_env = eenv'
+      in 
+        (rule, [(eenv', cexpr', [], [], ngen', estk')])
+         {- (rule, [s { expr_env = eenv'
                    , curr_expr = cexpr'
                    , name_gen = ngen'
-                   , exec_stack = estk' }])
+                   , exec_stack = estk' }]) -}
 
-  | otherwise = (RuleError, [s])
+  | otherwise = (RuleError, [(eenv, cexpr, [], [], ngen, estk)])
 
 -- | Result of a Evaluate reduction.
 type EvaluateResult = (E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)
