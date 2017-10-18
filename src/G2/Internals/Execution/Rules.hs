@@ -199,12 +199,12 @@ varReduce :: (ASTContainer e Expr) => E.ExprEnv -> e -> e
 varReduce eenv = modifyASTs (varReduce' eenv)
 
 varReduce' :: E.ExprEnv -> Expr -> Expr
-varReduce' eenv v@(Var (Id n _)) = 
+varReduce' eenv v@(Var (Id n _)) =
     if E.isSymbolic n eenv then
         v
     else
         fromMaybe v $ return . varReduce eenv =<< E.lookup n eenv
-    --fromMaybe v (return . varReduce eenv =<< E.lookup (idName i) eenv)                          
+
 varReduce' _ e = e
 
 -- | Function for performing rule reductions based on stack based evaluation
@@ -454,7 +454,7 @@ reduceCase eenv mexpr bind alts ngen
   , lalts <- litAlts alts
   , defs <- defaultAlts alts
   , (length dalts + length lalts + length defs) > 0 =
-      let 
+      let
           dsts_cs = liftSymDataAlt eenv mexpr ngen bind dalts
           lsts_cs = liftSymLitAlt eenv mexpr ngen bind lalts
           def_sts = liftSymDefAlt eenv mexpr ngen bind alts
@@ -474,7 +474,7 @@ reduceCase eenv mexpr bind alts ngen
             , []
             , ngen
             , Just frame)])
- 
+
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 
 -- | Result of a Return reduction.
@@ -516,6 +516,16 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
+  let oldty = typeOf b
+      newty = typeOf aexpr
+      binds = [(retype oldty newty b, aexpr)]
+      lexpr' = retype oldty newty lexpr
+      (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
+  in ( RuleReturnEApplyLam
+     , ( eenv'
+       , CurrExpr Evaluate lexpr''
+       , ngen'))
+
   {-
   let oldty = typeOf b
       newty = typeOf aexpr
@@ -527,14 +537,16 @@ reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
        , CurrExpr Evaluate lexpr''
        , ngen'))
   -}
-  
+
+  {-
   let binds = [(b, aexpr)]
       (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLam
      , ( eenv'
        , CurrExpr Evaluate lexpr'
        , ngen'))
-  
+  -}
+
 
 -- When we have an `DataCon` application chain, we need to tack on the
 -- expression in the `ApplyFrame` at the end.

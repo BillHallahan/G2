@@ -15,10 +15,6 @@ import G2.Internals.Language.Syntax
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-
-sub :: Type -> Type -> Type -> Type
-sub old new test = if old == test then new else test
-
 -- | Typed typeclass.
 class Typed a where
     typeOf :: a -> Type
@@ -33,7 +29,7 @@ class Typed a where
 instance Typed Id where
     typeOf' m (Id _ ty) = typeOf' m ty
 
-    retype old new (Id name ty) = Id name (sub old new ty)
+    retype old new (Id name ty) = Id name (retype old new ty)
 
 -- | `Primitive` instance of `Typed`
 instance Typed Primitive where
@@ -69,7 +65,7 @@ instance Typed Lit where
     typeOf (LitBool _) = TyBool
 
     typeOf' _ = typeOf
-    
+
     retype _ _ lit = lit
 
 -- | `DataCon` instance of `Typed`.
@@ -82,7 +78,7 @@ instance Typed DataCon where
     typeOf' _ (PrimCon B) = TyBool
 
     retype old new (DataCon name ty tys) =
-      DataCon name (sub old new ty) (map (sub old new) tys)
+      DataCon name (retype old new ty) (map (retype old new) tys)
     retype _ _ primcon = primcon
 
 -- | `Alt` instance of `Typed`.
@@ -95,7 +91,7 @@ instance Typed Alt where
           DataAlt dcon ids -> DataAlt (retype old new dcon)
                                       (map (retype old new) ids)
           _ -> am
-          
+
 -- | `Expr` instance of `Typed`.
 instance Typed Expr where
     typeOf' m (Var v) = typeOf' m v
@@ -109,7 +105,7 @@ instance Typed Expr where
         in
         case tfxpr of
             TyForAll (NamedTyBndr i) t2 -> typeOf' (M.insert (idName i) taxpr m) t2
-            TyFun _ t2 ->  t2  -- if t1 == tfxpr then t2 else TyBottom -- TODO: 
+            TyFun _ t2 ->  t2  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
                                -- We should really have this if check- but
                                -- can't because of TyBottom being introdduced
                                -- elsewhere...
@@ -121,7 +117,7 @@ instance Typed Expr where
     typeOf' _ (Type ty) = ty
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
-    
+
     retype old new = modify go
       where
         go :: Expr -> Expr
@@ -145,7 +141,7 @@ instance Typed Type where
         case M.lookup n m of
             Just t -> t
             Nothing -> v
-    typeOf' m (TyFun (TyForAll (NamedTyBndr i) t') t'') = 
+    typeOf' m (TyFun (TyForAll (NamedTyBndr i) t') t'') =
         let
             m' = M.insert (idName i) t'' m
         in
@@ -153,7 +149,17 @@ instance Typed Type where
     typeOf' m (TyFun t t') = TyFun (typeOf' m t) (typeOf' m t')
     typeOf' _ t = t
 
-    retype = sub
+    retype old new test =
+      if old == test then new else case test of
+        TyVar n t -> if old == t then new else TyVar n (retype old new t)
+        TyFun t1 t2 -> TyFun (retype old new t1) (retype old new t2)
+        TyApp t1 t2 -> TyApp (retype old new t1) (retype old new t2)
+        TyConApp n ts -> TyConApp n (map (retype old new) ts)
+        TyForAll (AnonTyBndr bt) ty ->
+          TyForAll (AnonTyBndr (retype old new bt)) (retype old new ty)
+        TyForAll (NamedTyBndr n) ty ->
+          TyForAll (NamedTyBndr (retype old new n)) (retype old new ty)
+        ty -> if old == ty then new else ty
 
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
@@ -210,7 +216,7 @@ returnType' t = t
 
 -- | Turns TyForAll types into a list of types
 splitTyForAlls :: Type -> ([Id], Type)
-splitTyForAlls (TyForAll (NamedTyBndr i) t) = 
+splitTyForAlls (TyForAll (NamedTyBndr i) t) =
     let
         (i', t') = splitTyForAlls t
     in
