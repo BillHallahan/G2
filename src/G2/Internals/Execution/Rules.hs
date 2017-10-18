@@ -237,8 +237,7 @@ reduce' s @ State { exec_stack = estk
                  , expr_env = eenv
                  , curr_expr = cexpr
                  , name_gen = ngen
-                 , path_conds = paths
-                 , assertions = asserts }
+                 }
   | isExecValueForm s =
       (RuleIdentity, [(eenv, varReduce eenv cexpr, [], [], ngen, estk)])
 
@@ -526,8 +525,8 @@ reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
        , CurrExpr Evaluate lexpr''
        , ngen'))
 
-  {-
-  let oldty = typeOf b
+  
+  {- let oldty = typeOf b
       newty = typeOf aexpr
       binds = [(retype oldty newty b, aexpr)]
       lexpr' = retype oldty newty lexpr
@@ -535,8 +534,8 @@ reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
   in ( RuleReturnEApplyLam
      , ( eenv'
        , CurrExpr Evaluate lexpr''
-       , ngen'))
-  -}
+       , ngen')) -}
+  
 
   {-
   let binds = [(b, aexpr)]
