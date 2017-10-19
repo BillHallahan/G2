@@ -483,21 +483,12 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
-  let oldty = typeOf b
-      newty = typeOf aexpr
-      binds = [(retype oldty newty b, aexpr)]
-      lexpr' = retype oldty newty lexpr
-      (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
-  in ( RuleReturnEApplyLam
-     , ( eenv'
-       , CurrExpr Evaluate lexpr''
-       , ngen'))
-
   {-
   let oldty = typeOf b
       newty = typeOf aexpr
-      binds = [(retype oldty newty b, aexpr)]
-      lexpr' = retype oldty newty lexpr
+      (binds, lexpr') = if oldty == newty
+        then ([(b, aexpr)], lexpr)
+        else ([(retype oldty newty b, aexpr)], retype oldty newty lexpr)
       (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
   in ( RuleReturnEApplyLam
      , ( eenv'
@@ -505,14 +496,12 @@ reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
        , ngen'))
   -}
 
-  {-
   let binds = [(b, aexpr)]
       (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLam
      , ( eenv'
        , CurrExpr Evaluate lexpr'
        , ngen'))
-  -}
 
 
 -- When we have an `DataCon` application chain, we need to tack on the

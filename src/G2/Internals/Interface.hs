@@ -80,7 +80,7 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
                 strict_app_ex = mkStrict walkers app_ex
 
                 (name, ng'') = freshName ng'
-                id_name = Id name (typeOf f)
+                id_name = Id name (typeOf strict_app_ex)
                 var_name = Var id_name
 
                 assume_ex = mkAssumeAssert Assume m_assume var_ids var_name var_name eenv
@@ -152,9 +152,9 @@ run con hhp n state = do
     let exec_states = runNDepth [preproc_state] n
 
     -- putStrLn $ "states: " ++ (show $ length exec_states)
-    mapM_ (\(rs, st) -> do
-        putStrLn $ show rs
-        putStrLn $ pprExecStateStr st) exec_states
+    -- mapM_ (\(rs, st) -> do
+    --     putStrLn $ show rs
+    --     putStrLn $ pprExecStateStr st) exec_states
     -- let ident_states = filter ((==) RuleIdentity . last . fst) exec_states
 
     -- putStrLn $ "states: " ++ (show $ length ident_states)
