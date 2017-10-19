@@ -1,14 +1,19 @@
 module G2.Internals.SMT.Interface
     ( satModelOutputs
+    , checkConstraints
+    , satConstraints
     ) where
 
 import qualified Data.Map as M
 import Data.Maybe
 
-import G2.Internals.Execution.Rules
+import G2.Internals.Execution.NormalForms
+import G2.Internals.Execution.RuleTypes
 import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
+
+import Debug.Trace
 
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
@@ -31,7 +36,7 @@ satModelOutputs con io states = do
 -- Given an smt converter and a list state, checks if the states current expression
 -- and path constraints are satisfiable.  If they are, one possible input and output
 -- are also returned
-satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe [Expr], Maybe Expr) --IO (Result, Maybe [Expr], Maybe Expr)
+satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe [Expr], Maybe Expr)
 satModelOutput con io s = do
     let headers = toSMTHeaders s
     let formula = toSolver con headers
@@ -46,6 +51,22 @@ satModelOutput con io s = do
             Nothing -> Nothing
 
     return (res, input', ex)
+
+-- | checkConstraints
+-- Checks if the path constraints are satisfiable
+checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
+checkConstraints con io s = do
+    let headers = toSMTHeaders s
+    let formula = toSolver con headers
+
+    checkSat con io formula
+
+satConstraints :: SMTConverter ast out io -> io -> State -> IO Bool
+satConstraints con io s = do
+    res <- checkConstraints con io s
+    case res of
+        SAT -> return True
+        _ -> trace (show res) $ return False
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State

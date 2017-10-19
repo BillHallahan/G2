@@ -149,7 +149,7 @@ run con hhp n state = do
 
     -- putStrLn . pprExecStateStr $ preproc_state
 
-    let exec_states = runNDepth [preproc_state] n
+    exec_states <- runNDepth con hhp [preproc_state] n
 
     -- putStrLn $ "states: " ++ (show $ length exec_states)
     -- mapM_ (\(rs, st) -> do

@@ -1,79 +1,22 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-
 -- | Reduction Rules for Stack Execution Semantics
 module G2.Internals.Execution.Rules
-  ( Rule (..)
+  ( module G2.Internals.Execution.RuleTypes
+  , Rule (..)
   , isExecValueForm
   , reduce
+  , reduceNoConstraintChecks
   ) where
 
-import G2.Internals.Language.AST
+import G2.Internals.Execution.NormalForms
+import G2.Internals.Execution.RuleTypes
 import G2.Internals.Language
 import qualified G2.Internals.Language.Stack as S
 import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.SMT.Interface
+import G2.Internals.SMT.Language hiding (Assert)
 
+import Control.Monad
 import Data.Maybe
-
-data Rule = RuleEvalVal
-          | RuleEvalVarNonVal | RuleEvalVarVal
-          | RuleEvalUnInt
-          | RuleEvalApp
-          | RuleEvalPrimAlreadyNorm
-          | RuleEvalPrimToNorm
-          | RuleEvalLet
-          | RuleEvalCaseData | RuleEvalCaseLit | RuleEvalCaseDefault
-                             | RuleEvalCaseSym | RuleEvalCasePrim
-                             | RuleEvalCaseNonVal
-          | RuleEvalAssume | RuleEvalAssert
-
-          | RuleReturnEUpdateVar | RuleReturnEUpdateNonVar
-          | RuleReturnECase
-          | RuleReturnEApplyLam | RuleReturnEApplyData
-                                | RuleReturnEApplySym
-
-          | RuleReturnCAssume | RuleReturnCAssert
-
-          | RuleIdentity
-
-          | RuleError
-           deriving (Show, Eq, Read)
-
-instance AST e => ASTContainer Rule e where
-    containedASTs _ = []
-    modifyContainedASTs _ r = r
-
--- | If something is in "value form", then it is essentially ready to be
--- returned and popped off the heap. This will be the SSTG equivalent of having
--- Return vs Evaluate for the ExecCode of the `State`.
---
--- So in this context, the following are considered NOT-value forms:
---   `Var`, only if a lookup still available in the expression environment.
---   `App`, which involves pushing the RHS onto the `Stack`.
---   `Let`, which involves binding the binds into the eenv
---   `Case`, which involves pattern decomposition and stuff.
-isExprValueForm :: Expr -> E.ExprEnv -> Bool
-isExprValueForm (Var var) eenv =
-    E.lookup (idName var) eenv == Nothing || E.isSymbolic (idName var) eenv
-isExprValueForm (App f a) eenv = case unApp (App f a) of
-    (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
-    (Data _:_) -> True
-    (v@(Var _):_) -> isExprValueForm v eenv
-    _ -> False
-isExprValueForm (Let _ _) _ = False
-isExprValueForm (Case _ _ _) _ = False
-isExprValueForm (Assume _ _) _ = False
-isExprValueForm (Assert _ _) _ = False
-isExprValueForm _ _ = True
-
--- | Is the execution state in a value form of some sort? This would entail:
--- * The `Stack` is empty.
--- * The `ExecCode` is in a `Return` form.
-isExecValueForm :: State -> Bool
-isExecValueForm state | Nothing <- S.pop (exec_stack state)
-                      , CurrExpr Return _ <- curr_expr state = True
-
-                      | otherwise = False
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Named a => [(Name, Name)] -> a -> a
@@ -213,8 +156,27 @@ varReduce' _ e = e
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-reduce :: State -> (Rule, [State])
-reduce s = 
+reduce :: SMTConverter ast out io -> io -> State -> IO (Rule, [State])
+reduce con hpp s = do
+    let (rule, res) = reduce' s
+
+    let sts = 
+            map ( \(eenv, cexpr, pc, asserts, ng, st) ->
+                s { expr_env = eenv
+                  , curr_expr = cexpr
+                  , path_conds = pc ++ (if rule == RuleIdentity then varReduce eenv else id) (path_conds s)
+                  , assertions = asserts ++ (assertions s)
+                  , name_gen = ng
+                  , exec_stack = st }
+            ) res
+
+    let sts' = sts
+    -- sts' <- filterM (satConstraints con hpp) sts
+
+    return (rule, sts')
+
+reduceNoConstraintChecks :: State -> (Rule, [State])
+reduceNoConstraintChecks s = 
     let
         (rule, res) = reduce' s
     in
@@ -515,27 +477,25 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
-<<<<<<< HEAD
-  {-
-  let oldty = typeOf b
+  {-let oldty = typeOf b
       newty = typeOf aexpr
       (binds, lexpr') = if oldty == newty
         then ([(b, aexpr)], lexpr)
-        else ([(retype oldty newty b, aexpr)], retype oldty newty lexpr)
+        else {- trace ("oldTy = " ++ show oldty ++ "\nnewTy = " ++ show newty ++ "\n") -}
+        ([(retype oldty newty b, aexpr)], retype oldty newty lexpr)
       (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
   in ( RuleReturnEApplyLam
      , ( eenv'
        , CurrExpr Evaluate lexpr''
-       , ngen'))
-  -}
+       , ngen')) -}
   
-
+  
   let binds = [(b, aexpr)]
       (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLam
      , ( eenv'
        , CurrExpr Evaluate lexpr'
-       , ngen'))
+       , ngen')) 
 
 
 -- When we have an `DataCon` application chain, we need to tack on the

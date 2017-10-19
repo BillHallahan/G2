@@ -118,7 +118,7 @@ instance Typed Expr where
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
 
-    retype old new = modify go
+    retype old new = modifyASTs go
       where
         go :: Expr -> Expr
         go (Var i) = Var (retype old new i)
