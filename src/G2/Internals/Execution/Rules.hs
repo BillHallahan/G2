@@ -160,36 +160,40 @@ reduce :: SMTConverter ast out io -> io -> State -> IO (Rule, [State])
 reduce con hpp s = do
     let (rule, res) = reduce' s
 
-    let sts = 
-            map ( \(eenv, cexpr, pc, asserts, ng, st) ->
-                s { expr_env = eenv
-                  , curr_expr = cexpr
-                  , path_conds = pc ++ (if rule == RuleIdentity then varReduce eenv else id) (path_conds s)
-                  , assertions = asserts ++ (assertions s)
-                  , name_gen = ng
-                  , exec_stack = st }
-            ) res
+    -- let sts = map (resultToState rule s) res
 
-    let sts' = sts
-    -- sts' <- filterM (satConstraints con hpp) sts
+    sts <- resultsToState con hpp rule s res
 
-    return (rule, sts')
+    return (rule, sts)
+
+resultsToState :: SMTConverter ast out io -> io -> Rule -> State -> [ReduceResult] -> IO [State]
+resultsToState _ _ _ _ [] = return []
+resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs) = do
+    let s' = resultToState rule s red
+
+    case not (null pc) || not (null asserts) of
+        True -> do
+            res <- satConstraints con hpp s'
+            if res then return . (:) s' =<< resultsToState con hpp rule s xs
+            else resultsToState con hpp rule s xs
+        False -> return . (:) s' =<< resultsToState con hpp rule s xs
 
 reduceNoConstraintChecks :: State -> (Rule, [State])
 reduceNoConstraintChecks s = 
     let
         (rule, res) = reduce' s
     in
-    (rule
-    , map (
-        \(eenv, cexpr, pc, asserts, ng, st) ->
-            s { expr_env = eenv
-              , curr_expr = cexpr
-              , path_conds = pc ++ (if rule == RuleIdentity then varReduce eenv else id) (path_conds s)
-              , assertions = asserts ++ (assertions s)
-              , name_gen = ng
-              , exec_stack = st }
-        ) res)
+    (rule, map (resultToState rule s) res)
+
+resultToState :: Rule -> State -> ReduceResult -> State
+resultToState rule s (eenv, cexpr, pc, asserts, ng, st) = 
+    s { 
+        expr_env = eenv
+      , curr_expr = cexpr
+      , path_conds = pc ++ (if rule == RuleIdentity then varReduce eenv else id) (path_conds s)
+      , assertions = asserts ++ (assertions s)
+      , name_gen = ng
+      , exec_stack = st }
 
 -- | Result of a Evaluate reduction.
 type ReduceResult = (E.ExprEnv, CurrExpr, [PathCond], [PathCond], NameGen, S.Stack Frame)

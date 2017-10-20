@@ -56,7 +56,12 @@ satModelOutput con io s = do
 -- Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints con io s = do
-    let headers = toSMTHeaders s ([] :: [Expr])
+    let s' = filterTEnv . simplifyPrims $ s
+
+    --TODO: This is a hack to avoid problems with lack of Asserts knocking out states too early...
+    let s'' = s' {assertions = [ExtCond (Lit (LitBool True)) True]}
+
+    let headers = toSMTHeaders s'' ([] :: [Expr])
     let formula = toSolver con headers
 
     checkSat con io formula
@@ -66,7 +71,7 @@ satConstraints con io s = do
     res <- checkConstraints con io s
     case res of
         SAT -> return True
-        _ -> trace (show res) $ return False
+        _ -> return False
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State
