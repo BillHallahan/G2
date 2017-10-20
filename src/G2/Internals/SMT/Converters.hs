@@ -27,12 +27,13 @@ import G2.Internals.SMT.Language
 -- be given to an SMT solver by using toSolver.
 -- To determine the input that can be fed to a state to get the curr_expr,
 -- we need only consider the types and path constraints of that state.
--- Of course, we can also solve for the curr_expr, to also get the output.
-toSMTHeaders :: State -> [SMTHeader]
-toSMTHeaders s = 
+-- We can also pass in some other Expr Container to instantiate names from, which is
+-- important if you wish to later be able to scrape variables from those Expr's
+toSMTHeaders :: (ASTContainer m Expr) => State -> m -> [SMTHeader]
+toSMTHeaders s e = 
     (typesToSMTSorts $ type_env s)
     ++
-    (createVarDecls s)
+    nub (exprVarDecls e ++ (pcVarDecls $ path_conds s) ++ (pcVarDecls $ assertions s))
     ++
     (pathConsToSMTHeaders $ path_conds s)
     ++
@@ -147,14 +148,15 @@ altToSMT (DataAlt (DataCon n t ts) ns) =
         f (n', t') = V (nameToStr . idName $ n') (typeToSMT t')
 altToSMT am = error $ "Unhandled " ++ show am
 
-createVarDecls :: State -> [(SMTHeader)]
-createVarDecls s = nub . createVarDecls' $ 
-                        (pcVars $ path_conds s)
-                     ++ (vars $ curr_expr s)
+createVarDecls :: [(Name, Sort)] -> [SMTHeader]
+createVarDecls [] = []
+createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
 
-createVarDecls' :: [(Name, Sort)] -> [SMTHeader]
-createVarDecls' [] = []
-createVarDecls' ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls' xs
+exprVarDecls :: (ASTContainer m Expr) => m -> [SMTHeader]
+exprVarDecls = createVarDecls . vars
+
+pcVarDecls :: [PathCond] -> [SMTHeader]
+pcVarDecls = createVarDecls . pcVars
 
 pcVars :: [PathCond] -> [(Name, Sort)]
 pcVars [] = []

@@ -65,16 +65,19 @@ sampleTests =
                 -- The below test fails because Z3 returns unknown.
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
                 
-                , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
+                , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 400 (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 1000 (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 1000 (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
 
-                , checkExprWithOutput "tests/samples/" "tests/samples/GetNth.hs" Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
+                , checkExprWithOutput "tests/samples/" "tests/samples/GetNth.hs" 400 Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
 
                 , checkExprReaches "tests/samples/" "tests/samples/GetNthErr.hs" 400 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
+
+                , checkExprWithOutput "tests/samples/" "tests/samples/FoldlUses.hs" 900 Nothing Nothing "sum" 2 [AtLeast 3]
+                , checkExprWithOutput "tests/samples/" "tests/samples/FoldlUses.hs" 400 Nothing Nothing "dotProd" 3 [AtLeast 3]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -82,17 +85,17 @@ testFileTests :: IO TestTree
 testFileTests = 
     return . testGroup "Samples"
         =<< sequence [
-                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" Nothing Nothing "f" 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), (Lit (LitInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
+                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" 400 Nothing Nothing "f" 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), (Lit (LitInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 1 [Exactly 0]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 400 Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" 400 Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultCase.hs" Nothing Nothing "f" 2
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultCase.hs" 400 Nothing Nothing "f" 2
                     [ RExists (\[Lit (LitInt x), y] -> x == 2 && y == (Lit $ LitBool True))
                     , RExists (\[Lit(LitInt x), y] -> x == 1 && y == (Lit $ LitBool False))
                     , RExists (\[Lit (LitInt x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
@@ -104,10 +107,10 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" Nothing Nothing "f" 2 
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" 400 Nothing Nothing "f" 2 
                         [ RExists exists1
                         , RExists exists2
                         , RExists exists3
@@ -118,20 +121,20 @@ testFileTests =
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Infinite.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x <= 100 && x /= 80)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Strictness1.hs" Nothing Nothing "f" 1 [AtLeast 1, RExists (\[(App x (Lit (LitInt y)))] -> dataConHasName "A" x && y == 9)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Strictness1.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RExists (\[(App x (Lit (LitInt y)))] -> dataConHasName "A" x && y == 9)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
                                                                                                            , RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
                 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" Nothing Nothing "g" 2 [AtLeast 1, RForAll(errors)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error2.hs" Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error3.hs" Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" 400 Nothing Nothing "g" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error2.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error3.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" Nothing Nothing "abs'" 2 [Exactly 2]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" Nothing Nothing "xswitch" 2 [AtLeast 10]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "abs'" 2 [Exactly 2]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "xswitch" 2 [AtLeast 10]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" Nothing Nothing "f" 3 [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "f" 3 [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
         ]
 
 
@@ -147,9 +150,9 @@ checkExpr proj src steps m_assume m_assert entry i reqList = do
                                       "[" ++ (fromMaybe "" m_assert) ++ "] " ++
                                               entry ++ " failed.\n") ch
 
-checkExprWithOutput :: String -> String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprWithOutput proj src m_assume m_assert entry i reqList =
-    checkExprReaches proj src 400 m_assume m_assert Nothing entry i reqList
+checkExprWithOutput :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprWithOutput proj src steps m_assume m_assert entry i reqList =
+    checkExprReaches proj src steps m_assume m_assert Nothing entry i reqList
 
 checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprReaches proj src steps m_assume m_assert m_reaches entry i reqList = do

@@ -38,7 +38,7 @@ satModelOutputs con io states = do
 -- are also returned
 satModelOutput :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe [Expr], Maybe Expr)
 satModelOutput con io s = do
-    let headers = toSMTHeaders s
+    let headers = toSMTHeaders s (curr_expr s)
     let formula = toSolver con headers
     let vs = map (\(Id n t) -> (nameToStr n, typeToSMT t)) (input_ids s)
 
@@ -56,7 +56,7 @@ satModelOutput con io s = do
 -- Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints con io s = do
-    let headers = toSMTHeaders s
+    let headers = toSMTHeaders s ([] :: [Expr])
     let formula = toSolver con headers
 
     checkSat con io formula
@@ -73,7 +73,7 @@ filterTEnv :: State -> State
 filterTEnv s@State {type_env = tenv} = s {type_env = M.filter filterTEnv' tenv}
 
 filterTEnv' :: AlgDataTy -> Bool
-filterTEnv' (AlgDataTy _ dc) = not $ any filterTEnv'' dc
+filterTEnv' (AlgDataTy _ dc) = length dc > 0 && not (any filterTEnv'' dc)
 
 filterTEnv'' :: DataCon -> Bool
 filterTEnv'' (DataCon _ _ ts) = any (hasFuncType) ts
