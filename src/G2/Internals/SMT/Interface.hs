@@ -13,7 +13,6 @@ import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
-import Debug.Trace
 
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
@@ -30,7 +29,6 @@ satModelOutputs con io states = do
            =<< mapM (\(rs, s) -> do
                             (res, es, e) <- satModelOutput con io $ simplifyPrims s
                             return (s, rs, res, es, e)) states''
-
 
 -- | checkSatModelOutput
 -- Given an smt converter and a list state, checks if the states current expression

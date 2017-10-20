@@ -15,7 +15,6 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
-import Control.Monad
 import Data.Maybe
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
@@ -275,7 +274,7 @@ type EvaluateResult = (E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
 reduceEvaluate :: E.ExprEnv -> Expr -> NameGen -> (Rule, [EvaluateResult])
-reduceEvaluate eenv (Var var) ngen = case E.lookup (idName var) eenv of
+reduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
     Just expr ->
       -- If the target in our environment is already a value form, we do not
       -- need to push additional redirects for updating later on.
@@ -292,7 +291,7 @@ reduceEvaluate eenv (Var var) ngen = case E.lookup (idName var) eenv of
         -- expression that it points to only if it is not a value. After the
         -- latter is done evaluating, we pop the stack to add a redirection
         -- pointer into the heap.
-        else let frame = UpdateFrame (idName var)
+        else let frame = UpdateFrame (idName v)
              in ( RuleEvalVarNonVal
                 , [( eenv
                    , CurrExpr Evaluate expr
@@ -512,12 +511,12 @@ reduceEReturn eenv dexpr@(App (Data _) _) ngen (ApplyFrame aexpr) =
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.
-reduceEReturn eenv c@(Var var) ngen (ApplyFrame aexpr) =
-  if not (E.isSymbolic (idName var) eenv)
+reduceEReturn eenv c@(Var v) ngen (ApplyFrame aexpr) =
+  if not (E.isSymbolic (idName v) eenv)
     then (RuleError, (eenv, CurrExpr Return c, ngen))
-    else let (sname, ngen') = freshSeededName (idName var) ngen
-             sym_app = App (Var var) aexpr
-             svar = Id sname (TyApp (typeOf var) (typeOf aexpr))
+    else let (sname, ngen') = freshSeededName (idName v) ngen
+             sym_app = App (Var v) aexpr
+             svar = Id sname (TyApp (typeOf v) (typeOf aexpr))
          in ( RuleReturnEApplySym
             , ( E.insert sname sym_app eenv
               , CurrExpr Return (Var svar)
