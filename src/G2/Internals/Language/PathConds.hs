@@ -13,6 +13,7 @@ import G2.Internals.Language.Syntax
 import Data.Coerce
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 -- For each name, we record
 --      (a) all PathConds that use that name
@@ -41,6 +42,26 @@ insert p (PathConds pcs) =
 insert' :: PathCond -> [Name] -> Maybe ([PathCond], [Name]) -> Maybe ([PathCond], [Name])
 insert' p ns Nothing = Just ([p], ns)
 insert' p ns (Just (p', ns')) = Just (p:p', ns ++ ns')
+
+-- TODO: Figure out the efficient way to do this...
+scc :: [Name] -> PathConds -> PathConds
+scc ns (PathConds pc) =
+    let
+        ns' = scc' ns S.empty pc
+    in
+    PathConds $ foldr (M.delete) pc ns'
+
+scc' :: [Name] -> S.Set Name -> (M.Map Name ([PathCond], [Name])) -> S.Set Name
+scc' [] lookedUp _ = lookedUp
+scc' (n:ns) lookedUp pcs =
+    if n `S.notMember` lookedUp then
+        let
+            pcns = M.lookup n pcs
+        in
+        case pcns of
+            Just (pc, ns') -> scc' (ns' ++ ns) (foldr (S.insert) lookedUp ns') pcs
+            Nothing -> error "Error in scc"
+    else scc' ns lookedUp pcs
 
 toList :: PathConds -> [PathCond]
 toList = L.nub . concatMap fst . M.elems . toMap
