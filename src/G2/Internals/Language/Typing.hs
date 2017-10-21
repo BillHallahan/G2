@@ -126,12 +126,16 @@ instance Typed Expr where
         go (Data d) = Data (retype old new d)
         go (Lam i e) = Lam (retype old new i) e
         go (Let b e) =
-          let b' = map (\(n, r) -> (retype old new n, retype old new r)) b
+          let b' = map (\(n, r) -> (retype old new n, r)) b
           in Let b' e
-        go (Case e i a) =
-          Case e (retype old new i) (map (retype old new) a)
+        go (Case e i a) = Case e (retype old new i) (map goAlt a)
         go (Type t) = Type (retype old new t)
         go e = e
+
+        goAlt :: Alt -> Alt
+        goAlt (Alt (DataAlt dc pms) e) =
+          Alt (DataAlt (retype old new dc) (map (retype old new) pms)) e
+        goAlt alt = alt
 
 instance Typed Type where
     typeOf = typeOf' M.empty
