@@ -159,8 +159,6 @@ reduce :: SMTConverter ast out io -> io -> State -> IO (Rule, [State])
 reduce con hpp s = do
     let (rule, res) = reduce' s
 
-    -- let sts = map (resultToState rule s) res
-
     sts <- resultsToState con hpp rule s res
 
     return (rule, sts)
@@ -173,8 +171,10 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs) = do
     case not (null pc) || not (null asserts) of
         True -> do
             res <- satConstraints con hpp s'
+
             if res then return . (:) s' =<< resultsToState con hpp rule s xs
             else resultsToState con hpp rule s xs
+        
         False -> return . (:) s' =<< resultsToState con hpp rule s xs
 
 reduceNoConstraintChecks :: State -> (Rule, [State])
@@ -209,7 +209,6 @@ reduce' s @ State { exec_stack = estk
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
   , (Prim Error _):_ <- unApp expr =
       (RuleError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], ngen, S.empty)])
-      --(RuleError, [s {curr_expr = CurrExpr Return (Prim Error TyBottom), exec_stack = S.empty}])
 
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
@@ -226,13 +225,6 @@ reduce' s @ State { exec_stack = estk
                         , ngen'
                         , maybe estk (\f' -> S.push f' estk) f))
                        eval_results
-          {- states = map (\(eenv', cexpr', paths', ngen', f) ->
-                         s { expr_env = eenv'
-                           , curr_expr = cexpr'
-                           , path_conds = paths' ++ paths
-                           , name_gen = ngen'
-                           , exec_stack = maybe estk (\f' -> S.push f' estk) f})
-                       eval_results -}
       in (rule, states)
 
   | CurrExpr Return expr <- cexpr
@@ -240,30 +232,18 @@ reduce' s @ State { exec_stack = estk
       let cond = ExtCond expr True
       in 
          (RuleReturnCAssume, [(eenv, CurrExpr Evaluate fexpr, [cond], [], ngen, estk')])
-         {- ( RuleReturnCAssume
-         , [s { exec_stack = estk'
-              , curr_expr = CurrExpr Evaluate fexpr
-              , path_conds = cond : paths }]) -}
 
   | CurrExpr Return expr <- cexpr
   , Just (AssertFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr False
       in 
          (RuleReturnCAssert, [(eenv, CurrExpr Evaluate fexpr, [], [cond], ngen, estk')])
-         {- ( RuleReturnCAssert
-         , [s { exec_stack = estk'
-              , curr_expr = CurrExpr Evaluate fexpr
-              , assertions = cond : asserts }]) -}
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- S.pop estk =
       let (rule, (eenv', cexpr', ngen')) = reduceEReturn eenv expr ngen f
       in 
         (rule, [(eenv', cexpr', [], [], ngen', estk')])
-         {- (rule, [s { expr_env = eenv'
-                   , curr_expr = cexpr'
-                   , name_gen = ngen'
-                   , exec_stack = estk' }]) -}
 
   | otherwise = (RuleError, [(eenv, cexpr, [], [], ngen, estk)])
 
@@ -360,11 +340,8 @@ reduceEvaluate eenv (Assert pre lexpr) ngen =
 reduceEvaluate eenv c ngen =
     (RuleError, [(eenv, CurrExpr Evaluate c, [], ngen, Nothing)])
 
--- | Result of a Case reduction.
-type CaseResult = [(E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)]
-
 -- | Handle the Case forms of Evaluate.
-reduceCase :: E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, CaseResult)
+reduceCase :: E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, [EvaluateResult])
 reduceCase eenv mexpr bind alts ngen
   -- | Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
