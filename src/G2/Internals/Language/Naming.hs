@@ -137,9 +137,12 @@ instance Named Expr where
             let b' = map (\(n, e') -> (rename old new n, e')) b
             in Let b' e
         go (Case e i a) =
-            Case e (rename old new i) (rename old new a)
+            Case e (rename old new i) (map goAlt a)
         go (Type t) = Type (rename old new t)
         go e = e
+
+        goAlt :: Alt -> Alt
+        goAlt (Alt am e) = Alt (rename old new am) e
 
 instance Named Type where
     names = eval go
