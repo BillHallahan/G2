@@ -43,7 +43,7 @@ insert' :: PathCond -> [Name] -> Maybe ([PathCond], [Name]) -> Maybe ([PathCond]
 insert' p ns Nothing = Just ([p], ns)
 insert' p ns (Just (p', ns')) = Just (p:p', ns ++ ns')
 
--- TODO: Figure out the efficient way to do this...
+-- TODO: Is this efficient enough?
 scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pc) =
     let
