@@ -118,19 +118,18 @@ instance Typed Expr where
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
 
-    retype old new = modifyASTs go
+    retype old new = modify go
       where
         go :: Expr -> Expr
         go (Var i) = Var (retype old new i)
         go (Prim p ty) = Prim (retype old new p) (retype old new ty)
         go (Data d) = Data (retype old new d)
-        go (App fe ae) = App (retype old new fe) (retype old new ae)
-        go (Lam i e) = Lam (retype old new i) (retype old new e)
+        go (Lam i e) = Lam (retype old new i) e
         go (Let b e) =
           let b' = map (\(n, r) -> (retype old new n, retype old new r)) b
-          in Let b' (retype old new e)
+          in Let b' e
         go (Case e i a) =
-          Case (retype old new e) (retype old new i) (map (retype old new) a)
+          Case e (retype old new i) (map (retype old new) a)
         go (Type t) = Type (retype old new t)
         go e = e
 
