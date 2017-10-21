@@ -73,6 +73,9 @@ data Result = SAT
             | Unknown String
             deriving (Show, Eq)
 
+isSat :: Result -> Bool
+isSat SAT = True
+isSat _ = False
 
 type Model = M.Map SMTName SMTAST
 type ExprModel = M.Map Name Expr

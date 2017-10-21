@@ -13,7 +13,6 @@ import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
-
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
@@ -65,11 +64,7 @@ checkConstraints con io s = do
     checkSat con io formula
 
 satConstraints :: SMTConverter ast out io -> io -> State -> IO Bool
-satConstraints con io s = do
-    res <- checkConstraints con io s
-    case res of
-        SAT -> return True
-        _ -> return False
+satConstraints con io s = return . isSat =<< checkConstraints con io s
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State

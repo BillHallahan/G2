@@ -6,6 +6,7 @@ module G2.Internals.Language.Expr ( unApp
                                   , mkFalse
                                   , replaceASTs
                                   , vars
+                                  , varNames
                                   , symbVars
                                   , freeVars
                                   , exprReplace
@@ -47,6 +48,13 @@ vars = evalASTs vars'
 vars' :: Expr -> [Expr]
 vars' v@(Var _) = [v]
 vars' _ = []
+
+varNames :: (ASTContainer m Expr) => m -> [Name]
+varNames = evalASTs varNames'
+
+varNames' :: Expr -> [Name]
+varNames' v@(Var (Id n _)) = [n]
+varNames' _ = []
 
 symbVars :: (ASTContainer m Expr) => ExprEnv -> m -> [Expr]
 symbVars eenv = filter (symbVars' eenv) . vars
