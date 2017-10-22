@@ -1,22 +1,26 @@
 module TypeClass1 where
 
 class Test a where
-    test :: a -> a
+    test :: a -> a -> a
+
+    bar :: a -> a -> a -> a
 
 instance Test Int where
-    test x = x
+    test x y = x + y
+
+    bar x y z = x + y + z
+
+instance Test [a] where
+    test s1 s2 = s1 ++ s2
+
+    bar s1 s2 s3 = s1 ++ s3 ++ s2
 
 f :: Int -> Int
-f x = test x
+f x = test x (bar 1 2 x)
 
-polySnd a b = b
+data Person = PersonCons {
+  children :: Int,
+  health :: String
+}
 
-typedSnd :: Int -> Int -> Int
-typedSnd a b = polySnd a b
-
-polyMax :: (Ord a) => a -> a -> a
-polyMax a b = if a > b then a else b
-
-typedMax :: Int -> Int -> Int
-typedMax a b = polyMax a b
 

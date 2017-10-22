@@ -17,6 +17,8 @@ main = do
     -- putStrLn "Compiles!!!"
     (proj:src:prims:entry:tail_args) <- getArgs
 
+    -- testDump src
+
     --Get args
     let n_val = nVal tail_args
     let m_assume = mAssume tail_args

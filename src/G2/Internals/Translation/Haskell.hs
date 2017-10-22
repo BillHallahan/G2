@@ -6,6 +6,7 @@ module G2.Internals.Translation.Haskell
     , mkIOString
     , mkPrims
     , prim_list
+    , testDump
     ) where
 
 import qualified G2.Internals.Language as G2
@@ -14,10 +15,12 @@ import CoreSyn
 import DataCon
 import GHC
 import GHC.Paths
+import HscMain
 import HscTypes
 import Literal
 import Name
 import Outputable
+import TidyPgm
 import TyCon
 import TyCoRep
 import Unique
@@ -27,6 +30,18 @@ mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
     return (showPpr dflags obj)
+
+mkRawCore :: FilePath -> IO CoreModule
+mkRawCore fp = runGhc (Just libdir) $ do
+    setSessionDynFlags =<< getSessionDynFlags
+    -- compileToCoreModule fp
+    compileToCoreSimplified fp
+
+testDump :: FilePath -> IO ()
+testDump fp = do
+  core <- mkRawCore fp
+  str <- mkIOString core
+  putStrLn str
 
 hskToG2 :: FilePath -> FilePath -> IO (G2.Program, [G2.ProgramType])
 hskToG2 proj src = do
@@ -40,21 +55,26 @@ hskToG2 proj src = do
 type CompileClosure = ([(ModSummary, ModGuts)], DynFlags, HscEnv)
 
 mkCompileClosure :: FilePath -> FilePath -> IO CompileClosure
-mkCompileClosure proj src = runGhc (Just libdir) $ do
-    beta_flags <- getSessionDynFlags
-    let dflags = beta_flags { importPaths = [proj] }
-    _ <- setSessionDynFlags dflags
-    env <- getSession
-    target <- guessTarget src Nothing
-    _ <- setTargets [target]
-    _ <- load LoadAllTargets
-    -- Now that things are loaded, make the compilation closure.
-    mod_graph <- getModuleGraph
-    pmods <- mapM parseModule mod_graph
-    tmods <- mapM typecheckModule pmods
-    dmods <- mapM desugarModule tmods
-    let mod_gutss = map coreModule dmods
-    return (zip mod_graph mod_gutss, dflags, env)
+mkCompileClosure proj src = do
+    (mod_graph, mod_gutss, dflags, env) <- runGhc (Just libdir) $ do
+      beta_flags <- getSessionDynFlags
+      let dflags = beta_flags { importPaths = [proj] }
+      _ <- setSessionDynFlags dflags
+      env <- getSession
+      target <- guessTarget src Nothing
+      _ <- setTargets [target]
+      _ <- load LoadAllTargets
+      -- Now that things are loaded, make the compilation closure.
+      mod_graph <- getModuleGraph
+      pmods <- mapM parseModule mod_graph
+      tmods <- mapM typecheckModule pmods
+      dmods <- mapM desugarModule tmods
+      let mod_gutss = map coreModule dmods
+      return (mod_graph, mod_gutss, dflags, env)
+
+    simpl_gutss <- sequence $ map (hscSimplify env) mod_gutss
+    tidy_gutss <- sequence $ map (tidyProgram env) simpl_gutss
+    return (zip mod_graph simpl_gutss, dflags, env)
 
 mkBinds :: CoreBind -> [(G2.Id, G2.Expr)]
 mkBinds (NonRec var expr) = [(mkId var, mkExpr expr)]
