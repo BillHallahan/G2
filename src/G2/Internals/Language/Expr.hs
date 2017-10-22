@@ -53,7 +53,7 @@ varNames :: (ASTContainer m Expr) => m -> [Name]
 varNames = evalASTs varNames'
 
 varNames' :: Expr -> [Name]
-varNames' v@(Var (Id n _)) = [n]
+varNames' (Var (Id n _)) = [n]
 varNames' _ = []
 
 symbVars :: (ASTContainer m Expr) => ExprEnv -> m -> [Expr]

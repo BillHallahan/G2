@@ -73,6 +73,7 @@ sampleTests =
                 , checkExpr "tests/samples/" "tests/samples/McCarthy91.hs" 1000 (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
 
                 , checkExprWithOutput "tests/samples/" "tests/samples/GetNth.hs" 400 Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
+                -- , checkExprWithOutput "tests/samples/" "tests/samples/GetNthPoly.hs" 400 Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthErrTest]
 
                 , checkExprReaches "tests/samples/" "tests/samples/GetNthErr.hs" 400 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
 
