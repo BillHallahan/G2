@@ -78,6 +78,7 @@ mkCompileClosure proj src = do
     let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
     let (tcss, bindss) = unzip tcss_pgms
     return (zip3 mod_graph tcss bindss, dflags, env)
+    -- return (zip3 mod_graph (map mg_tcs mod_gutss) (map mg_binds mod_gutss), dflags, env)
 
 mkBinds :: CoreBind -> [(G2.Id, G2.Expr)]
 mkBinds (NonRec var expr) = [(mkId var, mkExpr expr)]

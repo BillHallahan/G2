@@ -140,7 +140,7 @@ instance Named Expr where
             Case e (rename old new i) (map goAlt a)
         go (Type t) = Type (rename old new t)
         go e = e
-        
+
         goAlt :: Alt -> Alt
         goAlt (Alt am e) = Alt (rename old new am) e
 

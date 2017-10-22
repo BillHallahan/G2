@@ -175,19 +175,19 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs) = do
 
             if res then return . (:) s' =<< resultsToState con hpp rule s xs
             else resultsToState con hpp rule s xs
-        
+
         False -> return . (:) s' =<< resultsToState con hpp rule s xs
 
 reduceNoConstraintChecks :: State -> (Rule, [State])
-reduceNoConstraintChecks s = 
+reduceNoConstraintChecks s =
     let
         (rule, res) = reduce' s
     in
     (rule, map (resultToState rule s) res)
 
 resultToState :: Rule -> State -> ReduceResult -> State
-resultToState rule s (eenv, cexpr, pc, asserts, ng, st) = 
-    s { 
+resultToState rule s (eenv, cexpr, pc, asserts, ng, st) =
+    s {
         expr_env = eenv
       , curr_expr = cexpr
       , path_conds = foldr (PC.insert) (path_conds s) pc
@@ -231,19 +231,19 @@ reduce' s @ State { exec_stack = estk
   | CurrExpr Return expr <- cexpr
   , Just (AssumeFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr True
-      in 
+      in
          (RuleReturnCAssume, [(eenv, CurrExpr Evaluate fexpr, [cond], [], ngen, estk')])
 
   | CurrExpr Return expr <- cexpr
   , Just (AssertFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr False
-      in 
+      in
          (RuleReturnCAssert, [(eenv, CurrExpr Evaluate fexpr, [], [cond], ngen, estk')])
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- S.pop estk =
       let (rule, (eenv', cexpr', ngen')) = reduceEReturn eenv expr ngen f
-      in 
+      in
         (rule, [(eenv', cexpr', [], [], ngen', estk')])
 
   | otherwise = (RuleError, [(eenv, cexpr, [], [], ngen, estk)])
@@ -469,7 +469,7 @@ reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
      , ( eenv'
        , CurrExpr Evaluate lexpr''
        , ngen'))
-  
+
 -- When we have an `DataCon` application chain, we need to tack on the
 -- expression in the `ApplyFrame` at the end.
 reduceEReturn eenv dexpr@(App (Data _) _) ngen (ApplyFrame aexpr) =
