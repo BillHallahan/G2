@@ -98,7 +98,7 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultCase.hs" 400 Nothing Nothing "f" 2
                     [ RExists (\[Lit (LitInt x), y] -> x == 2 && y == (Lit $ LitBool True))
-                    , RExists (\[Lit(LitInt x), y] -> x == 1 && y == (Lit $ LitBool False))
+                    , RExists (\[Lit(LitInt x), y] -> x == 1 && y == (Lit $ LitBool True))
                     , RExists (\[Lit (LitInt x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
