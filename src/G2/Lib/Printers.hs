@@ -3,6 +3,7 @@ module G2.Lib.Printers where
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as Sym
 import G2.Internals.Language.Naming
+import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.Stack
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
@@ -22,7 +23,7 @@ mkRawStateStr state = intercalate "\n" li
   where tenv_str  = intercalate "\n" $ map show $ M.toList $ type_env state
         eenv_str  = intercalate "\n" $ map show $ E.toList $ expr_env state
         cexpr_str = show $ curr_expr state
-        pc_str    = intercalate "\n" $ map show $ path_conds state
+        pc_str    = intercalate "\n" $ map show $ PC.toList $ path_conds state
         slt_str   = show $ sym_links state
         fintp_str = show $ func_table state
         dashes = "------"
@@ -45,7 +46,7 @@ mkStateStr s = intercalate "\n\n" li
         ts = mkTypeEnvStr . type_env $ s
         es = mkExprEnvStr . expr_env $ s
         xs = mkExprStr . (\(CurrExpr _ e) -> e) . curr_expr $ s
-        ps = mkPCStr . path_conds $ s
+        ps = mkPCStr . PC.toList . path_conds $ s
         sl = mkSLTStr . sym_links $ s
         fl = mkFuncSLTStr . func_table $ s
 
@@ -241,7 +242,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     names_str = pprExecNamesStr (name_gen ex_state)
     input_str = pprInputIdsStr (input_ids ex_state)
     funcs_str = pprFuncTableStr (func_table ex_state)
-    paths_str = pprPathsStr (path_conds ex_state)
+    paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     assert_str = pprPathsStr (assertions ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"

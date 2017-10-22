@@ -27,7 +27,7 @@ data State = State { expr_env :: E.ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: CurrExpr
                    , name_gen :: NameGen
-                   , path_conds :: [PathCond]
+                   , path_conds :: PathConds
                    , assertions :: [PathCond]
                    , sym_links :: SymLinks
                    , input_ids :: InputIds

@@ -3,6 +3,8 @@
 
 module G2.Internals.Language.PathConds ( PathCond (..)
                                        , PathConds
+                                       , empty
+                                       , fromList
                                        , insert
                                        , scc
                                        , toList) where
@@ -34,6 +36,12 @@ data PathCond = AltCond AltMatch Expr Bool
 
 toMap :: PathConds -> M.Map (Maybe Name) ([PathCond], [Name])
 toMap = coerce
+
+empty :: PathConds
+empty = PathConds M.empty
+
+fromList :: [PathCond] -> PathConds
+fromList = coerce . foldr insert empty
 
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each

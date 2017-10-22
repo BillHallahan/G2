@@ -10,6 +10,7 @@ module G2.Internals.Execution.Rules
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Execution.RuleTypes
 import G2.Internals.Language
+import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as S
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.SMT.Interface
@@ -189,7 +190,7 @@ resultToState rule s (eenv, cexpr, pc, asserts, ng, st) =
     s { 
         expr_env = eenv
       , curr_expr = cexpr
-      , path_conds = pc ++ (path_conds s)
+      , path_conds = foldr (PC.insert) (path_conds s) pc
       , assertions = asserts ++ (assertions s)
       , name_gen = ng
       , exec_stack = st }

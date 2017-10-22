@@ -18,6 +18,7 @@ import G2.Internals.Postprocessing.Undefunctionalize
 
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
@@ -43,7 +44,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
-    , path_conds = map PCExists ids
+    , path_conds = PC.fromList $ map PCExists ids
     , assertions = if useAssert then [] else [trueCond]
     , input_ids = ids
     , sym_links = Sym.empty
