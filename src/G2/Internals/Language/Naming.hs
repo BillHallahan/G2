@@ -144,9 +144,6 @@ instance Named Expr where
         goAlt :: Alt -> Alt
         goAlt (Alt am e) = Alt (rename old new am) e
 
-        goAlt :: Alt -> Alt
-        goAlt (Alt am e) = Alt (rename old new am) e
-
 instance Named Type where
     names = eval go
         where

@@ -153,9 +153,9 @@ run con hhp n state = do
     exec_states <- runNDepth con hhp [preproc_state] n
 
     -- putStrLn $ "states: " ++ (show $ length exec_states)
-    mapM_ (\(rs, st) -> do
-        putStrLn $ show rs
-        putStrLn $ pprExecStateStr st) exec_states
+    -- mapM_ (\(rs, st) -> do
+    --     putStrLn $ show rs
+    --     putStrLn $ pprExecStateStr st) exec_states
     -- let ident_states = filter ((==) RuleIdentity . last . fst) exec_states
 
     -- putStrLn $ "states: " ++ (show $ length ident_states)

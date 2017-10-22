@@ -18,9 +18,4 @@ instance Test [a] where
 f :: Int -> Int
 f x = test x (bar 1 2 x)
 
-data Person = PersonCons {
-  children :: Int,
-  health :: String
-}
-
 

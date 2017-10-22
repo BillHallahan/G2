@@ -6,7 +6,7 @@ module G2.Internals.Translation.Haskell
     , mkIOString
     , mkPrims
     , prim_list
-    , testDump
+    , rawDump
     ) where
 
 import qualified G2.Internals.Language as G2
@@ -37,8 +37,8 @@ mkRawCore fp = runGhc (Just libdir) $ do
     -- compileToCoreModule fp
     compileToCoreSimplified fp
 
-testDump :: FilePath -> IO ()
-testDump fp = do
+rawDump :: FilePath -> IO ()
+rawDump fp = do
   core <- mkRawCore fp
   str <- mkIOString core
   putStrLn str
@@ -46,13 +46,11 @@ testDump fp = do
 hskToG2 :: FilePath -> FilePath -> IO (G2.Program, [G2.ProgramType])
 hskToG2 proj src = do
     (sums_gutss, _, _) <- mkCompileClosure proj src
-    let gutss = map snd sums_gutss
-    let binds = concatMap (map mkBinds . mg_binds) gutss
-    -- let tycons = concatMap (map mkTyConName . mg_tcs) gutss
-    let tycons = concatMap (map mkTyCon . mg_tcs) gutss
+    let binds = concatMap (\(_, _, b) -> map mkBinds b) sums_gutss
+    let tycons = concatMap (\(_, t, _) -> map mkTyCon t) sums_gutss
     return (binds, tycons)
 
-type CompileClosure = ([(ModSummary, ModGuts)], DynFlags, HscEnv)
+type CompileClosure = ([(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv)
 
 mkCompileClosure :: FilePath -> FilePath -> IO CompileClosure
 mkCompileClosure proj src = do
@@ -72,9 +70,14 @@ mkCompileClosure proj src = do
       let mod_gutss = map coreModule dmods
       return (mod_graph, mod_gutss, dflags, env)
 
-    simpl_gutss <- sequence $ map (hscSimplify env) mod_gutss
-    tidy_gutss <- sequence $ map (tidyProgram env) simpl_gutss
-    return (zip mod_graph simpl_gutss, dflags, env)
+    -- Perform simplification and tidying, which is necessary for getting the
+    -- typeclass selector functions.
+    smpl_gutss <- mapM (hscSimplify env) mod_gutss
+    tidy_pgms <- mapM (tidyProgram env) smpl_gutss
+    let cg_gutss = map fst tidy_pgms
+    let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
+    let (tcss, bindss) = unzip tcss_pgms
+    return (zip3 mod_graph tcss bindss, dflags, env)
 
 mkBinds :: CoreBind -> [(G2.Id, G2.Expr)]
 mkBinds (NonRec var expr) = [(mkId var, mkExpr expr)]
