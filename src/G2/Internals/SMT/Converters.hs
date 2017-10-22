@@ -18,6 +18,7 @@ import Data.Maybe
 
 -- import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Language.Naming
+import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.SMT.Language
@@ -31,11 +32,14 @@ import G2.Internals.SMT.Language
 -- important if you wish to later be able to scrape variables from those Expr's
 toSMTHeaders :: (ASTContainer m Expr) => State -> m -> [SMTHeader]
 toSMTHeaders s e = 
+    let
+        pc = PC.toList $ path_conds s
+    in
     (typesToSMTSorts $ type_env s)
     ++
-    nub (exprVarDecls e ++ (pcVarDecls $ path_conds s) ++ (pcVarDecls $ assertions s))
+    nub (exprVarDecls e ++ (pcVarDecls pc) ++ (pcVarDecls $ assertions s))
     ++
-    (pathConsToSMTHeaders $ path_conds s)
+    (pathConsToSMTHeaders pc)
     ++
     [assertionsToSMTHeaders $ assertions s]
 

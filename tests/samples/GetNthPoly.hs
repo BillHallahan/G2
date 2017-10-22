@@ -5,7 +5,7 @@ import Prelude hiding (length)
 data CList a = Cons a (CList a) | Nil
 
 getNthInt :: CList Int -> Int -> Int
-getNthInt = getNth
+getNthInt x y = getNth x y
 
 getNth :: CList a -> Int -> a 
 getNth (Cons x _)  0 = x 

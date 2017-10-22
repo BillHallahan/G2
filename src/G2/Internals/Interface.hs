@@ -18,6 +18,7 @@ import G2.Internals.Postprocessing.Undefunctionalize
 
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
@@ -43,7 +44,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
-    , path_conds = map PCExists ids
+    , path_conds = PC.fromList $ map PCExists ids
     , assertions = if useAssert then [] else [trueCond]
     , input_ids = ids
     , sym_links = Sym.empty
@@ -160,7 +161,7 @@ run con hhp n state = do
     -- putStrLn $ "states: " ++ (show $ length ident_states)
     -- mapM_ (\(rs, st) -> do
     --      putStrLn $ show rs
-    --      putStrLn $ pprExecStateStr st) exec_states
+    --      putStrLn $ pprExecStateStr st) ident_states
     -- mapM_ (\(rs, st) -> (putStrLn $ pprPathsStr (path_conds st)) >> putStrLn "---") exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st) >> putStrLn "---")) (filter (isExecValueForm . snd) exec_states)
 

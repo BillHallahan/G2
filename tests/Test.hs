@@ -136,6 +136,10 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "xswitch" 2 [AtLeast 10]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "f" 3 [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
+
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultiSplit.hs" 400 (Just "equals1") Nothing "f" 3 [Exactly 0]
+
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MatchesFunc1.hs" 400 Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), Lit (LitInt y)] -> y == 6 + x), AtLeast 1]
         ]
 
 
