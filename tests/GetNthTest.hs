@@ -11,7 +11,7 @@ getNth _      _ = -1
 
 getNthErr :: CList -> Int -> Maybe Int 
 getNthErr (Cons x _)  0 = Just x 
-getNthErr (Cons _ xs) n = getNth xs (n - 1)
+getNthErr (Cons _ xs) n = getNthErr xs (n - 1)
 getNthErr _      _ = Nothing
 
 toCList :: Expr -> CList
@@ -24,4 +24,5 @@ getNthTest _ = False
 
 getNthErrTest :: [Expr] -> Bool
 getNthErrTest [cl, (Lit (LitInt i)), (Lit (LitInt a))] = getNthErr (toCList cl) i == Just a
-getNthErrTest _ = getNthErr (toCList cl) i == Nothing
+getNthErrTest [cl, (Lit (LitInt i)), Prim Error _] = getNthErr (toCList cl) i == Nothing
+getNthErrTest _ = False
