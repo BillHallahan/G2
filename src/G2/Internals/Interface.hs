@@ -160,7 +160,7 @@ run con hhp n state = do
     -- putStrLn $ "states: " ++ (show $ length ident_states)
     -- mapM_ (\(rs, st) -> do
     --      putStrLn $ show rs
-    --      putStrLn $ pprExecStateStr st) exec_states
+    --      putStrLn $ pprExecStateStr st) ident_states
     -- mapM_ (\(rs, st) -> (putStrLn $ pprPathsStr (path_conds st)) >> putStrLn "---") exec_states
     -- mapM_ ((\(rs, st) -> putStrLn (show rs) >> putStrLn (pprExecStateStr st) >> putStrLn "---")) (filter (isExecValueForm . snd) exec_states)
 

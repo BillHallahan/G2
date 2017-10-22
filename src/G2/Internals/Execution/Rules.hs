@@ -189,7 +189,7 @@ resultToState rule s (eenv, cexpr, pc, asserts, ng, st) =
     s { 
         expr_env = eenv
       , curr_expr = cexpr
-      , path_conds = pc ++ (if rule == RuleIdentity then varReduce eenv else id) (path_conds s)
+      , path_conds = pc ++ (path_conds s)
       , assertions = asserts ++ (assertions s)
       , name_gen = ng
       , exec_stack = st }
