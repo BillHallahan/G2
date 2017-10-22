@@ -469,7 +469,7 @@ reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
      , ( eenv'
        , CurrExpr Evaluate lexpr''
        , ngen'))
-
+  
 -- When we have an `DataCon` application chain, we need to tack on the
 -- expression in the `ApplyFrame` at the end.
 reduceEReturn eenv dexpr@(App (Data _) _) ngen (ApplyFrame aexpr) =
