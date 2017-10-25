@@ -186,7 +186,7 @@ reduceNoConstraintChecks s =
     (rule, map (resultToState rule s) res)
 
 resultToState :: Rule -> State -> ReduceResult -> State
-resultToState rule s (eenv, cexpr, pc, asserts, ng, st) =
+resultToState _ s (eenv, cexpr, pc, asserts, ng, st) =
     s {
         expr_env = eenv
       , curr_expr = cexpr

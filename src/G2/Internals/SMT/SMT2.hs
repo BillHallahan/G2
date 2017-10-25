@@ -30,7 +30,11 @@ smt2 = SMTConverter {
             -- putStrLn formula
             
             setUpFormula h_in formula
-            checkSat' h_in h_out
+            r <- checkSat' h_in h_out
+
+            -- putStrLn $ show r
+
+            return r
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) -> do
             setUpFormula h_in formula
@@ -60,8 +64,8 @@ smt2 = SMTConverter {
                 dcHandler [] = ""
                 dcHandler (DC n s:dc) =
                     let
-                        si = map (\(s'', i) -> (s'', (sortN s'') ++ show i)) $ zip s ([0..] :: [Integer])
-                        s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ " " ++ (sortN _s) ++ ")") $ si
+                        si = map (\(s'', i) -> (s'', (selectorName s'') ++ show i)) $ zip s ([0..] :: [Integer])
+                        s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ "_F " ++ (selectorName _s) ++ ")") $ si
                     in
                     "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
 
@@ -136,6 +140,13 @@ sortN SortFloat = sortFloat smt2
 sortN SortDouble = sortDouble smt2
 sortN SortBool = sortBool smt2
 sortN (Sort n s) = sortADT smt2 n s
+
+selectorName :: Sort -> String
+selectorName SortInt = sortInt smt2
+selectorName SortFloat = sortFloat smt2
+selectorName SortDouble = sortDouble smt2
+selectorName SortBool = sortBool smt2
+selectorName (Sort n _) = n
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the

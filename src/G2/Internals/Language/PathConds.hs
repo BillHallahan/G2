@@ -80,7 +80,7 @@ scc' (n:ns) lookedUp pcs =
             pcns = M.lookup (Just n) pcs
         in
         case pcns of
-            Just (pc, ns') -> scc' (ns' ++ ns) (foldr (S.insert) lookedUp ns') pcs
+            Just (_, ns') -> scc' (ns' ++ ns) (foldr (S.insert) lookedUp ns') pcs
             Nothing -> error "Error in scc"
     else scc' ns lookedUp pcs
 

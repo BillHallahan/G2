@@ -33,7 +33,7 @@ mkIOString obj = runGhc (Just libdir) $ do
 
 mkRawCore :: FilePath -> IO CoreModule
 mkRawCore fp = runGhc (Just libdir) $ do
-    setSessionDynFlags =<< getSessionDynFlags
+    _ <- setSessionDynFlags =<< getSessionDynFlags
     -- compileToCoreModule fp
     compileToCoreSimplified fp
 
