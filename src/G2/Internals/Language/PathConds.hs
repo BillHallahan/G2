@@ -75,7 +75,17 @@ insert' ns (Just (p', ns')) = Just (p', ns ++ ns')
 -- | Filters a PathConds to only those PathCond's that potentially impact the
 -- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
 relevant :: [PathCond] -> PathConds -> PathConds
-relevant pc pcs = scc (varNames $ pc) pcs
+relevant pc pcs = scc (concatMap varNamesInPC pc) pcs
+
+varNamesInPC :: PathCond -> [Name]
+varNamesInPC (AltCond a e _) = varNamesInAltMatch a ++ varNames e
+varNamesInPC (ExtCond e _) = varNames e
+varNamesInPC (ConsCond _ e _) = varNames e
+varNamesInPC (PCExists _) = []
+
+varNamesInAltMatch :: AltMatch -> [Name]
+varNamesInAltMatch (DataAlt _ i) = names i
+varNamesInAltMatch _ = []
 
 varNames :: (ASTContainer m Expr) => m -> [Name]
 varNames = evalASTs varNames'
