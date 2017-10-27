@@ -171,9 +171,18 @@ resultsToState _ _ _ _ [] = return []
 resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs) = do
     let s' = resultToState s red
 
+    --Optimization
+    -- We replace the path_conds with only those that are directly
+    -- affected by the new path constraints
+    -- This allows for more efficient solving, and in some cases may
+    -- change an unknown into a SAT or UNSAT
+    -- Switching which of the following two lines is commented turns this on/off
+    -- let s'' = s'
+    let s'' = s' {path_conds = PC.relevant pc (path_conds s')}
+
     case not (null pc) || not (null asserts) of
         True -> do
-            res <- satConstraints con hpp s'
+            res <- satConstraints con hpp s''
 
             if res then return . (:) s' =<< resultsToState con hpp rule s xs
             else resultsToState con hpp rule s xs

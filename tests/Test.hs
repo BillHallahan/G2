@@ -62,7 +62,7 @@ sampleTests =
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
 
-                -- The below test fails because Z3 returns unknown.
+                -- -- The below test fails because Z3 returns unknown.
                 , checkExpr "tests/samples/" "tests/samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
                 
                 , checkExprWithOutput "tests/samples/" "tests/samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]

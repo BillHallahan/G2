@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module G2.Internals.Language.PathConds ( PathCond (..)
                                        , PathConds
@@ -17,7 +18,6 @@ import G2.Internals.Language.Syntax
 import Data.Coerce
 import qualified Data.Map as M
 import Data.Maybe
-import qualified Data.Set as S
 
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
 --
@@ -59,7 +59,7 @@ fromList = coerce . foldr insert empty
 insert :: PathCond -> PathConds -> PathConds
 insert p (PathConds pcs) =
     let
-        ns = names p
+        ns = varNames p
 
         (hd, insertAt) = case ns of
             [] -> (Nothing, [Nothing])
@@ -74,28 +74,31 @@ insert' ns (Just (p', ns')) = Just (p', ns ++ ns')
 
 -- | Filters a PathConds to only those PathCond's that potentially impact the
 -- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
-relevant :: PathCond -> PathConds -> PathConds
-relevant pc pcs = scc (names pc) pcs
+relevant :: [PathCond] -> PathConds -> PathConds
+relevant pc pcs = scc (varNames $ pc) pcs
+
+varNames :: (ASTContainer m Expr) => m -> [Name]
+varNames = evalASTs varNames'
+
+varNames' :: Expr -> [Name]
+varNames' (Var (Id n _)) = [n]
+varNames' _ = []
 
 -- TODO: Is this efficient enough?
 scc :: [Name] -> PathConds -> PathConds
-scc ns (PathConds pc) =
-    let
-        ns' = S.map Just $ scc' ns S.empty pc
-    in
-    PathConds $ M.delete Nothing $ foldr (M.delete) pc ns'
+scc ns (PathConds pc) = PathConds $ scc' ns pc pc
 
-scc' :: [Name] -> S.Set Name -> (M.Map (Maybe Name) ([PathCond], [Name])) -> S.Set Name
-scc' [] lookedUp _ = lookedUp
-scc' (n:ns) lookedUp pcs =
-    if n `S.notMember` lookedUp then
-        let
-            pcns = M.lookup (Just n) pcs
-        in
-        case pcns of
-            Just (_, ns') -> scc' (ns' ++ ns) (foldr (S.insert) lookedUp ns') pcs
-            Nothing -> error "Error in scc"
-    else scc' ns lookedUp pcs
+scc' :: [Name] -> (M.Map (Maybe Name) ([PathCond], [Name])) -> (M.Map (Maybe Name) ([PathCond], [Name])) -> (M.Map (Maybe Name) ([PathCond], [Name]))
+scc' [] _ pc = pc
+scc' (n:ns) pc newpc =
+    -- Check if we already inserted the name information
+    case M.lookup (Just n) newpc of
+        Just _ -> scc' ns pc newpc
+        Nothing ->
+            -- If we didn't, lookup info to insert
+            case M.lookup (Just n) pc of
+                Just pcn@(_, ns') -> scc' (ns ++ ns') pc (M.insert (Just n) pcn newpc)
+                Nothing -> scc' ns pc newpc
 
 toList :: PathConds -> [PathCond]
 toList = concatMap fst . M.elems . toMap
