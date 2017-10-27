@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 -- | Reduction Rules for Stack Execution Semantics
 module G2.Internals.Execution.Rules
   ( module G2.Internals.Execution.RuleTypes
@@ -167,7 +169,7 @@ reduce con hpp s = do
 resultsToState :: SMTConverter ast out io -> io -> Rule -> State -> [ReduceResult] -> IO [State]
 resultsToState _ _ _ _ [] = return []
 resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs) = do
-    let s' = resultToState rule s red
+    let s' = resultToState s red
 
     case not (null pc) || not (null asserts) of
         True -> do
@@ -183,10 +185,10 @@ reduceNoConstraintChecks s =
     let
         (rule, res) = reduce' s
     in
-    (rule, map (resultToState rule s) res)
+    (rule, map (resultToState s) res)
 
-resultToState :: Rule -> State -> ReduceResult -> State
-resultToState _ s (eenv, cexpr, pc, asserts, ng, st) =
+resultToState :: State -> ReduceResult -> State
+resultToState s (eenv, cexpr, pc, asserts, ng, st) =
     s {
         expr_env = eenv
       , curr_expr = cexpr

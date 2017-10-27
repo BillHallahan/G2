@@ -6,6 +6,7 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , empty
                                        , fromList
                                        , insert
+                                       , relevant
                                        , scc
                                        , toList) where
 
@@ -18,10 +19,17 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Set as S
 
+-- | You can visualize a PathConds as [PathCond] (accessible via toList)
+--
+-- In the implementation:
 -- Each name (Just n) maps to some (but not neccessarily all) of the PathCond's that
 -- contain n, and a list of all names that appear in some PathCond alongside
 -- the name n
 -- PathConds that contain no names are stored in Nothing
+--
+-- You can visualize this as a graph, with Names and Nothing as Nodes
+-- Edges exist in a PathConds pcs netween a name n, and any names in
+-- snd $ M.lookup n (toMap pcs)
 newtype PathConds = PathConds (M.Map (Maybe Name) ([PathCond], [Name]))
                     deriving (Show, Eq, Read)
 
@@ -63,6 +71,11 @@ insert p (PathConds pcs) =
 insert' :: [Name] -> Maybe ([PathCond], [Name]) -> Maybe ([PathCond], [Name])
 insert' ns Nothing = Just ([], ns)
 insert' ns (Just (p', ns')) = Just (p', ns ++ ns')
+
+-- | Filters a PathConds to only those PathCond's that potentially impact the
+-- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
+relevant :: PathCond -> PathConds -> PathConds
+relevant pc pcs = scc (names pc) pcs
 
 -- TODO: Is this efficient enough?
 scc :: [Name] -> PathConds -> PathConds

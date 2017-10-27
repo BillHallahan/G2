@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module G2.Internals.SMT.Interface
     ( satModelOutputs
     , checkConstraints

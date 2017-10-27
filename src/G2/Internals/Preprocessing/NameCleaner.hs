@@ -17,7 +17,9 @@ allowedStartSymbols :: [Char]
 allowedStartSymbols =
     ['a'..'z'] ++ ['A'..'Z']
     ++ ['~', '!', '$', '%', '^', '&', '*'
-       --, '_' -- We eliminate '_' so we can use '_' to seperate in string conversions
+       -- We eliminate '_' so we can use '_' to seperate in string conversions
+       -- (see nameToStr in Naming.hs)
+       --, '_'
        , '-', '+', '=', '<', '>', '?', '/']
 
 allowedSymbol :: [Char]
@@ -41,7 +43,8 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns)
         n' = filter (\x -> x `elem` allowedSymbol) n
         m' = fmap (filter $ \x -> x `elem` allowedSymbol) m
 
-        -- No reserved symbols start with a $, this ensures starting with an allowed symbol
+        -- No reserved symbols start with a $, so this ensures noth uniqueness
+        -- and starting with an allowed symbol
         n'' = "$" ++ n'
 
         (new_name, ng') = freshSeededName (Name n'' m' i) ng

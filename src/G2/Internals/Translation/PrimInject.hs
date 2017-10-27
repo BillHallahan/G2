@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 -- | Primitive inejction into the environment
 module G2.Internals.Translation.PrimInject
     ( primInject

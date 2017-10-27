@@ -1,4 +1,5 @@
 {-# LANGUAGE IncoherentInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module G2.Internals.Language.Expr ( unApp
                                   , mkApp

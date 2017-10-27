@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 -- | Converters
 -- This contains functions to switch from
 -- (1) A State/Exprs/Types to SMTHeaders/SMTASTs/Sorts

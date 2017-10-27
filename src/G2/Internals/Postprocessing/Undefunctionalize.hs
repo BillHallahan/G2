@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module G2.Internals.Postprocessing.Undefunctionalize (undefunctionalize) where
 
 import G2.Internals.Language
