@@ -7,6 +7,7 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , empty
                                        , fromList
                                        , insert
+                                       , number
                                        , relevant
                                        , scc
                                        , toList) where
@@ -59,7 +60,7 @@ fromList = coerce . foldr insert empty
 insert :: PathCond -> PathConds -> PathConds
 insert p (PathConds pcs) =
     let
-        ns = varNames p
+        ns = varNamesInPC p
 
         (hd, insertAt) = case ns of
             [] -> (Nothing, [Nothing])
@@ -71,6 +72,9 @@ insert p (PathConds pcs) =
 insert' :: [Name] -> Maybe ([PathCond], [Name]) -> Maybe ([PathCond], [Name])
 insert' ns Nothing = Just ([], ns)
 insert' ns (Just (p', ns')) = Just (p', ns ++ ns')
+
+number :: PathConds -> Int
+number = length . toList
 
 -- | Filters a PathConds to only those PathCond's that potentially impact the
 -- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
@@ -94,9 +98,8 @@ varNames' :: Expr -> [Name]
 varNames' (Var (Id n _)) = [n]
 varNames' _ = []
 
--- TODO: Is this efficient enough?
 scc :: [Name] -> PathConds -> PathConds
-scc ns (PathConds pc) = PathConds $ scc' ns pc pc
+scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
 
 scc' :: [Name] -> (M.Map (Maybe Name) ([PathCond], [Name])) -> (M.Map (Maybe Name) ([PathCond], [Name])) -> (M.Map (Maybe Name) ([PathCond], [Name]))
 scc' [] _ pc = pc
@@ -105,7 +108,8 @@ scc' (n:ns) pc newpc =
     case M.lookup (Just n) newpc of
         Just _ -> scc' ns pc newpc
         Nothing ->
-            -- If we didn't, lookup info to insert
+            -- If we didn't, lookup info to insert,
+            -- and add names to the list of names to search
             case M.lookup (Just n) pc of
                 Just pcn@(_, ns') -> scc' (ns ++ ns') pc (M.insert (Just n) pcn newpc)
                 Nothing -> scc' ns pc newpc
