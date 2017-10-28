@@ -32,7 +32,8 @@ data State = State { expr_env :: E.ExprEnv
                    , sym_links :: SymLinks
                    , input_ids :: InputIds
                    , func_table :: FuncInterps
-                   , type_walkers :: Walkers
+                   , deepseq_walkers :: Walkers
+                   , contained_type_walkers :: Walkers
                    , apply_types :: AT.ApplyTypes
                    , exec_stack :: Stack Frame
                    } deriving (Show, Eq, Read)
@@ -129,7 +130,8 @@ renameState old new_seed s =
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
              , apply_types = rename old new (apply_types s)
-             , type_walkers = rename old new (type_walkers s)
+             , deepseq_walkers = rename old new (deepseq_walkers s)
+             , contained_type_walkers = rename old new (contained_type_walkers s)
              , exec_stack = exec_stack s }
 
 -- | TypeClass definitions

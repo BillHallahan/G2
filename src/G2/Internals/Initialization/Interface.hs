@@ -9,6 +9,6 @@ runInitialization :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, TypeEnv, NameGen
 runInitialization eenv tenv ng =
     let
         (tenv2, eenv2, ft, at, ng2) = functionalize tenv eenv ng
-        (eenv3, walkers, ng3) = createWalks eenv2 tenv2 ng2
+        (eenv3, ng3, walkers) = createDeepSeqWalks eenv2 tenv2 ng2
     in
     (eenv3, tenv2, ng3, ft, at, walkers)

@@ -13,10 +13,17 @@ module G2.Internals.Language.Naming
     , mkNameGen
     , exprNames
     , typeNames
+
+    , freshSeededString
+    , freshSeededStrings
+
     , freshName
     , freshNames
     , freshSeededName
     , freshSeededNames
+
+    , freshId
+    , freshVar
     ) where
 
 import G2.Internals.Language.AST
@@ -203,6 +210,12 @@ instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) wher
 
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
 
+freshSeededString :: String -> NameGen -> (Name, NameGen)
+freshSeededString s = freshSeededName (Name s Nothing 0)
+
+freshSeededStrings :: [String] -> NameGen -> ([Name], NameGen)
+freshSeededStrings s = freshSeededNames (map (\s' -> Name s' Nothing 0) s)
+
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _) (NameGen hm) = (Name n m i', NameGen hm')
   where i' = HM.lookupDefault 0 (n, m) hm
@@ -221,3 +234,17 @@ freshName ngen = freshSeededName seed ngen
 
 freshNames :: Int -> NameGen -> ([Name], NameGen)
 freshNames i ngen = freshSeededNames (replicate i (Name "fs?" Nothing 0)) ngen
+
+freshId :: Type -> NameGen -> (Id, NameGen)
+freshId t ngen = 
+    let
+        (n, ngen') = freshName ngen
+    in
+    (Id n t, ngen')
+
+freshVar :: Type -> NameGen -> (Expr, NameGen)
+freshVar t ngen =
+    let
+        (n, ngen') = freshName ngen
+    in
+    (Var (Id n t), ngen')
