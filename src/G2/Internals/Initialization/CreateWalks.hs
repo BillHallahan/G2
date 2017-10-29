@@ -6,14 +6,11 @@ module G2.Internals.Initialization.CreateWalks ( createWalks
                                                , createContainedTypeWalks) where
 
 import G2.Internals.Language
-import G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
 
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
-
-import Debug.Trace
 
 type NameGenFunc a = a -> Name
 type ExprGenFunc a b = NameGen -> [(a, Name, b)] -> a -> b -> (Expr, NameGen)
@@ -83,7 +80,7 @@ createWalk eenv ng ne n x y store fe fs =
 -- in a Walkers Map
 createAlgDataTyWalks :: ExprEnv -> TypeEnv -> NameGen
                      -> String
-                     -> ExprGenFunc Name AlgDataTy
+                     -> (DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> (Maybe Alt, NameGen))
                      -> StoreGenFunc Name AlgDataTy Walkers
                      -> (ExprEnv, NameGen, Walkers)
 createAlgDataTyWalks eenv tenv ng s fe fs  =
@@ -91,28 +88,57 @@ createAlgDataTyWalks eenv tenv ng s fe fs  =
         tenv_list = M.toList tenv
 
         (eenv', ng', w) = createWalks eenv ng tenv_list M.empty
-                            (createAlgDataTyWalkName s) fe fs
+                            (createAlgDataTyWalkName s) (createAlgDataTyWalkExpr fe) fs
     in
     (eenv', ng', w)
 
 createAlgDataTyWalkName :: String -> Name -> Name
 createAlgDataTyWalkName s (Name n _ _) = Name (s ++ n) Nothing 0
 
+createAlgDataTyWalkExpr :: (DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> (Maybe Alt, NameGen))
+                        -> NameGen -> [(Name, Name, AlgDataTy)] -> Name
+                        -> AlgDataTy
+                        -> (Expr, NameGen)
+createAlgDataTyWalkExpr fa ng nm tn (AlgDataTy _ dc) =
+    let        
+        (l_bind_id, ng2) = freshId (TyConApp tn []) ng
+        l_var = Var l_bind_id
+
+        (c_bind_id, ng3) = freshId (TyConApp tn []) ng2
+
+        (alts, ng4) = createAlgDataTyWalkAlt fa dc nm ng3 c_bind_id
+
+        c = Lam l_bind_id $ Case l_var c_bind_id alts
+    in
+    (c, ng4)
+
+createAlgDataTyWalkAlt ::
+    (DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> (Maybe Alt, NameGen))
+    -> [DataCon]
+    -> [(Name, Name, AlgDataTy)]
+    -> NameGen
+    -> Id
+    -> ([Alt], NameGen)
+createAlgDataTyWalkAlt _ [] _ ng _ = ([], ng)
+createAlgDataTyWalkAlt f (dc:dcs) nm ng i =
+    let
+        (a, ng') = f dc nm ng i
+        (as, ng'') = createAlgDataTyWalkAlt f dcs nm ng' i
+    in
+    case a of
+        Just a' -> (a':as, ng'')
+        Nothing -> (as, ng'')
+
 -- | createDeepSeqWalks
 -- This generates functions that walk over the whole structure of an ADT.
 -- This forces evaluation of the ADT
 createDeepSeqWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
 createDeepSeqWalks eenv tenv ng =
-    createAlgDataTyWalks eenv tenv ng "walk" createDeepSeqWalkExpr storeWalkerFunc
+    createAlgDataTyWalks eenv tenv ng "walk" (\dc nna ng' _ -> fstDataConAltMatch dc nna ng') storeWalkerFunc
 
 -- The (Name, Name, AlgDataTy) tuples are the type name, the walking function name, and the AlgDataTyName
-createDeepSeqWalkExpr :: NameGen -> [(Name, Name, AlgDataTy)] -> Name -> AlgDataTy -> (Expr, NameGen)
-createDeepSeqWalkExpr ng nm tn (AlgDataTy _ dc) =
-    mkLamCase (\ng' _ -> fstDataConAltMatch dc nm ng') (TyConApp tn []) ng
-
-fstDataConAltMatch :: [DataCon] -> [(Name, Name, AlgDataTy)] -> NameGen -> ([Alt], NameGen)
-fstDataConAltMatch [] _ ng= ([], ng)
-fstDataConAltMatch (dc@(DataCon _ _ ts):dcs) ns ng =
+fstDataConAltMatch :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> (Maybe Alt, NameGen)
+fstDataConAltMatch dc@(DataCon _ _ ts) ns ng =
     let
         (arg_names, ng1) = freshNames (length ts) ng
         arg_ids = map (uncurry Id) (zip arg_names ts)
@@ -121,11 +147,9 @@ fstDataConAltMatch (dc@(DataCon _ _ ts):dcs) ns ng =
         (e, ng3) = sndDataConAltMatch arg_ids ng1 ns (Data dc)
 
         alt = Alt am e
-
-        (t, ng4) = fstDataConAltMatch dcs ns ng3
     in
-    (alt:t, ng4)
-fstDataConAltMatch (_:xs) ns ng = fstDataConAltMatch xs ns ng
+    (Just alt, ng3)
+fstDataConAltMatch _ _ ng = (Nothing, ng)
 
 sndDataConAltMatch :: [Id] -> NameGen -> [(Name, Name, AlgDataTy)] ->  Expr -> (Expr, NameGen)
 sndDataConAltMatch [] ng _ dc = (dc, ng)
@@ -159,7 +183,7 @@ storeWalkerFunc w tn _ fn _ =
     let
          i = walkFunc tn fn
     in
-    trace (show w) $ M.insert tn i w
+    M.insert tn i w
 
 -- | createContainedTypeWalks
 -- Creates functions that walk over a polymorphic ADT D t_1 .. t_n, with type:
@@ -168,14 +192,4 @@ storeWalkerFunc w tn _ fn _ =
 -- The predicate p_i is run on every value of type t_i, and the conjunction is returned
 createContainedTypeWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
 createContainedTypeWalks eenv tenv ng =
-    let
-        tenv_list = M.toList tenv
-    in
-    createWalks eenv ng tenv_list M.empty
-        createContainedTypeWalkNames createContainedTypeWalkExpr storeWalkerFunc
-
-createContainedTypeWalkNames :: Name -> Name
-createContainedTypeWalkNames (Name n _ _) = Name ("contType" ++ n) Nothing 0
-
-createContainedTypeWalkExpr :: NameGen -> [(Name, Name, AlgDataTy)] -> Name -> AlgDataTy -> (Expr, NameGen)
-createContainedTypeWalkExpr ng nm tn (AlgDataTy _ dc) = undefined
+    createAlgDataTyWalks eenv tenv ng "containType" undefined undefined

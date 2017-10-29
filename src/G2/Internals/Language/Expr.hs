@@ -5,7 +5,6 @@ module G2.Internals.Language.Expr ( unApp
                                   , mkApp
                                   , mkTrue
                                   , mkFalse
-                                  , mkLamCase
                                   , replaceASTs
                                   , vars
                                   , varNames
@@ -15,7 +14,6 @@ module G2.Internals.Language.Expr ( unApp
                                   , mkStrict) where
 
 import G2.Internals.Language.AST
-import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
@@ -39,23 +37,6 @@ mkTrue = Lit $ LitBool True
 
 mkFalse :: Expr
 mkFalse = Lit $ LitBool False
-
--- | mkLamCase
--- Takes a function to generate Alts from a NameGen, and the binding Id of a Case Statement
--- These Alts are put inside a case statement, which is wrapped by a Lam
-mkLamCase :: (NameGen -> Id -> ([Alt], NameGen)) -> Type -> NameGen -> (Expr, NameGen)
-mkLamCase f t ng =
-    let        
-        (l_bind_id, ng2) = freshId t ng
-        l_var = Var l_bind_id
-
-        (c_bind_id, ng3) = freshId t ng2
-
-        (alts, ng4) = f ng3 c_bind_id
-
-        c = Lam l_bind_id $ Case l_var c_bind_id alts
-    in
-    (c, ng4) 
 
 --Replaces all instances of old with new in the AST
 replaceASTs :: (Eq e, AST e) => e -> e -> e -> e
