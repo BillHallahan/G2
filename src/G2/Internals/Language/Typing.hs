@@ -4,6 +4,7 @@ module G2.Internals.Language.Typing
     ( Typed (..)
     , (.::)
     , hasFuncType
+    , isPolyFunc
     , returnType
     , splitTyForAlls
     , splitTyFuns
@@ -164,9 +165,9 @@ instance Typed Type where
           TyForAll (NamedTyBndr (retype old new n)) (retype old new ty)
         ty -> if old == ty then new else ty
 
--- | Returns if the first type given is a specialization of the second,
+-- | (.::)
+-- Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
--- TODO: FIX THIS FUNCTION
 (.::) :: Typed t => t -> Type -> Bool
 (.::) t1 t2 = specializesTo M.empty S.empty (typeOf t1) t2
 
@@ -209,6 +210,17 @@ hasFuncType t =
         (TyForAll _ _)  -> True
         _ -> False
 
+-- | isPolyFunc
+-- Checks if the given function is a polymorphic function
+isPolyFunc ::  Typed t => t -> Bool
+isPolyFunc = isPolyFunc' . typeOf
+
+isPolyFunc' :: Type -> Bool
+isPolyFunc' (TyForAll _ _) = True
+isPolyFunc' _ = False
+
+-- | returnType
+-- Gives the return type if the given function type is fully saturated
 returnType :: (Typed t) => t -> Type
 returnType = returnType' . typeOf
 
@@ -217,7 +229,8 @@ returnType' (TyForAll _ t) = returnType' t
 returnType' (TyFun _ t) = returnType' t
 returnType' t = t
 
--- | Turns TyForAll types into a list of types
+-- | splitTyForAlls
+-- Turns TyForAll types into a list of type ids
 splitTyForAlls :: Type -> ([Id], Type)
 splitTyForAlls (TyForAll (NamedTyBndr i) t) =
     let
@@ -226,7 +239,8 @@ splitTyForAlls (TyForAll (NamedTyBndr i) t) =
     (i:i', t')
 splitTyForAlls t = ([], t)
 
--- | Turns TyFun types into a list of types
+-- | splitTyFuns
+-- Turns TyFun types into a list of types
 splitTyFuns :: Type -> [Type]
 splitTyFuns (TyFun t t') = t:splitTyFuns t'
 splitTyFuns t = [t]

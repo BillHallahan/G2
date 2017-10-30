@@ -23,6 +23,7 @@ module G2.Internals.Language.Naming
     , freshSeededNames
 
     , freshId
+    , freshIds
     , freshVar
     ) where
 
@@ -242,9 +243,16 @@ freshId t ngen =
     in
     (Id n t, ngen')
 
+freshIds :: [Type] -> NameGen -> ([Id], NameGen)
+freshIds ts ngen = 
+    let
+        (ns, ngen') = freshNames (length ts) ngen
+    in
+    (map (uncurry Id) (zip ns ts), ngen')
+
 freshVar :: Type -> NameGen -> (Expr, NameGen)
 freshVar t ngen =
     let
-        (n, ngen') = freshName ngen
+        (i, ngen') = freshId t ngen
     in
-    (Var (Id n t), ngen')
+    (Var i, ngen')

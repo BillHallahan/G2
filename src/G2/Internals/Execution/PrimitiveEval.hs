@@ -1,7 +1,6 @@
 {-# LANGUAGE Rank2Types #-}
 
-module G2.Internals.Execution.PrimitiveEval ( evalPrims
-                                            , evalPrim) where
+module G2.Internals.Execution.PrimitiveEval (evalPrims) where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Expr

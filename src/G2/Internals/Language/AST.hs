@@ -307,3 +307,14 @@ instance ASTContainer Int Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
+-- ====== --
+-- AST Helper functions
+-- ====== --
+
+-- | replaceASTs
+-- Replaces all instances of old with new in the ASTContainer
+replaceASTs :: (Eq e, ASTContainer c e) => e -> e -> c -> c
+replaceASTs old new = modifyContainedASTs (replaceASTs' old new)
+
+replaceASTs' :: (Eq e, AST e) => e -> e -> e -> e
+replaceASTs' old new e = if e == old then new else modifyChildren (replaceASTs' old new) e
