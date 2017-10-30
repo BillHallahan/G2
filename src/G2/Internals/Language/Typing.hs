@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+
 -- | Type Checker
 --   Provides type checking capabilities over G2 Language.
 module G2.Internals.Language.Typing
@@ -8,6 +11,7 @@ module G2.Internals.Language.Typing
     , returnType
     , splitTyForAlls
     , splitTyFuns
+    , retype
     ) where
 
 import G2.Internals.Language.AST
@@ -23,14 +27,14 @@ class Typed a where
 
     typeOf' :: M.Map Name Type -> a -> Type
 
-    retype :: Type -> Type -> a -> a
+    -- retype :: Type -> Type -> a -> a
 
 
 -- | `Id` instance of `Typed`.
 instance Typed Id where
     typeOf' m (Id _ ty) = typeOf' m ty
 
-    retype old new (Id name ty) = Id name (retype old new ty)
+    -- retype old new (Id name ty) = Id name (retype old new ty)
 
 -- | `Primitive` instance of `Typed`
 instance Typed Primitive where
@@ -54,7 +58,7 @@ instance Typed Primitive where
 
     typeOf' _ = typeOf
 
-    retype _ _ prim = prim
+    -- retype _ _ prim = prim
 
 -- | `Lit` instance of `Typed`.
 instance Typed Lit where
@@ -67,7 +71,7 @@ instance Typed Lit where
 
     typeOf' _ = typeOf
 
-    retype _ _ lit = lit
+    -- retype _ _ lit = lit
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
@@ -78,20 +82,20 @@ instance Typed DataCon where
     typeOf' _ (PrimCon C) = TyFun TyLitChar TyChar
     typeOf' _ (PrimCon B) = TyBool
 
-    retype old new (DataCon name ty tys) =
-      DataCon name (retype old new ty) (map (retype old new) tys)
-    retype _ _ primcon = primcon
+    -- retype old new (DataCon name ty tys) =
+    --   DataCon name (retype old new ty) (map (retype old new) tys)
+    -- retype _ _ primcon = primcon
 
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
     typeOf' m (Alt _ expr) = typeOf' m expr
 
-    retype old new (Alt am expr) = Alt am' (retype old new expr)
-      where
-        am' = case am of
-          DataAlt dcon ids -> DataAlt (retype old new dcon)
-                                      (map (retype old new) ids)
-          _ -> am
+    -- retype old new (Alt am expr) = Alt am' (retype old new expr)
+    --   where
+    --     am' = case am of
+    --       DataAlt dcon ids -> DataAlt (retype old new dcon)
+    --                                   (map (retype old new) ids)
+    --       _ -> am
 
 -- | `Expr` instance of `Typed`.
 instance Typed Expr where
@@ -119,24 +123,24 @@ instance Typed Expr where
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
 
-    retype old new = modify go
-      where
-        go :: Expr -> Expr
-        go (Var i) = Var (retype old new i)
-        go (Prim p ty) = Prim (retype old new p) (retype old new ty)
-        go (Data d) = Data (retype old new d)
-        go (Lam i e) = Lam (retype old new i) e
-        go (Let b e) =
-          let b' = map (\(n, r) -> (retype old new n, r)) b
-          in Let b' e
-        go (Case e i a) = Case e (retype old new i) (map goAlt a)
-        go (Type t) = Type (retype old new t)
-        go e = e
+    -- retype old new = modify go
+    --   where
+    --     go :: Expr -> Expr
+    --     go (Var i) = Var (retype old new i)
+    --     go (Prim p ty) = Prim (retype old new p) (retype old new ty)
+    --     go (Data d) = Data (retype old new d)
+    --     go (Lam i e) = Lam (retype old new i) e
+    --     go (Let b e) =
+    --       let b' = map (\(n, r) -> (retype old new n, r)) b
+    --       in Let b' e
+    --     go (Case e i a) = Case e (retype old new i) (map goAlt a)
+    --     go (Type t) = Type (retype old new t)
+    --     go e = e
 
-        goAlt :: Alt -> Alt
-        goAlt (Alt (DataAlt dc pms) e) =
-          Alt (DataAlt (retype old new dc) (map (retype old new) pms)) e
-        goAlt alt = alt
+    --     goAlt :: Alt -> Alt
+    --     goAlt (Alt (DataAlt dc pms) e) =
+    --       Alt (DataAlt (retype old new dc) (map (retype old new) pms)) e
+    --     goAlt alt = alt
 
 instance Typed Type where
     typeOf = typeOf' M.empty
@@ -153,17 +157,24 @@ instance Typed Type where
     typeOf' m (TyFun t t') = TyFun (typeOf' m t) (typeOf' m t')
     typeOf' _ t = t
 
-    retype old new test =
-      if old == test then new else case test of
-        TyVar n t -> if old == t then new else TyVar n (retype old new t)
-        TyFun t1 t2 -> TyFun (retype old new t1) (retype old new t2)
-        TyApp t1 t2 -> TyApp (retype old new t1) (retype old new t2)
-        TyConApp n ts -> TyConApp n (map (retype old new) ts)
-        TyForAll (AnonTyBndr bt) ty ->
-          TyForAll (AnonTyBndr (retype old new bt)) (retype old new ty)
-        TyForAll (NamedTyBndr n) ty ->
-          TyForAll (NamedTyBndr (retype old new n)) (retype old new ty)
-        ty -> if old == ty then new else ty
+    -- retype old new test =
+    --   if old == test then new else case test of
+    --     TyVar n t -> if old == t then new else TyVar n (retype old new t)
+    --     TyFun t1 t2 -> TyFun (retype old new t1) (retype old new t2)
+    --     TyApp t1 t2 -> TyApp (retype old new t1) (retype old new t2)
+    --     TyConApp n ts -> TyConApp n (map (retype old new) ts)
+    --     TyForAll (AnonTyBndr bt) ty ->
+    --       TyForAll (AnonTyBndr (retype old new bt)) (retype old new ty)
+    --     TyForAll (NamedTyBndr n) ty ->
+    --       TyForAll (NamedTyBndr (retype old new n)) (retype old new ty)
+    --     ty -> if old == ty then new else ty
+
+retype :: ASTContainer m Type => Type -> Type -> m -> m
+retype old new = modifyContainedASTs (retype' old new)
+
+retype' :: Type -> Type -> Type -> Type
+retype' old new (TyVar n t) = if old == t then new else TyVar n (retype' old new t)
+retype' old new t = modifyChildren (retype' old new) t
 
 -- | (.::)
 -- Returns if the first type given is a specialization of the second,
