@@ -30,7 +30,7 @@ primInjectE (Case e i a) = Case e i (map primInjectAlt a)
 primInjectE e = e
 
 primInjectT :: Type -> Type
--- primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _) _) = TYPE
+primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _) _) = TYPE
 primInjectT (TyConApp (Name "Int" _ _) _) = TyInt
 primInjectT (TyConApp (Name "Float" _ _) _) = TyFloat
 primInjectT (TyConApp (Name "Double" _ _) _) = TyDouble
