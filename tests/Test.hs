@@ -108,7 +108,7 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
 
-                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" 400 Nothing Nothing "f" 2 

@@ -20,6 +20,8 @@ import G2.Internals.SMT.Language hiding (Assert)
 
 import Data.Maybe
 
+import Debug.Trace
+
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Named a => [(Name, Name)] -> a -> a
 renames n a = foldr (\(old, new) -> rename old new) a n
@@ -51,7 +53,10 @@ defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
-matchDataAlts dc alts = [a | a @ (Alt (DataAlt adc _) _) <- alts , dc == adc]
+matchDataAlts (PrimCon p) alts =
+  [a | a @ (Alt (DataAlt (PrimCon p') _) _) <- alts, p == p']
+matchDataAlts (DataCon n _ _) alts =
+  [a | a @ (Alt (DataAlt (DataCon n' _ _) _) _) <- alts, n == n']
 
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
@@ -181,7 +186,7 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs) = do
             -- Switching which of the following two lines is commented turns this on/off
             -- let s'' = s'
             let s'' = s' {path_conds = PC.relevant pc (path_conds s')}
-            
+
             res <- satConstraints con hpp s''
 
             if res then return . (:) s' =<< resultsToState con hpp rule s xs
@@ -373,9 +378,10 @@ reduceCase eenv mexpr bind alts ngen
   -- proceed with the evaluation of the `Alt`'s expression. We also make sure
   -- to perform the cvar binding.
   | (Data dcon):args <- unApp mexpr
+  , args' <- filter (\e -> case e of { Type _ -> False; _ -> True }) args
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
-  , length params == length args =
-      let binds = (bind, mexpr) : zip params args
+  , length params == length args' =
+      let binds = (bind, mexpr) : zip params args'
           (eenv', expr', ngen') = liftBinds binds eenv expr ngen
       in ( RuleEvalCaseData
          , [( eenv'
