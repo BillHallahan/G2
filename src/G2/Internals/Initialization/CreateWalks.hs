@@ -213,4 +213,18 @@ storeWalkerFunc w tn _ fn _ =
 -- The predicate p_i is run on every value of type t_i, and the conjunction is returned
 createContainedTypeWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
 createContainedTypeWalks eenv tenv ng =
-    createAlgDataTyWalks eenv tenv ng "containType" undefined undefined undefined
+    let
+        poly_tenv = M.filter isPolyAlgDataTy tenv
+    in
+    createAlgDataTyWalks eenv poly_tenv ng "containType"
+        createContainedTypeAlt
+        (\_ ng' i -> (Var i, ng'))
+        storeWalkerFunc
+
+createContainedTypeAlt :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> (Maybe Expr, NameGen)
+createContainedTypeAlt (DataCon _ t _) nm ng _ is = 
+    let
+        poly = polyIds t
+        (vals, ng2) = renameAll poly ng
+    in
+    undefined

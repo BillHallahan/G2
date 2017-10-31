@@ -130,7 +130,7 @@ data TyBinder = AnonTyBndr Type
 -- * Type constructor (see below) application creates an actual type
 -- * For all types
 -- * BOTTOM
-data Type = TyVar Name Type
+data Type = TyVar Id
           | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
           | TyFun Type Type

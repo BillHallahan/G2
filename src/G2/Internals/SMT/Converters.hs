@@ -185,7 +185,7 @@ idToNameSort :: Id -> (Name, Sort)
 idToNameSort (Id n t) = (n, typeToSMT t)
 
 typeToSMT :: Type -> Sort
-typeToSMT (TyVar n _) = Sort (nameToStr n) []
+typeToSMT (TyVar (Id n _)) = Sort (nameToStr n) []
 typeToSMT TyInt = SortInt
 typeToSMT TyDouble = SortDouble
 typeToSMT TyFloat = SortFloat

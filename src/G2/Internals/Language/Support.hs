@@ -51,6 +51,9 @@ type TypeEnv = M.Map Name AlgDataTy
 -- names over types, and a list of data constructors for said type.
 data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
 
+isPolyAlgDataTy :: AlgDataTy -> Bool
+isPolyAlgDataTy (AlgDataTy ns _) = not $ null ns
+
 -- | `CurrExpr` is the current expression we have. We are either evaluating it, or
 -- it is in some terminal form that is simply returned. Technically we do not
 -- need to make this distinction and can simply call a `isTerm` function or

@@ -9,6 +9,7 @@ module G2.Internals.Language.Typing
     , hasFuncType
     , isPolyFunc
     , returnType
+    , polyIds
     , splitTyForAlls
     , splitTyFuns
     , retype
@@ -106,7 +107,7 @@ instance Typed Expr where
 instance Typed Type where
     typeOf = typeOf' M.empty
 
-    typeOf' m v@(TyVar n _) =
+    typeOf' m v@(TyVar (Id n _)) =
         case M.lookup n m of
             Just t -> t
             Nothing -> v
@@ -122,7 +123,7 @@ retype :: ASTContainer m Type => Type -> Type -> m -> m
 retype old new = modifyContainedASTs (retype' old new)
 
 retype' :: Type -> Type -> Type -> Type
-retype' old new (TyVar n t) = if old == t then new else TyVar n (retype' old new t)
+retype' old new (TyVar (Id n t)) = if old == t then new else TyVar $ Id n (retype' old new t)
 retype' old new t = modifyChildren (retype' old new) t
 
 -- | (.::)
@@ -132,7 +133,7 @@ retype' old new t = modifyChildren (retype' old new) t
 (.::) t1 t2 = specializesTo M.empty S.empty (typeOf t1) t2
 
 specializesTo :: M.Map Name Type -> S.Set Type -> Type -> Type -> Bool
-specializesTo m s t (TyVar n t') =
+specializesTo m s t (TyVar (Id n t')) =
     if S.member t' s
         then case M.lookup n m of
             Just r -> specializesTo m s t r  -- There is an entry.
@@ -188,6 +189,11 @@ returnType' :: Type -> Type
 returnType' (TyForAll _ t) = returnType' t
 returnType' (TyFun _ t) = returnType' t
 returnType' t = t
+
+-- | polyIds
+-- Returns all polymorphic Ids in the given type
+polyIds :: Type -> [Id]
+polyIds = fst . splitTyForAlls
 
 -- | splitTyForAlls
 -- Turns TyForAll types into a list of type ids

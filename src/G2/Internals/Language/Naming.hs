@@ -85,7 +85,7 @@ typeNames :: (ASTContainer m Type) => m -> [Name]
 typeNames = evalASTs typeTopNames
 
 typeTopNames :: Type -> [Name]
-typeTopNames (TyVar n _) = [n]
+typeTopNames (TyVar i) = [idName i]
 typeTopNames (TyConApp n _) = [n]
 typeTopNames (TyForAll (NamedTyBndr v) _) = [idName v]
 typeTopNames _ = []
@@ -156,7 +156,7 @@ instance Named Expr where
 instance Named Type where
     names = eval go
         where
-            go (TyVar n _) = [n]
+            go (TyVar i) = names i
             go (TyConApp n _) = [n]
             go (TyForAll b _) = names b
             go _ = []
@@ -164,7 +164,7 @@ instance Named Type where
     rename old new = modify go
       where
         go :: Type -> Type
-        go (TyVar n t) = TyVar (rename old new n) t
+        go (TyVar i) = TyVar (rename old new i)
         go (TyConApp n ts) = TyConApp (rename old new n) ts
         go (TyForAll tb t) = TyForAll (rename old new tb) t
         go t = t
