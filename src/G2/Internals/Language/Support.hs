@@ -21,8 +21,6 @@ import G2.Internals.Language.PathConds
 
 import qualified Data.Map as M
 
-import Debug.Trace
-
 -- | The State is something that is passed around in G2. It can be utilized to
 -- perform defunctionalization, execution, and SMT solving on.
 data State = State { expr_env :: E.ExprEnv
@@ -54,7 +52,7 @@ type TypeEnv = M.Map Name AlgDataTy
 data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
 
 isPolyAlgDataTy :: AlgDataTy -> Bool
-isPolyAlgDataTy a@(AlgDataTy ns _) = trace ("a = " ++ show a ++ "\nns = " ++ show ns) not $ null ns
+isPolyAlgDataTy (AlgDataTy ns _) = not $ null ns
 
 -- | `CurrExpr` is the current expression we have. We are either evaluating it, or
 -- it is in some terminal form that is simply returned. Technically we do not

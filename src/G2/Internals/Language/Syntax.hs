@@ -133,6 +133,7 @@ data TyBinder = AnonTyBndr Type
 data Type = TyVar Id
           | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
+          | TYPE
           | TyFun Type Type
           | TyApp Type Type
           | TyConApp Name [Type]
