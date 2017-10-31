@@ -18,7 +18,7 @@ instance Number Peano where
     -- toInt Zero = 0
 
 instance Number Int where
-    add = +
+    add = (+)
 
     isZero 0 = True
     isZero _ = False
