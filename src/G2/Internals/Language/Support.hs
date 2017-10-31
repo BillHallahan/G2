@@ -21,6 +21,8 @@ import G2.Internals.Language.PathConds
 
 import qualified Data.Map as M
 
+import Debug.Trace
+
 -- | The State is something that is passed around in G2. It can be utilized to
 -- perform defunctionalization, execution, and SMT solving on.
 data State = State { expr_env :: E.ExprEnv
@@ -33,7 +35,7 @@ data State = State { expr_env :: E.ExprEnv
                    , input_ids :: InputIds
                    , func_table :: FuncInterps
                    , deepseq_walkers :: Walkers
-                   , contained_type_walkers :: Walkers
+                   , polypred_walkers :: Walkers
                    , apply_types :: AT.ApplyTypes
                    , exec_stack :: Stack Frame
                    } deriving (Show, Eq, Read)
@@ -52,7 +54,7 @@ type TypeEnv = M.Map Name AlgDataTy
 data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
 
 isPolyAlgDataTy :: AlgDataTy -> Bool
-isPolyAlgDataTy (AlgDataTy ns _) = not $ null ns
+isPolyAlgDataTy a@(AlgDataTy ns _) = trace ("a = " ++ show a ++ "\nns = " ++ show ns) not $ null ns
 
 -- | `CurrExpr` is the current expression we have. We are either evaluating it, or
 -- it is in some terminal form that is simply returned. Technically we do not
@@ -134,7 +136,7 @@ renameState old new_seed s =
              , func_table = rename old new (func_table s)
              , apply_types = rename old new (apply_types s)
              , deepseq_walkers = rename old new (deepseq_walkers s)
-             , contained_type_walkers = rename old new (contained_type_walkers s)
+             , polypred_walkers = rename old new (polypred_walkers s)
              , exec_stack = exec_stack s }
 
 -- | TypeClass definitions

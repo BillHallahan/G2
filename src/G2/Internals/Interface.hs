@@ -33,7 +33,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
         tenv = mkTypeEnv prog_typ
         ng = mkNameGen prog prog_typ
 
-        (eenv', tenv', ng', ft, at, ds_walkers) = runInitialization eenv tenv ng
+        (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers) = runInitialization eenv tenv ng
 
         (ce, ids, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' ds_walkers
 
@@ -50,7 +50,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , sym_links = Sym.empty
     , func_table = ft
     , deepseq_walkers = ds_walkers
-    , contained_type_walkers = M.empty
+    , polypred_walkers = pt_walkers
     , apply_types = at
     , exec_stack = Stack.empty
  }

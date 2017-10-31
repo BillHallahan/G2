@@ -1,4 +1,4 @@
-module G2.Internals.Preprocessing.TyBinderInit (tyBinderInit) where
+module G2.Internals.Initialization.TyBinderInit (tyBinderInit) where
 
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
@@ -6,15 +6,8 @@ import G2.Internals.Language.Support
 
 import qualified Data.Map as M
 
-tyBinderInit :: State -> State
-tyBinderInit s@State {type_env = tenv, name_gen = ng} =
-    let
-        (tenv', ng') = tyBinderTypeEnv tenv ng
-    in
-    s {type_env = tenv', name_gen = ng'}
-
-tyBinderTypeEnv :: TypeEnv -> NameGen -> (TypeEnv, NameGen)
-tyBinderTypeEnv tenv ng = 
+tyBinderInit :: TypeEnv -> NameGen -> (TypeEnv, NameGen)
+tyBinderInit tenv ng = 
     let
         (tenv', ng') = tyBinderTypeEnv' (M.toList tenv) ng
     in

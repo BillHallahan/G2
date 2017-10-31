@@ -4,7 +4,7 @@
 module G2.Internals.Initialization.CreateWalks ( createFuncs
                                                , createFunc
                                                , createDeepSeqWalks
-                                               , createContainedTypeWalks) where
+                                               , createPolyPredWalks) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
@@ -109,6 +109,7 @@ createAlgDataTyWalks eenv tenv ng s fe fd fs  =
 createAlgDataTyWalkName :: String -> Name -> Name
 createAlgDataTyWalkName s (Name n _ _) = Name (s ++ n) Nothing 0
 
+
 createAlgDataTyWalkExpr :: AltFunc
                         -> DefaultFunc
                         -> NameGen -> [(Name, Name, AlgDataTy)] -> Name
@@ -206,25 +207,54 @@ storeWalkerFunc w tn _ fn _ =
     in
     M.insert tn i w
 
--- | createContainedTypeWalks
+-- | createPolyPredWalks
 -- Creates functions that walk over a polymorphic ADT D t_1 ... t_n, with type:
 --      f :: (t_1 -> Bool) -> ... -> (t_n -> Bool) -> d -> Bool 
 --      f p_1 ... p_n d
 -- The predicate p_i is run on every value of type t_i, and the conjunction is returned
-createContainedTypeWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
-createContainedTypeWalks eenv tenv ng =
+createPolyPredWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
+createPolyPredWalks eenv tenv ng =
     let
         poly_tenv = M.filter isPolyAlgDataTy tenv
     in
-    createAlgDataTyWalks eenv poly_tenv ng "containType"
-        createContainedTypeAlt
+    createAlgDataTyWalks eenv poly_tenv ng "polyPred"
+        createPolyPredAlt
         (\_ ng' i -> (Var i, ng'))
         storeWalkerFunc
+    
 
-createContainedTypeAlt :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> (Maybe Expr, NameGen)
-createContainedTypeAlt (DataCon _ t _) nm ng _ is = 
+createPolyPredAlt :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> (Maybe Expr, NameGen)
+createPolyPredAlt (DataCon _ t _) _ ng _ is = 
     let
         poly = polyIds t
-        (vals, ng2) = renameAll poly ng
+        (poly', ng2) = renameAll poly ng
+
+        polyPredsTy = map (\p -> TyFun (TyVar p) (TyBool)) poly'
+
+        polyTypes = map typeOf poly
+
+        (e, ng3) = mkLamBindings ng2 polyPredsTy (createPolyPredAlt' is polyTypes)
+        (e', ng4) = mkLamBindings ng3 polyTypes (\ng' _ -> (e, ng'))
     in
-    undefined
+    case poly of
+        [] -> (Nothing, ng)
+        _ -> (Just e', ng4)
+createPolyPredAlt (PrimCon _) _ _ _ _ = error "PrimCon in createPolyPredAlt"
+
+createPolyPredAlt' :: [Id] -> [Type] -> NameGen -> [Id] -> (Expr, NameGen)
+createPolyPredAlt' dcpat ts ng is =
+    let
+        typePreds = zip ts is
+
+        predApps = mapMaybe (createPolyPredAlt'' typePreds) dcpat
+    in
+    (foldr (\e e' -> App (
+                            App (Prim And TyBottom)
+                            e
+                        ) e') (mkTrue) predApps, ng)
+
+createPolyPredAlt'' :: [(Type, Id)] -> Id -> Maybe Expr
+createPolyPredAlt'' typePreds i@(Id _ t) =
+    case lookup t typePreds of
+        Just f -> Just $ App (Var f) (Var i)
+        Nothing -> Nothing

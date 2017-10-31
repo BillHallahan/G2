@@ -20,8 +20,6 @@ import G2.Internals.SMT.Language hiding (Assert)
 
 import Data.Maybe
 
-import Debug.Trace
-
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Named a => [(Name, Name)] -> a -> a
 renames n a = foldr (\(old, new) -> rename old new) a n
