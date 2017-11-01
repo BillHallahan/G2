@@ -41,11 +41,13 @@ mkTrue = Lit $ LitBool True
 mkFalse :: Expr
 mkFalse = Lit $ LitBool False
 
-mkLamBindings :: NameGen -> [Type] -> (NameGen -> [Id] -> (Expr, NameGen))-> (Expr, NameGen)
-mkLamBindings ng ts f =
+mkLamBindings :: NameGen -> [(a, Type)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen))-> (Expr, NameGen)
+mkLamBindings ng ats f =
     let
+        (as, ts) = unzip ats
+
         (fIds, ng') = freshIds ts ng
-        (e, ng'') = f ng' fIds
+        (e, ng'') = f ng' (zip as fIds)
     in
     (foldr (Lam) e fIds, ng'')
 

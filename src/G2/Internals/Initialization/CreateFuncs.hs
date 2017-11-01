@@ -4,7 +4,8 @@
 module G2.Internals.Initialization.CreateFuncs ( createFuncs
                                                , createFunc
                                                , createDeepSeqWalks
-                                               , createPolyPredWalks) where
+                                               , createPolyPredWalks
+                                               , createHigherOrderWrappers ) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
@@ -122,7 +123,7 @@ createAlgDataTyWalkExpr falg fa fd ng nm tn adt@(AlgDataTy _ _) =
     let
         (b, arg_ty) = unzip $ falg adt
     in
-    mkLamBindings ng arg_ty $ \ng' ids -> createAlgDataTyWalkExpr' fa fd ng' nm tn adt (zip b ids)
+    mkLamBindings ng (zip b arg_ty) $ \ng' ids -> createAlgDataTyWalkExpr' fa fd ng' nm tn adt ids
 
 createAlgDataTyWalkExpr' :: AltFunc a
                         -> DefaultFunc a
@@ -170,9 +171,9 @@ createAlgDataTyWalkAlt f (dc@(DataCon _ _ ts):dcs) nm ng i ids =
 createAlgDataTyWalkAlt _ (PrimCon _:_) _ _ _ _ = error "PrimCon in createAlgDataTyWalkAlt"
 
 storeWalkerFunc :: Walkers -> Name -> AlgDataTy -> Name -> Expr -> Walkers
-storeWalkerFunc w tn _ fn _ =
+storeWalkerFunc w tn _ fn e =
     let
-         i = walkFunc tn fn
+         i = Id fn (typeOf e)-- walkFunc tn fn
     in
     M.insert tn i w
 
@@ -278,9 +279,48 @@ createPolyPredAlt'' _ _ = Nothing
 
 
 -- | createHigherOrderWrapper
-createHigherOrderWrapper :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
-createHigherOrderWrapper eenv tenv ng =
+-- This generates function to impose asserts on the input and output of higher
+-- order functions.  For each function in a higher order function signature:
+--      f :: (a_1 -> ... -> a_n -> b) -> ... -> c
+-- we autogenerate a function:
+--      wrapper :: (a_1 -> ... -> a_n -> b -> Bool)
+--              -> (a_1 -> ... -> a_n -> b) -> a_1 -> ... -> a_n -> b
+createHigherOrderWrappers :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Wrappers)
+createHigherOrderWrappers eenv tenv ng =
     let
         types = nub $ argTypesTEnv tenv ++ E.higherOrderExprs eenv
     in
-    undefined
+    createFuncs eenv ng (zip (repeat ()) types) []
+        (const $ Name "wrapper" Nothing 0)
+        createHigherOrderWrapperExpr
+        storeWrapper
+
+createHigherOrderWrapperExpr :: NameGen -> [((), Name, Type)] -> () -> Type -> (Expr, NameGen)
+createHigherOrderWrapperExpr ng _ _ t =
+    let
+        predType = appendType t TyBool
+
+        wrapperT = [(Just "pred", predType), (Just "higher", t)]
+                   ++ zip (repeat Nothing) (splitTyFuns t)
+    in
+    mkLamBindings ng wrapperT $ \ng' wr -> createHigherOrderWrapperExpr' ng' wr
+
+createHigherOrderWrapperExpr' :: NameGen -> [(Maybe String, Id)] -> (Expr, NameGen)
+createHigherOrderWrapperExpr' ng ts' =
+    let
+        pre:higher:ts = map snd ts'
+
+        higherCall = mkApp . map Var $ higher:ts
+
+        (higherId, ng') = freshId (typeOf higherCall) ng
+
+        predCall = mkApp . map Var $ pre:ts ++ [higherId]
+
+        a = Assert predCall (Var higherId)
+
+        letExpr = Let [(higherId, higherCall)] a
+    in
+    (letExpr, ng')
+
+storeWrapper :: Wrappers -> () -> Type -> Name -> Expr -> Wrappers
+storeWrapper w _ t n e = (t, Id n (typeOf e)):w

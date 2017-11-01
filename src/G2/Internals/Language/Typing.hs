@@ -7,6 +7,7 @@ module G2.Internals.Language.Typing
     ( Typed (..)
     , (.::)
     , hasFuncType
+    , appendType
     , higherOrderFuncs
     , isPolyFunc
     , returnType
@@ -171,6 +172,13 @@ hasFuncType t =
         (TyFun _ _) -> True
         (TyForAll _ _)  -> True
         _ -> False
+
+-- | appendType
+-- Converts the (function) type t1 to return t2
+-- appendType (a -> b) c = (a -> b -> c)
+appendType :: Type -> Type -> Type
+appendType (TyFun t t1) t2 = TyFun t (appendType t1 t2)
+appendType t1 t2 = TyFun t1 t2
 
 -- | higherOrderFuncs
 -- Returns all internal higher order function types
