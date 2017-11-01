@@ -20,8 +20,10 @@ module G2.Internals.Language.ExprEnv
     , mapWithKey
     , filter
     , filterWithKey
+    , funcsOfType
     , keys
     , elems
+    , higherOrderExprs
     , toList
     , toExprList
     , fromExprList
@@ -32,6 +34,7 @@ module G2.Internals.Language.ExprEnv
 import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.Typing
 
 import Prelude hiding( filter
                      , lookup
@@ -152,12 +155,23 @@ filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
         p' n (ExprObj e) = p n e
         p' n (SymbObj i) = p n (Var i)
 
+-- | funcsOfType
+-- Returns the names of all expressions with the given type in the expression environment
+funcsOfType :: Type -> ExprEnv -> [Name]
+funcsOfType t = keys . filter (\e -> t == typeOf e)
+
 keys :: ExprEnv -> [Name]
 keys = M.keys . unwrapExprEnv
 
 --TODO
 elems :: ExprEnv -> [Expr]
 elems = exprObjs . M.elems . unwrapExprEnv
+
+-- | higherOrderExprs
+-- Returns a list of all argument function types 
+higherOrderExprs :: ExprEnv -> [Type]
+higherOrderExprs = concatMap (higherOrderFuncs . typeOf) . elems
+
 
 toList :: ExprEnv -> [(Name, EnvObj)]
 toList = M.toList . unwrapExprEnv

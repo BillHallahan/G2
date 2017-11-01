@@ -43,7 +43,7 @@ functionalize :: TypeEnv -> ExprEnv -> NameGen -> (TypeEnv, ExprEnv, FuncInterps
 functionalize tenv eenv ng =
     let
         -- Get names for all need apply type
-        types = nub $ argTypesTEnv tenv ++ funcArgTypes eenv
+        types = nub $ argTypesTEnv tenv ++ E.higherOrderExprs eenv
         (appT, ng2) = applyTypeNames ng types
 
         -- Update the expression and  type environments with apply types
@@ -56,35 +56,6 @@ functionalize tenv eenv ng =
         (tenv3, eenv3, at2, ng4) = functionalizableADTsMaps funcADTs tenv2 eenv2 at ng3
     in
     (tenv3, eenv3, fi, at2, ng4)
-
-
-
--- Returns the names of all expressions with the given type in the expression environment
-funcsOfType :: Type -> ExprEnv -> [Name]
-funcsOfType t = E.keys . E.filter (\e -> t == typeOf e)
-
--- Returns a list of all argument function types in the type env
-argTypesTEnv :: TypeEnv -> [Type]
-argTypesTEnv = concatMap argTypesAlgDataTy . M.elems
-
-argTypesAlgDataTy :: AlgDataTy -> [Type]
-argTypesAlgDataTy (AlgDataTy _ dc) = concatMap argTypesDC dc
-
-argTypesDC :: DataCon -> [Type]
-argTypesDC (DataCon _ _ ts) = evalASTs argTypesTEnv' ts
-argTypesDC _ = []
-
-argTypesTEnv' :: Type -> [Type]
-argTypesTEnv' t@(TyFun _ _) = [t]
-argTypesTEnv' _ = []
-
--- Returns a list of all argument function types 
-funcArgTypes :: ExprEnv -> [Type]
-funcArgTypes = evalASTs funcArgTypes' . map typeOf . E.elems
-
-funcArgTypes' :: Type -> [Type]
-funcArgTypes' (TyFun t@(TyFun _ _) _) = [t]
-funcArgTypes' _ = []
 
 
 
@@ -108,7 +79,7 @@ mkApplyFuncAndTypes' tenv eenv ng [] fi at = (tenv, eenv, fi, at, ng)
 mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) (FuncInterps fi) at =
     let
         -- Functions of type t
-        funcs = funcsOfType t eenv
+        funcs = E.funcsOfType t eenv
 
         -- Update type environment
         (applyCons, ng2) = freshSeededNames funcs ng

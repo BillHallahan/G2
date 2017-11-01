@@ -47,6 +47,14 @@ type InputIds = [Id]
 -- and we only store those information accordingly.
 type TypeEnv = M.Map Name AlgDataTy
 
+-- Returns a list of all argument function types in the type env
+argTypesTEnv :: TypeEnv -> [Type]
+argTypesTEnv = concatMap (evalASTs argTypesTEnv') . M.elems
+
+argTypesTEnv' :: Type -> [Type]
+argTypesTEnv' t@(TyFun _ _) = [t]
+argTypesTEnv' _ = []
+
 -- | Algebraic data types are types constructed with parametrization of some
 -- names over types, and a list of data constructors for said type.
 data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)

@@ -149,7 +149,7 @@ run con hhp n state = do
 
     let preproc_state = runPreprocessing state
 
-    putStrLn . pprExecStateStr $ preproc_state
+    -- putStrLn . pprExecStateStr $ preproc_state
 
     exec_states <- runNDepth con hhp [preproc_state] n
 

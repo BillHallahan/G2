@@ -7,6 +7,7 @@ module G2.Internals.Language.Typing
     ( Typed (..)
     , (.::)
     , hasFuncType
+    , higherOrderFuncs
     , isPolyFunc
     , returnType
     , polyIds
@@ -170,6 +171,18 @@ hasFuncType t =
         (TyFun _ _) -> True
         (TyForAll _ _)  -> True
         _ -> False
+
+-- | higherOrderFuncs
+-- Returns all internal higher order function types
+higherOrderFuncs :: Typed t => t -> [Type]
+higherOrderFuncs = higherOrderFuncs' . typeOf
+
+higherOrderFuncs' :: Type -> [Type]
+higherOrderFuncs' = eval higherOrderFuncs''
+
+higherOrderFuncs'' :: Type -> [Type]
+higherOrderFuncs'' (TyFun t@(TyFun _ _) _) = [t]
+higherOrderFuncs'' _ = []
 
 -- | isPolyFunc
 -- Checks if the given function is a polymorphic function

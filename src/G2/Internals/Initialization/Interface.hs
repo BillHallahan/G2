@@ -2,7 +2,7 @@ module G2.Internals.Initialization.Interface where
 
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Support
-import G2.Internals.Initialization.CreateWalks
+import G2.Internals.Initialization.CreateFuncs
 import G2.Internals.Initialization.Functionalizer
 import G2.Internals.Initialization.TyBinderInit
 

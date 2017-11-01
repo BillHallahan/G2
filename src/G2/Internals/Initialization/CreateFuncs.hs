@@ -1,7 +1,7 @@
 -- This module generates functions in the expr_env that walk over the whole structure of an ADT.
 -- This forces evaluation of the ADT
 
-module G2.Internals.Initialization.CreateWalks ( createFuncs
+module G2.Internals.Initialization.CreateFuncs ( createFuncs
                                                , createFunc
                                                , createDeepSeqWalks
                                                , createPolyPredWalks) where
@@ -12,8 +12,6 @@ import qualified G2.Internals.Language.ExprEnv as E
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
-
-import Debug.Trace
 
 type NameGenFunc a = a -> Name
 type ExprGenFunc a b = NameGen -> [(a, Name, b)] -> a -> b -> (Expr, NameGen)
@@ -120,7 +118,7 @@ createAlgDataTyWalkExpr :: (AlgDataTy -> [(a, Type)])
                         -> NameGen -> [(Name, Name, AlgDataTy)] -> Name
                         -> AlgDataTy
                         -> (Expr, NameGen)
-createAlgDataTyWalkExpr falg fa fd ng nm tn adt@(AlgDataTy _ dc) =
+createAlgDataTyWalkExpr falg fa fd ng nm tn adt@(AlgDataTy _ _) =
     let
         (b, arg_ty) = unzip $ falg adt
     in
@@ -171,6 +169,15 @@ createAlgDataTyWalkAlt f (dc@(DataCon _ _ ts):dcs) nm ng i ids =
         Nothing -> (as, ng4)
 createAlgDataTyWalkAlt _ (PrimCon _:_) _ _ _ _ = error "PrimCon in createAlgDataTyWalkAlt"
 
+storeWalkerFunc :: Walkers -> Name -> AlgDataTy -> Name -> Expr -> Walkers
+storeWalkerFunc w tn _ fn _ =
+    let
+         i = walkFunc tn fn
+    in
+    M.insert tn i w
+
+
+
 -- | createDeepSeqWalks
 -- This generates functions that walk over the whole structure of an ADT.
 -- This forces evaluation of the ADT
@@ -218,12 +225,7 @@ createDeepSeqExpr' dc ns ng (i@(Id _ t):xs)=
 walkFunc :: Name -> Name -> Id
 walkFunc t w = Id w (TyFun (TyConApp t []) (TyConApp t []))
 
-storeWalkerFunc :: Walkers -> Name -> AlgDataTy -> Name -> Expr -> Walkers
-storeWalkerFunc w tn _ fn _ =
-    let
-         i = walkFunc tn fn
-    in
-    M.insert tn i w
+
 
 -- | createPolyPredWalks
 -- Creates functions that walk over a polymorphic ADT D t_1 ... t_n, with type:
@@ -249,25 +251,18 @@ createPolyPredArgs (AlgDataTy ns _) =  map (\n -> (Nothing, TyVar $ Id n TYPE)) 
 createPolyPredAlt :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> [(Maybe Name, Id)] -> (Maybe Expr, NameGen)
 createPolyPredAlt (DataCon _ t _) _ ng _ dcs is = 
     let
-        poly = polyIds t
-
-        polyTypes = map typeOf poly
-
-        (e, ng2) = createPolyPredAlt' dcs polyTypes ng is
+        (e, ng2) = createPolyPredAlt' dcs ng is
     in
-    case poly of
+    case polyIds t of
         [] -> (Nothing, ng)
         _ -> (Just e, ng2)
 createPolyPredAlt (PrimCon _) _ _ _ _ _ = error "PrimCon in createPolyPredAlt"
 
-createPolyPredAlt' :: [Id] -> [Type] -> NameGen -> [(Maybe Name, Id)] -> (Expr, NameGen)
-createPolyPredAlt' dcpat ts ng is =
+createPolyPredAlt' :: [Id] -> NameGen -> [(Maybe Name, Id)] -> (Expr, NameGen)
+createPolyPredAlt' dcpat ng is =
     let
         predApps = mapMaybe (createPolyPredAlt'' is) dcpat
     in
-    trace ("dcpat = " ++ show dcpat)
-    trace ("is = " ++ show is)
-    trace "---"
     (foldr (\e e' -> App (
                             App (Prim And TyBottom)
                             e
@@ -279,3 +274,13 @@ createPolyPredAlt'' typePreds i@(Id _ (TyVar (Id n _))) =
         Just f -> Just $ App (Var f) (Var i)
         Nothing -> Nothing
 createPolyPredAlt'' _ _ = Nothing
+
+
+
+-- | createHigherOrderWrapper
+createHigherOrderWrapper :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
+createHigherOrderWrapper eenv tenv ng =
+    let
+        types = nub $ argTypesTEnv tenv ++ E.higherOrderExprs eenv
+    in
+    undefined
