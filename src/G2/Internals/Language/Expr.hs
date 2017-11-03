@@ -7,6 +7,8 @@ module G2.Internals.Language.Expr ( unApp
                                   , mkFalse
                                   , mkLamBindings
                                   , replaceASTs
+                                  , args
+                                  , nthArg
                                   , vars
                                   , varNames
                                   , symbVars
@@ -50,6 +52,13 @@ mkLamBindings ng ats f =
         (e, ng'') = f ng' (zip as fIds)
     in
     (foldr (Lam) e fIds, ng'')
+
+args :: Expr -> [Id]
+args (Lam i e) = i:args e
+args _ = []
+
+nthArg :: Expr -> Int -> Id
+nthArg e i = args e !! (i - 1)
 
 --Returns all Vars in an ASTContainer
 vars :: (ASTContainer m Expr) => m -> [Expr]

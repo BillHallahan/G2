@@ -241,7 +241,7 @@ createPolyPredWalks eenv tenv ng =
     createAlgDataTyWalks eenv poly_tenv ng
         (createPolyPredArgs)
         "polyPred"
-        createPolyPredAlt
+        (createPolyPredAlt eenv)
         (\_ ng' i _ -> (Var i, ng'))
         storeWalkerFunc
 
@@ -249,23 +249,23 @@ createPolyPredArgs :: AlgDataTy -> [(Maybe Name, Type)]
 createPolyPredArgs (AlgDataTy ns _) =  map (\n -> (Nothing, TyVar $ Id n TYPE)) ns 
                                     ++ map (\n -> (Just n, TyFun (TyVar $ Id n TYPE) (TyBool))) ns
 
-createPolyPredAlt :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> [(Maybe Name, Id)] -> (Maybe Expr, NameGen)
-createPolyPredAlt (DataCon _ t _) _ ng _ dcs is = 
+createPolyPredAlt :: ExprEnv -> DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> [(Maybe Name, Id)] -> (Maybe Expr, NameGen)
+createPolyPredAlt eenv (DataCon _ t _) _ ng _ dcs is = 
     let
-        (e, ng2) = createPolyPredAlt' dcs ng is
+        (e, ng2) = createPolyPredAlt' eenv dcs ng is
     in
     case polyIds t of
         [] -> (Nothing, ng)
         _ -> (Just e, ng2)
-createPolyPredAlt (PrimCon _) _ _ _ _ _ = error "PrimCon in createPolyPredAlt"
+createPolyPredAlt _ (PrimCon _) _ _ _ _ _ = error "PrimCon in createPolyPredAlt"
 
-createPolyPredAlt' :: [Id] -> NameGen -> [(Maybe Name, Id)] -> (Expr, NameGen)
-createPolyPredAlt' dcpat ng is =
+createPolyPredAlt' :: ExprEnv -> [Id] -> NameGen -> [(Maybe Name, Id)] -> (Expr, NameGen)
+createPolyPredAlt' eenv dcpat ng is =
     let
         predApps = mapMaybe (createPolyPredAlt'' is) dcpat
     in
     (foldr (\e e' -> App (
-                            App (Prim And TyBottom)
+                            App (mkAnd eenv)
                             e
                         ) e') (mkTrue) predApps, ng)
 
@@ -301,7 +301,7 @@ createHigherOrderWrapperExpr ng _ _ t =
         predType = appendType t TyBool
 
         wrapperT = [(Just "pred", predType), (Just "higher", t)]
-                   ++ zip (repeat Nothing) (splitTyFuns t)
+                   ++ zip (repeat Nothing) (init $ splitTyFuns t)
     in
     mkLamBindings ng wrapperT $ \ng' wr -> createHigherOrderWrapperExpr' ng' wr
 
@@ -316,7 +316,7 @@ createHigherOrderWrapperExpr' ng ts' =
 
         predCall = mkApp . map Var $ pre:ts ++ [higherId]
 
-        a = Assert predCall (Var higherId)
+        a = Assume predCall (Var higherId)
 
         letExpr = Let [(higherId, higherCall)] a
     in

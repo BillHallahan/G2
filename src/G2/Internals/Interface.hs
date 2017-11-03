@@ -1,4 +1,6 @@
 module G2.Internals.Interface ( initState
+                              , addHigherOrderWrappers
+                              , findFunc
                               , run) where
 
 import G2.Internals.Language
@@ -66,16 +68,28 @@ mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, ts, dcs) -> (n, AlgDataTy ts dcs))
 
-args :: Expr -> [Type]
-args (Lam (Id _ t) e) = t:args e  
-args _ = []
+
+-- TODO: Move this elsewhere (somewhere specific to LH?)
+addHigherOrderWrappers :: State -> Name -> Id -> Int -> State
+addHigherOrderWrappers s@(State {expr_env = eenv, wrappers = w}) f fw argN =
+    let
+        e = eenv E.! f
+        i@(Id _ t) = nthArg e argN
+
+        wf = lookup t w
+
+        e' = case wf of
+            Just wf' -> replaceASTs (Var i) (App (App (Var wf') (Var fw)) (Var i)) e
+            Nothing -> e
+    in
+    s {expr_env = E.insert f e' eenv}
 
 mkCurrExpr :: Maybe String -> Maybe String -> String -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> (Expr, [Id], NameGen)
 mkCurrExpr m_assume m_assert s at ng eenv walkers =
     case findFunc s eenv of
         Left (f, ex) -> 
             let
-                typs = args ex
+                typs = map typeOf $ args ex
                 (var_ids, ids, ng') = mkInputs at ng typs
                 
                 var_ex = Var f
@@ -107,7 +121,6 @@ mkInputs _ ng [] = ([], [], ng)
 mkInputs at ng (t:ts) =
     let
         (name, ng') = freshName ng
-
 
         (t', fv) =
             case AT.lookup t at of

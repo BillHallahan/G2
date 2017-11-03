@@ -304,13 +304,13 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- `ExecExprEnv`s at each frame would really be stored in a single
     -- location on the actual Haskell heap during execution.
     case unApp (App fexpr aexpr) of
-        ((Prim prim ty):args) ->
-            let args' = varReduce eenv args
+        ((Prim prim ty):ar) ->
+            let ar' = varReduce eenv ar
             in ( RuleEvalPrimToNorm
                 , [( eenv
                    -- This may need to be Evaluate if there are more
                    -- than one redirections.
-                   , CurrExpr Evaluate (mkApp (Prim prim ty : args'))
+                   , CurrExpr Evaluate (mkApp (Prim prim ty : ar'))
                    , []
                    , ngen
                    , Nothing)])
@@ -375,11 +375,11 @@ reduceCase eenv mexpr bind alts ngen
   -- If so, then we bind all the parameters to the appropriate arguments and
   -- proceed with the evaluation of the `Alt`'s expression. We also make sure
   -- to perform the cvar binding.
-  | (Data dcon):args <- unApp mexpr
-  , args' <- filter (\e -> case e of { Type _ -> False; _ -> True }) args
+  | (Data dcon):ar <- unApp mexpr
+  , ar' <- filter (\e -> case e of { Type _ -> False; _ -> True }) ar
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
-  , length params == length args' =
-      let binds = (bind, mexpr) : zip params args'
+  , length params == length ar' =
+      let binds = (bind, mexpr) : zip params ar'
           (eenv', expr', ngen') = liftBinds binds eenv expr ngen
       in ( RuleEvalCaseData
          , [( eenv'
