@@ -271,7 +271,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
 pprExecEEnvStr :: E.ExprEnv -> String
 pprExecEEnvStr eenv = injNewLine kv_strs
   where
-    kv_strs = map show $ E.toList eenv
+    kv_strs = map (show) $ E.toList eenv
 
 pprTEnvStr :: TypeEnv -> String
 pprTEnvStr tenv = injNewLine kv_strs

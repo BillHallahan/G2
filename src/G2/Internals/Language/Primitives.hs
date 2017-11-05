@@ -76,7 +76,7 @@ mkRawPrim primtys name@(Name occ _ _) =
 
 mkPrim :: Primitive -> E.ExprEnv -> Expr
 mkPrim p eenv = case E.occLookup (primStr p) (Just "GHC.Classes") eenv of
-    Just e -> e
+    Just e -> Prim p (typeOf e)
     Nothing -> error $ "Unrecognized prim"
 
 mkGe :: E.ExprEnv -> Expr

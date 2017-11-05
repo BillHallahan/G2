@@ -1,4 +1,5 @@
 module G2.Internals.Interface ( initState
+                              , addPolyPred
                               , addHigherOrderWrappers
                               , findFunc
                               , run) where
@@ -69,9 +70,26 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, ts, dcs) -> (n, AlgDataTy ts dcs))
 
 
--- TODO: Move this elsewhere (somewhere specific to LH?)
+-- TODO: Move addPolyPreds and addHigherOrderWrappers elsewhere (somewhere
+-- specific to LH?)
+addPolyPred :: State -> Name -> Id -> Int -> State
+addPolyPred s@(State { expr_env = eenv
+                     , polypred_walkers = ppw}) f fw argN =
+    let
+        e = eenv E.! f
+        i@(Id _ (TyConApp n _)) = nthArg e argN
+
+        wf = M.lookup n ppw
+
+        d = fmap (\wf' -> App (App (App (Var wf') (Type TyInt)) (Var fw)) (Var i)) wf
+        e' = case d of
+            Just d' -> insertInLams (Assume d')  e
+            Nothing -> e
+    in
+    s {expr_env = E.insert f e' eenv}
+
 addHigherOrderWrappers :: State -> Name -> Id -> Int -> State
-addHigherOrderWrappers s@(State {expr_env = eenv, wrappers = w}) f fw argN =
+addHigherOrderWrappers s@(State { expr_env = eenv, wrappers = w }) f fw argN =
     let
         e = eenv E.! f
         i@(Id _ t) = nthArg e argN

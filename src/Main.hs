@@ -27,6 +27,10 @@ main = do
     let m_wrap_with = mWrapWith tail_args
     let m_wrap_i = mWrapperInt tail_args
 
+    let m_poly_pred = mkPolyPred tail_args
+    let m_poly_pred_with = mkPolyPredWith tail_args
+    let m_poly_pred_i = mkPolyPredInt tail_args
+
     (binds, tycons) <- translation proj src prims
 
     let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
@@ -37,9 +41,15 @@ main = do
                                 _ -> init_state
                             _ -> init_state
 
+    let init_state'' = case (m_poly_pred, m_poly_pred_with) of
+                            (Just p, Just pw) -> case (findFunc p (expr_env init_state), findFunc pw (expr_env init_state)) of
+                                (Left (Id n _, _), Left (ppi, _)) -> addPolyPred init_state n ppi m_poly_pred_i
+                                _ -> init_state'
+                            _ -> init_state'
+
     hhp <- getZ3ProcessHandles
 
-    in_out <- run smt2 hhp n_val init_state'
+    in_out <- run smt2 hhp n_val init_state''
 
     -- putStrLn "----------------\n----------------"
 
@@ -87,3 +97,12 @@ mWrapWith a = mArg "--wrap-with" a Just Nothing
 
 mWrapperInt :: [String] -> Int
 mWrapperInt a = mArg "--wrap-i" a read (-1)
+
+mkPolyPred :: [String] -> Maybe String
+mkPolyPred a = mArg "--poly-pred" a Just Nothing
+
+mkPolyPredWith :: [String] -> Maybe String
+mkPolyPredWith a = mArg "--poly-pred-with" a Just Nothing
+
+mkPolyPredInt :: [String] -> Int
+mkPolyPredInt a = mArg "--poly-pred-i" a read (-1)

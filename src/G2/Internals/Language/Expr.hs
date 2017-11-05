@@ -6,6 +6,7 @@ module G2.Internals.Language.Expr ( unApp
                                   , mkTrue
                                   , mkFalse
                                   , mkLamBindings
+                                  , insertInLams
                                   , replaceASTs
                                   , args
                                   , nthArg
@@ -43,15 +44,29 @@ mkTrue = Lit $ LitBool True
 mkFalse :: Expr
 mkFalse = Lit $ LitBool False
 
-mkLamBindings :: NameGen -> [(a, Type)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen))-> (Expr, NameGen)
-mkLamBindings ng ats f =
-    let
-        (as, ts) = unzip ats
+mkLamBindings :: NameGen -> [(a, Maybe Name, Type)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen))-> (Expr, NameGen)
+mkLamBindings ng ats f = mkLamBindings' ng ats [] f
 
-        (fIds, ng') = freshIds ts ng
-        (e, ng'') = f ng' (zip as fIds)
+mkLamBindings' :: NameGen -> [(a, Maybe Name, Type)] -> [(a, Id)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen))-> (Expr, NameGen)
+mkLamBindings' ng [] fIds f =
+  let
+      (e, ng') = f ng (fIds)
+      e' = foldr (Lam) e (reverse $ map snd fIds)
+  in
+  (e', ng')
+mkLamBindings' ng ((as, n, t):ats) fIds f =
+    let
+        (fId, ng') = case n of
+            Just n' -> (Id n' t, ng)
+            Nothing -> freshId t ng
     in
-    (foldr (Lam) e fIds, ng'')
+    mkLamBindings' ng' ats ((as, fId):fIds) f
+
+-- Runs the given function f on the expression nested in the lambdas, and
+-- rewraps the new expression with the Lambdas
+insertInLams :: (Expr -> Expr) -> Expr -> Expr
+insertInLams f (Lam i e) = Lam i $ insertInLams f e
+insertInLams f e = f e
 
 args :: Expr -> [Id]
 args (Lam i e) = i:args e

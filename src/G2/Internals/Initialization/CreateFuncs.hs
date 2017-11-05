@@ -92,7 +92,7 @@ type DefaultFunc a = [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [(a, Id)] -> 
 -- names and the cooresponding AlgDataTy's, and the results are stored
 -- in a Walkers Map
 createAlgDataTyWalks :: ExprEnv -> TypeEnv -> NameGen
-                     -> (AlgDataTy -> [(a, Type)]) -- Other arguments that should be considered
+                     -> (AlgDataTy -> [(a, Maybe Name, Type)]) -- Other arguments that should be considered
                      -> String -- A string to append to a DC Name, to create a new function name
                      -> AltFunc a -- Maybe creates an Alt for each DC
                      -> DefaultFunc a -- Creates an Expr for a Default DC
@@ -113,7 +113,7 @@ createAlgDataTyWalkName :: String -> Name -> Name
 createAlgDataTyWalkName s (Name n _ _) = Name (s ++ n) Nothing 0
 
 
-createAlgDataTyWalkExpr :: (AlgDataTy -> [(a, Type)])
+createAlgDataTyWalkExpr :: (AlgDataTy -> [(a, Maybe Name, Type)])
                         -> AltFunc a
                         -> DefaultFunc a
                         -> NameGen -> [(Name, Name, AlgDataTy)] -> Name
@@ -121,9 +121,9 @@ createAlgDataTyWalkExpr :: (AlgDataTy -> [(a, Type)])
                         -> (Expr, NameGen)
 createAlgDataTyWalkExpr falg fa fd ng nm tn adt@(AlgDataTy _ _) =
     let
-        (b, arg_ty) = unzip $ falg adt
+        arg_ty = falg adt
     in
-    mkLamBindings ng (zip b arg_ty) $ \ng' ids -> createAlgDataTyWalkExpr' fa fd ng' nm tn adt ids
+    mkLamBindings ng arg_ty $ \ng' ids -> createAlgDataTyWalkExpr' fa fd ng' nm tn adt ids
 
 createAlgDataTyWalkExpr' :: AltFunc a
                         -> DefaultFunc a
@@ -245,9 +245,10 @@ createPolyPredWalks eenv tenv ng =
         (\_ ng' i _ -> (Var i, ng'))
         storeWalkerFunc
 
-createPolyPredArgs :: AlgDataTy -> [(Maybe Name, Type)]
-createPolyPredArgs (AlgDataTy ns _) =  map (\n -> (Nothing, TyVar $ Id n TYPE)) ns 
-                                    ++ map (\n -> (Just n, TyFun (TyVar $ Id n TYPE) (TyBool))) ns
+createPolyPredArgs :: AlgDataTy -> [(Maybe Name, Maybe Name, Type)]
+createPolyPredArgs (AlgDataTy ns _) =
+    map (\n -> (Nothing, Just n, TYPE)) ns 
+    ++ map (\n -> (Just n, Nothing, TyFun (TyVar $ Id n TYPE) (TyBool))) ns
 
 createPolyPredAlt :: ExprEnv -> DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> [(Maybe Name, Id)] -> (Maybe Expr, NameGen)
 createPolyPredAlt eenv (DataCon _ t _) _ ng _ dcs is = 
@@ -300,8 +301,8 @@ createHigherOrderWrapperExpr ng _ _ t =
     let
         predType = appendType t TyBool
 
-        wrapperT = [(Just "pred", predType), (Just "higher", t)]
-                   ++ zip (repeat Nothing) (init $ splitTyFuns t)
+        wrapperT = [(Just "pred", Nothing, predType), (Just "higher", Nothing, t)]
+                   ++ zip3 (repeat Nothing) (repeat Nothing) (init $ splitTyFuns t)
     in
     mkLamBindings ng wrapperT $ \ng' wr -> createHigherOrderWrapperExpr' ng' wr
 
