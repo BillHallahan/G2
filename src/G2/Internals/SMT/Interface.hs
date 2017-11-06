@@ -15,8 +15,6 @@ import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
-import Debug.Trace
-
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
