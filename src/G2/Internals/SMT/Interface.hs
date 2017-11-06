@@ -15,6 +15,8 @@ import G2.Internals.Language
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
+import Debug.Trace
+
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
@@ -70,14 +72,23 @@ satConstraints con io s = return . isSat =<< checkConstraints con io s
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State
-filterTEnv s@State {type_env = tenv} = s {type_env = M.filter filterTEnv' tenv}
+filterTEnv s@State { type_env = tenv} =
+    if tenv == tenv'
+      then s { type_env = tenv }
+      else filterTEnv (s { type_env = tenv' })
+  where
+    tenv' = M.filter (filterTEnv' tenv) tenv
 
-filterTEnv' :: AlgDataTy -> Bool
-filterTEnv' (AlgDataTy _ dc) = length dc > 0 && not (any filterTEnv'' dc)
+filterTEnv' :: TypeEnv -> AlgDataTy -> Bool
+filterTEnv' tenv (AlgDataTy _ dc) = length dc > 0 && not (any (filterTEnv'' tenv) dc)
 
-filterTEnv'' :: DataCon -> Bool
-filterTEnv'' (DataCon _ _ ts) = any (hasFuncType) ts
-filterTEnv'' _ = False
+filterTEnv'' :: TypeEnv -> DataCon -> Bool
+filterTEnv'' tenv (DataCon _ _ ts) = any (hasFuncType) ts || any (notPresent tenv) ts
+filterTEnv'' _ _ = False
+
+notPresent :: TypeEnv -> Type -> Bool
+notPresent tenv (TyConApp n _) = n `M.notMember` tenv
+notPresent _ _ = False
 
 {- TODO: This function is hacky- would be better to correctly handle typeclasses... -}
 simplifyPrims :: ASTContainer t Expr => t -> t

@@ -38,8 +38,8 @@ smt2 = SMTConverter {
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) -> do
             setUpFormula h_in formula
-            --putStrLn "\n\n checkSatGetModelGetExpr"
-            --putStrLn formula
+            -- putStrLn "\n\n checkSatGetModelGetExpr"
+            -- putStrLn formula
             r <- checkSat' h_in h_out
             --putStrLn $ "r =  " ++ show r
             if r == SAT then do
