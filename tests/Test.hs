@@ -101,15 +101,15 @@ testFileTests =
                     , RExists (\[Lit(LitInt x), y] -> x == 1 && y == (Lit $ LitBool True))
                     , RExists (\[Lit (LitInt x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating2.hs" 400 (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 15)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating3.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 4)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating4.hs" 400 (Just "output12") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 11)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating2.hs" 400 (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 15)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating3.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 4)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating4.hs" 400 (Just "output12") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 11)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), AtLeast 1]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dataConHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dataConHasName "C" y), Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" 400 Nothing Nothing "f" 2 
@@ -128,10 +128,10 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
                                                                                                            , RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
                 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error1.hs" 400 Nothing Nothing "g" 2 [AtLeast 1, RForAll(errors)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error2.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error3.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error1.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error1.hs" 400 Nothing Nothing "g" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error2.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error3.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "abs'" 2 [Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "xswitch" 2 [AtLeast 10]
