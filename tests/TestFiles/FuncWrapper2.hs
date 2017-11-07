@@ -5,9 +5,6 @@
 
 module FuncWrapper2 where
 
--- fWrapper :: Int -> Int -> Bool
--- fWrapper = (<)
-
 fWrapper :: Int -> Int -> Bool
 fWrapper x y = x < y
 

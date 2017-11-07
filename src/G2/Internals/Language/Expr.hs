@@ -50,7 +50,7 @@ mkLamBindings ng ats f = mkLamBindings' ng ats [] f
 mkLamBindings' :: NameGen -> [(a, Maybe Name, Type)] -> [(a, Id)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen))-> (Expr, NameGen)
 mkLamBindings' ng [] fIds f =
   let
-      (e, ng') = f ng (fIds)
+      (e, ng') = f ng (reverse fIds)
       e' = foldr (Lam) e (reverse $ map snd fIds)
   in
   (e', ng')

@@ -192,7 +192,7 @@ typeToSMT TyFloat = SortFloat
 typeToSMT TyBool = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
-typeToSMT _ = Sort "" []
+typeToSMT _ = error $ "Unsupported type in typeToSort."
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =

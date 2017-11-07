@@ -8,13 +8,10 @@ module PolyPred2 where
 data CList a = Cons a (CList a) | Nil
 
 intPred :: Int -> Bool
-intPred x = 0 <= x
+intPred x = 0 < x
 
 sumAssert :: CList Int -> Int -> Bool
 sumAssert _ x = 0 < x
-
-sumAssert' :: CList Int -> Int -> Bool
-sumAssert' _ x = 0 < x
 
 sum :: CList Int -> Int
 sum x = sum' x 0
