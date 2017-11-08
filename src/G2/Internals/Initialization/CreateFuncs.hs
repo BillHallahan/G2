@@ -110,7 +110,7 @@ createAlgDataTyWalks eenv tenv ng falg s fe fd fs  =
     (eenv', ng', w)
 
 createAlgDataTyWalkName :: String -> Name -> Name
-createAlgDataTyWalkName s (Name n _ _) = Name (s ++ n) None 0
+createAlgDataTyWalkName s (Name n _ _) = Name (s ++ n) Nothing 0
 
 
 createAlgDataTyWalkExpr :: (AlgDataTy -> [(a, Maybe Name, Type)])
@@ -292,7 +292,7 @@ createHigherOrderWrappers eenv tenv ng =
         types = nub $ argTypesTEnv tenv ++ E.higherOrderExprs eenv
     in
     createFuncs eenv ng (zip (repeat ()) types) []
-        (const $ Name "wrapper" None 0)
+        (const $ Name "wrapper" Nothing 0)
         createHigherOrderWrapperExpr
         storeWrapper
 

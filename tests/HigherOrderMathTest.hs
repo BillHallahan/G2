@@ -5,40 +5,40 @@ import G2.Internals.Language
 import TestUtils
 
 abs2 :: Expr
-abs2 = Var (Id (Name "abs2" (Module "HigherOrderMath") 0) TyBool)
+abs2 = Var (Id (Name "abs2" (Just "HigherOrderMath") 0) TyBool)
 
 square :: Expr
-square = Var (Id (Name "square" (Module "HigherOrderMath") 0) TyBool)
+square = Var (Id (Name "square" (Just "HigherOrderMath") 0) TyBool)
 
 negativeSquare :: Expr
-negativeSquare = Var (Id (Name "negativeSquare" (Module "HigherOrderMath") 0) TyBool)
+negativeSquare = Var (Id (Name "negativeSquare" (Just "HigherOrderMath") 0) TyBool)
 
 fourthPower :: Expr
-fourthPower = Var (Id (Name "fourthPower" (Module "HigherOrderMath") 0) TyBool)
+fourthPower = Var (Id (Name "fourthPower" (Just "HigherOrderMath") 0) TyBool)
 
 add1 :: Expr
-add1 = Var (Id (Name "add1" (Module "HigherOrderMath") 0) TyBool)
+add1 = Var (Id (Name "add1" (Just "HigherOrderMath") 0) TyBool)
 
 sub1 :: Expr
-sub1 = Var (Id (Name "sub1" (Module "HigherOrderMath") 0) TyBool)
+sub1 = Var (Id (Name "sub1" (Just "HigherOrderMath") 0) TyBool)
 
 add :: Expr
-add = Var (Id (Name "add" (Module "HigherOrderMath") 0) TyBool)
+add = Var (Id (Name "add" (Just "HigherOrderMath") 0) TyBool)
 
 sub :: Expr
-sub = Var (Id (Name "sub" (Module "HigherOrderMath") 0) TyBool)
+sub = Var (Id (Name "sub" (Just "HigherOrderMath") 0) TyBool)
 
 approxSqrt :: Expr
-approxSqrt = Var (Id (Name "approxSqrt" (Module "HigherOrderMath") 0) TyBool)
+approxSqrt = Var (Id (Name "approxSqrt" (Just "HigherOrderMath") 0) TyBool)
 
 pythagorean :: Expr
-pythagorean = Var (Id (Name "pythagorean" (Module "HigherOrderMath") 0) TyBool)
+pythagorean = Var (Id (Name "pythagorean" (Just "HigherOrderMath") 0) TyBool)
 
 notNegativeAt0 :: Expr
-notNegativeAt0 = Var (Id (Name "notNegativeAt0" (Module "HigherOrderMath") 0) TyBottom)
+notNegativeAt0 = Var (Id (Name "notNegativeAt0" (Just "HigherOrderMath") 0) TyBottom)
 
 notNegativeAt0NegativeAt1 :: Expr
-notNegativeAt0NegativeAt1 = Var (Id (Name "notNegativeAt0NegativeAt1" (Module "HigherOrderMath") 0) TyBottom)
+notNegativeAt0NegativeAt1 = Var (Id (Name "notNegativeAt0NegativeAt1" (Just "HigherOrderMath") 0) TyBottom)
 
 abs2NonNeg :: [Expr] -> Bool
 abs2NonNeg [f, (Lit (LitDouble x))] = f `eqIgT` abs2 && x >= 0

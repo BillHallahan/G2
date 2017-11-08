@@ -1,14 +1,9 @@
-{-# LANGUAGE DeriveGeneric #-}
-
 -- | Language
 --   Provides the language definition of G2. Should not be confused with Core
 --   Haskell, although design imitates Core Haskell closely.
 module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
-
-import Data.Hashable
-import GHC.Generics (Generic)
 
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
@@ -21,17 +16,11 @@ type ProgramType = (Name, [Name], [DataCon])
 -- assume naming independence.
 type Binds = [(Id, Expr)]
 
--- | The occurrence name is defined as a string, with a `Source` module name
+-- | The occurrence name is defined as a string, with a `Maybe` module name
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
-data Name = Name String Source Int deriving (Show, Eq, Read, Ord)
-
-data Source = Module String
-            | None
-            deriving (Show, Eq, Read, Ord, Generic)
-
-instance Hashable Source
+data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord)
 
 data Id = Id Name Type deriving (Show, Eq, Ord, Read)
 

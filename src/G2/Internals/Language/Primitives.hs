@@ -63,8 +63,8 @@ mkRawPrim primtys name@(Name occ _ _) =
 
     tys = (map typeOf forall_ids) ++ fun_tys
 
-    ids = map (\(i, t) -> Id (Name "a" None i) t) $ zip [1..] (init tys)
-    binds = map (\(i, t) -> Id (Name "b" None i) t) $ zip [1..] (init tys)
+    ids = map (\(i, t) -> Id (Name "a" Nothing i) t) $ zip [1..] (init tys)
+    binds = map (\(i, t) -> Id (Name "b" Nothing i) t) $ zip [1..] (init tys)
 
     varIds = map Var ids
     varBinds = map Var binds
@@ -75,7 +75,7 @@ mkRawPrim primtys name@(Name occ _ _) =
 -- | Primitive lookup helpers
 
 mkPrim :: Primitive -> E.ExprEnv -> Expr
-mkPrim p eenv = case E.occLookup (primStr p) (Module "GHC.Classes") eenv of
+mkPrim p eenv = case E.occLookup (primStr p) (Just "GHC.Classes") eenv of
     Just e -> Prim p (typeOf e)
     Nothing -> error $ "Unrecognized prim"
 
