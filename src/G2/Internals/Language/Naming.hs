@@ -37,13 +37,13 @@ import Data.List.Utils
 nameOccStr :: Name -> String
 nameOccStr (Name occ _ _) = occ
 
-newtype NameGen = NameGen (HM.HashMap (String, Maybe String) Int)
+newtype NameGen = NameGen (HM.HashMap (String, Source) Int)
                 deriving (Show, Eq, Read)
 
 -- This relies on NameCleaner eliminating all '_', to preserve uniqueness
 nameToStr :: Name -> String
-nameToStr (Name n (Just m) i) = n ++ "_m_" ++ m ++ "_" ++ show i
-nameToStr (Name n Nothing i) = n ++ "_n__" ++ show i
+nameToStr (Name n (Module m) i) = n ++ "_m_" ++ m ++ "_" ++ show i
+nameToStr (Name n None i) = n ++ "_n__" ++ show i
 
 -- Inverse of nameToStr
 strToName :: String -> Name
@@ -51,7 +51,7 @@ strToName str =
     let
         (n, _:q:_:mi) = breakList (\s -> isPrefixOf "_m_" s || isPrefixOf "_n_" s) str
         (m, _:i) = break ((==) '_') mi
-        m' = if q == 'm' then Just m else Nothing
+        m' = if q == 'm' then Module m else None
     in
     Name n m' (read i :: Int)
 
@@ -212,10 +212,10 @@ instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) wher
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
 
 freshSeededString :: String -> NameGen -> (Name, NameGen)
-freshSeededString s = freshSeededName (Name s Nothing 0)
+freshSeededString s = freshSeededName (Name s None 0)
 
 freshSeededStrings :: [String] -> NameGen -> ([Name], NameGen)
-freshSeededStrings s = freshSeededNames (map (\s' -> Name s' Nothing 0) s)
+freshSeededStrings s = freshSeededNames (map (\s' -> Name s' None 0) s)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _) (NameGen hm) = (Name n m i', NameGen hm')
@@ -231,10 +231,10 @@ freshSeededNames (name:ns) r = (name':ns', ngen'')
 freshName :: NameGen -> (Name, NameGen)
 freshName ngen = freshSeededName seed ngen
   where
-    seed = Name "fs?" Nothing 0
+    seed = Name "fs?" None 0
 
 freshNames :: Int -> NameGen -> ([Name], NameGen)
-freshNames i ngen = freshSeededNames (replicate i (Name "fs?" Nothing 0)) ngen
+freshNames i ngen = freshSeededNames (replicate i (Name "fs?" None 0)) ngen
 
 freshId :: Type -> NameGen -> (Id, NameGen)
 freshId t ngen = 

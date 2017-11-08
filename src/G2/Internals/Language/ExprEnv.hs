@@ -92,9 +92,9 @@ isSymbolic n eenv@(ExprEnv eenv') =
         _ -> False
 
 -- TODO
-occLookup :: String -> Maybe String -> ExprEnv -> Maybe Expr
+occLookup :: String -> Source -> ExprEnv -> Maybe Expr
 occLookup n m = 
-    fmap snd . L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
+    fmap snd . L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Module "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) . unwrapExprEnv
 
 (!) :: ExprEnv -> Name -> Expr

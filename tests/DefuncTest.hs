@@ -6,19 +6,19 @@ import TestUtils
 -- Defunc1
 
 a :: Expr -> Expr
-a = App (Data $ DataCon (Name "A" (Just "Defunc1") 0) (TyConApp (Name "A" (Just "Defunc1") 0) []) [])
+a = App (Data $ DataCon (Name "A" (Module "Defunc1") 0) (TyConApp (Name "A" (Module "Defunc1") 0) []) [])
 
 dataB :: Expr
-dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0) (TyConApp (Name "A" (Just "Defunc1") 0) []) []
+dataB = Data $ DataCon (Name "B" (Module "Defunc1") 0) (TyConApp (Name "A" (Module "Defunc1") 0) []) []
 
 b :: Expr -> Expr
 b = App (dataB)
 
 add1 :: Expr
-add1 = Var (Id (Name "add1" (Just "Defunc1") 0) TyInt) 
+add1 = Var (Id (Name "add1" (Module "Defunc1") 0) TyInt) 
 
 multiply2 :: Expr
-multiply2 = Var (Id (Name "multiply2" (Just "Defunc1") 0) TyInt) 
+multiply2 = Var (Id (Name "multiply2" (Module "Defunc1") 0) TyInt) 
 
 defunc1Add1 :: [Expr] -> Bool
 defunc1Add1 [x, y] = x `eqIgT` a (add1) &&  y `eqIgT` b (Lit $ LitInt 3)
@@ -35,25 +35,25 @@ defuncB _ = False
 -- Defunc2
 
 add1D2 :: Expr
-add1D2 = Var (Id (Name "add1" (Just "Defunc2") 0) TyInt)
+add1D2 = Var (Id (Name "add1" (Module "Defunc2") 0) TyInt)
 
 sub1D2 :: Expr
-sub1D2 = Var (Id (Name "sub1" (Just "Defunc2") 0) TyInt)
+sub1D2 = Var (Id (Name "sub1" (Module "Defunc2") 0) TyInt)
 
 squareD2 :: Expr
-squareD2 = Var (Id (Name "square" (Just "Defunc2") 0) TyInt) 
+squareD2 = Var (Id (Name "square" (Module "Defunc2") 0) TyInt) 
 
 iListI :: Expr
-iListI = Data $ DataCon (Name "I" (Just "Defunc2") 0) (TyConApp (Name "IList" (Just "Defunc2") 0) []) []
+iListI = Data $ DataCon (Name "I" (Module "Defunc2") 0) (TyConApp (Name "IList" (Module "Defunc2") 0) []) []
 
 iListNil :: Expr
-iListNil = Data $ DataCon (Name "INil" (Just "Defunc2") 0) (TyConApp (Name "IList" (Just "Defunc2") 0) []) []
+iListNil = Data $ DataCon (Name "INil" (Module "Defunc2") 0) (TyConApp (Name "IList" (Module "Defunc2") 0) []) []
 
 fListF :: Expr
-fListF = Data $ DataCon (Name "F" (Just "Defunc2") 0) (TyConApp (Name "FList" (Just "Defunc2") 0) []) []
+fListF = Data $ DataCon (Name "F" (Module "Defunc2") 0) (TyConApp (Name "FList" (Module "Defunc2") 0) []) []
 
 fListNil :: Expr
-fListNil = Data $ DataCon (Name "FNil" (Just "Defunc2") 0) (TyConApp (Name "FList" (Just "Defunc2") 0) []) []
+fListNil = Data $ DataCon (Name "FNil" (Module "Defunc2") 0) (TyConApp (Name "FList" (Module "Defunc2") 0) []) []
 
 add1Def :: Int -> Int
 add1Def x = x + 1

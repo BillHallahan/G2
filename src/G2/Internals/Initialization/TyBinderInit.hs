@@ -21,7 +21,7 @@ tyBinderTypeEnv' ((n, AlgDataTy _ dc):ts) ng =
             (d:_) -> dcForAllNum d
             _ -> 0
 
-        (ns, ng') = freshSeededNames (replicate num (Name "t" Nothing 0)) ng
+        (ns, ng') = freshSeededNames (replicate num (Name "t" None 0)) ng
 
         dc' = map (dcReplaceNames ns) dc
 

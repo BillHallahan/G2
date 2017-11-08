@@ -55,7 +55,7 @@ main = do
 
     mapM_ (\(_, _, inArg, ex) -> do
             let funcCall = mkExprHaskell 
-                         . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
+                         . foldl (\a a' -> App a a') (Var $ Id (Name entry None 0) TyBottom) $ inArg
 
             -- mapM_ (print) rs
             -- putStrLn $ pprExecStateStr st

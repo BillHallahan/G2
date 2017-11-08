@@ -104,7 +104,7 @@ filterPrimOp (G2.Id name ty) = expr
   where
     G2.Name occ mb_mdl _ = name
     ghc_tys = "GHC.Types"
-    expr = case (mb_mdl == Just ghc_tys, occ) of
+    expr = case (mb_mdl == G2.Module ghc_tys, occ) of
                 (True, ">=") -> G2.Prim G2.Ge G2.TyBottom
                 (True, ">") -> G2.Prim G2.Gt G2.TyBottom
                 (True, "==") -> G2.Prim G2.Eq G2.TyBottom
@@ -125,8 +125,8 @@ mkName name = G2.Name occ mdl unq
     occ = (occNameString . nameOccName) name
     unq = (getKey . nameUnique) name
     mdl = case nameModule_maybe name of
-              Nothing -> Nothing
-              Just md -> Just ((moduleNameString . moduleName) md)
+              Nothing -> G2.None
+              Just md -> G2.Module ((moduleNameString . moduleName) md)
 
 mkLit :: Literal -> G2.Lit
 mkLit (MachChar chr) = G2.LitChar chr
@@ -191,7 +191,7 @@ filterPrimCon (G2.DataCon name ty tys) = dcon
   where
     G2.Name occ mb_mdl _ = name
     ghc_tys = "GHC.Types"
-    dcon = case (mb_mdl == Just ghc_tys, occ) of
+    dcon = case (mb_mdl == G2.Module ghc_tys, occ) of
                (True, "I#") -> G2.PrimCon G2.I
                (True, "D#") -> G2.PrimCon G2.D
                (True, "F#") -> G2.PrimCon G2.F

@@ -26,9 +26,12 @@ allowedSymbol :: [Char]
 allowedSymbol = allowedStartSymbols ++ ['0'..'9'] ++ ['@', '.']
 
 allowedName :: Name -> Bool
-allowedName (Name n m _) =
+allowedName (Name n (Module m) _) =
        all (`elem` allowedSymbol) n
-    && all (`elem` allowedSymbol) (maybe "" (id) m)
+    && all (`elem` allowedSymbol) m
+    && (head n) `elem` allowedStartSymbols
+allowedName (Name n None _) =
+       all (`elem` allowedSymbol) n
     && (head n) `elem` allowedStartSymbols
 
 cleanNames :: State -> State
@@ -41,7 +44,9 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns)
     | otherwise =
     let
         n' = filter (\x -> x `elem` allowedSymbol) n
-        m' = fmap (filter $ \x -> x `elem` allowedSymbol) m
+        m' = case m of
+            Module mdl -> Module $ (filter $ \x -> x `elem` allowedSymbol) mdl
+            _ -> m
 
         -- No reserved symbols start with a $, so this ensures noth uniqueness
         -- and starting with an allowed symbol
