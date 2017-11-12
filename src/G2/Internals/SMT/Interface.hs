@@ -5,6 +5,8 @@ module G2.Internals.SMT.Interface
     , subModel
     , checkConstraints
     , checkAsserts
+    , checkModel
+    , checkModelAsserts
     ) where
 
 import qualified Data.Map as M
@@ -73,43 +75,53 @@ subVar' _ e = e
 
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable
-checkConstraints :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
+checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints con io s = do
+    -- This is to avoid problems with lack of Asserts knocking out states too early
+    let s' = if true_assert s then s
+              else s {assertions = [ExtCond (Lit (LitBool True)) True]}
+
+    checkConstraints' con io s'
+
+checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
+checkConstraints' con io s = do
     let s' = filterTEnv . simplifyPrims $ s
 
-    --TODO: This is a hack to avoid problems with lack of Asserts knocking out states too early...
-    let s'' = if true_assert s' then s'
-              else s' {assertions = [ExtCond (Lit (LitBool True)) True]}
-
-    let headers = toSMTHeaders s'' ([] :: [Expr])
+    let headers = toSMTHeaders s' ([] :: [Expr])
     let formula = toSolver con headers
 
-    let vs = filter (flip elem (map nameToStr $ E.symbolicKeys $ expr_env s') . fst)
-           $ map (\(n, srt) -> (nameToStr n, srt)) . pcVars . PC.toList $ path_conds s'
+    checkSat con io formula
 
-    (r, m) <- checkSatGetModel con io formula headers vs (expr_env s)
+checkAsserts :: SMTConverter ast out io -> io -> State -> IO Result
+checkAsserts = checkConstraints'
 
-    let m' = fmap modelAsExpr m
+checkModel :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
+checkModel con io s = do
+    -- This is to avoid problems with lack of Asserts knocking out states too early
+    let s' = if true_assert s then s
+              else s {assertions = [ExtCond (Lit (LitBool True)) True]}
 
-    return (r, m')
+    checkModel' con io s'
 
-checkAsserts :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
-checkAsserts con io s = do
+-- TODO: Fix the code duplication between checkConstraints, checkAsserts
+checkModelAsserts :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
+checkModelAsserts con io s = checkModel' con io s
+
+checkModel' :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
+checkModel' con io s = do
     let s' = filterTEnv . simplifyPrims $ s
 
-    --TODO: This is a hack to avoid problems with lack of Asserts knocking out states too early...
     let headers = toSMTHeaders s' ([] :: [Expr])
     let formula = toSolver con headers
 
     let vs = filter (flip elem (map nameToStr $ E.symbolicKeys $ expr_env s') . fst)
            $ map (\(n, srt) -> (nameToStr n, srt)) . pcVars . PC.toList $ path_conds s'
 
-    (r, m) <- checkSatGetModel con io formula headers vs (expr_env s)
+    (r, m) <- checkSatGetModel con io formula headers vs
 
     let m' = fmap modelAsExpr m
 
     return (r, m')
-
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State

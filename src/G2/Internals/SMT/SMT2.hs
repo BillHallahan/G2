@@ -36,7 +36,7 @@ smt2 = SMTConverter {
 
             return r
 
-        , checkSatGetModel = \(h_in, h_out, _) formula headers vs eenv -> do
+        , checkSatGetModel = \(h_in, h_out, _) formula headers vs -> do
             setUpFormula h_in formula
             -- putStrLn "\n\n checkSatGetModel"
             -- putStrLn formula
@@ -173,7 +173,7 @@ selectorName (Sort n _) = n
 -- in all future calls
 getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getZ3ProcessHandles = do
-    (m_h_in, m_h_out, _, p) <- createProcess (proc "z3" ["-smt2", "-in", "pp.decimal=true"])
+    (m_h_in, m_h_out, _, p) <- createProcess (proc "z3" ["-smt2", "-in"])
         { std_in = CreatePipe, std_out = CreatePipe }
 
     let (h_in, h_out) =

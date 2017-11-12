@@ -185,7 +185,7 @@ run con hhp n state = do
 
     let preproc_state = runPreprocessing state
 
-    (_, m) <- checkConstraints con hhp preproc_state
+    (_, m) <- checkModel con hhp preproc_state
 
     let preproc_state' = preproc_state {model = fromJust m}
 
@@ -193,7 +193,7 @@ run con hhp n state = do
 
     exec_states <- runNDepth con hhp [preproc_state'] n
 
-    let ident_state = filter (isExecValueForm . snd) exec_states
+    let ident_states = filter (isExecValueForm . snd) exec_states
 
     -- putStrLn $ "states: " ++ (show $ length ident_state)
     -- mapM_ (\(rs, st) -> do
@@ -208,8 +208,14 @@ run con hhp n state = do
     --     ) ident_state
 
     -- sm <- satModelOutputs con hhp exec_states
+    -- let ident_states' = ident_states
+    ident_states' <- mapM (\(r, s) -> do
+        (_, m) <- checkModel con hhp s
+        return (r, s {model = maybe M.empty id m})
+        ) ident_states
+
     let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) 
-           $ filter (true_assert . snd) ident_state 
+           $ filter (true_assert . snd) ident_states' 
 
     let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm
 
