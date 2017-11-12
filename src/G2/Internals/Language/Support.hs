@@ -29,6 +29,7 @@ data State = State { expr_env :: E.ExprEnv
                    , name_gen :: NameGen
                    , path_conds :: PathConds
                    , assertions :: [PathCond]
+                   , true_assert :: Bool
                    , sym_links :: SymLinks
                    , input_ids :: InputIds
                    , func_table :: FuncInterps
@@ -37,6 +38,7 @@ data State = State { expr_env :: E.ExprEnv
                    , wrappers :: Wrappers
                    , apply_types :: AT.ApplyTypes
                    , exec_stack :: Stack Frame
+                   , model :: Model
                    } deriving (Show, Eq, Read)
 
 -- | The InputIds are a list of the variable names passed as input to the
@@ -131,6 +133,8 @@ data Frame = CaseFrame Id [Alt]
            | AssertFrame Expr
            deriving (Show, Eq, Read)
 
+type Model = M.Map Name Expr
+
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Name -> Name -> State -> State
 renameState old new_seed s =
@@ -143,6 +147,7 @@ renameState old new_seed s =
              , name_gen = ng'
              , path_conds = rename old new (path_conds s)
              , assertions = rename old new (assertions s)
+             , true_assert = true_assert s
              , input_ids = rename old new (input_ids s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
@@ -150,7 +155,8 @@ renameState old new_seed s =
              , deepseq_walkers = rename old new (deepseq_walkers s)
              , polypred_walkers = rename old new (polypred_walkers s)
              , wrappers = rename old new (wrappers s)
-             , exec_stack = exec_stack s }
+             , exec_stack = exec_stack s
+             , model = model s }
 
 -- | TypeClass definitions
 instance ASTContainer State Expr where

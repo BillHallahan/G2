@@ -26,6 +26,7 @@ import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
 import qualified Data.Map as M
+import Data.Maybe
 
 import G2.Lib.Printers
 
@@ -50,6 +51,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , name_gen =  ng''
     , path_conds = PC.fromList $ map PCExists ids
     , assertions = if useAssert then [] else [trueCond]
+    , true_assert = if useAssert then False else True
     , input_ids = ids
     , sym_links = Sym.empty
     , func_table = ft
@@ -58,6 +60,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , wrappers = wrap
     , apply_types = at
     , exec_stack = Stack.empty
+    , model = M.empty
  }
 
 trueCond :: PathCond
@@ -182,16 +185,31 @@ run con hhp n state = do
 
     let preproc_state = runPreprocessing state
 
+    (_, m) <- checkConstraints con hhp preproc_state
+
+    let preproc_state' = preproc_state {model = fromJust m}
+
     -- putStrLn . pprExecStateStr $ preproc_state
 
-    exec_states <- runNDepth con hhp [preproc_state] n
+    exec_states <- runNDepth con hhp [preproc_state'] n
 
-    -- putStrLn $ "states: " ++ (show $ length exec_states)
+    let ident_state = filter (isExecValueForm . snd) exec_states
+
+    -- putStrLn $ "states: " ++ (show $ length ident_state)
     -- mapM_ (\(rs, st) -> do
-    --     putStrLn $ show rs
-    --     putStrLn $ pprExecStateStr st) exec_states
+    -- --     putStrLn $ show rs
+    --     -- putStrLn $ pprExecStateStr st
+    --     -- print $ expr_env st
+    --     print $ curr_expr st
+    --     print $ true_assert st
+    --     -- print $ path_conds st
+    --     -- print $ input_ids st
+    --     -- print $ model st
+    --     ) ident_state
 
-    sm <- satModelOutputs con hhp exec_states
+    -- sm <- satModelOutputs con hhp exec_states
+    let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) 
+           $ filter (true_assert . snd) ident_state 
 
     let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm
 

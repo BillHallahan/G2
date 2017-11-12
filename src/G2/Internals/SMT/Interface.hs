@@ -2,8 +2,9 @@
 
 module G2.Internals.SMT.Interface
     ( satModelOutputs
+    , subModel
     , checkConstraints
-    , satConstraints
+    , checkAsserts
     ) where
 
 import qualified Data.Map as M
@@ -11,9 +12,12 @@ import Data.Maybe
 
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Execution.RuleTypes
-import G2.Internals.Language
+import G2.Internals.Language hiding (Model)
+import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
+
 
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
@@ -51,22 +55,61 @@ satModelOutput con io s = do
 
     return (res, input', ex)
 
+subModel :: State -> ([Expr], Expr)
+subModel (State { curr_expr = CurrExpr _ cexpr
+                , input_ids = is
+                , model = m}) =
+    subVar m (map Var is, cexpr)
+
+subVar :: (ASTContainer m Expr) => ExprModel -> m -> m
+subVar em = modifyASTs (subVar' em)
+
+subVar' :: ExprModel -> Expr -> Expr
+subVar' em v@(Var (Id n _)) =
+    case M.lookup n em of
+        Just e -> e
+        Nothing -> v
+subVar' _ e = e
+
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable
-checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
+checkConstraints :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
 checkConstraints con io s = do
     let s' = filterTEnv . simplifyPrims $ s
 
     --TODO: This is a hack to avoid problems with lack of Asserts knocking out states too early...
-    let s'' = s' {assertions = [ExtCond (Lit (LitBool True)) True]}
+    let s'' = if true_assert s' then s'
+              else s' {assertions = [ExtCond (Lit (LitBool True)) True]}
 
     let headers = toSMTHeaders s'' ([] :: [Expr])
     let formula = toSolver con headers
 
-    checkSat con io formula
+    let vs = filter (flip elem (map nameToStr $ E.symbolicKeys $ expr_env s') . fst)
+           $ map (\(n, srt) -> (nameToStr n, srt)) . pcVars . PC.toList $ path_conds s'
 
-satConstraints :: SMTConverter ast out io -> io -> State -> IO Bool
-satConstraints con io s = return . isSat =<< checkConstraints con io s
+    (r, m) <- checkSatGetModel con io formula headers vs (expr_env s)
+
+    let m' = fmap modelAsExpr m
+
+    return (r, m')
+
+checkAsserts :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
+checkAsserts con io s = do
+    let s' = filterTEnv . simplifyPrims $ s
+
+    --TODO: This is a hack to avoid problems with lack of Asserts knocking out states too early...
+    let headers = toSMTHeaders s' ([] :: [Expr])
+    let formula = toSolver con headers
+
+    let vs = filter (flip elem (map nameToStr $ E.symbolicKeys $ expr_env s') . fst)
+           $ map (\(n, srt) -> (nameToStr n, srt)) . pcVars . PC.toList $ path_conds s'
+
+    (r, m) <- checkSatGetModel con io formula headers vs (expr_env s)
+
+    let m' = fmap modelAsExpr m
+
+    return (r, m')
+
 
 -- Remove all types from the type environment that contain a function
 filterTEnv :: State -> State

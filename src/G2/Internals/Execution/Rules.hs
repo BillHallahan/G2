@@ -18,6 +18,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
+import qualified Data.Map as M
 import Data.Maybe
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
@@ -171,11 +172,8 @@ reduce con hpp s = do
 
 resultsToState :: SMTConverter ast out io -> io -> Rule -> State -> [ReduceResult] -> IO [State]
 resultsToState _ _ _ _ [] = return []
-resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs) = do
-    let s' = resultToState s red
-    
-    case not (null pc) || not (null asserts) of
-        True -> do
+resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
+    | not (null pc) = do
             --Optimization
             -- We replace the path_conds with only those that are directly
             -- affected by the new path constraints
@@ -185,12 +183,31 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs) = do
             -- let s'' = s'
             let s'' = s' {path_conds = PC.relevant pc (path_conds s')}
 
-            res <- satConstraints con hpp s''
+            (res, m) <- checkConstraints con hpp s''
 
-            if res then return . (:) s' =<< resultsToState con hpp rule s xs
-            else resultsToState con hpp rule s xs
+            let m' = maybe M.empty id m
 
-        False -> return . (:) s' =<< resultsToState con hpp rule s xs
+            if res == SAT then
+                return . (:) (s' {model = M.union m' (model s')})
+                    =<< resultsToState con hpp rule s xs
+            else
+                resultsToState con hpp rule s xs
+    | not (null asserts) = do
+        let s'' = s' {path_conds = PC.relevant asserts (path_conds s')}
+
+        (res, m) <- checkAsserts con hpp s''
+
+        let m' = maybe M.empty id m
+
+        if res == SAT then
+            return . (:) (s' { true_assert = True
+                             , model = M.union m' (model s')})
+                =<< resultsToState con hpp rule s xs
+        else
+            return . (:) s' =<< resultsToState con hpp rule s xs
+    | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs
+    where
+        s' = resultToState s red
 
 reduceNoConstraintChecks :: State -> (Rule, [State])
 reduceNoConstraintChecks s =

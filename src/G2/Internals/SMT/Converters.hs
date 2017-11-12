@@ -11,6 +11,7 @@ module G2.Internals.SMT.Converters
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
+    , pcVars
     , smtastToExpr
     , modelAsExpr ) where
 
@@ -21,7 +22,7 @@ import Data.Maybe
 -- import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.PathConds as PC
-import G2.Internals.Language.Support
+import G2.Internals.Language.Support hiding (Model)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.SMT.Language
 

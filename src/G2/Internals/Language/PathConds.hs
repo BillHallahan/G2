@@ -13,6 +13,7 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , toList) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.Ids
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
@@ -172,3 +173,12 @@ instance Named PathCond where
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
     rename old new (ConsCond d e b) = ConsCond (rename old new d) (rename old new e) b
     rename old new (PCExists i) = PCExists (rename old new i)
+
+instance Ided PathConds where
+    ids = ids . toMap
+
+instance Ided PathCond where
+    ids (AltCond am e _) = ids am ++ ids e
+    ids (ExtCond e _) = ids e
+    ids (ConsCond d e _) = ids d ++  ids e
+    ids (PCExists i) = [i]

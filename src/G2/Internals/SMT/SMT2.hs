@@ -3,7 +3,7 @@
 module G2.Internals.SMT.SMT2 where
 
 import G2.Internals.Language.Expr
-import G2.Internals.Language.Support
+import G2.Internals.Language.Support hiding (Model)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.Typing
 import G2.Internals.SMT.Language
@@ -36,20 +36,38 @@ smt2 = SMTConverter {
 
             return r
 
+        , checkSatGetModel = \(h_in, h_out, _) formula headers vs eenv -> do
+            setUpFormula h_in formula
+            -- putStrLn "\n\n checkSatGetModel"
+            -- putStrLn formula
+            r <- checkSat' h_in h_out
+            -- putStrLn $ "r =  " ++ show r
+            if r == SAT then do
+                mdl <- getModel h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn formula
+                -- putStrLn ""
+                -- putStrLn (show mdl)
+                -- putStrLn "======"
+                let m = parseModel headers mdl
+                return (r, Just m)
+            else do
+                return (r, Nothing)
+
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) -> do
             setUpFormula h_in formula
             -- putStrLn "\n\n checkSatGetModelGetExpr"
             -- putStrLn formula
             r <- checkSat' h_in h_out
-            --putStrLn $ "r =  " ++ show r
+            -- putStrLn $ "r =  " ++ show r
             if r == SAT then do
-                model <- getModel h_in h_out vs
+                mdl <- getModel h_in h_out vs
                 -- putStrLn "======"
                 -- putStrLn formula
                 -- putStrLn ""
-                -- putStrLn (show model)
+                -- putStrLn (show mdl)
                 -- putStrLn "======"
-                let m = parseModel headers model
+                let m = parseModel headers mdl
 
                 expr <- solveExpr h_in h_out smt2 headers eenv e
                 -- putStrLn (show expr)
@@ -155,7 +173,7 @@ selectorName (Sort n _) = n
 -- in all future calls
 getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getZ3ProcessHandles = do
-    (m_h_in, m_h_out, _, p) <- createProcess (proc "z3" ["-smt2", "-in"])
+    (m_h_in, m_h_out, _, p) <- createProcess (proc "z3" ["-smt2", "-in", "pp.decimal=true"])
         { std_in = CreatePipe, std_out = CreatePipe }
 
     let (h_in, h_out) =

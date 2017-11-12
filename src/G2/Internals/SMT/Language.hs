@@ -8,6 +8,7 @@ module G2.Internals.SMT.Language
     , module G2.Internals.Language.AST) where
 
 import G2.Internals.Language.Support (ExprEnv, CurrExpr)
+import qualified G2.Internals.Language.Support as Support (Model) 
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.AST
 
@@ -78,7 +79,7 @@ isSat SAT = True
 isSat _ = False
 
 type Model = M.Map SMTName SMTAST
-type ExprModel = M.Map Name Expr
+type ExprModel = Support.Model
 
 -- This data type is used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
@@ -89,6 +90,7 @@ data SMTConverter ast out io =
         , merge :: out -> out -> out
 
         , checkSat :: io -> out -> IO Result
+        , checkSatGetModel :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> IO (Result, Maybe Model)
         , checkSatGetModelGetExpr :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe Model, Maybe Expr)
 
         , assert :: ast -> out

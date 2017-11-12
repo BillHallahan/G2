@@ -22,6 +22,7 @@ module G2.Internals.Language.ExprEnv
     , filterWithKey
     , funcsOfType
     , keys
+    , symbolicKeys
     , elems
     , higherOrderExprs
     , toList
@@ -162,6 +163,9 @@ funcsOfType t = keys . filter (\e -> t == typeOf e)
 
 keys :: ExprEnv -> [Name]
 keys = M.keys . unwrapExprEnv
+
+symbolicKeys :: ExprEnv -> [Name]
+symbolicKeys eenv = M.keys . unwrapExprEnv . filterWithKey (\n _ -> isSymbolic n eenv) $ eenv
 
 --TODO
 elems :: ExprEnv -> [Expr]

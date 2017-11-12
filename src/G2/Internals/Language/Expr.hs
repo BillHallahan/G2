@@ -1,7 +1,8 @@
 {-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.Language.Expr ( unApp
+module G2.Internals.Language.Expr ( replaceVar
+                                  , unApp
                                   , mkApp
                                   , mkTrue
                                   , mkFalse
@@ -24,6 +25,13 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
 import qualified Data.Map as M
+
+replaceVar :: (ASTContainer m Expr) => Name -> Expr -> m -> m
+replaceVar n re = modifyASTs (replaceVar' n re)
+
+replaceVar' :: Name -> Expr -> Expr -> Expr
+replaceVar' n re v@(Var (Id n' _)) = if n == n' then re else v
+replaceVar' _ _ e = e
 
 -- | unApp
 -- Unravels the application spine.

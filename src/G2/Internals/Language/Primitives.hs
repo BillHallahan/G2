@@ -70,6 +70,7 @@ mkRawPrim primtys name@(Name occ _ _) =
     varBinds = map Var binds
 
     apps = foldl' App (Prim (fromJust prim) ty) varBinds
+
     cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
 
 -- | Primitive lookup helpers

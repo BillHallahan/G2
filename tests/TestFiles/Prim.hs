@@ -5,4 +5,4 @@ g 0 = 1
 g _ = 2
 
 f :: Int -> Int
-f x = x + g x
+f x = 1 + x + g x
