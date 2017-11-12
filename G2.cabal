@@ -28,6 +28,7 @@ executable G2
                        , parsec
                        , process
                        , unordered-containers
+                       , Cabal
   default-language:    Haskell2010
   ghc-options:         -O2 -threaded -fprof-auto -Wall
   hs-source-dirs:      src
