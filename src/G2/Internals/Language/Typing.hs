@@ -21,7 +21,7 @@ import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
-import qualified Data.Set as S
+import qualified Data.HashSet as HS
 
 -- | Typed typeclass.
 class Typed a where
@@ -132,11 +132,11 @@ retype' old new t = modifyChildren (retype' old new) t
 -- Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> Type -> Bool
-(.::) t1 t2 = specializesTo M.empty S.empty (typeOf t1) t2
+(.::) t1 t2 = specializesTo M.empty HS.empty (typeOf t1) t2
 
-specializesTo :: M.Map Name Type -> S.Set Type -> Type -> Type -> Bool
+specializesTo :: M.Map Name Type -> HS.HashSet Type -> Type -> Type -> Bool
 specializesTo m s t (TyVar (Id n t')) =
-    if S.member t' s
+    if HS.member t' s
         then case M.lookup n m of
             Just r -> specializesTo m s t r  -- There is an entry.
             Nothing -> True  -- We matched with TOP, oh well.
@@ -154,17 +154,17 @@ specializesTo m s (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
     specializesTo m s t1 t1' && specializesTo m s t2 t2'
 -- For all function type bindings.
 specializesTo m s (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
-    specializesTo (M.insert n t1 m) (S.insert t1' s) (TyFun t1 t2) t2'
+    specializesTo (M.insert n t1 m) (HS.insert t1' s) (TyFun t1 t2) t2'
 -- Forall / forall bindings.
 specializesTo m s (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
     specializesTo m s t1 t1' && specializesTo m s t2 t2'
 specializesTo m s (TyForAll (NamedTyBndr (Id _ t1)) t2)
                 (TyForAll (NamedTyBndr (Id n' t1')) t2') =
-    specializesTo (M.insert n' t1 m) (S.insert t1' s) t2 t2'
+    specializesTo (M.insert n' t1 m) (HS.insert t1' s) t2 t2'
 -- The rest.
 specializesTo _ _ TyBottom _ = True
 specializesTo _ _ _ TyBottom = True
-specializesTo _ s t t' = S.member t' s || t == t'
+specializesTo _ s t t' = HS.member t' s || t == t'
 
 hasFuncType :: (Typed t) => t -> Bool
 hasFuncType t =

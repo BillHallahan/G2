@@ -29,7 +29,7 @@ data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord, Generi
 
 instance Hashable Name
 
-data Id = Id Name Type deriving (Show, Eq, Ord, Read, Generic)
+data Id = Id Name Type deriving (Show, Eq, Read, Generic)
 
 instance Hashable Id
 
@@ -142,7 +142,7 @@ altMatch (Alt am _) = am
 -- | TyBinder is used only in the `TyForAll` and `AlgDataTy`
 data TyBinder = AnonTyBndr Type
               | NamedTyBndr Id
-              deriving (Show, Eq, Ord, Read, Generic)
+              deriving (Show, Eq, Read, Generic)
 
 instance Hashable TyBinder
 
@@ -164,6 +164,6 @@ data Type = TyVar Id
           | TyConApp Name [Type]
           | TyForAll TyBinder Type
           | TyBottom
-          deriving (Show, Eq, Ord, Read, Generic)
+          deriving (Show, Eq, Read, Generic)
 
 instance Hashable Type

@@ -10,17 +10,17 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
 import Data.Coerce
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 import Prelude hiding (lookup)
 
-newtype ApplyTypes = ApplyTypes (M.Map Type (Name, Id))
+newtype ApplyTypes = ApplyTypes (HM.HashMap Type (Name, Id))
                      deriving (Show, Eq, Read)
 
-applyTypesMap :: ApplyTypes -> M.Map Type (Name, Id)
+applyTypesMap :: ApplyTypes -> HM.HashMap Type (Name, Id)
 applyTypesMap = coerce
 
 lookup :: Type -> ApplyTypes -> Maybe (Name, Id)
-lookup t = M.lookup t . applyTypesMap
+lookup t = HM.lookup t . applyTypesMap
 
 applyTypeName :: Type -> ApplyTypes -> Maybe Name
 applyTypeName t = fmap fst . lookup t
@@ -29,13 +29,13 @@ applyTypeFunc :: Type -> ApplyTypes -> Maybe Id
 applyTypeFunc t = fmap snd . lookup t
 
 empty :: ApplyTypes
-empty = ApplyTypes M.empty
+empty = ApplyTypes HM.empty
 
 insert :: Type -> Name -> Id -> ApplyTypes -> ApplyTypes
-insert t name funcName = coerce . M.insert t (name, funcName) . applyTypesMap
+insert t name funcName = coerce . HM.insert t (name, funcName) . applyTypesMap
 
 toList :: ApplyTypes -> [(Type, (Name, Id))]
-toList = M.toList . applyTypesMap
+toList = HM.toList . applyTypesMap
 
 instance Named ApplyTypes where
     names (ApplyTypes m) = names m
