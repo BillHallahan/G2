@@ -123,7 +123,7 @@ createAlgDataTyWalkExpr falg fa fd ng nm tn adt@(AlgDataTy _ _) =
     let
         arg_ty = falg adt
     in
-    mkLamBindings ng arg_ty $ \ng' ids -> createAlgDataTyWalkExpr' fa fd ng' nm tn adt ids
+    mkLamBindings ng arg_ty $ \ng' is -> createAlgDataTyWalkExpr' fa fd ng' nm tn adt is
 
 createAlgDataTyWalkExpr' :: AltFunc a
                         -> DefaultFunc a
@@ -156,12 +156,12 @@ createAlgDataTyWalkAlt ::
     -> [(a, Id)]
     -> ([Alt], NameGen)
 createAlgDataTyWalkAlt _ [] _ ng _ _  = ([], ng)
-createAlgDataTyWalkAlt f (dc@(DataCon _ _ ts):dcs) nm ng i ids =
+createAlgDataTyWalkAlt f (dc@(DataCon _ _ ts):dcs) nm ng i is =
     let
         (arg_ids, ng2) = freshIds ts ng
 
-        (e, ng3) = f dc nm ng2 i arg_ids ids
-        (as, ng4) = createAlgDataTyWalkAlt f dcs nm ng3 i ids
+        (e, ng3) = f dc nm ng2 i arg_ids is
+        (as, ng4) = createAlgDataTyWalkAlt f dcs nm ng3 i is
 
         am = DataAlt dc arg_ids
     in

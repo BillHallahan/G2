@@ -1,9 +1,14 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 -- | Language
 --   Provides the language definition of G2. Should not be confused with Core
 --   Haskell, although design imitates Core Haskell closely.
 module G2.Internals.Language.Syntax
     ( module G2.Internals.Language.Syntax
     ) where
+
+import GHC.Generics (Generic)
+import Data.Hashable
 
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
@@ -20,9 +25,13 @@ type Binds = [(Id, Expr)]
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
-data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord)
+data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord, Generic)
 
-data Id = Id Name Type deriving (Show, Eq, Ord, Read)
+instance Hashable Name
+
+data Id = Id Name Type deriving (Show, Eq, Ord, Read, Generic)
+
+instance Hashable Id
 
 idName :: Id -> Name
 idName (Id name _) = name
@@ -48,7 +57,9 @@ data Expr = Var Id
           | Type Type
           | Assume Expr Expr
           | Assert Expr Expr
-          deriving (Show, Eq, Read)
+          deriving (Show, Eq, Read, Generic)
+
+instance Hashable Expr
 
 -- | Primitives
 -- | These enumerate a set of known, and G2-augmented operations, over wrapped
@@ -71,7 +82,9 @@ data Primitive = Ge
                | Negate
                | Error
                | Undefined
-               deriving (Show, Eq, Read)
+               deriving (Show, Eq, Read, Generic)
+
+instance Hashable Primitive
 
 -- | Literals for denoting unwrapped types such as Int#, Double#. These would
 -- be contained within primitives.
@@ -81,17 +94,23 @@ data Lit = LitInt Int
          | LitChar Char
          | LitString String
          | LitBool Bool
-         deriving (Show, Eq, Read)
+         deriving (Show, Eq, Read, Generic)
+
+instance Hashable Lit
 
 -- | These are used for expressing wrapped data type constructors such as I#.
 -- In the context of these documentations, primitive types refers to the boxed
 -- types `Int`, `Double`, `Float`, `Char`, and `Bool`.
-data PrimCon = I | D | F | C | B deriving (Show, Eq, Read)
+data PrimCon = I | D | F | C | B deriving (Show, Eq, Read, Generic)
+
+instance Hashable PrimCon
 
 -- | Data constructor. We have a special ditinction for primitive types.
 data DataCon = DataCon Name Type [Type]
              | PrimCon PrimCon
-             deriving (Show, Eq, Read)
+             deriving (Show, Eq, Read, Generic)
+
+instance Hashable DataCon
 
 -- | Alternative case constructors, which are done by structural matching,
 -- which is a phrase I invented to describe this. In essence, consider the
@@ -105,13 +124,17 @@ data DataCon = DataCon Name Type [Type]
 data AltMatch = DataAlt DataCon [Id]
               | LitAlt Lit
               | Default
-              deriving (Show, Eq, Read)
+              deriving (Show, Eq, Read, Generic)
+
+instance Hashable AltMatch
 
 -- | Alternatives consist of the consturctor that is used to structurally match
 -- onto them, a list of parameters corresponding to this constructor, which
 -- serve to perform binding in the environment scope. The `Expr` is what is
 -- evaluated provided that the `AltMatch` successfully matches.
-data Alt = Alt AltMatch Expr deriving (Show, Eq, Read)
+data Alt = Alt AltMatch Expr deriving (Show, Eq, Read, Generic)
+
+instance Hashable Alt
 
 altMatch :: Alt -> AltMatch
 altMatch (Alt am _) = am
@@ -119,7 +142,9 @@ altMatch (Alt am _) = am
 -- | TyBinder is used only in the `TyForAll` and `AlgDataTy`
 data TyBinder = AnonTyBndr Type
               | NamedTyBndr Id
-              deriving (Show, Eq, Ord, Read)
+              deriving (Show, Eq, Ord, Read, Generic)
+
+instance Hashable TyBinder
 
 -- | Types are decomposed as follows:
 -- * Type variables correspond to the aliasing of a type
@@ -139,4 +164,6 @@ data Type = TyVar Id
           | TyConApp Name [Type]
           | TyForAll TyBinder Type
           | TyBottom
-          deriving (Show, Eq, Ord, Read)
+          deriving (Show, Eq, Ord, Read, Generic)
+
+instance Hashable Type

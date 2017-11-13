@@ -7,7 +7,7 @@ import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.Stack
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
-import G2.Internals.Execution.Rules
+import G2.Internals.Execution.RuleTypes
 
 import Data.List
 import qualified Data.Map as M

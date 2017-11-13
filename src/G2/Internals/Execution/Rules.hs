@@ -18,7 +18,6 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
-import qualified Data.Map as M
 import Data.Maybe
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
@@ -75,7 +74,9 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
 
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
-    (news, ngen') = freshSeededNames olds ngen
+    (news, ngen') = case mexpr of
+        (Var (Id n _)) -> childrenNames n olds ngen
+        _ -> freshSeededNames olds ngen
 
     --Update the expr environment
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)

@@ -2,6 +2,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
+{-# LANGUAGE DeriveGeneric #-}
+
 module G2.Internals.Language.PathConds ( PathCond (..)
                                        , PathConds
                                        , empty
@@ -18,6 +20,9 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
 import Data.Coerce
+import GHC.Generics (Generic)
+import Data.Hashable
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -32,7 +37,7 @@ import Data.Maybe
 -- You can visualize this as a graph, with Names and Nothing as Nodes
 -- Edges exist in a PathConds pcs netween a name n, and any names in
 -- snd $ M.lookup n (toMap pcs)
-newtype PathConds = PathConds (M.Map (Maybe Name) ([PathCond], [Name]))
+newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
                     deriving (Show, Eq, Read)
 
 -- | Path conditions represent logical constraints on our current execution
@@ -42,9 +47,11 @@ data PathCond = AltCond AltMatch Expr Bool
               | ExtCond Expr Bool
               | ConsCond DataCon Expr Bool
               | PCExists Id
-              deriving (Show, Eq, Read)
+              deriving (Show, Eq, Read, Generic)
 
-toMap :: PathConds -> M.Map (Maybe Name) ([PathCond], [Name])
+instance Hashable PathCond
+
+toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet PathCond, [Name])
 toMap = coerce
 
 empty :: PathConds
@@ -67,11 +74,11 @@ insert p (PathConds pcs) =
             [] -> (Nothing, [Nothing])
             (h:_) -> (Just h, map Just ns)
     in
-    PathConds $ M.adjust (\(p', ns') -> (p:p', ns')) hd
+    PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
               $ foldr (M.alter (insert' ns)) pcs insertAt
 
-insert' :: [Name] -> Maybe ([PathCond], [Name]) -> Maybe ([PathCond], [Name])
-insert' ns Nothing = Just ([], ns)
+insert' :: [Name] -> Maybe (HS.HashSet PathCond, [Name]) -> Maybe (HS.HashSet PathCond, [Name])
+insert' ns Nothing = Just (HS.empty, ns)
 insert' ns (Just (p', ns')) = Just (p', ns ++ ns')
 
 number :: PathConds -> Int
@@ -83,6 +90,7 @@ relevant :: [PathCond] -> PathConds -> PathConds
 relevant pc pcs = scc (concatMap varNamesInPC pc) pcs
 
 varNamesInPC :: PathCond -> [Name]
+varNamesInPC (AltCond _ (Var (Id n _)) _) = [n]
 varNamesInPC (AltCond a e _) = varNamesInAltMatch a ++ varNames e
 varNamesInPC (ExtCond e _) = varNames e
 varNamesInPC (ConsCond _ e _) = varNames e
@@ -102,7 +110,10 @@ varNames' _ = []
 scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
 
-scc' :: [Name] -> (M.Map (Maybe Name) ([PathCond], [Name])) -> (M.Map (Maybe Name) ([PathCond], [Name])) -> (M.Map (Maybe Name) ([PathCond], [Name]))
+scc' :: [Name]
+     -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
+     -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
+     -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
 scc' [] _ pc = pc
 scc' (n:ns) pc newpc =
     -- Check if we already inserted the name information
@@ -116,7 +127,7 @@ scc' (n:ns) pc newpc =
                 Nothing -> scc' ns pc newpc
 
 toList :: PathConds -> [PathCond]
-toList = concatMap fst . M.elems . toMap
+toList = concatMap (HS.toList . fst) . M.elems . toMap
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap

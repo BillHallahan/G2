@@ -20,7 +20,6 @@ import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
-
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
@@ -76,15 +75,21 @@ subVar' _ e = e
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
-checkConstraints con io s = do
+checkConstraints con io s =
+    case PC.toList $ path_conds s of
+        [AltCond (DataAlt _ _) _ _] -> return SAT
+        _ -> checkConstraints' con io s
+
+checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
+checkConstraints' con io s = do
     -- This is to avoid problems with lack of Asserts knocking out states too early
     let s' = if true_assert s then s
               else s {assertions = [ExtCond (Lit (LitBool True)) True]}
 
-    checkConstraints' con io s'
+    checkConstraints'' con io s'
 
-checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
-checkConstraints' con io s = do
+checkConstraints'' :: SMTConverter ast out io -> io -> State -> IO Result
+checkConstraints'' con io s = do
     let s' = filterTEnv . simplifyPrims $ s
 
     let headers = toSMTHeaders s' ([] :: [Expr])

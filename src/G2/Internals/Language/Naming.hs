@@ -25,19 +25,23 @@ module G2.Internals.Language.Naming
     , freshId
     , freshIds
     , freshVar
+
+    ,childrenNames
     ) where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
+import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import Data.List
 import Data.List.Utils
 
 nameOccStr :: Name -> String
 nameOccStr (Name occ _ _) = occ
 
-newtype NameGen = NameGen (HM.HashMap (String, Maybe String) Int)
+data NameGen = NameGen (HM.HashMap (String, Maybe String) Int) (HM.HashMap Name [Name])
                 deriving (Show, Eq, Read)
 
 -- This relies on NameCleaner eliminating all '_', to preserve uniqueness
@@ -58,8 +62,9 @@ strToName str =
 mkNameGen :: Program -> [ProgramType] -> NameGen
 mkNameGen prog progTypes =
     NameGen
-    . foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) HM.empty
-    $ names prog ++ names progTypes
+        (foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) HM.empty
+        $ names prog ++ names progTypes)
+        (HM.empty)
 
 exprNames :: (ASTContainer m Expr) => m -> [Name]
 exprNames = evalASTs exprTopNames
@@ -201,6 +206,11 @@ instance (Foldable f, Functor f, Named a) => Named (f a) where
     names = foldMap names
     rename old new = fmap (rename old new)
 
+instance {-# OVERLAPPING #-}  (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
+    names = names . HS.toList 
+
+    rename old new = HS.map (rename old new)
+
 instance {-# OVERLAPPING #-} (Named a, Named b) => Named (a, b) where
     names (a, b) = names a ++ names b
 
@@ -218,7 +228,7 @@ freshSeededStrings :: [String] -> NameGen -> ([Name], NameGen)
 freshSeededStrings s = freshSeededNames (map (\s' -> Name s' Nothing 0) s)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
-freshSeededName (Name n m _) (NameGen hm) = (Name n m i', NameGen hm')
+freshSeededName (Name n m _) (NameGen hm chm) = (Name n m i', NameGen hm' chm)
   where i' = HM.lookupDefault 0 (n, m) hm
         hm' = HM.insert (n, m) (i' + 1) hm
 
@@ -256,3 +266,18 @@ freshVar t ngen =
         (i, ngen') = freshId t ngen
     in
     (Var i, ngen')
+
+-- Given the name n of a datacon, and some names for it's children,
+-- returns new names ns for the children
+-- Returns a new NameGen that will always return the same ns for that n
+childrenNames :: Name -> [Name] -> NameGen -> ([Name], NameGen)
+childrenNames n ns ng@(NameGen _ chm) =
+    let
+        ens = HM.lookup n chm
+
+        (fns, NameGen hm' chm') = freshSeededNames ns ng
+        chm'' = HM.insert n fns chm'
+    in
+    case ens of
+        Just ns' -> (ns', ng)
+        Nothing -> (fns, NameGen hm' chm'')

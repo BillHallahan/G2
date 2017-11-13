@@ -40,19 +40,19 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
         (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap) =
             runInitialization eenv tenv ng
 
-        (ce, ids, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' ds_walkers
+        (ce, is, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' ds_walkers
 
         eenv'' = checkReaches eenv' m_reaches
     in
     State {
-      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv'' ids
+      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv'' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
-    , path_conds = PC.fromList $ map PCExists ids
+    , path_conds = PC.fromList $ map PCExists is
     , assertions = if useAssert then [] else [trueCond]
     , true_assert = if useAssert then False else True
-    , input_ids = ids
+    , input_ids = is
     , sym_links = Sym.empty
     , func_table = ft
     , deepseq_walkers = ds_walkers
@@ -111,7 +111,7 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
         Left (f, ex) -> 
             let
                 typs = map typeOf $ args ex
-                (var_ids, ids, ng') = mkInputs at ng typs
+                (var_ids, is, ng') = mkInputs at ng typs
                 
                 var_ex = Var f
                 app_ex = foldr (\vi e -> App e vi) var_ex var_ids
@@ -127,7 +127,7 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
                 
                 let_ex = Let [(id_name, strict_app_ex)] assert_ex
             in
-            (let_ex, ids, ng'')
+            (let_ex, is, ng'')
         Right s' -> error s'
 
 checkReaches :: ExprEnv -> Maybe String -> ExprEnv
@@ -185,9 +185,9 @@ run con hhp n state = do
 
     let preproc_state = runPreprocessing state
 
-    (_, m) <- checkModel con hhp preproc_state
+    (_, mdl) <- checkModel con hhp preproc_state
 
-    let preproc_state' = preproc_state {model = fromJust m}
+    let preproc_state' = preproc_state {model = fromJust mdl}
 
     -- putStrLn . pprExecStateStr $ preproc_state
 
@@ -195,27 +195,32 @@ run con hhp n state = do
 
     let ident_states = filter (isExecValueForm . snd) exec_states
 
-    -- putStrLn $ "states: " ++ (show $ length ident_state)
+    -- putStrLn $ "states: " ++ (show $ length ident_states)
     -- mapM_ (\(rs, st) -> do
     -- --     putStrLn $ show rs
     --     -- putStrLn $ pprExecStateStr st
     --     -- print $ expr_env st
     --     print $ curr_expr st
-    --     print $ true_assert st
-    --     -- print $ path_conds st
+    --     -- print $ true_assert st
+    --     putStrLn . pprPathsStr . PC.toList $ path_conds st
+    --     print $ E.symbolicKeys $ expr_env st
     --     -- print $ input_ids st
     --     -- print $ model st
-    --     ) ident_state
+    --     putStrLn "----"
+    --     ) ident_states
 
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
-    ident_states' <- mapM (\(r, s) -> do
-        (_, m) <- checkModel con hhp s
-        return (r, s {model = maybe M.empty id m})
-        ) ident_states
+    ident_states' <- 
+        mapM (\(r, s) -> do
+            (_, m) <- checkModel con hhp s
+            return . fmap (\m' -> (r, s {model = m'})) $ m
+            ) $ ident_states
+
+    let ident_states'' = catMaybes ident_states'
 
     let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) 
-           $ filter (true_assert . snd) ident_states' 
+           $ filter (true_assert . snd) ident_states''
 
     let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm
 

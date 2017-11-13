@@ -9,6 +9,9 @@ module G2.Internals.Language.AST
 
 import G2.Internals.Language.Syntax
 
+import Data.Hashable
+import qualified Data.HashSet as HS
+
 -- | Describes the data types that can be represented in a tree format.
 class AST t where
     -- | Gets the direct children of the given node.
@@ -251,10 +254,15 @@ instance ASTContainer TyBinder Type where
     modifyContainedASTs f (AnonTyBndr t) = AnonTyBndr (f t)
     modifyContainedASTs f (NamedTyBndr i) = NamedTyBndr (modifyContainedASTs f i)
 
-instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
+instance {-# OVERLAPPING #-} (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance {-# OVERLAPPING #-} (ASTContainer s t, Hashable s, Eq s) => ASTContainer (HS.HashSet s) t where
+    containedASTs = containedASTs . HS.toList 
+
+    modifyContainedASTs f = HS.map (modifyContainedASTs f)
 
 instance {-# OVERLAPPING #-} (ASTContainer c t, ASTContainer d t) => ASTContainer (c, d) t where
     containedASTs (x, y) = containedASTs x ++ containedASTs y

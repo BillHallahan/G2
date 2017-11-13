@@ -6,8 +6,6 @@ import G2.Internals.Language.AST
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
 
-import Debug.Trace
-
 evalPrims :: Expr -> Expr
 evalPrims a@(App x y) =
     case unApp a of
