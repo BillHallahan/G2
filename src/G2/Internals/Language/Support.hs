@@ -4,6 +4,7 @@
 module G2.Internals.Language.Support
     ( module G2.Internals.Language.AST
     , module G2.Internals.Language.Support
+    , module G2.Internals.Language.TypeEnv
     , PathCond (..)
     , AT.ApplyTypes
     , E.ExprEnv
@@ -17,6 +18,7 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Stack
 import G2.Internals.Language.SymLinks hiding (filter, map)
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.TypeEnv
 import G2.Internals.Language.PathConds
 
 import qualified Data.Map as M
@@ -44,26 +46,6 @@ data State = State { expr_env :: E.ExprEnv
 -- | The InputIds are a list of the variable names passed as input to the
 -- function being symbolically executed
 type InputIds = [Id]
-
--- | Type environments map names of types to their appropriate types. However
--- our primary interest with these is for dealing with algebraic data types,
--- and we only store those information accordingly.
-type TypeEnv = M.Map Name AlgDataTy
-
--- Returns a list of all argument function types in the type env
-argTypesTEnv :: TypeEnv -> [Type]
-argTypesTEnv = concatMap (evalASTs argTypesTEnv') . M.elems
-
-argTypesTEnv' :: Type -> [Type]
-argTypesTEnv' t@(TyFun _ _) = [t]
-argTypesTEnv' _ = []
-
--- | Algebraic data types are types constructed with parametrization of some
--- names over types, and a list of data constructors for said type.
-data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
-
-isPolyAlgDataTy :: AlgDataTy -> Bool
-isPolyAlgDataTy (AlgDataTy ns _) = not $ null ns
 
 -- | `CurrExpr` is the current expression we have. We are either evaluating it, or
 -- it is in some terminal form that is simply returned. Technically we do not
@@ -202,14 +184,6 @@ instance ASTContainer State Type where
                                 , wrappers = modifyContainedASTs f $ wrappers s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s }
 
-instance ASTContainer AlgDataTy Expr where
-    containedASTs _ = []
-    modifyContainedASTs _ a = a
-
-instance ASTContainer AlgDataTy Type where
-    containedASTs (AlgDataTy _ dcs) = containedASTs dcs
-    modifyContainedASTs f (AlgDataTy ns dcs) = AlgDataTy ns (modifyContainedASTs f dcs)
-
 instance ASTContainer CurrExpr Expr where
     containedASTs (CurrExpr _ e) = [e]
     modifyContainedASTs f (CurrExpr er e) = CurrExpr er (f e)
@@ -217,11 +191,6 @@ instance ASTContainer CurrExpr Expr where
 instance ASTContainer CurrExpr Type where
     containedASTs (CurrExpr _ e) = containedASTs e
     modifyContainedASTs f (CurrExpr er e) = CurrExpr er (modifyContainedASTs f e)
-
-instance ASTContainer AlgDataTy DataCon where
-    containedASTs (AlgDataTy _ dcs) = dcs
-
-    modifyContainedASTs f (AlgDataTy ns dcs) = AlgDataTy ns (modifyContainedASTs f dcs)
 
 instance ASTContainer Frame Expr where
     containedASTs (CaseFrame _ a) = containedASTs a
@@ -249,11 +218,6 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssertFrame e) = AssertFrame (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
-
-instance Named AlgDataTy where
-    names (AlgDataTy _ dc) = names dc
-
-    rename old new (AlgDataTy n dc) = AlgDataTy (rename old new n) (rename old new dc)
 
 instance Named CurrExpr where
     names (CurrExpr _ e) = names e

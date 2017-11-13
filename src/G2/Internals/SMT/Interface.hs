@@ -20,6 +20,8 @@ import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
+import G2.Lib.Printers
+
 -- | satModelOutput
 -- Given an smt converter and a list of states, checks if each of
 -- those that match the criteria of smtReady is satisfiable.
@@ -75,10 +77,21 @@ subVar' _ e = e
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
-checkConstraints con io s =
-    case PC.toList $ path_conds s of
-        [AltCond (DataAlt _ _) _ _] -> return SAT
-        _ -> checkConstraints' con io s
+checkConstraints con io s = do
+    case PC.checkConsistency (type_env s) (path_conds s) of
+        Just True ->
+            -- do
+            -- putStrLn "True"
+            return SAT
+        Just False ->
+            -- do
+            -- putStrLn "False"
+            return UNSAT
+        _ ->
+            -- do
+            -- putStrLn $ pprPathsStr . PC.toList $ path_conds s
+            -- putStrLn "---"
+            checkConstraints' con io s
 
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints' con io s = do
