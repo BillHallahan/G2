@@ -146,6 +146,14 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
                 , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "eq" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
                 , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+
+                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/NewTypes/Age.hs" 400 Nothing Nothing "born" 1 [ Exactly 1
+                                                                                                                                , RForAll (\[x] -> dcInAppHasName "Age" x 1)
+                                                                                                                                , RForAll (\[x] -> appNthArgIs x ((==) (Lit (LitInt 0))) 1)]
+                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/NewTypes/Age.hs" 400 Nothing Nothing "yearPasses" 2 [ AtLeast 1
+                                                                                                                                      , RForAll (\[x, y] -> dcInAppHasName "Age" x 1 && dcInAppHasName "Age" y 1)]
+                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/NewTypes/Age.hs" 400 Nothing Nothing "age" 2 [ AtLeast 1
+                                                                                                                               , RForAll (\[x, y] -> dcInAppHasName "Age" x 1 && isInt y)]
         ]
 
 

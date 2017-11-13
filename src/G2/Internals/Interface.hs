@@ -105,12 +105,17 @@ addHigherOrderWrappers s@(State { expr_env = eenv, wrappers = w }) f fw argN =
     in
     s {expr_env = E.insert f e' eenv}
 
+argTys :: Type -> [Type]
+argTys (TyForAll (AnonTyBndr t) t') = t:argTys t
+argTys (TyFun t t') = t:argTys t'
+argTys _ = []
+
 mkCurrExpr :: Maybe String -> Maybe String -> String -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> (Expr, [Id], NameGen)
 mkCurrExpr m_assume m_assert s at ng eenv walkers =
     case findFunc s eenv of
         Left (f, ex) -> 
             let
-                typs = map typeOf $ args ex
+                typs = argTys $ typeOf ex
                 (var_ids, is, ng') = mkInputs at ng typs
                 
                 var_ex = Var f

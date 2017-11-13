@@ -173,7 +173,8 @@ mkType (TyConApp tc ts) = if not (isFunTyCon tc)
 mkTyCon :: TyCon -> G2.ProgramType
 mkTyCon t = (mkName . tyConName $ t, [], map mkData dc)
   where 
-    dc = if isDataTyCon t then data_cons . algTyConRhs $ t else []
+    dc = if isDataTyCon t then data_cons . algTyConRhs $ t else
+         if isNewTyCon t then [data_con . algTyConRhs $ t] else []
 
 mkTyConName :: TyCon -> G2.Name
 mkTyConName = mkName . tyConName

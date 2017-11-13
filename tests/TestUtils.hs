@@ -27,3 +27,17 @@ dataConHasName _ _ = False
 isBool :: Expr -> Bool
 isBool (Lit (LitBool _)) = True
 isBool _ = False
+
+dcInAppHasName :: String -> Expr -> Int -> Bool
+dcInAppHasName s (Data (DataCon (Name n _ _) _ _)) 0 = s == n
+dcInAppHasName s (App a _) n = dcInAppHasName s a (n - 1)
+dcInAppHasName _ _ _ = False
+
+appNthArgIs :: Expr -> (Expr -> Bool) -> Int -> Bool
+appNthArgIs (App _ a) f 1 = f a
+appNthArgIs (App a _) f n = appNthArgIs a f (n - 1)
+appNthArgIs _ _ _ = False
+
+isInt :: Expr -> Bool
+isInt (Lit (LitInt _)) = True
+isInt _ = False
