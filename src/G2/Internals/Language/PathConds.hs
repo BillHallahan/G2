@@ -89,9 +89,17 @@ number = length . toList
 -- | Filters a PathConds to only those PathCond's that potentially impact the
 -- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
 relevant :: [PathCond] -> PathConds -> PathConds
-relevant pc pcs = scc (concatMap varNamesInPC pc) pcs
+relevant pc = scc (concatMap varNamesInPC pc)
 
 varNamesInPC :: PathCond -> [Name]
+-- [AltCond]
+-- Optimization
+-- When we have an AltCond with a Var expr, we only have to look at
+-- other PC's with that Var's name.  This is because we assign all
+-- DCs from the same part in a DC tree the same name, and a DC's
+-- parents/children can't impose restrictions on it.  We are completely
+-- guided by pattern matching from case statements.
+-- See note [ChildrenNames] in Execution/Rules.hs
 varNamesInPC (AltCond _ (Var (Id n _)) _) = [n]
 varNamesInPC (AltCond a e _) = varNamesInAltMatch a ++ varNames e
 varNamesInPC (ExtCond e _) = varNames e
@@ -163,8 +171,6 @@ checkConsistency' tenv pc =
         adt = maybe Nothing (\n' -> M.lookup n' tenv) n
     in
     maybe Nothing (\(AlgDataTy _ dc) -> checkConsistency'' dc pc) adt
-checkConsistency' _ [AltCond _ (Var _) _] = Just True
-checkConsistency' tenv pc = Nothing
 
 checkConsistency'' :: [DataCon] -> [PathCond] -> Maybe Bool
 checkConsistency'' dcs ((AltCond (DataAlt dc _) _ True):pc) =
@@ -175,7 +181,7 @@ checkConsistency'' dcs ((ConsCond dc _ True):pc) =
     checkConsistency'' (filter ((==) (dcName dc) . dcName) dcs) pc
 checkConsistency'' dcs ((ConsCond  dc _ False):pc) =
     checkConsistency'' (filter ((/=) (dcName dc) . dcName) dcs) pc
-checkConsistency'' dcs _ = Just . not $ null dcs
+checkConsistency'' dcs [] = Just . not $ null dcs
 checkConsistency'' _ _ = Nothing
 
 toList :: PathConds -> [PathCond]

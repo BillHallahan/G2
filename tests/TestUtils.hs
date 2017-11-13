@@ -23,3 +23,7 @@ eqIgNames (Name n m _) (Name n' m' _) = n == n' && m == m'
 dataConHasName :: String -> Expr -> Bool
 dataConHasName s (Data (DataCon (Name n _ _) _ _)) = s == n
 dataConHasName _ _ = False
+
+isBool :: Expr -> Bool
+isBool (Lit (LitBool _)) = True
+isBool _ = False

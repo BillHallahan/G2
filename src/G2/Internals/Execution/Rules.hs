@@ -74,9 +74,17 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
 
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
+    -- [ChildrenNames]
+    -- Optimization
+    -- We use the same names repeatedly for the children of the same ADT
+    -- Haskell is purely functional, so this is OK!  The children can't change
+    -- Then, in the constraint solver, we can consider fewer constraints at once
+    -- (see note [AltCond] in Language/PathConds.hs) 
     (news, ngen') = case mexpr of
         (Var (Id n _)) -> childrenNames n olds ngen
         _ -> freshSeededNames olds ngen
+
+    -- (news, ngen') = freshSeededNames olds ngen
 
     --Update the expr environment
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)

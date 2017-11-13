@@ -141,6 +141,11 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultiSplit.hs" 400 (Just "equals1") Nothing "f" 3 [Exactly 0]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MatchesFunc1.hs" 400 Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), Lit (LitInt y)] -> y == 6 + x), AtLeast 1]
+
+                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "eq" 3 [AtLeast  2, RForAll (\[_, _, x] -> isBool x)]
+                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "eq" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
         ]
 
 
