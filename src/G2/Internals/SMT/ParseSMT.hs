@@ -21,7 +21,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["let", "-"]}
+             , Token.reservedNames = ["let", "-", "/"]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
@@ -51,7 +51,7 @@ smtParser :: Parser SMTAST
 smtParser = whiteSpace >> sExpr
 
 sExpr :: Parser SMTAST
-sExpr = parens sExpr <|> letExpr <|> consExpr <|> try doubleFloatExpr <|> intExpr
+sExpr = parens sExpr <|> letExpr <|> consExpr <|> try doubleFloatExprRat <|> try doubleFloatExprDec <|> intExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -83,14 +83,29 @@ intExpr = do
         Just _ -> return (VInt (-i))
         Nothing -> return (VInt i)
 
-doubleFloatExpr :: Parser SMTAST
-doubleFloatExpr = do
+doubleFloatExprRat :: Parser SMTAST
+doubleFloatExprRat = do
+    s <- optionMaybe (reserved "/")
+    f <- doubleFloat
+    f' <- doubleFloat
+    let r = approxRational (f / f') (0.00001)
+    case s of 
+        Just _ -> return (VDouble r)
+        Nothing -> return (VDouble r)
+
+doubleFloatExprDec :: Parser SMTAST
+doubleFloatExprDec = do
+    r <- doubleFloat
+    return (VDouble r)
+
+doubleFloat :: Parser Rational
+doubleFloat = do
     s <- optionMaybe (reserved "-")
     f <- floatT
     let r = approxRational f (0.00001)
     case s of 
-        Just _ -> return (VDouble (-r))
-        Nothing -> return (VDouble r)
+        Just _ -> return (-r)
+        Nothing -> return r
 
 parseSMT :: String -> SMTAST
 parseSMT s = case parse smtParser s s of
