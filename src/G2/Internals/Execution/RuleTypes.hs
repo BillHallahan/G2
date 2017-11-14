@@ -6,23 +6,38 @@ module G2.Internals.Execution.RuleTypes where
 import G2.Internals.Language.AST
 
 data Rule = RuleEvalVal
-          | RuleEvalVarNonVal | RuleEvalVarVal
+          | RuleEvalVarNonVal
+          | RuleEvalVarVal
           | RuleEvalUnInt
           | RuleEvalApp
+
           | RuleEvalPrimAlreadyNorm
           | RuleEvalPrimToNorm
+
           | RuleEvalLet
-          | RuleEvalCaseData | RuleEvalCaseLit | RuleEvalCaseDefault
-                             | RuleEvalCaseSym | RuleEvalCasePrim
-                             | RuleEvalCaseNonVal
-          | RuleEvalAssume | RuleEvalAssert
 
-          | RuleReturnEUpdateVar | RuleReturnEUpdateNonVar
+          | RuleEvalCaseData
+          | RuleEvalCaseLit
+          | RuleEvalCaseDefault
+          | RuleEvalCaseSym
+          | RuleEvalCasePrim
+          | RuleEvalCaseNonVal
+
+          | RuleEvalAssume
+          | RuleEvalAssert
+
+          | RuleReturnEUpdateVar
+          | RuleReturnEUpdateNonVar
+
           | RuleReturnECase
-          | RuleReturnEApplyLam | RuleReturnEApplyData
-                                | RuleReturnEApplySym
 
-          | RuleReturnCAssume | RuleReturnCAssert
+          | RuleReturnEApplyLamExpr
+          | RuleReturnEApplyLamType 
+          | RuleReturnEApplyData
+          | RuleReturnEApplySym
+
+          | RuleReturnCAssume
+          | RuleReturnCAssert
 
           | RuleIdentity
 
