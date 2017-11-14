@@ -8,6 +8,7 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
+import Data.Maybe
 
 -- | Type environments map names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
@@ -28,6 +29,33 @@ data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
 
 isPolyAlgDataTy :: AlgDataTy -> Bool
 isPolyAlgDataTy (AlgDataTy ns _) = not $ null ns
+
+getDataCons :: Name -> TypeEnv -> Maybe [DataCon]
+getDataCons n tenv =
+    case M.lookup n tenv of
+        Just (AlgDataTy _ dc) -> Just dc
+        Nothing -> Nothing
+
+baseDataCons :: [DataCon] -> [DataCon]
+baseDataCons = filter baseDataCon
+
+baseDataCon :: DataCon -> Bool
+baseDataCon (DataCon _ _ (_:_)) = False
+baseDataCon _ = True
+
+getDataCon :: TypeEnv -> Name -> Name -> Maybe DataCon
+getDataCon tenv adt dc =
+    let
+        adt' = M.lookup adt tenv
+    in
+    maybe Nothing (flip dataConWithName dc) adt'
+    
+dataConWithName :: AlgDataTy -> Name -> Maybe DataCon
+dataConWithName (AlgDataTy _ dcs) n = listToMaybe $ filter (flip dataConHasName n) dcs
+
+dataConHasName :: DataCon -> Name -> Bool
+dataConHasName (DataCon n _ _) n' = n == n'
+dataConHasName _ _ = False
 
 instance ASTContainer AlgDataTy Expr where
     containedASTs _ = []
