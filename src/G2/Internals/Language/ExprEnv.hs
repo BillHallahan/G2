@@ -20,6 +20,7 @@ module G2.Internals.Language.ExprEnv
     , mapWithKey
     , filter
     , filterWithKey
+    , filterToSymbolic
     , funcsOfType
     , keys
     , symbolicKeys
@@ -155,6 +156,9 @@ filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
         p' n (RedirObj n') = p n (env ! n')
         p' n (ExprObj e) = p n e
         p' n (SymbObj i) = p n (Var i)
+
+filterToSymbolic :: ExprEnv -> ExprEnv
+filterToSymbolic eenv = filterWithKey (\n _ -> isSymbolic n eenv) eenv
 
 -- | funcsOfType
 -- Returns the names of all expressions with the given type in the expression environment

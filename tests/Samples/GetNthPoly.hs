@@ -4,6 +4,16 @@ import Prelude hiding (length)
 
 data CList a = Cons a (CList a) | Nil
 
+data X = X
+
+data Peano = Succ Peano | Zero
+
+getNthX :: CList X -> Int -> X
+getNthX x y = getNth x y
+
+getNthPeano :: CList Peano -> Int -> Peano
+getNthPeano x y = getNth x y
+
 getNthInt :: CList Int -> Int -> Int
 getNthInt x y = getNth x y
 

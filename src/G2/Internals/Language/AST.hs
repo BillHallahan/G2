@@ -117,6 +117,8 @@ instance AST Expr where
     children (Lam _ e) = [e]
     children (Let bind e) = e : containedASTs bind
     children (Case m _ as) = m : map (\(Alt _ e) -> e) as
+    children (Cast e _) = children e
+    children (Coercion _) = []
     children (Type _) = []
     children (Assume e e') = [e, e']
     children (Assert e e') = [e, e']
@@ -128,6 +130,7 @@ instance AST Expr where
       where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
         mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
+    modifyChildren f (Cast e c) = Cast (modifyChildren f e) c
     modifyChildren f (Assume e e') = Assume (f e) (f e')
     modifyChildren f (Assert e e') = Assert (f e) (f e')
     modifyChildren _ e = e
@@ -170,6 +173,8 @@ instance ASTContainer Expr Type where
             go (Lam b e) = containedASTs b ++ containedASTs e
             go (Let bnd e) = containedASTs bnd ++ containedASTs e
             go (Case e i as) = containedASTs e ++ containedASTs i ++ containedASTs as
+            go (Cast e c) = containedASTs e ++ containedASTs c
+            go (Coercion c) = containedASTs c
             go (Type t) = [t]
             go (Assume e e') = containedASTs e ++ containedASTs e'
             go (Assert e e') = containedASTs e ++ containedASTs e'
@@ -186,6 +191,8 @@ instance ASTContainer Expr Type where
             go (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
             go (Case m i as) = Case (modifyContainedASTs f m) (modifyContainedASTs f i) (modifyContainedASTs f as) 
             go (Type t) = Type (f t)
+            go (Cast e c) = Cast (modifyContainedASTs f e) (modifyContainedASTs f c)
+            go (Coercion c) = Coercion (modifyContainedASTs f c)
             go (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
             go (Assert e e') = Assert (modifyContainedASTs f e) (modifyContainedASTs f e')
             go e = e
@@ -253,6 +260,14 @@ instance ASTContainer TyBinder Type where
 
     modifyContainedASTs f (AnonTyBndr t) = AnonTyBndr (f t)
     modifyContainedASTs f (NamedTyBndr i) = NamedTyBndr (modifyContainedASTs f i)
+
+instance ASTContainer Coercion Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ c = c
+
+instance ASTContainer Coercion Type where
+    containedASTs (t :~ t') = [t, t']
+    modifyContainedASTs f (t :~ t') = f t :~ f t'
 
 instance {-# OVERLAPPING #-} (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)

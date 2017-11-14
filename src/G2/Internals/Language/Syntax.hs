@@ -55,6 +55,8 @@ data Expr = Var Id
           | Let Binds Expr
           | Case Expr Id [Alt]
           | Type Type
+          | Cast Expr Coercion
+          | Coercion Coercion
           | Assume Expr Expr
           | Assert Expr Expr
           deriving (Show, Eq, Read, Generic)
@@ -145,6 +147,10 @@ data TyBinder = AnonTyBndr Type
               deriving (Show, Eq, Read, Generic)
 
 instance Hashable TyBinder
+
+data Coercion = Type :~ Type deriving (Eq, Show, Read, Generic)
+
+instance Hashable Coercion
 
 -- | Types are decomposed as follows:
 -- * Type variables correspond to the aliasing of a type

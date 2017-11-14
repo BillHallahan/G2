@@ -9,6 +9,7 @@ module G2.Internals.Language.Typing
     , hasFuncType
     , appendType
     , higherOrderFuncs
+    , isAlgDataTy
     , isPolyFunc
     , returnType
     , polyIds
@@ -103,6 +104,8 @@ instance Typed Expr where
     typeOf' m (Case _ _ (a:_)) = typeOf' m a
     typeOf' _ (Case _ _ _) = TyBottom
     typeOf' _ (Type ty) = ty
+    typeOf' _ (Cast _ (_ :~ t')) = t'
+    typeOf' _ (Coercion (_ :~ t')) = t'
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
 
@@ -191,6 +194,14 @@ higherOrderFuncs' = eval higherOrderFuncs''
 higherOrderFuncs'' :: Type -> [Type]
 higherOrderFuncs'' (TyFun t@(TyFun _ _) _) = [t]
 higherOrderFuncs'' _ = []
+
+-- | isAlgDataTy
+isAlgDataTy :: Typed t => t -> Bool
+isAlgDataTy = isAlgDataTy' . typeOf
+
+isAlgDataTy' :: Type -> Bool
+isAlgDataTy' (TyConApp _ _) = True
+isAlgDataTy' _ = False
 
 -- | isPolyFunc
 -- Checks if the given function is a polymorphic function

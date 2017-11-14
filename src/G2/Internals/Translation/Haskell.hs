@@ -11,6 +11,7 @@ module G2.Internals.Translation.Haskell
 
 import qualified G2.Internals.Language as G2
 
+import Coercion
 import CoreSyn
 import DataCon
 import GHC
@@ -20,6 +21,7 @@ import HscTypes
 import Literal
 import Name
 import Outputable
+import Pair
 import TidyPgm
 import TyCon
 import TyCoRep
@@ -91,10 +93,10 @@ mkExpr (App fxpr axpr) = G2.App (mkExpr fxpr) (mkExpr axpr)
 mkExpr (Lam var expr) = G2.Lam (mkId var) (mkExpr expr)
 mkExpr (Let bnd expr) = G2.Let (mkBind bnd) (mkExpr expr)
 mkExpr (Case mxpr var _ alts) = G2.Case (mkExpr mxpr) (mkId var) (mkAlts alts)
-mkExpr (Cast expr _) = mkExpr expr
+mkExpr (Cast expr c) =  G2.Cast (mkExpr expr) (mkCoercion c)
+mkExpr (Coercion c) = G2.Coercion (mkCoercion c)
 mkExpr (Tick _ expr) = mkExpr expr
 mkExpr (Type ty) = G2.Type (mkType ty)
-mkExpr (Coercion _) = error "mkExpr: Coercion"
 
 mkId :: Id -> G2.Id
 mkId vid = G2.Id ((mkName . V.varName) vid) ((mkType . varType) vid)
@@ -161,7 +163,7 @@ mkType (TyVarTy v) = G2.TyVar $ mkId v-- (mkName (V.varName v)) (mkType (varType
 mkType (AppTy t1 t2) = G2.TyApp (mkType t1) (mkType t2)
 mkType (ForAllTy (Anon t) ty) = G2.TyFun (mkType t) (mkType ty)
 mkType (ForAllTy b ty) = G2.TyForAll (mkTyBinder b) (mkType ty)
-mkType (LitTy _) = error "mkType: LitTy"
+mkType (LitTy _) = G2.TyBottom
 mkType (CastTy _ _) = error "mkType: CastTy"
 mkType (CoercionTy _) = error "mkType: Coercion"
 mkType (TyConApp tc ts) = if not (isFunTyCon tc)
@@ -218,3 +220,9 @@ mkPrims prims = runGhc (Just libdir) $ do
     let vars = map fst $ concatMap mkBinds (cm_binds core)
     return $ map (\v -> (G2.idName v, G2.typeOf v)) vars
 
+mkCoercion :: Coercion -> G2.Coercion
+mkCoercion c =
+    let
+        k = fmap mkType $ coercionKind c
+    in
+    (pFst k) G2.:~ (pSnd k)

@@ -9,10 +9,12 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , empty
                                        , fromList
                                        , insert
+                                       , null
                                        , number
                                        , relevant
                                        , scc
                                        , checkConsistency
+                                       , findConsistent
                                        , toList) where
 
 import G2.Internals.Language.AST
@@ -27,6 +29,8 @@ import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
+import Prelude hiding (null)
+import qualified Prelude as Pre
 
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
 --
@@ -86,6 +90,9 @@ insert' ns (Just (p', ns')) = Just (p', ns ++ ns')
 number :: PathConds -> Int
 number = length . toList
 
+null :: PathConds -> Bool
+null = M.null . toMap
+
 -- | Filters a PathConds to only those PathCond's that potentially impact the
 -- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
 relevant :: [PathCond] -> PathConds -> PathConds
@@ -100,7 +107,7 @@ varNamesInPC :: PathCond -> [Name]
 -- parents/children can't impose restrictions on it.  We are completely
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
-varNamesInPC (AltCond _ (Var (Id n _)) _) = [n]
+varNamesInPC (AltCond (DataAlt (DataCon _ _ _) _) (Var (Id n _)) _) = [n]
 varNamesInPC (AltCond a e _) = varNamesInAltMatch a ++ varNames e
 varNamesInPC (ExtCond e _) = varNames e
 varNamesInPC (ConsCond _ e _) = varNames e
@@ -137,17 +144,13 @@ scc' (n:ns) pc newpc =
                 Nothing -> scc' ns pc newpc
 
 isExtCond :: PathCond -> Bool
-isExtCond (ExtCond _ _) = False
-isExtCond _ = True
+isExtCond (ExtCond _ _) = True
+isExtCond _ = False
 
 pcVarType :: [PathCond] -> Maybe Name
 pcVarType (AltCond _ (Var (Id _ (TyConApp n _))) _:pc) = pcVarType' n pc
 pcVarType (ConsCond _ (Var (Id _ (TyConApp n _))) _:pc) = pcVarType' n pc
 pcVarType _ = Nothing
-
-dcName :: DataCon -> Name
-dcName (DataCon n _ _) = n
-dcName _ = error "Invalid DataCon in dcName"
 
 pcVarType' :: Name -> [PathCond] -> Maybe Name
 pcVarType' n (AltCond _ (Var (Id _ (TyConApp n' _))) _:pc) =
@@ -157,32 +160,39 @@ pcVarType' n (ConsCond _ (Var (Id _ (TyConApp n' _))) _:pc) =
 pcVarType' n [] = Just n
 pcVarType' _ _ = Nothing
 
+dcName :: DataCon -> Name
+dcName (DataCon n _ _) = n
+dcName _ = error "Invalid DataCon in dcName"
+
 checkConsistency :: TypeEnv -> PathConds -> Maybe Bool
-checkConsistency tenv pc =
+checkConsistency tenv pc = maybe Nothing (Just . not . Pre.null) $ findConsistent tenv pc
+
+findConsistent :: TypeEnv -> PathConds -> Maybe [DataCon]
+findConsistent tenv pc =
     let
         pc' = toList pc
     in
-    if all (not . isExtCond) pc' then Nothing else checkConsistency' tenv pc'
+    if any isExtCond pc' then Nothing else findConsistent' tenv pc'
 
-checkConsistency' :: TypeEnv -> [PathCond] -> Maybe Bool
-checkConsistency' tenv pc =
+findConsistent' :: TypeEnv -> [PathCond] -> Maybe [DataCon]
+findConsistent' tenv pc =
     let
         n = pcVarType pc
         adt = maybe Nothing (\n' -> M.lookup n' tenv) n
     in
-    maybe Nothing (\(AlgDataTy _ dc) -> checkConsistency'' dc pc) adt
+    maybe Nothing (\(AlgDataTy _ dc) -> findConsistent'' dc pc) adt
 
-checkConsistency'' :: [DataCon] -> [PathCond] -> Maybe Bool
-checkConsistency'' dcs ((AltCond (DataAlt dc _) _ True):pc) =
-    checkConsistency'' (filter ((==) (dcName dc) . dcName) dcs) pc
-checkConsistency'' dcs ((AltCond (DataAlt dc _) _ False):pc) =
-    checkConsistency'' (filter ((/=) (dcName dc) . dcName) dcs) pc
-checkConsistency'' dcs ((ConsCond dc _ True):pc) =
-    checkConsistency'' (filter ((==) (dcName dc) . dcName) dcs) pc
-checkConsistency'' dcs ((ConsCond  dc _ False):pc) =
-    checkConsistency'' (filter ((/=) (dcName dc) . dcName) dcs) pc
-checkConsistency'' dcs [] = Just . not $ null dcs
-checkConsistency'' _ _ = Nothing
+findConsistent'' :: [DataCon] -> [PathCond] -> Maybe [DataCon]
+findConsistent'' dcs ((AltCond (DataAlt dc _) _ True):pc) =
+    findConsistent'' (filter ((==) (dcName dc) . dcName) dcs) pc
+findConsistent'' dcs ((AltCond (DataAlt dc _) _ False):pc) =
+    findConsistent'' (filter ((/=) (dcName dc) . dcName) dcs) pc
+findConsistent'' dcs ((ConsCond dc _ True):pc) =
+    findConsistent'' (filter ((==) (dcName dc) . dcName) dcs) pc
+findConsistent'' dcs ((ConsCond  dc _ False):pc) =
+    findConsistent'' (filter ((/=) (dcName dc) . dcName) dcs) pc
+findConsistent'' dcs [] = Just dcs
+findConsistent'' _ _ = Nothing
 
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap
