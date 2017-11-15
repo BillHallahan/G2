@@ -124,12 +124,15 @@ instance Typed Type where
     typeOf' m (TyFun t t') = TyFun (typeOf' m t) (typeOf' m t')
     typeOf' _ t = t
 
-retype :: ASTContainer m Type => Type -> Type -> m -> m
-retype old new = modifyContainedASTs (retype' old new)
+-- | Retyping
+-- We look to see if the type we potentially replace has a TyVar whose Id is a
+-- match on the target key that we want to replace.
+retype :: ASTContainer m Type => Id -> Type -> m -> m
+retype key new = modifyContainedASTs (retype' key new)
 
-retype' :: Type -> Type -> Type -> Type
-retype' old new (TyVar (Id n t)) = if old == t then new else TyVar $ Id n (retype' old new t)
-retype' old new t = modifyChildren (retype' old new) t
+retype' :: Id -> Type -> Type -> Type
+retype' key new (TyVar test) = if key == test then new else TyVar test
+retype' key new ty = modifyChildren (retype key new) ty
 
 -- | (.::)
 -- Returns if the first type given is a specialization of the second,

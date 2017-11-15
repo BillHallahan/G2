@@ -533,21 +533,28 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
     , CurrExpr Evaluate (Case expr cvar alts)
     , ngen))
 
+-- In the event that our Lam parameter is a type variable, we have to handle
+-- it by retyping.
+reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame aexpr) =
+  let argty = typeOf aexpr
+      binds = [(Id n argty, aexpr)]
+      lexpr' = retype a argty lexpr
+      (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
+  in ( RuleReturnEApplyLamType
+     , ( eenv'
+       , CurrExpr Evaluate lexpr''
+       , ngen'))
+
 -- When we have an `ApplyFrame` on the top of the stack, things might get a
 -- bit tricky, since we need to make sure that the thing we end up returning
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
-  let oldty = typeOf b
-      newty = typeOf aexpr
-      (binds, lexpr') = if oldty == newty
-        then ([(b, aexpr)], lexpr)
-        else
-        ([(retype oldty newty b, aexpr)], retype oldty newty lexpr)
-      (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
-  in ( RuleReturnEApplyLam
+  let binds = [(b, aexpr)]
+      (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
+  in ( RuleReturnEApplyLamExpr
      , ( eenv'
-       , CurrExpr Evaluate lexpr''
+       , CurrExpr Evaluate lexpr'
        , ngen'))
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name

@@ -43,4 +43,3 @@ parseCabal cabal_file = do
   gen_desc <- readPackageDescription normal cabal_file
   return (pkgIdent gen_desc, pkgLibDeps gen_desc)
 
-
