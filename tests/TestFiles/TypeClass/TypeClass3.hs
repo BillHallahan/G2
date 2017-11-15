@@ -16,4 +16,5 @@ instance Test [a] where
     bar s1 s2 s3 = s1 ++ s3 ++ s2
 
 f :: Int -> Int
-f x = test x (bar 1 2 x)
+f x = test (x + 5) (bar 1 2 x)
+

@@ -198,6 +198,8 @@ run con hhp n state = do
 
     exec_states <- runNDepth con hhp [preproc_state'] n
 
+    -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
+
     let ident_states = filter (isExecValueForm . snd) exec_states
 
     -- putStrLn $ "states: " ++ (show $ length ident_states)
