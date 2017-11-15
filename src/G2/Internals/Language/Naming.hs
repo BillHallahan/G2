@@ -23,6 +23,7 @@ module G2.Internals.Language.Naming
     , freshSeededNames
 
     , freshId
+    , freshSeededId
     , freshIds
     , freshVar
 
@@ -117,8 +118,11 @@ renameAll x ng =
 -- rename should be used only to define an instance.  Use rename to perform the
 -- rename instead
 class Named a where
+    name :: a -> Name
     names :: a -> [Name]
     rename :: Name -> Name -> a -> a
+
+    name = head . names
 
 instance Named Name where
     names n = [n]
@@ -234,8 +238,8 @@ freshSeededName (Name n m _) (NameGen hm chm) = (Name n m i', NameGen hm' chm)
 
 freshSeededNames :: [Name] -> NameGen -> ([Name], NameGen)
 freshSeededNames [] r = ([], r)
-freshSeededNames (name:ns) r = (name':ns', ngen'') 
-  where (name', ngen') = freshSeededName name r
+freshSeededNames (n:ns) r = (n':ns', ngen'') 
+  where (n', ngen') = freshSeededName n r
         (ns', ngen'') = freshSeededNames ns ngen'
 
 freshName :: NameGen -> (Name, NameGen)
@@ -247,9 +251,12 @@ freshNames :: Int -> NameGen -> ([Name], NameGen)
 freshNames i ngen = freshSeededNames (replicate i (Name "fs?" Nothing 0)) ngen
 
 freshId :: Type -> NameGen -> (Id, NameGen)
-freshId t ngen = 
+freshId = freshSeededId (Name "fs?" Nothing 0)
+    
+freshSeededId :: Named a => a -> Type -> NameGen -> (Id, NameGen)
+freshSeededId x t ngen =
     let
-        (n, ngen') = freshName ngen
+        (n, ngen') = freshSeededName (name x) ngen
     in
     (Id n t, ngen')
 

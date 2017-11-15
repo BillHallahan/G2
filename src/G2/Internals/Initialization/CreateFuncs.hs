@@ -92,7 +92,7 @@ type DefaultFunc a = [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [(a, Id)] -> 
 -- names and the cooresponding AlgDataTy's, and the results are stored
 -- in a Walkers Map
 createAlgDataTyWalks :: ExprEnv -> TypeEnv -> NameGen
-                     -> (AlgDataTy -> [(a, Maybe Name, Type)]) -- Other arguments that should be considered
+                     -> (AlgDataTy -> [(a, Maybe Name, Type)]) -- Other arguments that should be created
                      -> String -- A string to append to a DC Name, to create a new function name
                      -> AltFunc a -- Maybe creates an Alt for each DC
                      -> DefaultFunc a -- Creates an Expr for a Default DC
@@ -184,39 +184,50 @@ storeWalkerFunc w tn _ fn e =
 -- This forces evaluation of the ADT
 createDeepSeqWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
 createDeepSeqWalks eenv tenv ng =
-    createAlgDataTyWalks eenv tenv ng (const []) "walk" 
-        (\dc nna ng' _ is _ -> createDeepSeqExpr dc nna ng' is)
+    createAlgDataTyWalks eenv tenv ng createDeepSeqWalkArgs "walk" 
+        (\dc nna ng' _ is pfs -> createDeepSeqExpr dc nna ng' is pfs)
         (\_ ng' i _ -> (Var i, ng'))
         storeWalkerFunc
 
+-- | createDeepSeqWalkArgs
+-- For each type parameter of type a, we create an argument of type (a -> a),
+-- which should be passed the deep seq walk for that type
+createDeepSeqWalkArgs :: AlgDataTy -> [(Name, Maybe Name, Type)]
+createDeepSeqWalkArgs (AlgDataTy ns _) = map (\n -> (n, Just n, (TyFun (TyVar (Id n TYPE)) (TyVar (Id n TYPE))))) ns
+
 -- The (Name, Name, AlgDataTy) tuples are the type name, the walking function
 -- name, and the AlgDataTyName
-createDeepSeqExpr :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> (Maybe Expr, NameGen)
-createDeepSeqExpr dc@(DataCon _ _ _) ns ng arg_ids =
+createDeepSeqExpr :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> [(Name, Id)] -> (Maybe Expr, NameGen)
+createDeepSeqExpr dc@(DataCon _ _ _) ns ng arg_ids pfs =
     let
-        (e, ng2) = createDeepSeqExpr' (Data dc) ns ng arg_ids
+        (e, ng2) = createDeepSeqExpr' (Data dc) ns ng arg_ids pfs
     in
     (Just e, ng2)
-createDeepSeqExpr _ _ ng _ = (Nothing, ng)
+createDeepSeqExpr _ _ ng _ _ = (Nothing, ng)
 
-createDeepSeqExpr' :: Expr -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> (Expr, NameGen)
-createDeepSeqExpr' dc _ ng [] = (dc, ng)
-createDeepSeqExpr' dc ns ng (i@(Id _ t):xs)=
+createDeepSeqExpr' :: Expr -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> [(Name, Id)] -> (Expr, NameGen)
+createDeepSeqExpr' dc _ ng [] _ = (dc, ng)
+createDeepSeqExpr' dc ns ng (i@(Id _ t):xs) pfs =
     let
         (b_id, ng') = freshId t ng
 
         case_e = case t of
-                    TyConApp n' _ ->
+                    TyConApp n _ ->
                         let
-                            (t', w, _) = fromJust $ find (\(t'', _, _) -> t'' == n') ns
+                            (t', w, _) = fromJust $ find (\(t'', _, _) -> t'' == n) ns
                             f = walkFunc t' w
                         in
                         Case (App (Var f) (Var i)) b_id
+                    TyVar (Id n _) ->
+                        let
+                            w = fromJust $ lookup n pfs
+                        in
+                        Case (App (Var w) (Var i)) b_id
                     _ -> Case (Var i) b_id
 
         dc' = App dc (Var b_id)
 
-        (e, ng'') = createDeepSeqExpr' dc' ns ng' xs
+        (e, ng'') = createDeepSeqExpr' dc' ns ng' xs pfs
 
         am = [Alt Default e]
     in

@@ -2,7 +2,7 @@ module GetNthPoly where
 
 import Prelude hiding (length)
 
-data CList a = Cons a (CList a) | Nil
+data CList a = Cons !a (CList a) | Nil
 
 data X = X
 

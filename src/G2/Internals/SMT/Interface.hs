@@ -15,6 +15,7 @@ import G2.Internals.SMT.Converters
 import G2.Internals.SMT.Language
 
 import qualified Data.Map as M
+import Data.Maybe
 
 import Debug.Trace
 
@@ -116,7 +117,7 @@ checkModel'' con io (i@(Id n _):is) s = do
 
     (_, m) <- checkSatGetModel con io formula headers vs
 
-    let m' = trace ("---" ++ (show . M.map snd . PC.toMap $ path_conds s) ++ "\n" ++ show i ++ "\n" ++ show (PC.toList $ path_conds s) ++ "\n" ++ show (PC.toList $ path_conds s') ++ "\n" ++ show m) fmap modelAsExpr m
+    let m' = fmap modelAsExpr m
 
     case m' of
         Just m'' -> checkModel'' con io is (s {model = M.union m'' (model s)})
@@ -129,10 +130,16 @@ addADTs'' n tn s =
 
         dcs = PC.findConsistent (type_env s) pc
 
+        eenv = expr_env s
+
         (ns, _) = childrenNames n [] (name_gen s) -- TODO: FIX THIS LIST
         (dc, nst) = case dcs of
                 Just (fdc@(DataCon _ _ ts):_) ->
-                    (mkApp $ (Data fdc):(map (Var . uncurry Id) (zip ns ts)), map (uncurry Id) (zip ns ts))
+                    let
+                        vs = mapMaybe (flip E.lookup eenv) ns
+                        is = map (\(Var i) -> i) vs
+                    in
+                    (mkApp $ (Data fdc):vs, is)
                 _ -> error "Unuable DataCon in addADTs"
 
         m = M.insert n dc (model s)

@@ -117,6 +117,8 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
             let
                 typs = argTys $ typeOf ex
                 (var_ids, is, ng') = mkInputs at ng typs
+
+                -- strict_var_ids = map (mkStrict walkers) var_ids
                 
                 var_ex = Var f
                 app_ex = foldr (\vi e -> App e vi) var_ex var_ids
@@ -200,12 +202,12 @@ run con hhp n state = do
 
     let ident_states = filter (isExecValueForm . snd) exec_states
 
-    putStrLn $ "exec states: " ++ (show $ length exec_states)
-    putStrLn $ "ident states: " ++ (show $ length ident_states)
+    -- putStrLn $ "exec states: " ++ (show $ length exec_states)
+    -- putStrLn $ "ident states: " ++ (show $ length ident_states)
     -- mapM_ (\(rs, st) -> do
     --     -- putStrLn $ show rs
-    --     putStrLn $ pprExecStateStr st
-    --     -- print $ expr_env st
+    --     -- putStrLn $ pprExecStateStr st
+    --     putStrLn . pprExecEEnvStr $ expr_env st
     --     -- print $ curr_expr st
     --     -- print $ true_assert st
     --     -- putStrLn . pprPathsStr . PC.toList $ path_conds st
