@@ -117,8 +117,6 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
             let
                 typs = argTys $ typeOf ex
                 (var_ids, is, ng') = mkInputs at ng typs
-
-                -- strict_var_ids = map (mkStrict walkers) var_ids
                 
                 var_ex = Var f
                 app_ex = foldr (\vi e -> App e vi) var_ex var_ids

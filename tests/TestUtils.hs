@@ -34,9 +34,13 @@ dcInAppHasName s (App a _) n = dcInAppHasName s a (n - 1)
 dcInAppHasName _ _ _ = False
 
 appNthArgIs :: Expr -> (Expr -> Bool) -> Int -> Bool
-appNthArgIs (App _ a) f 1 = f a
-appNthArgIs (App a _) f n = appNthArgIs a f (n - 1)
-appNthArgIs _ _ _ = False
+appNthArgIs a f i = 
+    let
+        u = unApp a
+    in
+    case length u > i  of
+        True -> f (u !! i)
+        False -> False
 
 isInt :: Expr -> Bool
 isInt (Lit (LitInt _)) = True

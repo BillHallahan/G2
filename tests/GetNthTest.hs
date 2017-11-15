@@ -31,3 +31,8 @@ getNthErrPeanoTest :: [Expr] -> Bool
 getNthErrPeanoTest [cl, (Lit (LitInt i)), Prim Error _] = getNthErr (toCList cl) i == Nothing
 getNthErrPeanoTest [_, (Lit (LitInt _)), _] = True
 getNthErrPeanoTest _ = False
+
+getNthErrCListXTest :: [Expr] -> Bool
+getNthErrCListXTest [cl, (Lit (LitInt i)), Prim Error _] = getNthErr (toCList cl) i == Nothing
+getNthErrCListXTest [_, (Lit (LitInt _)), _] = True
+getNthErrCListXTest _ = False

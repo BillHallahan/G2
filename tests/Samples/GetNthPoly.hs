@@ -14,6 +14,9 @@ getNthX x y = getNth x y
 getNthPeano :: CList Peano -> Int -> Peano
 getNthPeano x y = getNth x y
 
+getNthCListX :: CList (CList X) -> Int -> CList X
+getNthCListX = getNth
+
 getNthInt :: CList Int -> Int -> Int
 getNthInt x y = getNth x y
 
