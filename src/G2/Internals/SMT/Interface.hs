@@ -17,8 +17,6 @@ import G2.Internals.SMT.Language
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 subModel :: State -> ([Expr], Expr)
 subModel (State { curr_expr = CurrExpr _ cexpr
                 , input_ids = is
@@ -103,7 +101,7 @@ checkModel'' con io (Id n (TyConApp tn _):is) s = do
     case r of
         SAT -> checkModel'' con io (is ++ is'') s'
         r' -> return (r', Nothing)
-checkModel'' con io (i@(Id n _):is) s = do
+checkModel'' con io ((Id n _):is) s = do
     let (Just (Var i')) = E.lookup n (expr_env s)
  
     let pc = PC.scc [n] (path_conds s)
@@ -134,7 +132,7 @@ addADTs'' n tn s =
 
         (ns, _) = childrenNames n [] (name_gen s) -- TODO: FIX THIS LIST
         (dc, nst) = case dcs of
-                Just (fdc@(DataCon _ _ ts):_) ->
+                Just (fdc:_) ->
                     let
                         vs = mapMaybe (flip E.lookup eenv) ns
                         is = map (\(Var i) -> i) vs
