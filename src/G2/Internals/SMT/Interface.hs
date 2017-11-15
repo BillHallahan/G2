@@ -16,6 +16,8 @@ import G2.Internals.SMT.Language
 
 import qualified Data.Map as M
 
+import Debug.Trace
+
 subModel :: State -> ([Expr], Expr)
 subModel (State { curr_expr = CurrExpr _ cexpr
                 , input_ids = is
@@ -100,9 +102,9 @@ checkModel'' con io (Id n (TyConApp tn _):is) s = do
     case r of
         SAT -> checkModel'' con io (is ++ is'') s'
         r' -> return (r', Nothing)
-checkModel'' con io ((Id n _):is) s = do
+checkModel'' con io (i@(Id n _):is) s = do
     let (Just (Var i')) = E.lookup n (expr_env s)
-
+ 
     let pc = PC.scc [n] (path_conds s)
 
     let s' = s {path_conds = if PC.null pc then PC.fromList [PCExists i'] else pc }
@@ -114,7 +116,7 @@ checkModel'' con io ((Id n _):is) s = do
 
     (_, m) <- checkSatGetModel con io formula headers vs
 
-    let m' = fmap modelAsExpr m
+    let m' = trace ("---" ++ (show . M.map snd . PC.toMap $ path_conds s) ++ "\n" ++ show i ++ "\n" ++ show (PC.toList $ path_conds s) ++ "\n" ++ show (PC.toList $ path_conds s') ++ "\n" ++ show m) fmap modelAsExpr m
 
     case m' of
         Just m'' -> checkModel'' con io is (s {model = M.union m'' (model s)})

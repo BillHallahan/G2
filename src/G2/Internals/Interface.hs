@@ -200,7 +200,8 @@ run con hhp n state = do
 
     let ident_states = filter (isExecValueForm . snd) exec_states
 
-    -- putStrLn $ "states: " ++ (show $ length ident_states)
+    putStrLn $ "exec states: " ++ (show $ length exec_states)
+    putStrLn $ "ident states: " ++ (show $ length ident_states)
     -- mapM_ (\(rs, st) -> do
     --     -- putStrLn $ show rs
     --     putStrLn $ pprExecStateStr st

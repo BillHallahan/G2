@@ -6,6 +6,7 @@
 
 module G2.Internals.Language.PathConds ( PathCond (..)
                                        , PathConds
+                                       , toMap
                                        , empty
                                        , fromList
                                        , insert
