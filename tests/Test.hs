@@ -75,9 +75,10 @@ sampleTests =
 
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNth.hs" 400 Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthInt" 3 [AtLeast 10, RForAll getNthErrTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthX" 3 [AtLeast 10, RForAll getNthErrPeanoTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrPeanoTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrCListXTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthX" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
 
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 400 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
 

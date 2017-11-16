@@ -8,14 +8,22 @@ data X = X
 
 data Peano = Succ Peano | Zero
 
+-- data E a b = L a | B a
+
 getNthX :: CList X -> Int -> X
 getNthX x y = getNth x y
 
 getNthPeano :: CList Peano -> Int -> Peano
 getNthPeano x y = getNth x y
 
+-- getNthE :: CList (E Int Float) -> Int -> E Int Float
+-- getNthE x y = getNth x y
+
+getNthCListInt :: CList (CList Int) -> Int -> CList Int
+getNthCListInt x y = getNth x y
+
 getNthCListX :: CList (CList X) -> Int -> CList X
-getNthCListX = getNth
+getNthCListX x y = getNth x y
 
 getNthInt :: CList Int -> Int -> Int
 getNthInt x y = getNth x y

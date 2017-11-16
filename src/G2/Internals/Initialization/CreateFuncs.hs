@@ -193,7 +193,9 @@ createDeepSeqWalks eenv tenv ng =
 -- For each type parameter of type a, we create an argument of type (a -> a),
 -- which should be passed the deep seq walk for that type
 createDeepSeqWalkArgs :: AlgDataTy -> [(Name, Maybe Name, Type)]
-createDeepSeqWalkArgs (AlgDataTy ns _) = map (\n -> (n, Just n, (TyFun (TyVar (Id n TYPE)) (TyVar (Id n TYPE))))) ns
+createDeepSeqWalkArgs (AlgDataTy ns _) = 
+       map (\n -> (n, Just n, TYPE)) ns
+    ++ map (\n@(Name n' m i) -> ((Name (n' ++ "TyFun") m i), Just (Name (n' ++ "TyFun") m i), (TyFun (TyVar (Id n TYPE)) (TyVar (Id n TYPE))))) ns
 
 -- The (Name, Name, AlgDataTy) tuples are the type name, the walking function
 -- name, and the AlgDataTyName

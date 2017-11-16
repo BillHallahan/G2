@@ -26,22 +26,22 @@ smt2 = SMTConverter {
         , merge = (++)
 
         , checkSat = \(h_in, h_out, _) formula -> do
-            -- putStrLn "\n\n checkSat"
-            -- putStrLn formula
+            putStrLn "\n\n checkSat"
+            putStrLn formula
             
             setUpFormula h_in formula
             r <- checkSat' h_in h_out
 
-            -- putStrLn $ show r
+            putStrLn $ show r
 
             return r
 
         , checkSatGetModel = \(h_in, h_out, _) formula headers vs -> do
             setUpFormula h_in formula
-            -- putStrLn "\n\n checkSatGetModel"
-            -- putStrLn formula
+            putStrLn "\n\n checkSatGetModel"
+            putStrLn formula
             r <- checkSat' h_in h_out
-            -- putStrLn $ "r =  " ++ show r
+            putStrLn $ "r =  " ++ show r
             if r == SAT then do
                 mdl <- getModel h_in h_out vs
                 -- putStrLn "======"
@@ -56,10 +56,10 @@ smt2 = SMTConverter {
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) -> do
             setUpFormula h_in formula
-            -- putStrLn "\n\n checkSatGetModelGetExpr"
-            -- putStrLn formula
+            putStrLn "\n\n checkSatGetModelGetExpr"
+            putStrLn formula
             r <- checkSat' h_in h_out
-            -- putStrLn $ "r =  " ++ show r
+            putStrLn $ "r =  " ++ show r
             if r == SAT then do
                 mdl <- getModel h_in h_out vs
                 -- putStrLn "======"

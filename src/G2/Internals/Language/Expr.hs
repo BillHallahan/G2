@@ -24,7 +24,10 @@ import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
+import Data.Foldable
 import qualified Data.Map as M
+
+import Debug.Trace
 
 replaceVar :: (ASTContainer m Expr) => Name -> Expr -> m -> m
 replaceVar n re = modifyASTs (replaceVar' n re)
@@ -52,6 +55,13 @@ mkTrue = Lit $ LitBool True
 mkFalse :: Expr
 mkFalse = Lit $ LitBool False
 
+mkIdentity :: Type -> Expr
+mkIdentity t =
+    let
+        x = Id (Name "x" Nothing 0) t
+    in
+    Lam x (Var x)
+
 mkLamBindings :: NameGen -> [(a, Maybe Name, Type)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen))-> (Expr, NameGen)
 mkLamBindings ng ats f = mkLamBindings' ng ats [] f
 
@@ -65,7 +75,7 @@ mkLamBindings' ng [] fIds f =
 mkLamBindings' ng ((as, n, t):ats) fIds f =
     let
         (fId, ng') = case n of
-            Just n' -> freshSeededId n' t ng
+            Just n' -> (Id n' t, ng)
             Nothing -> freshId t ng
     in
     mkLamBindings' ng' ats ((as, fId):fIds) f
@@ -129,8 +139,13 @@ mkStrict' :: Walkers -> Expr -> Expr
 mkStrict' w e =
     let
         ret = returnType e
-        f = case ret of
-            (TyConApp n _) -> App (Var $ w M.! n)
-            _ -> id
     in
-    f e
+    case ret of
+        (TyConApp n ts) ->
+            App (foldl' (App) (Var $ w M.! n) (map Type ts ++ map (typeToWalker w) ts)) e
+        _ -> e
+
+
+typeToWalker :: Walkers -> Type -> Expr
+typeToWalker w (TyConApp n _) = Var $ w M.! n
+typeToWalker _ t = mkIdentity t
