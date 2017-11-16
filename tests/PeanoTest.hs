@@ -36,3 +36,7 @@ peano_4_0 = peano_0_4 . reverse
 
 peano_4_1 :: [Expr] -> Bool
 peano_4_1 = peano_1_4 . reverse
+
+peano_4_out :: [Expr] -> Bool
+peano_4_out [_, _, a] = a `eqIgT` (succPeano . succPeano . succPeano . succPeano $ zeroPeano)
+peano_4_out _ = False

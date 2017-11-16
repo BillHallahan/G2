@@ -38,10 +38,10 @@ smt2 = SMTConverter {
 
         , checkSatGetModel = \(h_in, h_out, _) formula headers vs -> do
             setUpFormula h_in formula
-            -- putStrLn "\n\n checkSatGetModel"
-            -- putStrLn formula
+            putStrLn "\n\n checkSatGetModel"
+            putStrLn formula
             r <- checkSat' h_in h_out
-            -- putStrLn $ "r =  " ++ show r
+            putStrLn $ "r =  " ++ show r
             if r == SAT then do
                 mdl <- getModel h_in h_out vs
                 -- putStrLn "======"

@@ -219,16 +219,18 @@ run con hhp n state = do
 
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
-    ident_states' <- 
+
+    let ident_state' = filter (true_assert . snd) ident_states
+
+    ident_state'' <- 
         mapM (\(r, s) -> do
             (_, m) <- checkModel con hhp s
             return . fmap (\m' -> (r, s {model = m'})) $ m
-            ) $ ident_states
+            ) $ ident_state'
 
-    let ident_states'' = catMaybes ident_states'
+    let ident_state''' = catMaybes ident_state''
 
-    let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) 
-           $ filter (true_assert . snd) ident_states''
+    let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) $ ident_state'''
 
     let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm
 

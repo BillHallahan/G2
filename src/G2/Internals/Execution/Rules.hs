@@ -215,48 +215,6 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
     where
         s' = resultToState s red
 
--- resultsToState :: SMTConverter ast out io -> io -> Rule -> State -> [ReduceResult] -> IO [State]
--- resultsToState _ _ _ _ [] = return []
--- resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
---     | not (null pc) = do
---             --Optimization
---             -- We replace the path_conds with only those that are directly
---             -- affected by the new path constraints
---             -- This allows for more efficient solving, and in some cases may
---             -- change an unknown into a SAT or UNSAT
---             -- Switching which of the following two lines is commented turns this on/off
---             -- let s'' = s'
---             let s'' = s' {path_conds = PC.relevant pc (path_conds s')}
-
---             (res, m) <- checkModel con hpp s''
-
---             let m' = maybe M.empty id m
-
---             if res == SAT then
---                 return . (:) (s' {model = M.union m' (model s')})
---                     =<< resultsToState con hpp rule s xs
---             else
---                 resultsToState con hpp rule s xs
---     | not (null asserts) = do
---         let s'' = s' {path_conds = PC.relevant asserts (path_conds s')}
-
---         (res, m) <- checkModelAsserts con hpp s''
-
---         let m' = maybe M.empty id m
-
---         if res == SAT then
---             return . (:) (s' { true_assert = True
---                              , model = M.union m' (model s')})
---                 =<< resultsToState con hpp rule s xs
---         else
---             -- Below, the use of s rather than s' is intentional.
---             -- If the assert could not be satisfied, there is no need to add it
---             -- to the state
---             return . (:) s =<< resultsToState con hpp rule s xs
---     | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs
---     where
---         s' = resultToState s red
-
 reduceNoConstraintChecks :: State -> (Rule, [State])
 reduceNoConstraintChecks s =
     let

@@ -53,7 +53,8 @@ sampleTests :: IO TestTree
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 700 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
+                  checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 700 Nothing (Just "equalsFour") "add" 2 [RForAll $ not . peano_4_out, Exactly 2]
+                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 700 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 900 (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 650 (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 400 (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
