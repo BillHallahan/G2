@@ -195,7 +195,7 @@ createDeepSeqWalks eenv tenv ng =
 createDeepSeqWalkArgs :: AlgDataTy -> [(Name, Maybe Name, Type)]
 createDeepSeqWalkArgs (AlgDataTy ns _) = 
        map (\n -> (n, Just n, TYPE)) ns
-    ++ map (\n@(Name n' m i) -> ((Name (n' ++ "TyFun") m i), Just (Name (n' ++ "TyFun") m i), (TyFun (TyVar (Id n TYPE)) (TyVar (Id n TYPE))))) ns
+    ++ map (\n -> (tyFunName n, Just (tyFunName n), (TyFun (TyVar (Id n TYPE)) (TyVar (Id n TYPE))))) ns
 
 -- The (Name, Name, AlgDataTy) tuples are the type name, the walking function
 -- name, and the AlgDataTyName
@@ -214,15 +214,20 @@ createDeepSeqExpr' dc ns ng (i@(Id _ t):xs) pfs =
         (b_id, ng') = freshId t ng
 
         case_e = case t of
-                    TyConApp n _ ->
+                    TyConApp n ts ->
                         let
                             (t', w, _) = fromJust $ find (\(t'', _, _) -> t'' == n) ns
                             f = walkFunc t' w
+
+                            typeV = map (\(TyVar (Id n' _)) -> Var . fromJust $ lookup n' pfs) ts
+                            typeF = mapMaybe (typeWalker pfs) ts
+
+                            app = mkApp $ Var f : typeV ++ typeF ++ [Var i]
                         in
-                        Case (App (Var f) (Var i)) b_id
+                        Case app b_id
                     TyVar (Id n _) ->
                         let
-                            w = fromJust $ lookup n pfs
+                            w = fromJust $ lookup (tyFunName n) pfs
                         in
                         Case (App (Var w) (Var i)) b_id
                     _ -> Case (Var i) b_id
@@ -234,6 +239,13 @@ createDeepSeqExpr' dc ns ng (i@(Id _ t):xs) pfs =
         am = [Alt Default e]
     in
     (case_e am, ng'')
+
+typeWalker :: [(Name, Id)] -> Type -> Maybe Expr
+typeWalker pfs (TyVar (Id n _)) = fmap Var $ lookup (tyFunName n) pfs
+typeWalker _ _ = Nothing
+
+tyFunName :: Name -> Name
+tyFunName (Name n m i) = Name (n ++ "TyFun") m i
 
 -- Type Name -> Walk function name -> Walk Function Id
 walkFunc :: Name -> Name -> Id

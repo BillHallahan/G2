@@ -1,6 +1,7 @@
 module GetNthTest where
 
 import G2.Internals.Language
+import TestUtils
 
 data CList a = Cons a (CList a) | Nil
 
@@ -35,5 +36,8 @@ getNthErrTest _ = False
 
 getNthErrGenTest :: [Expr] -> Bool
 getNthErrGenTest [cl, (Lit (LitInt i)), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
-getNthErrGenTest [cl, (Lit (LitInt i)), e] = getNthErr (toCListGen cl) i == Just e
+getNthErrGenTest [cl, (Lit (LitInt i)), e] =
+    case getNthErr (toCListGen cl) i of
+        Just e' -> e' `eqIgT` e
+        Nothing -> False
 getNthErrGenTest _ = False
