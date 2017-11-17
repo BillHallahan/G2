@@ -30,7 +30,6 @@ data State = State { expr_env :: E.ExprEnv
                    , curr_expr :: CurrExpr
                    , name_gen :: NameGen
                    , path_conds :: PathConds
-                   , assertions :: [PathCond]
                    , true_assert :: Bool
                    , sym_links :: SymLinks
                    , input_ids :: InputIds
@@ -128,7 +127,6 @@ renameState old new_seed s =
              , curr_expr = rename old new (curr_expr s)
              , name_gen = ng'
              , path_conds = rename old new (path_conds s)
-             , assertions = rename old new (assertions s)
              , true_assert = true_assert s
              , input_ids = rename old new (input_ids s)
              , sym_links = rename old new (sym_links s)
@@ -146,7 +144,6 @@ instance ASTContainer State Expr where
                       (containedASTs $ expr_env s) ++
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
-                      (containedASTs $ assertions s) ++
                       (containedASTs $ sym_links s) ++
                       (containedASTs $ input_ids s) ++
                       (containedASTs $ wrappers s) ++
@@ -156,7 +153,6 @@ instance ASTContainer State Expr where
                                 , expr_env  = modifyContainedASTs f $ expr_env s
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
-                                , assertions = modifyContainedASTs f $ assertions s
                                 , sym_links = modifyContainedASTs f $ sym_links s
                                 , input_ids = modifyContainedASTs f $ input_ids s
                                 , wrappers = modifyContainedASTs f $ wrappers s
@@ -168,7 +164,6 @@ instance ASTContainer State Type where
                       ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
-                      ((containedASTs . assertions) s) ++
                       ((containedASTs . sym_links) s) ++
                       ((containedASTs . input_ids) s) ++
                       (containedASTs $ wrappers s) ++
@@ -178,7 +173,6 @@ instance ASTContainer State Type where
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
-                                , assertions = (modifyContainedASTs f . assertions) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
                                 , input_ids = (modifyContainedASTs f . input_ids) s
                                 , wrappers = modifyContainedASTs f $ wrappers s

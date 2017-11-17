@@ -199,7 +199,7 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
                 return . (:) s' =<< resultsToState con hpp rule s xs
             else
                 resultsToState con hpp rule s xs
-    | not (null asserts) = do
+    | not (null asserts) && not (true_assert s) = do
         let assertS = s' { path_conds = foldr (PC.insert) (path_conds s') asserts, true_assert = True }
         let negAssertS = s' {path_conds = foldr (PC.insert) (path_conds s') (map PC.negatePC asserts)}
 
@@ -210,15 +210,6 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
 
         -- res <- checkAsserts con hpp s''
         return . (++) finalS =<< resultsToState con hpp rule s xs
-        -- if res == SAT then
-        --     return . (++) [ s' { path_conds = foldr (PC.insert) (path_conds s') asserts, true_assert = True }
-        --                   , s' {path_conds = foldr (PC.insert) (path_conds s') (map PC.negatePC asserts)}]
-        --         =<< resultsToState con hpp rule s xs
-        -- else
-        --     -- Below, the use of s rather than s' is intentional.
-        --     -- If the assert could not be satisfied, there is no need to add it
-        --     -- to the state
-        --     return . (:) s =<< resultsToState con hpp rule s xs
     | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs
     where
         s' = resultToState s red
@@ -231,12 +222,11 @@ reduceNoConstraintChecks s =
     (rule, map (resultToState s) res)
 
 resultToState :: State -> ReduceResult -> State
-resultToState s (eenv, cexpr, pc, asserts, ng, st) =
+resultToState s (eenv, cexpr, pc, _, ng, st) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
       , path_conds = foldr (PC.insert) (path_conds s) $ pc
-      -- , assertions = asserts ++ (assertions s)
       , name_gen = ng
       , exec_stack = st }
 

@@ -40,17 +40,13 @@ toSMTHeaders s e =
     in
     (typesToSMTSorts $ type_env s)
     ++
-    nub (exprVarDecls e ++ (pcVarDecls pc) ++ (pcVarDecls $ assertions s))
+    nub (exprVarDecls e ++ (pcVarDecls pc))
     ++
     (pathConsToSMTHeaders pc)
-    ++
-    [assertionsToSMTHeaders $ assertions s]
 
 pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
 pathConsToSMTHeaders = map Assert . mapMaybe pathConsToSMT
 
-assertionsToSMTHeaders :: [PathCond] -> SMTHeader
-assertionsToSMTHeaders = Assert . foldr (:||) (VBool False) . mapMaybe pathConsToSMT
 
 pathConsToSMT :: PathCond -> Maybe SMTAST
 pathConsToSMT (AltCond a e b) =

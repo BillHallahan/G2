@@ -243,7 +243,6 @@ pprExecStateStr ex_state = injNewLine acc_strs
     input_str = pprInputIdsStr (input_ids ex_state)
     funcs_str = pprFuncTableStr (func_table ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
-    assert_str = pprPathsStr (assertions ex_state)
     walkers_str = show (deepseq_walkers ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
@@ -264,8 +263,6 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , walkers_str
                , "----- [Paths] ---------------------"
                , paths_str
-               , "----- [Assertions] ---------------------"
-               , assert_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
 
 pprExecEEnvStr :: E.ExprEnv -> String

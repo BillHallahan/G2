@@ -3,9 +3,7 @@
 module G2.Internals.SMT.Interface
     ( subModel
     , checkConstraints
-    , checkAsserts
     , checkModel
-    , checkModelAsserts
     ) where
 
 import G2.Internals.Language hiding (Model)
@@ -54,14 +52,6 @@ checkConstraints con io s = do
 
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints' con io s = do
-    -- This is to avoid problems with lack of Asserts knocking out states too early
-    let s' = if true_assert s then s
-              else s {assertions = [ExtCond (Lit (LitBool True)) True]}
-
-    checkConstraints'' con io s'
-
-checkConstraints'' :: SMTConverter ast out io -> io -> State -> IO Result
-checkConstraints'' con io s = do
     let s' = filterTEnv . simplifyPrims $ s
 
     let headers = toSMTHeaders s' ([] :: [Expr])
@@ -69,39 +59,24 @@ checkConstraints'' con io s = do
 
     checkSat con io formula
 
-checkAsserts :: SMTConverter ast out io -> io -> State -> IO Result
-checkAsserts = checkConstraints'
-
 checkModel :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
 checkModel con io s = do
-    -- This is to avoid problems with lack of Asserts knocking out states too early
-    let s' = if true_assert s then s
-              else s {assertions = [ExtCond (Lit (LitBool True)) True]}
-
-    checkModel' con io s'
-
--- TODO: Fix the code duplication between checkConstraints, checkAsserts
-checkModelAsserts :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
-checkModelAsserts = checkModel'
-
-checkModel' :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
-checkModel' con io s = do
     let s' = filterTEnv . simplifyPrims $ s
 
-    checkModel'' con io (input_ids s') s'
+    checkModel' con io (input_ids s') s'
 
-checkModel'' :: SMTConverter ast out io -> io -> [Id] -> State -> IO (Result, Maybe ExprModel)
-checkModel'' _ _ [] s = do
+checkModel' :: SMTConverter ast out io -> io -> [Id] -> State -> IO (Result, Maybe ExprModel)
+checkModel' _ _ [] s = do
     return (SAT, Just $ model s)
-checkModel'' con io (Id n (TyConApp tn _):is) s = do
-    let (r, is', s') = addADTs'' n tn s
+checkModel' con io (Id n (TyConApp tn _):is) s = do
+    let (r, is', s') = addADTs n tn s
 
     let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
 
     case r of
-        SAT -> checkModel'' con io (is ++ is'') s'
+        SAT -> checkModel' con io (is ++ is'') s'
         r' -> return (r', Nothing)
-checkModel'' con io ((Id n _):is) s = do
+checkModel' con io ((Id n _):is) s = do
     let (Just (Var i')) = E.lookup n (expr_env s)
  
     let pc = PC.scc [n] (path_conds s)
@@ -118,11 +93,11 @@ checkModel'' con io ((Id n _):is) s = do
     let m' = fmap modelAsExpr m
 
     case m' of
-        Just m'' -> checkModel'' con io is (s {model = M.union m'' (model s)})
+        Just m'' -> checkModel' con io is (s {model = M.union m'' (model s)})
         Nothing -> return (UNSAT, Nothing)
 
-addADTs'' :: Name -> Name -> State -> (Result, [Id], State)
-addADTs'' n tn s =
+addADTs :: Name -> Name -> State -> (Result, [Id], State)
+addADTs n tn s =
     let
         pc = PC.scc [n] (path_conds s)
 

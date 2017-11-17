@@ -27,8 +27,6 @@ import G2.Internals.Language.Typing
 import Data.Foldable
 import qualified Data.Map as M
 
-import Debug.Trace
-
 replaceVar :: (ASTContainer m Expr) => Name -> Expr -> m -> m
 replaceVar n re = modifyASTs (replaceVar' n re)
 

@@ -50,7 +50,6 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
     , path_conds = PC.fromList $ map PCExists is
-    , assertions = if useAssert then [trueCond] else [trueCond]
     , true_assert = if useAssert then False else True
     , input_ids = is
     , sym_links = Sym.empty
@@ -62,9 +61,6 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , exec_stack = Stack.empty
     , model = M.empty
  }
-
-trueCond :: PathCond
-trueCond = ExtCond (Lit (LitBool True)) True
 
 mkExprEnv :: Program -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
