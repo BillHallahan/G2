@@ -18,6 +18,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
+import Control.Monad
 import Data.Maybe
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
@@ -199,18 +200,25 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
             else
                 resultsToState con hpp rule s xs
     | not (null asserts) = do
-        let s'' = s' {path_conds = PC.relevant asserts (path_conds s')}
+        let assertS = s' { path_conds = foldr (PC.insert) (path_conds s') asserts, true_assert = True }
+        let negAssertS = s' {path_conds = foldr (PC.insert) (path_conds s') (map PC.negatePC asserts)}
 
-        res <- checkAsserts con hpp s''
+        let potentialS = [assertS, negAssertS]
 
-        if res == SAT then
-            return . (:) (s' { true_assert = True })
-                =<< resultsToState con hpp rule s xs
-        else
-            -- Below, the use of s rather than s' is intentional.
-            -- If the assert could not be satisfied, there is no need to add it
-            -- to the state
-            return . (:) s =<< resultsToState con hpp rule s xs
+        finalS <- filterM (\s_ -> return . isSat =<< checkConstraints con hpp s_) potentialS
+        -- let s'' = s' {path_conds = PC.relevant asserts (path_conds s')}
+
+        -- res <- checkAsserts con hpp s''
+        return . (++) finalS =<< resultsToState con hpp rule s xs
+        -- if res == SAT then
+        --     return . (++) [ s' { path_conds = foldr (PC.insert) (path_conds s') asserts, true_assert = True }
+        --                   , s' {path_conds = foldr (PC.insert) (path_conds s') (map PC.negatePC asserts)}]
+        --         =<< resultsToState con hpp rule s xs
+        -- else
+        --     -- Below, the use of s rather than s' is intentional.
+        --     -- If the assert could not be satisfied, there is no need to add it
+        --     -- to the state
+        --     return . (:) s =<< resultsToState con hpp rule s xs
     | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs
     where
         s' = resultToState s red
@@ -227,8 +235,8 @@ resultToState s (eenv, cexpr, pc, asserts, ng, st) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
-      , path_conds = foldr (PC.insert) (path_conds s) pc
-      , assertions = asserts ++ (assertions s)
+      , path_conds = foldr (PC.insert) (path_conds s) $ pc
+      -- , assertions = asserts ++ (assertions s)
       , name_gen = ng
       , exec_stack = st }
 

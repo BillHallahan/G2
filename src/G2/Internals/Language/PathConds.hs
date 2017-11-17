@@ -6,6 +6,7 @@
 
 module G2.Internals.Language.PathConds ( PathCond (..)
                                        , PathConds
+                                       , negatePC
                                        , toMap
                                        , empty
                                        , fromList
@@ -57,6 +58,12 @@ data PathCond = AltCond AltMatch Expr Bool
               deriving (Show, Eq, Read, Generic)
 
 instance Hashable PathCond
+
+negatePC :: PathCond -> PathCond
+negatePC (AltCond am e b) = AltCond am e (not b)
+negatePC (ExtCond e b) = ExtCond e (not b)
+negatePC (ConsCond dc e b) = ConsCond dc e (not b)
+negatePC pc = pc
 
 toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet PathCond, [Name])
 toMap = coerce

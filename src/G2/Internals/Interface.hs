@@ -50,7 +50,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
     , path_conds = PC.fromList $ map PCExists is
-    , assertions = if useAssert then [] else [trueCond]
+    , assertions = if useAssert then [trueCond] else [trueCond]
     , true_assert = if useAssert then False else True
     , input_ids = is
     , sym_links = Sym.empty
@@ -201,36 +201,38 @@ run con hhp n state = do
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
 
     let ident_states = filter (isExecValueForm . snd) exec_states
+    let ident_states' = filter (true_assert . snd) ident_states
 
-    putStrLn $ "exec states: " ++ (show $ length exec_states)
-    putStrLn $ "ident states: " ++ (show $ length ident_states)
+    -- putStrLn $ "exec states: " ++ (show $ length exec_states)
+    -- putStrLn $ "ident states: " ++ (show $ length ident_states)
+
+    -- sm <- satModelOutputs con hhp exec_states
+    -- let ident_states' = ident_states
+
     -- mapM_ (\(rs, st) -> do
     --     -- putStrLn $ show rs
     --     -- putStrLn $ pprExecStateStr st
-    --     putStrLn . pprExecEEnvStr $ expr_env st
+    --     -- putStrLn . pprExecEEnvStr $ expr_env st
     --     -- print $ curr_expr st
-    --     -- print $ true_assert st
+    --     print $ true_assert st
+    --     print $ assertions st
     --     -- putStrLn . pprPathsStr . PC.toList $ path_conds st
     --     -- print $ E.symbolicKeys $ expr_env st
     --     -- print $ input_ids st
     --     -- print $ model st
     --     putStrLn "----"
-    --     ) ident_states
+    --     ) ident_states'
 
-    -- sm <- satModelOutputs con hhp exec_states
-    -- let ident_states' = ident_states
 
-    let ident_state' = filter (true_assert . snd) ident_states
-
-    ident_state'' <- 
+    ident_states'' <- 
         mapM (\(r, s) -> do
             (_, m) <- checkModel con hhp s
             return . fmap (\m' -> (r, s {model = m'})) $ m
-            ) $ ident_state'
+            ) $ ident_states'
 
-    let ident_state''' = catMaybes ident_state''
+    let ident_states''' = catMaybes ident_states''
 
-    let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) $ ident_state'''
+    let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) $ ident_states'''
 
     let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm
 
