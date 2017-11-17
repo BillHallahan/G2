@@ -54,7 +54,7 @@ checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints' con io s = do
     let s' = filterTEnv . simplifyPrims $ s
 
-    let headers = toSMTHeaders s' ([] :: [Expr])
+    let headers = toSMTHeaders s'
     let formula = toSolver con headers
 
     checkSat con io formula
@@ -83,7 +83,7 @@ checkModel' con io ((Id n _):is) s = do
 
     let s' = s {path_conds = if PC.null pc then PC.fromList [PCExists i'] else pc }
 
-    let headers = toSMTHeaders s' ([] :: [Expr])
+    let headers = toSMTHeaders s'
     let formula = toSolver con headers
 
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars . PC.toList $ path_conds s'
@@ -105,7 +105,7 @@ addADTs n tn s =
 
         eenv = expr_env s
 
-        (ns, _) = childrenNames n [] (name_gen s) -- TODO: FIX THIS LIST
+        (ns, _) = childrenNames n [] (name_gen s)
         (dc, nst) = case dcs of
                 Just (fdc:_) ->
                     let
@@ -120,7 +120,7 @@ addADTs n tn s =
         (Just (base:_)) = fmap baseDataCons $ getDataCons tn (type_env s)
         m' = M.insert n (Data base) m
     in
-    case PC.number pc == 0 of
+    case PC.null pc of
         True -> (SAT, [], s {model = M.union m' (model s)})
         False -> case not . null $ dcs of
                     True -> (SAT, nst, s {model = M.union m (model s)})

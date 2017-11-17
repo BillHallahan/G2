@@ -33,14 +33,14 @@ import G2.Internals.SMT.Language
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: (ASTContainer m Expr) => State -> m -> [SMTHeader]
-toSMTHeaders s e = 
+toSMTHeaders :: State -> [SMTHeader]
+toSMTHeaders s  = 
     let
         pc = PC.toList $ path_conds s
     in
     (typesToSMTSorts $ type_env s)
     ++
-    nub (exprVarDecls e ++ (pcVarDecls pc))
+    nub (pcVarDecls pc)
     ++
     (pathConsToSMTHeaders pc)
 
