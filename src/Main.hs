@@ -12,6 +12,8 @@ import G2.Internals.Language
 import G2.Internals.Translation
 import G2.Internals.SMT
 
+import G2.Internals.Liquid.Interface
+
 main :: IO ()
 main = do
     -- putStrLn "Compiles!!!"

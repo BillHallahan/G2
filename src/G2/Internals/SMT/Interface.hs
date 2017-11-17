@@ -36,19 +36,9 @@ subVar' _ e = e
 checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints con io s = do
     case PC.checkConsistency (type_env s) (path_conds s) of
-        Just True ->
-            -- do
-            -- putStrLn "True"
-            return SAT
-        Just False ->
-            -- do
-            -- putStrLn "False"
-            return UNSAT
-        _ ->
-            -- do
-            -- putStrLn $ pprPathsStr . PC.toList $ path_conds s
-            -- putStrLn "---"
-            checkConstraints' con io s
+        Just True -> return SAT
+        Just False -> return UNSAT
+        _ -> checkConstraints' con io s
 
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints' con io s = do
@@ -59,12 +49,18 @@ checkConstraints' con io s = do
 
     checkSat con io formula
 
+-- | checkModel
+-- Checks if the constraints are satisfiable, and returns a model if they are
 checkModel :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
 checkModel con io s = do
     let s' = filterTEnv . simplifyPrims $ s
 
     checkModel' con io (input_ids s') s'
 
+-- | checkModel'
+-- We split based on whether we are evaluating a ADT or a literal.
+-- ADTs can be solved using our efficient addADTs, while literals require
+-- calling an SMT solver.
 checkModel' :: SMTConverter ast out io -> io -> [Id] -> State -> IO (Result, Maybe ExprModel)
 checkModel' _ _ [] s = do
     return (SAT, Just $ model s)
@@ -96,6 +92,9 @@ checkModel' con io ((Id n _):is) s = do
         Just m'' -> checkModel' con io is (s {model = M.union m'' (model s)})
         Nothing -> return (UNSAT, Nothing)
 
+-- | addADTs
+-- Determines an ADT based on the path conds.  The path conds form a witness.
+-- In particular, refer to findConsistent in Language/PathConds.hs
 addADTs :: Name -> Name -> State -> (Result, [Id], State)
 addADTs n tn s =
     let

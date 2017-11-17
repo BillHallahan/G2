@@ -42,7 +42,7 @@ import qualified Prelude as Pre
 -- the name n
 -- PathConds that contain no names are stored in Nothing
 --
--- You can visualize this as a graph, with Names and Nothing as Nodes
+-- You can visualize this as a graph, with Names and Nothing as Nodes.
 -- Edges exist in a PathConds pcs netween a name n, and any names in
 -- snd $ M.lookup n (toMap pcs)
 newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
