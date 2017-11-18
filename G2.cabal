@@ -23,7 +23,8 @@ executable G2
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc
                        , hashable
-                       , liquidhaskell > 0.8.0.3 && <= 0.8.0.5 
+                       , liquidhaskell > 0.8.0.3 && <= 0.8.0.5
+                       , liquid-fixpoint
                        , MissingH
                        , mtl
                        , reducers
@@ -43,6 +44,7 @@ test-suite test
                        , ghc
                        , hashable
                        , liquidhaskell
+                       , liquid-fixpoint
                        , MissingH
                        , reducers
                        , parsec

@@ -7,6 +7,7 @@ module G2.Internals.Translation.Haskell
     , mkPrims
     , prim_list
     , rawDump
+    , mkId
     ) where
 
 import qualified G2.Internals.Language as G2

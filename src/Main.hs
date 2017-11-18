@@ -16,8 +16,22 @@ import G2.Internals.Liquid.Interface
 
 main :: IO ()
 main = do
-    -- putStrLn "Compiles!!!"
-    (proj:src:prims:entry:tail_args) <- getArgs
+    args <- getArgs
+
+    let m_liquid = mkLiquid args
+
+    case m_liquid of
+        Just l -> do
+            ghcInfos <- getGHCInfos [l]
+            putStrLn . show $ length ghcInfos
+
+            let specs = funcSpecs ghcInfos
+            mapM_ (pprint) specs
+        Nothing -> runGHC args
+
+runGHC :: [String] -> IO ()
+runGHC args = do
+    let (proj:src:prims:entry:tail_args) = args
 
     --Get args
     let n_val = nVal tail_args
@@ -70,8 +84,7 @@ main = do
             putStrLn $ funcCall ++ " = " ++ funcOut
         ) in_out
 
-    -- putStrLn "End"
-    
+
 mArg :: String -> [String] -> (String -> a) -> a -> a
 mArg s a f d = case elemIndex s a of
                Nothing -> d
@@ -108,3 +121,6 @@ mkPolyPredWith a = mArg "--poly-pred-with" a Just Nothing
 
 mkPolyPredInt :: [String] -> Int
 mkPolyPredInt a = mArg "--poly-pred-i" a read (-1)
+
+mkLiquid :: [String] -> Maybe String
+mkLiquid a = mArg "--liquid" a Just Nothing
