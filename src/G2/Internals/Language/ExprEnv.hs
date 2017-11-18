@@ -10,6 +10,7 @@ module G2.Internals.Language.ExprEnv
     , lookup
     , isSymbolic
     , occLookup
+    , lookupNameMod
     , insert
     , insertSymbolic
     , insertPreserving
@@ -45,6 +46,7 @@ import Prelude hiding( filter
 import Data.Coerce
 import qualified Data.List as L
 import qualified Data.Map as M
+import Data.Maybe
 
 -- | From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
@@ -93,11 +95,15 @@ isSymbolic n eenv@(ExprEnv eenv') =
         Just (SymbObj _) -> True
         _ -> False
 
--- TODO
+-- TODO -- This seems kinda too much like a special case to be here...
 occLookup :: String -> Maybe String -> ExprEnv -> Maybe Expr
 occLookup n m = 
     fmap snd . L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) . unwrapExprEnv
+
+lookupNameMod :: String -> Maybe String -> ExprEnv -> Maybe (Name, Expr)
+lookupNameMod ns ms =
+    listToMaybe . L.filter (\(Name n m _, _) -> ns == n && ms == m) . toExprList
 
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =

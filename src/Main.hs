@@ -16,9 +16,9 @@ import G2.Internals.Liquid.Interface
 
 main :: IO ()
 main = do
-    args <- getArgs
+    as <- getArgs
 
-    let m_liquid = mkLiquid args
+    let m_liquid = mkLiquid as
 
     case m_liquid of
         Just l -> do
@@ -26,12 +26,14 @@ main = do
             putStrLn . show $ length ghcInfos
 
             let specs = funcSpecs ghcInfos
-            mapM_ (pprint) specs
-        Nothing -> runGHC args
+            mapM_ (\s -> do
+                putStrLn ""
+                pprint s) specs
+        Nothing -> runGHC as
 
 runGHC :: [String] -> IO ()
-runGHC args = do
-    let (proj:src:prims:entry:tail_args) = args
+runGHC as = do
+    let (proj:src:prims:entry:tail_args) = as
 
     --Get args
     let n_val = nVal tail_args

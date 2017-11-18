@@ -155,9 +155,6 @@ createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []
 createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
 
-exprVarDecls :: (ASTContainer m Expr) => m -> [SMTHeader]
-exprVarDecls = createVarDecls . vars
-
 pcVarDecls :: [PathCond] -> [SMTHeader]
 pcVarDecls = createVarDecls . pcVars
 
