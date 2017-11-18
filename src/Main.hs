@@ -5,6 +5,8 @@ import System.Environment
 import Data.List
 import Data.Maybe
 
+import System.Directory
+
 import G2.Lib.Printers
 
 import G2.Internals.Interface
@@ -16,6 +18,9 @@ import G2.Internals.Liquid.Interface
 
 main :: IO ()
 main = do
+    home_dir <- getHomeDirectory
+    prepBase $ home_dir ++ "/Desktop/base.tar.gz"
+
     as <- getArgs
 
     let m_liquid = mkLiquid as
