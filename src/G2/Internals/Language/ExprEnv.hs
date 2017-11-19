@@ -16,6 +16,7 @@ module G2.Internals.Language.ExprEnv
     , insertPreserving
     , insertExprs
     , redirect
+    , union
     , (!)
     , map
     , mapWithKey
@@ -138,6 +139,9 @@ insertExprs kvs scope = foldr (uncurry insert) scope kvs
 redirect :: Name -> Name -> ExprEnv -> ExprEnv
 redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 
+union :: ExprEnv -> ExprEnv -> ExprEnv
+union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
+
 map :: (Expr -> Expr) -> ExprEnv -> ExprEnv
 map f = mapWithKey (\_ -> f)
 
@@ -249,7 +253,7 @@ instance ASTContainer EnvObj Type where
     modifyContainedASTs _ r = r
 
 instance Named ExprEnv where
-    names (ExprEnv eenv) = names (M.elems eenv) ++ names eenv
+    names (ExprEnv eenv) = names (M.keys eenv) ++ names eenv
 
     rename old new =
         ExprEnv 

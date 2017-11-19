@@ -9,6 +9,7 @@ import System.Directory
 
 import G2.Lib.Printers
 
+import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
 import G2.Internals.Translation
@@ -29,9 +30,8 @@ main = do
         (Just l, Just f) -> do
             in_out <- findCounterExamples proj prims l f
 
-            print in_out
-
-            return ()
+            printFuncCalls f in_out
+            
             -- ghcInfos <- getGHCInfos [l]
             -- putStrLn . show $ length ghcInfos
 
@@ -39,6 +39,8 @@ main = do
             -- mapM_ (\s -> do
             --     putStrLn ""
             --     pprint s) specs
+
+
         _ -> runGHC as
 
 runGHC :: [String] -> IO ()
@@ -82,21 +84,18 @@ runGHC as = do
 
     -- putStrLn "----------------\n----------------"
 
+    printFuncCalls entry in_out
+
+
+printFuncCalls :: String -> [(State, [Rule], [Expr], Expr)] -> IO ()
+printFuncCalls entry =
     mapM_ (\(_, _, inArg, ex) -> do
-            let funcCall = mkExprHaskell 
-                         . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
+        let funcCall = mkExprHaskell 
+                     . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
-            -- mapM_ (print) rs
-            -- putStrLn $ pprExecStateStr st
+        let funcOut = mkExprHaskell $ ex
 
-            -- print inArg
-            -- print ex
-
-            let funcOut = mkExprHaskell $ ex
-
-            putStrLn $ funcCall ++ " = " ++ funcOut
-        ) in_out
-
+        putStrLn $ funcCall ++ " = " ++ funcOut)
 
 mArg :: String -> [String] -> (String -> a) -> a -> a
 mArg s a f d = case elemIndex s a of

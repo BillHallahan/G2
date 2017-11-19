@@ -207,8 +207,8 @@ run con hhp n state = do
 
     -- mapM_ (\(rs, st) -> do
     --     putStrLn $ show rs
-    --     -- putStrLn $ pprExecStateStr st
-    --     putStrLn . pprExecEEnvStr $ expr_env st
+    --     putStrLn $ pprExecStateStr st
+    --     -- putStrLn . pprExecEEnvStr $ expr_env st
     --     -- print $ curr_expr st
     --     -- print $ true_assert st
     --     -- print $ assertions st

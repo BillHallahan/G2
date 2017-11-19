@@ -43,7 +43,7 @@ findCounterExamples proj prims fp entry = do
 
     let merged_state = mergeLHSpecState specs init_state
 
-    putStrLn $ pprExecStateStr merged_state
+    -- putStrLn $ pprExecStateStr merged_state
 
     hhp <- getZ3ProcessHandles
 
@@ -66,25 +66,43 @@ pprint (v, r) = do
     putStrLn $ show doc
 
 -- | mergeLHSpecState
+-- From the existing expression environement E, we  generate a new expression
+-- environment E', with renamed copies of all expressions used in the LH
+-- Specifications.
+-- Then, we modify E by adding Assume/Asserts
+-- based on the annotations.  However, these Assume/Asserts are only allowed to
+-- reference expressions in E'.  Finally, the two expression environments are
+-- merged, before the whole state is returned.
+-- This prevents infinite chains of Assumes/Asserts.
+mergeLHSpecState :: [(Var, LocSpecType)] -> State -> State
+mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng}) =
+    let
+        (meenv, ng') = renameAll eenv ng
+
+        s' = mergeLHSpecState' xs eenv (s {name_gen = ng'})
+    in
+    s' {expr_env = E.union (expr_env s') meenv}
+
+-- | mergeLHSpecState'
 -- Merges a list of Vars and SpecTypes with a State, by finding
 -- cooresponding vars between the list and the state, and calling
 -- mergeLHSpecState on the corresponding exprs and specs
-mergeLHSpecState :: [(Var, LocSpecType)] -> State -> State
-mergeLHSpecState [] s = s
-mergeLHSpecState ((v,lst):xs) s =
+mergeLHSpecState' :: [(Var, LocSpecType)] -> ExprEnv -> State -> State
+mergeLHSpecState' [] _ s = s
+mergeLHSpecState' ((v,lst):xs) meenv s =
     let
         (Id (Name n m _) _) = mkId v
 
         g2N = E.lookupNameMod n m (expr_env s)
     in
     case g2N of
-        Just (n', e) -> mergeLHSpecState xs $ addSpecType n' e (val lst) s
+        Just (n'@(Name "abs2" _ _), e) -> mergeLHSpecState' xs  meenv $ addSpecType n' e (val lst) meenv s
         -- We hit a Nothing for certain functions we consider primitives but which
         -- LH has LT assumptions for. E.g. True, False...
-        Nothing -> mergeLHSpecState xs s
+        _ -> mergeLHSpecState' xs meenv s
 
-addSpecType :: Name -> Expr -> SpecType -> State -> State
-addSpecType n e st (s@State {expr_env = eenv, name_gen = ng}) =
+addSpecType :: Name -> Expr -> SpecType -> ExprEnv -> State -> State
+addSpecType n e st meenv (s@State {expr_env = eenv, name_gen = ng}) =
     let
         (b, ng') = freshId (returnType e) ng
 
@@ -164,7 +182,8 @@ convertLHExpr (PAnd es) eenv m =
         [] -> Lit $ LitBool True
         [e] -> e
         es' -> foldr1 (\e -> App (App (mkAnd eenv) e)) es'
-convertLHExpr (PIff e e') eenv m = mkApp [Prim Implies TyBottom, convertLHExpr e eenv m, convertLHExpr e' eenv m]
+convertLHExpr (PIff e e') eenv m =
+    mkApp [Prim Implies TyBottom, convertLHExpr e eenv m, convertLHExpr e' eenv m]
 convertLHExpr (PAtom brel e e') eenv m =
     mkApp [ mkPrim (convertBrel brel) eenv
           , Var $ Id (Name "TYPE" Nothing 0) TyBottom -- TODO: What should this be?

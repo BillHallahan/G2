@@ -328,7 +328,7 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     case unApp (App fexpr aexpr) of
         ((Prim prim ty):ar) ->
             let ar' = varReduce eenv ar
-            in -- trace ("PRIM " ++ (show ar) ++ "\n" ++ (pprExecEEnvStr eenv)) 
+            in -- trace ("PRIM " ++ (show (head ar)) ++ "\n" ++ (pprExecEEnvStr eenv)) 
             ( RuleEvalPrimToNorm
                 , [( eenv
                    -- This may need to be Evaluate if there are more
