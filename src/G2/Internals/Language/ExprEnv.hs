@@ -97,9 +97,11 @@ isSymbolic n eenv@(ExprEnv eenv') =
 
 -- TODO -- This seems kinda too much like a special case to be here...
 occLookup :: String -> Maybe String -> ExprEnv -> Maybe Expr
-occLookup n m = 
-    fmap snd . L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
-           . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) . unwrapExprEnv
+occLookup n m (ExprEnv eenv) = 
+    let ex = L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
+           . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) $ eenv
+    in
+    fmap (\(n, e) -> Var $ Id n (typeOf e)) ex
 
 lookupNameMod :: String -> Maybe String -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =

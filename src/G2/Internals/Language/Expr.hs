@@ -80,9 +80,12 @@ mkLamBindings' ng ((as, n, t):ats) fIds f =
 
 -- Runs the given function f on the expression nested in the lambdas, and
 -- rewraps the new expression with the Lambdas
-insertInLams :: (Expr -> Expr) -> Expr -> Expr
-insertInLams f (Lam i e) = Lam i $ insertInLams f e
-insertInLams f e = f e
+insertInLams :: ([Id] -> Expr -> Expr) -> Expr -> Expr
+insertInLams f = insertInLams' f []
+
+insertInLams' :: ([Id] -> Expr -> Expr) -> [Id] -> Expr -> Expr
+insertInLams' f xs (Lam i e)  = Lam i $ insertInLams' f (i:xs) e
+insertInLams' f xs e = f (reverse xs) e
 
 args :: Expr -> [Id]
 args (Lam i e) = i:args e

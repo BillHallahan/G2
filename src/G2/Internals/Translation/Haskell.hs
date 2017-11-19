@@ -8,6 +8,7 @@ module G2.Internals.Translation.Haskell
     , prim_list
     , rawDump
     , mkId
+    , mkTyConName
     ) where
 
 import qualified G2.Internals.Language as G2

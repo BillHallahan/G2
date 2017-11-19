@@ -82,7 +82,7 @@ addPolyPred s@(State { expr_env = eenv
 
         d = fmap (\wf' -> App (App (App (Var wf') (Type TyInt)) (Var fw)) (Var i)) wf
         e' = case d of
-            Just d' -> insertInLams (Assume d')  e
+            Just d' -> insertInLams (\_ -> Assume d')  e
             Nothing -> e
     in
     s {expr_env = E.insert f e' eenv}
@@ -206,18 +206,18 @@ run con hhp n state = do
     -- let ident_states' = ident_states
 
     -- mapM_ (\(rs, st) -> do
-    --     -- putStrLn $ show rs
+    --     putStrLn $ show rs
     --     -- putStrLn $ pprExecStateStr st
-    --     -- putStrLn . pprExecEEnvStr $ expr_env st
+    --     putStrLn . pprExecEEnvStr $ expr_env st
     --     -- print $ curr_expr st
-    --     print $ true_assert st
-    --     print $ assertions st
+    --     -- print $ true_assert st
+    --     -- print $ assertions st
     --     -- putStrLn . pprPathsStr . PC.toList $ path_conds st
     --     -- print $ E.symbolicKeys $ expr_env st
     --     -- print $ input_ids st
     --     -- print $ model st
     --     putStrLn "----"
-    --     ) ident_states'
+    --     ) exec_states
 
 
     ident_states'' <- 

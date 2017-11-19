@@ -41,8 +41,8 @@ main = defaultMain
 tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
-           sampleTests
-        ,  testFileTests
+          sampleTests
+        , testFileTests
         ]
 
 timeout :: Timeout

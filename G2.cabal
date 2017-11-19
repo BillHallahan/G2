@@ -30,6 +30,7 @@ executable G2
                        , reducers
                        , parsec
                        , process
+                       , text
                        , unordered-containers
                        , Cabal
   default-language:    Haskell2010
@@ -51,6 +52,7 @@ test-suite test
                        , process
                        , tasty >= 0.10
                        , tasty-hunit >= 0.9
+                       , text
                        , unordered-containers
                        , Cabal
   default-language:    Haskell2010

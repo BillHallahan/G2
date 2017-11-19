@@ -18,6 +18,9 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
+import G2.Lib.Printers
+import Debug.Trace
+
 import Control.Monad
 import Data.Maybe
 
@@ -188,7 +191,7 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
             -- We replace the path_conds with only those that are directly
             -- affected by the new path constraints
             -- This allows for more efficient solving, and in some cases may
-            -- change an unknown into a SAT or UNSAT
+            -- change an Unknown into a SAT or UNSAT
             -- Switching which of the following two lines is commented turns this on/off
             -- let s'' = s'
             let s'' = s' {path_conds = PC.relevant pc (path_conds s')}
@@ -206,9 +209,7 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
         let potentialS = [assertS, negAssertS]
 
         finalS <- filterM (\s_ -> return . isSat =<< checkConstraints con hpp s_) potentialS
-        -- let s'' = s' {path_conds = PC.relevant asserts (path_conds s')}
 
-        -- res <- checkAsserts con hpp s''
         return . (++) finalS =<< resultsToState con hpp rule s xs
     | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs
     where
@@ -327,7 +328,8 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     case unApp (App fexpr aexpr) of
         ((Prim prim ty):ar) ->
             let ar' = varReduce eenv ar
-            in ( RuleEvalPrimToNorm
+            in -- trace ("PRIM " ++ (show ar) ++ "\n" ++ (pprExecEEnvStr eenv)) 
+            ( RuleEvalPrimToNorm
                 , [( eenv
                    -- This may need to be Evaluate if there are more
                    -- than one redirections.

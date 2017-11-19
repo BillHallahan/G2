@@ -16,20 +16,26 @@ import G2.Internals.Liquid.Interface
 
 main :: IO ()
 main = do
-    as <- getArgs
+    as@(proj:prims:_) <- getArgs
 
     let m_liquid = mkLiquid as
+    let m_liquid_func = mkLiquidFunc as
 
-    case m_liquid of
-        Just l -> do
-            ghcInfos <- getGHCInfos [l]
-            putStrLn . show $ length ghcInfos
+    case (m_liquid, m_liquid_func) of
+        (Just l, Just f) -> do
+            in_out <- findCounterExamples proj prims l f
 
-            let specs = funcSpecs ghcInfos
-            mapM_ (\s -> do
-                putStrLn ""
-                pprint s) specs
-        Nothing -> runGHC as
+            print in_out
+
+            return ()
+            -- ghcInfos <- getGHCInfos [l]
+            -- putStrLn . show $ length ghcInfos
+
+            -- let specs = funcSpecs ghcInfos
+            -- mapM_ (\s -> do
+            --     putStrLn ""
+            --     pprint s) specs
+        _ -> runGHC as
 
 runGHC :: [String] -> IO ()
 runGHC as = do
@@ -126,3 +132,6 @@ mkPolyPredInt a = mArg "--poly-pred-i" a read (-1)
 
 mkLiquid :: [String] -> Maybe String
 mkLiquid a = mArg "--liquid" a Just Nothing
+
+mkLiquidFunc :: [String] -> Maybe String
+mkLiquidFunc a = mArg "--liquid-func" a Just Nothing
