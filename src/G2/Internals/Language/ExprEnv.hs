@@ -101,7 +101,7 @@ occLookup n m (ExprEnv eenv) =
     let ex = L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) $ eenv
     in
-    fmap (\(n, e) -> Var $ Id n (typeOf e)) ex
+    fmap (\(n', e) -> Var $ Id n' (typeOf e)) ex
 
 lookupNameMod :: String -> Maybe String -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =

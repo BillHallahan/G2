@@ -38,7 +38,7 @@ findCounterExamples proj prims fp entry = do
     ghcInfos <- getGHCInfos [fp]
     let specs = funcSpecs ghcInfos
 
-    (binds, tycons) <- translation proj fp prims
+    (binds, tycons) <- translationPrimDefs proj fp prims
     let init_state = initState binds tycons Nothing Nothing Nothing True entry
 
     let merged_state = mergeLHSpecState specs init_state
@@ -153,8 +153,8 @@ rTyConType :: RTyCon -> Type
 rTyConType rtc = TyConApp (mkTyConName . rtc_tc $ rtc) []
 
 convertLHExpr :: Ref.Expr -> ExprEnv -> M.Map Symbol Type -> Expr
-convertLHExpr (ESym (SL t)) _ m = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
-convertLHExpr (ECon c) _ m = convertCon c
+convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
+convertLHExpr (ECon c) _ _ = convertCon c
 convertLHExpr (EVar s) _ m = Var $ convertSymbol s m
 convertLHExpr (ENeg e) eenv m = App (Prim Negate TyBottom) $ convertLHExpr e eenv m
 convertLHExpr (EBin b e e') eenv m =

@@ -5,6 +5,8 @@ import System.Environment
 import Data.List
 import Data.Maybe
 
+import System.Directory
+
 import G2.Lib.Printers
 
 import G2.Internals.Interface
@@ -17,6 +19,8 @@ import G2.Internals.Liquid.Interface
 main :: IO ()
 main = do
     as@(proj:prims:_) <- getArgs
+    -- home_dir <- getHomeDirectory
+    -- prepBase $ home_dir ++ "/Desktop/base.tar.gz"
 
     let m_liquid = mkLiquid as
     let m_liquid_func = mkLiquidFunc as
@@ -55,7 +59,8 @@ runGHC as = do
     let m_poly_pred_with = mkPolyPredWith tail_args
     let m_poly_pred_i = mkPolyPredInt tail_args
 
-    (binds, tycons) <- translation proj src prims
+    (binds, tycons) <- translationPrimDefs proj src prims
+    -- (binds, tycons) <- translation proj src
 
     let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
