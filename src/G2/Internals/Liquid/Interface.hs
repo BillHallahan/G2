@@ -24,7 +24,7 @@ findCounterExamples fp entry = do
     ghcInfos <- getGHCInfos fp
     let specs = funcSpecs ghcInfos
 
-    (binds, tycons) <- translation undefined undefined undefined -- proj src prims
+    (binds, tycons) <- translationPrimDefs undefined undefined undefined -- proj src prims
     let init_state = initState binds tycons Nothing Nothing Nothing True entry
 
     let merged_state = mergeLHSpecState specs init_state

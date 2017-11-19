@@ -54,7 +54,8 @@ runGHC as = do
     let m_poly_pred_with = mkPolyPredWith tail_args
     let m_poly_pred_i = mkPolyPredInt tail_args
 
-    (binds, tycons) <- translation proj src prims
+    -- (binds, tycons) <- translationPrimDefs proj src prims
+    (binds, tycons) <- translation proj src
 
     let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
