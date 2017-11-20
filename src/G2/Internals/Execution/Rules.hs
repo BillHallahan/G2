@@ -210,6 +210,11 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
 
         finalS <- filterM (\s_ -> return . isSat =<< checkConstraints con hpp s_) potentialS
 
+        mapM_ (\s''' -> do  
+                            putStrLn "\nAsserts = "
+                            putStrLn (show asserts)
+                            putStrLn (pprExecStateStr s''')) (filter (true_assert) finalS)
+
         return . (++) finalS =<< resultsToState con hpp rule s xs
     | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs
     where

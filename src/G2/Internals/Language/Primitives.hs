@@ -18,6 +18,7 @@ primStr And = "&&"
 primStr Or = "||"
 primStr Not = "not"
 primStr Implies = "implies"
+primStr Iff = "iff"
 primStr Plus = "+"
 primStr Minus = "-"
 primStr Mult = "*"
@@ -42,6 +43,8 @@ strToPrim "*" = Just Mult
 strToPrim "/" = Just Div
 strToPrim "negate" = Just Negate
 strToPrim "error" = Just Error
+strToPrim "implies" = Just Implies
+strToPrim "iff" = Just Iff
 strToPrim _ = Nothing
 
 findPrim :: Primitive -> [(Name, Type)] -> (Name, Type)
@@ -121,3 +124,9 @@ mkDiv = mkPrim Div
 
 mkNegate :: E.ExprEnv -> Expr
 mkNegate = mkPrim Negate
+
+mkImplies :: E.ExprEnv -> Expr
+mkImplies = mkPrim Implies
+
+mkIff :: E.ExprEnv -> Expr
+mkIff = mkPrim Iff

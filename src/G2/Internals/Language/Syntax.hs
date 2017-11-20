@@ -77,6 +77,7 @@ data Primitive = Ge
                | Or
                | Not
                | Implies
+               | Iff
                | Plus
                | Minus
                | Mult

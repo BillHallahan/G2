@@ -30,7 +30,11 @@ not :: Bool -> Bool
 not = undefined
 
 implies :: Bool -> Bool -> Bool
-(implies) = undefined
+implies = undefined
+
+iff :: Bool -> Bool -> Bool
+iff = undefined
+
 
 (+) :: (Num a) => a -> a -> a
 (+) = undefined

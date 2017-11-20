@@ -47,7 +47,7 @@ findCounterExamples proj prims fp entry = do
 
     hhp <- getZ3ProcessHandles
 
-    run smt2 hhp 200 merged_state
+    run smt2 hhp 500 merged_state
 
 getGHCInfos :: [FilePath] -> IO [GhcInfo]
 getGHCInfos fp = do
@@ -79,7 +79,7 @@ mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng}) =
     let
         (meenv, ng') = renameAll eenv ng
 
-        s' = mergeLHSpecState' xs eenv (s {name_gen = ng'})
+        s' = mergeLHSpecState' xs meenv (s {name_gen = ng'})
     in
     s' {expr_env = E.union (expr_env s') meenv}
 
@@ -96,7 +96,8 @@ mergeLHSpecState' ((v,lst):xs) meenv s =
         g2N = E.lookupNameMod n m (expr_env s)
     in
     case g2N of
-        Just (n'@(Name "abs2" _ _), e) -> mergeLHSpecState' xs  meenv $ addSpecType n' e (val lst) meenv s
+        Just (n', e) ->
+            mergeLHSpecState' xs  meenv $ addSpecType n' e (val lst) meenv s
         -- We hit a Nothing for certain functions we consider primitives but which
         -- LH has LT assumptions for. E.g. True, False...
         _ -> mergeLHSpecState' xs meenv s
@@ -106,31 +107,45 @@ addSpecType n e st meenv (s@State {expr_env = eenv, name_gen = ng}) =
     let
         (b, ng') = freshId (returnType e) ng
 
-        st' = convertSpecType eenv st
+        (b', ng'') = freshId (returnType e) ng'
+
+        st' = convertSpecType meenv st b'
         newE = 
             insertInLams 
-                (\is e' -> Let [(b, e')] $ Lang.Assert (mkApp $ st':map Var is ++ [Var b]) (Var b))
+                (\is e' -> 
+                    Let [(b, e')] $ Lang.Assert (mkApp $ st':map Var is ++ [Var b]) (Var b))
                 e
     in
     s { expr_env = E.insert n newE eenv
-      , name_gen = ng'}
+      , name_gen = ng''}
 
 -- | convertSpecType
 -- We create an Expr from a SpecType in two phases.  First, we create outer
 -- lambda expressions, then we create a conjunction of boolean expressions
 -- describing allowed  values of the bound variables
-convertSpecType :: ExprEnv -> SpecType -> Expr
-convertSpecType eenv st =
+convertSpecType :: ExprEnv -> SpecType  -> Lang.Id -> Expr
+convertSpecType eenv st ret =
     let
-        lams = specTypeLams st
-        apps = specTypeApps st eenv M.empty
+        lams = specTypeLams st . Lam ret
+        apps = specTypeApps st eenv M.empty ret
     in
     primInject $ lams apps
 
 specTypeLams :: SpecType -> (Expr -> Expr)
-specTypeLams (RVar {rt_var = (RTV var)}) = Lam $ mkId var
-specTypeLams (RFun {rt_in = fin, rt_out = fout}) = specTypeLams fin . specTypeLams fout
-specTypeLams (RAllT {rt_ty = rty}) = specTypeLams rty
+specTypeLams (RVar {}) = id
+specTypeLams (RFun {rt_bind = b, rt_in = fin, rt_out = fout, rt_reft = r}) =
+    let
+        t = specTypeToType fin
+        i = convertSymbolT b t
+    in
+    trace ("fun = " ++ show i) $ Lam i . specTypeLams fout
+specTypeLams (RAllT {rt_tvbind = RTVar (RTV v) info, rt_ty = rty}) =
+    let
+        s = rtvInfoSymbol info
+
+        i = mkId v
+    in
+    trace ("\n s = " ++ show s) Lam i . specTypeLams rty
 specTypeLams r@(RAllP {rt_ty = rty}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
 specTypeLams r@(RAllS {rt_ty = rty}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
 specTypeLams rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
@@ -138,25 +153,74 @@ specTypeLams rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
         symb = reftSymbol $ ur_reft r
         typ = rTyConType c
     in
-    Lam (convertSymbolT symb typ)
+    id -- race ("rapp = " ++ (show $ convertSymbolT symb typ)) $ Lam (convertSymbolT symb typ)
 specTypeLams r = error (show $ PPR.rtypeDoc Full r)
 
--- We use the Map to gather up types for each Var we encounter- we need these
--- to work with the symbols in the Ref.Expr.
-specTypeApps :: SpecType -> ExprEnv -> M.Map Symbol Type -> Expr
-specTypeApps (RVar {rt_reft = r}) eenv m = convertLHExpr (reftExpr $ ur_reft r) eenv  m
-specTypeApps (RFun {rt_in = fin, rt_out = fout}) eenv m =
-    App (App (mkAnd eenv) (specTypeApps fin eenv m)) (specTypeApps fout eenv m)
-specTypeApps (RAllT {rt_ty = rty}) eenv m = specTypeApps rty eenv m
-specTypeApps (RApp {rt_tycon = c, rt_reft = r}) eenv m =
+specTypeApps :: SpecType -> ExprEnv -> M.Map Symbol Type -> Lang.Id -> Expr
+specTypeApps (RVar {rt_var = (RTV var), rt_reft = r}) eenv m b =
     let
         symb = reftSymbol $ ur_reft r
-        typ = rTyConType c
+
+        i@(Id _ t) = mkId var
+
+        symbId = convertSymbolT symb (TyVar i)
+
+        m' = M.insert symb (TyVar i) m 
+
+        re = convertLHExpr (reftExpr $ ur_reft r) eenv m'
+    in
+    trace ("\n\nsymb = " ++ show symb ++ "\ni = " ++ show i)
+    App (Lam symbId re) (Var b)
+specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) eenv m b =
+    -- TODO : rt_reft
+    let
+        t = specTypeToType fin
+        i = convertSymbolT rb t
+
+        m' = M.insert rb t m
+    in
+    mkApp [ mkAnd eenv
+          , specTypeApps fin eenv m' i
+          , specTypeApps fout eenv m' b]
+specTypeApps (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) eenv m b =
+    let
+        i = mkId v
+
+        -- m' = M.insert rb t m
+    in
+    trace ("RALLT =" ++ show i)
+    specTypeApps rty eenv m b
+specTypeApps (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) eenv m b =
+    let
+        symb = reftSymbol $ ur_reft r
+        typ = rTyConType c args
+        i = convertSymbolT symb typ
 
         m' = M.insert symb typ m
+
+        re = convertLHExpr (reftExpr $ ur_reft r) eenv m'
     in
-    convertLHExpr (reftExpr $ ur_reft r) eenv  m'
-specTypeApps r _ _ = error (show $ PPR.rtypeDoc Full r)
+    App (Lam i re) (Var b)
+
+specTypeToType :: SpecType -> Type
+specTypeToType (RVar {rt_var = (RTV var)}) =
+    let
+        i = mkId var
+    in
+    TyVar i
+specTypeToType (RFun {rt_bind = b, rt_in = fin, rt_out = fout}) =
+    let
+        t = specTypeToType fin
+        t' = specTypeToType fout
+    in
+    TyFun t t'
+-- specTypeToType (RAllT {rt_ty = rty}) = specTypeToType rty
+specTypeToType (RApp {rt_tycon = c, rt_args = args}) =
+    let
+        t = rTyConType c args
+    in
+    trace ("RAPP = " ++ show t ++ "    " ++ (show . length $ args)) 
+    t
 
 reftSymbol :: Reft -> Symbol
 reftSymbol = fst . unpackReft
@@ -167,11 +231,14 @@ reftExpr = snd . unpackReft
 unpackReft :: Reft -> (Symbol, Ref.Expr) 
 unpackReft = coerce
 
-rTyConType :: RTyCon -> Type
-rTyConType rtc = TyConApp (mkTyConName . rtc_tc $ rtc) []
+rTyConType :: RTyCon -> [SpecType]-> Type
+rTyConType rtc sts = TyConApp (mkTyConName . rtc_tc $ rtc) $ map specTypeToType sts
+
+rtvInfoSymbol :: RTVInfo a -> Symbol
+rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
 
 convertLHExpr :: Ref.Expr -> ExprEnv -> M.Map Symbol Type -> Expr
-convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
+convertLHExpr (ESym (SL t)) _ _ = trace ("\n\nt = " ++ show t) Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
 convertLHExpr (ECon c) _ _ = convertCon c
 convertLHExpr (EVar s) _ m = Var $ convertSymbol s m
 convertLHExpr (ENeg e) eenv m = App (Prim Negate TyBottom) $ convertLHExpr e eenv m
@@ -183,7 +250,7 @@ convertLHExpr (PAnd es) eenv m =
         [e] -> e
         es' -> foldr1 (\e -> App (App (mkAnd eenv) e)) es'
 convertLHExpr (PIff e e') eenv m =
-    mkApp [Prim Implies TyBottom, convertLHExpr e eenv m, convertLHExpr e' eenv m]
+    mkApp [mkIff eenv, convertLHExpr e eenv m, convertLHExpr e' eenv m]
 convertLHExpr (PAtom brel e e') eenv m =
     mkApp [ mkPrim (convertBrel brel) eenv
           , Var $ Id (Name "TYPE" Nothing 0) TyBottom -- TODO: What should this be?
@@ -200,7 +267,7 @@ convertSymbol s m =
     convertSymbolT s (maybe TyBottom id t)
 
 convertSymbolT :: Symbol -> Type -> Lang.Id
-convertSymbolT s = Id (Name (symbolString s) Nothing 0)
+convertSymbolT s = Id (Name (symbolSafeString s) Nothing 0)
 
 convertCon :: Constant -> Expr
 convertCon (Ref.I i) = Lit $ LitInt (fromIntegral i)

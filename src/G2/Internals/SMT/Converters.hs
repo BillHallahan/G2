@@ -124,6 +124,7 @@ funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
 funcToSMT2Prim And a1 a2 = exprToSMT a1 :&& exprToSMT a2
 funcToSMT2Prim Or a1 a2 = exprToSMT a1 :|| exprToSMT a2
 funcToSMT2Prim Implies a1 a2 = exprToSMT a1 :=> exprToSMT a2
+funcToSMT2Prim Iff a1 a2 = exprToSMT a1 :<=> exprToSMT a2
 funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
 funcToSMT2Prim Gt a1 a2 = exprToSMT a1 :> exprToSMT a2
 funcToSMT2Prim Eq a1 a2 = exprToSMT a1 := exprToSMT a2
@@ -186,7 +187,7 @@ typeToSMT TyFloat = SortFloat
 typeToSMT TyBool = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
-typeToSMT _ = error $ "Unsupported type in typeToSort."
+typeToSMT t = error $ "Unsupported type in typeToSort." ++ show t
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =
@@ -221,6 +222,7 @@ toSolverAST con (x :&& y) = (.&&) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :|| y) =  (.||) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con ((:!) x) = (.!) con $ toSolverAST con x
 toSolverAST con (x :=> y) = (.=>) con (toSolverAST con x) (toSolverAST con y)
+toSolverAST con (x :<=> y) = (.<=>) con (toSolverAST con x) (toSolverAST con y)
 
 toSolverAST con (x :+ y) = (.+) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :- y) = (.-) con (toSolverAST con x) (toSolverAST con y)
