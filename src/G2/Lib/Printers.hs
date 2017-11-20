@@ -220,6 +220,7 @@ mkPrimHaskell Negate = "-"
 mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
+mkPrimHaskell Iff = "undefined"
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""

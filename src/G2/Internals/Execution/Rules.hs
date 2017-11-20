@@ -18,9 +18,6 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.SMT.Interface
 import G2.Internals.SMT.Language hiding (Assert)
 
-import G2.Lib.Printers
-import Debug.Trace
-
 import Control.Monad
 import Data.Maybe
 
@@ -209,11 +206,6 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
         let potentialS = [assertS, negAssertS]
 
         finalS <- filterM (\s_ -> return . isSat =<< checkConstraints con hpp s_) potentialS
-
-        mapM_ (\s''' -> do  
-                            putStrLn "\nAsserts = "
-                            putStrLn (show asserts)
-                            putStrLn (pprExecStateStr s''')) (filter (true_assert) finalS)
 
         return . (++) finalS =<< resultsToState con hpp rule s xs
     | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs

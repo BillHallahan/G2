@@ -190,7 +190,7 @@ run con hhp n state = do
 
     let preproc_state' = preproc_state {model = fromJust mdl}
 
-    putStrLn . pprExecStateStr $ preproc_state
+    -- putStrLn . pprExecStateStr $ preproc_state
 
     exec_states <- runNDepth con hhp [preproc_state'] n
 
@@ -205,19 +205,19 @@ run con hhp n state = do
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
 
-    mapM_ (\(rs, st) -> do
-        -- putStrLn $ show rs
-    --     putStrLn $ pprExecStateStr st
-    --     -- putStrLn . pprExecEEnvStr $ expr_env st
-        -- print $ curr_expr st
-    --     -- print $ true_assert st
-    --     -- print $ assertions st
-        putStrLn . pprPathsStr . PC.toList $ path_conds st
-    --     -- print $ E.symbolicKeys $ expr_env st
-    --     -- print $ input_ids st
-    --     -- print $ model st
-        putStrLn "----"
-        ) exec_states
+    -- mapM_ (\(rs, st) -> do
+    --     -- putStrLn $ show rs
+    -- --     putStrLn $ pprExecStateStr st
+    -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
+    --     -- print $ curr_expr st
+    -- --     -- print $ true_assert st
+    -- --     -- print $ assertions st
+    --     putStrLn . pprPathsStr . PC.toList $ path_conds st
+    -- --     -- print $ E.symbolicKeys $ expr_env st
+    -- --     -- print $ input_ids st
+    -- --     -- print $ model st
+    --     putStrLn "----"
+    --     ) exec_states
 
 
     ident_states'' <- 

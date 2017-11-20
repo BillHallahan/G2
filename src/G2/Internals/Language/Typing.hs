@@ -47,6 +47,7 @@ instance Typed Primitive where
     typeOf Or = TyFun TyBool (TyFun TyBool TyBool)
     typeOf Not = TyFun TyBool TyBool
     typeOf Implies = TyFun TyBool (TyFun TyBool TyBool)
+    typeOf Iff = TyFun TyBool (TyFun TyBool TyBool)
     typeOf Plus = TyBottom
     typeOf Minus = TyBottom
     typeOf Mult = TyBottom

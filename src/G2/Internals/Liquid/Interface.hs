@@ -24,7 +24,6 @@ import TyCon
 import Var
 
 import Data.Coerce
-import Data.Foldable
 import qualified Data.Map as M
 import qualified Data.Text as T
 
@@ -34,12 +33,12 @@ import Debug.Trace
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
 findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> IO [(State, [Rule], [Expr], Expr)]
-findCounterExamples proj prims fp entry = do
+findCounterExamples proj primF fp entry = do
     ghcInfos <- getGHCInfos [fp]
     let specs = funcSpecs ghcInfos
 
-    (binds, tycons) <- translationPrimDefs proj fp prims
-    let init_state = initState binds tycons Nothing Nothing Nothing True entry
+    (bnds, tycons) <- translationPrimDefs proj fp primF
+    let init_state = initState bnds tycons Nothing Nothing Nothing True entry
 
     let merged_state = mergeLHSpecState specs init_state
 
@@ -138,14 +137,14 @@ specTypeLams (RFun {rt_bind = b, rt_in = fin, rt_out = fout, rt_reft = r}) =
         t = specTypeToType fin
         i = convertSymbolT b t
     in
-    trace ("fun = " ++ show i) $ Lam i . specTypeLams fout
+    Lam i . specTypeLams fout
 specTypeLams (RAllT {rt_tvbind = RTVar (RTV v) info, rt_ty = rty}) =
     let
         s = rtvInfoSymbol info
 
         i = mkId v
     in
-    trace ("\n s = " ++ show s) Lam i . specTypeLams rty
+    Lam i . specTypeLams rty
 specTypeLams r@(RAllP {rt_ty = rty}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
 specTypeLams r@(RAllS {rt_ty = rty}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
 specTypeLams rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
@@ -153,7 +152,7 @@ specTypeLams rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
         symb = reftSymbol $ ur_reft r
         typ = rTyConType c
     in
-    id -- race ("rapp = " ++ (show $ convertSymbolT symb typ)) $ Lam (convertSymbolT symb typ)
+    id
 specTypeLams r = error (show $ PPR.rtypeDoc Full r)
 
 specTypeApps :: SpecType -> ExprEnv -> M.Map Symbol Type -> Lang.Id -> Expr
@@ -169,7 +168,6 @@ specTypeApps (RVar {rt_var = (RTV var), rt_reft = r}) eenv m b =
 
         re = convertLHExpr (reftExpr $ ur_reft r) eenv m'
     in
-    trace ("\n\nsymb = " ++ show symb ++ "\ni = " ++ show i)
     App (Lam symbId re) (Var b)
 specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) eenv m b =
     -- TODO : rt_reft
@@ -185,10 +183,7 @@ specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) eenv
 specTypeApps (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) eenv m b =
     let
         i = mkId v
-
-        -- m' = M.insert rb t m
     in
-    trace ("RALLT =" ++ show i)
     specTypeApps rty eenv m b
 specTypeApps (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) eenv m b =
     let
@@ -219,7 +214,6 @@ specTypeToType (RApp {rt_tycon = c, rt_args = args}) =
     let
         t = rTyConType c args
     in
-    trace ("RAPP = " ++ show t ++ "    " ++ (show . length $ args)) 
     t
 
 reftSymbol :: Reft -> Symbol
@@ -238,7 +232,7 @@ rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
 
 convertLHExpr :: Ref.Expr -> ExprEnv -> M.Map Symbol Type -> Expr
-convertLHExpr (ESym (SL t)) _ _ = trace ("\n\nt = " ++ show t) Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
+convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
 convertLHExpr (ECon c) _ _ = convertCon c
 convertLHExpr (EVar s) _ m = Var $ convertSymbol s m
 convertLHExpr (ENeg e) eenv m = App (Prim Negate TyBottom) $ convertLHExpr e eenv m
