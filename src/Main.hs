@@ -13,7 +13,7 @@ import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
 import G2.Internals.Translation
-import G2.Internals.SMT hiding (Assert)
+import G2.Internals.SMT
 
 import G2.Internals.Liquid.Interface
 
