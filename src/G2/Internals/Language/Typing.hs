@@ -133,7 +133,7 @@ retype key new = modifyContainedASTs (retype' key new)
 
 retype' :: Id -> Type -> Type -> Type
 retype' key new (TyVar test) = if key == test then new else TyVar test
-retype' key new ty = modifyChildren (retype key new) ty
+retype' key new ty = modifyChildren (retype' key new) ty
 
 -- | (.::)
 -- Returns if the first type given is a specialization of the second,

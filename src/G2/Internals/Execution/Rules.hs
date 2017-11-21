@@ -201,13 +201,17 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
                 resultsToState con hpp rule s xs
     | not (null asserts) && not (true_assert s) = do
         let assertS = s' { path_conds = foldr (PC.insert) (path_conds s') asserts, true_assert = True }
+        let assertSRel = assertS {path_conds = PC.relevant asserts (path_conds assertS)}
+        
         let negAssertS = s' {path_conds = foldr (PC.insert) (path_conds s') (map PC.negatePC asserts)}
+        let negAssertSRel = negAssertS {path_conds = PC.relevant asserts (path_conds negAssertS)}
 
-        let potentialS = [assertS, negAssertS]
+        let potentialS = [(assertS, assertSRel), (negAssertS, negAssertSRel)]
 
-        finalS <- filterM (\s_ -> return . isSat =<< checkConstraints con hpp s_) potentialS
+        finalS <- filterM (\(_, s_) -> return . isSat =<< checkConstraints con hpp s_) potentialS
+        let finalS' = map fst finalS
 
-        return . (++) finalS =<< resultsToState con hpp rule s xs
+        return . (++) finalS' =<< resultsToState con hpp rule s xs
     | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs
     where
         s' = resultToState s red

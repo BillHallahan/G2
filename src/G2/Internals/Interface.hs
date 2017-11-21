@@ -206,17 +206,18 @@ run con hhp n state = do
     -- let ident_states' = ident_states
 
     -- mapM_ (\(rs, st) -> do
-    --     -- putStrLn $ show rs
-    -- --     putStrLn $ pprExecStateStr st
+    --     putStrLn $ show rs
+    --     putStrLn $ pprExecStateStr st
+
     -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
     --     -- print $ curr_expr st
     -- --     -- print $ true_assert st
     -- --     -- print $ assertions st
-    --     putStrLn . pprPathsStr . PC.toList $ path_conds st
+    --     -- putStrLn . pprPathsStr . PC.toList $ path_conds st
     -- --     -- print $ E.symbolicKeys $ expr_env st
     -- --     -- print $ input_ids st
     -- --     -- print $ model st
-    --     putStrLn "----"
+    --     putStrLn "----\n"
     --     ) exec_states
 
 

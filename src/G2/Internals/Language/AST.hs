@@ -144,11 +144,11 @@ instance AST Type where
     children _ = []
 
     modifyChildren f (TyVar i) = TyVar $ modifyContainedASTs f i
-    modifyChildren f (TyFun tf ta)   = TyFun (f tf) (f ta)
-    modifyChildren f (TyApp tf ta)   = TyApp (f tf) (f ta)
+    modifyChildren f (TyFun tf ta) = TyFun (f tf) (f ta)
+    modifyChildren f (TyApp tf ta) = TyApp (f tf) (f ta)
     modifyChildren f (TyConApp b ts) = TyConApp b (map f ts)
-    modifyChildren f (TyForAll b t)  = TyForAll (modifyContainedASTs f b) (f t)
-    modifyChildren _ t               = t
+    modifyChildren f (TyForAll b t) = TyForAll (modifyContainedASTs f b) (f t)
+    modifyChildren _ t = t
 
 instance AST DataCon where
     children _ = []
@@ -164,38 +164,32 @@ instance AST t => ASTContainer t t where
     modifyContainedASTs f t = f t
 
 instance ASTContainer Expr Type where
-    containedASTs = eval go
-      where
-            go :: Expr -> [Type]
-            go (Var i) = containedASTs i
-            go (Prim _ t) = [t]
-            go (Data dc) = containedASTs dc
-            go (Lam b e) = containedASTs b ++ containedASTs e
-            go (Let bnd e) = containedASTs bnd ++ containedASTs e
-            go (Case e i as) = containedASTs e ++ containedASTs i ++ containedASTs as
-            go (Cast e c) = containedASTs e ++ containedASTs c
-            go (Coercion c) = containedASTs c
-            go (Type t) = [t]
-            go (Assume e e') = containedASTs e ++ containedASTs e'
-            go (Assert e e') = containedASTs e ++ containedASTs e'
-            go _ = []
+    containedASTs (Var i) = containedASTs i
+    containedASTs (Prim _ t) = [t]
+    containedASTs (Data dc) = containedASTs dc
+    containedASTs (Lam b e) = containedASTs b ++ containedASTs e
+    containedASTs (Let bnd e) = containedASTs bnd ++ containedASTs e
+    containedASTs (Case e i as) = containedASTs e ++ containedASTs i ++ containedASTs as
+    containedASTs (Cast e c) = containedASTs e ++ containedASTs c
+    containedASTs (Coercion c) = containedASTs c
+    containedASTs (Type t) = [t]
+    containedASTs (Assume e e') = containedASTs e ++ containedASTs e'
+    containedASTs (Assert e e') = containedASTs e ++ containedASTs e'
+    containedASTs _ = []
 
-    modifyContainedASTs f = modify go
-      where
-            go :: Expr -> Expr
-            go (Var i) = Var (modifyContainedASTs f i)
-            go (Prim p t) = Prim p (modifyContainedASTs f t)
-            go (Data dc) = Data (modifyContainedASTs f dc)
-            go (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
-            go (Lam b e) = Lam (modifyContainedASTs f b) (modifyContainedASTs f e)
-            go (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
-            go (Case m i as) = Case (modifyContainedASTs f m) (modifyContainedASTs f i) (modifyContainedASTs f as) 
-            go (Type t) = Type (f t)
-            go (Cast e c) = Cast (modifyContainedASTs f e) (modifyContainedASTs f c)
-            go (Coercion c) = Coercion (modifyContainedASTs f c)
-            go (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
-            go (Assert e e') = Assert (modifyContainedASTs f e) (modifyContainedASTs f e')
-            go e = e
+    modifyContainedASTs f (Var i) = Var (modifyContainedASTs f i)
+    modifyContainedASTs f (Prim p t) = Prim p (f t)
+    modifyContainedASTs f (Data dc) = Data (modifyContainedASTs f dc)
+    modifyContainedASTs f (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
+    modifyContainedASTs f (Lam b e) = Lam (modifyContainedASTs f b) (modifyContainedASTs f e)
+    modifyContainedASTs f (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
+    modifyContainedASTs f (Case m i as) = Case (modifyContainedASTs f m) (modifyContainedASTs f i) (modifyContainedASTs f as) 
+    modifyContainedASTs f (Type t) = Type (f t)
+    modifyContainedASTs f (Cast e c) = Cast (modifyContainedASTs f e) (modifyContainedASTs f c)
+    modifyContainedASTs f (Coercion c) = Coercion (modifyContainedASTs f c)
+    modifyContainedASTs f (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
+    modifyContainedASTs f (Assert e e') = Assert (modifyContainedASTs f e) (modifyContainedASTs f e')
+    modifyContainedASTs _ e = e
 
 instance ASTContainer Id Expr where
   containedASTs (Id _ _) = []
@@ -205,7 +199,7 @@ instance ASTContainer Id Expr where
 instance ASTContainer Id Type where
   containedASTs (Id _ t) = [t]
 
-  modifyContainedASTs f (Id n t) = Id n (modifyContainedASTs f t)
+  modifyContainedASTs f (Id n t) = Id n (f t)
 
 instance ASTContainer Name Expr where
     containedASTs _ = []
@@ -224,7 +218,7 @@ instance ASTContainer DataCon Expr where
     modifyContainedASTs _ d = d
 
 instance ASTContainer DataCon Type where
-    containedASTs (DataCon _ t ts) = containedASTs (t:ts)
+    containedASTs (DataCon _ t ts) = t:ts
     containedASTs _ = []
 
     modifyContainedASTs f (DataCon n t ts) = DataCon n (f t) (map f ts)
