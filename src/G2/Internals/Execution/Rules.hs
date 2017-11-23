@@ -510,10 +510,9 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
 
 -- In the event that our Lam parameter is a type variable, we have to handle
 -- it by retyping.
-reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame aexpr) =
-  let argty = typeOf aexpr
-      binds = [(Id n argty, aexpr)]
-      lexpr' = retype a argty lexpr
+reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame ax@(Type axty)) =
+  let binds = [(Id n axty, ax)]
+      lexpr' = retype a axty lexpr
       (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
   in ( RuleReturnEApplyLamType
      , ( eenv'
@@ -525,23 +524,12 @@ reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame aexpr) =
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b@(Id n ty) lexpr) ngen (ApplyFrame aexpr) =
-  let binds = if ty /= typeOf aexpr
-                 then [(b, exprCoerce aexpr ty)]
-                 else [(b, aexpr)]
-      (eenv', lexpr', ngen') = liftLetBinds binds eenv lexpr ngen
-      -- (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
-  in ( RuleReturnEApplyLamExpr
-     , ( eenv'
-       , CurrExpr Evaluate lexpr'
-       , ngen'))
-  {-
   let binds = [(b, aexpr)]
       (eenv', lexpr', ngen') = liftLetBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLamExpr
      , ( eenv'
        , CurrExpr Evaluate lexpr'
        , ngen'))
-  -}
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.

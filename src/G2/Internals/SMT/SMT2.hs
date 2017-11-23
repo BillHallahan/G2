@@ -201,6 +201,7 @@ checkSat' h_in h_out = do
     r <- hWaitForInput h_out (-1)
     if r then do
         out <- hGetLine h_out
+        -- putStrLn $ "Z3 out: " ++ out
         _ <- evaluate (length out)
 
         if out == "sat" then
