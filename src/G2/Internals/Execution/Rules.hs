@@ -524,13 +524,24 @@ reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame aexpr) =
 -- bit tricky, since we need to make sure that the thing we end up returning
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
-reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
+reduceEReturn eenv (Lam b@(Id n ty) lexpr) ngen (ApplyFrame aexpr) =
+  let binds = if ty /= typeOf aexpr
+                 then [(b, exprCoerce aexpr ty)]
+                 else [(b, aexpr)]
+      (eenv', lexpr', ngen') = liftLetBinds binds eenv lexpr ngen
+      -- (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
+  in ( RuleReturnEApplyLamExpr
+     , ( eenv'
+       , CurrExpr Evaluate lexpr'
+       , ngen'))
+  {-
   let binds = [(b, aexpr)]
       (eenv', lexpr', ngen') = liftLetBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLamExpr
      , ( eenv'
        , CurrExpr Evaluate lexpr'
        , ngen'))
+  -}
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.

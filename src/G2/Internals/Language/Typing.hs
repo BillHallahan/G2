@@ -16,6 +16,7 @@ module G2.Internals.Language.Typing
     , splitTyForAlls
     , splitTyFuns
     , retype
+    , exprCoerce
     ) where
 
 import G2.Internals.Language.AST
@@ -135,6 +136,28 @@ retype' :: Id -> Type -> Type -> Type
 retype' key new (TyVar test) = if key == test then new else TyVar test
 retype' key new ty = modifyChildren (retype' key new) ty
 
+-- | Coerce
+-- Coerce an expression to be of a certain type.
+exprCoerce :: Expr -> Type -> Expr
+exprCoerce (Var (Id n TYPE)) ty = Var (Id n ty)
+exprCoerce (App fexpr aexpr) ty =
+  App (exprCoerce fexpr (TyForAll (AnonTyBndr (typeOf aexpr)) ty)) aexpr
+exprCoerce (Lam (Id n _) lexpr) (TyForAll (NamedTyBndr (Id _ t1)) t2) =
+  Lam (Id n t1) (exprCoerce lexpr t2)
+exprCoerce (Lam (Id n _) lexpr) (TyForAll (AnonTyBndr t1) t2) =
+  Lam (Id n t1) (exprCoerce lexpr t2)
+exprCoerce (Lam (Id n _) lexpr) (TyFun t1 t2) =
+  Lam (Id n t1) (exprCoerce lexpr t2)
+exprCoerce (Let binds lexpr) ty = Let binds (exprCoerce lexpr ty)
+exprCoerce (Case mexpr d as) ty = Case mexpr d (map ((flip altCoerce) ty) as)
+exprCoerce (Cast expr coer) ty = Cast (exprCoerce expr ty) coer
+exprCoerce (Assume cond expr) ty = Assume cond (exprCoerce expr ty)
+exprCoerce (Assert cond expr) ty = Assert cond (exprCoerce expr ty)
+exprCoerce expr _ = expr
+
+altCoerce :: Alt -> Type -> Alt
+altCoerce (Alt am expr) ty = Alt am (exprCoerce expr ty)
+
 -- | (.::)
 -- Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
@@ -246,3 +269,4 @@ splitTyForAlls t = ([], t)
 splitTyFuns :: Type -> [Type]
 splitTyFuns (TyFun t t') = t:splitTyFuns t'
 splitTyFuns t = [t]
+
