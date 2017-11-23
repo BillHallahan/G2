@@ -42,6 +42,6 @@ appNthArgIs a f i =
         True -> f (u !! i)
         False -> False
 
-isInt :: Expr -> Bool
-isInt (Lit (LitInt _)) = True
-isInt _ = False
+isInt :: Expr -> (Int -> Bool) -> Bool
+isInt (Lit (LitInt x)) f = f x
+isInt _ _ = False

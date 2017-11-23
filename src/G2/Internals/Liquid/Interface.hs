@@ -235,6 +235,7 @@ convertLHExpr :: Ref.Expr -> ExprEnv -> M.Map Symbol Type -> Expr
 convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
 convertLHExpr (ECon c) _ _ = convertCon c
 convertLHExpr (EVar s) _ m = Var $ convertSymbol s m
+convertLHExpr (EApp e e') eenv m = App (convertLHExpr e eenv m) (convertLHExpr e' eenv m)
 convertLHExpr (ENeg e) eenv m = App (Prim Negate TyBottom) $ convertLHExpr e eenv m
 convertLHExpr (EBin b e e') eenv m =
     mkApp [convertBop b, convertLHExpr e eenv m, convertLHExpr e' eenv m]
@@ -243,11 +244,16 @@ convertLHExpr (PAnd es) eenv m =
         [] -> Lit $ LitBool True
         [e] -> e
         es' -> foldr1 (\e -> App (App (mkAnd eenv) e)) es'
+convertLHExpr (POr es) eenv m = 
+    case map (\e -> convertLHExpr e eenv m) es of
+        [] -> Lit $ LitBool False
+        [e] -> e
+        es' -> foldr1 (\e -> App (App (mkOr eenv) e)) es'
 convertLHExpr (PIff e e') eenv m =
     mkApp [mkIff eenv, convertLHExpr e eenv m, convertLHExpr e' eenv m]
 convertLHExpr (PAtom brel e e') eenv m =
     mkApp [ mkPrim (convertBrel brel) eenv
-          , Var $ Id (Name "TYPE" Nothing 0) TyBottom -- TODO: What should this be?
+          , Var $ Id (Name "TYPE" Nothing 0) TYPE -- TODO: What should this be?
           , Var $ Id (Name "$fordInt" Nothing 0) TyBottom -- TODO: What should this be?
           , convertLHExpr e eenv m
           , convertLHExpr e' eenv m]

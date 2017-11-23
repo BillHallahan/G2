@@ -9,6 +9,7 @@ import G2.Internals.Interface
 import G2.Internals.Language as G2
 import G2.Internals.Translation
 import G2.Internals.SMT
+import G2.Internals.Liquid.Interface
 
 import Data.Maybe
 
@@ -42,6 +43,7 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
+        , liquidTests
         , testFileTests
         ]
 
@@ -86,6 +88,16 @@ sampleTests =
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 900 Nothing Nothing "sum" 2 [AtLeast 3]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 400 Nothing Nothing "dotProd" 3 [AtLeast 3]
         ]
+
+liquidTests :: IO TestTree
+liquidTests = 
+    return . testGroup "Liquid"
+        =<< sequence [
+                  checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "abs2" 400 2 [RForAll (\[x, y] -> isInt x (const True) && isInt y ((==) 0)), Exactly 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x > z || y > z), Exactly 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x > 0 && x >= y && z <= 0), Exactly 1]
+
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x /= y && y == z), Exactly 1]]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
 testFileTests :: IO TestTree
@@ -166,7 +178,7 @@ testFileTests =
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearPasses" 2 [ AtLeast 1
                 --                                                                                                                         , RForAll (\[x, y] -> dcInAppHasName "Age" x 1 && dcInAppHasName "Age" y 1)]
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "age" 2 [ AtLeast 1
-                --                                                                                                                  , RForAll (\[x, y] -> dcInAppHasName "Age" x 1 && isInt y)]
+                --                                                                                                                  , RForAll (\[x, y] -> dcInAppHasName "Age" x 1 && isInt y (const True))]
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                 --                                                                                                                 , RExists (\[x] -> x == Lit (LitInt 0))
                 --                                                                                                                 , RExists (\[x] -> x /= Lit (LitInt 0))]
@@ -193,7 +205,7 @@ checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> M
 checkExprReaches proj src steps m_assume m_assert m_reaches entry i reqList = do
     exprs <- return . map (\(inp, out) -> inp ++ [out]) =<<  testFile proj src steps m_assume m_assert m_reaches entry
     
-    let ch = checkExpr' (exprs) i reqList
+    let ch = checkExpr' exprs i reqList
 
     return . testCase src
         $ assertBool ("Assume/Assert for file " ++ src ++ 
@@ -226,6 +238,18 @@ testFile proj src steps m_assume m_assert m_reaches entry = do
     r <- run smt2 hhp steps init_state
 
     return $ map (\(_, _, i, o) -> (i, o)) r
+
+checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
+checkLiquid proj fp entry steps i reqList = do
+    r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry
+
+    let exprs = map (\(_, _, inp, out) -> inp ++ [out]) r
+
+    let ch = checkExpr' exprs i reqList
+
+    return . testCase fp
+        $ assertBool ("Liquid test for file " ++ fp ++ 
+                      " with function " ++ entry ++ " failed.\n") ch
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
