@@ -31,6 +31,22 @@ liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen)
 liftBinds binds eenv expr ngen = (eenv', expr', ngen')
   where
+    (bindsLHS, bindsRHS) = unzip binds
+
+    olds = map (idName) bindsLHS
+    (news, ngen') = freshSeededNames olds ngen
+    expr' = renames (zip olds news) expr
+    bindsLHS' = renames (zip olds news) bindsLHS
+
+    binds' = zip bindsLHS' bindsRHS
+
+    eenv' = E.insertExprs (zip news (map snd binds')) eenv
+
+-- Due to recursion, Let bindings have to rename the RHS of the bindings
+liftLetBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
+             (E.ExprEnv, Expr, NameGen)
+liftLetBinds binds eenv expr ngen = (eenv', expr', ngen')
+  where
     olds = map (idName . fst) binds
     (news, ngen') = freshSeededNames olds ngen
     expr' = renames (zip olds news) expr
@@ -350,7 +366,7 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
 reduceEvaluate eenv (Let binds expr) ngen =
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
-    let (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+    let (eenv', expr', ngen') = liftLetBinds binds eenv expr ngen
     in ( RuleEvalLet
        , [( eenv'
           , CurrExpr Evaluate expr'
@@ -510,7 +526,7 @@ reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame aexpr) =
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
   let binds = [(b, aexpr)]
-      (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
+      (eenv', lexpr', ngen') = liftLetBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLamExpr
      , ( eenv'
        , CurrExpr Evaluate lexpr'

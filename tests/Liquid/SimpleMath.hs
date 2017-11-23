@@ -11,3 +11,7 @@ abs2 x
 {-@ add :: x:Int -> y:Int -> {z:Int | x <= z && y <= z}@-}
 add :: Int -> Int -> Int
 add x y = x + y
+
+{-@ subToPos :: x:Pos -> {y:Int | x >= y} -> Pos @-}
+subToPos :: Int -> Int -> Int
+subToPos x y = x - y

@@ -70,9 +70,9 @@ pprint (v, r) = do
 -- Specifications.
 -- Then, we modify E by adding Assume/Asserts
 -- based on the annotations.  However, these Assume/Asserts are only allowed to
--- reference expressions in E'.  Finally, the two expression environments are
--- merged, before the whole state is returned.
--- This prevents infinite chains of Assumes/Asserts.
+-- reference expressions in E'.  This prevents infinite chains of Assumes/Asserts.  
+-- Finally, the two expression environments are merged, before the whole state
+-- is returned.
 mergeLHSpecState :: [(Var, LocSpecType)] -> State -> State
 mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng}) =
     let
@@ -177,7 +177,7 @@ specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) eenv
 
         m' = M.insert rb t m
     in
-    mkApp [ mkAnd eenv
+    mkApp [ mkImplies eenv
           , specTypeApps fin eenv m' i
           , specTypeApps fout eenv m' b]
 specTypeApps (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) eenv m b =
