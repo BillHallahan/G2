@@ -28,7 +28,9 @@ main = do
 
     case (m_liquid, m_liquid_func) of
         (Just l, Just f) -> do
-            in_out <- findCounterExamples proj prims l f
+            let n_val = nVal as
+
+            in_out <- findCounterExamples proj prims l f n_val
 
             printFuncCalls f in_out
             

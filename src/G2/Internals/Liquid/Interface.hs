@@ -32,8 +32,8 @@ import Debug.Trace
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> IO [(State, [Rule], [Expr], Expr)]
-findCounterExamples proj primF fp entry = do
+findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> Int -> IO [(State, [Rule], [Expr], Expr)]
+findCounterExamples proj primF fp entry steps = do
     ghcInfos <- getGHCInfos [fp]
     let specs = funcSpecs ghcInfos
 
@@ -46,7 +46,7 @@ findCounterExamples proj primF fp entry = do
 
     hhp <- getZ3ProcessHandles
 
-    run smt2 hhp 800 merged_state
+    run smt2 hhp steps merged_state
 
 getGHCInfos :: [FilePath] -> IO [GhcInfo]
 getGHCInfos fp = do
@@ -236,7 +236,7 @@ convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBotto
 convertLHExpr (ECon c) _ _ = convertCon c
 convertLHExpr (EVar s) _ m = Var $ convertSymbol s m
 convertLHExpr (EApp e e') eenv m = App (convertLHExpr e eenv m) (convertLHExpr e' eenv m)
-convertLHExpr (ENeg e) eenv m = App (Prim Negate TyBottom) $ convertLHExpr e eenv m
+convertLHExpr (ENeg e) eenv m = App (mkPrim Negate eenv) $ convertLHExpr e eenv m
 convertLHExpr (EBin b e e') eenv m =
     mkApp [convertBop b, convertLHExpr e eenv m, convertLHExpr e' eenv m]
 convertLHExpr (PAnd es) eenv m = 

@@ -43,7 +43,7 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
-        , liquidTests
+        -- , liquidTests
         , testFileTests
         ]
 
@@ -243,7 +243,7 @@ testFile proj src steps m_assume m_assert m_reaches entry = do
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry steps i reqList = do
-    r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry
+    r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry steps
 
     let exprs = map (\(_, _, inp, out) -> inp ++ [out]) r
 
