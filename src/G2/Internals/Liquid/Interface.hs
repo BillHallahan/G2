@@ -236,7 +236,7 @@ convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBotto
 convertLHExpr (ECon c) _ _ = convertCon c
 convertLHExpr (EVar s) _ m = Var $ convertSymbol s m
 convertLHExpr (EApp e e') eenv m = App (convertLHExpr e eenv m) (convertLHExpr e' eenv m)
-convertLHExpr (ENeg e) eenv m = App (mkPrim Negate eenv) $ convertLHExpr e eenv m
+convertLHExpr (ENeg e) eenv m = App (Prim Negate TyBottom) $ convertLHExpr e eenv m
 convertLHExpr (EBin b e e') eenv m =
     mkApp [convertBop b, convertLHExpr e eenv m, convertLHExpr e' eenv m]
 convertLHExpr (PAnd es) eenv m = 
