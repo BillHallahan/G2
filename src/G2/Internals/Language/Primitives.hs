@@ -79,9 +79,13 @@ mkRawPrim primtys name@(Name occ _ _) =
 -- | Primitive lookup helpers
 
 mkPrim :: Primitive -> E.ExprEnv -> Expr
-mkPrim p eenv = case E.occLookup (primStr p) (Just "GHC.Classes") eenv of
-    Just e -> e
-    Nothing -> error $ "Unrecognized prim"
+mkPrim p eenv = case(inClasses, inNum) of
+    (Just e, _)-> e
+    (_, Just e)-> e
+    _ -> error $ "Unrecognized prim " ++ show p ++ " " ++ show (primStr p)
+    where
+        inClasses = E.occLookup (primStr p) (Just "GHC.Classes") eenv
+        inNum = E.occLookup (primStr p) (Just "GHC.Num") eenv
 
 mkGe :: E.ExprEnv -> Expr
 mkGe = mkPrim Ge
