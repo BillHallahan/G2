@@ -205,7 +205,7 @@ run con hhp n state = do
     -- putStrLn $ "ident states: " ++ (show $ length ident_states)
 
     -- sm <- satModelOutputs con hhp exec_states
-    -- let ident_states' = ident_states
+    let ident_states' = ident_states
 
     -- mapM_ (\(rs, st) -> do
     --     putStrLn $ show rs
@@ -220,7 +220,7 @@ run con hhp n state = do
     -- --     -- print $ input_ids st
     -- --     -- print $ model st
     --     putStrLn "----\n"
-    --     ) nonident_states
+    --     ) ident_states
 
 
     ident_states'' <- 

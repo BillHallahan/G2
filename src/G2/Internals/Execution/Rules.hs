@@ -525,7 +525,7 @@ reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame ax@(Type axty)) =
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b@(Id n ty) lexpr) ngen (ApplyFrame aexpr) =
   let binds = [(b, aexpr)]
-      (eenv', lexpr', ngen') = liftLetBinds binds eenv lexpr ngen
+      (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLamExpr
      , ( eenv'
        , CurrExpr Evaluate lexpr'

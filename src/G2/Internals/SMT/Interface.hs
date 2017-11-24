@@ -15,6 +15,8 @@ import G2.Internals.SMT.Language
 import qualified Data.Map as M
 import Data.Maybe
 
+import G2.Lib.Printers
+
 subModel :: State -> ([Expr], Expr)
 subModel (State { curr_expr = CurrExpr _ cexpr
                 , input_ids = is
@@ -38,7 +40,10 @@ checkConstraints con io s = do
     case PC.checkConsistency (type_env s) (path_conds s) of
         Just True -> return SAT
         Just False -> return UNSAT
-        _ -> checkConstraints' con io s
+        _ -> do
+            putStrLn "------"
+            putStrLn . pprPathsStr . PC.toList $ path_conds s
+            checkConstraints' con io s
 
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints' con io s = do
