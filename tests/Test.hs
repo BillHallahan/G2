@@ -96,6 +96,8 @@ liquidTests =
                   checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "abs2" 400 2 [RForAll (\[x, y] -> isInt x (const True) && isInt y ((==) 0)), Exactly 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x > z || y > z), Exactly 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x > 0 && x >= y && z <= 0), Exactly 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 800 2 [RExists (\[Lit (LitInt x), Lit (LitInt y)] -> x > y), AtLeast 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 800 2 [RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x > y), AtLeast 1]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x /= y && y == z), Exactly 1]]
 

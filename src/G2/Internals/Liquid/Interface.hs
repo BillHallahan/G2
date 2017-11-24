@@ -46,7 +46,7 @@ findCounterExamples proj primF fp entry = do
 
     hhp <- getZ3ProcessHandles
 
-    run smt2 hhp 500 merged_state
+    run smt2 hhp 800 merged_state
 
 getGHCInfos :: [FilePath] -> IO [GhcInfo]
 getGHCInfos fp = do
