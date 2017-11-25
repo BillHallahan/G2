@@ -149,4 +149,19 @@ mkStrict' w e =
 
 typeToWalker :: Walkers -> Type -> Expr
 typeToWalker w (TyConApp n _) = Var $ w M.! n
+typeToWalker _ TyInt = mkLitStrict TyInt TyLitInt I
+typeToWalker _ TyFloat = mkLitStrict TyFloat TyLitFloat F
+typeToWalker _ TyDouble = mkLitStrict TyDouble TyLitDouble D
+typeToWalker _ TyChar = mkLitStrict TyChar TyLitChar C
 typeToWalker _ t = mkIdentity t
+
+mkLitStrict :: Type -> Type -> PrimCon -> Expr
+mkLitStrict t lt p =
+    let
+        x = Id (Name "x" Nothing 0) t
+        b = Id (Name "b" Nothing 0) t
+        lb = Id (Name "lb" Nothing 0) lt
+
+        alt = [Alt (DataAlt (PrimCon p) [lb]) $ App (Data (PrimCon p)) (Var lb)]
+    in
+    Lam x $ Case (Var x) b alt

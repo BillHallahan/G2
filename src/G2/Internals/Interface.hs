@@ -202,7 +202,7 @@ run con hhp n state = do
     let nonident_states = filter (not . isExecValueForm . snd) exec_states
 
     -- putStrLn $ "exec states: " ++ (show $ length exec_states)
-    -- putStrLn $ "ident states: " ++ (show $ length ident_states)
+    -- putStrLn $ "ident states: " ++ (show $ length ident_states')
 
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
@@ -220,7 +220,7 @@ run con hhp n state = do
     -- --     -- print $ input_ids st
     -- --     -- print $ model st
     --     putStrLn "----\n"
-    --     ) nonident_states
+    --     ) ident_states'
 
 
     ident_states'' <- 

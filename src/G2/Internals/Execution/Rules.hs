@@ -184,10 +184,10 @@ varReduce' _ e = e
 
 -- | Trace the type contained in an expression of type TYPE.
 traceTYPE :: Expr -> E.ExprEnv -> Type
-traceTYPE (Var (Id n ty)) eenv = case E.lookup n eenv of
+traceTYPE (Var (Id n TYPE)) eenv = case E.lookup n eenv of
     Just (Type res) -> res
     Just expr -> traceTYPE expr eenv
-    Nothing -> ty
+    Nothing -> error "Var of type TYPE not in expression environment."
 traceTYPE expr _ = typeOf expr
 
 -- | Function for performing rule reductions based on stack based evaluation

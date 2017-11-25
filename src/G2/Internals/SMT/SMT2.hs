@@ -26,13 +26,13 @@ smt2 = SMTConverter {
         , merge = (++)
 
         , checkSat = \(h_in, h_out, _) formula -> do
-            putStrLn "checkSat"
-            putStrLn formula
+            -- putStrLn "checkSat"
+            -- putStrLn formula
             
             setUpFormula h_in formula
             r <- checkSat' h_in h_out
 
-            putStrLn $ show r
+            -- putStrLn $ show r
 
             return r
 

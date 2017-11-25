@@ -182,12 +182,13 @@ idToNameSort (Id n t) = (n, typeToSMT t)
 typeToSMT :: Type -> Sort
 typeToSMT (TyVar (Id n _)) = Sort (nameToStr n) []
 typeToSMT TyInt = SortInt
+typeToSMT TyLitInt = SortInt
 typeToSMT TyDouble = SortDouble
 typeToSMT TyFloat = SortFloat
 typeToSMT TyBool = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
-typeToSMT t = error $ "Unsupported type in typeToSort." ++ show t
+typeToSMT t = error $ "Unsupported type in typeToSMT." ++ show t
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =
@@ -258,9 +259,9 @@ toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 -- | smtastToExpr
 smtastToExpr :: SMTAST -> Expr
-smtastToExpr (VInt i) = Lit $ LitInt i
-smtastToExpr (VFloat f) = Lit $ LitFloat f
-smtastToExpr (VDouble d) = Lit $ LitDouble d
+smtastToExpr (VInt i) = (Lit $ LitInt i)
+smtastToExpr (VFloat f) = (Lit $ LitFloat f)
+smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) = Lit $ LitBool b
 smtastToExpr (Cons n smts s) =
     foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon (strToName n) (sortToType s) [])) smts

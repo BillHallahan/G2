@@ -80,7 +80,7 @@ sampleTests =
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthInt" 3 [AtLeast 10, RForAll getNthErrTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthX" 3 [AtLeast 10, RForAll getNthErrGenTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
 
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 400 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
@@ -109,7 +109,7 @@ testFileTests :: IO TestTree
 testFileTests = 
     return . testGroup "TestFiles"
         =<< sequence [
-                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" 400 Nothing Nothing "f" 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), (Lit (LitInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
+                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" 400 Nothing Nothing "f" 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt r)] -> if x == y then r == x + y else r == y), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
@@ -121,7 +121,7 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultCase.hs" 400 Nothing Nothing "f" 2
                     [ RExists (\[Lit (LitInt x), y] -> x == 2 && y == (Lit $ LitBool True))
-                    , RExists (\[Lit(LitInt x), y] -> x == 1 && y == (Lit $ LitBool True))
+                    , RExists (\[Lit (LitInt x), y] -> x == 1 && y == (Lit $ LitBool True))
                     , RExists (\[Lit (LitInt x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
@@ -135,7 +135,8 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> tc3Holds x y), Exactly 1]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), y] -> x < 0 && dcHasName "A" y), RExists (\[Lit (LitInt x), y] -> x >= 0 && dcHasName "C" y), Exactly 2]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), y] -> x < 0 && dcHasName "A" y)
+                                                                                                              , RExists (\[Lit (LitInt x), y] -> x >= 0 && dcHasName "C" y), Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" 400 Nothing Nothing "f" 2 
                         [ RExists exists1
                         , RExists exists2
@@ -166,7 +167,7 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MatchesFunc1.hs" 400 Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), Lit (LitInt y)] -> y == 6 + x), AtLeast 1]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "fCall" 1 [RExists (\[Lit (LitInt x)] -> x == 35), Exactly 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "fCall" 1 [RExists (\[x] -> isInt x ((==) 35)), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "g" 2 [RExists (\[x, y] -> appNthArgIs x (dcHasName "A") 2 && appNthArgIs y (dcHasName "B") 2)
                                                                                                                       -- , RExists (\[x, y] -> appNthArgIs x (dcHasName "B") 2 && appNthArgIs y (dcHasName "C") 2)
                                                                                                                       -- , RExists (\[x, y] -> appNthArgIs x (dcHasName "C") 2 && appNthArgIs y (dcHasName "A") 2)
