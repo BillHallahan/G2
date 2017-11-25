@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Liquid.Interface where
 
@@ -76,7 +77,7 @@ pprint (v, r) = do
 mergeLHSpecState :: [(Var, LocSpecType)] -> State -> State
 mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng}) =
     let
-        (meenv, ng') = renameAll eenv ng
+        (meenv, ng') = doRenames (E.keys eenv) ng eenv
 
         s' = mergeLHSpecState' xs meenv (s {name_gen = ng'})
     in
@@ -122,7 +123,7 @@ addSpecType n e st meenv (s@State {expr_env = eenv, name_gen = ng}) =
 -- We create an Expr from a SpecType in two phases.  First, we create outer
 -- lambda expressions, then we create a conjunction of boolean expressions
 -- describing allowed  values of the bound variables
-convertSpecType :: ExprEnv -> SpecType  -> Lang.Id -> Expr
+convertSpecType :: ExprEnv -> SpecType -> Lang.Id -> Expr
 convertSpecType eenv st ret =
     let
         lams = specTypeLams st . Lam ret
@@ -234,7 +235,7 @@ rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
 convertLHExpr :: Ref.Expr -> ExprEnv -> M.Map Symbol Type -> Expr
 convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
 convertLHExpr (ECon c) _ _ = convertCon c
-convertLHExpr (EVar s) _ m = Var $ convertSymbol s m
+convertLHExpr (EVar s) eenv m = Var $ convertSymbol s eenv m
 convertLHExpr (EApp e e') eenv m = App (convertLHExpr e eenv m) (convertLHExpr e' eenv m)
 convertLHExpr (ENeg e) eenv m = App (Prim Negate TyBottom) $ convertLHExpr e eenv m
 convertLHExpr (EBin b e e') eenv m =
@@ -259,15 +260,39 @@ convertLHExpr (PAtom brel e e') eenv m =
           , convertLHExpr e' eenv m]
 convertLHExpr e _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
-convertSymbol :: Symbol -> M.Map Symbol Type -> Lang.Id
-convertSymbol s m =
+convertSymbol :: Symbol -> ExprEnv -> M.Map Symbol Type -> Lang.Id
+convertSymbol s eenv m =
     let
-        t = M.lookup s m
+        t = maybe TyBottom id $ M.lookup s m
+
+        nm@(Name n md _) = symbolName s
     in
-    convertSymbolT s (maybe TyBottom id t)
+    case E.lookupNameMod n md eenv of
+        Just (n', _) -> Id n' t
+        Nothing -> Id nm t
 
 convertSymbolT :: Symbol -> Type -> Lang.Id
-convertSymbolT s = Id (Name (symbolSafeString s) Nothing 0)
+convertSymbolT s = Id (symbolName s)
+
+-- If possible, we split symbols at the last "." not in parenthesis, to
+-- correctly set module names 
+symbolName :: Symbol -> Name
+symbolName s =
+    let
+        t = symbolSafeText s
+        l = T.last t
+
+        ((m, n), i) =
+            case l of
+                ')' -> (T.breakOnEnd ".(" t, 2)
+                _ -> (T.breakOnEnd "." t, 1)
+
+        m' = T.dropEnd i m
+    in
+    case (m', n) of
+        (n', "") -> Name (T.unpack n') Nothing 0
+        _ -> Name (T.unpack n) (Just $ T.unpack m') 0
+
 
 convertCon :: Constant -> Expr
 convertCon (Ref.I i) = Lit $ LitInt (fromIntegral i)
