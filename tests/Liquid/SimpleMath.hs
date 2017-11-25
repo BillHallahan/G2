@@ -1,9 +1,10 @@
 module SimpleMath where
 
 {-@ type Pos = {v:Int | 0 < v} @-}
+{-@ type PosDouble = {v:Double | 0.0 < v} @-}
 
-{-@ abs2 :: x:Int -> Pos @-}
-abs2 :: Int -> Int
+{-@ abs2 :: x:Double -> PosDouble @-}
+abs2 :: Double -> Double
 abs2 x
     | x > 0 = x
     | otherwise = -x

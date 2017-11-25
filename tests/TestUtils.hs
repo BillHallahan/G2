@@ -45,3 +45,7 @@ appNthArgIs a f i =
 isInt :: Expr -> (Int -> Bool) -> Bool
 isInt (Lit (LitInt x)) f = f x
 isInt _ _ = False
+
+isDouble :: Expr -> (Rational -> Bool) -> Bool
+isDouble (Lit (LitDouble x)) f = f x
+isDouble _ _ = False

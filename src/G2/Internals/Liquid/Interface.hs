@@ -237,7 +237,11 @@ convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBotto
 convertLHExpr (ECon c) _ _ = convertCon c
 convertLHExpr (EVar s) eenv m = Var $ convertSymbol s eenv m
 convertLHExpr (EApp e e') eenv m = App (convertLHExpr e eenv m) (convertLHExpr e' eenv m)
-convertLHExpr (ENeg e) eenv m = App (Prim Negate TyBottom) $ convertLHExpr e eenv m
+convertLHExpr (ENeg e) eenv m =
+    mkApp $ mkPrim Negate eenv
+          : Var (Id (Name "TYPE" Nothing 0) TYPE)
+          : Var (Id (Name "$fordInt" Nothing 0) TyBottom)
+          : [convertLHExpr e eenv m]
 convertLHExpr (EBin b e e') eenv m =
     mkApp [convertBop b, convertLHExpr e eenv m, convertLHExpr e' eenv m]
 convertLHExpr (PAnd es) eenv m = 
@@ -296,6 +300,7 @@ symbolName s =
 
 convertCon :: Constant -> Expr
 convertCon (Ref.I i) = Lit $ LitInt (fromIntegral i)
+convertCon (Ref.R d) = Lit $ LitDouble (toRational d)
 
 convertBop :: Bop -> Expr
 convertBop _ = undefined
