@@ -182,6 +182,14 @@ varReduce' eenv v@(Var (Id n _)) =
 
 varReduce' _ e = e
 
+-- | Trace the type contained in an expression of type TYPE.
+traceTYPE :: Expr -> E.ExprEnv -> Type
+traceTYPE (Var (Id n ty)) eenv = case E.lookup n eenv of
+    Just (Type res) -> res
+    Just expr -> traceTYPE expr eenv
+    Nothing -> ty
+traceTYPE expr _ = typeOf expr
+
 -- | Function for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
 
@@ -510,9 +518,10 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
 
 -- In the event that our Lam parameter is a type variable, we have to handle
 -- it by retyping.
-reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame ax@(Type axty)) =
-  let binds = [(Id n axty, ax)]
-      lexpr' = retype a axty lexpr
+reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame aexpr) =
+  let aty = traceTYPE aexpr eenv
+      binds = [(Id n aty, aexpr)]
+      lexpr' = retype a aty lexpr
       (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
   in ( RuleReturnEApplyLamType
      , ( eenv'
@@ -525,7 +534,7 @@ reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame ax@(Type axty)) =
 -- application, and then go into the expression body.
 reduceEReturn eenv (Lam b@(Id n ty) lexpr) ngen (ApplyFrame aexpr) =
   let binds = [(b, aexpr)]
-      (eenv', lexpr', ngen') = liftLetBinds binds eenv lexpr ngen
+      (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLamExpr
      , ( eenv'
        , CurrExpr Evaluate lexpr'
