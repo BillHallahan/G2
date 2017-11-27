@@ -100,6 +100,8 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 800 2 [RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x > y), AtLeast 1]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x /= y && y == z), Exactly 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 400 3 [Exactly 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 3 [Exactly 1]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 2000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
         ]

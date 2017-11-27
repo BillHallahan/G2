@@ -190,7 +190,7 @@ run con hhp n state = do
 
     let preproc_state' = preproc_state {model = fromJust mdl}
 
-    -- putStrLn . pprExecStateStr $ preproc_state
+    putStrLn . pprExecStateStr $ preproc_state
     -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
 
     exec_states <- runNDepth con hhp [preproc_state'] n
@@ -201,8 +201,8 @@ run con hhp n state = do
     let ident_states' = filter (true_assert . snd) ident_states
     let nonident_states = filter (not . isExecValueForm . snd) exec_states
 
-    -- putStrLn $ "exec states: " ++ (show $ length exec_states)
-    -- putStrLn $ "ident states: " ++ (show $ length ident_states')
+    putStrLn $ "exec states: " ++ (show $ length exec_states)
+    putStrLn $ "ident states: " ++ (show $ length ident_states')
 
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
@@ -220,7 +220,7 @@ run con hhp n state = do
     -- --     -- print $ input_ids st
     -- --     -- print $ model st
     --     putStrLn "----\n"
-    --     ) ident_states'
+    --     ) exec_states
 
 
     ident_states'' <- 

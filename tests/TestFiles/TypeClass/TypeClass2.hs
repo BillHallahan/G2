@@ -10,5 +10,12 @@ instance Test Int where
 
     bar = 0
 
+instance Test Float where
+    test x = x + 1
+    bar = 1
+
 f :: Int -> Int
 f x = test x
+
+g :: Float -> Float
+g x = test x

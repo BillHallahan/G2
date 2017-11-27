@@ -27,6 +27,9 @@ argTypesTEnv' _ = []
 -- names over types, and a list of data constructors for said type.
 data AlgDataTy = AlgDataTy [Name] [DataCon] deriving (Show, Eq, Read)
 
+dataCon :: AlgDataTy -> [DataCon]
+dataCon (AlgDataTy _ dc) = dc
+
 isPolyAlgDataTy :: AlgDataTy -> Bool
 isPolyAlgDataTy (AlgDataTy ns _) = not $ null ns
 
@@ -49,7 +52,11 @@ getDataCon tenv adt dc =
         adt' = M.lookup adt tenv
     in
     maybe Nothing (flip dataConWithName dc) adt'
-    
+
+dataConArgs :: DataCon -> [Type]
+dataConArgs (DataCon _ _ ts) = ts
+dataConArgs _ = []
+
 dataConWithName :: AlgDataTy -> Name -> Maybe DataCon
 dataConWithName (AlgDataTy _ dcs) n = listToMaybe $ filter (flip dataConHasName n) dcs
 
