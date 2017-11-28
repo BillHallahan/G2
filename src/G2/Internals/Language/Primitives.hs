@@ -72,7 +72,9 @@ mkRawPrim primtys name@(Name occ _ _) =
     varIds = map Var ids
     varBinds = map Var binds
 
-    apps = foldl' App (Prim (fromJust prim) ty) varBinds
+    apps = foldl' App (Prim (case prim of
+                                    Just p -> p
+                                    Nothing -> error $ "PRIM = " ++ show prim) ty) varBinds
 
     cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
 

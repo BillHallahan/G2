@@ -5,6 +5,7 @@ module G2.Internals.Liquid.Conversion where
 import G2.Internals.Translation
 import G2.Internals.Language as Lang
 import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Liquid.Primitives
 
 import G2.Lib.Printers
 
@@ -144,6 +145,8 @@ specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) eenv
           , specTypeApps fout eenv m' b]
 specTypeApps (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) eenv m b =
     let
+    	s = rtvInfoSymbol tv
+
         i = mkId v
     in
     specTypeApps rty eenv m b
@@ -197,7 +200,10 @@ convertLHExpr :: Ref.Expr -> ExprEnv -> M.Map Symbol Type -> Expr
 convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
 convertLHExpr (ECon c) _ _ = convertCon c
 convertLHExpr (EVar s) eenv m = Var $ convertSymbol s eenv m
-convertLHExpr (EApp e e') eenv m = App (convertLHExpr e eenv m) (convertLHExpr e' eenv m)
+convertLHExpr (EApp e e') eenv m =
+	case (convertLHExpr e' eenv m) of
+		v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ (convertLHExpr e eenv m):(map Type ts) ++ [v]
+		e'' -> App (convertLHExpr e eenv m) e''
 convertLHExpr (ENeg e) eenv m =
     mkApp $ mkPrim Negate eenv
           : Var (Id (Name "TYPE" Nothing 0) TYPE)
@@ -218,11 +224,7 @@ convertLHExpr (POr es) eenv m =
 convertLHExpr (PIff e e') eenv m =
     mkApp [mkIff eenv, convertLHExpr e eenv m, convertLHExpr e' eenv m]
 convertLHExpr (PAtom brel e e') eenv m =
-    mkApp [ mkPrim (convertBrel brel) eenv
-          , Var $ Id (Name "TYPE" Nothing 0) TYPE -- TODO: What should this be?
-          , Var $ Id (Name "$fordInt" Nothing 0) TyBottom -- TODO: What should this be?
-          , convertLHExpr e eenv m
-          , convertLHExpr e' eenv m]
+	convertBrel brel (convertLHExpr e eenv m) (convertLHExpr e' eenv m)
 convertLHExpr e _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
 convertSymbol :: Symbol -> ExprEnv -> M.Map Symbol Type -> Lang.Id
@@ -266,10 +268,10 @@ convertCon (Ref.R d) = Lit $ LitDouble (toRational d)
 convertBop :: Bop -> Expr
 convertBop _ = undefined
 
-convertBrel :: Brel -> Primitive
-convertBrel Ref.Eq = Lang.Eq
-convertBrel Ref.Ne = Lang.Neq
-convertBrel Ref.Gt = Lang.Gt
-convertBrel Ref.Ge = Lang.Ge
-convertBrel Ref.Lt = Lang.Lt
-convertBrel Ref.Le = Lang.Le
+convertBrel :: Brel -> Expr -> Expr -> Expr
+convertBrel Ref.Eq = mkLHEq
+convertBrel Ref.Ne = mkLHNeq
+convertBrel Ref.Gt = mkLHGt
+convertBrel Ref.Ge = mkLHGe
+convertBrel Ref.Lt = mkLHLt
+convertBrel Ref.Le = mkLHLe

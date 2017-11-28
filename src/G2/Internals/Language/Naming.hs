@@ -28,6 +28,8 @@ module G2.Internals.Language.Naming
     , freshVar
 
     ,childrenNames
+
+    , mapNG
     ) where
 
 import G2.Internals.Language.AST
@@ -288,3 +290,15 @@ childrenNames n ns ng@(NameGen _ chm) =
     case ens of
         Just ns' -> (ns', ng)
         Nothing -> (fns, NameGen hm' chm'')
+
+-- Allows mapping, while passing a NameGen along
+mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)
+mapNG f xs ng = mapNG' f (reverse xs) ng []
+
+mapNG' :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> [b] -> ([b], NameGen)
+mapNG' _ [] ng xs = (xs, ng)
+mapNG' f (x:xs) ng xs' =
+    let
+        (x', ng') = f x ng
+    in
+    mapNG' f xs ng' (x':xs')
