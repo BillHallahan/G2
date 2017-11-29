@@ -20,4 +20,4 @@ length Nil = 0
 
 {-@ die :: {x:Int | false} -> a @-}
 die :: Int -> a
-die x = undefined
+die x = error "die"

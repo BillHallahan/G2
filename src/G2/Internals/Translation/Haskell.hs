@@ -47,17 +47,17 @@ rawDump fp = do
   str <- mkIOString core
   putStrLn str
 
-hskToG2 :: FilePath -> FilePath -> IO (G2.Program, [G2.ProgramType])
-hskToG2 proj src = do
-    (sums_gutss, _, _) <- mkCompileClosure proj src
+hskToG2 :: FilePath -> FilePath -> Bool -> IO (G2.Program, [G2.ProgramType])
+hskToG2 proj src simpl = do
+    (sums_gutss, _, _) <- mkCompileClosure proj src simpl
     let binds = concatMap (\(_, _, b) -> map mkBinds b) sums_gutss
     let tycons = concatMap (\(_, t, _) -> map mkTyCon t) sums_gutss
     return (binds, tycons)
 
 type CompileClosure = ([(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv)
 
-mkCompileClosure :: FilePath -> FilePath -> IO CompileClosure
-mkCompileClosure proj src = do
+mkCompileClosure :: FilePath -> FilePath -> Bool -> IO CompileClosure
+mkCompileClosure proj src simpl = do
     (mod_graph, mod_gutss, dflags, env) <- runGhc (Just libdir) $ do
       beta_flags <- getSessionDynFlags
       let dflags = beta_flags { importPaths = [proj] }
@@ -77,7 +77,7 @@ mkCompileClosure proj src = do
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
     smpl_gutss <- mapM (hscSimplify env) mod_gutss
-    tidy_pgms <- mapM (tidyProgram env) smpl_gutss
+    tidy_pgms <- mapM (tidyProgram env) (if simpl then smpl_gutss else mod_gutss)
     let cg_gutss = map fst tidy_pgms
     let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
     let (tcss, bindss) = unzip tcss_pgms

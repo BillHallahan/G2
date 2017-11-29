@@ -41,6 +41,9 @@ mkLHLe = mkLHPrim Le TyBottom
 mkLHAnd :: Expr -> Expr -> Expr
 mkLHAnd = mkLHPrim And boolBoolBool
 
+mkLHOr :: Expr -> Expr -> Expr
+mkLHOr = mkLHPrim Or boolBoolBool
+
 mkLHImplies :: Expr -> Expr -> Expr
 mkLHImplies = mkLHPrim Implies boolBoolBool
 

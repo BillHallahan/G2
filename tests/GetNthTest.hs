@@ -50,6 +50,11 @@ getNthErrGenTest' [cl, Lit (LitInt i), e] =
         Nothing -> False
 getNthErrGenTest' _ = False
 
+getNthErrors :: [Expr] -> Bool
+getNthErrors [cl, Lit (LitInt i), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
+getNthErrors [cl, Lit (LitInt i), e] = False
+getNthErrors _ = False
+
 removePrimCon :: Expr -> Expr
 removePrimCon (App (Data (PrimCon I)) l) = l
 removePrimCon e = e
