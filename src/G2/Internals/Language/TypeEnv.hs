@@ -1,11 +1,26 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module G2.Internals.Language.TypeEnv where
+module G2.Internals.Language.TypeEnv ( ProgramType
+                                     , TypeEnv
+                                     , AlgDataTy (..)
+                                     , argTypesTEnv
+                                     , dataCon
+                                     , isPolyAlgDataTy
+                                     , isDataTyCon
+                                     , isNewTyCon
+                                     , getDataCons
+                                     , baseDataCons
+                                     , selfRecursive
+                                     , dataConCanContain
+                                     , getDataCon
+                                     , dataConArgs) where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.Typing
 
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -61,6 +76,43 @@ baseDataCons = filter baseDataCon
 baseDataCon :: DataCon -> Bool
 baseDataCon (DataCon _ _ (_:_)) = False
 baseDataCon _ = True
+
+nonSelfRecursiveDataCons :: TypeEnv -> [DataCon] -> [DataCon]
+nonSelfRecursiveDataCons tenv = filter (not . selfRecursive tenv)
+
+-- | selfRecursive
+-- Given a DataCon dc of type t, checks if one of the descendents of dc could
+-- be of type t
+selfRecursive :: TypeEnv -> DataCon -> Bool
+selfRecursive tenv dc =
+    let
+        tydc = typeOf dc
+        ts = dataConCanContain tenv dc
+    in
+    tydc `elem` ts
+
+-- | dataConCanContain
+-- Recursively searches the possible contents of a DataCon, to determine all
+-- the types that could be anywhere below it in an AST
+dataConCanContain :: TypeEnv -> DataCon -> [Type]
+dataConCanContain tenv = nub . dataConCanContain' tenv
+
+dataConCanContain' :: TypeEnv -> DataCon -> [Type]
+dataConCanContain' tenv (DataCon _ _ ts) =
+    let
+        pt = filter (not . isAlgDataTy) $ ts
+        dcs = filter isAlgDataTy $ ts
+
+        adts = concat . mapMaybe (fmap dataCon . flip M.lookup tenv . tyConAppName) $ dcs
+
+        recT = concatMap (dataConCanContain tenv) adts
+    in
+    pt ++ (map typeOf dcs) ++ recT
+dataConCanContain' _ _ = []
+
+tyConAppName :: Type -> Name
+tyConAppName (TyConApp n _) = n
+tyConAppName _ = error "tyConAppName: Type other than TyConApp"
 
 getDataCon :: TypeEnv -> Name -> Name -> Maybe DataCon
 getDataCon tenv adt dc =

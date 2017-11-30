@@ -201,26 +201,26 @@ run con hhp n state = do
     let ident_states' = filter (true_assert . snd) ident_states
     let nonident_states = filter (not . isExecValueForm . snd) exec_states
 
-    -- putStrLn $ "exec states: " ++ (show $ length exec_states)
-    -- putStrLn $ "ident states: " ++ (show $ length ident_states')
+    putStrLn $ "exec states: " ++ (show $ length exec_states)
+    putStrLn $ "ident states: " ++ (show $ length ident_states')
 
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
 
-    -- mapM_ (\(rs, st) -> do
-    --     putStrLn $ show rs
-    --     putStrLn $ pprExecStateStr st
+    mapM_ (\(rs, st) -> do
+        putStrLn $ show rs
+        putStrLn $ pprExecStateStr st
 
-    -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
-    --     -- print $ curr_expr st
-    -- --     -- print $ true_assert st
-    -- --     -- print $ assertions st
-    --     -- putStrLn . pprPathsStr . PC.toList $ path_conds st
-    -- --     -- print $ E.symbolicKeys $ expr_env st
-    -- --     -- print $ input_ids st
-    -- --     -- print $ model st
-    --     putStrLn "----\n"
-    --     ) exec_states
+    --     -- putStrLn . pprExecEEnvStr $ expr_env st
+        -- print $ curr_expr st
+    --     -- print $ true_assert st
+    --     -- print $ assertions st
+        -- putStrLn . pprPathsStr . PC.toList $ path_conds st
+    --     -- print $ E.symbolicKeys $ expr_env st
+    --     -- print $ input_ids st
+    --     -- print $ model st
+        putStrLn "----\n"
+        ) exec_states
 
 
     ident_states'' <- 
