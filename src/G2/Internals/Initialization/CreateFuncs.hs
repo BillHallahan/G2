@@ -12,6 +12,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 storeWalkerFunc :: Walkers -> Name -> AlgDataTy -> Name -> Expr -> Walkers
 storeWalkerFunc w tn _ fn e =
     let
@@ -44,6 +46,7 @@ createDeepSeqExpr dc@(DataCon _ _ _) ns ng arg_ids pfs =
     let
         (e, ng2) = createDeepSeqExpr' (Data dc) ns ng arg_ids pfs
     in
+    -- trace ("called with: " ++ show (dc, ns, ng, arg_ids, pfs)) $
     (Just e, ng2)
 createDeepSeqExpr _ _ ng _ _ = (Nothing, ng)
 
@@ -51,16 +54,20 @@ createDeepSeqExpr' :: Expr -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> [(
 createDeepSeqExpr' dc _ ng [] _ = (dc, ng)
 createDeepSeqExpr' dc ns ng (i@(Id _ t):xs) pfs =
     let
+        ns_dull = filter (\(n, _, _) -> not $ isNameSpecial n) ns
         (b_id, ng') = freshId t ng
 
-        case_e = case t of
+        case_e = if isTypeSpecial t
+                  then Case (Var i) b_id
+                  else case t of
                     TyConApp n ts ->
                         let
-                            (t', w, _) = fromJust $ find (\(t'', _, _) -> t'' == n) ns
+                            ts_dull = filter (not . isTypeSpecial) ts
+                            (t', w, _) = fromJust $ find (\(t'', _, _) -> t'' == n) ns_dull
                             f = walkFunc t' w
 
-                            typeV = map (\(TyVar (Id n' _)) -> Var . fromJust $ lookup n' pfs) ts
-                            typeF = mapMaybe (typeWalker pfs) ts
+                            typeV = map (\(TyVar (Id n' _)) ->  Var . fromJust $ lookup n' pfs) ts_dull
+                            typeF = mapMaybe (typeWalker pfs) ts_dull
 
                             app = mkApp $ Var f : typeV ++ typeF ++ [Var i]
                         in
@@ -74,7 +81,7 @@ createDeepSeqExpr' dc ns ng (i@(Id _ t):xs) pfs =
 
         dc' = App dc (Var b_id)
 
-        (e, ng'') = createDeepSeqExpr' dc' ns ng' xs pfs
+        (e, ng'') = createDeepSeqExpr' dc' ns_dull ng' xs pfs
 
         am = [Alt Default e]
     in
@@ -190,3 +197,19 @@ createHigherOrderWrapperExpr' ng ts' =
 
 storeWrapper :: Wrappers -> () -> Type -> Name -> Expr -> Wrappers
 storeWrapper w _ t n e = (t, Id n (typeOf e)):w
+
+isStringSpecial :: String -> Bool
+isStringSpecial = (flip elem) special_names
+  where
+    special_names = ["[]", "~", "~~"]
+
+isNameSpecial :: Name -> Bool
+isNameSpecial (Name n _ _) = isStringSpecial n
+
+isIdSpecial :: Id -> Bool
+isIdSpecial (Id n _) = isNameSpecial n
+
+isTypeSpecial :: Type -> Bool
+isTypeSpecial (TyVar id) = isIdSpecial id
+isTypeSpecial (TyConApp n _) = isNameSpecial n
+isTypeSpecial _ = False
