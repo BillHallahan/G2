@@ -44,6 +44,37 @@ getNthContract :: CList a -> Int -> b -> Bool
 getNthContract xs i _ = 0 <= i && i < length xs
 
 
+class CFunctor f where
+    cfmap :: (a -> b) -> f a -> f b
+
+    (<$!) :: a -> f b -> f a
+    (<$!) x = cfmap (\_ -> x)
+
+instance CFunctor CList where
+    cfmap g (Cons x xs) = Cons (g x) (cfmap g xs)
+    cfmap _ Nil = Nil
+
+cfmapInt :: (Int -> Int) -> CList Int -> CList Int
+cfmapInt f xs = cfmap f xs
+
+double :: Int -> Int
+double x = x * 2
+
+add1 :: Int -> Int
+add1 x = x + 1
+
+intX :: Int -> X
+intX _ = X
+
+intCListInt :: Int -> CList Int
+intCListInt x = Cons x Nil
+
+cfmapIntX :: (Int -> X) -> CList Int -> CList X
+cfmapIntX f xs = cfmap f xs
+
+cfmapIntCListInt :: (Int -> CList Int) -> CList Int -> CList (CList Int)
+cfmapIntCListInt f xs = cfmap f xs
+
 {-@ project :: xs:(CList  Int) -> CList {i:Int | 0 <= i } -> Int @-}
 -- project :: CList Int -> CList Int -> Int 
 -- project xs is = sum (map (getNth xs) is)

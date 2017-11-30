@@ -423,23 +423,6 @@ reduceEvaluate eenv (Assert pre lexpr) ngen =
 reduceEvaluate eenv c ngen =
     (RuleError, [(eenv, CurrExpr Evaluate c, [], ngen, Nothing)])
 
-splitCast :: NameGen -> Expr -> (Expr, NameGen)
-splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
-    let
-        (i, ng') = freshId t1 ng
-
-        e' = Lam i $ 
-                (Cast 
-                    (App 
-                        e
-                        (Cast (Var i) (t1 :~ t1'))
-                    )
-                    (t2 :~ t2')
-                )
-    in
-    (e', ng')
-splitCast ng c = error "splitCast: Invalid expr"
-
 -- | Handle the Case forms of Evaluate.
 reduceCase :: E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, [EvaluateResult])
 reduceCase eenv mexpr bind alts ngen

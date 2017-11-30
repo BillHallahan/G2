@@ -45,7 +45,8 @@ import Data.List.Utils
 nameOccStr :: Name -> String
 nameOccStr (Name occ _ _) = occ
 
-data NameGen = NameGen (HM.HashMap (String, Maybe String) Int) (HM.HashMap Name [Name])
+data NameGen = NameGen { max_uniq :: (HM.HashMap (String, Maybe String) Int)
+                       , dc_children :: (HM.HashMap Name [Name]) }
                 deriving (Show, Eq, Read)
 
 -- This relies on NameCleaner eliminating all '_', to preserve uniqueness
@@ -65,10 +66,16 @@ strToName str =
 
 mkNameGen :: Program -> [ProgramType] -> NameGen
 mkNameGen prog progTypes =
-    NameGen
-        (foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) HM.empty
-        $ names prog ++ names progTypes)
-        (HM.empty)
+    let
+        allNames = names prog ++ names progTypes
+    in
+    NameGen {
+          max_uniq = 
+            (foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) 
+                HM.empty allNames
+            )
+        , dc_children = HM.empty
+    }
 
 exprNames :: (ASTContainer m Expr) => m -> [Name]
 exprNames = evalASTs exprTopNames
@@ -247,8 +254,10 @@ freshSeededStrings :: [String] -> NameGen -> ([Name], NameGen)
 freshSeededStrings s = freshSeededNames (map (\s' -> Name s' Nothing 0) s)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
-freshSeededName (Name n m _) (NameGen hm chm) = (Name n m i', NameGen hm' chm)
-  where i' = HM.lookupDefault 0 (n, m) hm
+freshSeededName (Name n m _) (NameGen { max_uniq = hm, dc_children = chm }) =
+    (Name n m i', NameGen hm' chm)
+    where 
+        i' = HM.lookupDefault 0 (n, m) hm
         hm' = HM.insert (n, m) (i' + 1) hm
 
 freshSeededNames :: [Name] -> NameGen -> ([Name], NameGen)
@@ -293,7 +302,7 @@ freshVar t ngen =
 -- returns new names ns for the children
 -- Returns a new NameGen that will always return the same ns for that n
 childrenNames :: Name -> [Name] -> NameGen -> ([Name], NameGen)
-childrenNames n ns ng@(NameGen _ chm) =
+childrenNames n ns ng@(NameGen { dc_children = chm }) =
     let
         ens = HM.lookup n chm
 

@@ -25,6 +25,10 @@ toCListGen :: Expr -> CList Expr
 toCListGen (App (App (Data (DataCon (Name "Cons" _ _) _ _)) e) y) = Cons e (toCListGen y)
 toCListGen _ = Nil
 
+cListLength :: CList a -> Int
+cListLength (Cons _ xs) = 1 + cListLength xs
+cListLength Nil = 0
+
 getNthTest :: [Expr] -> Bool
 getNthTest [cl, Lit (LitInt i), Lit (LitInt a)] = getNth (toCList cl) i == a
 getNthTest _ = False
@@ -58,3 +62,7 @@ getNthErrors _ = False
 removePrimCon :: Expr -> Expr
 removePrimCon (App (Data (PrimCon I)) l) = l
 removePrimCon e = e
+
+cfmapTest :: [Expr] -> Bool
+cfmapTest [_, e, e'] = cListLength (toCListGen e) == cListLength (toCListGen e')
+cfmapTest _ = False

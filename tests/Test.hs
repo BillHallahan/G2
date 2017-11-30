@@ -83,6 +83,10 @@ sampleTests =
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
 
+                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
+                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
+                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
+
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 400 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
 
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 900 Nothing Nothing "sum" 2 [AtLeast 3]
