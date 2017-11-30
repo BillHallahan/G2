@@ -118,7 +118,7 @@ createAlgDataTyWalkExpr :: (AlgDataTy -> [(a, Maybe Name, Type)])
                         -> NameGen -> [(Name, Name, AlgDataTy)] -> Name
                         -> AlgDataTy
                         -> (Expr, NameGen)
-createAlgDataTyWalkExpr falg fa fd ng nm tn adt@(DataTyCon _ _) =
+createAlgDataTyWalkExpr falg fa fd ng nm tn adt =
     let
         arg_ty = falg adt
     in
@@ -130,7 +130,7 @@ createAlgDataTyWalkExpr' :: AltFunc a
                         -> AlgDataTy
                         -> [(a, Id)]
                         -> (Expr, NameGen)
-createAlgDataTyWalkExpr' fa fd ng nm tn (DataTyCon _ dc) is =
+createAlgDataTyWalkExpr' fa fd ng nm tn dc is =
     let        
         (l_bind_id, ng2) = freshId (TyConApp tn []) ng
         l_var = Var l_bind_id
@@ -140,7 +140,7 @@ createAlgDataTyWalkExpr' fa fd ng nm tn (DataTyCon _ dc) is =
         (defExpr, ng4) = fd nm ng3 c_bind_id is
         def = Alt Default defExpr
 
-        (alts, ng5) = createAlgDataTyWalkAlt fa dc nm ng4 c_bind_id is
+        (alts, ng5) = createAlgDataTyWalkAlt fa (dataCon dc) nm ng4 c_bind_id is
 
         c = Lam l_bind_id $ Case l_var c_bind_id (def:alts)
     in

@@ -35,9 +35,9 @@ createDeepSeqWalks eenv tenv ng =
 -- For each type parameter of type a, we create an argument of type (a -> a),
 -- which should be passed the deep seq walk for that type
 createDeepSeqWalkArgs :: AlgDataTy -> [(Name, Maybe Name, Type)]
-createDeepSeqWalkArgs (DataTyCon ns _) = 
-       map (\n -> (n, Just n, TYPE)) ns
-    ++ map (\n -> (tyFunName n, Just (tyFunName n), (TyFun (TyVar (Id n TYPE)) (TyVar (Id n TYPE))))) ns
+createDeepSeqWalkArgs dc = 
+       map (\n -> (n, Just n, TYPE)) (bound_names dc)
+    ++ map (\n -> (tyFunName n, Just (tyFunName n), (TyFun (TyVar (Id n TYPE)) (TyVar (Id n TYPE))))) (bound_names dc)
 
 -- The (Name, Name, AlgDataTy) tuples are the type name, the walking function
 -- name, and the AlgDataTyName
@@ -118,9 +118,9 @@ createPolyPredWalks eenv tenv ng =
         storeWalkerFunc
 
 createPolyPredArgs :: AlgDataTy -> [(Maybe Name, Maybe Name, Type)]
-createPolyPredArgs (DataTyCon ns _) =
-    map (\n -> (Nothing, Just n, TYPE)) ns 
-    ++ map (\n -> (Just n, Nothing, TyFun (TyVar $ Id n TYPE) (TyBool))) ns
+createPolyPredArgs dc =
+    map (\n -> (Nothing, Just n, TYPE)) (bound_names dc) 
+    ++ map (\n -> (Just n, Nothing, TyFun (TyVar $ Id n TYPE) (TyBool))) (bound_names dc)
 
 createPolyPredAlt :: ExprEnv -> DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> [(Maybe Name, Id)] -> (Maybe Expr, NameGen)
 createPolyPredAlt eenv (DataCon _ t _) _ ng _ dcs is = 
@@ -210,6 +210,6 @@ isIdSpecial :: Id -> Bool
 isIdSpecial (Id n _) = isNameSpecial n
 
 isTypeSpecial :: Type -> Bool
-isTypeSpecial (TyVar id) = isIdSpecial id
+isTypeSpecial (TyVar i) = isIdSpecial i
 isTypeSpecial (TyConApp n _) = isNameSpecial n
 isTypeSpecial _ = False

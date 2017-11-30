@@ -141,6 +141,7 @@ filterTEnv s@State { type_env = tenv} =
 
 filterTEnv' :: TypeEnv -> AlgDataTy -> Bool
 filterTEnv' tenv (DataTyCon _ dc) = length dc > 0 && not (any (filterTEnv'' tenv) dc)
+filterTEnv' _ _ = False
 
 filterTEnv'' :: TypeEnv -> DataCon -> Bool
 filterTEnv'' tenv (DataCon _ _ ts) = any (hasFuncType) ts || any (notPresent tenv) ts

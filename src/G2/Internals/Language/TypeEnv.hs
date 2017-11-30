@@ -20,7 +20,7 @@ type TypeEnv = M.Map Name AlgDataTy
 -- names over types, and a list of data constructors for said type.
 data AlgDataTy = DataTyCon { bound_names :: [Name]
                            , data_cons :: [DataCon] }
-               | NewTyCon { bound_name :: [Name]
+               | NewTyCon { bound_names :: [Name]
                           , data_con :: DataCon
                           , rep_type :: Type } deriving (Show, Eq, Read)
 

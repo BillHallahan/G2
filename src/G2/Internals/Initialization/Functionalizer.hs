@@ -143,8 +143,8 @@ baseFuncADTs = baseFuncADTs' . M.toList
 
 baseFuncADTs' :: [(Name, AlgDataTy)] -> [Name]
 baseFuncADTs' [] = []
-baseFuncADTs' ((n, DataTyCon _ dcs):xs) =
-    if any baseFuncDataCon dcs 
+baseFuncADTs' ((n, dc):xs) =
+    if any baseFuncDataCon $ dataCon dc 
         then n:baseFuncADTs' xs 
         else baseFuncADTs' xs
 
@@ -164,7 +164,7 @@ inductFunc' ns nadt =
     if length new == length ns then new else ns ++ inductFunc' new nadt
 
 containsParam :: [Name] -> AlgDataTy -> Bool
-containsParam ns (DataTyCon _ dcs) = any (containsParam' ns) dcs
+containsParam ns dc = any (containsParam' ns) $ dataCon dc
 
 containsParam' :: [Name] -> DataCon -> Bool
 containsParam' ns (DataCon _ _ ts) = any (containsParam'' ns) ts
@@ -208,17 +208,17 @@ functionalizableADTTypes (n:ns) tenv eenv at ng =
     functionalizableADTTypes ns tenv2 eenv2 at ng2
 
 functionalizableADTType :: Name -> Id -> AlgDataTy -> TypeEnv -> ExprEnv -> NameGen -> ApplyTypes -> (TypeEnv, ExprEnv, NameGen)
-functionalizableADTType appTypeN (Id appFuncN _) (DataTyCon ns dc) tenv eenv ng at =
+functionalizableADTType appTypeN (Id appFuncN _) dc tenv eenv ng at =
     let
         -- Create a new Apply Data Type, and put it in the Type Environment 
-        (appDCs, ng2) = mkAppliedDCs at ng appTypeN dc
-        appAlgDataTy = DataTyCon ns appDCs
+        (appDCs, ng2) = mkAppliedDCs at ng appTypeN (dataCon dc)
+        appAlgDataTy = DataTyCon (bound_names dc) appDCs
 
         tenv2 = M.insert appTypeN appAlgDataTy tenv
 
         -- Create a function to map the applied DCs to the functionalizable DCs
         -- and put it in the Expression Environment
-        dcAppDc = zip appDCs dc
+        dcAppDc = zip appDCs (dataCon dc)
         (func, ng3) = mkAppliedToFunc at ng2 appTypeN dcAppDc
 
         eenv2 = E.insert appFuncN func eenv
