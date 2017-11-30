@@ -142,6 +142,8 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> tc3Holds x y), Exactly 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(Lit (LitInt y))] -> appNthArgIs x (ly ==) 1 && y > 100), Exactly 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(Lit (LitInt y))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), y] -> x < 0 && dcHasName "A" y)
                                                                                                               , RExists (\[Lit (LitInt x), y] -> x >= 0 && dcHasName "C" y), Exactly 2]
