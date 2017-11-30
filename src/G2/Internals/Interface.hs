@@ -190,7 +190,7 @@ run con hhp n state = do
 
     let preproc_state' = preproc_state {model = fromJust mdl}
 
-    -- putStrLn . pprExecStateStr $ preproc_state
+    putStrLn . pprExecStateStr $ preproc_state
     -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
 
     exec_states <- runNDepth con hhp [preproc_state'] n

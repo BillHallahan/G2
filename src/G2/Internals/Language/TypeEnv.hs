@@ -40,6 +40,14 @@ dataCon (NewTyCon {data_con = dc}) = [dc]
 isPolyAlgDataTy :: AlgDataTy -> Bool
 isPolyAlgDataTy = not . null . bound_names
 
+isDataTyCon :: AlgDataTy -> Bool
+isDataTyCon (DataTyCon {}) = True
+isDataTyCon _ = False
+
+isNewTyCon :: AlgDataTy -> Bool
+isNewTyCon (NewTyCon {}) = True
+isNewTyCon _ = False
+
 getDataCons :: Name -> TypeEnv -> Maybe [DataCon]
 getDataCons n tenv =
     case M.lookup n tenv of

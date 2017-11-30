@@ -27,8 +27,8 @@ storeWalkerFunc w tn _ fn e =
 createDeepSeqWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
 createDeepSeqWalks eenv tenv ng =
     createAlgDataTyWalks eenv tenv ng createDeepSeqWalkArgs "walk" 
-        (\dc nna ng' _ is pfs -> createDeepSeqExpr dc nna ng' is pfs)
-        (\_ ng' i _ -> (Var i, ng'))
+        (\dc adt nna ng' _ is pfs -> createDeepSeqExpr dc adt nna ng' is pfs)
+        (\_ _ ng' i _ -> (Var i, ng'))
         storeWalkerFunc
 
 -- | createDeepSeqWalkArgs
@@ -41,18 +41,17 @@ createDeepSeqWalkArgs dc =
 
 -- The (Name, Name, AlgDataTy) tuples are the type name, the walking function
 -- name, and the AlgDataTyName
-createDeepSeqExpr :: DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> [(Name, Id)] -> (Maybe Expr, NameGen)
-createDeepSeqExpr dc@(DataCon _ _ _) ns ng arg_ids pfs =
+createDeepSeqExpr :: DataCon  -> AlgDataTy -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> [(Name, Id)] -> (Maybe Expr, NameGen)
+createDeepSeqExpr dc@(DataCon _ _ _) adt ns ng arg_ids pfs =
     let
-        (e, ng2) = createDeepSeqExpr' (Data dc) ns ng arg_ids pfs
+        (e, ng2) = createDeepSeqExpr' (Data dc) adt ns ng arg_ids pfs
     in
-    -- trace ("called with: " ++ show (dc, ns, ng, arg_ids, pfs)) $
     (Just e, ng2)
-createDeepSeqExpr _ _ ng _ _ = (Nothing, ng)
+createDeepSeqExpr _ _ _ ng _ _ = (Nothing, ng)
 
-createDeepSeqExpr' :: Expr -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> [(Name, Id)] -> (Expr, NameGen)
-createDeepSeqExpr' dc _ ng [] _ = (dc, ng)
-createDeepSeqExpr' dc ns ng (i@(Id _ t):xs) pfs =
+createDeepSeqExpr' :: Expr -> AlgDataTy -> [(Name, Name, AlgDataTy)] -> NameGen -> [Id] -> [(Name, Id)] -> (Expr, NameGen)
+createDeepSeqExpr' dc _ _ ng [] _ = (dc, ng)
+createDeepSeqExpr' dc adt@(DataTyCon _ _) ns ng (i@(Id _ t):xs) pfs =
     let
         ns_dull = filter (\(n, _, _) -> not $ isNameSpecial n) ns
         (b_id, ng') = freshId t ng
@@ -81,11 +80,16 @@ createDeepSeqExpr' dc ns ng (i@(Id _ t):xs) pfs =
 
         dc' = App dc (Var b_id)
 
-        (e, ng'') = createDeepSeqExpr' dc' ns_dull ng' xs pfs
+        (e, ng'') = createDeepSeqExpr' dc' adt ns_dull ng' xs pfs
 
         am = [Alt Default e]
     in
     (case_e am, ng'')
+createDeepSeqExpr' e adt@(NewTyCon ns dc t) _ ng (i:xs) pfs =
+    let
+        e' = Cast (Var i) ((returnType . typeOf $ e) :~ t)
+    in
+    trace ("\n\n\n\n\n " ++ show e' ++ "\n\n\n\n\n") (e', ng)
 
 typeWalker :: [(Name, Id)] -> Type -> Maybe Expr
 typeWalker pfs (TyVar (Id n _)) = fmap Var $ lookup (tyFunName n) pfs
@@ -114,7 +118,7 @@ createPolyPredWalks eenv tenv ng =
         (createPolyPredArgs)
         "polyPred"
         (createPolyPredAlt eenv)
-        (\_ ng' i _ -> (Var i, ng'))
+        (\_ _ ng' i _ -> (Var i, ng'))
         storeWalkerFunc
 
 createPolyPredArgs :: AlgDataTy -> [(Maybe Name, Maybe Name, Type)]
@@ -122,15 +126,15 @@ createPolyPredArgs dc =
     map (\n -> (Nothing, Just n, TYPE)) (bound_names dc) 
     ++ map (\n -> (Just n, Nothing, TyFun (TyVar $ Id n TYPE) (TyBool))) (bound_names dc)
 
-createPolyPredAlt :: ExprEnv -> DataCon -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> [(Maybe Name, Id)] -> (Maybe Expr, NameGen)
-createPolyPredAlt eenv (DataCon _ t _) _ ng _ dcs is = 
+createPolyPredAlt :: ExprEnv -> DataCon -> AlgDataTy -> [(Name, Name, AlgDataTy)] -> NameGen -> Id -> [Id] -> [(Maybe Name, Id)] -> (Maybe Expr, NameGen)
+createPolyPredAlt eenv (DataCon _ t _) _ _ ng _ dcs is = 
     let
         (e, ng2) = createPolyPredAlt' eenv dcs ng is
     in
     case polyIds t of
         [] -> (Nothing, ng)
         _ -> (Just e, ng2)
-createPolyPredAlt _ (PrimCon _) _ _ _ _ _ = error "PrimCon in createPolyPredAlt"
+createPolyPredAlt _ (PrimCon _) _ _ _ _ _ _ = error "PrimCon in createPolyPredAlt"
 
 createPolyPredAlt' :: ExprEnv -> [Id] -> NameGen -> [(Maybe Name, Id)] -> (Expr, NameGen)
 createPolyPredAlt' eenv dcpat ng is =
