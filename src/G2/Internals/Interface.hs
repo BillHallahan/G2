@@ -66,7 +66,7 @@ mkExprEnv :: Program -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 
 mkTypeEnv :: [ProgramType] -> TypeEnv
-mkTypeEnv = M.fromList . map (\(n, ts, dcs) -> (n, AlgDataTy ts dcs))
+mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
 -- TODO: Move addPolyPreds and addHigherOrderWrappers elsewhere (somewhere

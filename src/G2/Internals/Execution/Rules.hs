@@ -385,6 +385,26 @@ reduceEvaluate eenv (Let binds expr) ngen =
 reduceEvaluate eenv (Case mexpr cvar alts) ngen =
     reduceCase eenv mexpr cvar alts ngen
 
+reduceEvaluate eenv cast@(Cast e coer@(t1 :~ t2)) ngen =
+    let
+        (cast', ngen') = splitCast ngen cast
+
+        frame = CastFrame coer
+    in
+    case hasFuncType t1 of
+        True ->
+            (RuleEvalCastSplit, [( eenv
+                                 , CurrExpr Evaluate cast'
+                                 , []
+                                 , ngen'
+                                 , Nothing)])
+        False ->
+           (RuleEvalCast, [( eenv
+                          , CurrExpr Evaluate e
+                          , []
+                          , ngen
+                          , Just frame)])
+
 reduceEvaluate eenv (Assume pre lexpr) ngen =
     let frame = AssumeFrame lexpr
     in (RuleEvalAssume, [( eenv
@@ -402,6 +422,23 @@ reduceEvaluate eenv (Assert pre lexpr) ngen =
 
 reduceEvaluate eenv c ngen =
     (RuleError, [(eenv, CurrExpr Evaluate c, [], ngen, Nothing)])
+
+splitCast :: NameGen -> Expr -> (Expr, NameGen)
+splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
+    let
+        (i, ng') = freshId t1 ng
+
+        e' = Lam i $ 
+                (Cast 
+                    (App 
+                        e
+                        (Cast (Var i) (t1 :~ t1'))
+                    )
+                    (t2 :~ t2')
+                )
+    in
+    (e', ng')
+splitCast ng c = error "splitCast: Invalid expr"
 
 -- | Handle the Case forms of Evaluate.
 reduceCase :: E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, [EvaluateResult])
@@ -514,6 +551,14 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
   ( RuleReturnECase
   , ( eenv
     , CurrExpr Evaluate (Case expr cvar alts)
+    , ngen))
+
+-- If we have a `CastFrame` at the top of the stack, we know to recast
+-- the Current Expression.
+reduceEReturn eenv e ngen (CastFrame (t1 :~ t2)) =
+  ( RuleReturnCast
+  , ( eenv
+    , CurrExpr Evaluate $ Cast e (t1 :~ t2)
     , ngen))
 
 -- In the event that our Lam parameter is a type variable, we have to handle

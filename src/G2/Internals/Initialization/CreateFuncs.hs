@@ -33,7 +33,7 @@ createDeepSeqWalks eenv tenv ng =
 -- For each type parameter of type a, we create an argument of type (a -> a),
 -- which should be passed the deep seq walk for that type
 createDeepSeqWalkArgs :: AlgDataTy -> [(Name, Maybe Name, Type)]
-createDeepSeqWalkArgs (AlgDataTy ns _) = 
+createDeepSeqWalkArgs (DataTyCon ns _) = 
        map (\n -> (n, Just n, TYPE)) ns
     ++ map (\n -> (tyFunName n, Just (tyFunName n), (TyFun (TyVar (Id n TYPE)) (TyVar (Id n TYPE))))) ns
 
@@ -111,7 +111,7 @@ createPolyPredWalks eenv tenv ng =
         storeWalkerFunc
 
 createPolyPredArgs :: AlgDataTy -> [(Maybe Name, Maybe Name, Type)]
-createPolyPredArgs (AlgDataTy ns _) =
+createPolyPredArgs (DataTyCon ns _) =
     map (\n -> (Nothing, Just n, TYPE)) ns 
     ++ map (\n -> (Just n, Nothing, TyFun (TyVar $ Id n TYPE) (TyBool))) ns
 

@@ -15,7 +15,21 @@ tyBinderInit tenv ng =
 
 tyBinderTypeEnv' :: [(Name, AlgDataTy)] -> NameGen -> ([(Name, AlgDataTy)], NameGen)
 tyBinderTypeEnv' [] ng = ([], ng)
-tyBinderTypeEnv' ((n, AlgDataTy _ dc):ts) ng =
+tyBinderTypeEnv' ((n, DataTyCon _ dc):ts) ng =
+    let
+        (ns, dc', ng') = modifyDC ng dc
+        (ts', ng'') = tyBinderTypeEnv' ts ng'
+    in
+    ((n, DataTyCon ns dc'):ts', ng'')
+tyBinderTypeEnv' ((n, NewTyCon _ dc rt):ts) ng =
+    let
+        (ns, [dc'], ng') = modifyDC ng [dc]
+        (ts', ng'') = tyBinderTypeEnv' ts ng'
+    in
+    ((n, NewTyCon ns dc' rt):ts', ng'')
+
+modifyDC :: NameGen -> [DataCon] -> ([Name], [DataCon], NameGen)
+modifyDC ng dc = 
     let
         num = case dc of
             (d:_) -> dcForAllNum d
@@ -24,10 +38,8 @@ tyBinderTypeEnv' ((n, AlgDataTy _ dc):ts) ng =
         (ns, ng') = freshSeededNames (replicate num (Name "t" Nothing 0)) ng
 
         dc' = map (dcReplaceNames ns) dc
-
-        (ts', ng'') = tyBinderTypeEnv' ts ng'
     in
-    ((n, AlgDataTy ns dc'):ts', ng'')
+    (ns, dc', ng')
 
 dcForAllNum :: DataCon -> Int
 dcForAllNum (DataCon _ t _ ) = tyForAllNum t

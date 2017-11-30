@@ -1,6 +1,6 @@
 module G2.Internals.Translation.Interface where
 
-import G2.Internals.Language.Syntax
+import G2.Internals.Language
 import G2.Internals.Translation.Cabal
 import G2.Internals.Translation.Haskell
 import G2.Internals.Translation.PrimInject

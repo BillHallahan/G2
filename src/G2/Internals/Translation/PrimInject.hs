@@ -11,6 +11,7 @@ import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Primitives
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.TypeEnv
 import G2.Internals.Translation.Haskell
 
 import Data.List
@@ -54,7 +55,7 @@ primInjectAltMatch d = d
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
 dataInject prog progTy = 
     let
-        dcNames = catMaybes . concatMap (\(_, _, dc) -> map conName dc) $ progTy
+        dcNames = catMaybes . concatMap (\(_, dc) -> map conName (dataCon dc)) $ progTy
     in
     (modifyASTs (dataInject' dcNames) prog, progTy)
 

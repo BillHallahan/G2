@@ -23,7 +23,7 @@ createEqPreds eenv tenv ng =
 
 createEqPreds' :: ExprEnv -> [(Name, AlgDataTy)] -> NameGen -> Walkers -> (ExprEnv, NameGen, Walkers)
 createEqPreds' eenv [] ng  w = (eenv, ng, w)
-createEqPreds' eenv ((n, AlgDataTy ns dc):xs) ng w =
+createEqPreds' eenv ((n, DataTyCon ns dc):xs) ng w =
     let
         (e, ng') = createEqPred eenv (TyConApp n []) ns dc ng w
     
@@ -90,7 +90,7 @@ createEqWalkers nadts ng = createEqWalkers' nadts ng M.empty
 
 createEqWalkers' :: [(Name, AlgDataTy)] -> NameGen -> Walkers -> (Walkers, NameGen)
 createEqWalkers' [] ng w = (w, ng)
-createEqWalkers' ((n, AlgDataTy ns _):xs) ng w =
+createEqWalkers' ((n, DataTyCon ns _):xs) ng w =
     let
         (i, ng') = eqWalkerId n ns ng
     in

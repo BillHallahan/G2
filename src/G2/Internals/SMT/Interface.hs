@@ -117,7 +117,7 @@ addADTs n tn s =
                         is = map (\(Var i) -> i) vs
                     in
                     (mkApp $ (Data fdc):vs, is)
-                _ -> error "Unuable DataCon in addADTs"
+                _ -> error "Unusable DataCon in addADTs"
 
         m = M.insert n dc (model s)
 
@@ -140,7 +140,7 @@ filterTEnv s@State { type_env = tenv} =
     tenv' = M.filter (filterTEnv' tenv) tenv
 
 filterTEnv' :: TypeEnv -> AlgDataTy -> Bool
-filterTEnv' tenv (AlgDataTy _ dc) = length dc > 0 && not (any (filterTEnv'' tenv) dc)
+filterTEnv' tenv (DataTyCon _ dc) = length dc > 0 && not (any (filterTEnv'' tenv) dc)
 
 filterTEnv'' :: TypeEnv -> DataCon -> Bool
 filterTEnv'' tenv (DataCon _ _ ts) = any (hasFuncType) ts || any (notPresent tenv) ts

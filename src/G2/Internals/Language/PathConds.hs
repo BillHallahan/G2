@@ -188,7 +188,7 @@ findConsistent' tenv pc =
         n = pcVarType pc
         adt = maybe Nothing (\n' -> M.lookup n' tenv) n
     in
-    maybe Nothing (\(AlgDataTy _ dc) -> findConsistent'' dc pc) adt
+    maybe Nothing (\(DataTyCon _ dc) -> findConsistent'' dc pc) adt
 
 findConsistent'' :: [DataCon] -> [PathCond] -> Maybe [DataCon]
 findConsistent'' dcs ((AltCond (DataAlt dc _) _ True):pc) =

@@ -34,6 +34,7 @@ module G2.Internals.Language.Naming
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.TypeEnv
 
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -207,6 +208,18 @@ instance Named TyBinder where
 
     rename old new (NamedTyBndr n) = NamedTyBndr (rename old new n)
     rename _ _ tb = tb
+
+instance Named Coercion where
+    names (t1 :~ t2) = names t1 ++ names t2
+
+    rename old new (t1 :~ t2) = rename old new t1 :~ rename old new t2
+
+instance Named AlgDataTy where
+    names (DataTyCon ns dc) = ns ++ names dc
+    names (NewTyCon ns dc rt) = ns ++ names dc ++ names rt
+
+    rename old new (DataTyCon n dc) = DataTyCon (rename old new n) (rename old new dc)
+    rename old new (NewTyCon n dc rt) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt)
 
 instance (Foldable f, Functor f, Named a) => Named (f a) where
     names = foldMap names

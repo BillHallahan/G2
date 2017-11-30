@@ -110,6 +110,7 @@ unionFuncInterps (FuncInterps fs1) (FuncInterps fs2) = FuncInterps $ M.union fs1
 data Frame = CaseFrame Id [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
+           | CastFrame Coercion
            | AssumeFrame Expr
            | AssertFrame Expr
            deriving (Show, Eq, Read)
@@ -228,11 +229,13 @@ instance Named Frame where
     names (CaseFrame i a) = names i ++ names a
     names (ApplyFrame e) = names e
     names (UpdateFrame n) = [n]
+    names (CastFrame c) = names c
     names (AssumeFrame e) = names e
     names (AssertFrame e) = names e
 
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
+    rename old new (CastFrame c) = CastFrame (rename old new c)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame e) = AssertFrame (rename old new e)

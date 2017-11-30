@@ -23,6 +23,9 @@ data Rule = RuleEvalVal
           | RuleEvalCasePrim
           | RuleEvalCaseNonVal
 
+          | RuleEvalCastSplit
+          | RuleEvalCast
+
           | RuleEvalAssume
           | RuleEvalAssert
 
@@ -30,6 +33,8 @@ data Rule = RuleEvalVal
           | RuleReturnEUpdateNonVar
 
           | RuleReturnECase
+
+          | RuleReturnCast
 
           | RuleReturnEApplyLamExpr
           | RuleReturnEApplyLamType 

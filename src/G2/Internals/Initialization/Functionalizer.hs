@@ -84,7 +84,7 @@ mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) (FuncInterps fi) at =
         -- Update type environment
         (applyCons, ng2) = freshSeededNames funcs ng
         dcs = map (\dcn -> DataCon dcn (TyConApp n []) []) applyCons
-        adt = AlgDataTy [] dcs
+        adt = DataTyCon [] dcs
         tenv2 = M.insert n adt tenv
 
         -- Update Func Interps
@@ -143,7 +143,7 @@ baseFuncADTs = baseFuncADTs' . M.toList
 
 baseFuncADTs' :: [(Name, AlgDataTy)] -> [Name]
 baseFuncADTs' [] = []
-baseFuncADTs' ((n, AlgDataTy _ dcs):xs) =
+baseFuncADTs' ((n, DataTyCon _ dcs):xs) =
     if any baseFuncDataCon dcs 
         then n:baseFuncADTs' xs 
         else baseFuncADTs' xs
@@ -164,7 +164,7 @@ inductFunc' ns nadt =
     if length new == length ns then new else ns ++ inductFunc' new nadt
 
 containsParam :: [Name] -> AlgDataTy -> Bool
-containsParam ns (AlgDataTy _ dcs) = any (containsParam' ns) dcs
+containsParam ns (DataTyCon _ dcs) = any (containsParam' ns) dcs
 
 containsParam' :: [Name] -> DataCon -> Bool
 containsParam' ns (DataCon _ _ ts) = any (containsParam'' ns) ts
@@ -208,11 +208,11 @@ functionalizableADTTypes (n:ns) tenv eenv at ng =
     functionalizableADTTypes ns tenv2 eenv2 at ng2
 
 functionalizableADTType :: Name -> Id -> AlgDataTy -> TypeEnv -> ExprEnv -> NameGen -> ApplyTypes -> (TypeEnv, ExprEnv, NameGen)
-functionalizableADTType appTypeN (Id appFuncN _) (AlgDataTy ns dc) tenv eenv ng at =
+functionalizableADTType appTypeN (Id appFuncN _) (DataTyCon ns dc) tenv eenv ng at =
     let
         -- Create a new Apply Data Type, and put it in the Type Environment 
         (appDCs, ng2) = mkAppliedDCs at ng appTypeN dc
-        appAlgDataTy = AlgDataTy ns appDCs
+        appAlgDataTy = DataTyCon ns appDCs
 
         tenv2 = M.insert appTypeN appAlgDataTy tenv
 

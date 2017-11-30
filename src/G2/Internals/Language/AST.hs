@@ -117,7 +117,7 @@ instance AST Expr where
     children (Lam _ e) = [e]
     children (Let bind e) = e : containedASTs bind
     children (Case m _ as) = m : map (\(Alt _ e) -> e) as
-    children (Cast e _) = children e
+    children (Cast e _) = [e]
     children (Coercion _) = []
     children (Type _) = []
     children (Assume e e') = [e, e']
@@ -130,7 +130,7 @@ instance AST Expr where
       where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
         mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
-    modifyChildren f (Cast e c) = Cast (modifyChildren f e) c
+    modifyChildren f (Cast e c) = Cast (f e) c
     modifyChildren f (Assume e e') = Assume (f e) (f e')
     modifyChildren f (Assert e e') = Assert (f e) (f e')
     modifyChildren _ e = e

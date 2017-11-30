@@ -195,7 +195,7 @@ typesToSMTSorts tenv =
     [SortDecl . map typeToSortDecl $ M.toList tenv]
         where
             typeToSortDecl :: (Name, AlgDataTy) -> (SMTName, [SMTName], [DC])
-            typeToSortDecl (n, AlgDataTy ns dcs) = (nameToStr n, map nameToStr ns, map dataConToDC dcs)
+            typeToSortDecl (n, DataTyCon ns dcs) = (nameToStr n, map nameToStr ns, map dataConToDC dcs)
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =
