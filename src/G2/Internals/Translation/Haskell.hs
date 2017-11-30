@@ -168,7 +168,7 @@ mkType (ForAllTy b ty) = G2.TyForAll (mkTyBinder b) (mkType ty)
 mkType (LitTy _) = G2.TyBottom
 mkType (CastTy _ _) = error "mkType: CastTy"
 mkType (CoercionTy _) = error "mkType: Coercion"
-mkType (TyConApp tc ts) = if not (isFunTyCon tc) || (length ts == 1)
+mkType (TyConApp tc ts) = if not (isFunTyCon tc) || (length ts /= 2)
     then G2.TyConApp (mkTyConName tc) (map mkType ts)
     else case ts of
         (t1:t2:[]) -> G2.TyFun (mkType t1) (mkType t2)

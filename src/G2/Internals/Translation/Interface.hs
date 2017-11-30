@@ -17,8 +17,6 @@ translationPrimDefs proj src primsF simpl = do
 translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType])
 translation = hskToG2
 
-
-
 prepBase :: FilePath -> IO ()
 prepBase destination = do
     putStrLn $ "Downloading base to " ++ destination
