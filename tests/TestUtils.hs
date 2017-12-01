@@ -20,6 +20,10 @@ eqIgIds (Id n _) (Id n' _) = eqIgNames n n'
 eqIgNames :: Name -> Name -> Bool
 eqIgNames (Name n m _) (Name n' m' _) = n == n' && m == m'
 
+typeNameIs :: Type -> String -> Bool
+typeNameIs (TyConApp (Name n _ _) _) s = n == s
+typeNameIs _ _ = False
+
 dcHasName :: String -> Expr -> Bool
 dcHasName s (Data (DataCon (Name n _ _) _ _)) = s == n
 dcHasName _ _ = False
@@ -51,3 +55,7 @@ isDouble :: Expr -> (Rational -> Bool) -> Bool
 isDouble (Lit (LitDouble x)) f = f x
 isDouble (App (Data (PrimCon D)) (Lit (LitDouble x))) f = f x
 isDouble _ _ = False
+
+inCast :: Expr -> (Expr -> Bool) -> (Coercion -> Bool) -> Bool
+inCast (Cast e c) p q = p e && q c
+inCast _ _ _ = False

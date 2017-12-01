@@ -7,14 +7,17 @@ import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
 
 evalPrims :: Expr -> Expr
-evalPrims a@(App x y) =
+evalPrims = evalPrims' . simplifyCasts
+
+evalPrims' :: Expr -> Expr
+evalPrims' a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l] -> evalPrim [p, evalPrims l]
-        [p@(Prim _ _), l1, l2] -> evalPrim [p, evalPrims l1, evalPrims l2]
-        [p@(Prim _ _), _, _, l3] -> evalPrim [p, evalPrims l3]
-        [p@(Prim _ _), _, _, l1, l2] -> evalPrim [p, evalPrims l1, evalPrims l2]
-        _ -> App (evalPrims x) (evalPrims y)
-evalPrims e = modifyChildren evalPrims e
+        [p@(Prim _ _), l] -> evalPrim [p, evalPrims' l]
+        [p@(Prim _ _), l1, l2] -> evalPrim [p, evalPrims' l1, evalPrims' l2]
+        [p@(Prim _ _), _, _, l3] -> evalPrim [p, evalPrims' l3]
+        [p@(Prim _ _), _, _, l1, l2] -> evalPrim [p, evalPrims' l1, evalPrims' l2]
+        _ -> App (evalPrims' x) (evalPrims' y)
+evalPrims' e = modifyChildren evalPrims' e
 
 evalPrim :: [Expr] -> Expr
 evalPrim xs

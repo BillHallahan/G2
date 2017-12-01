@@ -184,21 +184,21 @@ testFileTests =
                                                                                                                       -- , RExists (\[x, y] -> appNthArgIs x (dcHasName "C") 2 && appNthArgIs y (dcHasName "A") 2)
                                                                                                                       , Exactly 3]
 
-                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "eq" 3 [AtLeast  2, RForAll (\[_, _, x] -> isBool x)]
-                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
-                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "eq" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
-                , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "eq" 3 [AtLeast  2, RForAll (\[_, _, x] -> isBool x)]
+                -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "eq" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
 
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "born" 1 [ Exactly 1
-                --                                                                                                                   , RForAll (\[x] -> dcInAppHasName "Age" x 1)
-                --                                                                                                                   , RForAll (\[x] -> appNthArgIs x ((==) (Lit (LitInt 0))) 1)]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearPasses" 2 [ AtLeast 1
-                --                                                                                                                         , RForAll (\[x, y] -> dcInAppHasName "Age" x 1 && dcInAppHasName "Age" y 1)]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "age" 2 [ AtLeast 1
-                --                                                                                                                  , RForAll (\[x, y] -> dcInAppHasName "Age" x 1 && isInt y (const True))]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
-                --                                                                                                                 , RExists (\[x] -> x == Lit (LitInt 0))
-                --                                                                                                                 , RExists (\[x] -> x /= Lit (LitInt 0))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "born" 1 [ Exactly 1
+                                                                                                                                  , RForAll (\[x] -> inCast x (App (Data (PrimCon I)) (Lit (LitInt 0)) ==) (\(t1 :~ t2) -> t1 == TyInt && typeNameIs t2 "Age"))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearPasses" 2 [ AtLeast 1
+                                                                                                                                        , RForAll (\[x, y] -> inCast x (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age")
+                                                                                                                                                           && inCast y (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age") )]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "age" 2 [ AtLeast 1
+                                                                                                                                 , RForAll (\[x, y] -> inCast x (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age") && isInt y (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
+                                                                                                                                , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
+                                                                                                                                , RExists (\[x, _] -> x /= Lit (LitInt 0))]
         ]
 
 

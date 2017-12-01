@@ -55,7 +55,7 @@ modifyFixM f = go f mempty
                 in if t == t'
                     then modifyChildren (go g ms) t'
                     else go g ms t'
-                    
+
 -- | Recursively runs the given function on each node, top down. Uses mappend
 -- to combine the results after evaluation of the entire tree.
 eval :: (AST t, Monoid a) => (t -> a) -> t -> a

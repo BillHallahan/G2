@@ -9,6 +9,7 @@ module G2.Internals.Language.TypeEnv ( ProgramType
                                      , isPolyAlgDataTy
                                      , isDataTyCon
                                      , isNewTyCon
+                                     , newTyConRepType
                                      , getDataCons
                                      , baseDataCons
                                      , selfRecursive
@@ -62,6 +63,10 @@ isDataTyCon _ = False
 isNewTyCon :: AlgDataTy -> Bool
 isNewTyCon (NewTyCon {}) = True
 isNewTyCon _ = False
+
+newTyConRepType :: AlgDataTy -> Maybe Type
+newTyConRepType (NewTyCon {rep_type = t}) = Just t
+newTyConRepType _ = Nothing
 
 getDataCons :: Name -> TypeEnv -> Maybe [DataCon]
 getDataCons n tenv =

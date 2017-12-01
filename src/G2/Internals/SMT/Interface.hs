@@ -14,6 +14,7 @@ import G2.Internals.SMT.Language
 
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Ratio
 
 import G2.Lib.Printers
 
@@ -47,7 +48,8 @@ checkConstraints con io s = do
 
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints' con io s = do
-    let s' = filterTEnv . simplifyPrims $ s
+    -- let s' = filterTEnv . simplifyPrims $ s
+    let s' = simplifyPrims $ s
 
     let headers = toSMTHeaders s'
     let formula = toSolver con headers
@@ -58,7 +60,8 @@ checkConstraints' con io s = do
 -- Checks if the constraints are satisfiable, and returns a model if they are
 checkModel :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
 checkModel con io s = do
-    let s' = filterTEnv . simplifyPrims $ s
+    -- let s' = filterTEnv . simplifyPrims $ s
+    let s' = simplifyPrims $ s
 
     checkModel' con io (input_ids s') s'
 
@@ -122,12 +125,12 @@ addADTs n tn s =
         m = M.insert n dc (model s)
 
         -- (Just (base:_)) = fmap baseDataCons $ getDataCons tn (type_env s)
-        base = 
-            case fmap baseDataCons $ getDataCons tn (type_env s) of
-                Just (b:_) -> b
-                _ -> error $ "addADTs: No valid base constructor found" ++ show tn
+        base = getADTBase tn (type_env s)
+            -- case fmap baseDataCons $ getDataCons tn (type_env s) of
+            --     Just (b:_) -> b
+            --     _ -> error $ "addADTs: No valid base constructor found" ++ show tn
 
-        m' = M.insert n (Data base) m
+        m' = M.insert n base m
     in
     case PC.null pc of
         True -> (SAT, [], s {model = M.union m' (model s)})
@@ -135,26 +138,49 @@ addADTs n tn s =
                     True -> (SAT, nst, s {model = M.union m (model s)})
                     False -> (UNSAT, [], s)
 
+getBase :: Type -> TypeEnv -> Expr
+getBase (TyConApp n _) tenv = getADTBase n tenv
+getBase TyInt tenv = App (Data $ PrimCon I) $ getBase TyLitInt tenv
+getBase TyFloat tenv = App (Data $ PrimCon F) $ getBase TyLitFloat tenv
+getBase TyDouble tenv = App (Data $ PrimCon D) $ getBase TyLitDouble tenv
+getBase TyLitInt _ = Lit (LitInt 0)
+getBase TyLitFloat _ = Lit (LitFloat $ 0 % 1)
+getBase TyLitDouble _ = Lit (LitDouble $ 0 % 1)
+
+getADTBase :: Name -> TypeEnv -> Expr
+getADTBase n tenv =
+    let
+        adt = M.lookup n tenv
+
+        b = fmap baseDataCons $ getDataCons n tenv
+    in
+    case b of
+        Just (b':_) -> Data b'
+        _ ->
+            case fmap newTyConRepType adt of
+                Just (Just t) -> Cast (getBase t tenv) (t :~ TyConApp n [])
+                _ -> error $ "getADTBase: No valid base constructor found " ++ show n ++ " " ++ show adt
+
 -- Remove all types from the type environment that contain a function
-filterTEnv :: State -> State
-filterTEnv s@State { type_env = tenv} =
-    if tenv == tenv'
-      then s { type_env = tenv }
-      else filterTEnv (s { type_env = tenv' })
-  where
-    tenv' = M.filter (filterTEnv' tenv) tenv
+-- filterTEnv :: State -> State
+-- filterTEnv s@State { type_env = tenv} =
+--     if tenv == tenv'
+--       then s { type_env = tenv }
+--       else filterTEnv (s { type_env = tenv' })
+--   where
+--     tenv' = M.filter (filterTEnv' tenv) tenv
 
-filterTEnv' :: TypeEnv -> AlgDataTy -> Bool
-filterTEnv' tenv (DataTyCon _ dc) = length dc > 0 && not (any (filterTEnv'' tenv) dc)
-filterTEnv' _ _ = False
+-- filterTEnv' :: TypeEnv -> AlgDataTy -> Bool
+-- filterTEnv' tenv (DataTyCon _ dc) = length dc > 0 && not (any (filterTEnv'' tenv) dc)
+-- filterTEnv' _ _ = False
 
-filterTEnv'' :: TypeEnv -> DataCon -> Bool
-filterTEnv'' tenv (DataCon _ _ ts) = any (hasFuncType) ts || any (notPresent tenv) ts
-filterTEnv'' _ _ = False
+-- filterTEnv'' :: TypeEnv -> DataCon -> Bool
+-- filterTEnv'' tenv (DataCon _ _ ts) = any (hasFuncType) ts || any (notPresent tenv) ts
+-- filterTEnv'' _ _ = False
 
-notPresent :: TypeEnv -> Type -> Bool
-notPresent tenv (TyConApp n _) = n `M.notMember` tenv
-notPresent _ _ = False
+-- notPresent :: TypeEnv -> Type -> Bool
+-- notPresent tenv (TyConApp n _) = n `M.notMember` tenv
+-- notPresent _ _ = False
 
 {- TODO: This function is hacky- would be better to correctly handle typeclasses... -}
 simplifyPrims :: ASTContainer t Expr => t -> t

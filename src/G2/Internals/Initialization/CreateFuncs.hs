@@ -12,8 +12,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 storeWalkerFunc :: Walkers -> Name -> AlgDataTy -> Name -> Expr -> Walkers
 storeWalkerFunc w tn _ fn e =
     let
@@ -87,9 +85,11 @@ createDeepSeqExpr' dc adt@(DataTyCon _ _) ns ng (i@(Id _ t):xs) pfs =
     (case_e am, ng'')
 createDeepSeqExpr' e adt@(NewTyCon ns dc t) _ ng (i:xs) pfs =
     let
-        e' = Cast (Var i) ((returnType . typeOf $ e) :~ t)
+        retT = returnType . typeOf $ e
+
+        e' = Cast (Cast (Var i) (retT :~ t)) (t :~ retT)
     in
-    trace ("\n\n\n\n\n " ++ show e' ++ "\n\n\n\n\n") (e', ng)
+    (e', ng)
 
 typeWalker :: [(Name, Id)] -> Type -> Maybe Expr
 typeWalker pfs (TyVar (Id n _)) = fmap Var $ lookup (tyFunName n) pfs

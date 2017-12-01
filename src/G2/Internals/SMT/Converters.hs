@@ -38,8 +38,8 @@ toSMTHeaders s  =
     let
         pc = PC.toList $ path_conds s
     in
-    (typesToSMTSorts $ type_env s)
-    ++
+    -- (typesToSMTSorts $ type_env s)
+    -- ++
     nub (pcVarDecls pc)
     ++
     (pathConsToSMTHeaders pc)

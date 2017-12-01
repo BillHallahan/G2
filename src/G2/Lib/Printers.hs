@@ -170,6 +170,7 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         mkExprHaskell' (Case e _ ae) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
                                         ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
+        mkExprHaskell' (Cast e (_ :~ TyConApp n _)) i = "(" ++ mkNameHaskell n ++ " " ++ mkExprHaskell' e i ++ ")"
         mkExprHaskell' (Cast e c) i = mkExprHaskell' e i
         mkExprHaskell' e _ = "e = " ++ show e ++ " NOT SUPPORTED"
 

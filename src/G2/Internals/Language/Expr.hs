@@ -15,8 +15,9 @@ module G2.Internals.Language.Expr ( replaceVar
                                   , varNames
                                   , symbVars
                                   , unsafeElimCast
-                                  , freeVars
                                   , splitCast
+                                  , simplifyCasts
+                                  , freeVars
                                   , mkStrict) where
 
 import G2.Internals.Language.AST
@@ -165,6 +166,28 @@ splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
     in
     (e', ng')
 splitCast ng e = (e, ng)
+
+-- | simplfyCasts
+-- Eliminates redundant casts 
+simplifyCasts :: ASTContainer m Expr => m -> m
+simplifyCasts = modifyASTsFix simplifyCasts'
+
+-- We must run until we hit a fixpoint where no more casts can be removed.
+-- Theis requires the rather strange looking call from modifyASTsFix
+-- to modifyFix, in case the (Cast e' (t1 :~ t2)) pattern match in simplifyCasts''
+-- is in between two Casts that could be handled by simplifyCasts'
+simplifyCasts' :: Expr -> Expr
+simplifyCasts' = modifyFix simplifyCasts''
+
+simplifyCasts'' :: Expr -> Expr
+simplifyCasts'' e
+    | (Cast (Cast e' (t1 :~ _)) (_ :~ t2)) <- e
+    , t1 == t2
+        = e'
+    | (Cast e' (t1 :~ t2)) <- e
+    , t1 == t2
+        = e'
+    | otherwise = e
 
 -- | mkStrict
 -- Forces the complete evaluation of an expression
