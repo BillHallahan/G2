@@ -83,8 +83,8 @@ sampleTests =
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
 
-                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
-                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
                 -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
 
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 400 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
@@ -144,7 +144,7 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> tc3Holds x y), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(Lit (LitInt y))] -> appNthArgIs x (ly ==) 1 && y > 100), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(Lit (LitInt y))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
-                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 2 [RForAll (\[f, x, y] -> dcHasName "J" x && dcHasName "J" y, AtLeast 2]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 1 && dcInAppHasName "J" y 1), AtLeast 2]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), y] -> x < 0 && dcHasName "A" y)
                                                                                                               , RExists (\[Lit (LitInt x), y] -> x >= 0 && dcHasName "C" y), Exactly 2]

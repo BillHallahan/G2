@@ -121,7 +121,12 @@ addADTs n tn s =
 
         m = M.insert n dc (model s)
 
-        (Just (base:_)) = fmap baseDataCons $ getDataCons tn (type_env s)
+        -- (Just (base:_)) = fmap baseDataCons $ getDataCons tn (type_env s)
+        base = 
+            case fmap baseDataCons $ getDataCons tn (type_env s) of
+                Just (b:_) -> b
+                _ -> error $ "addADTs: No valid base constructor found" ++ show tn
+
         m' = M.insert n (Data base) m
     in
     case PC.null pc of

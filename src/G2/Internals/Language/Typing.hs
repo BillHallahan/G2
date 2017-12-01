@@ -24,12 +24,14 @@ import G2.Internals.Language.Syntax
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 
+import Debug.Trace
+
 -- | Typed typeclass.
 class Typed a where
     typeOf :: a -> Type
-    typeOf = typeOf' M.empty
+    typeOf = fst . typeOf' M.empty
 
-    typeOf' :: M.Map Name Type -> a -> Type
+    typeOf' :: M.Map Name Type -> a -> (Type, M.Map Name Type)
 
 -- | `Id` instance of `Typed`.
 instance Typed Id where
@@ -56,7 +58,7 @@ instance Typed Primitive where
     typeOf Error = TyBottom
     typeOf Undefined = TyBottom
 
-    typeOf' _ = typeOf
+    typeOf' m t = (typeOf t, m)
 
 -- | `Lit` instance of `Typed`.
 instance Typed Lit where
@@ -67,16 +69,16 @@ instance Typed Lit where
     typeOf (LitString _) = TyLitString
     typeOf (LitBool _) = TyBool
 
-    typeOf' _ = typeOf
+    typeOf' m t = (typeOf t, m)
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
-    typeOf' _ (DataCon _ ty _) = ty
-    typeOf' _ (PrimCon I) = TyFun TyLitInt TyInt
-    typeOf' _ (PrimCon D) = TyFun TyLitDouble TyDouble
-    typeOf' _ (PrimCon F) = TyFun TyLitFloat TyFloat
-    typeOf' _ (PrimCon C) = TyFun TyLitChar TyChar
-    typeOf' _ (PrimCon B) = TyBool
+    typeOf' m (DataCon _ ty _) = (ty, m)
+    typeOf' m (PrimCon I) = (TyFun TyLitInt TyInt, m)
+    typeOf' m (PrimCon D) = (TyFun TyLitDouble TyDouble, m)
+    typeOf' m (PrimCon F) = (TyFun TyLitFloat TyFloat, m)
+    typeOf' m (PrimCon C) = (TyFun TyLitChar TyChar, m)
+    typeOf' m (PrimCon B) = (TyBool, m)
 
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
@@ -86,44 +88,60 @@ instance Typed Alt where
 instance Typed Expr where
     typeOf' m (Var v) = typeOf' m v
     typeOf' m (Lit lit) = typeOf' m lit
-    typeOf' _ (Prim _ ty) = ty
+    typeOf' m (Prim _ ty) = (ty, m)
     typeOf' m (Data dcon) = typeOf' m dcon
     typeOf' m (App fxpr axpr) =
         let
-            tfxpr = typeOf' m fxpr
-            taxpr = typeOf' m axpr
+            (tfxpr, m') = typeOf' m fxpr
+            (taxpr, m'') = typeOf' m' axpr
         in
         case tfxpr of
-            TyForAll (NamedTyBndr i) t2 -> typeOf' (M.insert (idName i) taxpr m) t2
-            TyFun _ t2 ->  t2  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
+            TyForAll (NamedTyBndr i) t2 -> typeOf' (M.insert (idName i) taxpr m'') t2
+            TyFun _ t2 -> (t2, m'')  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
                                -- We should really have this if check- but
                                -- can't because of TyBottom being introdduced
                                -- elsewhere...
-            _ -> TyBottom
-    typeOf' m (Lam b expr) = TyFun (typeOf' m b) (typeOf' m expr)
+            _ -> (TyBottom, m'')
+    typeOf' m (Lam b expr) =
+        let
+            (t1, m') = typeOf' m b
+            (t2, m'') = typeOf' m expr
+        in
+        (TyFun t1 t2, m'')
     typeOf' m (Let _ expr) = typeOf' m expr
     typeOf' m (Case _ _ (a:_)) = typeOf' m a
-    typeOf' _ (Case _ _ _) = TyBottom
-    typeOf' _ (Type ty) = ty
-    typeOf' _ (Cast _ (_ :~ t')) = t'
-    typeOf' _ (Coercion (_ :~ t')) = t'
+    typeOf' m (Case _ _ _) = (TyBottom, m)
+    typeOf' m (Type ty) = (ty, m)
+    typeOf' m (Cast _ (_ :~ t')) = (t', m)
+    typeOf' m (Coercion (_ :~ t')) = (t', m)
     typeOf' m (Assert _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
 
 instance Typed Type where
-    typeOf = typeOf' M.empty
-
     typeOf' m v@(TyVar (Id n _)) =
         case M.lookup n m of
-            Just t -> t
-            Nothing -> v
+            Just t -> (t, m)
+            Nothing -> (v, m)
     typeOf' m (TyFun (TyForAll (NamedTyBndr i) t') t'') =
         let
             m' = M.insert (idName i) t'' m
         in
         typeOf' m' t'
-    typeOf' m (TyFun t t') = TyFun (typeOf' m t) (typeOf' m t')
-    typeOf' _ t = t
+    typeOf' m (TyFun t1 t2) =
+        let
+            (t1', m') = typeOf' m t1
+            (t2', m'') = typeOf' m' t2
+        in
+        (TyFun t1' t2', m'')
+    typeOf' m (TyApp t1 t2) =
+        let
+            (t1', m') = typeOf' m t1
+            (t2', m'') = typeOf' m' t2
+        in
+        case t1' of
+            TyConApp n ts -> (TyConApp n [t2'], m'')
+            _ -> (TyApp t1' t2', m'')
+    typeOf' m t = (t, m)
 
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a

@@ -97,6 +97,9 @@ printFuncCalls entry =
 
         let funcOut = mkExprHaskell $ ex
 
+        -- print inArg
+        -- print ex
+
         putStrLn $ funcCall ++ " = " ++ funcOut)
 
 mArg :: String -> [String] -> (String -> a) -> a -> a
