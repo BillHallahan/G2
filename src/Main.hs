@@ -17,15 +17,9 @@ import G2.Internals.SMT
 
 import G2.Internals.Liquid.Interface
 
-t1 = TyForAll (NamedTyBndr (Id (Name "t" Nothing 1) TYPE)) (TyFun (TyVar (Id (Name "t" Nothing 1) TYPE)) (TyFun (TyConApp (Name "CList" (Just "GetNthPoly") 8214565720323784713) [TyVar (Id (Name "t" Nothing 1) TYPE)]) (TyConApp (Name "CList" (Just "GetNthPoly") 8214565720323784713) [TyVar (Id (Name "t" Nothing 1) TYPE)])))
-
-t2 = TyConApp (Name "CList" (Just "GetNthPoly") 8214565720323784713) [TyInt]
-
 
 main :: IO ()
 main = do
-    putStrLn $ "t2 .:: t1 result: " ++ show (t2 .:: t1)
-
     as <- getArgs
     let (proj:prims:_) = as
 
