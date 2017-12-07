@@ -6,16 +6,16 @@ import G2.Internals.Language.Typing
 
 mkLHPrim :: Primitive -> Type -> Expr -> Expr -> Expr
 mkLHPrim p t e1 e2 =
-	let
-		b1 = Name "b" Nothing 1
-		b2 = Name "b" Nothing 2
-	
-		i1 = Id b1 $ typeOf e1
-		i2 = Id b2 $ typeOf e2
-	in
-	Case e1 i1 [Alt Default 
-		$ Case e2 i2 [Alt Default 
-			(mkApp [Prim p t, Var i1, Var i2])]]
+    let
+        b1 = Name "b" Nothing 1
+        b2 = Name "b" Nothing 2
+    
+        i1 = Id b1 $ typeOf e1
+        i2 = Id b2 $ typeOf e2
+    in
+    Case e1 i1 [Alt Default 
+        $ Case e2 i2 [Alt Default 
+            (mkApp [Prim p t, Var i1, Var i2])]]
 
 boolBoolBool :: Type
 boolBoolBool = TyFun TyBool $ TyFun TyBool TyBool

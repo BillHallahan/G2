@@ -156,6 +156,12 @@ mkSLTStr = intercalate "\n" . map (\(k, n) ->
 mkFuncSLTStr :: FuncInterps -> String
 mkFuncSLTStr = show
 
+mkIdHaskell :: Id -> String
+mkIdHaskell (Id n _) = mkNameHaskell n
+
+mkNameHaskell :: Name -> String
+mkNameHaskell (Name n _ _) = n
+
 mkExprHaskell :: Expr -> String
 mkExprHaskell ex = mkExprHaskell' ex 0
     where
@@ -170,15 +176,8 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         mkExprHaskell' (Case e _ ae) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
                                         ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
-        mkExprHaskell' (Cast e (_ :~ TyConApp n _)) i = "(" ++ mkNameHaskell n ++ " " ++ mkExprHaskell' e i ++ ")"
-        mkExprHaskell' (Cast e c) i = mkExprHaskell' e i
+        mkExprHaskell' (Cast e (_ :~ t)) i = "((coerce " ++ mkExprHaskell' e i ++ ") :: " ++ mkTypeHaskell t ++ ")"
         mkExprHaskell' e _ = "e = " ++ show e ++ " NOT SUPPORTED"
-
-        mkIdHaskell :: Id -> String
-        mkIdHaskell (Id n _) = mkNameHaskell n
-
-        mkNameHaskell :: Name -> String
-        mkNameHaskell (Name n _ _) = n
 
         mkAltHaskell :: Int -> Alt -> String
         mkAltHaskell i (Alt am e) =
@@ -223,6 +222,19 @@ mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
 mkPrimHaskell Iff = "undefined"
+
+mkTypeHaskell :: Type -> String
+mkTypeHaskell (TyVar i) = mkIdHaskell i
+mkTypeHaskell (TyInt) = "Int"
+mkTypeHaskell (TyFloat) = "Float"
+mkTypeHaskell (TyDouble) = "Double"
+mkTypeHaskell (TyChar) = "Char"
+mkTypeHaskell (TyString) = "String"
+mkTypeHaskell (TyBool) = "Bool"
+mkTypeHaskell (TyFun t1 t2) = mkTypeHaskell t1 ++ " -> " ++ mkTypeHaskell t2
+mkTypeHaskell (TyApp t1 t2) = mkTypeHaskell t1 ++ " " ++ mkTypeHaskell t2
+mkTypeHaskell (TyConApp n ts) = mkNameHaskell n ++ " " ++ (intercalate " " $ map mkTypeHaskell ts)
+mkTypeHaskell _ = "Unsupported type in printer."
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""

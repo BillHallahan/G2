@@ -192,16 +192,24 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "born" 1 [ Exactly 1
                                                                                                                                   , RForAll (\[x] -> inCast x (App (Data (PrimCon I)) (Lit (LitInt 0)) ==) (\(t1 :~ t2) -> t1 == TyInt && typeNameIs t2 "Age"))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearPasses" 2 [ AtLeast 1
-                                                                                                                                        , RForAll (\[x, y] -> inCast x (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age")
-                                                                                                                                                           && inCast y (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age") )]
+                                                                                                                                        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
+                                                                                                                                                           && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") )]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "age" 2 [ AtLeast 1
                                                                                                                                  , RForAll (\[x, y] -> inCast x (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age") && isInt y (const True))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "diffAge" 3 [ AtLeast 1
-                                                                                                                                     , RForAll (\[x, y, z] -> inCast x (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age") 
-                                                                                                                                                           && inCast y (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age")
-                                                                                                                                                           && inCast z (const True) (\(t1 :~ t2) -> typeNameIs t2 "Years"))]
+                                                                                                                                     , RForAll (\[x, y, z] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") 
+                                                                                                                                                           && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
+                                                                                                                                                           && inCast z (const True) (\(_ :~ t2) -> typeNameIs t2 "Years"))]
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearBefore" 2 [ ALeast 3
                 --                                                                                                                         , RForAll (\[x, y] -> )]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "add1N4" 2 [ Exactly 1
+                                                                                                                                         , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "N4") 
+                                                                                                                                                            && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "N4"))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "f" 2 [ Exactly 1
+                                                                                                                                    , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX") && dcHasName "X" y)]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "g" 2 [ Exactly 1
+                                                                                                                                    , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
+
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ ALeast 3
                 --                                                                                                                                , RForAll (\[x, y] -> )]
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ ALeast 3

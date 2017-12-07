@@ -83,7 +83,7 @@ createDeepSeqExpr' dc adt@(DataTyCon _ _) ns ng (i@(Id _ t):xs) pfs =
         am = [Alt Default e]
     in
     (case_e am, ng'')
-createDeepSeqExpr' e adt@(NewTyCon ns dc t) _ ng (i:xs) pfs =
+createDeepSeqExpr' e (NewTyCon _ _ t) _ ng (i:xs) _ =
     let
         retT = returnType . typeOf $ e
 

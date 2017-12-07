@@ -48,6 +48,9 @@ instance Ided TyBinder where
     ids (AnonTyBndr t) = ids t
     ids (NamedTyBndr i) = [i]
 
+instance Ided Coercion where
+    ids (t1 :~ t2) = ids t1 ++ ids t2
+
 instance (Foldable f, Ided a) => Ided (f a) where
     ids = foldMap ids
 

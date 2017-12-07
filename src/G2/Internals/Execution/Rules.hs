@@ -385,13 +385,13 @@ reduceEvaluate eenv (Let binds expr) ngen =
 reduceEvaluate eenv (Case mexpr cvar alts) ngen =
     reduceCase eenv mexpr cvar alts ngen
 
-reduceEvaluate eenv cast@(Cast e coer@(t1 :~ t2)) ngen =
+reduceEvaluate eenv cast@(Cast e coer) ngen =
     let
         (cast', ngen') = splitCast ngen cast
 
         frame = CastFrame coer
     in
-    case hasFuncType t1 of
+    case cast /= cast' of
         True ->
             (RuleEvalCastSplit, [( eenv
                                  , CurrExpr Evaluate cast'
@@ -560,7 +560,7 @@ reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame aexpr) =
 -- bit tricky, since we need to make sure that the thing we end up returning
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
-reduceEReturn eenv (Lam b@(Id n ty) lexpr) ngen (ApplyFrame aexpr) =
+reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
   let binds = [(b, aexpr)]
       (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
   in ( RuleReturnEApplyLamExpr

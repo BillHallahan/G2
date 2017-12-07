@@ -38,7 +38,7 @@ subVar' _ e = e
 -- Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints con io s = do
-    case PC.checkConsistency (type_env s) (path_conds s) of
+    case PC.checkConsistency (type_env s) (unsafeElimCast $ path_conds s) of
         Just True -> return SAT
         Just False -> return UNSAT
         _ -> do
@@ -49,7 +49,7 @@ checkConstraints con io s = do
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints' con io s = do
     -- let s' = filterTEnv . simplifyPrims $ s
-    let s' = simplifyPrims $ s
+    let s' = s {path_conds = simplifyPrims $ path_conds s}
 
     let headers = toSMTHeaders s'
     let formula = toSolver con headers
@@ -61,8 +61,7 @@ checkConstraints' con io s = do
 checkModel :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprModel)
 checkModel con io s = do
     -- let s' = filterTEnv . simplifyPrims $ s
-    let s' = simplifyPrims $ s
-
+    let s' = s {path_conds = simplifyPrims $ path_conds s}
     checkModel' con io (input_ids s') s'
 
 -- | checkModel'
@@ -119,16 +118,12 @@ addADTs n tn s =
                         vs = mapMaybe (flip E.lookup eenv) ns
                         is = map (\(Var i) -> i) vs
                     in
-                    (mkApp $ (Data fdc):vs, is)
+                    (mkApp $ fdc:vs, is)
                 _ -> error "Unusable DataCon in addADTs"
 
         m = M.insert n dc (model s)
 
-        -- (Just (base:_)) = fmap baseDataCons $ getDataCons tn (type_env s)
         base = getADTBase tn (type_env s)
-            -- case fmap baseDataCons $ getDataCons tn (type_env s) of
-            --     Just (b:_) -> b
-            --     _ -> error $ "addADTs: No valid base constructor found" ++ show tn
 
         m' = M.insert n base m
     in

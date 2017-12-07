@@ -20,9 +20,11 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , toList) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.Casts
 import G2.Internals.Language.Ids
 import G2.Internals.Language.Naming
 import G2.Internals.Language.TypeEnv
+import G2.Internals.Language.Typing
 import G2.Internals.Language.Syntax
 
 import Data.Coerce
@@ -115,6 +117,7 @@ varNamesInPC :: PathCond -> [Name]
 -- parents/children can't impose restrictions on it.  We are completely
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
+varNamesInPC (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varNamesInPC $ AltCond altC e b
 varNamesInPC (AltCond (DataAlt (DataCon _ _ _) _) (Var (Id n _)) _) = [n]
 varNamesInPC (AltCond a e _) = varNamesInAltMatch a ++ varNames e
 varNamesInPC (ExtCond e _) = varNames e
@@ -172,23 +175,40 @@ dcName :: DataCon -> Name
 dcName (DataCon n _ _) = n
 dcName _ = error "Invalid DataCon in dcName"
 
+-- | checkConsistency
+-- Attempts to detemine if the given PathConds are consistent.
+-- Returns Just True if they are, Just False if they are not,
+-- and Nothing if it can't decide.
 checkConsistency :: TypeEnv -> PathConds -> Maybe Bool
 checkConsistency tenv pc = maybe Nothing (Just . not . Pre.null) $ findConsistent tenv pc
 
-findConsistent :: TypeEnv -> PathConds -> Maybe [DataCon]
+-- | findConsistent
+-- Attempts to find expressions (Data d) or (Coercion (Data d), (t1 :~ t2)) consistent with the given path
+-- constraints.  Returns Just [...] if it can determine [...] are consistent.
+-- Just [] means there are no consistent Expr.  Nothing nmeans it could not be
+-- determined if there were any consistent data constructors.
+-- In practice, the result should always be Just [...] if all the path conds
+-- are about ADTs.
+findConsistent :: TypeEnv -> PathConds -> Maybe [Expr]
 findConsistent tenv pc =
     let
-        pc' = toList pc
-    in
-    if any isExtCond pc' then Nothing else findConsistent' tenv pc'
+        pc' = unsafeElimCast $ toList pc
 
-findConsistent' :: TypeEnv -> [PathCond] -> Maybe [DataCon]
+        -- Adding Coercions
+        pcNT = pcType . head $ toList pc
+        cons = findConsistent' tenv pc'
+
+        cons' = fmap (simplifyCasts . map (castReturnType pcNT)) cons 
+    in
+    if any isExtCond pc' then Nothing else cons'
+
+findConsistent' :: TypeEnv -> [PathCond] -> Maybe [Expr]
 findConsistent' tenv pc =
     let
         n = pcVarType pc
-        adt = maybe Nothing (\n' -> M.lookup n' tenv) n
+        adt = maybe Nothing (\n' -> getCastedAlgDataTy n' tenv) n
     in
-    maybe Nothing (\(DataTyCon _ dc) -> findConsistent'' dc pc) adt
+    maybe Nothing (\(DataTyCon _ dc) -> fmap (map Data) $ findConsistent'' dc pc) adt
 
 findConsistent'' :: [DataCon] -> [PathCond] -> Maybe [DataCon]
 findConsistent'' dcs ((AltCond (DataAlt dc _) _ True):pc) =
@@ -201,6 +221,25 @@ findConsistent'' dcs ((ConsCond  dc _ False):pc) =
     findConsistent'' (filter ((/=) (dcName dc) . dcName) dcs) pc
 findConsistent'' dcs [] = Just dcs
 findConsistent'' _ _ = Nothing
+
+pcType :: PathCond -> Type
+pcType (AltCond _ e _) = typeInCasts e
+pcType (ExtCond e _) = typeInCasts e
+pcType (ConsCond _ e _) = typeInCasts e
+pcType (PCExists (Id _ t)) = t
+
+castReturnType :: Type -> Expr -> Expr
+castReturnType t e =
+    let
+        te = typeOf e
+        tr = replaceReturnType te t
+    in
+    Cast e (te :~ tr)
+
+replaceReturnType :: Type -> Type -> Type
+replaceReturnType (TyFun t1 t2@(TyFun _ _)) r = TyFun t1 $ replaceReturnType t2 r
+replaceReturnType (TyFun t _) r = TyFun r t
+replaceReturnType _ r = r
 
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap

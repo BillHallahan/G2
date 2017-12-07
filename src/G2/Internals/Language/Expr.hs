@@ -1,7 +1,8 @@
 {-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.Language.Expr ( replaceVar
+module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
+                                  , replaceVar
                                   , unApp
                                   , mkApp
                                   , mkTrue
@@ -14,13 +15,11 @@ module G2.Internals.Language.Expr ( replaceVar
                                   , vars
                                   , varNames
                                   , symbVars
-                                  , unsafeElimCast
-                                  , splitCast
-                                  , simplifyCasts
                                   , freeVars
                                   , mkStrict) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.Casts
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Support
@@ -133,61 +132,6 @@ freeVars' eenv bound (Var i) =
     else
         ([], [i])
 freeVars' _ _ _ = ([], [])
-
--- | unsafeElimCast
--- Removes all casts from the expression.  Makes no guarentees about the type
--- correctness of the resulting expression.  In particular, the expression
--- is likely to not actually type correctly if it contains variables that
--- are mapped in the Expression Environment
-unsafeElimCast :: ASTContainer m Expr => m -> m
-unsafeElimCast = modifyASTs unsafeElimCast'
-
-unsafeElimCast' :: Expr -> Expr
-unsafeElimCast' (Cast e (t1 :~ t2)) = replaceASTs t1 t2 e
-unsafeElimCast' e = e
-
--- | splitCast
--- Given a function cast from (t1 -> t2) to (t1' -> t2'), decomposes it to two
--- seperate casts, from t1 to t1', and from t2 to t2'.  Given any other
--- expression, acts as the identity
-splitCast :: NameGen -> Expr -> (Expr, NameGen)
-splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
-    let
-        (i, ng') = freshId t1 ng
-
-        e' = Lam i $ 
-                (Cast 
-                    (App 
-                        e
-                        (Cast (Var i) (t1 :~ t1'))
-                    )
-                    (t2 :~ t2')
-                )
-    in
-    (e', ng')
-splitCast ng e = (e, ng)
-
--- | simplfyCasts
--- Eliminates redundant casts 
-simplifyCasts :: ASTContainer m Expr => m -> m
-simplifyCasts = modifyASTsFix simplifyCasts'
-
--- We must run until we hit a fixpoint where no more casts can be removed.
--- Theis requires the rather strange looking call from modifyASTsFix
--- to modifyFix, in case the (Cast e' (t1 :~ t2)) pattern match in simplifyCasts''
--- is in between two Casts that could be handled by simplifyCasts'
-simplifyCasts' :: Expr -> Expr
-simplifyCasts' = modifyFix simplifyCasts''
-
-simplifyCasts'' :: Expr -> Expr
-simplifyCasts'' e
-    | (Cast (Cast e' (t1 :~ _)) (_ :~ t2)) <- e
-    , t1 == t2
-        = e'
-    | (Cast e' (t1 :~ t2)) <- e
-    , t1 == t2
-        = e'
-    | otherwise = e
 
 -- | mkStrict
 -- Forces the complete evaluation of an expression

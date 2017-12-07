@@ -24,8 +24,6 @@ import G2.Internals.Language.Syntax
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
 
-import Debug.Trace
-
 -- | Typed typeclass.
 class Typed a where
     typeOf :: a -> Type
@@ -105,7 +103,7 @@ instance Typed Expr where
     typeOf' m (Lam b expr) =
         let
             (t1, m') = typeOf' m b
-            (t2, m'') = typeOf' m expr
+            (t2, m'') = typeOf' m' expr
         in
         (TyFun t1 t2, m'')
     typeOf' m (Let _ expr) = typeOf' m expr
@@ -139,7 +137,7 @@ instance Typed Type where
             (t2', m'') = typeOf' m' t2
         in
         case t1' of
-            TyConApp n ts -> (TyConApp n [t2'], m'')
+            TyConApp n _ -> (TyConApp n [t2'], m'')
             _ -> (TyApp t1' t2', m'')
     typeOf' m t = (t, m)
 
@@ -161,39 +159,77 @@ retype' key new ty = modifyChildren (retype' key new) ty
 -- Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> Type -> Bool
-(.::) t1 t2 = specializesTo M.empty HS.empty (typeOf t1) t2
+(.::) t1 t2 = fst $ specializesTo M.empty (typeOf t1) t2
 
-specializesTo :: M.Map Name Type -> HS.HashSet Type -> Type -> Type -> Bool
-specializesTo m s t (TyVar (Id n t')) =
-    if HS.member t' s
-        then case M.lookup n m of
-            Just r -> specializesTo m s t r  -- There is an entry.
-            Nothing -> True  -- We matched with TOP, oh well.
-        else specializesTo m s t t'  -- Not a TOP.
--- Apply direct AST recursion.
-specializesTo m s (TyFun t1 t2) (TyFun t1' t2') =
-    specializesTo m s t1 t1' && specializesTo m s t2 t2'
-specializesTo m s (TyApp t1 t2) (TyApp t1' t2') =
-    specializesTo m s t1 t1' && specializesTo m s t2 t2'
-specializesTo m s (TyConApp _ ts) (TyConApp _ ts') =
-    length ts == length ts' &&
-    all (\(t, t') -> specializesTo m s t t') (zip ts ts')
--- Unhandled function type.
-specializesTo m s (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
-    specializesTo m s t1 t1' && specializesTo m s t2 t2'
--- For all function type bindings.
-specializesTo m s (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
-    specializesTo (M.insert n t1 m) (HS.insert t1' s) (TyFun t1 t2) t2'
--- Forall / forall bindings.
-specializesTo m s (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
-    specializesTo m s t1 t1' && specializesTo m s t2 t2'
-specializesTo m s (TyForAll (NamedTyBndr (Id _ t1)) t2)
-                (TyForAll (NamedTyBndr (Id n' t1')) t2') =
-    specializesTo (M.insert n' t1 m) (HS.insert t1' s) t2 t2'
--- The rest.
-specializesTo _ _ TyBottom _ = True
-specializesTo _ _ _ TyBottom = True
-specializesTo _ s t t' = HS.member t' s || t == t'
+specializesTo :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
+specializesTo m t (TyVar (Id n _)) =
+    case M.lookup n m of
+        Just t' -> (t == t', m)
+        Nothing -> (True, M.insert n t m)
+specializesTo m (TyFun t1 t2) (TyFun t1' t2') =
+    let
+        (b1, m') = specializesTo m t1 t1'
+        (b2, m'') = specializesTo m' t2 t2'
+    in
+    (b1 && b2, m'')
+specializesTo m t (TyFun _ t2') = specializesTo m t t2'
+specializesTo m (TyApp t1 t2) (TyApp t1' t2') =
+    let
+        (b1, m') = specializesTo m t1 t1'
+        (b2, m'') = specializesTo m' t2 t2'
+    in
+    (b1 && b2, m'')
+specializesTo m (TyConApp n ts) (TyConApp n' ts') =
+    foldr 
+        (\(t, t') (b, m') ->
+            let 
+                (b', m'') = specializesTo m' t t'
+            in
+            (b && b', m'')
+        )
+        (n == n' && length ts == length ts', m) 
+        (zip ts ts')
+specializesTo m (TyForAll _ t1) (TyForAll _ t2) =
+    specializesTo m t1 t2
+specializesTo m (TyForAll _ t1) t2 =
+    specializesTo m t1 t2
+specializesTo m t1 (TyForAll _ t2) =
+    specializesTo m t1 t2
+specializesTo m _ TyBottom = (True, m)
+specializesTo m TyBottom _ = (True, m)
+specializesTo m t1 t2 = (t1 == t2, m)
+
+-- specializesTo :: M.Map Name Type -> HS.HashSet Type -> Type -> Type -> Bool
+-- specializesTo m s t (TyVar (Id n t')) =
+--     if HS.member t' s
+--         then case M.lookup n m of
+--             Just r -> specializesTo m s t r  -- There is an entry.
+--             Nothing -> True  -- We matched with TOP, oh well.
+--         else specializesTo m s t t'  -- Not a TOP.
+-- -- Apply direct AST recursion.
+-- specializesTo m s (TyFun t1 t2) (TyFun t1' t2') =
+--     specializesTo m s t1 t1' && specializesTo m s t2 t2'
+-- specializesTo m s (TyApp t1 t2) (TyApp t1' t2') =
+--     specializesTo m s t1 t1' && specializesTo m s t2 t2'
+-- specializesTo m s (TyConApp _ ts) (TyConApp _ ts') =
+--     length ts == length ts' &&
+--     all (\(t, t') -> specializesTo m s t t') (zip ts ts')
+-- -- Unhandled function type.
+-- specializesTo m s (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
+--     specializesTo m s t1 t1' && specializesTo m s t2 t2'
+-- -- For all function type bindings.
+-- specializesTo m s (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+--     specializesTo (M.insert n t1 m) (HS.insert t1' s) (TyFun t1 t2) t2'
+-- -- Forall / forall bindings.
+-- specializesTo m s (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
+--     specializesTo m s t1 t1' && specializesTo m s t2 t2'
+-- specializesTo m s (TyForAll (NamedTyBndr (Id _ t1)) t2)
+--                 (TyForAll (NamedTyBndr (Id n' t1')) t2') =
+--     specializesTo (M.insert n' t1 m) (HS.insert t1' s) t2 t2'
+-- -- The rest.
+-- specializesTo _ _ TyBottom _ = True
+-- specializesTo _ _ _ TyBottom = True
+-- specializesTo _ s t t' = HS.member t' s || t == t'
 
 hasFuncType :: (Typed t) => t -> Bool
 hasFuncType t =

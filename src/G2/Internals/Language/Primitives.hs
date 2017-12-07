@@ -5,7 +5,6 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
 import Data.Foldable
-import Data.Maybe
 
 primStr :: Primitive -> String
 primStr Ge = ">="

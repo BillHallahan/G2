@@ -12,6 +12,8 @@ module G2.Internals.Language.TypeEnv ( ProgramType
                                      , newTyConRepType
                                      , getDataCons
                                      , baseDataCons
+                                     , getCastedAlgDataTy
+                                     , getCasted
                                      , selfRecursive
                                      , dataConCanContain
                                      , getDataCon
@@ -82,8 +84,21 @@ baseDataCon :: DataCon -> Bool
 baseDataCon (DataCon _ _ (_:_)) = False
 baseDataCon _ = True
 
-nonSelfRecursiveDataCons :: TypeEnv -> [DataCon] -> [DataCon]
-nonSelfRecursiveDataCons tenv = filter (not . selfRecursive tenv)
+getCastedAlgDataTy :: Name -> TypeEnv -> Maybe AlgDataTy
+getCastedAlgDataTy n tenv =
+    case M.lookup n tenv of
+        Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy n' tenv
+        Just (NewTyCon {}) -> Nothing
+        dc@(Just (DataTyCon {})) -> dc
+        _ -> Nothing
+
+getCasted :: Name -> TypeEnv -> Maybe Type
+getCasted n tenv =
+    case M.lookup n tenv of
+        Just (NewTyCon {rep_type = TyConApp n' _}) -> getCasted n' tenv
+        Just (NewTyCon {rep_type = t}) -> Just t
+        Just (DataTyCon {bound_names = bn}) -> Just $ TyConApp n (map (\n' -> TyVar (Id n' TYPE)) bn)
+        _ -> Nothing
 
 -- | selfRecursive
 -- Given a DataCon dc of type t, checks if one of the descendents of dc could
