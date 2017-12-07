@@ -162,9 +162,10 @@ retype' key new ty = modifyChildren (retype' key new) ty
 (.::) t1 t2 = fst $ specializesTo M.empty (typeOf t1) t2
 
 specializesTo :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
+specializesTo m _ TYPE = (True, m)
 specializesTo m t (TyVar (Id n _)) =
     case M.lookup n m of
-        Just t' -> (t == t', m)
+        Just t' -> specializesTo m t t'
         Nothing -> (True, M.insert n t m)
 specializesTo m (TyFun t1 t2) (TyFun t1' t2') =
     let
@@ -189,47 +190,51 @@ specializesTo m (TyConApp n ts) (TyConApp n' ts') =
         )
         (n == n' && length ts == length ts', m) 
         (zip ts ts')
-specializesTo m (TyForAll _ t1) (TyForAll _ t2) =
-    specializesTo m t1 t2
-specializesTo m (TyForAll _ t1) t2 =
-    specializesTo m t1 t2
-specializesTo m t1 (TyForAll _ t2) =
-    specializesTo m t1 t2
+
+specializesTo m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
+  let
+      (b1, m') = specializesTo m t1 t1'
+      (b2, m'') = specializesTo m' t2 t2'
+  in (b1 && b2, m'')
+specializesTo m (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+  let
+      (b1, m') = specializesTo (M.insert n t1 m) t1 t1'
+      (b2, m'') = specializesTo m' t2 t2'
+  in (b1 && b2, m'')
+specializesTo m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
+  let
+      (b1, m') = specializesTo m t1 t1'
+      (b2, m'') = specializesTo m' t2 t2'
+  in (b1 && b2, m'')
+specializesTo m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyFun t1' t2') =
+  let
+      (b1, m') = specializesTo (M.insert n t1' m) t1 t1'
+      (b2, m'') = specializesTo m' t2 t2'
+  in (b1 && b2, m'')
+specializesTo m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
+  let
+      (b1, m') = specializesTo m t1 t1'
+      (b2, m'') = specializesTo m' t2 t2'
+  in (b1 && b2, m'')
+specializesTo m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+  let
+      (b1, m') = specializesTo (M.insert n t1 m) t1 t1'
+      (b2, m'') = specializesTo m' t2 t2'
+  in (b1 && b2, m'')
+specializesTo m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyForAll (AnonTyBndr t1') t2') =
+  let
+      (b1, m') = specializesTo (M.insert n t1' m) t1 t1'
+      (b2, m'') = specializesTo m' t2 t2'
+  in (b1 && b2, m'')
+specializesTo m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyForAll (NamedTyBndr (Id n' t1')) t2') =
+  let
+      (b1, m') = specializesTo m t1 t1'
+      (b2, m'') = specializesTo m' t2 t2'
+  in (b1 && b2, m'')
+specializesTo m t (TyForAll _ t') = specializesTo m t t'
 specializesTo m _ TyBottom = (True, m)
 specializesTo m TyBottom _ = (True, m)
 specializesTo m t1 t2 = (t1 == t2, m)
-
--- specializesTo :: M.Map Name Type -> HS.HashSet Type -> Type -> Type -> Bool
--- specializesTo m s t (TyVar (Id n t')) =
---     if HS.member t' s
---         then case M.lookup n m of
---             Just r -> specializesTo m s t r  -- There is an entry.
---             Nothing -> True  -- We matched with TOP, oh well.
---         else specializesTo m s t t'  -- Not a TOP.
--- -- Apply direct AST recursion.
--- specializesTo m s (TyFun t1 t2) (TyFun t1' t2') =
---     specializesTo m s t1 t1' && specializesTo m s t2 t2'
--- specializesTo m s (TyApp t1 t2) (TyApp t1' t2') =
---     specializesTo m s t1 t1' && specializesTo m s t2 t2'
--- specializesTo m s (TyConApp _ ts) (TyConApp _ ts') =
---     length ts == length ts' &&
---     all (\(t, t') -> specializesTo m s t t') (zip ts ts')
--- -- Unhandled function type.
--- specializesTo m s (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
---     specializesTo m s t1 t1' && specializesTo m s t2 t2'
--- -- For all function type bindings.
--- specializesTo m s (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
---     specializesTo (M.insert n t1 m) (HS.insert t1' s) (TyFun t1 t2) t2'
--- -- Forall / forall bindings.
--- specializesTo m s (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
---     specializesTo m s t1 t1' && specializesTo m s t2 t2'
--- specializesTo m s (TyForAll (NamedTyBndr (Id _ t1)) t2)
---                 (TyForAll (NamedTyBndr (Id n' t1')) t2') =
---     specializesTo (M.insert n' t1 m) (HS.insert t1' s) t2 t2'
--- -- The rest.
--- specializesTo _ _ TyBottom _ = True
--- specializesTo _ _ _ TyBottom = True
--- specializesTo _ s t t' = HS.member t' s || t == t'
 
 hasFuncType :: (Typed t) => t -> Bool
 hasFuncType t =
