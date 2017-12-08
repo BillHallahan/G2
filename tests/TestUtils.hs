@@ -56,6 +56,11 @@ isDouble (Lit (LitDouble x)) f = f x
 isDouble (App (Data (PrimCon D)) (Lit (LitDouble x))) f = f x
 isDouble _ _ = False
 
+isFloat :: Expr -> (Rational -> Bool) -> Bool
+isFloat (Lit (LitFloat x)) f = f x
+isFloat (App (Data (PrimCon F)) (Lit (LitFloat x))) f = f x
+isFloat _ _ = False
+
 inCast :: Expr -> (Expr -> Bool) -> (Coercion -> Bool) -> Bool
 inCast (Cast e c) p q = p e && q c
 inCast _ _ _ = False

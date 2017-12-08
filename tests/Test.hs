@@ -200,8 +200,7 @@ testFileTests =
                                                                                                                                      , RForAll (\[x, y, z] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") 
                                                                                                                                                            && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
                                                                                                                                                            && inCast z (const True) (\(_ :~ t2) -> typeNameIs t2 "Years"))]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearBefore" 2 [ ALeast 3
-                --                                                                                                                         , RForAll (\[x, y] -> )]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearBefore" 2 [ AtLeast 5]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "add1N4" 2 [ Exactly 1
                                                                                                                                          , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "N4") 
                                                                                                                                                             && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "N4"))]
@@ -210,13 +209,14 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "g" 2 [ Exactly 1
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ ALeast 3
-                --                                                                                                                                , RForAll (\[x, y] -> )]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ ALeast 3
-                --                                                                                                                                , RForAll (\[x, y] -> )]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ ALeast 3
-                --                                                                                                                                      , RForAll (\[x, y] -> )]
-
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ AtLeast 3
+                                                                                                                                               , RForAll (\[_, y] -> isInt y (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ AtLeast 3
+                                                                                                                                               , RForAll (\[_, y] -> isFloat y (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 3
+                                                                                                                                                     , RForAll (\[_, y] -> isFloat y (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatDouble'" 2 [ AtLeast 3
+                                                                                                                                                     , RForAll (\[_, y] -> isInt y (const True))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]

@@ -195,7 +195,7 @@ findConsistent tenv pc =
         pc' = unsafeElimCast $ toList pc
 
         -- Adding Coercions
-        pcNT = pcType . head $ toList pc
+        pcNT = pcInCastType . head $ toList pc
         cons = findConsistent' tenv pc'
 
         cons' = fmap (simplifyCasts . map (castReturnType pcNT)) cons 
@@ -222,11 +222,11 @@ findConsistent'' dcs ((ConsCond  dc _ False):pc) =
 findConsistent'' dcs [] = Just dcs
 findConsistent'' _ _ = Nothing
 
-pcType :: PathCond -> Type
-pcType (AltCond _ e _) = typeInCasts e
-pcType (ExtCond e _) = typeInCasts e
-pcType (ConsCond _ e _) = typeInCasts e
-pcType (PCExists (Id _ t)) = t
+pcInCastType :: PathCond -> Type
+pcInCastType (AltCond _ e _) = typeInCasts e
+pcInCastType (ExtCond e _) = typeInCasts e
+pcInCastType (ConsCond _ e _) = typeInCasts e
+pcInCastType (PCExists (Id _ t)) = t
 
 castReturnType :: Type -> Expr -> Expr
 castReturnType t e =

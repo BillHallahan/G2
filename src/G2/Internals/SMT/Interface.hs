@@ -49,7 +49,7 @@ checkConstraints con io s = do
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints' con io s = do
     -- let s' = filterTEnv . simplifyPrims $ s
-    let s' = s {path_conds = simplifyPrims $ path_conds s}
+    let s' = s {path_conds = unsafeElimCast . simplifyPrims $ path_conds s}
 
     let headers = toSMTHeaders s'
     let formula = toSolver con headers

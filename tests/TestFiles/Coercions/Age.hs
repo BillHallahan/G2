@@ -32,10 +32,14 @@ oneAD = AD (Year 1)
 
 yearBefore :: YearTracker -> YearTracker
 yearBefore (AD (Year 1)) = BC (Year 1)
+yearBefore (BC (Year 0 )) = error "No year 0"
+yearBefore (AD (Year 0 )) = error "No year 0"
 yearBefore (AD (Year x)) = AD (Year (x - 1))
 yearBefore (BC (Year x)) = BC (Year (x - 1))
 
 yearAfter :: YearTracker -> YearTracker
 yearAfter (BC (Year 1)) = AD (Year 1)
+yearAfter (BC (Year 0 )) = error "No year 0"
+yearAfter (AD (Year 0 )) = error "No year 0"
 yearAfter (AD (Year x)) = AD (Year (x + 1))
 yearAfter (BC (Year x)) = BC (Year (x + 1))
