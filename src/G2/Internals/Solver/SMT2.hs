@@ -1,14 +1,14 @@
 -- | This defines an SMTConverter for the SMT2 language
 -- It provides methods to construct formulas, as well as feed them to an external solver
-module G2.Internals.SMT.SMT2 where
+module G2.Internals.Solver.SMT2 where
 
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Support hiding (Model)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.Typing
-import G2.Internals.SMT.Language
-import G2.Internals.SMT.ParseSMT
-import G2.Internals.SMT.Converters --It would be nice to not import this...
+import G2.Internals.Solver.Language
+import G2.Internals.Solver.ParseSMT
+import G2.Internals.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Data.List

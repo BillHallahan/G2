@@ -1,16 +1,18 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.SMT.Interface
+module G2.Internals.Solver.Interface
     ( subModel
     , checkConstraints
     , checkModel
     ) where
 
 import G2.Internals.Language hiding (Model)
+import G2.Internals.Language.ArbValueGen
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.PathConds as PC
-import G2.Internals.SMT.Converters
-import G2.Internals.SMT.Language
+import G2.Internals.Solver.ADTSolver
+import G2.Internals.Solver.Converters
+import G2.Internals.Solver.Language
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -38,7 +40,7 @@ subVar' _ e = e
 -- Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints con io s = do
-    case PC.checkConsistency (type_env s) (unsafeElimCast $ path_conds s) of
+    case checkConsistency (type_env s) (unsafeElimCast $ path_conds s) of
         Just True -> return SAT
         Just False -> return UNSAT
         _ -> do
@@ -80,24 +82,42 @@ checkModel' con io (Id n (TyConApp tn _):is) s = do
         SAT -> checkModel' con io (is ++ is'') s'
         r' -> return (r', Nothing)
 checkModel' con io ((Id n _):is) s = do
-    let (Just (Var i')) = E.lookup n (expr_env s)
+    let (Just (Var i'@(Id n' t))) = E.lookup n (expr_env s)
  
     let pc = PC.scc [n] (path_conds s)
 
     let s' = s {path_conds = if PC.null pc then PC.fromList [PCExists i'] else pc }
 
-    let headers = toSMTHeaders s'
+    -- (m, av') <- case PC.null pc of
+    --             True -> 
+    --                 let
+    --                     (e, av) = arbValue t (type_env s) (arbValueGen s)
+    --                 in
+    --                 return (Just $ M.singleton n' e, av) 
+    --             False -> do
+    --                 e <- checkNumericConstraints con io s'
+    --                 return (e, arbValueGen s)
+    (m, av') <-  do e <- checkNumericConstraints con io s'
+                    return (e, arbValueGen s)
+
+    case m of
+        Just m' -> checkModel' con io is (s {model = M.union m' (model s), arbValueGen = av'})
+        Nothing -> return (UNSAT, Nothing)
+
+checkNumericConstraints :: SMTConverter ast out io -> io -> State -> IO (Maybe ExprModel)
+checkNumericConstraints con io s = do
+    let headers = toSMTHeaders s
     let formula = toSolver con headers
 
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars . PC.toList $ path_conds s'
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars . PC.toList $ path_conds s
 
     (_, m) <- checkSatGetModel con io formula headers vs
 
     let m' = fmap modelAsExpr m
 
     case m' of
-        Just m'' -> checkModel' con io is (s {model = M.union m'' (model s)})
-        Nothing -> return (UNSAT, Nothing)
+        Just m'' -> return $ Just m''
+        Nothing -> return Nothing
 
 -- | addADTs
 -- Determines an ADT based on the path conds.  The path conds form a witness.
@@ -107,7 +127,7 @@ addADTs n tn s =
     let
         pc = PC.scc [n] (path_conds s)
 
-        dcs = PC.findConsistent (type_env s) pc
+        dcs = findConsistent (type_env s) pc
 
         eenv = expr_env s
 
@@ -123,38 +143,15 @@ addADTs n tn s =
 
         m = M.insert n dc (model s)
 
-        base = getADTBase tn (type_env s)
+        (base, av) = arbValue (TyConApp tn []) (type_env s) (arbValueGen s)
 
         m' = M.insert n base m
     in
     case PC.null pc of
-        True -> (SAT, [], s {model = M.union m' (model s)})
+        True -> (SAT, [], s {model = M.union m' (model s), arbValueGen = av})
         False -> case not . null $ dcs of
-                    True -> (SAT, nst, s {model = M.union m (model s)})
+                    True -> (SAT, nst, s {model = M.union m (model s), arbValueGen = av})
                     False -> (UNSAT, [], s)
-
-getBase :: Type -> TypeEnv -> Expr
-getBase (TyConApp n _) tenv = getADTBase n tenv
-getBase TyInt tenv = App (Data $ PrimCon I) $ getBase TyLitInt tenv
-getBase TyFloat tenv = App (Data $ PrimCon F) $ getBase TyLitFloat tenv
-getBase TyDouble tenv = App (Data $ PrimCon D) $ getBase TyLitDouble tenv
-getBase TyLitInt _ = Lit (LitInt 0)
-getBase TyLitFloat _ = Lit (LitFloat $ 0 % 1)
-getBase TyLitDouble _ = Lit (LitDouble $ 0 % 1)
-
-getADTBase :: Name -> TypeEnv -> Expr
-getADTBase n tenv =
-    let
-        adt = M.lookup n tenv
-
-        b = fmap baseDataCons $ getDataCons n tenv
-    in
-    case b of
-        Just (b':_) -> Data b'
-        _ ->
-            case fmap newTyConRepType adt of
-                Just (Just t) -> Cast (getBase t tenv) (t :~ TyConApp n [])
-                _ -> error $ "getADTBase: No valid base constructor found " ++ show n ++ " " ++ show adt
 
 -- Remove all types from the type environment that contain a function
 -- filterTEnv :: State -> State

@@ -15,8 +15,8 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as S
 import qualified G2.Internals.Language.ExprEnv as E
-import G2.Internals.SMT.Interface
-import G2.Internals.SMT.Language hiding (Assert)
+import G2.Internals.Solver.Interface
+import G2.Internals.Solver.Language hiding (Assert)
 
 import Control.Monad
 import Data.Maybe

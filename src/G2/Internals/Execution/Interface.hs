@@ -9,7 +9,7 @@ module G2.Internals.Execution.Interface
 
 import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
-import G2.Internals.SMT.Language
+import G2.Internals.Solver.Language
 
 runNBreadth :: SMTConverter ast out io -> io -> [([Rule], State)] -> Int -> IO [([Rule], State)]
 runNBreadth _ _ [] _ = return []

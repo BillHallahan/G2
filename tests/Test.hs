@@ -8,7 +8,7 @@ import Test.Tasty.HUnit
 import G2.Internals.Interface
 import G2.Internals.Language as G2
 import G2.Internals.Translation
-import G2.Internals.SMT
+import G2.Internals.Solver
 import G2.Internals.Liquid.Interface
 
 import Data.Maybe

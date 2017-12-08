@@ -14,8 +14,8 @@ import G2.Internals.Execution.Interface
 import G2.Internals.Execution.Rules
 import G2.Internals.Execution.PrimitiveEval
 
-import G2.Internals.SMT.Interface
-import G2.Internals.SMT.Language hiding (Assert)
+import G2.Internals.Solver.Interface
+import G2.Internals.Solver.Language hiding (Assert)
 
 import G2.Internals.Postprocessing.Undefunctionalize
 
@@ -60,6 +60,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , apply_types = at
     , exec_stack = Stack.empty
     , model = M.empty
+    , arbValueGen = arbValueInit
  }
 
 mkExprEnv :: Program -> E.ExprEnv

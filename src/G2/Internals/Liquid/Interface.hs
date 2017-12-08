@@ -8,7 +8,7 @@ import G2.Internals.Language as Lang
 import G2.Internals.Execution
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.CreateFuncs
-import G2.Internals.SMT
+import G2.Internals.Solver
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types

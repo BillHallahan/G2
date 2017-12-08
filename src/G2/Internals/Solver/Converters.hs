@@ -5,7 +5,7 @@
 -- (1) A State/Exprs/Types to SMTHeaders/SMTASTs/Sorts
 -- (2) SMTHeaders/SMTASTs/Sorts to some SMT solver interface
 -- (3) SMTASTs/Sorts to Exprs/Types
-module G2.Internals.SMT.Converters
+module G2.Internals.Solver.Converters
     ( toSMTHeaders
     , toSolver
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
@@ -24,7 +24,7 @@ import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.Support hiding (Model)
 import G2.Internals.Language.Syntax hiding (Assert)
-import G2.Internals.SMT.Language
+import G2.Internals.Solver.Language
 
 -- | toSMTHeaders
 -- Here we convert from a State, to an SMTHeader.  This SMTHeader can later

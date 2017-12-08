@@ -69,8 +69,7 @@ mkCompileClosure proj src simpl = do
       --                 , Opt_DoEtaReduction
       --                 , Opt_IgnoreInterfacePragmas]
       let beta_flags' = foldl' gopt_unset beta_flags gen_flags
-      let beta_flags'' = foldl' dopt_set beta_flags' [Opt_D_dump_inlinings, Opt_D_dump_rule_rewrites]
-      let dflags = beta_flags'' { importPaths = [proj]
+      let dflags = beta_flags' { importPaths = [proj]
                                , ufCreationThreshold = if simpl then ufCreationThreshold beta_flags' else -1000
                                , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -1000
                                , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -1000

@@ -3,8 +3,8 @@
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module G2.Internals.SMT.Language
-    ( module G2.Internals.SMT.Language
+module G2.Internals.Solver.Language
+    ( module G2.Internals.Solver.Language
     , module G2.Internals.Language.AST) where
 
 import G2.Internals.Language.Support (ExprEnv, CurrExpr)

@@ -1,7 +1,7 @@
-module G2.Internals.SMT.ParseSMT
+module G2.Internals.Solver.ParseSMT
     (parseSMT) where
 
-import G2.Internals.SMT.Language
+import G2.Internals.Solver.Language
 
 import Data.Ratio
 -- | SMT Parser

@@ -2,7 +2,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Internals.Language.Support
-    ( module G2.Internals.Language.AST
+    ( module G2.Internals.Language.ArbValueGen
+    , module G2.Internals.Language.AST
     , module G2.Internals.Language.Support
     , module G2.Internals.Language.TypeEnv
     , PathCond (..)
@@ -12,6 +13,7 @@ module G2.Internals.Language.Support
     ) where
 
 import qualified G2.Internals.Language.ApplyTypes as AT
+import G2.Internals.Language.ArbValueGen
 import G2.Internals.Language.AST
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Naming
@@ -40,6 +42,7 @@ data State = State { expr_env :: E.ExprEnv
                    , apply_types :: AT.ApplyTypes
                    , exec_stack :: Stack Frame
                    , model :: Model
+                   , arbValueGen :: ArbValueGen
                    } deriving (Show, Eq, Read)
 
 -- | The InputIds are a list of the variable names passed as input to the
@@ -137,7 +140,8 @@ renameState old new_seed s =
              , polypred_walkers = rename old new (polypred_walkers s)
              , wrappers = rename old new (wrappers s)
              , exec_stack = exec_stack s
-             , model = model s }
+             , model = model s
+             , arbValueGen = arbValueGen s }
 
 -- | TypeClass definitions
 instance ASTContainer State Expr where
