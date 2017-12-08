@@ -16,6 +16,7 @@ import qualified G2.Internals.Language as G2
 import Coercion
 import CoreSyn
 import DataCon
+import DynFlags
 import GHC
 import GHC.Paths
 import HscMain
@@ -29,6 +30,8 @@ import TyCon
 import TyCoRep
 import Unique
 import Var as V
+
+import Data.Foldable
 
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
@@ -60,7 +63,19 @@ mkCompileClosure :: FilePath -> FilePath -> Bool -> IO CompileClosure
 mkCompileClosure proj src simpl = do
     (mod_graph, mod_gutss, dflags, env) <- runGhc (Just libdir) $ do
       beta_flags <- getSessionDynFlags
-      let dflags = beta_flags { importPaths = [proj] }
+      let gen_flags = []
+      -- let gen_flags = [ Opt_CmmSink
+      --                 , Opt_SimplPreInlining
+      --                 , Opt_DoEtaReduction
+      --                 , Opt_IgnoreInterfacePragmas]
+      let beta_flags' = foldl' gopt_unset beta_flags gen_flags
+      let beta_flags'' = foldl' dopt_set beta_flags' [Opt_D_dump_inlinings, Opt_D_dump_rule_rewrites]
+      let dflags = beta_flags'' { importPaths = [proj]
+                               , ufCreationThreshold = if simpl then ufCreationThreshold beta_flags' else -1000
+                               , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -1000
+                               , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -1000
+                               , ufDictDiscount = if simpl then ufDictDiscount beta_flags' else -1000
+                               , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -1000}
       _ <- setSessionDynFlags dflags
       env <- getSession
       target <- guessTarget src Nothing
@@ -77,7 +92,7 @@ mkCompileClosure proj src simpl = do
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
     smpl_gutss <- mapM (hscSimplify env) mod_gutss
-    tidy_pgms <- mapM (tidyProgram env) (if simpl then smpl_gutss else mod_gutss)
+    tidy_pgms <- mapM (tidyProgram env) smpl_gutss-- (if simpl then smpl_gutss else mod_gutss)
     let cg_gutss = map fst tidy_pgms
     let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
     let (tcss, bindss) = unzip tcss_pgms

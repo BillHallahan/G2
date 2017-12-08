@@ -46,12 +46,42 @@ getR _ = error "not R"
 getRIntFloat :: EInt Float -> Float
 getRIntFloat e = getR e
 
-data T a b c = TL a | TC b | TR c
-newtype TInt a b = TInt (T Int a b)
+appLeft :: (Int -> Int) -> EInt a -> EInt a
+appLeft f (EInt (L x)) = EInt (L ( f x))
+appLeft _ x = x
 
-getC :: TInt a b -> a 
-getC (TInt (TC x)) = x
+appLeftX :: (Int -> Int) -> EInt X -> EInt X
+appLeftX f x = appLeft f x
+
+add1 :: Int -> Int
+add1 x = x + 1
+
+sub1 :: Int -> Int
+sub1 x = x - 1
+
+data T a b c = TL a | TC b | TR c
+newtype TFloat a b = TFloat (T a Float b)
+
+getC :: TFloat a b -> Float
+getC (TFloat (TC x)) = x
 getC _ = error "not TC"
 
-getCIntFloatDouble :: TInt Float Double -> Float
+getTR :: TFloat a b -> b
+getTR (TFloat (TR x)) = x
+getTR _ = error "not TC"
+
+getCIntFloatDouble :: TFloat Int Double -> Float
 getCIntFloatDouble x = getC x
+
+getRIntFloatDouble :: TFloat Int Double -> Double
+getRIntFloatDouble x = getTR x
+
+-- Note: TFloat' flips a and b
+newtype TFloat' a b = TFloat' (T b Float a)
+
+getTR' :: TFloat' a b -> a
+getTR' (TFloat' (TR x)) = x
+getTR' _ = error "not TC"
+
+getRIntFloatDouble' :: TFloat' Int Double -> Int
+getRIntFloatDouble' x = getTR' x

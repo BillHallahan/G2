@@ -109,7 +109,7 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 2000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
 
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 200 3 [AtLeast 10, RForAll getNthErrors]
+                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 2500 3 [AtLeast 5, RForAll getNthErrors]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
