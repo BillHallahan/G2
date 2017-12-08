@@ -1,11 +1,10 @@
 module G2.Internals.Solver.ADTSolver ( checkConsistency
-									 , findConsistent) where
+                                     , findConsistent) where
 
 import G2.Internals.Language.Casts
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.PathConds
-import G2.Internals.Language.TypeEnv
 import G2.Internals.Language.Typing
 
 import Prelude hiding (null)
@@ -94,7 +93,7 @@ castReturnType t e =
 
 replaceReturnType :: Type -> Type -> Type
 replaceReturnType (TyFun t1 t2@(TyFun _ _)) r = TyFun t1 $ replaceReturnType t2 r
-replaceReturnType (TyFun t _) r = TyFun r t
+replaceReturnType (TyFun t _) r = TyFun t r
 replaceReturnType _ r = r
 
 dcName :: DataCon -> Name

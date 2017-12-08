@@ -76,8 +76,8 @@ getADTBase n tenv av =
             case fmap newTyConRepType adt of
                 Just (Just t) -> 
                     let
-                        (b, av') = arbValue t tenv av
+                        (b', av') = arbValue t tenv av
                     in
-                        (Cast b (t :~ TyConApp n []), av')
+                    (Cast b' (t :~ TyConApp n []), av')
                 _ -> error $ "getADTBase: No valid base constructor found " ++ show n ++ " " ++ show adt
 

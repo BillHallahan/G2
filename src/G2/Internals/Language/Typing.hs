@@ -22,7 +22,6 @@ import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
-import qualified Data.HashSet as HS
 
 -- | Typed typeclass.
 class Typed a where
@@ -226,7 +225,7 @@ specializesTo m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyForAll (AnonTyBndr t1')
       (b1, m') = specializesTo (M.insert n t1' m) t1 t1'
       (b2, m'') = specializesTo m' t2 t2'
   in (b1 && b2, m'')
-specializesTo m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyForAll (NamedTyBndr (Id n' t1')) t2') =
+specializesTo m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') =
   let
       (b1, m') = specializesTo m t1 t1'
       (b2, m'') = specializesTo m' t2 t2'

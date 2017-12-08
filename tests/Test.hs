@@ -177,6 +177,7 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MatchesFunc1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' ->  y' == 6 + x'), AtLeast 1]
 
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> appNthArgIs x notCast 0 && appNthArgIs x (\x' -> getIntB x' $ \x'' -> getIntB y $ \y' -> x'' + 1 == y') 1), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "fCall" 1 [RExists (\[x] -> isInt x ((==) 35)), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "g" 2 [RExists (\[x, y] -> appNthArgIs x (dcHasName "A") 2 && appNthArgIs y (dcHasName "B") 2)
                                                                                                                       -- , RExists (\[x, y] -> appNthArgIs x (dcHasName "B") 2 && appNthArgIs y (dcHasName "C") 2)

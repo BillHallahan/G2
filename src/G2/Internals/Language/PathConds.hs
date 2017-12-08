@@ -18,11 +18,8 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , toList) where
 
 import G2.Internals.Language.AST
-import G2.Internals.Language.Casts
 import G2.Internals.Language.Ids
 import G2.Internals.Language.Naming
-import G2.Internals.Language.TypeEnv
-import G2.Internals.Language.Typing
 import G2.Internals.Language.Syntax
 
 import Data.Coerce
@@ -32,7 +29,6 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (null)
-import qualified Prelude as Pre
 
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
 --

@@ -65,6 +65,10 @@ inCast :: Expr -> (Expr -> Bool) -> (Coercion -> Bool) -> Bool
 inCast (Cast e c) p q = p e && q c
 inCast _ _ _ = False
 
+notCast :: Expr -> Bool
+notCast (Cast _ _) = False
+notCast _ = True
+
 getInt :: Expr -> a -> (Int -> a) -> a
 getInt (Lit (LitInt x)) _ f = f x
 getInt (App (Data (PrimCon I)) (Lit (LitInt x))) _ f = f x

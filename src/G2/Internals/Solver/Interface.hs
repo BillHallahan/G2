@@ -86,7 +86,7 @@ checkModel' con io ((Id n _):is) s = do
  
     let pc = PC.scc [n] (path_conds s)
 
-    let s' = s {path_conds = if PC.null pc then PC.fromList [PCExists i'] else pc }
+    let s' = s {path_conds = pc }
 
     (m, av') <- case PC.null pc of
                 True -> 
@@ -119,7 +119,7 @@ checkNumericConstraints con io s = do
 
 -- | addADTs
 -- Determines an ADT based on the path conds.  The path conds form a witness.
--- In particular, refer to findConsistent in Language/PathConds.hs
+-- In particular, refer to findConsistent in Solver/ADTSolver.hs
 addADTs :: Name -> Name -> State -> (Result, [Id], State)
 addADTs n tn s =
     let
