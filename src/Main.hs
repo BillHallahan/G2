@@ -17,9 +17,13 @@ import G2.Internals.SMT
 
 import G2.Internals.Liquid.Interface
 
+
 main :: IO ()
 main = do
-    as@(proj:prims:_) <- getArgs
+    as <- getArgs
+    let (proj:prims:_) = as
+
+    -- as@(proj:prims:_) <- getArgs
     -- home_dir <- getHomeDirectory
     -- prepBase $ home_dir ++ "/Desktop/base.tar.gz"
 
