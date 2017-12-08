@@ -64,3 +64,11 @@ isFloat _ _ = False
 inCast :: Expr -> (Expr -> Bool) -> (Coercion -> Bool) -> Bool
 inCast (Cast e c) p q = p e && q c
 inCast _ _ _ = False
+
+getInt :: Expr -> a -> (Int -> a) -> a
+getInt (Lit (LitInt x)) _ f = f x
+getInt (App (Data (PrimCon I)) (Lit (LitInt x))) _ f = f x
+getInt _ x _ = x
+
+getIntB :: Expr -> (Int -> Bool) -> Bool
+getIntB e = getInt e False

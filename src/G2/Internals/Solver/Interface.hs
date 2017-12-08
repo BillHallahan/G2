@@ -88,16 +88,14 @@ checkModel' con io ((Id n _):is) s = do
 
     let s' = s {path_conds = if PC.null pc then PC.fromList [PCExists i'] else pc }
 
-    -- (m, av') <- case PC.null pc of
-    --             True -> 
-    --                 let
-    --                     (e, av) = arbValue t (type_env s) (arbValueGen s)
-    --                 in
-    --                 return (Just $ M.singleton n' e, av) 
-    --             False -> do
-    --                 e <- checkNumericConstraints con io s'
-    --                 return (e, arbValueGen s)
-    (m, av') <-  do e <- checkNumericConstraints con io s'
+    (m, av') <- case PC.null pc of
+                True -> 
+                    let
+                        (e, av) = arbValue t (type_env s) (arbValueGen s)
+                    in
+                    return (Just $ M.singleton n' e, av) 
+                False -> do
+                    e <- checkNumericConstraints con io s'
                     return (e, arbValueGen s)
 
     case m of
@@ -150,7 +148,7 @@ addADTs n tn s =
     case PC.null pc of
         True -> (SAT, [], s {model = M.union m' (model s), arbValueGen = av})
         False -> case not . null $ dcs of
-                    True -> (SAT, nst, s {model = M.union m (model s), arbValueGen = av})
+                    True -> (SAT, nst, s {model = M.union m (model s)})
                     False -> (UNSAT, [], s)
 
 -- Remove all types from the type environment that contain a function

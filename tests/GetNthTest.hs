@@ -18,7 +18,7 @@ getNthErr (Cons _ xs) n = getNthErr xs (n - 1)
 getNthErr _      _ = Nothing
 
 toCList :: Expr -> CList Int
-toCList (App (App (Data (DataCon (Name "Cons" _ _) _ _)) (Lit (LitInt x))) y) = Cons x (toCList y)
+toCList (App (App (Data (DataCon (Name "Cons" _ _) _ _)) x) y) = getInt x Nil $ \x' -> Cons x' (toCList y)
 toCList _ = Nil
 
 toCListGen :: Expr -> CList Expr
@@ -30,33 +30,32 @@ cListLength (Cons _ xs) = 1 + cListLength xs
 cListLength Nil = 0
 
 getNthTest :: [Expr] -> Bool
-getNthTest [cl, Lit (LitInt i), Lit (LitInt a)] = getNth (toCList cl) i == a
+getNthTest [cl, i, a] = getIntB i $ \i' -> getIntB a $ \a' -> getNth (toCList cl) i' == a'
 getNthTest _ = False
 
 getNthErrTest :: [Expr] -> Bool
-getNthErrTest [cl, Lit (LitInt i), Lit (LitInt a)] = getNthErr (toCList cl) i == Just a
-getNthErrTest [cl, Lit (LitInt i), Prim Error _] = getNthErr (toCList cl) i == Nothing
+getNthErrTest [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCList cl) i' == Nothing
+getNthErrTest [cl, i, a] = getIntB i $ \i' -> getIntB a $ \a' -> getNthErr (toCList cl) i' == Just a'
 getNthErrTest _ = False
 
 getNthErrGenTest :: [Expr] -> Bool
-getNthErrGenTest [cl, Lit (LitInt i), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
-getNthErrGenTest [cl, Lit (LitInt i), e] =
-    case getNthErr (toCListGen cl) i of
+getNthErrGenTest [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
+getNthErrGenTest [cl, i, e] =
+    case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
         Just e' -> e' `eqIgT` e
         Nothing -> False
 getNthErrGenTest _ = False
 
 getNthErrGenTest' :: [Expr] -> Bool
-getNthErrGenTest' [cl, Lit (LitInt i), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
-getNthErrGenTest' [cl, Lit (LitInt i), e] =
-    case getNthErr (toCListGen cl) i of
+getNthErrGenTest' [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
+getNthErrGenTest' [cl, i, e] =
+    case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
         Just e' -> e' `eqIgT` modify removePrimCon e
         Nothing -> False
 getNthErrGenTest' _ = False
 
 getNthErrors :: [Expr] -> Bool
 getNthErrors [cl, Lit (LitInt i), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
-getNthErrors [cl, Lit (LitInt i), e] = False
 getNthErrors _ = False
 
 removePrimCon :: Expr -> Expr

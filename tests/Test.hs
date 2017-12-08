@@ -18,7 +18,6 @@ import HigherOrderMathTest
 import GetNthTest
 import DefuncTest
 import CaseTest
-import TypeClassTest
 import TestUtils
 
 
@@ -141,7 +140,7 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> tc3Holds x y), Exactly 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(Lit (LitInt y))] -> appNthArgIs x (ly ==) 1 && y > 100), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(Lit (LitInt y))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 1 && dcInAppHasName "J" y 1), AtLeast 2]
@@ -176,7 +175,7 @@ testFileTests =
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultiSplit.hs" 400 (Just "equals1") Nothing "f" 3 [Exactly 0]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MatchesFunc1.hs" 400 Nothing Nothing "f" 2 [RExists (\[Lit (LitInt x), Lit (LitInt y)] -> y == 6 + x), AtLeast 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MatchesFunc1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' ->  y' == 6 + x'), AtLeast 1]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "fCall" 1 [RExists (\[x] -> isInt x ((==) 35)), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "g" 2 [RExists (\[x, y] -> appNthArgIs x (dcHasName "A") 2 && appNthArgIs y (dcHasName "B") 2)
