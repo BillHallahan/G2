@@ -127,12 +127,20 @@ addADTs n tn s =
 
         eenv = expr_env s
 
-        (ns, _) = childrenNames n [] (name_gen s)
         (dc, nst) = case dcs of
                 Just (fdc:_) ->
                     let
-                        vs = mapMaybe (flip E.lookup eenv) ns
-                        is = map (\(Var i) -> i) vs
+                        ts = case fdc of
+                            Data (DataCon _ _ ts') -> ts'
+                            _ -> []
+
+                        (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0) ts) (name_gen s)
+
+                        vs = map (\n -> 
+                                case  E.lookup n eenv of
+                                    Just e -> e
+                                    Nothing -> Prim Undefined TyBottom) ns
+                        is = mapMaybe (varId) vs
                     in
                     (mkApp $ fdc:vs, is)
                 _ -> error "Unusable DataCon in addADTs"

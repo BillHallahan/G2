@@ -14,6 +14,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , nthArg
                                   , vars
                                   , varNames
+                                  , varId
                                   , symbVars
                                   , freeVars
                                   , mkStrict) where
@@ -110,6 +111,10 @@ varNames = evalASTs varNames'
 varNames' :: Expr -> [Name]
 varNames' (Var (Id n _)) = [n]
 varNames' _ = []
+
+varId :: Expr -> Maybe Id
+varId (Var i) = Just i
+varId _ = Nothing
 
 symbVars :: (ASTContainer m Expr) => ExprEnv -> m -> [Expr]
 symbVars eenv = filter (symbVars' eenv) . vars
