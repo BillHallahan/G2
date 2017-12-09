@@ -225,9 +225,9 @@ run con hhp n state = do
     -- let ident_states' = ident_states
 
     mapM_ (\(rs, st) -> do
-        putStrLn $ show rs
+    --     putStrLn $ show rs
     --     putStrLn $ pprExecStateStr st
-        putStrLn $ pprExecStateStrSimple st
+    --     putStrLn $ pprExecStateStrSimple st
 
     -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
     --     -- print $ curr_expr st
@@ -238,6 +238,7 @@ run con hhp n state = do
     -- --     -- print $ input_ids st
     -- --     -- print $ model st
     --     putStrLn "----\n"
+        return ()
         ) exec_states
 
 
