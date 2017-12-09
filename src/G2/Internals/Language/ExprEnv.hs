@@ -110,10 +110,11 @@ lookupNameMod ns ms =
 
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =
-    case env' M.! n of
-        RedirObj n' -> env ! n'
-        ExprObj e -> e
-        SymbObj i -> Var i
+    case M.lookup n env' of
+        Just (RedirObj n') -> env ! n'
+        Just (ExprObj e) -> e
+        Just (SymbObj i) -> Var i
+        Nothing -> error $ "ExprEnv.!: Given key is not an element of the expr env" ++ show n
 
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
 insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv

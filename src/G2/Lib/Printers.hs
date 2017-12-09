@@ -280,6 +280,42 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , paths_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
 
+-- | More raw version of state dumps.
+pprExecStateStrSimple :: State -> String
+pprExecStateStrSimple ex_state = injNewLine acc_strs
+  where
+    -- eenv_str = pprExecEEnvStr (expr_env ex_state)
+    eenv_str = intercalate "\n" $ mapM show $ E.keys $ expr_env ex_state
+    -- tenv_str = pprTEnvStr (type_env ex_state)
+    tenv_str = intercalate "\n" $ mapM show $ M.keys $ type_env ex_state
+    estk_str = pprExecStackStr (exec_stack ex_state)
+    code_str = pprExecCodeStr (curr_expr ex_state)
+    names_str = pprExecNamesStr (name_gen ex_state)
+    input_str = pprInputIdsStr (input_ids ex_state)
+    funcs_str = pprFuncTableStr (func_table ex_state)
+    paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
+    walkers_str = show (deepseq_walkers ex_state)
+    acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
+               , "----- [Env] -----------------------"
+               , eenv_str
+               , "----- [TEnv] -----------------------"
+               , tenv_str
+               , "----- [Exec Stack] ----------------"
+               , estk_str
+               , "----- [Code] ----------------------"
+               , code_str
+               , "----- [Names] ---------------------"
+               -- , names_str
+               , "----- [Input Ids] ---------------------"
+               -- , input_str
+               , "----- [Func Table] ---------------------"
+               -- , funcs_str
+               , "----- [Walkers] ---------------------"
+               -- , walkers_str
+               , "----- [Paths] ---------------------"
+               -- , paths_str
+               , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
+
 pprExecEEnvStr :: E.ExprEnv -> String
 pprExecEEnvStr eenv = injNewLine kv_strs
   where

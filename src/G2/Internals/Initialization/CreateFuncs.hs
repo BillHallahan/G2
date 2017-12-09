@@ -222,3 +222,4 @@ createHigherOrderWrapperExpr' ng ts' =
 
 storeWrapper :: Wrappers -> () -> Type -> Name -> Expr -> Wrappers
 storeWrapper w _ t n e = (t, Id n (typeOf e)):w
+

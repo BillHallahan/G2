@@ -25,6 +25,8 @@ import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
+import Debug.Trace as T
+
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -37,8 +39,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
         tenv = mkTypeEnv prog_typ
         ng = mkNameGen prog prog_typ
 
-        (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap) =
-            runInitialization eenv tenv ng
+        (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap) = runInitialization eenv tenv ng
 
         (ce, is, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' ds_walkers
 
@@ -191,12 +192,27 @@ run con hhp n state = do
 
     let preproc_state' = preproc_state {model = fromJust mdl}
 
-    -- putStrLn . pprExecStateStr $ preproc_state
+    -- putStrLn $ "entries in eenv: " ++ (show $ length $ E.keys $ expr_env preproc_state)
+    -- putStrLn $ "chars in eenv: " ++ (show $ length $ show $ E.keys $ expr_env preproc_state)
+    -- mapM (putStrLn . show) $ E.toList $ expr_env preproc_state
+    -- mapM (putStrLn . show) $ zip (take 1 $ E.toList $ expr_env preproc_state) [1..]
+    -- mapM (putStrLn . show) $ zip (M.toList $ type_env preproc_state) [1..]
+    -- putStrLn $ "chars in eenv: " ++ (show $ expr_env preproc_state)
+    -- putStrLn $ "chars in tenv: " ++ (show $ length $ show $ M.keys $ type_env preproc_state)
+    -- putStrLn $ pprExecStateStrSimple preproc_state
+
+    -- error "HELLO"
+
+    -- mapM (putStrLn . show) $ E.keys $ expr_env preproc_state
+    -- putStrLn "---------------------------------"
+    -- mapM (putStrLn . show) $ M.keys $ type_env preproc_state
+
     -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
 
     exec_states <- runNDepth con hhp [preproc_state'] n
 
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
+    -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s)) exec_states
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states
@@ -208,9 +224,10 @@ run con hhp n state = do
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
 
-    -- mapM_ (\(rs, st) -> do
-    --     putStrLn $ show rs
+    mapM_ (\(rs, st) -> do
+        putStrLn $ show rs
     --     putStrLn $ pprExecStateStr st
+        putStrLn $ pprExecStateStrSimple st
 
     -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
     --     -- print $ curr_expr st
@@ -221,7 +238,7 @@ run con hhp n state = do
     -- --     -- print $ input_ids st
     -- --     -- print $ model st
     --     putStrLn "----\n"
-    --     ) exec_states
+        ) exec_states
 
 
     ident_states'' <- 

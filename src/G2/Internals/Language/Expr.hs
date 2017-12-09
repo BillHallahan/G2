@@ -149,13 +149,20 @@ mkStrict' w e =
         ret = returnType e
     in
     case ret of
-        (TyConApp n ts) ->
-            App (foldl' (App) (Var $ w M.! n) (map Type ts ++ map (typeToWalker w) ts)) e
+        (TyConApp n ts) -> case M.lookup n w of
+            Just i -> App (foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)) e
+            Nothing -> error $ "mkStrict: failed to find walker with type: " ++ show n
+
+            -- App (foldl' (App) (Var $ w M.! n) (map Type ts ++ map (typeToWalker w) ts)) e
         _ -> e
 
 
 typeToWalker :: Walkers -> Type -> Expr
-typeToWalker w (TyConApp n _) = Var $ w M.! n
+-- typeToWalker w (TyConApp n _) = Var $ w M.! n
+typeToWalker w (TyConApp n _) =
+  case M.lookup n w of
+    Just i -> Var i 
+    Nothing -> error $ "typeToWalker: failed to find type: " ++ show n
 typeToWalker _ TyInt = mkLitStrict TyInt TyLitInt I
 typeToWalker _ TyFloat = mkLitStrict TyFloat TyLitFloat F
 typeToWalker _ TyDouble = mkLitStrict TyDouble TyLitDouble D
@@ -172,3 +179,4 @@ mkLitStrict t lt p =
         alt = [Alt (DataAlt (PrimCon p) [lb]) $ App (Data (PrimCon p)) (Var lb)]
     in
     Lam x $ Case (Var x) b alt
+

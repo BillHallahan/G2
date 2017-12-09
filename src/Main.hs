@@ -12,6 +12,7 @@ import G2.Lib.Printers
 import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
+import G2.Internals.Language.ExprEnv as E
 import G2.Internals.Translation
 import G2.Internals.Solver
 
@@ -77,6 +78,7 @@ runGHC as = do
                                 (Left (Id n _, _), Left (wwi, _)) -> addHigherOrderWrappers init_state n wwi m_wrap_i
                                 _ -> init_state
                             _ -> init_state
+
 
     let init_state'' = case (m_poly_pred, m_poly_pred_with) of
                             (Just p, Just pw) -> case (findFunc p (expr_env init_state), findFunc pw (expr_env init_state)) of
