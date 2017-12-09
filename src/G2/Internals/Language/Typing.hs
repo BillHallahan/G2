@@ -165,6 +165,7 @@ specializesTo :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
 specializesTo m _ TYPE = (True, m)
 specializesTo m t (TyVar (Id n _)) =
     case M.lookup n m of
+        Just (TyVar _) -> (True, m)
         Just t' -> specializesTo m t t'
         Nothing -> (True, M.insert n t m)
 specializesTo m (TyFun t1 t2) (TyFun t1' t2') =

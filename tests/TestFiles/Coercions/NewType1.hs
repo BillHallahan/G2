@@ -50,8 +50,8 @@ appLeft :: (Int -> Int) -> EInt a -> EInt a
 appLeft f (EInt (L x)) = EInt (L ( f x))
 appLeft _ x = x
 
-appLeftX :: (Int -> Int) -> EInt X -> EInt X
-appLeftX f x = appLeft f x
+appLeftFloat :: (Int -> Int) -> EInt Float -> EInt Float
+appLeftFloat f x = appLeft f x
 
 add1 :: Int -> Int
 add1 x = x + 1

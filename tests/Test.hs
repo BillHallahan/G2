@@ -202,7 +202,7 @@ testFileTests =
                                                                                                                                      , RForAll (\[x, y, z] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") 
                                                                                                                                                            && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
                                                                                                                                                            && inCast z (const True) (\(_ :~ t2) -> typeNameIs t2 "Years"))]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearBefore" 2 [ AtLeast 5]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearBefore" 2 [ AtLeast 5 ]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "add1N4" 2 [ Exactly 1
                                                                                                                                          , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "N4") 
                                                                                                                                                             && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "N4"))]
@@ -211,14 +211,20 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "g" 2 [ Exactly 1
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ AtLeast 3
-                                                                                                                                               , RForAll (\[_, y] -> isInt y (const True))]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ AtLeast 3
-                                                                                                                                               , RForAll (\[_, y] -> isFloat y (const True))]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 3
-                                                                                                                                                     , RForAll (\[_, y] -> isFloat y (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
+                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> isInt y' (const True)) (const True))
+                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> isFloat y' (const True)) (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ AtLeast 2
+                                                                                                                                               , RExists (\[_, y] -> isInt y (const True))
+                                                                                                                                               , RExists (\[_, y] -> isError y)]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ AtLeast 2
+                                                                                                                                               , RExists (\[_, y] -> isFloat y (const True))
+                                                                                                                                               , RExists (\[_, y] -> isError y)]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 2
+                                                                                                                                                     , RExists (\[_, y] -> isFloat y (const True))
+                                                                                                                                                     , RExists (\[_, y] -> isError y)]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 2
-                                                                                                                                                 , RExists (\[x, y] -> appNthArgIs x (\x' -> inCast x' (const True) (\(_ :~ t) -> isTyFun t)) 1
+                                                                                                                                                 , RExists (\[x, y] -> appNthArgIs x (\x' -> inCast x' (const True) (\(_ :~ t) -> isTyFun t)) 0
                                                                                                                                                                     && isInt y (const True))
                                                                                                                                                  , RExists (\[x, y] -> isError y)]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2

@@ -92,6 +92,7 @@ castReturnType t e =
     Cast e (te :~ tr)
 
 replaceReturnType :: Type -> Type -> Type
+replaceReturnType (TyForAll b t) r = replaceReturnType t r
 replaceReturnType (TyFun t1 t2@(TyFun _ _)) r = TyFun t1 $ replaceReturnType t2 r
 replaceReturnType (TyFun t _) r = TyFun t r
 replaceReturnType _ r = r
