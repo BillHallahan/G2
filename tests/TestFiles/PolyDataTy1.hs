@@ -10,10 +10,17 @@ data CThreeOpt a b c = Fst a | Snd b | Thd c
 
 getFst :: CThreeOpt a b c -> a
 getFst (Fst x) = x
-getFst (_) = error "getFst: not passed Fst"
+getFst _ = error "getFst: not passed Fst"
 
 getFstXIntInt :: CThreeOpt (X Float) Int Int -> X Float
 getFstXIntInt x = getFst x
+
+getSndDef :: CThreeOpt a b c -> b -> b
+getSndDef (Snd x) _ = x
+getSndDef _ x = x
+
+getSndDefXIntInt :: CThreeOpt (X Float) Int Int -> Int -> Int
+getSndDefXIntInt = getSndDef
 
 data Groups a b c d e f g h = Five a b c d e | Six a b c d e f | Seven a b c d e f g | Eight a b c d e f g h
 data Z = Z

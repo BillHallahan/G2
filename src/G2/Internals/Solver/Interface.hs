@@ -130,11 +130,15 @@ addADTs n tn s =
         (dc, nst) = case dcs of
                 Just (fdc:_) ->
                     let
+                        -- We map names over the arguments of a DataCon, to make sure we have the correct
+                        -- number of undefined's.
+                        -- In the case of a PrimCon, we still need one undefined if the primitive is not
+                        -- in the type env
                         ts = case fdc of
-                            Data (DataCon _ _ ts') -> ts'
-                            _ -> []
+                            Data (DataCon _ _ ts') -> map (const $ Name "a" Nothing 0) ts'
+                            _ -> [Name "a" Nothing 0]
 
-                        (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0) ts) (name_gen s)
+                        (ns, _) = childrenNames n ts (name_gen s)
 
                         vs = map (\n -> 
                                 case  E.lookup n eenv of

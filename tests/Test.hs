@@ -217,8 +217,10 @@ testFileTests =
                                                                                                                                                , RForAll (\[_, y] -> isFloat y (const True))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 3
                                                                                                                                                      , RForAll (\[_, y] -> isFloat y (const True))]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 3
-                                                                                                                                                 , RForAll (\[_, y] -> isInt y (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 2
+                                                                                                                                                 , RExists (\[x, y] -> appNthArgIs x (\x' -> inCast x' (const True) (\(_ :~ t) -> isTyFun t)) 1
+                                                                                                                                                                    && isInt y (const True))
+                                                                                                                                                 , RExists (\[x, y] -> isError y)]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]

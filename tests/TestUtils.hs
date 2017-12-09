@@ -84,3 +84,7 @@ isApp _ = False
 isError :: Expr -> Bool
 isError (Prim Error _) = True
 isError _ = False
+
+isTyFun :: Type -> Bool
+isTyFun (TyFun _ _) = True
+isTyFun _ = False
