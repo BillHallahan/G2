@@ -58,6 +58,9 @@ simplifyCasts' e
         = e'
     | otherwise = e
 
+exprInCasts :: Expr -> Expr
+exprInCasts (Cast e _) = exprInCasts e
+exprInCasts e = e
+
 typeInCasts :: Expr -> Type
-typeInCasts (Cast e _) = typeInCasts e
-typeInCasts e = typeOf e
+typeInCasts = typeOf . exprInCasts

@@ -83,5 +83,5 @@ getTR' :: TFloat' a b -> a
 getTR' (TFloat' (TR x)) = x
 getTR' _ = error "not TC"
 
-getRIntFloatDouble' :: TFloat' Int Double -> Int
-getRIntFloatDouble' x = getTR' x
+getRIntFloatX' :: TFloat' Int X -> Int
+getRIntFloatX' x = getTR' x

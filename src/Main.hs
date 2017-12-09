@@ -95,12 +95,13 @@ runGHC as = do
 
 printFuncCalls :: String -> [(State, [Rule], [Expr], Expr)] -> IO ()
 printFuncCalls entry =
-    mapM_ (\(_, _, inArg, ex) -> do
+    mapM_ (\(s, _, inArg, ex) -> do
         let funcCall = mkExprHaskell 
                      . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
         let funcOut = mkExprHaskell $ ex
 
+        -- print $ model s
         -- print inArg
         -- print ex
 

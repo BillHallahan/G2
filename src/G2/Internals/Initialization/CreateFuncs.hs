@@ -51,45 +51,66 @@ createDeepSeqExpr' :: Expr -> AlgDataTy -> [(Name, Name, AlgDataTy)] -> NameGen 
 createDeepSeqExpr' dc _ _ ng [] _ = (dc, ng)
 createDeepSeqExpr' dc adt@(DataTyCon _ _) ns ng (i@(Id _ t):xs) pfs =
     let
-        ns_dull = filter (\(n, _, _) -> not $ isNameSpecial n) ns
         (b_id, ng') = freshId t ng
 
-        case_e = if isTypeSpecial t
-                  then Case (Var i) b_id
-                  else case t of
-                    TyConApp n ts ->
-                        let
-                            ts_dull = filter (not . isTypeSpecial) ts
-                            (t', w, _) = fromJust $ find (\(t'', _, _) -> t'' == n) ns_dull
-                            f = walkFunc t' w
+        case_e = createDeepSeqCase t ns i b_id pfs
+        -- case_e = case t of
+        --             TyConApp n ts ->
+        --                 let
+        --                     (t', w, _) = fromJust $ find (\(t'', _, _) -> t'' == n) ns
+        --                     f = walkFunc t' w
 
-                            typeV = map (\(TyVar (Id n' _)) ->  Var . fromJust $ lookup n' pfs) ts_dull
-                            typeF = mapMaybe (typeWalker pfs) ts_dull
+        --                     typeV = map (\(TyVar (Id n' _)) ->  Var . fromJust $ lookup n' pfs) ts
+        --                     typeF = mapMaybe (typeWalker pfs) ts
 
-                            app = mkApp $ Var f : typeV ++ typeF ++ [Var i]
-                        in
-                        Case app b_id
-                    TyVar (Id n _) ->
-                        let
-                            w = fromJust $ lookup (tyFunName n) pfs
-                        in
-                        Case (App (Var w) (Var i)) b_id
-                    _ -> Case (Var i) b_id
+        --                     app = mkApp $ Var f : typeV ++ typeF ++ [Var i]
+        --                 in
+        --                 Case app b_id
+        --             TyVar (Id n _) ->
+        --                 let
+        --                     w = fromJust $ lookup (tyFunName n) pfs
+        --                 in
+        --                 Case (App (Var w) (Var i)) b_id
+        --             _ -> Case (Var i) b_id
 
         dc' = App dc (Var b_id)
 
-        (e, ng'') = createDeepSeqExpr' dc' adt ns_dull ng' xs pfs
+        (e, ng'') = createDeepSeqExpr' dc' adt ns ng' xs pfs
 
         am = [Alt Default e]
     in
     (case_e am, ng'')
-createDeepSeqExpr' e (NewTyCon _ _ t) _ ng (i:xs) _ =
+createDeepSeqExpr' dc (NewTyCon _ _ t) ns ng (i:_) pfs =
     let
-        retT = returnType . typeOf $ e
+        retT = returnType . typeOf $ dc
 
-        e' = Cast (Cast (Var i) (retT :~ t)) (t :~ retT)
+        dc' = Cast (Var i) (retT :~ t)
+        e' = Cast dc' (t :~ retT)
     in
     (e', ng)
+
+createDeepSeqCase :: Type -> [(Name, Name, AlgDataTy)] -> Id -> Id -> [(Name, Id)] -> ([Alt] -> Expr)
+createDeepSeqCase (TyConApp n ts) ns i b_id pfs =
+    let
+        (t', w, _) = fromJust $ find (\(t'', _, _) -> t'' == n) ns
+        f = walkFunc t' w
+
+        typeV = mapMaybe (tyvarFunc pfs) ts
+        typeF = mapMaybe (typeWalker pfs) ts
+
+        app = mkApp $ Var f : typeV ++ typeF ++ [Var i]
+    in
+    Case app b_id
+createDeepSeqCase (TyVar (Id n _)) ns i b_id pfs =
+    let
+        w = fromJust $ lookup (tyFunName n) pfs
+    in
+    Case (App (Var w) (Var i)) b_id
+createDeepSeqCase _ _ i b_id _ = Case (Var i) b_id
+
+tyvarFunc :: [(Name, Id)] -> Type -> Maybe Expr
+tyvarFunc pfs (TyVar (Id n' _)) = fmap Var $ lookup n' pfs
+tyvarFunc _ _ = Nothing
 
 typeWalker :: [(Name, Id)] -> Type -> Maybe Expr
 typeWalker pfs (TyVar (Id n _)) = fmap Var $ lookup (tyFunName n) pfs
@@ -201,19 +222,3 @@ createHigherOrderWrapperExpr' ng ts' =
 
 storeWrapper :: Wrappers -> () -> Type -> Name -> Expr -> Wrappers
 storeWrapper w _ t n e = (t, Id n (typeOf e)):w
-
-isStringSpecial :: String -> Bool
-isStringSpecial = (flip elem) special_names
-  where
-    special_names = ["[]", "~", "~~"]
-
-isNameSpecial :: Name -> Bool
-isNameSpecial (Name n _ _) = isStringSpecial n
-
-isIdSpecial :: Id -> Bool
-isIdSpecial (Id n _) = isNameSpecial n
-
-isTypeSpecial :: Type -> Bool
-isTypeSpecial (TyVar i) = isIdSpecial i
-isTypeSpecial (TyConApp n _) = isNameSpecial n
-isTypeSpecial _ = False

@@ -104,7 +104,7 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x /= y && y == z), Exactly 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 400 2 [AtLeast 1, RForAll (\[App (App _ (Lit (LitInt x))) (Lit (LitInt y)), Lit (LitInt z)] -> x > z || y > z)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ (Lit (LitInt x))) _, App (App _ _) (Lit (LitInt y))] -> x == y)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 2000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
 
@@ -172,6 +172,8 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "xswitch" 2 [AtLeast 10]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "f" 3 [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "getFstXIntInt" 2 [AtLeast 2, RExists (\[x, y] -> isApp x && isError y)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "sum" 2 [AtLeast 3, RExists (\[x, y] -> isApp x && isError y)]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultiSplit.hs" 400 (Just "equals1") Nothing "f" 3 [Exactly 0]
 
@@ -215,8 +217,8 @@ testFileTests =
                                                                                                                                                , RForAll (\[_, y] -> isFloat y (const True))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 3
                                                                                                                                                      , RForAll (\[_, y] -> isFloat y (const True))]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatDouble'" 2 [ AtLeast 3
-                                                                                                                                                     , RForAll (\[_, y] -> isInt y (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 3
+                                                                                                                                                 , RForAll (\[_, y] -> isInt y (const True))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]

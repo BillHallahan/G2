@@ -138,6 +138,7 @@ instance Typed Type where
         case t1' of
             TyConApp n _ -> (TyConApp n [t2'], m'')
             _ -> (TyApp t1' t2', m'')
+    typeOf' m (TyConApp n ts) = (TyConApp n (map (fst . typeOf' m) ts), m)
     typeOf' m t = (t, m)
 
 -- | Retyping

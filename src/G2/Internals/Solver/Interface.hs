@@ -7,7 +7,6 @@ module G2.Internals.Solver.Interface
     ) where
 
 import G2.Internals.Language hiding (Model)
-import G2.Internals.Language.ArbValueGen
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Solver.ADTSolver
@@ -16,7 +15,6 @@ import G2.Internals.Solver.Language
 
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Ratio
 
 import G2.Lib.Printers
 

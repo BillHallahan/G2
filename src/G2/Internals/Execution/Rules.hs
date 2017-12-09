@@ -97,7 +97,7 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
     -- Haskell is purely functional, so this is OK!  The children can't change
     -- Then, in the constraint solver, we can consider fewer constraints at once
     -- (see note [AltCond] in Language/PathConds.hs) 
-    (news, ngen') = case mexpr of
+    (news, ngen') = case exprInCasts mexpr of
         (Var (Id n _)) -> childrenNames n olds ngen
         _ -> freshSeededNames olds ngen
 
