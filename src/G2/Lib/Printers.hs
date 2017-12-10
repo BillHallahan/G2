@@ -317,7 +317,7 @@ pprExecStateStrSimple ex_state = injNewLine acc_strs
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
 
 pprExecEEnvStr :: E.ExprEnv -> String
-pprExecEEnvStr eenv = show eenv-- injNewLine kv_strs
+pprExecEEnvStr eenv = injNewLine kv_strs
   where
     kv_strs = map (show) $ E.toList eenv
 

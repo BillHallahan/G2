@@ -17,6 +17,9 @@ add1N2 (N2 n1) = N2 (add1N1 n1)
 add1N1 :: N1 -> N1
 add1N1 (N1 x) = N1 (x + 1)
 
+n1Map :: (Int -> Int) -> N1 -> N1
+n1Map f (N1 i) = N1 (f i)
+
 data X = X
 newtype NewX = N X
 
@@ -28,6 +31,14 @@ g x = N x
 
 h :: NewX
 h = N X
+
+newtype W a = W a
+
+mapW :: (a -> a) -> W a -> W a
+mapW f (W x) = W (f x)
+
+mapWInt :: (Int -> Int) -> W Int -> W Int
+mapWInt = mapW
 
 data E a b = L a | R b
 newtype EInt a = EInt (E Int a)
@@ -47,7 +58,7 @@ getRIntFloat :: EInt Float -> Float
 getRIntFloat e = getR e
 
 appLeft :: (Int -> Int) -> EInt a -> EInt a
-appLeft f (EInt (L x)) = EInt (L ( f x))
+appLeft f (EInt (L x)) = EInt (L (f x))
 appLeft _ x = x
 
 appLeftFloat :: (Int -> Int) -> EInt Float -> EInt Float

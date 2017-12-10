@@ -190,12 +190,14 @@ mkType (TyConApp tc ts) = if not (isFunTyCon tc) || (length ts /= 2)
 
 mkTyCon :: TyCon -> G2.ProgramType
 mkTyCon t = (mkName . tyConName $ t, dcs)
-  where 
+  where
+    bv = map (mkName . V.varName) $ tyConTyVars t
+
     dcs = 
         case algTyConRhs t of
-            DataTyCon { data_cons = dc } -> G2.DataTyCon [] $ map mkData dc
+            DataTyCon { data_cons = dc } -> G2.DataTyCon bv $ map mkData dc
             NewTyCon { data_con = dc
-                     , nt_rhs = t} -> G2.NewTyCon { G2.bound_names = []
+                     , nt_rhs = t} -> G2.NewTyCon { G2.bound_names = bv
                                                   , G2.data_con = mkData dc
                                                   , G2.rep_type = mkType t}
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []

@@ -7,6 +7,8 @@ import G2.Internals.Language.TypeEnv
 
 import qualified Data.Map as M
 
+import Debug.Trace
+
 data ArbValueGen = ArbValueGen { intGen :: Int
                                , floatGen :: Rational
                                , doubleGen :: Rational
@@ -25,7 +27,7 @@ arbValueInit = ArbValueGen { intGen = 0
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue (TyConApp n _) tenv av = getADTBase n tenv av
+arbValue (TyConApp n ts) tenv av = getADTBase n ts tenv av
 arbValue TyInt tenv av =
     let
         (i, av') = arbValue TyLitInt tenv av
@@ -61,12 +63,12 @@ arbValue TyBool _ av =
         b = boolGen av
     in
     (Lit (LitBool $ b), av { boolGen = not b})
-arbValue _ _ _ = error "Bad type in arbValue."
+arbValue t _ _ = error $ "Bad type in arbValue: " ++ show t
 
-getADTBase :: Name -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-getADTBase n tenv av =
+getADTBase :: Name -> [Type] -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+getADTBase n ts tenv av =
     let
-        adt = M.lookup n tenv
+        adt = fmap (retypeAlgDataTy ts) $ M.lookup n tenv
 
         b = fmap baseDataCons $ getDataCons n tenv
     in

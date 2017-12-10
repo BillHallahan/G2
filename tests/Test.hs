@@ -211,6 +211,8 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "g" 2 [ Exactly 1
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2 ]
+
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
                                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> isInt y' (const True)) (const True))
                                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> isFloat y' (const True)) (const True))]

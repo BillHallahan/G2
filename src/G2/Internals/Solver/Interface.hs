@@ -71,8 +71,8 @@ checkModel con io s = do
 checkModel' :: SMTConverter ast out io -> io -> [Id] -> State -> IO (Result, Maybe ExprModel)
 checkModel' _ _ [] s = do
     return (SAT, Just $ model s)
-checkModel' con io (Id n (TyConApp tn _):is) s = do
-    let (r, is', s') = addADTs n tn s
+checkModel' con io (Id n (TyConApp tn ts):is) s = do
+    let (r, is', s') = addADTs n tn ts s
 
     let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
 
@@ -118,8 +118,8 @@ checkNumericConstraints con io s = do
 -- | addADTs
 -- Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: Name -> Name -> State -> (Result, [Id], State)
-addADTs n tn s =
+addADTs :: Name -> Name -> [Type] -> State -> (Result, [Id], State)
+addADTs n tn ts s =
     let
         pc = PC.scc [n] (path_conds s)
 
@@ -151,7 +151,7 @@ addADTs n tn s =
 
         m = M.insert n dc (model s)
 
-        (base, av) = arbValue (TyConApp tn []) (type_env s) (arbValueGen s)
+        (base, av) = arbValue (TyConApp tn ts) (type_env s) (arbValueGen s)
 
         m' = M.insert n base m
     in

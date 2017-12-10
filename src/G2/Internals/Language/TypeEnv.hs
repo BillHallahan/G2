@@ -17,7 +17,8 @@ module G2.Internals.Language.TypeEnv ( ProgramType
                                      , selfRecursive
                                      , dataConCanContain
                                      , getDataCon
-                                     , dataConArgs) where
+                                     , dataConArgs
+                                     , retypeAlgDataTy) where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
@@ -152,6 +153,14 @@ dataConWithName _ _ = Nothing
 dataConHasName :: DataCon -> Name -> Bool
 dataConHasName (DataCon n _ _) n' = n == n'
 dataConHasName _ _ = False
+
+retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
+retypeAlgDataTy ts adt =
+    let
+        ns = map (flip Id TYPE) $ bound_names adt
+    in
+    foldr (uncurry retype) adt $ zip ns ts
+
 
 instance ASTContainer AlgDataTy Expr where
     containedASTs _ = []
