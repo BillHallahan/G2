@@ -9,5 +9,5 @@ f x =
 
 g :: Int -> Int
 g x =
-	case (error "Error") of
-		_ -> 1
+  case (error "Error") of
+    _ -> 1
