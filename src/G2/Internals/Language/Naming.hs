@@ -154,6 +154,8 @@ instance Named Expr where
             go (Let b _) = concatMap (names . fst) b
             go (Case _ i a) = names i ++ concatMap (names . altMatch) a
             go (Type t) = names t
+            go (Cast _ c) = names c
+            go (Coercion c) = names c
             go _ = []
 
     rename old new = modify go
@@ -168,6 +170,8 @@ instance Named Expr where
         go (Case e i a) =
             Case e (rename old new i) (map goAlt a)
         go (Type t) = Type (rename old new t)
+        go (Cast e c) = Cast e (rename old new c)
+        go (Coercion c) = Coercion (rename old new c)
         go e = e
 
         goAlt :: Alt -> Alt

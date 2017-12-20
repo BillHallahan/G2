@@ -6,10 +6,11 @@ import G2.Internals.Language
 
 import Data.List
 import qualified Data.Map as M
+import Data.Maybe
 
 import Debug.Trace
 
-data TyTracker = Ty Name | TyV Name
+data TyTracker = Ty Name | TyF Name deriving (Eq, Show)
 
 createDeepSeqWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
 createDeepSeqWalks eenv tenv ng =
@@ -34,16 +35,30 @@ createDeepSeqExpr w (n, adt) ng =
     let
         bn = bound_names adt
 
-        lamTy = concatMap (\b -> [(Ty b, TYPE)
-                                 , (TyV b, TyFun (TyVar (Id b TYPE)) (TyVar (Id b TYPE)))]) bn
+        (tyBinds, ng') = freshNames (length bn) ng
+        (tyFBinds, ng'') = freshNames (length bn) ng'
+
+        tyBindsT = map (const TYPE) tyBinds
+        tyFBindsT = map (\b -> TyFun (TyVar (Id b TYPE)) (TyVar (Id b TYPE))) tyBinds
+
+        tyBindsId = map (uncurry Id) (zip tyBinds tyBindsT)
+        tyFBindsId = map (uncurry Id)  (zip tyFBinds tyFBindsT)
+
+        lamTy = concatMap (\(b, bt, fb, fbt) -> [(Ty b, bt)
+                                                , (TyF fb, fbt)])
+                                                (zip4 bn tyBindsT bn tyFBindsT)
+
+        ids = concatMap (\(x, y) -> [x, y]) (zip tyBindsId tyFBindsId)
+
+        tytId = zip (map fst lamTy) ids
+
+        (inner, ng''') = createDeepSeqExpr' w n tyBinds adt ng'' tytId
     in
-    mkMappedLamBindings ng lamTy (createDeepSeqExpr' w n adt)
+    (foldr Lam inner ids, ng''')
 
-createDeepSeqExpr' :: Walkers -> Name -> AlgDataTy -> NameGen -> [(TyTracker, Id)] -> (Expr, NameGen)
-createDeepSeqExpr' w n adt ng is =
+createDeepSeqExpr' :: Walkers -> Name -> [Name] -> AlgDataTy -> NameGen -> [(TyTracker, Id)] -> (Expr, NameGen)
+createDeepSeqExpr' w n bn adt ng is =
     let
-        bn = bound_names adt
-
         (i, ng2) = freshId (TyConApp n $ map (TyVar . flip Id TYPE) bn) ng
         (bind, ng3) = freshId (TyConApp n $ map (TyVar . flip Id TYPE) bn) ng2
 
@@ -54,60 +69,76 @@ createDeepSeqExpr' w n adt ng is =
     (Lam i c, ng4)
 
 createDeepSeqAlts :: Walkers -> Name -> AlgDataTy -> NameGen -> [(TyTracker, Id)] -> Id -> ([Alt], NameGen)
-createDeepSeqAlts w n (DataTyCon { data_cons = dc }) ng is i =
-    createDeepSeqDataCon w n dc ng is i
-createDeepSeqAlts w n (NewTyCon { data_con = dc, rep_type = t}) ng is i =
-    createDeepSeqNewTyCon w n dc t ng is i
+createDeepSeqAlts w n (DataTyCon { bound_names = bn, data_cons = dc }) ng is i =
+    createDeepSeqDataCon w n bn dc ng is i
+createDeepSeqAlts w n (NewTyCon { bound_names = bn, data_con = dc, rep_type = t}) ng is i =
+    createDeepSeqNewTyCon w n bn dc t ng is i
 
-createDeepSeqDataCon :: Walkers -> Name -> [DataCon] -> NameGen -> [(TyTracker, Id)] -> Id -> ([Alt], NameGen)
-createDeepSeqDataCon w n (dc@(DataCon n' t ts):dcs) ng is i =
+createDeepSeqDataCon :: Walkers -> Name -> [Name] -> [DataCon] -> NameGen -> [(TyTracker, Id)] -> Id -> ([Alt], NameGen)
+createDeepSeqDataCon w n bn (dc@(DataCon n' t ts):dcs) ng is i =
     let
-        (binds, ng2) = freshIds ts ng
+        (binds, ng2) = freshIds (map (binderFuncArgs is) ts) ng
 
-        (e, ng3) = deepSeqCase w binds (Data dc) ng2 [] -- foldl' (\f i -> App f (idCase (deepSeqFuncCall w (Var i))))
+        (e, ng3) = deepSeqCase w bn is binds (Data dc) ng2 []
 
         alt = Alt (DataAlt dc binds) e
 
-        (alts, ng4) = createDeepSeqDataCon w n dcs ng3 is i
+        (alts, ng4) = createDeepSeqDataCon w n bn dcs ng3 is i
     in
     (alt:alts, ng4)
-createDeepSeqDataCon _ _ _ ng _ _ = ([], ng)
+createDeepSeqDataCon _ _ _ _ ng _ _ = ([], ng)
 
-createDeepSeqNewTyCon :: Walkers -> Name -> DataCon -> Type -> NameGen -> [(TyTracker, Id)] -> Id -> ([Alt], NameGen)
-createDeepSeqNewTyCon w n (DataCon n' t ts) t'@(TyConApp tn _) ng is i =
+binderFuncArgs :: [(TyTracker, Id)] -> Type -> Type
+binderFuncArgs ti tyv@(TyVar (Id n t)) = maybe tyv TyVar (lookup (Ty n) ti)
+binderFuncArgs _ t = t
+
+createDeepSeqNewTyCon :: Walkers -> Name -> [Name] -> DataCon -> Type -> NameGen -> [(TyTracker, Id)] -> Id -> ([Alt], NameGen)
+createDeepSeqNewTyCon w n bn (DataCon n' t ts) t' ng is i =
     let
         innerT = returnType t
 
         innerCast = Cast (Var i) (innerT :~ t')
-        innerDeepSeq = deepSeqFuncCall w innerCast  --TODO: What if f needs other function arguments?
+        innerDeepSeq = deepSeqFuncCall w bn is innerCast  --TODO: What if f needs other function arguments?
 
         outerCast = Cast innerDeepSeq (t' :~ innerT)
     in
     ([Alt Default outerCast], ng)
-createDeepSeqNewTyCon w n dc t ng is i = ([Alt Default (Var (Id (Name "A" Nothing 0) TyBottom))], ng) --  error $ "dc = " ++ show dc ++ " t = " ++ show t
+createDeepSeqNewTyCon _ _ _ _ _ _ _ _ = error "Unrecognized type in createDeepSeqNewTyCon."
 
-deepSeqCase :: Walkers -> [Id] -> Expr -> NameGen -> [Expr] -> (Expr, NameGen)
-deepSeqCase _ [] e ng es = (mkApp (e:reverse es), ng)
-deepSeqCase w (i:is) e ng es = 
+deepSeqCase :: Walkers -> [Name] -> [(TyTracker, Id)] -> [Id] -> Expr -> NameGen -> [Expr] -> (Expr, NameGen)
+deepSeqCase _ _ _ [] e ng es = (mkApp (e:reverse es), ng)
+deepSeqCase w bn ti (i:is) e ng es = 
     let
         (i', ng2) = freshId (typeOf i) ng
 
-        b = deepSeqFuncCall w (Var i)
+        b = deepSeqFuncCall w bn ti (Var i)
 
-        (ae, ng3) = deepSeqCase w is e ng2 ((Var i'):es)
+        (ae, ng3) = deepSeqCase w bn ti is e ng2 ((Var i'):es)
     in
     (Case b i' [Alt Default ae], ng3)
 
-deepSeqFuncCall :: Walkers -> Expr -> Expr
-deepSeqFuncCall w e =
-    let
-        t = case typeOf e of
-            (TyConApp n _) -> Just n
-            _ -> Nothing
-    in
-    case fmap (\t' -> M.lookup t' w) t of
-        Just (Just f) -> App (Var f) e
-        _ -> e
+deepSeqFuncCall :: Walkers -> [Name] -> [(TyTracker, Id)] -> Expr -> Expr
+deepSeqFuncCall w _ ti e
+    | (TyConApp n ts) <- typeOf e
+    , Just f <- M.lookup n w =
+        let
+            as = concatMap (walkerFuncArgs w ti) ts
+        in
+        foldl' App (Var f) (as ++ [e])
+    | (TyVar (Id n _)) <- typeOf e
+    , Just f <- lookup (TyF n) ti=
+        App (Var f) e
+    | otherwise = e
+
+walkerFuncArgs :: Walkers -> [(TyTracker, Id)] -> Type -> [Expr]
+walkerFuncArgs _ ti (TyVar (Id n _)) 
+    | Just ty <- lookup (Ty n) ti
+    , Just tyF <- lookup (TyF n) ti = 
+        [Type $ TyVar ty, Var tyF]
+walkerFuncArgs w _ t@(TyConApp n _)
+    | Just f <- M.lookup n w =
+        [Type t, Var f]
+walkerFuncArgs _ _ _ = []
 
 idCase :: Expr -> Expr
 idCase e = 
@@ -115,6 +146,10 @@ idCase e =
         i = Id (Name "n" Nothing 0) (typeOf e)
     in
     Case e i [Alt Default (Var i)]
+
+tyVarName :: Type -> Maybe Name
+tyVarName (TyVar (Id n _)) = Just n
+tyVarName _ = Nothing
 
 -- module G2.Internals.Initialization.CreateFuncs ( createDeepSeqWalks
 --                                                , createPolyPredWalks

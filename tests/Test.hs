@@ -79,12 +79,12 @@ sampleTests =
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthInt" 3 [AtLeast 10, RForAll getNthErrTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthX" 3 [AtLeast 10, RForAll getNthErrGenTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest]
-                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
-                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
 
-                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
-                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
-                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 800 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
 
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 8, RForAll errors]
 
@@ -211,7 +211,7 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "g" 2 [ Exactly 1
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2 ]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2 ]
 
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
                 --                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> isInt y' (const True)) (const True))

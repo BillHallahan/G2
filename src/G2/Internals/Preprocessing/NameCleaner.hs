@@ -43,7 +43,7 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns)
         n' = filter (\x -> x `elem` allowedSymbol) n
         m' = fmap (filter $ \x -> x `elem` allowedSymbol) m
 
-        -- No reserved symbols start with a $, so this ensures noth uniqueness
+        -- No reserved symbols start with a $, so this ensures both uniqueness
         -- and starting with an allowed symbol
         n'' = "$" ++ n'
 
