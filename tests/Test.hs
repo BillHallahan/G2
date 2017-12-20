@@ -70,7 +70,7 @@ sampleTests =
                 
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
-                , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 400 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[App _ (Lit (LitInt x))] -> x <= 100), AtLeast 1]
+                , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 1000 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[App _ (Lit (LitInt x))] -> x <= 100), AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 400 (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[App _ (Lit (LitInt x))] -> x > 100), AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 1000 (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
                 , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 1000 (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
