@@ -6,9 +6,10 @@ module G2.Internals.Language.Support
     , module G2.Internals.Language.AST
     , module G2.Internals.Language.Support
     , module G2.Internals.Language.TypeEnv
-    , PathCond (..)
     , AT.ApplyTypes
     , E.ExprEnv
+    , KnownValues
+    , PathCond (..)
     , SymLinks
     ) where
 
@@ -16,6 +17,7 @@ import qualified G2.Internals.Language.ApplyTypes as AT
 import G2.Internals.Language.ArbValueGen
 import G2.Internals.Language.AST
 import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.KnownValues
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Stack
 import G2.Internals.Language.SymLinks hiding (filter, map)
@@ -43,6 +45,7 @@ data State = State { expr_env :: E.ExprEnv
                    , exec_stack :: Stack Frame
                    , model :: Model
                    , arbValueGen :: ArbValueGen
+                   , known_values :: KnownValues
                    } deriving (Show, Eq, Read)
 
 -- | The InputIds are a list of the variable names passed as input to the
@@ -141,7 +144,8 @@ renameState old new_seed s =
              , wrappers = rename old new (wrappers s)
              , exec_stack = exec_stack s
              , model = model s
-             , arbValueGen = arbValueGen s }
+             , arbValueGen = arbValueGen s
+             , known_values = rename old new (known_values s) }
 
 -- | TypeClass definitions
 instance ASTContainer State Expr where

@@ -5,6 +5,7 @@ module G2.Internals.Translation.PrimInject
     ( primInject
     , dataInject
     , mergeProgs
+    , mergeProgTys
     ) where
 
 import G2.Internals.Language.AST
@@ -14,43 +15,20 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeEnv
 import G2.Internals.Translation.Haskell
 
+import Data.Char
 import Data.List
 import Data.Maybe
 
 primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
-primInject = modifyASTs primInjectT . modifyASTs primInjectE
-
-primInjectE :: Expr -> Expr
-primInjectE (Var (Id (Name "I#" _ _) _)) = Data $ PrimCon I
-primInjectE (Var (Id (Name "D#" _ _) _)) = Data $ PrimCon D
-primInjectE (Var (Id (Name "F#" _ _) _)) = Data $ PrimCon F
-primInjectE (Var (Id (Name "C#" _ _) _)) = Data $ PrimCon C
-primInjectE (Var (Id (Name "True" _ _) _)) = Lit $ LitBool True
-primInjectE (Var (Id (Name "False" _ _) _)) = Lit $ LitBool False
-primInjectE (Case e i a) = Case e i (map primInjectAlt a)
-primInjectE e = e
+primInject = modifyASTs primInjectT
 
 primInjectT :: Type -> Type
 primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _) _) = TYPE
-primInjectT (TyConApp (Name "Int" _ _) _) = TyInt
-primInjectT (TyConApp (Name "Float" _ _) _) = TyFloat
-primInjectT (TyConApp (Name "Double" _ _) _) = TyDouble
-primInjectT (TyConApp (Name "Char" _ _) _) = TyChar
-primInjectT (TyConApp (Name "Bool" _ _) _) = TyBool
--- TODO: Reevaluate this - do we need to split between Int and Int#?
-primInjectT (TyConApp (Name "Int#" _ _) _) = TyInt
-primInjectT (TyConApp (Name "Float#" _ _) _) = TyFloat
-primInjectT (TyConApp (Name "Double#" _ _) _) = TyDouble
-primInjectT (TyConApp (Name "Char#" _ _) _) = TyChar
+primInjectT (TyConApp (Name "Int#" _ _) _) = TyLitInt
+primInjectT (TyConApp (Name "Float#" _ _) _) = TyLitFloat
+primInjectT (TyConApp (Name "Double#" _ _) _) = TyLitDouble
+primInjectT (TyConApp (Name "Char#" _ _) _) = TyLitChar
 primInjectT t = t
-
-primInjectAlt :: Alt -> Alt
-primInjectAlt (Alt a e) = Alt (primInjectAltMatch a) e
-
-primInjectAltMatch :: AltMatch -> AltMatch
-primInjectAltMatch (DataAlt (DataCon (Name "True" _ _) _ _) _) = LitAlt (LitBool True)
-primInjectAltMatch (DataAlt (DataCon (Name "False" _ _) _ _) _) = LitAlt (LitBool False)
-primInjectAltMatch d = d
 
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
 dataInject prog progTy = 
@@ -77,12 +55,103 @@ occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
                          then Just n
                          else occFind key ns
 
-mergeProgs :: Program -> [(Name, Type)] -> Program
-mergeProgs prog pdefs = injects : prog
-  where
-    prog_names = names prog 
-    prims = filter (\n -> (nameOccStr n) `elem` prim_list) prog_names
+primDefs :: [(String, Expr)]
+primDefs = [ (".+#", Prim Plus TyBottom)
+           , (".*#", Prim Mult TyBottom)
+           , (".-#", Prim Minus TyBottom)
+           , ("negateInt##", Prim Negate TyBottom)
+           , (".+##", Prim Plus TyBottom)
+           , (".*##", Prim Mult TyBottom)
+           , (".-##", Prim Minus TyBottom)
+           , ("negateDouble##", Prim Negate TyBottom)
+           , ("plusFloat##", Prim Plus TyBottom)
+           , ("timesFloat##", Prim Mult TyBottom)
+           , ("minusFloat##", Prim Minus TyBottom)
+           , ("negateFloat##", Prim Negate TyBottom)
+           , ("./##", Prim Div TyBottom)
+           , ("divFloat##", Prim Div TyBottom)
+           , (".==#", Prim Eq TyBottom)
+           , ("./=#", Prim Neq TyBottom)
+           , (".==##", Prim Eq TyBottom)
+           , ("./=##", Prim Neq TyBottom)
+           , ("eqFloat'#", Prim Eq TyBottom)
+           , ("neqFloat'#", Prim Neq TyBottom)
+           , (".<=#", Prim Le TyBottom)
+           , (".<#", Prim Lt TyBottom)
+           , (".>#", Prim Gt TyBottom)
+           , (".>=#", Prim Ge TyBottom)
+           , (".<=##", Prim Le TyBottom)
+           , (".<##", Prim Lt TyBottom)
+           , (".>##", Prim Gt TyBottom)
+           , (".>=##", Prim Ge TyBottom)
+           , ("leFloat'#", Prim Le TyBottom)
+           , ("ltFloat'#", Prim Lt TyBottom)
+           , ("gtFloat'#", Prim Gt TyBottom)
+           , ("geFloat'#", Prim Ge TyBottom)
+           , ("error", Prim Error TyBottom)
+           , ("undefined", Prim Error TyBottom)]
 
-    defs = map (\(n, t) -> (fromMaybe n $ occFind n prims, t)) pdefs
-    defs' = filter (\(n, _) -> (nameOccStr n) `elem` prim_list) defs
-    injects = map (\(n, t) -> (Id n t, mkRawPrim defs n)) defs'
+nameStrEq :: Name -> Name -> Bool
+nameStrEq (Name n _ _) (Name n' _ _) = n == n'
+
+replaceFromPD :: [Name] -> Id -> Expr -> (Id, Expr)
+replaceFromPD ns (Id n t) e =
+    let
+        n' = maybe n id $ find (nameStrEq n) ns
+
+        e' = fmap snd $ find ((==) (nameOccStr n) . fst) primDefs
+    in
+    (Id n' t, maybe e id e')
+
+mergeProgs :: Program -> Program -> Program
+mergeProgs prog prims =
+    let
+        ns = names prog ++ names prims
+
+        prims' = map (map (uncurry (replaceFromPD ns))) prims
+
+        n_pairs = nub [ (y, x) | x <- names $ concat prog
+                               , y <- names $ map fst $ concat prims
+                               , nameStrEq x y]
+    in
+    foldr (uncurry rename) (prog ++ prims') n_pairs 
+
+-- The prog is used to change the names of types in the prog' and primTys
+mergeProgTys :: Program -> Program -> [ProgramType] -> [ProgramType] -> (Program, [ProgramType])
+mergeProgTys prog prog' progTys primTys =
+    let
+        dcNT = nub $ filter (isUpper . head . strName) $ dataNames prog ++ (mapMaybe dataConName $ concatMap (data_cons . snd) primTys)
+        dcNE = nub $ filter (isUpper . head . strName) $ dataNames prog
+        dcL = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) dcNE) dcNT
+
+        tn = nub $ filter (isUpper . head . strName) $ map fst primTys
+        tne = nub $ filter (isUpper . head . strName) $ concatMap tyNames prog
+        tL = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) tne) tn
+    in
+    foldr (uncurry rename) (prog', progTys ++ primTys) (dcL ++ tL)
+
+dataConName :: DataCon -> Maybe Name
+dataConName (DataCon n _ _) = Just n
+dataConName _ = Nothing
+
+dataNames :: ASTContainer m Expr => m -> [Name]
+dataNames = evalASTs dataNames'
+
+dataNames' :: Expr -> [Name]
+dataNames' (Var (Id n _)) = [n]
+dataNames' (Case _ _ as) = mapMaybe dataNames'' as
+dataNames' _ = []
+
+dataNames'' :: Alt -> Maybe Name
+dataNames'' (Alt (DataAlt (DataCon n _ _) _) _) = Just n
+dataNames'' _ = Nothing
+
+tyNames :: ASTContainer m Type => m -> [Name]
+tyNames = evalASTs tyNames'
+
+tyNames' :: Type -> [Name]
+tyNames' (TyConApp n _) = [n]
+tyNames' _ = []
+
+strName :: Name -> String
+strName (Name n _ _) = n

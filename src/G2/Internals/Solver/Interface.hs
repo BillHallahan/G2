@@ -38,12 +38,12 @@ subVar' _ e = e
 -- Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter ast out io -> io -> State -> IO Result
 checkConstraints con io s = do
-    case checkConsistency (type_env s) (unsafeElimCast $ path_conds s) of
+    case checkConsistency (known_values s) (type_env s) (unsafeElimCast $ path_conds s) of
         Just True -> return SAT
         Just False -> return UNSAT
         _ -> do
             -- putStrLn "------"
-            -- putStrLn . pprPathsStr . PC.toList $ path_conds s
+            -- putStrLn $ "PC = " ++ (pprPathsStr . PC.toList $ path_conds s)
             checkConstraints' con io s
 
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result
@@ -62,7 +62,7 @@ checkModel :: SMTConverter ast out io -> io -> State -> IO (Result, Maybe ExprMo
 checkModel con io s = do
     -- let s' = filterTEnv . simplifyPrims $ s
     let s' = s {path_conds = simplifyPrims $ path_conds s}
-    checkModel' con io (input_ids s') s'
+    return . fmap liftCasts =<< checkModel' con io (input_ids s') s'
 
 -- | checkModel'
 -- We split based on whether we are evaluating a ADT or a literal.
@@ -71,19 +71,22 @@ checkModel con io s = do
 checkModel' :: SMTConverter ast out io -> io -> [Id] -> State -> IO (Result, Maybe ExprModel)
 checkModel' _ _ [] s = do
     return (SAT, Just $ model s)
-checkModel' con io (Id n (TyConApp tn ts):is) s = do
-    let (r, is', s') = addADTs n tn ts s
+-- We can't use the ADT solver when we have a Boolean, because the RHS of the
+-- DataAlt might be a primitive.
+checkModel' con io (Id n t@(TyConApp tn ts):is) s
+    | t /= tyBool (known_values s)  =
+    do
+        let (r, is', s') = addADTs n tn ts s
 
-    let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
+        let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
 
-    case r of
-        SAT -> checkModel' con io (is ++ is'') s'
-        r' -> return (r', Nothing)
+        case r of
+            SAT -> checkModel' con io (is ++ is'') s'
+            r' -> return (r', Nothing)
 checkModel' con io ((Id n _):is) s = do
     let (Just (Var i'@(Id n' t))) = E.lookup n (expr_env s)
  
-    let pc = PC.scc [n] (path_conds s)
-
+    let pc = PC.scc (known_values s) [n] (path_conds s)
     let s' = s {path_conds = pc }
 
     (m, av') <- case PC.null pc of
@@ -121,9 +124,9 @@ checkNumericConstraints con io s = do
 addADTs :: Name -> Name -> [Type] -> State -> (Result, [Id], State)
 addADTs n tn ts s =
     let
-        pc = PC.scc [n] (path_conds s)
+        pc = PC.scc (known_values s) [n] (path_conds s)
 
-        dcs = findConsistent (type_env s) pc
+        dcs = findConsistent (known_values s) (type_env s) pc
 
         eenv = expr_env s
 

@@ -201,7 +201,6 @@ mkLitHaskell (LitFloat r) = "(" ++ show r ++ ")"
 mkLitHaskell (LitDouble r) = "(" ++ show r ++ ")"
 mkLitHaskell (LitChar c) = [c]
 mkLitHaskell (LitString s) = s
-mkLitHaskell (LitBool b) = show b
 
 mkPrimHaskell :: Primitive -> String
 mkPrimHaskell Ge = ">="
@@ -225,12 +224,6 @@ mkPrimHaskell Iff = "undefined"
 
 mkTypeHaskell :: Type -> String
 mkTypeHaskell (TyVar i) = mkIdHaskell i
-mkTypeHaskell (TyInt) = "Int"
-mkTypeHaskell (TyFloat) = "Float"
-mkTypeHaskell (TyDouble) = "Double"
-mkTypeHaskell (TyChar) = "Char"
-mkTypeHaskell (TyString) = "String"
-mkTypeHaskell (TyBool) = "Bool"
 mkTypeHaskell (TyFun t1 t2) = mkTypeHaskell t1 ++ " -> " ++ mkTypeHaskell t2
 mkTypeHaskell (TyApp t1 t2) = mkTypeHaskell t1 ++ " " ++ mkTypeHaskell t2
 mkTypeHaskell (TyConApp n ts) = mkNameHaskell n ++ " " ++ (intercalate " " $ map mkTypeHaskell ts)

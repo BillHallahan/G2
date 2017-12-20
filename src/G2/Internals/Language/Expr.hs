@@ -7,7 +7,10 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkApp
                                   , mkTrue
                                   , mkFalse
+                                  , mkBool
+                                  , mkIdentity
                                   , mkLamBindings
+                                  , mkMappedLamBindings
                                   , insertInLams
                                   , replaceASTs
                                   , args
@@ -22,13 +25,16 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
 import G2.Internals.Language.AST
 import G2.Internals.Language.Casts
 import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.TypeEnv
 import G2.Internals.Language.Typing
 
 import Data.Foldable
 import qualified Data.Map as M
+import Data.Maybe
 
 replaceVar :: (ASTContainer m Expr) => Name -> Expr -> m -> m
 replaceVar n re = modifyASTs (replaceVar' n re)
@@ -50,11 +56,14 @@ mkApp [] = error "mkApp: empty list"
 mkApp (e:[]) = e
 mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
 
-mkTrue :: Expr
-mkTrue = Lit $ LitBool True
+mkTrue :: KnownValues -> TypeEnv -> Expr
+mkTrue kv tenv = Data . fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
 
-mkFalse :: Expr
-mkFalse = Lit $ LitBool False
+mkFalse :: KnownValues -> TypeEnv -> Expr
+mkFalse kv tenv = Data . fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
+
+mkBool :: KnownValues -> TypeEnv -> Bool -> Expr
+mkBool kv tenv b = if b then mkTrue kv tenv else mkFalse kv tenv
 
 mkIdentity :: Type -> Expr
 mkIdentity t =
@@ -63,23 +72,23 @@ mkIdentity t =
     in
     Lam x (Var x)
 
-mkLamBindings :: NameGen -> [(a, Maybe Name, Type)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen))-> (Expr, NameGen)
-mkLamBindings ng ats f = mkLamBindings' ng ats [] f
-
-mkLamBindings' :: NameGen -> [(a, Maybe Name, Type)] -> [(a, Id)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen))-> (Expr, NameGen)
-mkLamBindings' ng [] fIds f =
-  let
-      (e, ng') = f ng (reverse fIds)
-      e' = foldr (Lam) e (reverse $ map snd fIds)
-  in
-  (e', ng')
-mkLamBindings' ng ((as, n, t):ats) fIds f =
+-- Generates a lambda binding for each a in the provided list
+-- Takes a function to generate the inner expression
+mkLamBindings :: NameGen -> [Type] -> (NameGen -> [Id] -> (Expr, NameGen)) -> (Expr, NameGen)
+mkLamBindings ng ts f =
     let
-        (fId, ng') = case n of
-            Just n' -> (Id n' t, ng)
-            Nothing -> freshId t ng
+        (is, ng') = freshIds ts ng
+
+        (e, ng'') = f ng' is
     in
-    mkLamBindings' ng' ats ((as, fId):fIds) f
+    (foldr Lam e is, ng'')
+
+mkMappedLamBindings :: NameGen -> [(a, Type)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen)) -> (Expr, NameGen)
+mkMappedLamBindings ng at f =
+    let
+        (as, _) = unzip at
+    in
+    mkLamBindings ng (map snd at) (\ng ns -> f ng (zip as ns))
 
 -- Runs the given function f on the expression nested in the lambdas, and
 -- rewraps the new expression with the Lambdas
@@ -158,25 +167,8 @@ mkStrict' w e =
 
 
 typeToWalker :: Walkers -> Type -> Expr
--- typeToWalker w (TyConApp n _) = Var $ w M.! n
 typeToWalker w (TyConApp n _) =
   case M.lookup n w of
     Just i -> Var i 
     Nothing -> error $ "typeToWalker: failed to find type: " ++ show n
-typeToWalker _ TyInt = mkLitStrict TyInt TyLitInt I
-typeToWalker _ TyFloat = mkLitStrict TyFloat TyLitFloat F
-typeToWalker _ TyDouble = mkLitStrict TyDouble TyLitDouble D
-typeToWalker _ TyChar = mkLitStrict TyChar TyLitChar C
 typeToWalker _ t = mkIdentity t
-
-mkLitStrict :: Type -> Type -> PrimCon -> Expr
-mkLitStrict t lt p =
-    let
-        x = Id (Name "x" Nothing 0) t
-        b = Id (Name "b" Nothing 0) t
-        lb = Id (Name "lb" Nothing 0) lt
-
-        alt = [Alt (DataAlt (PrimCon p) [lb]) $ App (Data (PrimCon p)) (Var lb)]
-    in
-    Lam x $ Case (Var x) b alt
-

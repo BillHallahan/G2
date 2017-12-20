@@ -60,6 +60,16 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
+pathConsToSMT (ConsCond (DataCon n@(Name "True" _ _) _ _) e b) =
+    let
+        exprSMT = exprToSMT e
+    in
+    Just $ if b then exprSMT else (:!) exprSMT
+pathConsToSMT (ConsCond (DataCon n@(Name "False" _ _) _ _) e b) =
+    let
+        exprSMT = exprToSMT e
+    in
+    Just $ if b then  (:!) $ exprSMT else exprSMT
 pathConsToSMT (ConsCond (DataCon n _ _) e b) =
     let
         exprSMT = exprToSMT e
@@ -75,8 +85,12 @@ exprToSMT (Lit c) =
         LitInt i -> VInt i
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
-        LitBool b -> VBool b
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
+exprToSMT (Data (DataCon (Name n _ _) (TyConApp (Name "Bool" _ _) _) _)) =
+    case n of
+        "True" -> VBool True
+        "False" -> VBool False
+        _ -> error "Invalid bool in exprToSMT"
 exprToSMT (Data (DataCon n t _)) = V (nameToStr n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
@@ -100,10 +114,16 @@ exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
 -- | funcToSMT
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
+funcToSMT (Var (Id (Name "$I" _ _) _)) [a] = exprToSMT a -- Todo: Get rid of this
+funcToSMT (Var (Id (Name "$F" _ _) _)) [a] = exprToSMT a -- Todo: Get rid of this
+funcToSMT (Var (Id (Name "$D" _ _) _)) [a] = exprToSMT a -- Todo: Get rid of this
 funcToSMT (Var (Id n t)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t) -- TODO : DO WE NEED THIS???
 funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
 funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
 -- funcToSMT (Prim p) [a1, a2, a3, a4] = funcToSMT4Prim p a1 a2 a3 a4
+funcToSMT (Data (DataCon (Name "$I" _ _) _ _)) [a] = exprToSMT a -- Todo: Get rid of this
+funcToSMT (Data (DataCon (Name "$F" _ _) _ _)) [a] = exprToSMT a -- Todo: Get rid of this
+funcToSMT (Data (DataCon (Name "$D" _ _) _ _)) [a] = exprToSMT a -- Todo: Get rid of this
 funcToSMT (Data (DataCon n t _)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
 funcToSMT e@(Data _) [a] = funcToSMT1Var e a
 funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
@@ -141,10 +161,8 @@ altToSMT :: AltMatch -> SMTAST
 altToSMT (LitAlt (LitInt i)) = VInt i
 altToSMT (LitAlt (LitFloat f)) = VFloat f
 altToSMT (LitAlt (LitDouble d)) = VDouble d
-altToSMT (LitAlt (LitBool b)) = VBool b
-altToSMT (DataAlt (PrimCon I) [i]) = V (nameToStr . idName $ i) SortInt
-altToSMT (DataAlt (PrimCon D) [d]) = V (nameToStr . idName $ d) SortDouble
-altToSMT (DataAlt (PrimCon F) [f]) = V (nameToStr . idName $ f) SortFloat
+altToSMT (DataAlt (DataCon (Name "True" _ _) t ts) ns) = VBool True
+altToSMT (DataAlt (DataCon (Name "False" _ _) t ts) ns) = VBool False
 altToSMT (DataAlt (DataCon n t ts) ns) =
     Cons (nameToStr n) (map f $ zip ns ts) (typeToSMT t)
     where
@@ -181,13 +199,16 @@ idToNameSort (Id n t) = (n, typeToSMT t)
 
 typeToSMT :: Type -> Sort
 typeToSMT (TyVar (Id n _)) = Sort (nameToStr n) []
-typeToSMT TyInt = SortInt
+typeToSMT (TyFun TyLitInt _) = SortInt -- TODO: Remove this
+typeToSMT (TyFun TyLitDouble _) = SortDouble -- TODO: Remove this
+typeToSMT (TyFun TyLitFloat _) = SortFloat -- TODO: Remove this
 typeToSMT TyLitInt = SortInt
-typeToSMT TyDouble = SortDouble
 typeToSMT TyLitDouble = SortDouble
-typeToSMT TyFloat = SortFloat
 typeToSMT TyLitFloat = SortFloat
-typeToSMT TyBool = SortBool
+typeToSMT (TyConApp (Name "Int" _ _) _) = SortInt
+typeToSMT (TyConApp (Name "Float" _ _) _) = SortFloat
+typeToSMT (TyConApp (Name "Double" _ _) _) = SortDouble
+typeToSMT (TyConApp (Name "Bool" _ _) _) = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT t = error $ "Unsupported type in typeToSMT." ++ show t
@@ -264,17 +285,18 @@ smtastToExpr :: SMTAST -> Expr
 smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
-smtastToExpr (VBool b) = Lit $ LitBool b
+smtastToExpr (VBool b) =
+    Data (DataCon (Name (show b) Nothing 0) (TyConApp (Name "Bool" Nothing 0) []) [])
 smtastToExpr (Cons n smts s) =
     foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon (strToName n) (sortToType s) [])) smts
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
 sortToType :: Sort -> Type
-sortToType (SortInt) = TyInt
-sortToType (SortFloat) = TyFloat
-sortToType (SortDouble) = TyDouble
-sortToType (SortBool) = TyBool
+sortToType (SortInt) = TyLitInt
+sortToType (SortFloat) = TyLitFloat
+sortToType (SortDouble) = TyLitDouble
+sortToType (SortBool) = TyConApp (Name "Bool" Nothing 0) []
 sortToType (Sort n xs) = TyConApp (strToName n) (map sortToType xs)
 
 modelAsExpr :: Model -> ExprModel

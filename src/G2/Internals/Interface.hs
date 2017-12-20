@@ -39,18 +39,18 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
         tenv = mkTypeEnv prog_typ
         ng = mkNameGen prog prog_typ
 
-        (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap) = runInitialization eenv tenv ng
+        (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap, kv) = runInitialization eenv tenv ng
 
         (ce, is, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' ds_walkers
 
-        eenv'' = checkReaches eenv' m_reaches
+        eenv'' = checkReaches eenv' tenv' kv m_reaches
     in
     State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv'' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
-    , path_conds = PC.fromList $ map PCExists is
+    , path_conds = PC.fromList kv $ map PCExists is
     , true_assert = if useAssert then False else True
     , input_ids = is
     , sym_links = Sym.empty
@@ -62,6 +62,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , exec_stack = Stack.empty
     , model = M.empty
     , arbValueGen = arbValueInit
+    , known_values = kv
  }
 
 mkExprEnv :: Program -> E.ExprEnv
@@ -75,14 +76,15 @@ mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 -- specific to LH?)
 addPolyPred :: State -> Name -> Id -> Int -> State
 addPolyPred s@(State { expr_env = eenv
-                     , polypred_walkers = ppw}) f fw argN =
+                     , polypred_walkers = ppw
+                     , known_values = kv}) f fw argN =
     let
         e = eenv E.! f
         i@(Id _ (TyConApp n _)) = nthArg e argN
 
         wf = M.lookup n ppw
 
-        d = fmap (\wf' -> App (App (App (Var wf') (Type TyInt)) (Var fw)) (Var i)) wf
+        d = fmap (\wf' -> App (App (App (Var wf') (Type (tyInt kv))) (Var fw)) (Var i)) wf
         e' = case d of
             Just d' -> insertInLams (\_ -> Assume d')  e
             Nothing -> e
@@ -133,11 +135,11 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
             (let_ex, is, ng'')
         Right s' -> error s'
 
-checkReaches :: ExprEnv -> Maybe String -> ExprEnv
-checkReaches eenv Nothing = eenv
-checkReaches eenv (Just s) =
+checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe String -> ExprEnv
+checkReaches eenv _ _ Nothing = eenv
+checkReaches eenv tenv kv (Just s) =
     case findFunc s eenv of
-        Left (Id n _, e) -> E.insert n (Assert mkFalse e) eenv
+        Left (Id n _, e) -> E.insert n (Assert (mkFalse kv tenv) e) eenv
         Right err -> error err
 
 mkInputs :: ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
@@ -180,8 +182,8 @@ findFunc s eenv =
         [] -> Right $ "No functions with name " ++ s
 
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr)]
-run con hhp n state = do
-
+run con hhp n (state@ State { type_env = tenv
+                            , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
 
     -- putStrLn "After start"
@@ -191,6 +193,10 @@ run con hhp n state = do
     (_, mdl) <- checkModel con hhp preproc_state
 
     let preproc_state' = preproc_state {model = fromJust mdl}
+
+    -- putStrLn . pprExecStateStr $ state
+    -- putStrLn "######################"
+    -- putStrLn . pprExecStateStr $ preproc_state'
 
     -- putStrLn $ "entries in eenv: " ++ (show $ length $ E.keys $ expr_env preproc_state)
     -- putStrLn $ "chars in eenv: " ++ (show $ length $ show $ E.keys $ expr_env preproc_state)
@@ -224,21 +230,21 @@ run con hhp n state = do
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
 
-    -- mapM_ (\(rs, st) -> do
-    --     putStrLn $ show rs
-    --     putStrLn $ pprExecStateStr st
-    --     -- putStrLn $ pprExecStateStrSimple st
+    mapM_ (\(rs, st) -> do
+        putStrLn $ show rs
+        putStrLn $ pprExecStateStr st
+        -- putStrLn $ pprExecStateStrSimple st
 
-    -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
-    --     -- print $ curr_expr st
-    -- --     -- print $ true_assert st
-    -- --     -- print $ assertions st
-    --     -- putStrLn . pprPathsStr . PC.toList $ path_conds st
-    -- --     -- print $ E.symbolicKeys $ expr_env st
-    -- --     -- print $ input_ids st
-    -- --     -- print $ model st
-    --     putStrLn "----\n"
-    --     ) exec_states
+    --     -- putStrLn . pprExecEEnvStr $ expr_env st
+        -- print $ curr_expr st
+    --     -- print $ true_assert st
+    --     -- print $ assertions st
+        -- putStrLn . pprPathsStr . PC.toList $ path_conds st
+    --     -- print $ E.symbolicKeys $ expr_env st
+    --     -- print $ input_ids st
+    --     -- print $ model st
+        putStrLn "----\n"
+        ) exec_states
 
 
     ident_states'' <- 
@@ -251,6 +257,6 @@ run con hhp n state = do
 
     let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) $ ident_states'''
 
-    let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims e)) sm
+    let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims kv tenv e)) sm
 
     return $ map (\sm''@(s, _, _, _) -> undefunctionalize s sm'') sm'

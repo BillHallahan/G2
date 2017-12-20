@@ -33,6 +33,7 @@ module G2.Internals.Language.Naming
     ) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.KnownValues
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeEnv
 
@@ -227,6 +228,37 @@ instance Named AlgDataTy where
 
     rename old new (DataTyCon n dc) = DataTyCon (rename old new n) (rename old new dc)
     rename old new (NewTyCon n dc rt) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt)
+
+instance Named KnownValues where
+    names (KnownValues {
+              tyInt = tI
+            , tyFloat = tF
+            , tyDouble = tD
+
+            , tyBool = tB
+            , dcTrue = dcT
+            , dcFalse = dcF
+            }) =
+            [tI, tF, tD, tB, dcT, dcF]
+
+    rename old new (KnownValues {
+                     tyInt = tI
+                   , tyFloat = tF
+                   , tyDouble = tD
+
+                   , tyBool = tB
+                   , dcTrue = dcT
+                   , dcFalse = dcF
+                   }) =
+                    (KnownValues {
+                          tyInt = rename old new tI
+                        , tyFloat = rename old new tF
+                        , tyDouble = rename old new tD
+
+                        , tyBool = rename old new tB
+                        , dcTrue = rename old new dcT
+                        , dcFalse = rename old new dcF
+                        })
 
 instance (Foldable f, Functor f, Named a) => Named (f a) where
     names = foldMap names

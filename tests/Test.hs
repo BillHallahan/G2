@@ -42,7 +42,7 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
-        , liquidTests
+        -- , liquidTests
         , testFileTests
         ]
 
@@ -54,42 +54,42 @@ sampleTests :: IO TestTree
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  checkExprWithOutput "tests/Samples/" "tests/Samples/Peano.hs" 700 Nothing (Just "equalsFour") "add" 3 [RForAll $ not . peano_4_out, AtLeast 10]
-                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 700 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
-                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 900 (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
-                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 650 (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
-                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 400 (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
-                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 550 (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
+                  checkExprWithOutput "tests/Samples/" "tests/Samples/Peano.hs" 900 Nothing (Just "equalsFour") "add" 3 [RForAll $ not . peano_4_out, AtLeast 10]
+                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 900 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
+                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 1000 (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
+                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 750 (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
+                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 600 (Just "equalsFour") Nothing "add" 2 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
+                , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 750 (Just "equalsFour") Nothing "multiply" 2 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
-                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
+                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
 
-                -- -- The below test fails because Z3 returns unknown.
-                -- , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
+                -- -- -- The below test fails because Z3 returns unknown.
+                -- -- , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
                 
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
-                , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 400 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x <= 100), AtLeast 1]
-                , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 400 (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[Lit (LitInt x)] -> x > 100), AtLeast 1]
+                , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 400 (Just "lessThan91") Nothing "mccarthy" 1 [RForAll (\[App _ (Lit (LitInt x))] -> x <= 100), AtLeast 1]
+                , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 400 (Just "greaterThan10Less") Nothing "mccarthy" 1 [RForAll (\[App _ (Lit (LitInt x))] -> x > 100), AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 1000 (Just "lessThanNot91") Nothing "mccarthy" 1 [Exactly 0]
                 , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 1000 (Just "greaterThanNot10Less") Nothing "mccarthy" 1 [Exactly 0]
 
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNth.hs" 400 Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthInt" 3 [AtLeast 10, RForAll getNthErrTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthX" 3 [AtLeast 10, RForAll getNthErrGenTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNth.hs" 600 Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthInt" 3 [AtLeast 10, RForAll getNthErrTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthX" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
+                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
 
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
+                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
+                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
                 -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 400 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
 
-                , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 400 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 6, RForAll errors]
+                , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 8, RForAll errors]
 
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 900 Nothing Nothing "sum" 2 [AtLeast 3]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 400 Nothing Nothing "dotProd" 3 [AtLeast 3]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 1600 Nothing Nothing "sum" 2 [AtLeast 3]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 1000 Nothing Nothing "dotProd" 3 [AtLeast 3]
         ]
 
 liquidTests :: IO TestTree
@@ -116,7 +116,7 @@ testFileTests :: IO TestTree
 testFileTests = 
     return . testGroup "TestFiles"
         =<< sequence [
-                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" 400 Nothing Nothing "f" 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt r)] -> if x == y then r == x + y else r == y), AtLeast 2]
+                  checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" 400 Nothing Nothing "f" 3 [RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y)), App _ (Lit (LitInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGe5" 1 [AtLeast 1]
@@ -127,26 +127,26 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" 400 Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultCase.hs" 400 Nothing Nothing "f" 2
-                    [ RExists (\[Lit (LitInt x), y] -> x == 2 && y == (Lit $ LitBool True))
-                    , RExists (\[Lit (LitInt x), y] -> x == 1 && y == (Lit $ LitBool True))
-                    , RExists (\[Lit (LitInt x), y] -> x /= 2 && x /= 1 && y == (Lit $ LitBool False))]
+                    [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
+                    , RExists (\[App _ (Lit (LitInt x)), y] -> x == 1 && getBoolB y id)
+                    , RExists (\[App _ (Lit (LitInt x)), y] -> x /= 2 && x /= 1 && getBoolB y not)]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 6)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating2.hs" 400 (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 15)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating3.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 4)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating4.hs" 400 (Just "output12") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 11)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x + y + 1 == 19)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x == 25)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating.hs" 400 (Just "output6") Nothing "f" 1 [AtLeast 1, RExists (\[App _ (Lit (LitInt x))] -> x == 6)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating2.hs" 400 (Just "output16") Nothing "f" 1 [AtLeast 1, RExists (\[App _ (Lit (LitInt x))] -> x == 15)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating3.hs" 600 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[App _ (Lit (LitInt x))] -> x == 4)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating4.hs" 400 (Just "output12") Nothing "f" 1 [AtLeast 1, RExists (\[App _ (Lit (LitInt x))] -> x == 11)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating5.hs" 400 (Just "output19") Nothing "f" 2 [AtLeast 1, RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x + y + 1 == 19)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating6.hs" 400 (Just "output32") Nothing "f" 1 [AtLeast 1, RExists (\[App _ (Lit (LitInt x))] -> x == 25)]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(Lit (LitInt y))] -> appNthArgIs x (ly ==) 1 && y > 100), Exactly 1]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(Lit (LitInt y))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 1 && y > 100), Exactly 1]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 1 && dcInAppHasName "J" y 1), AtLeast 2]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), y] -> x < 0 && dcHasName "A" y)
-                                                                                                              , RExists (\[Lit (LitInt x), y] -> x >= 0 && dcHasName "C" y), Exactly 2]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[App _ (Lit (LitInt x)), y] -> x < 0 && dcHasName "A" y)
+                                                                                                              , RExists (\[App _ (Lit (LitInt x)), y] -> x >= 0 && dcHasName "C" y), Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case2.hs" 400 Nothing Nothing "f" 2 
                         [ RExists exists1
                         , RExists exists2
@@ -154,50 +154,50 @@ testFileTests =
                         , RExists exists4
                         , AtLeast 4]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/Guards.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitBool x)] -> x)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Guards.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[dc] -> getBoolB dc id)]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/Infinite.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[Lit (LitInt x)] -> x <= 100 && x /= 80)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Infinite.hs" 400 (Just "g") Nothing "f" 1 [AtLeast 1, RExists (\[App _ (Lit (LitInt x))] -> x <= 100 && x /= 80)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Strictness1.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RExists (\[(App x (Lit (LitInt y)))] -> dcHasName "A" x && y == 9)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Strictness1.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RExists (\[(App x (App _ (Lit (LitInt y))))] -> dcHasName "A" x && y == 9)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
-                                                                                                           , RExists (\[Lit (LitInt x), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Where1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
+                                                                                                           , RExists (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
                 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error1.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error1.hs" 400 Nothing Nothing "g" 2 [AtLeast 1, RForAll(errors)]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error2.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error3.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error3.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "abs'" 2 [Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "xswitch" 2 [AtLeast 10]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "f" 3 [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "getFstXIntInt" 2 [AtLeast 2, RExists (\[x, y] -> isApp x && isError y)]
+                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "getFstXIntInt" 2 [AtLeast 2, RExists (\[x, y] -> isApp x && isError y)]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/PolyDataTy1.hs" 400 Nothing Nothing "sum" 2 [AtLeast 3, RExists (\[x, y] -> isApp x && isError y)]
 
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultiSplit.hs" 400 (Just "equals1") Nothing "f" 3 [Exactly 0]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MultiSplit.hs" 1000 (Just "equals1") Nothing "f" 3 [Exactly 0]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/MatchesFunc1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' ->  y' == 6 + x'), AtLeast 1]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> appNthArgIs x notCast 0 && appNthArgIs x (\x' -> getIntB x' $ \x'' -> getIntB y $ \y' -> x'' + 1 == y') 1), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "fCall" 1 [RExists (\[x] -> isInt x ((==) 35)), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/RecordFields1.hs" 400 Nothing Nothing "g" 2 [RExists (\[x, y] -> appNthArgIs x (dcHasName "A") 2 && appNthArgIs y (dcHasName "B") 2)
-                                                                                                                      -- , RExists (\[x, y] -> appNthArgIs x (dcHasName "B") 2 && appNthArgIs y (dcHasName "C") 2)
-                                                                                                                      -- , RExists (\[x, y] -> appNthArgIs x (dcHasName "C") 2 && appNthArgIs y (dcHasName "A") 2)
+                                                                                                                      , RExists (\[x, y] -> appNthArgIs x (dcHasName "B") 2 && appNthArgIs y (dcHasName "C") 2)
+                                                                                                                      , RExists (\[x, y] -> appNthArgIs x (dcHasName "C") 2 && appNthArgIs y (dcHasName "A") 2)
                                                                                                                       , Exactly 3]
 
-                -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "eq" 3 [AtLeast  2, RForAll (\[_, _, x] -> isBool x)]
-                -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
-                -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "eq" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
-                -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                -- -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "eq" 3 [AtLeast  2, RForAll (\[_, _, x] -> isBool x)]
+                -- -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                -- -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "eq" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                -- -- , checkExprWithOutput "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
 
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "born" 1 [ Exactly 1
-                                                                                                                                  , RForAll (\[x] -> inCast x (App (Data (PrimCon I)) (Lit (LitInt 0)) ==) (\(t1 :~ t2) -> t1 == TyInt && typeNameIs t2 "Age"))]
+                                                                                                                                  , RForAll (\[x] -> inCast x (\x' -> appNthArgIs x' (Lit (LitInt 0) ==) 1) (\(t1 :~ t2) -> isIntT t1 && typeNameIs t2 "Age"))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "yearPasses" 2 [ AtLeast 1
                                                                                                                                         , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
                                                                                                                                                            && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") )]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "age" 2 [ AtLeast 1
-                                                                                                                                 , RForAll (\[x, y] -> inCast x (const True) (\(t1 :~ t2) -> typeNameIs t2 "Age") && isInt y (const True))]
+                                                                                                                                 , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") && isInt y (const True))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "diffAge" 3 [ AtLeast 1
                                                                                                                                      , RForAll (\[x, y, z] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") 
                                                                                                                                                            && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
@@ -211,27 +211,27 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "g" 2 [ Exactly 1
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2 ]
+                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2 ]
 
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
-                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> isInt y' (const True)) (const True))
-                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> isFloat y' (const True)) (const True))]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ AtLeast 2
-                                                                                                                                               , RExists (\[_, y] -> isInt y (const True))
-                                                                                                                                               , RExists (\[_, y] -> isError y)]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ AtLeast 2
-                                                                                                                                               , RExists (\[_, y] -> isFloat y (const True))
-                                                                                                                                               , RExists (\[_, y] -> isError y)]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 2
-                                                                                                                                                     , RExists (\[_, y] -> isFloat y (const True))
-                                                                                                                                                     , RExists (\[_, y] -> isError y)]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 2
-                                                                                                                                                 , RExists (\[x, y] -> appNthArgIs x (\x' -> inCast x' (const True) (\(_ :~ t) -> isTyFun t)) 0
-                                                                                                                                                                    && isInt y (const True))
-                                                                                                                                                 , RExists (\[x, y] -> isError y)]
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
-                                                                                                                                , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
-                                                                                                                                , RExists (\[x, _] -> x /= Lit (LitInt 0))]
+                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
+                --                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> isInt y' (const True)) (const True))
+                --                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> isFloat y' (const True)) (const True))]
+                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ AtLeast 2
+                --                                                                                                                                , RExists (\[_, y] -> isInt y (const True))
+                --                                                                                                                                , RExists (\[_, y] -> isError y)]
+                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ AtLeast 2
+                --                                                                                                                                , RExists (\[_, y] -> isFloat y (const True))
+                --                                                                                                                                , RExists (\[_, y] -> isError y)]
+                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 2
+                --                                                                                                                                      , RExists (\[_, y] -> isFloat y (const True))
+                --                                                                                                                                      , RExists (\[_, y] -> isError y)]
+                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 2
+                --                                                                                                                                  , RExists (\[x, y] -> appNthArgIs x (\x' -> inCast x' (const True) (\(_ :~ t) -> isTyFun t)) 0
+                --                                                                                                                                                     && isInt y (const True))
+                --                                                                                                                                  , RExists (\[x, y] -> isError y)]
+                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
+                --                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
+                --                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]
         ]
 
 

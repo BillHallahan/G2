@@ -19,6 +19,8 @@ module G2.Internals.Language.PathConds ( PathCond (..)
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Ids
+import qualified G2.Internals.Language.KnownValues as KV
+import G2.Internals.Language.Typing
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
@@ -67,18 +69,18 @@ toMap = coerce
 empty :: PathConds
 empty = PathConds M.empty
 
-fromList :: [PathCond] -> PathConds
-fromList = coerce . foldr insert empty
+fromList :: KV.KnownValues -> [PathCond] -> PathConds
+fromList kv = coerce . foldr (insert kv) empty
 
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each
 -- PC is associated with only one name.
 -- This is ok, because the PCs can only be externally accessed by toList (which 
 -- returns all PCs anyway) or scc (which forces exploration over all shared names)
-insert :: PathCond -> PathConds -> PathConds
-insert p (PathConds pcs) =
+insert :: KV.KnownValues -> PathCond -> PathConds -> PathConds
+insert kv p (PathConds pcs) =
     let
-        ns = varNamesInPC p
+        ns = varNamesInPC kv p
 
         (hd, insertAt) = case ns of
             [] -> (Nothing, [Nothing])
@@ -99,10 +101,13 @@ null = M.null . toMap
 
 -- | Filters a PathConds to only those PathCond's that potentially impact the
 -- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
-relevant :: [PathCond] -> PathConds -> PathConds
-relevant pc = scc (concatMap varNamesInPC pc)
+relevant :: KV.KnownValues -> [PathCond] -> PathConds -> PathConds
+relevant kv pc pcs = 
+    case concatMap (varNamesInPC kv) pc of
+        [] -> fromList kv pc
+        rel -> scc kv rel pcs
 
-varNamesInPC :: PathCond -> [Name]
+varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
 -- [AltCond]
 -- Optimization
 -- When we have an AltCond with a Var expr, we only have to look at
@@ -111,12 +116,13 @@ varNamesInPC :: PathCond -> [Name]
 -- parents/children can't impose restrictions on it.  We are completely
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
-varNamesInPC (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varNamesInPC $ AltCond altC e b
-varNamesInPC (AltCond (DataAlt (DataCon _ _ _) _) (Var (Id n _)) _) = [n]
-varNamesInPC (AltCond a e _) = varNamesInAltMatch a ++ varNames e
-varNamesInPC (ExtCond e _) = varNames e
-varNamesInPC (ConsCond _ e _) = varNames e
-varNamesInPC (PCExists _) = []
+varNamesInPC kv (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varNamesInPC kv $ AltCond altC e b
+varNamesInPC kv pc@(AltCond (DataAlt (DataCon _ _ _) _) (Var (Id n t)) _) 
+             | t /= tyBool kv = [n]
+varNamesInPC _ (AltCond a e _) = varNamesInAltMatch a ++ varNames e
+varNamesInPC _ (ExtCond e _) = varNames e
+varNamesInPC _ (ConsCond _ e _) = varNames e
+varNamesInPC _ (PCExists _) = []
 
 varNamesInAltMatch :: AltMatch -> [Name]
 varNamesInAltMatch (DataAlt _ i) = names i
@@ -129,24 +135,25 @@ varNames' :: Expr -> [Name]
 varNames' (Var (Id n _)) = [n]
 varNames' _ = []
 
-scc :: [Name] -> PathConds -> PathConds
-scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
+scc :: KV.KnownValues -> [Name] -> PathConds -> PathConds
+scc kv ns (PathConds pc) = PathConds $ scc' kv ns pc M.empty
 
-scc' :: [Name]
+scc' :: KV.KnownValues
+     -> [Name]
      -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
      -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
      -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
-scc' [] _ pc = pc
-scc' (n:ns) pc newpc =
+scc' _ [] _ pc = pc
+scc' kv (n:ns) pc newpc =
     -- Check if we already inserted the name information
     case M.lookup (Just n) newpc of
-        Just _ -> scc' ns pc newpc
+        Just _ -> scc' kv ns pc newpc
         Nothing ->
             -- If we didn't, lookup info to insert,
             -- and add names to the list of names to search
             case M.lookup (Just n) pc of
-                Just pcn@(_, ns') -> scc' (ns ++ ns') pc (M.insert (Just n) pcn newpc)
-                Nothing -> scc' ns pc newpc
+                Just pcn@(_, ns') -> scc' kv (ns ++ ns') pc (M.insert (Just n) pcn newpc)
+                Nothing -> scc' kv ns pc newpc
 
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap

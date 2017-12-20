@@ -70,7 +70,7 @@ runGHC as = do
 
     (binds, tycons) <- translationPrimDefs proj src prims True
     -- (binds, tycons) <- translation proj src
-
+    
     let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
     let init_state' = case (m_wrapper, m_wrap_with) of

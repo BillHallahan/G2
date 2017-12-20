@@ -5,12 +5,16 @@
 --   Provides type checking capabilities over G2 Language.
 module G2.Internals.Language.Typing
     ( Typed (..)
+    , tyInt
+    , tyBool
+    , mkTyApp
     , (.::)
     , hasFuncType
     , appendType
     , higherOrderFuncs
     , isAlgDataTy
     , isPolyFunc
+    , argumentTypes
     , returnType
     , polyIds
     , splitTyForAlls
@@ -19,9 +23,21 @@ module G2.Internals.Language.Typing
     ) where
 
 import G2.Internals.Language.AST
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
+
+tyInt :: KV.KnownValues -> Type
+tyInt kv = TyConApp (KV.tyBool kv) []
+
+tyBool :: KV.KnownValues -> Type
+tyBool kv = TyConApp (KV.tyBool kv) []
+
+mkTyApp :: Type -> Type -> Type
+mkTyApp (TyConApp n _) t2 = TyConApp n [t2]
+mkTyApp (TyFun _ t2) _ = t2
+mkTyApp t1 t2 = TyApp t1 t2
 
 -- | Typed typeclass.
 class Typed a where
@@ -35,28 +51,6 @@ instance Typed Id where
     typeOf' m (Id _ ty) = typeOf' m ty
 
 -- | `Primitive` instance of `Typed`
-instance Typed Primitive where
-    typeOf Ge = TyBottom  -- TODO: fill in correctly.
-    typeOf Gt = TyBottom
-    typeOf Eq = TyBottom
-    typeOf Lt = TyBottom
-    typeOf Le = TyBottom
-    typeOf Neq = TyBottom
-    typeOf And = TyFun TyBool (TyFun TyBool TyBool)
-    typeOf Or = TyFun TyBool (TyFun TyBool TyBool)
-    typeOf Not = TyFun TyBool TyBool
-    typeOf Implies = TyFun TyBool (TyFun TyBool TyBool)
-    typeOf Iff = TyFun TyBool (TyFun TyBool TyBool)
-    typeOf Plus = TyBottom
-    typeOf Minus = TyBottom
-    typeOf Mult = TyBottom
-    typeOf Div = TyBottom
-    typeOf Negate = TyBottom
-    typeOf Error = TyBottom
-    typeOf Undefined = TyBottom
-
-    typeOf' m t = (typeOf t, m)
-
 -- | `Lit` instance of `Typed`.
 instance Typed Lit where
     typeOf (LitInt _) = TyLitInt
@@ -64,18 +58,16 @@ instance Typed Lit where
     typeOf (LitDouble _) = TyLitDouble
     typeOf (LitChar _)   = TyLitChar
     typeOf (LitString _) = TyLitString
-    typeOf (LitBool _) = TyBool
 
     typeOf' m t = (typeOf t, m)
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
     typeOf' m (DataCon _ ty _) = (ty, m)
-    typeOf' m (PrimCon I) = (TyFun TyLitInt TyInt, m)
-    typeOf' m (PrimCon D) = (TyFun TyLitDouble TyDouble, m)
-    typeOf' m (PrimCon F) = (TyFun TyLitFloat TyFloat, m)
-    typeOf' m (PrimCon C) = (TyFun TyLitChar TyChar, m)
-    typeOf' m (PrimCon B) = (TyBool, m)
+    typeOf' m (PrimCon I) = (TyLitInt, m)
+    typeOf' m (PrimCon D) = (TyLitDouble, m)
+    typeOf' m (PrimCon F) = (TyLitFloat, m)
+    typeOf' m (PrimCon C) = (TyLitChar, m)
 
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
@@ -135,9 +127,11 @@ instance Typed Type where
             (t1', m') = typeOf' m t1
             (t2', m'') = typeOf' m' t2
         in
-        case t1' of
-            TyConApp n _ -> (TyConApp n [t2'], m'')
-            _ -> (TyApp t1' t2', m'')
+        (mkTyApp t1' t2', m'')
+        -- case t1' of
+        --     TyConApp n _ -> (TyConApp n [t2'], m'')
+        --     TyFun _ t2'' -> (t2'', m'')
+        --     _ -> (TyApp t1' t2', m'')
     typeOf' m (TyConApp n ts) = (TyConApp n (map (fst . typeOf' m) ts), m)
     typeOf' m t = (t, m)
 
@@ -280,9 +274,20 @@ isPolyFunc' :: Type -> Bool
 isPolyFunc' (TyForAll _ _) = True
 isPolyFunc' _ = False
 
+-- | arguments
+-- Gives the types of the arguments of the functions 
+argumentTypes :: Typed t => t -> [Type]
+argumentTypes = argumentTypes' . typeOf
+
+argumentTypes' :: Type -> [Type]
+argumentTypes' (TyForAll (AnonTyBndr t1) t2) = t1:argumentTypes' t2
+argumentTypes' (TyForAll (NamedTyBndr i) t2) = TyVar i:argumentTypes' t2
+argumentTypes' (TyFun t1 t2) = t1:argumentTypes' t2
+argumentTypes' _ = []
+
 -- | returnType
 -- Gives the return type if the given function type is fully saturated
-returnType :: (Typed t) => t -> Type
+returnType :: Typed t => t -> Type
 returnType = returnType' . typeOf
 
 returnType' :: Type -> Type

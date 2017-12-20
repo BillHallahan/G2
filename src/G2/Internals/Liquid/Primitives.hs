@@ -1,6 +1,7 @@
 module G2.Internals.Liquid.Primitives where
 
 import G2.Internals.Language.Expr
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
@@ -17,8 +18,12 @@ mkLHPrim p t e1 e2 =
         $ Case e2 i2 [Alt Default 
             (mkApp [Prim p t, Var i1, Var i2])]]
 
-boolBoolBool :: Type
-boolBoolBool = TyFun TyBool $ TyFun TyBool TyBool
+boolBoolBool :: KV.KnownValues -> Type
+boolBoolBool kv =
+    let
+        tyB = tyBool kv
+    in
+    TyFun tyB $ TyFun tyB tyB
 
 mkLHGe :: Expr -> Expr -> Expr
 mkLHGe = mkLHPrim Ge TyBottom
@@ -38,14 +43,14 @@ mkLHLt = mkLHPrim Lt TyBottom
 mkLHLe :: Expr -> Expr -> Expr
 mkLHLe = mkLHPrim Le TyBottom
 
-mkLHAnd :: Expr -> Expr -> Expr
-mkLHAnd = mkLHPrim And boolBoolBool
+mkLHAnd :: KV.KnownValues -> Expr -> Expr -> Expr
+mkLHAnd kv = mkLHPrim And (boolBoolBool kv)
 
-mkLHOr :: Expr -> Expr -> Expr
-mkLHOr = mkLHPrim Or boolBoolBool
+mkLHOr :: KV.KnownValues -> Expr -> Expr -> Expr
+mkLHOr kv = mkLHPrim Or (boolBoolBool kv)
 
-mkLHImplies :: Expr -> Expr -> Expr
-mkLHImplies = mkLHPrim Implies boolBoolBool
+mkLHImplies :: KV.KnownValues -> Expr -> Expr -> Expr
+mkLHImplies kv = mkLHPrim Implies (boolBoolBool kv)
 
-mkLHIff :: Expr -> Expr -> Expr
-mkLHIff = mkLHPrim Iff boolBoolBool
+mkLHIff :: KV.KnownValues -> Expr -> Expr -> Expr
+mkLHIff kv = mkLHPrim Iff (boolBoolBool kv)

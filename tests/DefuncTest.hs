@@ -11,21 +11,18 @@ a = App (Data $ DataCon (Name "A" (Just "Defunc1") 0) (TyConApp (Name "A" (Just 
 dataB :: Expr
 dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0) (TyConApp (Name "A" (Just "Defunc1") 0) []) []
 
-b :: Expr -> Expr
-b = App (dataB)
-
 add1 :: Expr
-add1 = Var (Id (Name "add1" (Just "Defunc1") 0) TyInt) 
+add1 = Var (Id (Name "add1" (Just "Defunc1") 0) tyIntS) 
 
 multiply2 :: Expr
-multiply2 = Var (Id (Name "multiply2" (Just "Defunc1") 0) TyInt) 
+multiply2 = Var (Id (Name "multiply2" (Just "Defunc1") 0) tyIntS) 
 
 defunc1Add1 :: [Expr] -> Bool
-defunc1Add1 [x, y] = x `eqIgT` a (add1) &&  y `eqIgT` b (Lit $ LitInt 3)
+defunc1Add1 [x, (App b (App _ y))] = x `eqIgT` a (add1) && b `eqIgT` dataB &&  y `eqIgT` (Lit $ LitInt 3)
 defunc1Add1 _ = False
 
 defunc1Multiply2 :: [Expr] -> Bool
-defunc1Multiply2 [x, y] = x `eqIgT` a (multiply2) && y `eqIgT` b (Lit $ LitInt 4)
+defunc1Multiply2 [x, (App b (App _ y))] = x `eqIgT` a (multiply2) && b `eqIgT` dataB && y `eqIgT` (Lit $ LitInt 4)
 defunc1Multiply2 _ = False
 
 defuncB :: [Expr] -> Bool
@@ -35,13 +32,13 @@ defuncB _ = False
 -- Defunc2
 
 add1D2 :: Expr
-add1D2 = Var (Id (Name "add1" (Just "Defunc2") 0) TyInt)
+add1D2 = Var (Id (Name "add1" (Just "Defunc2") 0) tyIntS)
 
 sub1D2 :: Expr
-sub1D2 = Var (Id (Name "sub1" (Just "Defunc2") 0) TyInt)
+sub1D2 = Var (Id (Name "sub1" (Just "Defunc2") 0) tyIntS)
 
 squareD2 :: Expr
-squareD2 = Var (Id (Name "square" (Just "Defunc2") 0) TyInt) 
+squareD2 = Var (Id (Name "square" (Just "Defunc2") 0) tyIntS) 
 
 iListI :: Expr
 iListI = Data $ DataCon (Name "I" (Just "Defunc2") 0) (TyConApp (Name "IList" (Just "Defunc2") 0) []) []
@@ -79,3 +76,6 @@ defunc2Check'' (Var (Id (Name "add1" _ _) _)) i i' = add1Def i == i'
 defunc2Check'' (Var (Id (Name "sub1" _ _) _)) i i' = sub1Def i == i'
 defunc2Check'' (Var (Id (Name "square" _ _) _)) i i' = squareDef i == i'
 defunc2Check'' _ _ _ = False
+
+tyIntS :: Type
+tyIntS = TyConApp (Name "Int" Nothing 0) []

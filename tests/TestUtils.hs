@@ -29,7 +29,7 @@ dcHasName s (Data (DataCon (Name n _ _) _ _)) = s == n
 dcHasName _ _ = False
 
 isBool :: Expr -> Bool
-isBool (Lit (LitBool _)) = True
+isBool (Data (DataCon _ (TyConApp (Name "Bool" _ _) _) _)) = True
 isBool _ = False
 
 dcInAppHasName :: String -> Expr -> Int -> Bool
@@ -48,8 +48,12 @@ appNthArgIs a f i =
 
 isInt :: Expr -> (Int -> Bool) -> Bool
 isInt (Lit (LitInt x)) f = f x
-isInt (App (Data (PrimCon I)) (Lit (LitInt x))) f = f x
+isInt (App _ (Lit (LitInt x))) f = f x
 isInt _ _ = False
+
+isIntT :: Type -> Bool
+isIntT (TyConApp (Name "Int" _ _) _) = True
+isIntT _ = False
 
 isDouble :: Expr -> (Rational -> Bool) -> Bool
 isDouble (Lit (LitDouble x)) f = f x
@@ -71,11 +75,15 @@ notCast _ = True
 
 getInt :: Expr -> a -> (Int -> a) -> a
 getInt (Lit (LitInt x)) _ f = f x
-getInt (App (Data (PrimCon I)) (Lit (LitInt x))) _ f = f x
+getInt (App _ (Lit (LitInt x))) _ f = f x
 getInt _ x _ = x
 
 getIntB :: Expr -> (Int -> Bool) -> Bool
 getIntB e = getInt e False
+
+getBoolB :: Expr -> (Bool -> Bool) -> Bool
+getBoolB (Data (DataCon (Name n _ _) _ _)) f = f (n == "True")
+getBoolB _ _ = False
 
 isApp :: Expr -> Bool
 isApp (App _ _) = True

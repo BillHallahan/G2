@@ -5,6 +5,9 @@ abs2 x
     | x >= 0 = x 
     | otherwise = -x
 
+abs3 :: Double -> Double
+abs3 = abs
+
 square :: Double -> Double
 square x = x * x
 

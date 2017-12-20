@@ -206,7 +206,7 @@ reduce con hpp s = do
 
 resultsToState :: SMTConverter ast out io -> io -> Rule -> State -> [ReduceResult] -> IO [State]
 resultsToState _ _ _ _ [] = return []
-resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
+resultsToState con hpp rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, _, _):xs)
     | not (null pc) = do
             --Optimization
             -- We replace the path_conds with only those that are directly
@@ -215,7 +215,7 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
             -- change an Unknown into a SAT or UNSAT
             -- Switching which of the following two lines is commented turns this on/off
             -- let s'' = s'
-            let s'' = s' {path_conds = PC.relevant pc (path_conds s')}
+            let s'' = s' {path_conds = PC.relevant (known_values s) pc (path_conds s')}
 
             res <- checkConstraints con hpp s''
 
@@ -224,11 +224,11 @@ resultsToState con hpp rule s (red@(_, _, pc, asserts, _, _):xs)
             else
                 resultsToState con hpp rule s xs
     | not (null asserts) && not (true_assert s) = do
-        let assertS = s' { path_conds = foldr (PC.insert) (path_conds s') asserts, true_assert = True }
-        let assertSRel = assertS {path_conds = PC.relevant asserts (path_conds assertS)}
+        let assertS = s' { path_conds = foldr (PC.insert kv) (path_conds s') asserts, true_assert = True }
+        let assertSRel = assertS {path_conds = PC.relevant kv asserts (path_conds assertS)}
         
-        let negAssertS = s' {path_conds = foldr (PC.insert) (path_conds s') (map PC.negatePC asserts)}
-        let negAssertSRel = negAssertS {path_conds = PC.relevant asserts (path_conds negAssertS)}
+        let negAssertS = s' {path_conds = foldr (PC.insert kv) (path_conds s') (map PC.negatePC asserts)}
+        let negAssertSRel = negAssertS {path_conds = PC.relevant kv asserts (path_conds negAssertS)}
 
         let potentialS = [(assertS, assertSRel), (negAssertS, negAssertSRel)]
 
@@ -252,7 +252,7 @@ resultToState s (eenv, cexpr, pc, _, ng, st) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
-      , path_conds = foldr (PC.insert) (path_conds s) $ pc
+      , path_conds = foldr (PC.insert (known_values s)) (path_conds s) $ pc
       , name_gen = ng
       , exec_stack = st }
 
@@ -428,7 +428,7 @@ reduceCase :: E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, [EvaluateRes
 reduceCase eenv mexpr bind alts ngen
   -- | Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
-  | (Lit lit) <- mexpr
+  | (Lit lit) <- unsafeElimCast mexpr
   , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
       let binds = [(bind, Lit lit)]
           (eenv', expr', ngen') = liftBinds binds eenv expr ngen
@@ -443,7 +443,7 @@ reduceCase eenv mexpr bind alts ngen
   -- If so, then we bind all the parameters to the appropriate arguments and
   -- proceed with the evaluation of the `Alt`'s expression. We also make sure
   -- to perform the cvar binding.
-  | (Data dcon):ar <- unApp mexpr
+  | (Data dcon):ar <- unApp $ unsafeElimCast mexpr
   , ar' <- filter (\e -> case e of { Type _ -> False; _ -> True }) ar
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
@@ -460,7 +460,7 @@ reduceCase eenv mexpr bind alts ngen
   -- We hit a DEFAULT instead.
   -- We perform the cvar binding and proceed with the alt
   -- expression.
-  | (Data _):_ <- unApp mexpr
+  | (Data _):_ <- unApp $ unsafeElimCast mexpr
   , (Alt _ expr):_ <- defaultAlts alts =
       let binds = [(bind, mexpr)]
           (eenv', expr', ngen') = liftBinds binds eenv expr ngen
@@ -575,11 +575,19 @@ reduceEReturn eenv c@(Var v) ngen (ApplyFrame aexpr) =
     then (RuleError, (eenv, CurrExpr Return c, ngen))
     else let (sname, ngen') = freshSeededName (idName v) ngen
              sym_app = App (Var v) aexpr
-             svar = Id sname (TyApp (typeOf v) (typeOf aexpr))
+             svar = Id sname (mkTyApp (typeOf v) (typeOf aexpr))
          in ( RuleReturnEApplySym
             , ( E.insert sname sym_app eenv
               , CurrExpr Return (Var svar)
               , ngen'))
+reduceEReturn eenv c ngen (ApplyFrame aexpr) =
+  case unApp c of
+      p@(Prim _ _):_ ->  
+          ( RuleReturnEApplySym
+          , ( eenv
+            , CurrExpr Evaluate (App c aexpr)
+            , ngen))
+      _ -> (RuleError, (eenv, CurrExpr Return c, ngen))
 
 reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
 

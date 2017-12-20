@@ -12,37 +12,37 @@ import Data.Maybe
 -- arguments) we generate functions to check conjmstructor wise equality-
 -- the results of these functions, and the functions obtained from a
 -- deriving Eq should be equivalent
-createEqPreds :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
-createEqPreds eenv tenv ng =
+createEqPreds :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> (ExprEnv, NameGen, Walkers)
+createEqPreds eenv tenv ng kv =
     let
         tenv' = M.filter (all (not . hasFuncType) . concatMap dataConArgs . dataCon) tenv
 
-        (walkers, ng') = createEqWalkers (M.toList tenv') ng
+        (walkers, ng') = createEqWalkers kv (M.toList tenv') ng
     in
-    createEqPreds' eenv (M.toList tenv') ng' walkers
+    createEqPreds' eenv tenv (M.toList tenv') ng' kv walkers
 
-createEqPreds' :: ExprEnv -> [(Name, AlgDataTy)] -> NameGen -> Walkers -> (ExprEnv, NameGen, Walkers)
-createEqPreds' eenv [] ng  w = (eenv, ng, w)
-createEqPreds' eenv ((n, DataTyCon ns dc):xs) ng w =
+createEqPreds' :: ExprEnv -> TypeEnv -> [(Name, AlgDataTy)] -> NameGen -> KnownValues -> Walkers -> (ExprEnv, NameGen, Walkers)
+createEqPreds' eenv _ [] ng _ w = (eenv, ng, w)
+createEqPreds' eenv tenv ((n, DataTyCon ns dc):xs) ng kv w =
     let
-        (e, ng') = createEqPred eenv (TyConApp n []) ns dc ng w
+        (e, ng') = createEqPred eenv tenv (TyConApp n []) ns dc ng kv w
     
         en = M.lookup n w
 
         eenv' = fmap (\(Id en' _) -> E.insert en' e eenv) en
     in
-    createEqPreds' (maybe eenv id eenv') xs ng' w
+    createEqPreds' (maybe eenv id eenv') tenv xs ng' kv w
 
 -- | createEqPred
 -- Creates a single equality checker.
-createEqPred :: ExprEnv -> Type -> [Name] -> [DataCon] -> NameGen -> Walkers -> (Expr, NameGen)
-createEqPred eenv t ns dc ng w =
+createEqPred :: ExprEnv -> TypeEnv -> Type -> [Name] -> [DataCon] -> NameGen -> KnownValues -> Walkers -> (Expr, NameGen)
+createEqPred eenv tenv t ns dc ng kv w =
     let
         (fe, i1, i2, ng') = createEqPredLams t ng
 
         (ib, ng'') = freshId t ng'
 
-        (alts, ng''') = mapNG (createEqPredAlts eenv i1 i2 w) dc ng''
+        (alts, ng''') = mapNG (createEqPredAlts eenv tenv kv i1 i2 w) dc ng''
 
         e = Case (Var i1) ib alts
     in
@@ -56,8 +56,8 @@ createEqPredLams t ng =
     in
     (Lam i1 . Lam i2, i1, i1, ng'')
 
-createEqPredAlts :: ExprEnv -> Id -> Id -> Walkers -> DataCon -> NameGen -> (Alt, NameGen)
-createEqPredAlts eenv i1 i2 w dc@(DataCon _ _ ts) ng =
+createEqPredAlts :: ExprEnv -> TypeEnv -> KnownValues -> Id -> Id -> Walkers -> DataCon -> NameGen -> (Alt, NameGen)
+createEqPredAlts eenv tenv kv i1 i2 w dc@(DataCon _ _ ts) ng =
     let
         (is, ng') = freshIds ts ng
 
@@ -65,11 +65,11 @@ createEqPredAlts eenv i1 i2 w dc@(DataCon _ _ ts) ng =
 
         (i2b, ng''') = freshId (typeOf i2) ng''
 
-        e' = foldr (\e e'-> mkApp [mkAnd eenv, e, e']) mkTrue $ map (uncurry (createEqPredBranching eenv w)) $ zip is is'
+        e' = foldr (\e e'-> mkApp [mkAnd eenv, e, e']) (mkTrue kv tenv) $ map (uncurry (createEqPredBranching eenv w)) $ zip is is'
 
         e = Case (Var i2) i2b 
             [ Alt (DataAlt dc is') e'
-            , Alt Default (Lit (LitBool False))]
+            , Alt Default $ mkFalse kv tenv]
     in
     (Alt (DataAlt dc is) e, ng''')
 
@@ -85,21 +85,21 @@ createEqPredBranching eenv w i1 i2 =
 -- | createEqWalkers
 -- Creates the names map of all equality checkers.  They might need to be
 -- mutually recursive, so it is important to know all the names in advance.
-createEqWalkers :: [(Name, AlgDataTy)] -> NameGen -> (Walkers, NameGen)
-createEqWalkers nadts ng = createEqWalkers' nadts ng M.empty
+createEqWalkers :: KnownValues -> [(Name, AlgDataTy)] -> NameGen -> (Walkers, NameGen)
+createEqWalkers kv nadts ng = createEqWalkers' kv nadts ng M.empty
 
-createEqWalkers' :: [(Name, AlgDataTy)] -> NameGen -> Walkers -> (Walkers, NameGen)
-createEqWalkers' [] ng w = (w, ng)
-createEqWalkers' ((n, DataTyCon ns _):xs) ng w =
+createEqWalkers' :: KnownValues -> [(Name, AlgDataTy)] -> NameGen -> Walkers -> (Walkers, NameGen)
+createEqWalkers' _ [] ng w = (w, ng)
+createEqWalkers' kv ((n, DataTyCon ns _):xs) ng w =
     let
-        (i, ng') = eqWalkerId n ns ng
+        (i, ng') = eqWalkerId kv n ns ng
     in
-    createEqWalkers' xs ng' (M.insert n i w)
+    createEqWalkers' kv xs ng' (M.insert n i w)
 
-eqWalkerId :: Name -> [Name] -> NameGen -> (Id, NameGen)
-eqWalkerId n ns ng =
+eqWalkerId :: KnownValues -> Name -> [Name] -> NameGen -> (Id, NameGen)
+eqWalkerId kv n ns ng =
     let
         (n', ng') = freshSeededName n ng
-        t = TyFun (TyConApp n []) $ TyFun (TyConApp n []) TyBool
+        t = TyFun (TyConApp n []) $ TyFun (TyConApp n []) (tyBool kv)
     in
     (Id n' t, ng')

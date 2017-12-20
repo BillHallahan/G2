@@ -43,7 +43,6 @@ data AlgDataTy = DataTyCon { bound_names :: [Name]
                           , data_con :: DataCon
                           , rep_type :: Type } deriving (Show, Eq, Read)
 
-
 -- Returns a list of all argument function types in the type env
 argTypesTEnv :: TypeEnv -> [Type]
 argTypesTEnv = concatMap (evalASTs argTypesTEnv') . M.elems
@@ -160,7 +159,6 @@ retypeAlgDataTy ts adt =
         ns = map (flip Id TYPE) $ bound_names adt
     in
     foldr (uncurry retype) adt $ zip ns ts
-
 
 instance ASTContainer AlgDataTy Expr where
     containedASTs _ = []

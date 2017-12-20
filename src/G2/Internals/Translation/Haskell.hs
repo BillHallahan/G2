@@ -218,12 +218,7 @@ filterPrimCon (G2.DataCon name ty tys) = dcon
   where
     G2.Name occ mb_mdl _ = name
     ghc_tys = "GHC.Types"
-    dcon = case (mb_mdl == Just ghc_tys, occ) of
-               (True, "I#") -> G2.PrimCon G2.I
-               (True, "D#") -> G2.PrimCon G2.D
-               (True, "F#") -> G2.PrimCon G2.F
-               (True, "C#") -> G2.PrimCon G2.C
-               _ -> G2.DataCon name ty tys
+    dcon = G2.DataCon name ty tys
 
 mkDataName :: DataCon -> G2.Name
 mkDataName datacon = (mkName . dataConName) datacon

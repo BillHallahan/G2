@@ -4,6 +4,7 @@ module G2.Internals.Liquid.Conversion where
 
 import G2.Internals.Translation
 import G2.Internals.Language as Lang
+import G2.Internals.Language.KnownValues
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Liquid.Primitives
 
@@ -65,13 +66,16 @@ mergeLHSpecState' ((v,lst):xs) meenv s =
         _ -> mergeLHSpecState' xs meenv s
 
 addSpecType :: Name -> Expr -> SpecType -> ExprEnv -> State -> State
-addSpecType n e st meenv (s@State {expr_env = eenv, name_gen = ng}) =
+addSpecType n e st meenv (s@State { expr_env = eenv
+                                  , type_env = tenv
+                                  , name_gen = ng
+                                  , known_values = kv}) =
     let
         (b, ng') = freshId (returnType e) ng
 
         (b', ng'') = freshId (returnType e) ng'
 
-        st' = convertSpecType meenv st b'
+        st' = convertSpecType kv meenv tenv st b'
         newE = 
             insertInLams 
                 (\is e' -> 
@@ -85,11 +89,11 @@ addSpecType n e st meenv (s@State {expr_env = eenv, name_gen = ng}) =
 -- We create an Expr from a SpecType in two phases.  First, we create outer
 -- lambda expressions, then we create a conjunction of boolean expressions
 -- describing allowed  values of the bound variables
-convertSpecType :: ExprEnv -> SpecType -> Lang.Id -> Expr
-convertSpecType eenv st ret =
+convertSpecType :: KnownValues -> ExprEnv -> TypeEnv -> SpecType -> Lang.Id -> Expr
+convertSpecType kv eenv tenv st ret =
     let
         lams = specTypeLams st . Lam ret
-        apps = specTypeApps st eenv M.empty ret
+        apps = specTypeApps st kv eenv tenv M.empty ret
     in
     primInject $ lams apps
 
@@ -118,8 +122,8 @@ specTypeLams rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
     id
 specTypeLams r = error (show $ PPR.rtypeDoc Full r)
 
-specTypeApps :: SpecType -> ExprEnv -> M.Map Symbol Type -> Lang.Id -> Expr
-specTypeApps (RVar {rt_var = (RTV var), rt_reft = r}) eenv m b =
+specTypeApps :: SpecType -> KnownValues -> ExprEnv -> TypeEnv -> M.Map Symbol Type -> Lang.Id -> Expr
+specTypeApps (RVar {rt_var = (RTV var), rt_reft = r}) kv eenv tenv m b =
     let
         symb = reftSymbol $ ur_reft r
 
@@ -129,10 +133,10 @@ specTypeApps (RVar {rt_var = (RTV var), rt_reft = r}) eenv m b =
 
         m' = M.insert symb (TyVar i) m 
 
-        re = convertLHExpr (reftExpr $ ur_reft r) eenv m'
+        re = convertLHExpr (reftExpr $ ur_reft r) kv eenv tenv m'
     in
     App (Lam symbId re) (Var b)
-specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) eenv m b =
+specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) kv eenv tenv m b =
     -- TODO : rt_reft
     let
         t = specTypeToType fin
@@ -141,16 +145,16 @@ specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) eenv
         m' = M.insert rb t m
     in
     mkApp [ mkImplies eenv
-          , specTypeApps fin eenv m' i
-          , specTypeApps fout eenv m' b]
-specTypeApps (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) eenv m b =
+          , specTypeApps fin kv eenv tenv m' i
+          , specTypeApps fout kv eenv tenv m' b]
+specTypeApps (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) kv eenv tenv m b =
     let
     	s = rtvInfoSymbol tv
 
         i = mkId v
     in
-    specTypeApps rty eenv m b
-specTypeApps (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) eenv m b =
+    specTypeApps rty kv eenv tenv m b
+specTypeApps (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) kv eenv tenv m b =
     let
         symb = reftSymbol $ ur_reft r
         typ = rTyConType c args
@@ -158,7 +162,7 @@ specTypeApps (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) eenv m b =
 
         m' = M.insert symb typ m
 
-        re = convertLHExpr (reftExpr $ ur_reft r) eenv m'
+        re = convertLHExpr (reftExpr $ ur_reft r) kv eenv tenv m'
     in
     App (Lam i re) (Var b)
 
@@ -196,36 +200,36 @@ rTyConType rtc sts = TyConApp (mkTyConName . rtc_tc $ rtc) $ map specTypeToType 
 rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
 
-convertLHExpr :: Ref.Expr -> ExprEnv -> M.Map Symbol Type -> Expr
-convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
-convertLHExpr (ECon c) _ _ = convertCon c
-convertLHExpr (EVar s) eenv m = Var $ convertSymbol s eenv m
-convertLHExpr (EApp e e') eenv m =
-	case (convertLHExpr e' eenv m) of
-		v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ (convertLHExpr e eenv m):(map Type ts) ++ [v]
-		e'' -> App (convertLHExpr e eenv m) e''
-convertLHExpr (ENeg e) eenv m =
+convertLHExpr :: Ref.Expr -> KnownValues -> ExprEnv -> TypeEnv -> M.Map Symbol Type -> Expr
+convertLHExpr (ESym (SL t)) _ _ _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
+convertLHExpr (ECon c) _ _ _ _ = convertCon c
+convertLHExpr (EVar s) _ eenv _ m = Var $ convertSymbol s eenv m
+convertLHExpr (EApp e e') kv eenv tenv m =
+	case (convertLHExpr e' kv eenv tenv m) of
+		v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ (convertLHExpr e kv eenv tenv m):(map Type ts) ++ [v]
+		e'' -> App (convertLHExpr e kv eenv tenv m) e''
+convertLHExpr (ENeg e) kv eenv tenv m =
     mkApp $ mkPrim Negate eenv
           : Var (Id (Name "TYPE" Nothing 0) TYPE)
           : Var (Id (Name "$fordInt" Nothing 0) TyBottom)
-          : [convertLHExpr e eenv m]
-convertLHExpr (EBin b e e') eenv m =
-    mkApp [convertBop b, convertLHExpr e eenv m, convertLHExpr e' eenv m]
-convertLHExpr (PAnd es) eenv m = 
-    case map (\e -> convertLHExpr e eenv m) es of
-        [] -> Lit $ LitBool True
+          : [convertLHExpr e kv eenv tenv m]
+convertLHExpr (EBin b e e') kv eenv tenv m =
+    mkApp [convertBop b, convertLHExpr e kv eenv tenv m, convertLHExpr e' kv eenv tenv m]
+convertLHExpr (PAnd es) kv eenv tenv m = 
+    case map (\e -> convertLHExpr e kv eenv tenv m) es of
+        [] -> mkTrue kv tenv
         [e] -> e
         es' -> foldr1 (\e -> App (App (mkAnd eenv) e)) es'
-convertLHExpr (POr es) eenv m = 
-    case map (\e -> convertLHExpr e eenv m) es of
-        [] -> Lit $ LitBool False
+convertLHExpr (POr es) kv eenv tenv m = 
+    case map (\e -> convertLHExpr e kv eenv tenv m) es of
+        [] -> mkFalse kv tenv
         [e] -> e
         es' -> foldr1 (\e -> App (App (mkOr eenv) e)) es'
-convertLHExpr (PIff e e') eenv m =
-    mkApp [mkIff eenv, convertLHExpr e eenv m, convertLHExpr e' eenv m]
-convertLHExpr (PAtom brel e e') eenv m =
-	convertBrel brel (convertLHExpr e eenv m) (convertLHExpr e' eenv m)
-convertLHExpr e _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
+convertLHExpr (PIff e e') kv eenv tenv m =
+    mkApp [mkIff eenv, convertLHExpr e kv eenv tenv m, convertLHExpr e' kv eenv tenv m]
+convertLHExpr (PAtom brel e e') kv eenv tenv m =
+	convertBrel brel (convertLHExpr e kv eenv tenv m) (convertLHExpr e' kv eenv tenv m)
+convertLHExpr e _ _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
 convertSymbol :: Symbol -> ExprEnv -> M.Map Symbol Type -> Lang.Id
 convertSymbol s eenv m =

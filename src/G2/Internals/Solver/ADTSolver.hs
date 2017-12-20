@@ -7,15 +7,18 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.PathConds
 import G2.Internals.Language.Typing
 
+import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
+
+import Debug.Trace
 
 -- | checkConsistency
 -- Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
 -- and Nothing if it can't decide.
-checkConsistency :: TypeEnv -> PathConds -> Maybe Bool
-checkConsistency tenv pc = maybe Nothing (Just . not . Pre.null) $ findConsistent tenv pc
+checkConsistency :: KnownValues -> TypeEnv -> PathConds -> Maybe Bool
+checkConsistency kv tenv pc = maybe Nothing (Just . not . Pre.null) $ findConsistent kv tenv pc
 
 -- | findConsistent
 -- Attempts to find expressions (Data d) or (Coercion (Data d), (t1 :~ t2)) consistent with the given path
@@ -24,18 +27,24 @@ checkConsistency tenv pc = maybe Nothing (Just . not . Pre.null) $ findConsisten
 -- determined if there were any consistent data constructors.
 -- In practice, the result should always be Just [...] if all the path conds
 -- are about ADTs.
-findConsistent :: TypeEnv -> PathConds -> Maybe [Expr]
-findConsistent tenv pc =
+findConsistent :: KnownValues -> TypeEnv -> PathConds -> Maybe [Expr]
+findConsistent kv tenv pc =
     let
         pc' = unsafeElimCast $ toList pc
 
         -- Adding Coercions
-        pcNT = pcInCastType . head $ toList pc
+        pcNT = fmap pcInCastType . head' $ toList pc
         cons = findConsistent' tenv pc'
 
-        cons' = fmap (simplifyCasts . map (castReturnType pcNT)) cons 
+        cons' = fmap (simplifyCasts . map (castReturnType $ fromJust pcNT)) cons 
     in
-    if any isExtCond pc' then Nothing else cons'
+    -- We can't use the ADT solver when we have a Boolean, because the RHS of the
+    -- DataAlt might be a primitive.
+    if any isExtCond pc' || pcNT == Just (tyBool kv) then Nothing else cons'
+
+head' :: [a] -> Maybe a
+head' (x:_) = Just x
+head' _ = Nothing
 
 findConsistent' :: TypeEnv -> [PathCond] -> Maybe [Expr]
 findConsistent' tenv pc =

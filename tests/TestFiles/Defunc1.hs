@@ -7,6 +7,9 @@ f :: A -> A
 f (A g) = B (g 2)
 f x = x
 
+h :: (Int -> Int) -> Int
+h fg = fg 0
+
 add1 :: Int -> Int
 add1 x = x + 1
 

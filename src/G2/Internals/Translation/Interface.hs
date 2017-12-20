@@ -5,15 +5,21 @@ import Data.List
 import G2.Internals.Language
 import G2.Internals.Translation.Cabal
 import G2.Internals.Translation.Haskell
+import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
 
 translationPrimDefs :: FilePath -> FilePath -> FilePath -> Bool
                     -> IO (Program, [ProgramType])
 translationPrimDefs proj src primsF simpl = do
     (data_prog, prog_tys) <- hskToG2 proj src simpl
-    prims <- mkPrims primsF
-    let prim_prog = mergeProgs data_prog prims
-    return . primInject $ dataInject prim_prog prog_tys
+    -- prims <- mkPrims primsF
+    (prims_prog, prims_tys) <- hskToG2 "" primsF simpl
+    let merged_prog = mergeProgs data_prog prims_prog
+    let (merged_prog', merged_prog_tys) = mergeProgTys merged_prog merged_prog prog_tys prims_tys
+
+    let prog_tys' = injectSpecials merged_prog_tys merged_prog'
+
+    return . primInject $ dataInject merged_prog' prog_tys'
 
 translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType])
 translation = hskToG2

@@ -95,7 +95,6 @@ data Lit = LitInt Int
          | LitDouble Rational
          | LitChar Char
          | LitString String
-         | LitBool Bool
          deriving (Show, Eq, Read, Generic)
 
 instance Hashable Lit
@@ -162,7 +161,7 @@ instance Hashable Coercion
 -- * For all types
 -- * BOTTOM
 data Type = TyVar Id
-          | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
+          -- | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
           | TYPE
           | TyFun Type Type

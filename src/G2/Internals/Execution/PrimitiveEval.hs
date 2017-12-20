@@ -4,23 +4,24 @@ module G2.Internals.Execution.PrimitiveEval (evalPrims) where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Expr
+import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
 
-evalPrims :: Expr -> Expr
-evalPrims = evalPrims' . simplifyCasts
+evalPrims :: KnownValues -> TypeEnv -> Expr -> Expr
+evalPrims kv tenv = evalPrims' kv tenv . simplifyCasts
 
-evalPrims' :: Expr -> Expr
-evalPrims' a@(App x y) =
+evalPrims' :: KnownValues -> TypeEnv -> Expr -> Expr
+evalPrims' kv tenv a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l] -> evalPrim [p, evalPrims' l]
-        [p@(Prim _ _), l1, l2] -> evalPrim [p, evalPrims' l1, evalPrims' l2]
-        [p@(Prim _ _), _, _, l3] -> evalPrim [p, evalPrims' l3]
-        [p@(Prim _ _), _, _, l1, l2] -> evalPrim [p, evalPrims' l1, evalPrims' l2]
-        _ -> App (evalPrims' x) (evalPrims' y)
-evalPrims' e = modifyChildren evalPrims' e
+        [p@(Prim _ _), l] -> evalPrim kv tenv [p, evalPrims' kv tenv l]
+        [p@(Prim _ _), l1, l2] -> evalPrim kv tenv [p, evalPrims' kv tenv l1, evalPrims' kv tenv l2]
+        [p@(Prim _ _), _, _, l3] -> evalPrim kv tenv [p, evalPrims' kv tenv l3]
+        [p@(Prim _ _), _, _, l1, l2] -> evalPrim kv tenv [p, evalPrims' kv tenv l1, evalPrims' kv tenv l2]
+        _ -> App (evalPrims' kv tenv x) (evalPrims' kv tenv y)
+evalPrims' kv tenv e = modifyChildren (evalPrims' kv tenv) e
 
-evalPrim :: [Expr] -> Expr
-evalPrim xs
+evalPrim :: KnownValues -> TypeEnv -> [Expr] -> Expr
+evalPrim kv tenv xs
     | [Prim p _, x] <- xs
     , Lit x' <- getLit x =
         evalPrim1 p x'
@@ -28,12 +29,12 @@ evalPrim xs
     | [Prim p _, x, y] <- xs
     , Lit x' <- getLit x
     , Lit y' <- getLit y =
-        evalPrim2 p x' y'
+        evalPrim2 kv tenv p x' y'
 
     | [Prim p _, _, _, x, y] <- xs
     , Lit x' <- getLit x
     , Lit y' <- getLit y =
-        evalPrim2 p x' y'
+        evalPrim2 kv tenv p x' y'
 
     | otherwise = mkApp xs
 -- evalPrim [Prim p _, Lit x] = evalPrim1 p x
@@ -47,25 +48,22 @@ getLit (App _ l@(Lit _)) = l
 getLit x = x
 
 evalPrim1 :: Primitive -> Lit -> Expr
-evalPrim1 Not (LitBool b) = Lit $ LitBool (not b)
 evalPrim1 Negate (LitInt x) = Lit $ LitInt (-x)
 evalPrim1 Negate (LitFloat x) = Lit $ LitFloat (-x)
 evalPrim1 Negate (LitDouble x) = Lit $ LitDouble (-x)
-evalPrim1 _ _ = error "Primitive given wrong number of arguments"
+evalPrim1 p _ = error $ "Primitive given wrong number of arguments " ++ show p
 
-evalPrim2 :: Primitive -> Lit -> Lit -> Expr
-evalPrim2 Ge x y = evalPrim2NumBool (>=) x y
-evalPrim2 Gt x y = evalPrim2NumBool (>) x y
-evalPrim2 Eq x y = evalPrim2NumBool (==) x y
-evalPrim2 Lt x y = evalPrim2NumBool (<) x y
-evalPrim2 Le x y = evalPrim2NumBool (<) x y
-evalPrim2 And x y = evalPrim2Bool (&&) x y
-evalPrim2 Or x y = evalPrim2Bool (||) x y
-evalPrim2 Plus x y = evalPrim2Num (+) x y
-evalPrim2 Minus x y = evalPrim2Num (-) x y
-evalPrim2 Mult x y = evalPrim2Num (*) x y
-evalPrim2 Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
-evalPrim2 _ _ _ = error "Primitive given wrong number of arguments"
+evalPrim2 :: KnownValues -> TypeEnv -> Primitive -> Lit -> Lit -> Expr
+evalPrim2 kv tenv Ge x y = evalPrim2NumBool (>=) kv tenv x y
+evalPrim2 kv tenv Gt x y = evalPrim2NumBool (>) kv tenv x y
+evalPrim2 kv tenv Eq x y = evalPrim2NumBool (==) kv tenv x y
+evalPrim2 kv tenv Lt x y = evalPrim2NumBool (<) kv tenv x y
+evalPrim2 kv tenv Le x y = evalPrim2NumBool (<) kv tenv x y
+evalPrim2 _ _ Plus x y = evalPrim2Num (+) x y
+evalPrim2 _ _ Minus x y = evalPrim2Num (-) x y
+evalPrim2 _ _ Mult x y = evalPrim2Num (*) x y
+evalPrim2 _ _ Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
+evalPrim2 _ _ p _ _ = error $ "Primitive given wrong number of arguments " ++ show p
 
 isZero :: Lit -> Bool
 isZero (LitInt 0) = True
@@ -73,16 +71,11 @@ isZero (LitFloat 0) = True
 isZero (LitDouble 0) = True
 isZero _ = False
 
-evalPrim2NumBool :: (forall a . Ord a => a -> a -> Bool) -> Lit -> Lit -> Expr
-evalPrim2NumBool f (LitInt x) (LitInt y) = Lit . LitBool $ f x y
-evalPrim2NumBool f (LitFloat x) (LitFloat y) = Lit . LitBool $ f x y
-evalPrim2NumBool f (LitDouble x) (LitDouble y) = Lit . LitBool $ f x y
-evalPrim2NumBool _ _ _ = error "Primitive given wrong type of arguments"
-
-evalPrim2Bool :: (Bool -> Bool -> Bool) -> Lit -> Lit -> Expr
-evalPrim2Bool f (LitBool x) (LitBool y) = Lit . LitBool $ f x y
-evalPrim2Bool _ _ _ = error "Primitive given wrong type of arguments"
-
+evalPrim2NumBool :: (forall a . Ord a => a -> a -> Bool) -> KnownValues -> TypeEnv -> Lit -> Lit -> Expr
+evalPrim2NumBool f kv tenv (LitInt x) (LitInt y) = mkBool kv tenv $ f x y
+evalPrim2NumBool f kv tenv (LitFloat x) (LitFloat y) = mkBool kv tenv $ f x y
+evalPrim2NumBool f kv tenv (LitDouble x) (LitDouble y) = mkBool kv tenv $ f x y
+evalPrim2NumBool _ _ _ _ _ = error "Primitive given wrong type of arguments"
 
 evalPrim2Num  :: (forall a . Num a => a -> a -> a) -> Lit -> Lit -> Expr
 evalPrim2Num f (LitInt x) (LitInt y) = Lit . LitInt $ f x y

@@ -1,6 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.Language.Casts where
+module G2.Internals.Language.Casts ( unsafeElimCast
+                                   , splitCast
+                                   , simplifyCasts
+                                   , liftCasts
+                                   , exprInCasts
+                                   , typeInCasts
+                                   )where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
@@ -49,7 +55,6 @@ splitCast ng e = (e, ng)
 simplifyCasts :: ASTContainer m Expr => m -> m
 simplifyCasts = modifyASTsFix simplifyCasts'
 
-
 simplifyCasts' :: Expr -> Expr
 simplifyCasts' e
     | (Cast (Cast e' (t1 :~ _)) (_ :~ t2)) <- e
@@ -59,6 +64,26 @@ simplifyCasts' e
     , t2 .:: t1
         = e'
     | otherwise = e
+
+-- | liftCasts
+-- Changes casts on functions to casts on non-functional values
+-- (As much as possible)
+liftCasts :: ASTContainer m Expr => m -> m 
+liftCasts = modifyASTsFix liftCasts'
+
+liftCasts' :: Expr -> Expr
+liftCasts' a@(App _ _) = liftCasts'' a
+liftCasts' e = e
+
+liftCasts'' :: Expr -> Expr
+liftCasts'' (App (Cast f ((TyFun t1 t2) :~ (TyFun t1' t2'))) e) = 
+    Cast (App f e) (t2 :~ t2')
+liftCasts'' a@(App e e') =
+    let
+        lifted = App (liftCasts'' e) (liftCasts'' e')
+    in
+    if a == lifted then a else liftCasts'' lifted
+liftCasts'' e =e
 
 exprInCasts :: Expr -> Expr
 exprInCasts (Cast e _) = exprInCasts e
