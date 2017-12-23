@@ -64,11 +64,11 @@ appLeft _ x = x
 appLeftFloat :: (Int -> Int) -> EInt Float -> EInt Float
 appLeftFloat f x = appLeft f x
 
--- add1 :: Int -> Int
--- add1 x = x + 1
+add1 :: Int -> Int
+add1 x = x + 1
 
--- sub1 :: Int -> Int
--- sub1 x = x - 1
+sub1 :: Int -> Int
+sub1 x = x - 1
 
 data T a b c = TL a | TC b | TR c
 newtype TFloat a b = TFloat (T a Float b)

@@ -78,7 +78,7 @@ sampleTests =
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNth.hs" 600 Nothing Nothing "getNth" 3 [AtLeast 10, RForAll getNthTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthInt" 3 [AtLeast 10, RForAll getNthErrTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthX" 3 [AtLeast 10, RForAll getNthErrGenTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest] -- 533
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
 

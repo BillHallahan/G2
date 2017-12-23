@@ -5,7 +5,11 @@ module G2.Internals.Language.ArbValueGen ( ArbValueGen
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeEnv
 
+import Data.Coerce
+import Data.List
 import qualified Data.Map as M
+import Data.Maybe
+import Data.Monoid
 
 import Debug.Trace
 
@@ -27,39 +31,111 @@ arbValueInit = ArbValueGen { intGen = 0
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue (TyConApp n ts) tenv av = getADTBase n ts tenv av
+arbValue (TyConApp n ts) tenv av =
+    maybe (Prim Undefined TyBottom, av) 
+          (\adt -> getADT tenv adt av)
+          (M.lookup n tenv)
 arbValue TyLitInt _ av =
     let
         i = intGen av
     in
-    (Lit (LitInt $ i), av { intGen = i + 1})
+    (Lit (LitInt $ i), av { intGen = i + 1 })
 arbValue TyLitFloat _ av =
     let
         f = floatGen av
     in
-    (Lit (LitFloat $ f), av { floatGen = f + 1})
+    (Lit (LitFloat $ f), av { floatGen = f + 1 })
 arbValue TyLitDouble _ av =
     let
         d = doubleGen av
     in
-    (Lit (LitDouble $ d), av { doubleGen = d + 1})
+    (Lit (LitDouble $ d), av { doubleGen = d + 1 })
 arbValue t _ _ = error $ "Bad type in arbValue: " ++ show t
 
-getADTBase :: Name -> [Type] -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-getADTBase n ts tenv av =
+-- | numArgs
+numArgs :: DataCon -> Int
+numArgs = length . dataConArgs
+
+minArgLen :: [DataCon] -> DataCon
+minArgLen = minimumBy (\dc dc' -> numArgs dc `compare` numArgs dc')
+
+sortArgLen :: [DataCon] -> [DataCon]
+sortArgLen = sortBy (\dc dc' -> numArgs dc `compare` numArgs dc')
+
+minArgLenADT :: AlgDataTy -> DataCon
+minArgLenADT = minArgLen . dataCon
+
+sortArgLenADT :: AlgDataTy -> [DataCon]
+sortArgLenADT = sortArgLen . dataCon
+
+-- | numRecArgs
+-- Just the minimum number of constructors that must exist below the current DataCon
+-- or Nothing if there is no such number (the number of constructors must be infinite)
+numRecArgsADT :: TypeEnv -> AlgDataTy -> Maybe Int
+numRecArgsADT = coerce . numRecArgsADT' []
+
+numRecArgsADT' :: [Name] -> TypeEnv -> AlgDataTy -> Maybe (Sum Int)
+numRecArgsADT' ns tenv adt 
+    | dc <- minArgLenADT adt
+    , numArgs dc == 0 = Just $ Sum 0
+    | dcs <- filter ( noTyConsNamed ns . dataConArgs) $ dataCon adt
+    , i <- minimum 
+            $ mapMaybe ( mconcat 
+                       . mapMaybe (\n -> fmap (numRecArgsADT' (n:ns) tenv) $ M.lookup n tenv)
+                       . mapMaybe tyConAppName
+                       . dataConArgs) dcs =
+        Just i
+    | otherwise = Nothing
+
+tyConAppName :: Type -> Maybe Name
+tyConAppName (TyConApp n _) = Just n
+tyConAppName _ = Nothing
+
+getADT :: TypeEnv -> AlgDataTy -> ArbValueGen -> (Expr, ArbValueGen)
+getADT = getADT' []
+
+getADT' :: [Name] -> TypeEnv -> AlgDataTy -> ArbValueGen -> (Expr, ArbValueGen)
+getADT' ns tenv adt av
+    | dc <- minArgLenADT adt
+    , numArgs dc == 0
+        = (Data dc, av)
+    | dcs <- filter (noTyConsNamed ns . dataConArgs) $ dataCon adt
+    , Just dc <- minimumByMaybe (\x y -> snd x ` compare` snd y) $ map (scoreTuple tenv) dcs
+        =
+        let
+            es = map (\t -> fst $ arbValue t tenv av) . dataConArgs $ fst dc
+            e = foldl' App (Data $ fst dc) es
+        in
+        (e, av)
+    | otherwise = (Prim Undefined TyBottom, av)
+
+minimumByMaybe :: (a -> a -> Ordering) -> [a] -> Maybe a
+minimumByMaybe _ [] = Nothing
+minimumByMaybe f xs = Just $ minimumBy f xs
+
+noTyConsNamed :: [Name] -> [Type] -> Bool
+noTyConsNamed ns = not . any (flip elem ns) . mapMaybe tyConAppName
+
+-- minConsTyCon :: TypeEnv -> [DataCon] -> DataCon
+-- minConsTyCon tenv dc =
+--     let
+--         scored = mapMaybe (scoreTuple tenv) dc
+--     in
+--     undefined
+
+scoreTuple :: TypeEnv -> DataCon -> (DataCon, Int)
+scoreTuple tenv dc = 
     let
-        adt = fmap (retypeAlgDataTy ts) $ M.lookup n tenv
+        score' = mapMaybe tyConAppName
+              . dataConArgs $ dc
 
-        b = fmap baseDataCons $ getDataCons n tenv
+        score'' = mapMaybe (\n -> fmap (numRecArgsADT tenv) $ M.lookup n tenv) score'
+
+        score = mconcat
+              . catMaybes
+              . (coerce :: ([Maybe Int] -> [Maybe (Sum Int)]))
+              . mapMaybe (\n -> fmap (numRecArgsADT tenv) $ M.lookup n tenv) 
+              . mapMaybe tyConAppName
+              . dataConArgs $ dc
     in
-    case b of
-        Just (b':_) -> (Data b', av)
-        _ ->
-            case fmap newTyConRepType adt of
-                Just (Just t) -> 
-                    let
-                        (b', av') = arbValue t tenv av
-                    in
-                    (Cast b' (t :~ TyConApp n []), av')
-                _ -> (Prim Undefined TyBottom, av)-- error $ "getADTBase: No valid base constructor found " ++ show n ++ " " ++ show adt
-
+    (dc, coerce score)

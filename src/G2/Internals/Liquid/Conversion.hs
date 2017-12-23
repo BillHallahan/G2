@@ -219,12 +219,12 @@ convertLHExpr (PAnd es) kv eenv tenv m =
     case map (\e -> convertLHExpr e kv eenv tenv m) es of
         [] -> mkTrue kv tenv
         [e] -> e
-        es' -> foldr1 (\e -> App (App (mkAnd eenv) e)) es'
+        es' -> foldr (\e -> App (App (mkAnd eenv) e)) (mkTrue kv tenv) es'
 convertLHExpr (POr es) kv eenv tenv m = 
     case map (\e -> convertLHExpr e kv eenv tenv m) es of
         [] -> mkFalse kv tenv
         [e] -> e
-        es' -> foldr1 (\e -> App (App (mkOr eenv) e)) es'
+        es' -> foldr (\e -> App (App (mkOr eenv) e)) (mkFalse kv tenv) es'
 convertLHExpr (PIff e e') kv eenv tenv m =
     mkApp [mkIff eenv, convertLHExpr e kv eenv tenv m, convertLHExpr e' kv eenv tenv m]
 convertLHExpr (PAtom brel e e') kv eenv tenv m =
