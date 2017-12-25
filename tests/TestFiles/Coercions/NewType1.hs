@@ -40,6 +40,9 @@ mapW f (W x) = W (f x)
 mapWInt :: (Int -> Int) -> W Int -> W Int
 mapWInt = mapW
 
+mapWAdd1Int :: W Int -> W Int
+mapWAdd1Int = mapW add1
+
 data E a b = L a | R b
 newtype EInt a = EInt (E Int a)
 

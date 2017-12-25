@@ -20,6 +20,8 @@ module G2.Internals.Language.Typing
     , splitTyForAlls
     , splitTyFuns
     , retype
+    , nestTyForAlls
+    , inTyForAlls
     ) where
 
 import G2.Internals.Language.AST
@@ -316,3 +318,12 @@ splitTyFuns :: Type -> [Type]
 splitTyFuns (TyFun t t') = t:splitTyFuns t'
 splitTyFuns t = [t]
 
+-- | tyForAlls
+-- Nests a new type in TyForAlls
+nestTyForAlls :: Type -> (Type -> Type)
+nestTyForAlls (TyForAll b t) = TyForAll b . nestTyForAlls t
+nestTyForAlls _ = id
+
+inTyForAlls :: Type -> Type
+inTyForAlls (TyForAll _ t) = inTyForAlls t
+inTyForAlls t = t
