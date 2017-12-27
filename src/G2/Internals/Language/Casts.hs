@@ -76,14 +76,20 @@ liftCasts' a@(App _ _) = liftCasts'' a
 liftCasts' e = e
 
 liftCasts'' :: Expr -> Expr
-liftCasts'' (App (Cast f ((TyFun t1 t2) :~ (TyFun t1' t2'))) e) = 
-    Cast (App f e) (t2 :~ t2')
+-- liftCasts'' (App (Cast f ((TyFun t1 t2) :~ (TyFun t1' t2'))) e) = 
+--     Cast (App f e) (t2 :~ t2')
+liftCasts'' (App (Cast f (t1 :~ t2)) e)
+    | (TyFun t1' t1'') <- inTyForAlls t1
+    , (TyFun t2' t2'') <- inTyForAlls t2
+    , nt1 <- nestTyForAlls t1
+    , nt2 <- nestTyForAlls t2 =
+        Cast (App f e) ((nt1 t1'') :~ (nt2 t2''))
 liftCasts'' a@(App e e') =
     let
         lifted = App (liftCasts'' e) (liftCasts'' e')
     in
     if a == lifted then a else liftCasts'' lifted
-liftCasts'' e =e
+liftCasts'' e = e
 
 exprInCasts :: Expr -> Expr
 exprInCasts (Cast e _) = exprInCasts e

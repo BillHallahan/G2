@@ -65,8 +65,8 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
 
-                -- -- -- The below test fails because Z3 returns unknown.
-                -- -- , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
+                -- -- The below test fails because Z3 returns unknown.
+                -- , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
                 
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
 
@@ -84,7 +84,7 @@ sampleTests =
 
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 800 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
+                -- , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 800 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
 
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 8, RForAll errors]
 
@@ -211,24 +211,26 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "g" 2 [ Exactly 1
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
-                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2 ]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2
+                                                                                                                                          , RForAll (\[_, x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")
+                                                                                                                                                                && inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")) ]
 
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
-                --                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> isInt y' (const True)) (const True))
-                --                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> isFloat y' (const True)) (const True))]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ AtLeast 2
-                --                                                                                                                                , RExists (\[_, y] -> isInt y (const True))
-                --                                                                                                                                , RExists (\[_, y] -> isError y)]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ AtLeast 2
-                --                                                                                                                                , RExists (\[_, y] -> isFloat y (const True))
-                --                                                                                                                                , RExists (\[_, y] -> isError y)]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 2
-                --                                                                                                                                      , RExists (\[_, y] -> isFloat y (const True))
-                --                                                                                                                                      , RExists (\[_, y] -> isError y)]
-                -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 2
-                --                                                                                                                                  , RExists (\[x, y] -> appNthArgIs x (\x' -> inCast x' (const True) (\(_ :~ t) -> isTyFun t)) 0
-                --                                                                                                                                                     && isInt y (const True))
-                --                                                                                                                                  , RExists (\[x, y] -> isError y)]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
+                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "L" y' 1) (const True))
+                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "R" y' 1) (const True))]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ AtLeast 2
+                                                                                                                                               , RExists (\[_, y] -> isInt y (const True))
+                                                                                                                                               , RExists (\[_, y] -> isError y)]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloat" 2 [ AtLeast 2
+                                                                                                                                               , RExists (\[_, y] -> isFloat y (const True))
+                                                                                                                                               , RExists (\[_, y] -> isError y)]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getCIntFloatDouble" 2 [ AtLeast 2
+                                                                                                                                                     , RExists (\[_, y] -> isFloat y (const True))
+                                                                                                                                                     , RExists (\[_, y] -> isError y)]
+                , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 2
+                                                                                                                                                 , RExists (\[x, y] -> inCast x (\x' -> dcInAppHasName "TR" x' 1) (const True)
+                                                                                                                                                                    && isInt y (const True))
+                                                                                                                                                 , RExists (\[x, y] -> isError y)]
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                 --                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                 --                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]
@@ -253,7 +255,7 @@ checkExprWithOutput proj src steps m_assume m_assert entry i reqList =
 
 checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprReaches proj src steps m_assume m_assert m_reaches entry i reqList = do
-    exprs <- return . map (\(inp, out) -> inp ++ [out]) =<<  testFile proj src steps m_assume m_assert m_reaches entry
+    exprs <- return . map (\(inp, out) -> inp ++ [out]) =<< testFile proj src steps m_assume m_assert m_reaches entry
     
     let ch = checkExpr' exprs i reqList
 
