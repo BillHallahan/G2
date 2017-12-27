@@ -149,7 +149,7 @@ specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) kv e
           , specTypeApps fout kv eenv tenv m' b]
 specTypeApps (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) kv eenv tenv m b =
     let
-    	s = rtvInfoSymbol tv
+        s = rtvInfoSymbol tv
 
         i = mkId v
     in
@@ -205,9 +205,9 @@ convertLHExpr (ESym (SL t)) _ _ _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyB
 convertLHExpr (ECon c) _ _ _ _ = convertCon c
 convertLHExpr (EVar s) _ eenv _ m = Var $ convertSymbol s eenv m
 convertLHExpr (EApp e e') kv eenv tenv m =
-	case (convertLHExpr e' kv eenv tenv m) of
-		v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ (convertLHExpr e kv eenv tenv m):(map Type ts) ++ [v]
-		e'' -> App (convertLHExpr e kv eenv tenv m) e''
+    case (convertLHExpr e' kv eenv tenv m) of
+        v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ (convertLHExpr e kv eenv tenv m):(map Type ts) ++ [v]
+        e'' -> App (convertLHExpr e kv eenv tenv m) e''
 convertLHExpr (ENeg e) kv eenv tenv m =
     mkApp $ mkPrim Negate eenv
           : Var (Id (Name "TYPE" Nothing 0) TYPE)
@@ -228,7 +228,7 @@ convertLHExpr (POr es) kv eenv tenv m =
 convertLHExpr (PIff e e') kv eenv tenv m =
     mkApp [mkIff eenv, convertLHExpr e kv eenv tenv m, convertLHExpr e' kv eenv tenv m]
 convertLHExpr (PAtom brel e e') kv eenv tenv m =
-	convertBrel brel (convertLHExpr e kv eenv tenv m) (convertLHExpr e' kv eenv tenv m)
+    convertBrel brel (convertLHExpr e kv eenv tenv m) (convertLHExpr e' kv eenv tenv m)
 convertLHExpr e _ _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
 convertSymbol :: Symbol -> ExprEnv -> M.Map Symbol Type -> Lang.Id

@@ -46,6 +46,7 @@ data State = State { expr_env :: E.ExprEnv
                    , model :: Model
                    , arbValueGen :: ArbValueGen
                    , known_values :: KnownValues
+                   , cleaned_names :: CleanedNames
                    } deriving (Show, Eq, Read)
 
 -- | The InputIds are a list of the variable names passed as input to the
@@ -78,6 +79,9 @@ type Walkers = M.Map Name Id
 -- Used to map Function Types to corresponding wrapper functions
 -- See createHigherOrderWrapper in CreateFuncs.hs
 type Wrappers = [(Type, Id)]
+
+-- Map new names to old ones
+type CleanedNames = M.Map Name Name
 
 -- | Naive expression lookup by only the occurrence name string.
 naiveLookup :: String -> E.ExprEnv -> [(Name, Expr)]
@@ -145,7 +149,8 @@ renameState old new_seed s =
              , exec_stack = exec_stack s
              , model = model s
              , arbValueGen = arbValueGen s
-             , known_values = rename old new (known_values s) }
+             , known_values = rename old new (known_values s)
+             , cleaned_names = M.insert new old (cleaned_names s) }
 
 -- | TypeClass definitions
 instance ASTContainer State Expr where

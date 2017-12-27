@@ -1,7 +1,6 @@
 {-# LANGUAGE MagicHash #-}
 module PrimDefs where
 
-
 import Prelude (Int, Integer, Float, Double, Rational, Bool, Char)
 import GHC.Prim
 import GHC.Types

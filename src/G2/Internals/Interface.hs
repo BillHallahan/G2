@@ -63,6 +63,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , model = M.empty
     , arbValueGen = arbValueInit
     , known_values = kv
+    , cleaned_names = M.empty
  }
 
 mkExprEnv :: Program -> E.ExprEnv

@@ -8,7 +8,15 @@ import qualified Data.Map as M
 import G2.Internals.Language
 
 specials :: [(String, [String])]
-specials = [("[]", ["[]", ":"]), ("~", []), ("~~", [])] ++ [("Int", ["I#"]), ("Float", ["F#"]), ("Double", ["D#"]), ("Bool", ["True", "False"])]
+specials = [ ("[]", ["[]", ":"])
+           , ("~", [])
+           , ("~~", [])] ++
+           [ ("Int", ["I#"])
+           , ("Float", ["F#"])
+           , ("Double", ["D#"])
+           , ("Char", ["C#"])
+           , ("String", [])
+           , ("Bool", ["True", "False"])]
 
 isNameSpecial :: Name -> Bool
 isNameSpecial name = nameOccStr name `elem` flattened
@@ -64,7 +72,7 @@ mkEntry name samples = (name, adt)
 --     go _ = []
 
 injectSpecials :: [ProgramType] -> Program -> [ProgramType]
-injectSpecials tenv eenv = entries ++ tenv
+injectSpecials tenv eenv = L.nub $ entries ++ tenv
   where
     entries = map ((flip mkEntry) dcs) tys
 

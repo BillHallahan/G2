@@ -252,6 +252,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     funcs_str = pprFuncTableStr (func_table ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     walkers_str = show (deepseq_walkers ex_state)
+    cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
                , eenv_str
@@ -263,14 +264,16 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , code_str
                , "----- [Names] ---------------------"
                , names_str
-               , "----- [Input Ids] ---------------------"
+               , "----- [Input Ids] -----------------"
                , input_str
-               , "----- [Func Table] ---------------------"
+               , "----- [Func Table] ----------------"
                , funcs_str
-               , "----- [Walkers] ---------------------"
+               , "----- [Walkers] -------------------"
                , walkers_str
                , "----- [Paths] ---------------------"
                , paths_str
+               , "----- [Cleaned] -------------------"
+               , cleaned_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
 
 -- | More raw version of state dumps.
@@ -302,6 +305,7 @@ pprExecStateStrSimple ex_state excludes = injNewLine acc_strs
     funcs_str = pprFuncTableStr (func_table ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     walkers_str = show (deepseq_walkers ex_state)
+    cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Env] -----------------------"
                , eenv_str
@@ -313,14 +317,16 @@ pprExecStateStrSimple ex_state excludes = injNewLine acc_strs
                , code_str
                , "----- [Names] ---------------------"
                -- , names_str
-               , "----- [Input Ids] ---------------------"
+               , "----- [Input Ids] -----------------"
                -- , input_str
-               , "----- [Func Table] ---------------------"
+               , "----- [Func Table] ----------------"
                -- , funcs_str
-               , "----- [Walkers] ---------------------"
+               , "----- [Walkers] -------------------"
                -- , walkers_str
                , "----- [Paths] ---------------------"
                -- , paths_str
+               , "----- [Cleaned] -------------------"
+               , cleaned_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
 
 pprExecEEnvStr :: E.ExprEnv -> String
@@ -388,3 +394,7 @@ pprRunHistStr (rules, ex_state) = injNewLine acc_strs
     rules_str = show rules
     state_str = pprExecStateStr ex_state
     acc_strs = [rules_str, state_str]
+
+pprCleanedNamesStr :: CleanedNames -> String
+pprCleanedNamesStr = injNewLine . map show . M.toList
+
