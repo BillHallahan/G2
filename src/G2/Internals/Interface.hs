@@ -185,9 +185,6 @@ run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Exp
 run con hhp n (state@ State { type_env = tenv
                             , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
-
-    -- putStrLn "After start"
-
     let preproc_state = runPreprocessing state
 
     (_, mdl) <- checkModel con hhp preproc_state
@@ -195,8 +192,6 @@ run con hhp n (state@ State { type_env = tenv
     let preproc_state' = preproc_state {model = fromJust mdl}
 
     -- putStrLn . pprExecStateStr $ state
-    -- putStrLn "######################"
-    -- putStrLn . pprExecStateStr $ preproc_state'
 
     -- putStrLn $ "entries in eenv: " ++ (show $ length $ E.keys $ expr_env preproc_state)
     -- putStrLn $ "chars in eenv: " ++ (show $ length $ show $ E.keys $ expr_env preproc_state)
@@ -217,8 +212,12 @@ run con hhp n (state@ State { type_env = tenv
 
     exec_states <- runNDepth con hhp [preproc_state'] n
 
+    let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
+               , Name "walkInt" Nothing 0
+               , Name "$walk" Nothing 1]
+
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
-    -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s)) exec_states
+    -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s list)) exec_states
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states

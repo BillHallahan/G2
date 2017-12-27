@@ -274,13 +274,27 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
 
 -- | More raw version of state dumps.
-pprExecStateStrSimple :: State -> String
-pprExecStateStrSimple ex_state = injNewLine acc_strs
+pprExecStateStrSimple :: State -> [Name] -> String
+pprExecStateStrSimple ex_state excludes = injNewLine acc_strs
   where
-    -- eenv_str = pprExecEEnvStr (expr_env ex_state)
-    eenv_str = intercalate "\n" $ mapM show $ E.keys $ expr_env ex_state
-    -- tenv_str = pprTEnvStr (type_env ex_state)
-    tenv_str = intercalate "\n" $ mapM show $ M.keys $ type_env ex_state
+    eenv_str = eenv_str1 ++ "\n" ++ eenv_str2
+    eenv_str1 = intercalate "\n[E] " $ map show
+                                     $ filter (not . (flip elem) excludes)
+                                     $ E.keys
+                                     $ expr_env ex_state
+    eenv_str2 = intercalate "\n[E] " $ map show
+                                     $ filter ((flip elem) excludes . fst)
+                                     $ E.toList
+                                     $ expr_env ex_state
+    tenv_str = tenv_str1 ++ "\n" ++ tenv_str2
+    tenv_str1 = intercalate "\n[T] " $ map show
+                                     $ filter (not . (flip elem) excludes)
+                                     $ M.keys
+                                     $ type_env ex_state
+    tenv_str2 = intercalate "\n[T] " $ map show
+                                     $ filter ((flip elem) excludes . fst)
+                                     $ M.toList
+                                     $ type_env ex_state
     estk_str = pprExecStackStr (exec_stack ex_state)
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen ex_state)

@@ -267,6 +267,7 @@ reduce' s @ State { exec_stack = estk
                  }
   | isExecValueForm s =
       (RuleIdentity, [(eenv, varReduce eenv cexpr, [], [], ngen, estk)])
+      -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
 
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
   , (Prim Error _):_ <- unApp expr =

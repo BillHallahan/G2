@@ -16,9 +16,7 @@ translationPrimDefs proj src primsF simpl = do
     (prims_prog, prims_tys) <- hskToG2 "" primsF simpl
     let merged_prog = mergeProgs data_prog prims_prog
     let (merged_prog', merged_prog_tys) = mergeProgTys merged_prog merged_prog prog_tys prims_tys
-
     let prog_tys' = injectSpecials merged_prog_tys merged_prog'
-
     return . primInject $ dataInject merged_prog' prog_tys'
 
 translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType])
