@@ -42,6 +42,11 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen')
 
     eenv' = E.insertExprs (zip news (map snd binds')) eenv
 
+
+liftCaseBinds :: [(Id, Expr)] -> Expr -> Expr
+liftCaseBinds [] expr = expr
+liftCaseBinds ((b, e):xs) expr = liftCaseBinds xs $ replaceASTs (Var b) e expr
+
 -- Due to recursion, Let bindings have to rename the RHS of the bindings
 liftLetBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen)
@@ -111,11 +116,11 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
-    (eenv'', aexpr'', ngen'') = liftBinds binds eenv' aexpr' ngen'
-    res = ( eenv''
+    aexpr'' = liftCaseBinds binds aexpr'
+    res = ( eenv'
           , CurrExpr Evaluate aexpr''
           , [cond']
-          , ngen''
+          , ngen'
           , Nothing)
 
 liftSymLitAlt :: E.ExprEnv -> Expr -> NameGen -> Id -> [(Lit, Expr)] -> [EvaluateResult]
@@ -129,11 +134,11 @@ liftSymLitAlt' eenv mexpr ngen cvar (lit, aexpr) = res
     cond = AltCond (LitAlt lit) mexpr True
     -- Bind the cvar.
     binds = [(cvar, Lit lit)]
-    (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
-    res = ( eenv'
+    aexpr' = liftCaseBinds binds aexpr
+    res = ( eenv
           , CurrExpr Evaluate aexpr'
           , [cond]
-          , ngen'
+          , ngen
           , Nothing)
 
 liftSymDefAlt :: E.ExprEnv -> Expr -> NameGen ->  Id -> [Alt] -> [EvaluateResult]
@@ -151,12 +156,12 @@ liftSymDefAlt' eenv mexpr aexpr ngen cvar as =
         conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch as)
 
         binds = [(cvar, mexpr)]
-        (eenv', aexpr', ngen') = liftBinds binds eenv aexpr ngen
+        aexpr' = liftCaseBinds binds aexpr
     in
-    [( eenv'
+    [( eenv
      , CurrExpr Evaluate aexpr'
      , conds
-     , ngen'
+     , ngen
      , Nothing)]
 
 defAltExpr :: [Alt] -> Maybe Expr
@@ -168,19 +173,6 @@ liftSymDefAltPCs :: Expr -> AltMatch -> Maybe PathCond
 liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
 liftSymDefAltPCs mexpr lit@(LitAlt _) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ Default = Nothing
-
--- | Attempts to reduce all Vars from the eenv.
-varReduce :: (ASTContainer e Expr) => E.ExprEnv -> e -> e
-varReduce eenv = modifyASTs (varReduce' eenv)
-
-varReduce' :: E.ExprEnv -> Expr -> Expr
-varReduce' eenv v@(Var (Id n _)) =
-    if E.isSymbolic n eenv then
-        v
-    else
-        fromMaybe v $ return . varReduce eenv =<< E.lookup n eenv
-
-varReduce' _ e = e
 
 -- | Trace the type contained in an expression of type TYPE.
 traceTYPE :: Expr -> E.ExprEnv -> Type
@@ -266,7 +258,7 @@ reduce' s @ State { exec_stack = estk
                  , name_gen = ngen
                  }
   | isExecValueForm s =
-      (RuleIdentity, [(eenv, varReduce eenv cexpr, [], [], ngen, estk)])
+      (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
 
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
@@ -351,26 +343,34 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- However given actual lazy evaluations within Haskell, all the
     -- `ExecExprEnv`s at each frame would really be stored in a single
     -- location on the actual Haskell heap during execution.
-    case unApp (App fexpr aexpr) of
-        ((Prim prim ty):ar) ->
-            let ar' = varReduce eenv ar
-            in -- trace ("PRIM " ++ (show (head ar)) ++ "\n" ++ (pprExecEEnvStr eenv)) 
-            ( RuleEvalPrimToNorm
-                , [( eenv
-                   -- This may need to be Evaluate if there are more
-                   -- than one redirections.
-                   , CurrExpr Evaluate (mkApp (Prim prim ty : ar'))
-                   , []
-                   , ngen
-                   , Nothing)])
-        _ ->
-            let frame = ApplyFrame aexpr
-            in ( RuleEvalApp
-               , [( eenv
-                  , CurrExpr Evaluate fexpr
-                  , []
-                  , ngen
-                  , Just frame)])
+    let 
+        frame = ApplyFrame aexpr
+    in ( RuleEvalApp
+       , [( eenv
+          , CurrExpr Evaluate fexpr
+          , []
+          , ngen
+          , Just frame)])
+    -- case unApp (App fexpr aexpr) of
+    --     ((Prim prim ty):ar) ->
+    --         let ar' = varReduce eenv ar
+    --         in -- trace ("PRIM " ++ (show (head ar)) ++ "\n" ++ (pprExecEEnvStr eenv)) 
+    --         ( RuleEvalPrimToNorm
+    --             , [( eenv
+    --                -- This may need to be Evaluate if there are more
+    --                -- than one redirections.
+    --                , CurrExpr Evaluate (mkApp (Prim prim ty : ar'))
+    --                , []
+    --                , ngen
+    --                , Nothing)])
+    --     _ ->
+    --         let frame = ApplyFrame aexpr
+    --         in ( RuleEvalApp
+    --            , [( eenv
+    --               , CurrExpr Evaluate fexpr
+    --               , []
+    --               , ngen
+    --               , Just frame)])
 
 reduceEvaluate eenv (Let binds expr) ngen =
     -- Lift all the let bindings into the environment and continue with eenv
@@ -431,13 +431,14 @@ reduceCase eenv mexpr bind alts ngen
   -- so, we do the cvar binding, and proceed with evaluation of the body.
   | (Lit lit) <- unsafeElimCast mexpr
   , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
-      let binds = [(bind, Lit lit)]
-          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+      let 
+          binds = [(bind, Lit lit)]
+          expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseLit
-         , [( eenv'
+         , [( eenv
             , CurrExpr Evaluate expr'
             , []
-            , ngen'
+            , ngen
             , Nothing)])
 
   -- Is the current expression able to match a data consturctor based `Alt`?
@@ -448,13 +449,14 @@ reduceCase eenv mexpr bind alts ngen
   , ar' <- filter (\e -> case e of { Type _ -> False; _ -> True }) ar
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
-      let binds = (bind, mexpr) : zip params ar'
-          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+      let
+          binds = (bind, mexpr) : zip params ar'
+          expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseData
-         , [( eenv'
+         , [( eenv
             , CurrExpr Evaluate expr'
             , []
-            , ngen'
+            , ngen
             , Nothing)] )
 
   -- | We are not able to match any constructor but don't have a symbolic variable?
@@ -463,13 +465,14 @@ reduceCase eenv mexpr bind alts ngen
   -- expression.
   | (Data _):_ <- unApp $ unsafeElimCast mexpr
   , (Alt _ expr):_ <- defaultAlts alts =
-      let binds = [(bind, mexpr)]
-          (eenv', expr', ngen') = liftBinds binds eenv expr ngen
+      let 
+          binds = [(bind, mexpr)]
+          expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseDefault
-         , [( eenv'
+         , [( eenv
             , CurrExpr Evaluate expr'
             , []
-            , ngen'
+            , ngen
             , Nothing)])
 
   -- | If we are pointing to something in expr value form, that is not addressed
