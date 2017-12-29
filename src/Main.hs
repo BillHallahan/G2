@@ -53,6 +53,7 @@ main = do
 runGHC :: [String] -> IO ()
 runGHC as = do
     let (proj:src:prims:entry:tail_args) = as
+    -- let (proj:src:base:prelude:entry:tail_args) = as
 
     --Get args
     let n_val = nVal tail_args
@@ -69,6 +70,7 @@ runGHC as = do
     let m_poly_pred_i = mkPolyPredInt tail_args
 
     (binds, tycons) <- translationPrimDefs proj src prims True
+    -- (binds, tycons) <- translationBase proj src base prelude True
     -- (binds, tycons) <- translation proj src
     
     let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
