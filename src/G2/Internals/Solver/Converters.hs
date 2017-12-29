@@ -203,7 +203,7 @@ typeToSMT (TyConApp (Name "Double" _ _) _) = SortDouble
 typeToSMT (TyConApp (Name "Bool" _ _) _) = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
-typeToSMT t = error $ "Unsupported type in typeToSMT." ++ show t
+typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]
 typesToSMTSorts tenv =
