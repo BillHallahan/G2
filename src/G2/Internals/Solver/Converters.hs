@@ -125,15 +125,7 @@ funcToSMT (Data (DataCon (Name "$I" _ _) _ _)) [a] = exprToSMT a -- Todo: Get ri
 funcToSMT (Data (DataCon (Name "$F" _ _) _ _)) [a] = exprToSMT a -- Todo: Get rid of this
 funcToSMT (Data (DataCon (Name "$D" _ _) _ _)) [a] = exprToSMT a -- Todo: Get rid of this
 funcToSMT (Data (DataCon n t _)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
-funcToSMT e@(Data _) [a] = funcToSMT1Var e a
 funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
-
-funcToSMT1Var :: Expr -> Expr -> SMTAST
-funcToSMT1Var f a
-    | f == Data (PrimCon I) = exprToSMT a
-    | f == Data (PrimCon F) = exprToSMT a
-    | f == Data (PrimCon D) = exprToSMT a
-    | otherwise = error ("Unhandled function " ++ show f ++ " in funcToSMT1.")
 
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)

@@ -50,17 +50,13 @@ getNthErrGenTest' :: [Expr] -> Bool
 getNthErrGenTest' [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
 getNthErrGenTest' [cl, i, e] =
     case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
-        Just e' -> e' `eqIgT` modify removePrimCon e
+        Just e' -> e' `eqIgT` e
         Nothing -> False
 getNthErrGenTest' _ = False
 
 getNthErrors :: [Expr] -> Bool
 getNthErrors [cl, Lit (LitInt i), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
 getNthErrors _ = False
-
-removePrimCon :: Expr -> Expr
-removePrimCon (App (Data (PrimCon I)) l) = l
-removePrimCon e = e
 
 cfmapTest :: [Expr] -> Bool
 cfmapTest [_, e, e'] = cListLength (toCListGen e) == cListLength (toCListGen e')

@@ -190,7 +190,6 @@ mkExprHaskell ex = mkExprHaskell' ex 0
 
         mkDataConHaskell :: DataCon -> String
         mkDataConHaskell (DataCon n _ _) = mkNameHaskell n
-        mkDataConHaskell (PrimCon _) = ""
 
         off :: Int -> String
         off i = duplicate "   " i

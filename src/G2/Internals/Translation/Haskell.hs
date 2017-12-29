@@ -103,7 +103,7 @@ mkBinds (NonRec var expr) = [(mkId var, mkExpr expr)]
 mkBinds (Rec ves) = map (\(v, e) -> (mkId v, mkExpr e)) ves
 
 mkExpr :: CoreExpr -> G2.Expr
-mkExpr (Var var) = filterPrimOp (mkId var)
+mkExpr (Var var) = G2.Var (mkId var)
 mkExpr (Lit lit) = G2.Lit (mkLit lit)
 mkExpr (App fxpr axpr) = G2.App (mkExpr fxpr) (mkExpr axpr)
 mkExpr (Lam var expr) = G2.Lam (mkId var) (mkExpr expr)
@@ -116,26 +116,6 @@ mkExpr (Type ty) = G2.Type (mkType ty)
 
 mkId :: Id -> G2.Id
 mkId vid = G2.Id ((mkName . V.varName) vid) ((mkType . varType) vid)
-
-filterPrimOp :: G2.Id -> G2.Expr
-filterPrimOp (G2.Id name ty) = expr
-  where
-    G2.Name occ mb_mdl _ = name
-    ghc_tys = "GHC.Types"
-    expr = case (mb_mdl == Just ghc_tys, occ) of
-                (True, ">=") -> G2.Prim G2.Ge G2.TyBottom
-                (True, ">") -> G2.Prim G2.Gt G2.TyBottom
-                (True, "==") -> G2.Prim G2.Eq G2.TyBottom
-                (True, "<=") -> G2.Prim G2.Le G2.TyBottom
-                (True, "<") -> G2.Prim G2.Lt G2.TyBottom
-                (True, "&&") -> G2.Prim G2.And G2.TyBottom
-                (True, "||") -> G2.Prim G2.Or G2.TyBottom
-                (True, "not") -> G2.Prim G2.Not G2.TyBottom
-                (True, "+") -> G2.Prim G2.Plus G2.TyBottom
-                (True, "-") -> G2.Prim G2.Minus G2.TyBottom
-                (True, "*") -> G2.Prim G2.Mult G2.TyBottom
-                (True, "/") -> G2.Prim G2.Div G2.TyBottom
-                _ -> G2.Var (G2.Id name ty)
 
 mkName :: Name -> G2.Name
 mkName name = G2.Name occ mdl unq
@@ -206,19 +186,11 @@ mkTyConName :: TyCon -> G2.Name
 mkTyConName = mkName . tyConName
 
 mkData :: DataCon -> G2.DataCon
-mkData datacon = filterPrimCon (G2.DataCon name ty tys)
+mkData datacon = G2.DataCon name ty tys
   where
     name = mkDataName datacon
-    ty   = (mkType . dataConRepType) datacon
+    ty = (mkType . dataConRepType) datacon
     tys  = map mkType (dataConOrigArgTys datacon)
-
-filterPrimCon :: G2.DataCon -> G2.DataCon
-filterPrimCon (G2.PrimCon lcon) = G2.PrimCon lcon
-filterPrimCon (G2.DataCon name ty tys) = dcon
-  where
-    G2.Name occ mb_mdl _ = name
-    ghc_tys = "GHC.Types"
-    dcon = G2.DataCon name ty tys
 
 mkDataName :: DataCon -> G2.Name
 mkDataName datacon = (mkName . dataConName) datacon

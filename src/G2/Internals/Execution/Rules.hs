@@ -75,8 +75,6 @@ defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
-matchDataAlts (PrimCon p) alts =
-  [a | a @ (Alt (DataAlt (PrimCon p') _) _) <- alts, p == p']
 matchDataAlts (DataCon n _ _) alts =
   [a | a @ (Alt (DataAlt (DataCon n' _ _) _) _) <- alts, n == n']
 

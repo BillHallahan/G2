@@ -66,10 +66,6 @@ instance Typed Lit where
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
     typeOf' m (DataCon _ ty _) = (ty, m)
-    typeOf' m (PrimCon I) = (TyLitInt, m)
-    typeOf' m (PrimCon D) = (TyLitDouble, m)
-    typeOf' m (PrimCon F) = (TyLitFloat, m)
-    typeOf' m (PrimCon C) = (TyLitChar, m)
 
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
