@@ -281,7 +281,7 @@ checkExpr' exprs i reqList =
 
 testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src steps m_assume m_assert m_reaches entry = do
-    (binds, tycons) <- translationPrimDefs proj src "./defs/PrimDefs.hs" True
+    (binds, tycons) <- translateLoaded proj src "./defs/PrimDefs.hs" True
 
     let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
