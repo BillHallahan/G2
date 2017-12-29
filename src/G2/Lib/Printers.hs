@@ -272,9 +272,10 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , walkers_str
                , "----- [Paths] ---------------------"
                , paths_str
-               , "----- [Cleaned] -------------------"
-               , cleaned_str
-               , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
+               -- , "----- [Cleaned] -------------------"
+               -- , cleaned_str
+               -- , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
+               ]
 
 -- | More raw version of state dumps.
 pprExecStateStrSimple :: State -> [Name] -> String

@@ -21,6 +21,8 @@ import G2.Internals.Solver.Language hiding (Assert)
 import Control.Monad
 import Data.Maybe
 
+import Debug.Trace
+
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Named a => [(Name, Name)] -> a -> a
 renames n a = foldr (\(old, new) -> rename old new) a n
@@ -182,6 +184,23 @@ traceTYPE (Var (Id n TYPE)) eenv = case E.lookup n eenv of
     Nothing -> error "Var of type TYPE not in expression environment."
 traceTYPE expr _ = typeOf expr
 
+repeatedLookup :: Expr -> ExprEnv -> Expr
+repeatedLookup v@(Var (Id n _)) eenv
+    | E.isSymbolic n eenv = v
+    | otherwise = 
+        case E.lookup n eenv of
+          Just v'@(Var _) -> repeatedLookup v' eenv
+          Just e -> e
+          Nothing -> v
+repeatedLookup e _ = e
+
+lookupForPrim :: Expr -> ExprEnv -> Expr
+lookupForPrim v@(Var (Id n _)) eenv =
+    case E.lookup n eenv of
+        Just e -> e
+        Nothing -> v
+lookupForPrim e _ = e
+
 -- | Function for performing rule reductions based on stack based evaluation
 -- semantics with heap memoization.
 
@@ -335,7 +354,7 @@ reduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
                    , Just frame)])
     Nothing -> error "reduceEvaluate: lookup was Nothing"
 
-reduceEvaluate eenv (App fexpr aexpr) ngen =
+reduceEvaluate eenv app@(App fexpr aexpr) ngen =
     -- Push application RHS onto the stack. This is essentially the same as the
     -- original STG rules, but we pretend that every function is (appropriately)
     -- single argument. However one problem is that eenv sharing has a redundant
@@ -343,35 +362,24 @@ reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- However given actual lazy evaluations within Haskell, all the
     -- `ExecExprEnv`s at each frame would really be stored in a single
     -- location on the actual Haskell heap during execution.
-    let 
-        frame = ApplyFrame aexpr
-    in ( RuleEvalApp
-       , [( eenv
-          , CurrExpr Evaluate fexpr
-          , []
-          , ngen
-          , Just frame)])
-    -- case unApp (App fexpr aexpr) of
-    --     ((Prim prim ty):ar) ->
-    --         let ar' = varReduce eenv ar
-    --         in -- trace ("PRIM " ++ (show (head ar)) ++ "\n" ++ (pprExecEEnvStr eenv)) 
-    --         ( RuleEvalPrimToNorm
-    --             , [( eenv
-    --                -- This may need to be Evaluate if there are more
-    --                -- than one redirections.
-    --                , CurrExpr Evaluate (mkApp (Prim prim ty : ar'))
-    --                , []
-    --                , ngen
-    --                , Nothing)])
-    --     _ ->
-    --         let frame = ApplyFrame aexpr
-    --         in ( RuleEvalApp
-    --            , [( eenv
-    --               , CurrExpr Evaluate fexpr
-    --               , []
-    --               , ngen
-    --               , Just frame)])
-
+    case unApp (App fexpr aexpr) of
+        ((Prim prim ty):ar) ->
+            let ar' = map (flip lookupForPrim eenv) ar
+            in 
+            ( RuleEvalPrimToNorm
+                , [( eenv
+                   , CurrExpr Return (mkApp (Prim prim ty : ar'))
+                   , []
+                   , ngen
+                   , Nothing)])
+        _ ->
+            let frame = ApplyFrame aexpr
+            in ( RuleEvalApp
+               , [( eenv
+                  , CurrExpr Evaluate fexpr
+                  , []
+                  , ngen
+                  , Just frame)])
 reduceEvaluate eenv (Let binds expr) ngen =
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
@@ -450,13 +458,16 @@ reduceCase eenv mexpr bind alts ngen
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
       let
-          binds = (bind, mexpr) : zip params ar'
-          expr' = liftCaseBinds binds expr
-      in ( RuleEvalCaseData
-         , [( eenv
-            , CurrExpr Evaluate expr'
+          dbind = [(bind, mexpr)]
+          expr' = liftCaseBinds dbind expr
+          pbinds = zip params ar'
+          (eenv', expr'', ngen') = liftBinds pbinds eenv expr' ngen
+      in 
+         ( RuleEvalCaseData
+         , [( eenv'
+            , CurrExpr Evaluate expr''
             , []
-            , ngen
+            , ngen'
             , Nothing)] )
 
   -- | We are not able to match any constructor but don't have a symbolic variable?
