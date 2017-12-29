@@ -34,6 +34,9 @@ fromInt x
 equalsFour :: Peano -> Peano -> Peano -> Bool
 equalsFour _ _ p = toInt p == 4
 
+equalsTwo :: Peano -> Peano -> Peano -> Bool
+equalsTwo _ _ p = toInt p == 2
+
 eq :: Peano -> Bool
 eq p = toInt (add p p) == 4
 
