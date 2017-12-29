@@ -120,7 +120,7 @@ mergeProgs prog prims =
 mergeProgTys :: Program -> Program -> [ProgramType] -> [ProgramType] -> (Program, [ProgramType])
 mergeProgTys prog prog' progTys primTys =
     let
-        dcNT = nub $ filter (isUpper . head . strName) $ dataNames prog ++ (mapMaybe dataConName $ concatMap (data_cons . snd) primTys)
+        dcNT = nub $ filter (isUpper . head . strName) $ dataNames prog ++ (mapMaybe dataConName $ concatMap (dataCon . snd) primTys)
         dcNE = nub $ filter (isUpper . head . strName) $ dataNames prog
         dcL = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) dcNE) dcNT
 

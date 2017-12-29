@@ -215,7 +215,10 @@ run con hhp n (state@ State { type_env = tenv
 
     let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
                , Name "walkInt" Nothing 0
-               , Name "$walk" Nothing 1]
+               , Name "$walk" Nothing 1
+               , Name "==" (Just "GHC.Classes") 3458764513820541095
+               , Name "eqInt" (Just "GHC.Classes") 8214565720323791309
+               ]
 
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s list)) exec_states
