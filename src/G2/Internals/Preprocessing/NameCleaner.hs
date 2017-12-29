@@ -8,6 +8,7 @@
 module G2.Internals.Preprocessing.NameCleaner
     (cleanNames) where
 
+import qualified Data.List as L
 import qualified Data.Map as M
 
 import G2.Internals.Language
@@ -32,7 +33,7 @@ allowedName (Name n m _) =
     && (head n) `elem` allowedStartSymbols
 
 cleanNames :: State -> State
-cleanNames s = cleanNames' s (allNames s)
+cleanNames s = cleanNames' s (L.nub $ allNames s)
 
 cleanNames' :: State -> [Name] -> State
 cleanNames' s [] = s
