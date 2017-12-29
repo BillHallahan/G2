@@ -7,7 +7,8 @@ module NewType1 ( Age
                 , YearTracker (..)
                 , oneAD
                 , yearBefore
-                , yearAfter) where
+                , yearAfter
+                , yearBefore2) where
 
 newtype Age = Age Int
 newtype Years = Years Int
@@ -43,3 +44,7 @@ yearAfter (BC (Year 0 )) = error "No year 0"
 yearAfter (AD (Year 0 )) = error "No year 0"
 yearAfter (AD (Year x)) = AD (Year (x + 1))
 yearAfter (BC (Year x)) = BC (Year (x + 1))
+
+yearBefore2 :: Year -> YearTracker
+yearBefore2 ( (Year 1)) = BC (Year 1)
+yearBefore2 ( (Year x)) = AD (Year (x - 1))
