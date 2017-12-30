@@ -54,8 +54,8 @@ sampleTests :: IO TestTree
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  checkExprWithOutput "tests/Samples/" "tests/Samples/Peano.hs" 900 Nothing (Just "equalsFour") "add" 3 [RForAll $ not . peano_4_out, AtLeast 10]
                   {-
+                  checkExprWithOutput "tests/Samples/" "tests/Samples/Peano.hs" 900 Nothing (Just "equalsFour") "add" 3 [RForAll $ not . peano_4_out, AtLeast 10]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 900 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 1000 (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 750 (Just "eqEachOtherAndAddTo4") Nothing "add" 2 [RForAll peano_2_2, Exactly 1]
@@ -64,8 +64,8 @@ sampleTests =
                 ,
                   -}
 
-                  {-
                   checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
+                  {-
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameDoubleArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
 
