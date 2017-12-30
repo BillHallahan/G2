@@ -21,8 +21,6 @@ import G2.Internals.Solver.Language hiding (Assert)
 import Control.Monad
 import Data.Maybe
 
-import Debug.Trace
-
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Named a => [(Name, Name)] -> a -> a
 renames n a = foldr (\(old, new) -> rename old new) a n
@@ -453,7 +451,11 @@ reduceCase eenv mexpr bind alts ngen
   -- If so, then we bind all the parameters to the appropriate arguments and
   -- proceed with the evaluation of the `Alt`'s expression. We also make sure
   -- to perform the cvar binding.
-  | (Data dcon):ar <- unApp $ unsafeElimCast mexpr
+  -- We unwrap the outermost cast from the mexpr.  It must be being cast
+  -- to the DataCon type, so this is safe, and needed for our pattern matching.
+  -- We do not want to remove casting from any of the arguments since this could
+  -- mess up there types later
+  | (Data dcon):ar <- unApp $ exprInCasts mexpr
   , ar' <- filter (\e -> case e of { Type _ -> False; _ -> True }) ar
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =

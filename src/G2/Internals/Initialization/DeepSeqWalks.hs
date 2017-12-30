@@ -17,7 +17,7 @@ createDeepSeqWalks eenv tenv ng =
     let
         tenv' = M.toList tenv
     in
-    createFuncs eenv ng tenv' M.empty (createDeepSeqName . fst) createDeepSeqStore createDeepSeqExpr
+    createFuncs eenv ng tenv' M.empty (createDeepSeqName . fst) createDeepSeqStore (createDeepSeqExpr tenv)
 
 createDeepSeqName ::  Name -> Name
 createDeepSeqName (Name n _ _) = Name ("walk" ++ n) Nothing 0
@@ -36,8 +36,8 @@ createDeepSeqStore (n, adt) n' w =
     in
     M.insert n i w
 
-createDeepSeqExpr :: Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-createDeepSeqExpr w (n, adt) ng =
+createDeepSeqExpr :: TypeEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+createDeepSeqExpr tenv w (n, adt) ng =
     let
         bn = bound_names adt
 
@@ -52,22 +52,22 @@ createDeepSeqExpr w (n, adt) ng =
 
         adt' = foldr (uncurry rename) adt (zip bn bn')
 
-        (e, ng''') = createDeepSeqCase1 w bfuncs n bn' adt' ng''
+        (e, ng''') = createDeepSeqCase1 tenv w bfuncs n bn' adt' ng''
     in
     (foldr Lam e (bni ++ wbni), ng''')
 
-createDeepSeqCase1 :: Walkers -> [(Name, Id)] -> Name -> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
-createDeepSeqCase1 w ti n bn adt@(DataTyCon {data_cons = dc}) ng =
+createDeepSeqCase1 :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
+createDeepSeqCase1 tenv w ti n bn adt@(DataTyCon {data_cons = dc}) ng =
     let
         (i, ng') = freshId (TyConApp n $ map (TyVar . flip Id TYPE) bn) ng
         (caseB, ng'') = freshId (TyConApp n $ map (TyVar . flip Id TYPE) bn) ng'
 
-        (alts, ng''') = createDeepSeqDataConCase1Alts w ti n caseB bn ng'' dc
+        (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n caseB bn ng'' dc
 
         c = Case (Var i) caseB alts
     in
     (Lam i c, ng''')
-createDeepSeqCase1 w ti n bn adt@(NewTyCon {data_con = dc, rep_type = t}) ng =
+createDeepSeqCase1 _ w ti n bn adt@(NewTyCon {data_con = dc, rep_type = t}) ng =
     let
         t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
 
@@ -85,30 +85,45 @@ createDeepSeqCase1 w ti n bn adt@(NewTyCon {data_con = dc, rep_type = t}) ng =
     in
     (Lam i c, ng'')
 
-createDeepSeqDataConCase1Alts :: Walkers -> [(Name, Id)] -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
-createDeepSeqDataConCase1Alts _ _ _ _ _ ng [] = ([], ng)
-createDeepSeqDataConCase1Alts w ti n i bn ng (dc@(DataCon dcn t ts):xs) =
+createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
+createDeepSeqDataConCase1Alts _ _ _ _ _ _ ng [] = ([], ng)
+createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon dcn t ts):xs) =
     let
         (binds, ng') = freshIds ts ng
 
-        (e, ng'') = createDeepSeqDataConCase2 w ti binds ng' (Data dc)
+        (e, ng'') = createDeepSeqDataConCase2 tenv w ti binds ng' (Data dc)
         alt = Alt (DataAlt dc binds) e
 
-        (alts, ng''') = createDeepSeqDataConCase1Alts w ti n i bn ng'' xs
+        (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n i bn ng'' xs
     in
     (alt:alts, ng''')
 
-createDeepSeqDataConCase2 :: Walkers -> [(Name, Id)] -> [Id] -> NameGen -> Expr -> (Expr, NameGen)
-createDeepSeqDataConCase2 _ _ [] ng e = (e, ng)
-createDeepSeqDataConCase2 w ti (i:is) ng e =
+createDeepSeqDataConCase2 :: TypeEnv -> Walkers -> [(Name, Id)] -> [Id] -> NameGen -> Expr -> (Expr, NameGen)
+createDeepSeqDataConCase2 _ _ _ [] ng e = (e, ng)
+createDeepSeqDataConCase2 tenv w ti (i:is) ng e
+    | t@(TyConApp n _) <- typeOf i 
+    , Just (NewTyCon {rep_type = rt}) <- M.lookup n tenv =
     let
-        (i', ng') = freshId (typeOf i) ng
+        (i', ng') = freshId rt ng
 
         b = deepSeqFuncCall w ti (Var i)
+        bCast = Cast b (t :~ rt)
 
-        (ae, ng'') = createDeepSeqDataConCase2 w ti is ng' (App e (Var i'))
+        vi = Var i'
+        viCast = Cast vi (rt :~ t)
+
+        (ae, ng'') = createDeepSeqDataConCase2 tenv w ti is ng' (App e viCast)
     in
-    (Case b i' [Alt Default ae], ng'')
+    (Case bCast i' [Alt Default ae], ng'')
+    | otherwise =
+        let
+            (i', ng') = freshId (typeOf i) ng
+
+            b = deepSeqFuncCall w ti (Var i)
+
+            (ae, ng'') = createDeepSeqDataConCase2 tenv w ti is ng' (App e (Var i'))
+        in
+        (Case b i' [Alt Default ae], ng'')
 
 -- Calling a higher order function
 deepSeqFuncCall :: Walkers -> [(Name, Id)] -> Expr -> Expr
