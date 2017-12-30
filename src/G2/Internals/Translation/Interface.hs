@@ -8,23 +8,13 @@ import G2.Internals.Translation.Haskell
 import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
 
-translationPrimDefs :: FilePath -> FilePath -> FilePath -> Bool
-                    -> IO (Program, [ProgramType])
-translationPrimDefs proj src primsF simpl = do
-    (data_prog, prog_tys) <- hskToG2 proj src simpl
-    -- prims <- mkPrims primsF
-    (prims_prog, prims_tys) <- hskToG2 "" primsF simpl
-    let merged_prog = mergeProgs data_prog prims_prog
-    let (merged_prog', merged_prog_tys) = mergeProgTys merged_prog merged_prog prog_tys prims_tys
-    let prog_tys' = injectSpecials merged_prog_tys merged_prog'
-    return . primInject $ dataInject merged_prog' prog_tys'
-
-translationBase :: FilePath -> FilePath -> FilePath -> FilePath -> Bool
+translateLoaded :: FilePath -> FilePath -> FilePath -> Bool
                 -> IO (Program, [ProgramType])
-translationBase proj src base prelude simpl = do
+translateLoaded proj src prelude simpl = do
+    let basedir = dropWhileEnd (/= '/') prelude
     (data_prog, prog_tys) <- hskToG2 proj src simpl
     -- prims <- mkPrims primsF
-    (base_prog, base_tys) <- hskToG2 base prelude simpl
+    (base_prog, base_tys) <- hskToG2 basedir prelude simpl
 
     let merged_prog = mergeProgs data_prog base_prog
     let (merged_prog', merged_prog_tys) =

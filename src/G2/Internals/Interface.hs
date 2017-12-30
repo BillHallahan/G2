@@ -218,6 +218,17 @@ run con hhp n (state@ State { type_env = tenv
                , Name "$walk" Nothing 1
                , Name "==" (Just "GHC.Classes") 3458764513820541095
                , Name "eqInt" (Just "GHC.Classes") 8214565720323791309
+               , Name "$+" (Just "GHC.Base") 1
+               , Name "$-" (Just "GHC.Base") 1
+               , Name "$*" (Just "GHC.Base") 1
+               , Name "$fEqInt" (Just "GHC.Classes") 8214565720323785830
+               , Name "+" (Just "GHC.Num") 8214565720323785390
+               , Name "$fNumInt" (Just "GHC.Num") 8214565720323786720
+
+               , Name "$c+" Nothing 8214565720323811984
+               , Name "$==" Nothing 1
+
+               , Name "error" (Just "GHC.Err") 8214565720323791940
                ]
 
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states

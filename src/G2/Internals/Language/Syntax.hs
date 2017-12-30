@@ -99,17 +99,8 @@ data Lit = LitInt Int
 
 instance Hashable Lit
 
--- | These are used for expressing wrapped data type constructors such as I#.
--- In the context of these documentations, primitive types refers to the boxed
--- types `Int`, `Double`, `Float`, `Char`, and `Bool`.
-data PrimCon = I | D | F | C | B deriving (Show, Eq, Read, Generic)
-
-instance Hashable PrimCon
-
 -- | Data constructor. We have a special ditinction for primitive types.
-data DataCon = DataCon Name Type [Type]
-             | PrimCon PrimCon
-             deriving (Show, Eq, Read, Generic)
+data DataCon = DataCon Name Type [Type] deriving (Show, Eq, Read, Generic)
 
 instance Hashable DataCon
 

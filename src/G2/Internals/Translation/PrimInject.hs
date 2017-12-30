@@ -55,7 +55,45 @@ occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
                          then Just n
                          else occFind key ns
 
-primDefs :: [(String, Expr)]
+-- primDefs :: [(String, Expr)]
+-- primDefs = [ ("==#", Prim Eq TyBottom)
+--            , ("/=#", Prim Neq TyBottom)
+--            , ("+#", Prim Plus TyBottom)
+--            , ("*#", Prim Mult TyBottom)
+--            , ("-#", Prim Minus TyBottom)
+--            , ("negateInt#", Prim Negate TyBottom)
+--            , ("<=#", Prim Le TyBottom)
+--            , ("<#", Prim Lt TyBottom)
+--            , (">#", Prim Gt TyBottom)
+--            , (">=#", Prim Ge TyBottom)
+
+--            , ("==##", Prim Eq TyBottom)
+--            , ("/=##", Prim Neq TyBottom)
+--            , ("+##", Prim Plus TyBottom)
+--            , ("*##", Prim Mult TyBottom)
+--            , ("-##", Prim Minus TyBottom)
+--            , ("negateDouble##", Prim Negate TyBottom)
+--            , ("<=##", Prim Le TyBottom)
+--            , ("<##", Prim Lt TyBottom)
+--            , (">##", Prim Gt TyBottom)
+--            , (">=##", Prim Ge TyBottom)
+
+--            , ("plusFloat##", Prim Plus TyBottom)
+--            , ("timesFloat##", Prim Mult TyBottom)
+--            , ("minusFloat##", Prim Minus TyBottom)
+--            , ("negateFloat##", Prim Negate TyBottom)
+--            , ("/##", Prim Div TyBottom)
+--            , ("divFloat##", Prim Div TyBottom)
+--            , ("eqFloat#", Prim Eq TyBottom)
+--            , ("neqFloat#", Prim Neq TyBottom)
+--            , ("leFloat#", Prim Le TyBottom)
+--            , ("ltFloat#", Prim Lt TyBottom)
+--            , ("gtFloat#", Prim Gt TyBottom)
+--            , ("geFloat#", Prim Ge TyBottom)
+
+--            , ("error", Prim Error TyBottom)
+--            , ("undefined", Prim Error TyBottom)]
+
 primDefs = [ (".+#", Prim Plus TyBottom)
            , (".*#", Prim Mult TyBottom)
            , (".-#", Prim Minus TyBottom)

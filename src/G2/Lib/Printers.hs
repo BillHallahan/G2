@@ -190,7 +190,6 @@ mkExprHaskell ex = mkExprHaskell' ex 0
 
         mkDataConHaskell :: DataCon -> String
         mkDataConHaskell (DataCon n _ _) = mkNameHaskell n
-        mkDataConHaskell (PrimCon _) = ""
 
         off :: Int -> String
         off i = duplicate "   " i
@@ -281,22 +280,24 @@ pprExecStateStr ex_state = injNewLine acc_strs
 pprExecStateStrSimple :: State -> [Name] -> String
 pprExecStateStrSimple ex_state excludes = injNewLine acc_strs
   where
+    ex_occs = map nameOccStr excludes
+
     eenv_str = eenv_str1 ++ "\n" ++ eenv_str2
     eenv_str1 = intercalate "\n[E] " $ map show
-                                     $ filter (not . (flip elem) excludes)
+                                     $ filter (not . (flip elem) ex_occs . nameOccStr)
                                      $ E.keys
                                      $ expr_env ex_state
     eenv_str2 = intercalate "\n[E] " $ map show
-                                     $ filter ((flip elem) excludes . fst)
+                                     $ filter ((flip elem) ex_occs . nameOccStr . fst)
                                      $ E.toList
                                      $ expr_env ex_state
     tenv_str = tenv_str1 ++ "\n" ++ tenv_str2
     tenv_str1 = intercalate "\n[T] " $ map show
-                                     $ filter (not . (flip elem) excludes)
+                                     $ filter (not . (flip elem) ex_occs . nameOccStr)
                                      $ M.keys
                                      $ type_env ex_state
     tenv_str2 = intercalate "\n[T] " $ map show
-                                     $ filter ((flip elem) excludes . fst)
+                                     $ filter ((flip elem) ex_occs . nameOccStr . fst)
                                      $ M.toList
                                      $ type_env ex_state
     estk_str = pprExecStackStr (exec_stack ex_state)

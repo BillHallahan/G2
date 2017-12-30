@@ -26,7 +26,7 @@ findCounterExamples proj primF fp entry steps = do
     ghcInfos <- getGHCInfos [fp]
     let specs = funcSpecs ghcInfos
 
-    (bnds, tycons) <- translationPrimDefs proj fp primF False
+    (bnds, tycons) <- translateLoaded proj fp primF False
     let init_state = initState bnds tycons Nothing Nothing Nothing True entry
 
     let merged_state = mergeLHSpecState specs init_state

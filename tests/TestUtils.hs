@@ -9,7 +9,6 @@ eqIgT (Prim p _) (Prim p' _) = p == p'
 eqIgT (Lam n e) (Lam n' e') = eqIgIds n n' && e `eqIgT` e'
 eqIgT (App e1 e2) (App e1' e2') = e1 `eqIgT` e1' && e2 `eqIgT` e2'
 eqIgT (Data (DataCon n _ _)) (Data (DataCon n' _ _)) = eqIgNames n n'
-eqIgT (Data (PrimCon p)) (Data (PrimCon p')) = p == p'
 eqIgT (Type _) (Type _)= True
 eqIgT _ _ = False
 
@@ -57,7 +56,6 @@ isIntT _ = False
 
 isDouble :: Expr -> (Rational -> Bool) -> Bool
 isDouble (Lit (LitDouble x)) f = f x
-isDouble (App (Data (PrimCon D)) (Lit (LitDouble x))) f = f x
 isDouble _ _ = False
 
 isFloat :: Expr -> (Rational -> Bool) -> Bool
