@@ -225,6 +225,9 @@ run con hhp n (state@ State { type_env = tenv
                , Name "+" (Just "GHC.Num") 8214565720323785390
                , Name "$fNumInt" (Just "GHC.Num") 8214565720323786720
 
+               , Name "$fNumFloat" (Just "GHC.Float") 8214565720323796344
+               , Name "$fNumInteger" (Just "GHC.Num") 8214565720323796130
+
                , Name "$c+" Nothing 8214565720323811984
                , Name "$==" Nothing 1
 
