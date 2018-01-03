@@ -114,6 +114,8 @@ smt2 = SMTConverter {
         , (./) = function2 "/"
         , neg = function1 "-"
 
+        , itor = function1 "to_real"
+
         , tester = \n e -> "(is-" ++ n ++ " " ++ e ++ ")"
 
         , ite = function3 "ite"

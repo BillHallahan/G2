@@ -91,6 +91,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("gtFloat#", Prim Gt TyBottom)
            , ("geFloat#", Prim Ge TyBottom)
 
+           , ("fromIntToReal", Prim IntToReal TyBottom)
            , ("error", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
 
