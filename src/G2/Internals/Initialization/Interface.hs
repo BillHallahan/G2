@@ -14,7 +14,7 @@ runInitialization eenv tenv ng =
     let
         -- tenv2 = injectSpecials tenv eenv
         
-        kv = initKnownValues tenv
+        kv = initKnownValues eenv tenv
 
         (eenv2, ng2, ds_walkers) = createDeepSeqWalks eenv tenv ng
         -- (eenv3, ng3, pt_walkers) = createPolyPredWalks eenv2 tenv ng2 kv

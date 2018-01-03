@@ -18,6 +18,8 @@ import Language.Fixpoint.Types.PrettyPrint
 
 import Var
 
+import G2.Lib.Printers
+
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
@@ -26,12 +28,12 @@ findCounterExamples proj primF fp entry steps = do
     ghcInfos <- getGHCInfos [fp]
     let specs = funcSpecs ghcInfos
 
-    (bnds, tycons) <- translateLoaded proj fp primF False
-    let init_state = initState bnds tycons Nothing Nothing Nothing True entry
+    (bnds, tycons, cls) <- translateLoaded proj fp primF False
+    let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry
 
     let merged_state = mergeLHSpecState specs init_state
 
-    -- putStrLn $ pprExecStateStr merged_state
+    putStrLn $ pprExecStateStr merged_state
 
     hhp <- getZ3ProcessHandles
 

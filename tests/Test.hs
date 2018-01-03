@@ -64,7 +64,6 @@ sampleTests =
 
                   checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 1 [RExists negativeSquareRes, AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue1") Nothing "fixed" 2 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
-                  {-
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger" 2 [RExists addRes, RExists subRes, AtLeast 2]
 
                 -- -- The below test fails because Z3 returns unknown.
@@ -92,14 +91,12 @@ sampleTests =
 
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 1600 Nothing Nothing "sum" 2 [AtLeast 3]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUses.hs" 1000 Nothing Nothing "dotProd" 3 [AtLeast 3]
-                -}
         ]
 
 liquidTests :: IO TestTree
 liquidTests = 
     return . testGroup "Liquid"
         =<< sequence [
-                  {-
                   checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "abs2" 500 2 [RForAll (\[x, y] -> isFloat x (const True) && isFloat y ((==) 0)), Exactly 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x > z || y > z), Exactly 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x > 0 && x >= y && z <= 0), Exactly 1]
@@ -113,7 +110,6 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 2000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 2500 3 [AtLeast 5, RForAll getNthErrors]
-                -}
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -121,7 +117,6 @@ testFileTests :: IO TestTree
 testFileTests = 
     return . testGroup "TestFiles"
         =<< sequence [
-                  {-
                   checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" 400 Nothing Nothing "f" 3 [RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y)), App _ (Lit (LitInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
@@ -240,7 +235,6 @@ testFileTests =
                 -- , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                 --                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                 --                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]
-                -}
         ]
 
 
@@ -288,10 +282,10 @@ checkExpr' exprs i reqList =
 
 testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src steps m_assume m_assert m_reaches entry = do
-    -- (binds, tycons) <- translateLoaded proj src "./defs/PrimDefs.hs" True
-    (binds, tycons) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True
+    (binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True
+    -- (binds, tycons) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True
 
-    let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
+    let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
     hhp <- getZ3ProcessHandles
 
@@ -301,8 +295,8 @@ testFile proj src steps m_assume m_assert m_reaches entry = do
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry steps i reqList = do
-    -- r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry steps
-    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp entry steps
+    r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry steps
+    -- r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp entry steps
 
     let exprs = map (\(_, _, inp, out) -> inp ++ [out]) r
 

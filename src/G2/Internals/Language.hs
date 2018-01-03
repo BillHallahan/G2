@@ -9,6 +9,7 @@ module G2.Internals.Language
     , module G2.Internals.Language.Primitives
     , module G2.Internals.Language.Support
     , module G2.Internals.Language.Syntax
+    , module G2.Internals.Language.TypeClasses
     , module G2.Internals.Language.Typing
     ) where
 
@@ -20,5 +21,6 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Primitives
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.TypeClasses
 import G2.Internals.Language.Typing
 

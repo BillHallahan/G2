@@ -13,6 +13,7 @@ module G2.Internals.Translation.Haskell
 
 import qualified G2.Internals.Language as G2
 
+import qualified Class as C
 import Coercion
 import CoreSyn
 import DataCon
@@ -21,6 +22,7 @@ import GHC
 import GHC.Paths
 import HscMain
 import HscTypes
+import InstEnv
 import Literal
 import Name
 import Outputable
@@ -50,43 +52,44 @@ rawDump fp = do
   str <- mkIOString core
   putStrLn str
 
-hskToG2 :: FilePath -> FilePath -> Bool -> IO (G2.Program, [G2.ProgramType])
+hskToG2 :: FilePath -> FilePath -> Bool -> IO (G2.Program, [G2.ProgramType], [(G2.Name, G2.Id)])
 hskToG2 proj src simpl = do
-    (sums_gutss, _, _) <- mkCompileClosure proj src simpl
+    (sums_gutss, _, _, c) <- mkCompileClosure proj src simpl
     let binds = concatMap (\(_, _, b) -> map mkBinds b) sums_gutss
     let tycons = concatMap (\(_, t, _) -> map mkTyCon t) sums_gutss
-    return (binds, tycons)
+    let classes = map (mkClass) c
+    return (binds, tycons, classes)
 
-type CompileClosure = ([(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv)
+type CompileClosure = ([(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv, [ClsInst])
 
 mkCompileClosure :: FilePath -> FilePath -> Bool -> IO CompileClosure
 mkCompileClosure proj src simpl = do
     (mod_graph, mod_gutss, dflags, env) <- runGhc (Just libdir) $ do
-      beta_flags <- getSessionDynFlags
-      let gen_flags = []
-      -- let gen_flags = [ Opt_CmmSink
-      --                 , Opt_SimplPreInlining
-      --                 , Opt_DoEtaReduction
-      --                 , Opt_IgnoreInterfacePragmas]
-      let beta_flags' = foldl' gopt_unset beta_flags gen_flags
-      let dflags = beta_flags' { importPaths = [proj]
-                               , ufCreationThreshold = if simpl then ufCreationThreshold beta_flags' else -1000
-                               , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -1000
-                               , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -1000
-                               , ufDictDiscount = if simpl then ufDictDiscount beta_flags' else -1000
-                               , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -1000}
-      _ <- setSessionDynFlags dflags
-      env <- getSession
-      target <- guessTarget src Nothing
-      _ <- setTargets [target]
-      _ <- load LoadAllTargets
-      -- Now that things are loaded, make the compilation closure.
-      mod_graph <- getModuleGraph
-      pmods <- mapM parseModule mod_graph
-      tmods <- mapM typecheckModule pmods
-      dmods <- mapM desugarModule tmods
-      let mod_gutss = map coreModule dmods
-      return (mod_graph, mod_gutss, dflags, env)
+        beta_flags <- getSessionDynFlags
+        let gen_flags = []
+        -- let gen_flags = [ Opt_CmmSink
+        --                 , Opt_SimplPreInlining
+        --                 , Opt_DoEtaReduction
+        --                 , Opt_IgnoreInterfacePragmas]
+        let beta_flags' = foldl' gopt_unset beta_flags gen_flags
+        let dflags = beta_flags' { importPaths = [proj]
+                                 , ufCreationThreshold = if simpl then ufCreationThreshold beta_flags' else -1000
+                                 , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -1000
+                                 , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -1000
+                                 , ufDictDiscount = if simpl then ufDictDiscount beta_flags' else -1000
+                                 , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -1000}
+        _ <- setSessionDynFlags dflags
+        env <- getSession
+        target <- guessTarget src Nothing
+        _ <- setTargets [target]
+        _ <- load LoadAllTargets
+        -- Now that things are loaded, make the compilation closure.
+        mod_graph <- getModuleGraph
+        pmods <- mapM parseModule mod_graph
+        tmods <- mapM typecheckModule pmods
+        dmods <- mapM desugarModule tmods
+        let mod_gutss = map coreModule dmods
+        return (mod_graph, mod_gutss, dflags, env)
 
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
@@ -95,7 +98,11 @@ mkCompileClosure proj src simpl = do
     let cg_gutss = map fst tidy_pgms
     let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
     let (tcss, bindss) = unzip tcss_pgms
-    return (zip3 mod_graph tcss bindss, dflags, env)
+
+    -- Get TypeClasses
+    let cls_insts = concatMap mg_insts mod_gutss
+
+    return (zip3 mod_graph tcss bindss, dflags, env, cls_insts)
     -- return (zip3 mod_graph (map mg_tcs mod_gutss) (map mg_binds mod_gutss), dflags, env)
 
 mkBinds :: CoreBind -> [(G2.Id, G2.Expr)]
@@ -217,3 +224,7 @@ mkCoercion c =
         k = fmap mkType $ coercionKind c
     in
     (pFst k) G2.:~ (pSnd k)
+
+mkClass :: ClsInst -> (G2.Name, G2.Id)
+mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = 
+    (mkName . C.className $ c, mkId dfun)

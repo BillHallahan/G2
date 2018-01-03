@@ -242,8 +242,19 @@ instance Named KnownValues where
             , tyBool = tB
             , dcTrue = dcT
             , dcFalse = dcF
+
+            , eqTC = eqT
+            , numTC = numT
+            , ordTC = ordT
+
+            , eqFunc = eqF
+            , neqFunc = neqF
+            , geFunc = geF
+            , gtFunc = gtF
+            , ltFunc = ltF
+            , leFunc = leF
             }) =
-            [tI, tF, tD, tB, dcT, dcF]
+            [tI, tF, tD, tB, dcT, dcF, eqT, numT, ordT, eqF, neqF, geF, gtF, ltF, leF]
 
     rename old new (KnownValues {
                      tyInt = tI
@@ -253,6 +264,17 @@ instance Named KnownValues where
                    , tyBool = tB
                    , dcTrue = dcT
                    , dcFalse = dcF
+
+                   , eqTC = eqT
+                   , numTC = numT
+                   , ordTC = ordT
+
+                   , eqFunc = eqF
+                   , neqFunc = neqF
+                   , geFunc = geF
+                   , gtFunc = gtF
+                   , ltFunc = ltF
+                   , leFunc = leF
                    }) =
                     (KnownValues {
                           tyInt = rename old new tI
@@ -262,6 +284,16 @@ instance Named KnownValues where
                         , tyBool = rename old new tB
                         , dcTrue = rename old new dcT
                         , dcFalse = rename old new dcF
+                        , eqTC = rename old new eqT
+                        , numTC = rename old new numT
+                        , ordTC = rename old new ordT
+
+                        , eqFunc = rename old new eqF
+                        , neqFunc = rename old new neqF
+                        , geFunc = rename old new geF
+                        , gtFunc = rename old new gtF
+                        , ltFunc = rename old new ltF
+                        , leFunc = rename old new leF
                         })
 
 instance (Foldable f, Functor f, Named a) => Named (f a) where

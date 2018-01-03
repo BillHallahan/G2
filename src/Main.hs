@@ -68,10 +68,10 @@ runGHC as = do
     let m_poly_pred_with = mkPolyPredWith tail_args
     let m_poly_pred_i = mkPolyPredInt tail_args
 
-    (binds, tycons) <- translateLoaded proj src lib True
+    (binds, tycons, cls) <- translateLoaded proj src lib True
     -- (binds, tycons) <- translation proj src
     
-    let init_state = initState binds tycons m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
+    let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
     let init_state' = case (m_wrapper, m_wrap_with) of
                             (Just w, Just ww) -> case (findFunc w (expr_env init_state), findFunc ww (expr_env init_state)) of

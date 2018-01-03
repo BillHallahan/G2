@@ -32,8 +32,8 @@ import Data.Maybe
 
 import G2.Lib.Printers
 
-initState :: Program -> [ProgramType] -> Maybe String -> Maybe String -> Maybe String -> Bool -> String -> State
-initState prog prog_typ m_assume m_assert m_reaches useAssert f =
+initState :: Program -> [ProgramType] -> [(Name, Id)] -> Maybe String -> Maybe String -> Maybe String -> Bool -> String -> State
+initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
@@ -52,6 +52,7 @@ initState prog prog_typ m_assume m_assert m_reaches useAssert f =
     , name_gen =  ng''
     , path_conds = PC.fromList kv $ map PCExists is
     , true_assert = if useAssert then False else True
+    , type_classes = initTypeClasses cls
     , input_ids = is
     , sym_links = Sym.empty
     , func_table = ft
@@ -193,6 +194,7 @@ run con hhp n (state@ State { type_env = tenv
     let preproc_state' = preproc_state {model = fromJust mdl}
 
     -- putStrLn . pprExecStateStr $ state
+    -- putStrLn . pprExecStateStr $ preproc_state'
 
     -- putStrLn $ "entries in eenv: " ++ (show $ length $ E.keys $ expr_env preproc_state)
     -- putStrLn $ "chars in eenv: " ++ (show $ length $ show $ E.keys $ expr_env preproc_state)

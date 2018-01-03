@@ -8,6 +8,8 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkTrue
                                   , mkFalse
                                   , mkBool
+                                  , mkDCInt
+                                  , mkDCDouble
                                   , mkIdentity
                                   , mkLamBindings
                                   , mkMappedLamBindings
@@ -55,6 +57,16 @@ mkApp :: [Expr] -> Expr
 mkApp [] = error "mkApp: empty list"
 mkApp (e:[]) = e
 mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
+
+mkDCInt :: KnownValues -> TypeEnv -> Expr
+mkDCInt kv tenv = Data . fromJust $ getDataCon tenv (KV.tyInt kv) (KV.dcInt kv)
+
+mkDCFloat :: KnownValues -> TypeEnv -> Expr
+mkDCFloat kv tenv = Data . fromJust $ getDataCon tenv (KV.tyFloat kv) (KV.dcFloat kv)
+
+mkDCDouble :: KnownValues -> TypeEnv -> Expr
+mkDCDouble kv tenv = Data . fromJust $ getDataCon tenv (KV.tyDouble kv) (KV.dcDouble kv)
+
 
 mkTrue :: KnownValues -> TypeEnv -> Expr
 mkTrue kv tenv = Data . fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)

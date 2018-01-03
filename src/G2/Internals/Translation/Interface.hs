@@ -9,22 +9,26 @@ import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
 
 translateLoaded :: FilePath -> FilePath -> FilePath -> Bool
-                -> IO (Program, [ProgramType])
+                -> IO (Program, [ProgramType], [(Name, Id)])
 translateLoaded proj src prelude simpl = do
     let basedir = dropWhileEnd (/= '/') prelude
-    (data_prog, prog_tys) <- hskToG2 proj src simpl
+    (data_prog, prog_tys, prog_cls) <- hskToG2 proj src simpl
     -- prims <- mkPrims primsF
-    (base_prog, base_tys) <- hskToG2 basedir prelude simpl
+    (base_prog, base_tys, base_cls) <- hskToG2 basedir prelude simpl
 
     let merged_prog = mergeProgs data_prog base_prog
+
     let (merged_prog', merged_prog_tys) =
             mergeProgTys merged_prog merged_prog prog_tys base_tys
     let prog_tys' = injectSpecials merged_prog_tys merged_prog'
+
+    let merged_classes = prog_cls ++ base_cls
+
     let (fin_prog, fin_tys) = primInject $ dataInject merged_prog' prog_tys'
 
-    return (fin_prog, fin_tys)
+    return (fin_prog, fin_tys, merged_classes)
 
-translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType])
+translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType], [(Name, Id)])
 translation = hskToG2
 
 prepBase :: FilePath -> IO ()

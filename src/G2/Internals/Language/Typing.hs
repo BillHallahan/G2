@@ -31,7 +31,7 @@ import G2.Internals.Language.Syntax
 import qualified Data.Map as M
 
 tyInt :: KV.KnownValues -> Type
-tyInt kv = TyConApp (KV.tyBool kv) []
+tyInt kv = TyConApp (KV.tyInt kv) [TyLitInt]
 
 tyBool :: KV.KnownValues -> Type
 tyBool kv = TyConApp (KV.tyBool kv) []

@@ -22,6 +22,7 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Stack
 import G2.Internals.Language.SymLinks hiding (filter, map)
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.TypeClasses
 import G2.Internals.Language.TypeEnv
 import G2.Internals.Language.PathConds
 
@@ -35,6 +36,7 @@ data State = State { expr_env :: E.ExprEnv
                    , name_gen :: NameGen
                    , path_conds :: PathConds
                    , true_assert :: Bool
+                   , type_classes :: TypeClasses
                    , sym_links :: SymLinks
                    , input_ids :: InputIds
                    , func_table :: FuncInterps
@@ -139,6 +141,7 @@ renameState old new_seed s =
              , name_gen = ng'
              , path_conds = rename old new (path_conds s)
              , true_assert = true_assert s
+             , type_classes = rename old new (type_classes s)
              , input_ids = rename old new (input_ids s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
@@ -178,6 +181,7 @@ instance ASTContainer State Type where
                       ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
+                      ((containedASTs . type_classes) s) ++
                       ((containedASTs . sym_links) s) ++
                       ((containedASTs . input_ids) s) ++
                       (containedASTs $ wrappers s) ++
@@ -187,6 +191,7 @@ instance ASTContainer State Type where
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
+                                , type_classes = (modifyContainedASTs f . type_classes) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
                                 , input_ids = (modifyContainedASTs f . input_ids) s
                                 , wrappers = modifyContainedASTs f $ wrappers s
