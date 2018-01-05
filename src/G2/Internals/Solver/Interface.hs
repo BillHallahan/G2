@@ -42,9 +42,9 @@ checkConstraints con io s = do
         Just True -> return SAT
         Just False -> return UNSAT
         _ -> do
-            putStrLn "------"
-            putStrLn $ "PC        = " ++ (pprPathsStr . PC.toList $ path_conds s)
-            putStrLn $ "PC unsafe = " ++ (pprPathsStr . PC.toList . unsafeElimCast $ path_conds s)
+            -- putStrLn "------"
+            -- putStrLn $ "PC        = " ++ (pprPathsStr . PC.toList $ path_conds s)
+            -- putStrLn $ "PC unsafe = " ++ (pprPathsStr . PC.toList . unsafeElimCast $ path_conds s)
             checkConstraints' con io s
 
 checkConstraints' :: SMTConverter ast out io -> io -> State -> IO Result

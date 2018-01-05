@@ -59,6 +59,8 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Cons SMTName [SMTAST] Sort
 
             | V SMTName Sort
+
+            | ItoR SMTAST
             deriving (Show, Eq)
 
 data Sort = SortInt
@@ -116,6 +118,7 @@ data SMTConverter ast out io =
         , (.*) :: ast -> ast -> ast
         , (./) :: ast -> ast -> ast
         , neg :: ast -> ast
+        , itor :: ast -> ast
 
         , tester :: SMTName -> ast -> ast
 

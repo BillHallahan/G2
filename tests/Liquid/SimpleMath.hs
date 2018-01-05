@@ -33,3 +33,11 @@ abs2 x
 -- fib' 0 = 0
 -- fib' 1 = 1
 -- fib' n = fib' (n - 1) + fib' (n - 2)
+
+{-@ id2 :: x:a -> {y:a |  y == x} @-}
+id2 :: a -> a
+id2 x = x
+
+{-@ eq2 :: x:a -> y: a-> {b:Bool | b <=> x == y} @-}
+eq2 :: Eq a => a -> a -> Bool
+eq2 x y = x == y

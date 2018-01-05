@@ -130,6 +130,7 @@ funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ "
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
+funcToSMT1Prim IntToReal e = ItoR (exprToSMT e)
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
@@ -245,6 +246,7 @@ toSolverAST con (x :- y) = (.-) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :* y) = (.*) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :/ y) = (./) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
+toSolverAST con (ItoR x) = itor con $ toSolverAST con x
 
 toSolverAST con (Tester n e) = tester con (nameToStr n) (toSolverAST con e)
 

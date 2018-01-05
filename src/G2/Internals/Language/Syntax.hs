@@ -82,6 +82,7 @@ data Primitive = Ge
                | Mult
                | Div
                | Negate
+               | IntToReal
                | Error
                | Undefined
                deriving (Show, Eq, Read, Generic)

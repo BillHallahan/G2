@@ -18,11 +18,12 @@ import  Language.Fixpoint.Types.Names
 import qualified Language.Fixpoint.Types.Refinements as Ref
 
 import TyCon
-import Var
+import Var hiding (tyVarName)
 
 import Data.Coerce
 import Data.List
 import qualified Data.Map as M
+import Data.Monoid
 import qualified Data.Text as T
 
 import Debug.Trace
@@ -57,6 +58,7 @@ mergeLHSpecState' ((v,lst):xs) meenv s =
 
         g2N = E.lookupNameMod n m (expr_env s)
     in
+    trace ("n = " ++ show n ++ "b = " ++ show (noTCDict meenv lst (eqTC $ known_values s) [Ref.Eq, Ref.Ne])) $
     case g2N of
         Just (n', e) ->
             mergeLHSpecState' xs  meenv $ addSpecType n' e (val lst) meenv s
@@ -86,12 +88,12 @@ addSpecType n e st meenv (s@State { expr_env = eenv
 
 -- | convertSpecType
 -- We create an Expr from a SpecType in two phases.  First, we create outer
--- lambda expressions, then we create a conjunction of boolean expressions
+-- lambda expressions, then we create a conjunction of m boolean expressions
 -- describing allowed  values of the bound variables
 convertSpecType :: State -> SpecType -> Lang.Id -> Expr
 convertSpecType s@(State { known_values = kv
-                       , expr_env = eenv 
-                       , type_env = tenv }) st ret =
+                         , expr_env = eenv 
+                         , type_env = tenv }) st ret =
     let
         lams = specTypeLams st . Lam ret
         apps = specTypeApps st s M.empty ret
@@ -202,9 +204,9 @@ rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
 
 convertLHExpr :: Ref.Expr -> State -> M.Map Symbol Type -> Expr
-convertLHExpr (ESym (SL t)) _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
+convertLHExpr (ESym (SL t)) _ _ = trace ("v1 = " ++ show (Name (T.unpack t) Nothing 0)) Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
 convertLHExpr (ECon c) (State {known_values = kv, type_env = tenv}) _ = convertCon kv tenv c
-convertLHExpr (EVar s) (State { expr_env = eenv }) m = Var $ convertSymbol s eenv m
+convertLHExpr (EVar s) (State { expr_env = eenv }) m = trace ("v2 = " ++ show (convertSymbol s eenv m)) Var $ convertSymbol s eenv m
 convertLHExpr (EApp e e') s m =
     case (convertLHExpr e' s m) of
         v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ (convertLHExpr e s m):(map Type ts) ++ [v]
@@ -242,7 +244,7 @@ convertLHExpr (PAtom brel e e') s@(State {known_values = kv, expr_env = eenv, ty
                 Just d -> d
                 Nothing -> 
                     case find (tyVarInTyAppHasName (brelTCDictName brel kv) . snd) (M.toList m) of
-                        Just (s, _) -> trace ("s = " ++ (show $ convertSymbol s eenv m)) Var $ convertSymbol s eenv m
+                        Just (s, _) -> Var $ convertSymbol s eenv m
                         Nothing -> error
                             $ "No dictionary in convertLHExpr\nm=" ++ (show $ map snd $ M.toList m) 
                                 ++ "\nv = " ++ show (brelTCDictName brel kv) 
@@ -319,17 +321,199 @@ convertBrel Ref.Le kv = Var $ Id (leFunc kv) TyBottom
 
 
 tyVarInTyAppHasName :: Name -> Type -> Bool
-tyVarInTyAppHasName n t@(TyConApp n' (TyVar (Id _ _):_)) = trace ("yes n = " ++ show n ++ "\nt = " ++ show t) n == n'
-tyVarInTyAppHasName n t = trace ("no n = " ++ show n ++ "\nt = " ++ show t) False
+tyVarInTyAppHasName n t@(TyConApp n' (TyVar (Id _ _):_)) = n == n'
+tyVarInTyAppHasName n t = False
 
 tyConAppName :: Type -> Maybe Name
 tyConAppName (TyConApp n _) = Just n
 tyConAppName _ = Nothing
 
--- convertBrel :: Brel -> Expr -> Expr -> Expr
--- convertBrel Ref.Eq = mkLHEq
--- convertBrel Ref.Ne = mkLHNeq
--- convertBrel Ref.Gt = mkLHGt
--- convertBrel Ref.Ge = mkLHGe
--- convertBrel Ref.Lt = mkLHLt
--- convertBrel Ref.Le = mkLHLe
+-- addTCDict
+-- Adds the given dictionary to all functions in the expression environment that
+-- need it, but are not currently passed it.
+-- A function might need this dictionary, but not be passed it because:
+-- (1) It uses a function from the dictionary only in the specification
+-- (2) It calls a function that uses it only in the specification
+addTCDict :: ExprEnv -> KnownValues -> [(Name, LocSpecType)] -> Name -> [Brel] -> ExprEnv
+addTCDict eenv kv nlst dict brel =
+    let
+        need = needTCDict eenv nlst dict brel
+    in
+    undefined
+
+
+-- needTCDict
+-- Returns a list of functions that need the dictionary for the given TC, but
+-- are not currently passed it.
+needTCDict :: ExprEnv -> [(Name, LocSpecType)] -> Name -> [Brel] -> [Name]
+needTCDict eenv nlst dict brel =
+    let
+        noTC = filter (\(_, lst) -> not . null $ noTCDict eenv lst dict brel) nlst
+        noTCNames = map fst noTC
+    in
+    needTCDict' eenv noTCNames
+
+needTCDict' :: ExprEnv -> [Name] -> [Name]
+needTCDict' eenv ns =
+    let
+        ns' = E.keys $ E.filter (callWithNameIn ns) eenv
+    in
+    if ns == ns' then ns' else needTCDict' eenv ns'
+
+callWithNameIn :: [Name] -> Expr -> Bool
+callWithNameIn ns = coerce . evalASTs (callWithNameIn' ns)
+
+callWithNameIn' :: [Name] -> Expr -> Any
+callWithNameIn' ns (Var (Id n _)) = Any $ n `elem` ns
+callWithNameIn' _ _ = Any False
+
+-- | noTCDict
+-- Returns the names of TyVar-typed argument passed to brel's in l in the SpecType
+-- without a passed TypeClass dictionary of type d
+noTCDict :: ExprEnv -> LocSpecType -> Name -> [Brel] -> [Name]
+noTCDict eenv lst d l =
+    let
+        st = val lst
+
+        brel = concatMap (\b -> usedBrelSpecTypeWithArg (brelTest eenv) M.empty b st) l
+
+        as = lhArgs st
+        asty = map typeOf as
+    in
+    if not (any (tyConHasName d) asty) then brel else []
+
+-- | lhArgs
+-- A list of the arguments to the LH assertion
+lhArgs :: SpecType -> [Lang.Id]
+lhArgs (RFun {rt_bind = b, rt_in = fin, rt_out = fout, rt_reft = r}) =
+    let
+        t = specTypeToType fin
+        i = convertSymbolT b t
+    in
+    i:lhArgs fout
+lhArgs (RAllT {rt_tvbind = RTVar (RTV v) info, rt_ty = rty}) =
+    let
+        i = mkId v
+    in
+    i:lhArgs rty
+lhArgs _ = []
+
+-- | usedBrelSpecType
+-- Given a LH SpecType, get all Brel's used in the SpecType
+usedBrelSpecType :: SpecType -> [Brel]
+usedBrelSpecType (RVar { rt_reft = r }) = usedBrelReft r
+usedBrelSpecType (RFun { rt_in = rti, rt_out = rto, rt_reft = r }) =
+    usedBrelReft r ++ usedBrelSpecType rti ++ usedBrelSpecType rto
+usedBrelSpecType (RAllT { rt_ty = r }) = usedBrelSpecType r
+-- usedBrelSpecType (RAllP { rt_ty = r}) = usedBrelSpecType r
+-- usedBrelSpecType (RAllS { rt_ty = r }) = usedBrelSpecType r
+usedBrelSpecType (RApp { rt_args = rargs, rt_reft = r}) = usedBrelReft r ++ concatMap usedBrelSpecType rargs
+-- usedBrelSpecType (RAllE { rt_allarg = rtall, rt_ty = rty }) = usedBrelSpecType rtall ++ usedBrelSpecType rty
+-- usedBrelSpecType (REx { rt_exarg = rta, rt_ty = rty }) = usedBrelSpecType rta ++ usedBrelSpecType rty
+-- usedBrelSpecType (RAppTy {rt_arg = rta, rt_res = rtr, rt_reft = r}) =
+    -- usedBrelReft r ++ usedBrelSpecType rta ++ usedBrelSpecType rtr
+-- usedBrelSpecType (RRTy { rt_env = rte, rt_ref = r, rt_ty = rty}) =
+    -- usedBrelReft r ++ concatMap (usedBrelSpecType . snd) rte ++ usedBrelSpecType rty
+-- usedBrelSpecType (RHole r) = usedBrelReft r
+-- usedBrelSpecType _ = []
+
+usedBrelReft :: UReft Reft -> [Brel]
+usedBrelReft = usedBrelExpr . reftExpr . ur_reft
+
+-- | usedBrelExpr
+-- Given a LH Expr, get all Brel's used in the Expr
+usedBrelExpr :: Ref.Expr -> [Brel]
+usedBrelExpr (EApp e e') = usedBrelExpr e ++ usedBrelExpr e'
+usedBrelExpr (ENeg e) = usedBrelExpr e
+usedBrelExpr (EBin _ e e') = usedBrelExpr e ++ usedBrelExpr e'
+usedBrelExpr (EIte e e' e'') = usedBrelExpr e ++ usedBrelExpr e' ++ usedBrelExpr e''
+usedBrelExpr (ECst e _) = usedBrelExpr e
+usedBrelExpr (ELam _ e) = usedBrelExpr e
+usedBrelExpr (ETApp e _) = usedBrelExpr e
+usedBrelExpr (ETAbs e _) = usedBrelExpr e
+usedBrelExpr (PAnd e) = concatMap usedBrelExpr e
+usedBrelExpr (POr e) = concatMap usedBrelExpr e
+usedBrelExpr (PNot e) = usedBrelExpr e
+usedBrelExpr (PImp e e') = usedBrelExpr e ++ usedBrelExpr e'
+usedBrelExpr (PIff e e') = usedBrelExpr e ++ usedBrelExpr e'
+usedBrelExpr (PAtom b e e') = b:(usedBrelExpr e ++ usedBrelExpr e')
+usedBrelExpr (PAll _ e) = usedBrelExpr e
+usedBrelExpr (PExist _ e) = usedBrelExpr e
+usedBrelExpr (PGrad _ _ _ e) = usedBrelExpr e
+usedBrelExpr _ = []
+
+-- | usedBrelSpecTypeWithArg
+-- Given a LH SpecType, returns if the given Brel is used in the SpecType, where the ith argument
+-- satisifies the given predicate
+usedBrelSpecTypeWithArg :: (M.Map Symbol Type -> Ref.Expr -> Ref.Expr -> [a]) -> M.Map Symbol Type -> Brel -> SpecType -> [a]
+usedBrelSpecTypeWithArg f m b (RVar { rt_var = (RTV var), rt_reft = r }) = 
+    let
+        symb = reftSymbol $ ur_reft r
+        i = mkId var
+
+        m' = M.insert symb (TyVar i) m 
+    in
+    usedBrelReftWithArg f m' b r
+usedBrelSpecTypeWithArg f m b (RFun { rt_in = rti, rt_out = rto, rt_reft = r }) =
+    usedBrelReftWithArg f m b r ++ usedBrelSpecTypeWithArg f m b rti ++ usedBrelSpecTypeWithArg f m b rto
+usedBrelSpecTypeWithArg f m b (RAllT { rt_ty = r }) = usedBrelSpecTypeWithArg f m b r
+usedBrelSpecTypeWithArg f m b (RAllP { rt_ty = r}) = usedBrelSpecTypeWithArg f m b r
+usedBrelSpecTypeWithArg f m b (RAllS { rt_ty = r }) = usedBrelSpecTypeWithArg f m b r
+usedBrelSpecTypeWithArg f m b (RApp { rt_args = rargs, rt_reft = r}) = 
+    usedBrelReftWithArg f m b r ++ concatMap (usedBrelSpecTypeWithArg f m b) rargs
+usedBrelSpecTypeWithArg f m b (RAllE { rt_allarg = rtall, rt_ty = rty }) = 
+    usedBrelSpecTypeWithArg f m b rtall ++ usedBrelSpecTypeWithArg f m b rty
+usedBrelSpecTypeWithArg f m b (REx { rt_exarg = rta, rt_ty = rty }) = 
+    usedBrelSpecTypeWithArg f m b rta ++ usedBrelSpecTypeWithArg f m b rty
+usedBrelSpecTypeWithArg f m b (RAppTy {rt_arg = rta, rt_res = rtr, rt_reft = r}) =
+    usedBrelReftWithArg f m b r ++ usedBrelSpecTypeWithArg f m b rta ++ usedBrelSpecTypeWithArg f m b rtr
+usedBrelSpecTypeWithArg f m b (RRTy { rt_env = rte, rt_ref = r, rt_ty = rty}) =
+    usedBrelReftWithArg f m b r ++ concatMap (usedBrelSpecTypeWithArg f m b . snd) rte ++ usedBrelSpecTypeWithArg f m b rty
+usedBrelSpecTypeWithArg f m b (RHole r) = usedBrelReftWithArg f m b r
+usedBrelSpecTypeWithArg _ _ _ _ = []
+
+usedBrelReftWithArg :: (M.Map Symbol Type -> Ref.Expr -> Ref.Expr -> [a]) -> M.Map Symbol Type -> Brel -> UReft Reft -> [a]
+usedBrelReftWithArg f m b = usedBrelExprWithArg f m b . reftExpr . ur_reft
+
+-- | usedBrelExpr
+-- Given a LH Expr, returns if the given Brel is used in the Expr, where the ith argument
+-- satisifies the given predicate
+usedBrelExprWithArg :: (M.Map Symbol Type -> Ref.Expr -> Ref.Expr -> [a]) -> M.Map Symbol Type -> Brel -> Ref.Expr -> [a]
+usedBrelExprWithArg f m b (EApp e e') =
+    usedBrelExprWithArg f m b e ++ usedBrelExprWithArg f m b e'
+usedBrelExprWithArg f m b (ENeg e) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b (EBin _ e e') = 
+    usedBrelExprWithArg f m b e ++ usedBrelExprWithArg f m b e'
+usedBrelExprWithArg f m b (EIte e e' e'') = 
+    usedBrelExprWithArg f m b e ++ usedBrelExprWithArg f m b e' ++ usedBrelExprWithArg f m b e''
+usedBrelExprWithArg f m b (ECst e _) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b (ELam _ e) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b (ETApp e _) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b (ETAbs e _) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b (PAnd e) = concatMap (usedBrelExprWithArg f m b) e
+usedBrelExprWithArg f m b (POr e) = concatMap (usedBrelExprWithArg f m b) e
+usedBrelExprWithArg f m b (PNot e) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b (PImp e e') = 
+    usedBrelExprWithArg f m b e ++ usedBrelExprWithArg f m b e'
+usedBrelExprWithArg f m b (PIff e e') = 
+    usedBrelExprWithArg f m b e ++ usedBrelExprWithArg f m b e'
+usedBrelExprWithArg f m b (PAtom b' e e') =
+    (if b == b' then f m e e' else [])
+    ++ usedBrelExprWithArg f m b e ++ usedBrelExprWithArg f m b e'
+usedBrelExprWithArg f m b (PAll _ e) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b (PExist _ e) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b (PGrad _ _ _ e) = usedBrelExprWithArg f m b e
+usedBrelExprWithArg f m b _ = []
+
+brelTest :: ExprEnv -> M.Map Symbol Type -> Ref.Expr -> Ref.Expr -> [Name]
+brelTest eenv m (EVar s) _ =
+    tyVarName $ typeOf (convertSymbol s eenv m)
+brelTest _ _ _ _ = []
+
+tyVarName :: Type -> [Name]
+tyVarName (TyVar (Id n _)) = [n]
+tyVarName t = []
+
+tyConHasName :: Name -> Type -> Bool
+tyConHasName n (TyConApp n' _) = n == n'
+tyConHasName _ _ = False
