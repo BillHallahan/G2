@@ -13,13 +13,13 @@ import sys
 # assertp  = None
 
 proj    = "tests/Samples"
-src     = "tests/Samples/McCarthy91.hs"
+src     = "tests/Samples/HigherOrderMath.hs"
 prelude = "../base-4.9.1.0/Prelude.hs"
-entry   = "mccarthy"
+entry   = "fixed"
 start   = 0
-ticks   = 247
-assumep = None
-assertp = "lessThan91"
+ticks   = 300
+assumep = "isTrue1"
+assertp = None
 
 dumps = "dumps"
 
