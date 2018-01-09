@@ -16,8 +16,8 @@ proj    = "tests/Samples"
 src     = "tests/Samples/HigherOrderMath.hs"
 prelude = "../base-4.9.1.0/Prelude.hs"
 entry   = "fixed"
-start   = 0
-ticks   = 300
+start   = 116
+ticks   = 130
 assumep = "isTrue1"
 assertp = None
 

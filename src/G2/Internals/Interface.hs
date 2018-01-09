@@ -233,12 +233,17 @@ run con hhp n (state@ State { type_env = tenv
 
                , Name "$c+" Nothing 8214565720323811984
                , Name "$==" Nothing 1
+               , Name "fromInteger" (Just "GHC.Num") 8214565720323796906
+               , Name "fromIntegerInt" (Just "GHC.Num") 8214565720323796918
+               , Name "$cfromInteger" Nothing 8214565720323819153
+
+               , Name "Integer" (Just "GHC.Integer.Type2") 0
 
                , Name "error" (Just "GHC.Err") 8214565720323791940
                ]
 
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
-    mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s list)) exec_states
+    -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s list)) exec_states
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states
