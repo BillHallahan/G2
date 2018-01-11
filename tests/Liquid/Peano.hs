@@ -2,6 +2,8 @@ module Peano where
 
 data Peano = Succ Peano | Zero
 
+data CList a = Cons a (CList a) | Nil deriving (Eq)
+
 {-@ add :: x:Peano -> y:Peano -> {z:Peano | toInt x < toInt z && toInt y < toInt z} @-}
 add :: Peano -> Peano -> Peano
 add Zero p = p

@@ -8,11 +8,13 @@ module G2.Internals.Language.Typing
     , tyInt
     , tyBool
     , mkTyApp
+    , mkTyFun
     , (.::)
     , hasFuncType
     , appendType
     , higherOrderFuncs
     , isAlgDataTy
+    , tyVars
     , isPolyFunc
     , argumentTypes
     , returnType
@@ -40,6 +42,13 @@ mkTyApp :: Type -> Type -> Type
 mkTyApp (TyConApp n _) t2 = TyConApp n [t2]
 mkTyApp (TyFun _ t2) _ = t2
 mkTyApp t1 t2 = TyApp t1 t2
+
+-- | mkTyFun
+-- Turns the Expr list into an application spine
+mkTyFun :: [Type] -> Type
+mkTyFun [] = error "mkTyFun: empty list"
+mkTyFun (t:[]) = t
+mkTyFun (t1:t2:ts) = mkTyFun (TyFun t1 t2 : ts)
 
 -- | Typed typeclass.
 class Typed a where
@@ -271,6 +280,15 @@ isPolyFunc = isPolyFunc' . typeOf
 isPolyFunc' :: Type -> Bool
 isPolyFunc' (TyForAll _ _) = True
 isPolyFunc' _ = False
+
+-- tyVars
+-- Returns a list of all tyVars
+tyVars :: ASTContainer m Type => m -> [Type]
+tyVars = evalASTs tyVars'
+
+tyVars' :: Type -> [Type]
+tyVars' t@(TyVar _) = [t]
+tyVars' _ = []
 
 -- | arguments
 -- Gives the types of the arguments of the functions 

@@ -8,6 +8,8 @@ import G2.Internals.Language as Lang
 import G2.Internals.Execution
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.CreateFuncs
+import G2.Internals.Liquid.TCGen
+import G2.Internals.Liquid.TCValues
 import G2.Internals.Solver
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
@@ -31,9 +33,13 @@ findCounterExamples proj primF fp entry steps = do
     (bnds, tycons, cls) <- translateLoaded proj fp primF False
     let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry
 
-    let merged_state = mergeLHSpecState specs init_state
+    let (lh_state, eq_walkers, tcv) = createLHEq init_state
 
-    -- putStrLn $ pprExecStateStr merged_state
+    putStrLn $ pprExecStateStr lh_state
+
+    let merged_state = mergeLHSpecState specs lh_state tcv
+
+    putStrLn $ pprExecStateStr merged_state
     putStrLn $ "tc = " ++ (show $ type_classes merged_state)
 
     hhp <- getZ3ProcessHandles

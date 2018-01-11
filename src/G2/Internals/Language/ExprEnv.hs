@@ -19,7 +19,9 @@ module G2.Internals.Language.ExprEnv
     , union
     , (!)
     , map
+    , map'
     , mapWithKey
+    , mapWithKey'
     , filter
     , filterWithKey
     , filterToSymbolic
@@ -146,6 +148,9 @@ union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 map :: (Expr -> Expr) -> ExprEnv -> ExprEnv
 map f = mapWithKey (\_ -> f)
 
+map' :: (Expr -> a) -> ExprEnv -> M.Map Name a
+map' f = mapWithKey' (\_ -> f)
+
 -- Maps (SymbObj v) iff f v is also a Var
 -- Does not affect redirects
 mapWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
@@ -158,6 +163,9 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
                 Var i' -> SymbObj i'
                 _ -> s
         f' _ n = n
+
+mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.Map Name a
+mapWithKey' f = M.mapWithKey f . toExprMap
 
 filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
 filter p = filterWithKey (\_ -> p) 
@@ -206,6 +214,9 @@ toExprList env@(ExprEnv env') =
 
 fromExprList :: [(Name, Expr)] -> ExprEnv
 fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
+
+toExprMap :: ExprEnv -> M.Map Name Expr
+toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
 
 -- Returns True iff n is a redirect in the ExprEnv
 isRedirect :: Name -> ExprEnv -> Bool

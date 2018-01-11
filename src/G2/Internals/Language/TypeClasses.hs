@@ -2,11 +2,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module G2.Internals.Language.TypeClasses ( TypeClasses
+module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , initTypeClasses
                                          , eqTCDict
                                          , numTCDict
-                                         , ordTCDict) where
+                                         , ordTCDict
+                                         , lookupTCDict) where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.KnownValues
@@ -19,7 +20,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-type TCType = (M.Map Name [(Type, Id)]) 
+type TCType = M.Map Name [(Type, Id)]
 newtype TypeClasses = TypeClasses TCType
                       deriving (Show, Eq, Read)
 

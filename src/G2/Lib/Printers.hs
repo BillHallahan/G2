@@ -4,11 +4,13 @@ import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as Sym
 import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.PathConds as PC
+import G2.Internals.Language.TypeClasses
 import G2.Internals.Language.Stack
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 import G2.Internals.Execution.RuleTypes
 
+import Data.Coerce
 import Data.List
 import qualified Data.Map as M
 
@@ -250,6 +252,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     input_str = pprInputIdsStr (input_ids ex_state)
     funcs_str = pprFuncTableStr (func_table ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
+    tc_str = pprTCStr (type_classes ex_state)
     walkers_str = show (deepseq_walkers ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
@@ -271,6 +274,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , walkers_str
                , "----- [Paths] ---------------------"
                , paths_str
+               , "----- [TypeClasses] ---------------------"
+               , tc_str
                -- , "----- [Cleaned] -------------------"
                -- , cleaned_str
                -- , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
@@ -359,6 +364,11 @@ pprPathsStr :: [PathCond] -> String
 pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprPathCondStr paths
+
+pprTCStr :: TypeClasses -> String
+pprTCStr tc = injNewLine cond_strs
+  where
+    cond_strs = map show $ M.toList $ ((coerce tc) :: M.Map Name [(Type, Id)])
 
 pprInputIdsStr :: InputIds -> String
 pprInputIdsStr i = injNewLine id_strs

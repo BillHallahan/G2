@@ -11,11 +11,14 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkDCInt
                                   , mkDCDouble
                                   , mkIdentity
+                                  , functionCalls
                                   , mkLamBindings
                                   , mkMappedLamBindings
+                                  , leadingLamIds
                                   , insertInLams
                                   , replaceASTs
                                   , args
+                                  , passedArgs
                                   , nthArg
                                   , vars
                                   , varNames
@@ -84,6 +87,15 @@ mkIdentity t =
     in
     Lam x (Var x)
 
+-- | functionCalls
+-- Returns all function calls with all arguments
+functionCalls :: ASTContainer m Expr => m -> [Expr]
+functionCalls = evalContainedASTs functionCalls'
+
+functionCalls' :: Expr -> [Expr]
+functionCalls' e@(App _ e') = e:functionCalls (children e') 
+functionCalls' e = functionCalls $ children e
+
 -- Generates a lambda binding for each a in the provided list
 -- Takes a function to generate the inner expression
 mkLamBindings :: NameGen -> [Type] -> (NameGen -> [Id] -> (Expr, NameGen)) -> (Expr, NameGen)
@@ -111,12 +123,21 @@ insertInLams' :: ([Id] -> Expr -> Expr) -> [Id] -> Expr -> Expr
 insertInLams' f xs (Lam i e)  = Lam i $ insertInLams' f (i:xs) e
 insertInLams' f xs e = f (reverse xs) e
 
+leadingLamIds :: Expr -> [Id]
+leadingLamIds (Lam i e) = i:leadingLamIds e
+leadingLamIds _ = []
+
 args :: Expr -> [Id]
 args (Lam i e) = i:args e
 args _ = []
 
+passedArgs :: Expr -> [Expr]
+passedArgs (App _ e) = e:passedArgs e
+passedArgs _ = []
+
 nthArg :: Expr -> Int -> Id
 nthArg e i = args e !! (i - 1)
+
 
 --Returns all Vars in an ASTContainer
 vars :: (ASTContainer m Expr) => m -> [Expr]
