@@ -35,12 +35,11 @@ findCounterExamples proj primF fp entry steps = do
 
     let (lh_state, eq_walkers, tcv) = createLHEq init_state
 
-    putStrLn $ pprExecStateStr lh_state
+    -- putStrLn $ pprExecStateStr lh_state
 
     let merged_state = mergeLHSpecState specs lh_state tcv
 
-    putStrLn $ pprExecStateStr merged_state
-    putStrLn $ "tc = " ++ (show $ type_classes merged_state)
+    -- putStrLn $ pprExecStateStr merged_state
 
     hhp <- getZ3ProcessHandles
 

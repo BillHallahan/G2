@@ -9,9 +9,9 @@ abs2 x
     | x > 0 = x
     | otherwise = -x
 
--- {-@ add :: x:Int -> y:Int -> {z:Int | x <= z && y <= z}@-}
--- add :: Int -> Int -> Int
--- add x y = x + y
+{-@ add :: x:Int -> y:Int -> {z:Int | x <= z && y <= z}@-}
+add :: Int -> Int -> Int
+add x y = x + y
 
 -- {-@ subToPos :: x:Pos -> {y:Int | x >= y} -> Pos @-}
 -- subToPos :: Int -> Int -> Int
@@ -33,6 +33,9 @@ abs2 x
 -- fib' 0 = 0
 -- fib' 1 = 1
 -- fib' n = fib' (n - 1) + fib' (n - 2)
+
+id2Int :: Int -> Int
+id2Int x = id2 x
 
 {-@ id2 :: x:a -> {y:a |  y == x} @-}
 id2 :: a -> a
