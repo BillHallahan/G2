@@ -38,8 +38,13 @@ genTC eenv tenv tc tcn ntws@((_, _, w):_) ng =
         (eenv', ti, ng4) = genTCFuncs eenv tenv' [] ng3 dc ns ws
 
         tc' = coerce . M.insert tcn ti $ coerce tc
+
+        --Create functions to access the TC functions
+        (access, ng5) = mapNG (accessFunction tcn dc) [0..length fn] ng4
+
+        eenv'' = E.insertExprs (zip fn access) eenv'
     in
-    (eenv', tenv', tc', ng4)
+    (eenv'', tenv', tc', ng5)
 genTC _ _ _ _ [] _ = error "No walkers given to genTC."
 
 genTCFuncs :: ExprEnv -> TypeEnv -> [(Type, Id)] -> NameGen -> DataCon -> [Name] -> [Walkers] -> (ExprEnv, [(Type, Id)], NameGen)
@@ -67,6 +72,26 @@ genTCFuncs eenv tenv ti ng dc (n:ns) ws =
 lhFuncName :: Name -> NameGen -> (Name, NameGen)
 lhFuncName (Name n _ _) ng = freshSeededString ("lh" ++ n ++ "Func") ng
 
+-- | accessFunction
+--Create a function to access a TC function from the ADT
+accessFunction :: Name -> DataCon -> Int -> NameGen -> (Expr, NameGen)
+accessFunction tcn dc@(DataCon _ _ ts) i ng =
+    let
+        t = TyConApp tcn []
+
+        -- This gets bound to the Type (Expr constructor) argument
+        (tb, ng2) = freshId TYPE ng
+
+        (lb, ng3) = freshId t ng2
+        (cb, ng4) = freshId t ng3
+
+        (is, ng5) = freshIds ts ng4
+
+        a = Alt (DataAlt dc is) $ Var (is !! i)
+
+        c = Case (Var lb) cb [a]
+    in
+    (Lam lb (Lam tb c), ng5)
 
 createLHEq :: State -> (State, Walkers, TCValues)
 createLHEq s@(State { expr_env = eenv
@@ -234,7 +259,7 @@ eqFunc w _ t@(TyConApp n _)
 
 
 lhNeqName :: Name -> Name
-lhNeqName (Name n _ _) = Name ("lhNeqName" ++ n) Nothing 0
+lhNeqName (Name n _ _) = Name ("lhNeName" ++ n) Nothing 0
 
 lhNeqExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhNeqExpr eqW eenv w (n, _) ng = 
@@ -247,7 +272,12 @@ lhNeqExpr eqW eenv w (n, _) ng =
             Nothing -> error "Unknown function def in lhNeqExpr"
         li = leadingLamIds fe
 
+        no = mkNot eenv
+
         (li', ng') = freshIds (map typeOf li) ng
-        e = foldr Lam (App (Prim Not TyBottom) (Var f)) li'
+
+        fApp = foldl' App (Var f) $ map Var li'
+
+        e = foldr Lam (App no fApp) li'
     in
     (e, ng')

@@ -77,9 +77,12 @@ addLHTC eenv tc tcv =
         lh = lhTC tcv
 
         eenv' = modifyContainedASTs (addLHTCLams lh) eenv
+        eenv'' = modifyContainedASTs (addLHTCCalls tc lh) eenv'
     in
-    eenv'
+    eenv''
 
+-- | addLHTCLams
+-- Adds lambdas to Expr to pass in the LH TC
 addLHTCLams :: Name -> Expr -> Expr
 addLHTCLams lh e =
     let
@@ -89,8 +92,15 @@ addLHTCLams lh e =
 
         as = map (\(d, i) -> Lang.Id d $ TyConApp lh [TyVar i]) (zip ds tva)
     in
-    insertInLams (\_ e' -> foldr Lam e' as) e
+    if not (hasLHTC lh e) then foldr Lam e as else e
 
+hasLHTC :: Name -> Expr -> Bool
+hasLHTC lh (Lam (Id _ (TyConApp n _)) e) = if n == lh then True else hasLHTC lh e 
+hasLHTC lh (Lam _ e) = hasLHTC lh e 
+hasLHTC _ _ = False
+
+-- | addLHTCCalls
+-- Adds App's to function calls to pass the LH TC
 addLHTCCalls :: TypeClasses -> Name -> Expr -> Expr
 addLHTCCalls tc lh e =
     let
@@ -122,7 +132,11 @@ addTCPasses tc ti lh e =
 
         lht = map (typeToLHTypeClass tc ti lh) tva
     in
-    foldr App e lht
+    insertInApp e lht
+
+insertInApp :: Expr -> [Expr] -> Expr
+insertInApp (App e e') es = App (insertInApp e es) e'
+insertInApp e es = foldr App e es
 
 typeExprType :: Expr -> Maybe Type
 typeExprType (Type t) = Just t
@@ -134,7 +148,7 @@ typeToLHTypeClass tc ti lh t =
         Just lh -> Var lh
         Nothing -> case lookup t ti of
             Just lh -> Var lh
-            Nothing -> error "Typeclass not found in typeToLHTypeClass"
+            Nothing -> Var (Lang.Id (Name "BAD" Nothing 0) TyBottom)-- TODO : Can hit this when have TyFun... -- error $ "Typeclass not found in typeToLHTypeClass" ++ show t
 
 addSpecType :: Name -> Expr -> SpecType -> ExprEnv -> TCValues -> State -> State
 addSpecType n e st meenv tcv (s@State { expr_env = eenv

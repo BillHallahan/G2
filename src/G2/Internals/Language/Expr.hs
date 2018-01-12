@@ -93,7 +93,7 @@ functionCalls :: ASTContainer m Expr => m -> [Expr]
 functionCalls = evalContainedASTs functionCalls'
 
 functionCalls' :: Expr -> [Expr]
-functionCalls' e@(App _ e') = e:functionCalls (children e') 
+functionCalls' e@(App _ e') = e:functionCalls' e'
 functionCalls' e = functionCalls $ children e
 
 -- Generates a lambda binding for each a in the provided list

@@ -274,8 +274,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , walkers_str
                , "----- [Paths] ---------------------"
                , paths_str
-               , "----- [TypeClasses] ---------------------"
-               , tc_str
+               -- , "----- [TypeClasses] ---------------------"
+               -- , tc_str
                -- , "----- [Cleaned] -------------------"
                -- , cleaned_str
                -- , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 

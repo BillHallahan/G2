@@ -34,10 +34,11 @@ add x y = x + y
 -- fib' 1 = 1
 -- fib' n = fib' (n - 1) + fib' (n - 2)
 
+{-@ id2Int :: x:Int -> {y:Int |  y /= x} @-}
 id2Int :: Int -> Int
-id2Int x = id2 x
+id2Int x = x
 
-{-@ id2 :: x:a -> {y:a |  y == x} @-}
+{-@ id2 :: x:a -> {y:a |  y /= x} @-}
 id2 :: a -> a
 id2 x = x
 
