@@ -216,22 +216,28 @@ run con hhp n (state@ State { type_env = tenv
     exec_states <- runNDepth con hhp [preproc_state'] n
 
     let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
-               , Name "walkInt" Nothing 0
-               , Name "$walk" Nothing 1
+               -- , Name "walkInt" Nothing 0
+               -- , Name "$walk" Nothing 1
                , Name "==" (Just "GHC.Classes") 3458764513820541095
-               , Name "eqInt" (Just "GHC.Classes") 8214565720323791309
-               , Name "$+" (Just "GHC.Base") 1
-               , Name "$-" (Just "GHC.Base") 1
-               , Name "$*" (Just "GHC.Base") 1
-               , Name "$fEqInt" (Just "GHC.Classes") 8214565720323785830
-               , Name "+" (Just "GHC.Num") 8214565720323785390
-               , Name "$fNumInt" (Just "GHC.Num") 8214565720323786720
+               -- , Name "eqInt" (Just "GHC.Classes") 8214565720323791309
+               -- , Name "$+" (Just "GHC.Base") 1
+               -- , Name "$-" (Just "GHC.Base") 1
+               -- , Name "$*" (Just "GHC.Base") 1
+               -- , Name "$fEqInt" (Just "GHC.Classes") 8214565720323785830
+               -- , Name "+" (Just "GHC.Num") 8214565720323785390
+               -- , Name "$fNumInt" (Just "GHC.Num") 8214565720323786720
+               , Name "$fNumInteger" (Just "GHC.Num") 8214565720323796130
 
                , Name "$fNumFloat" (Just "GHC.Float") 8214565720323796344
-               , Name "$fNumInteger" (Just "GHC.Num") 8214565720323796130
+               , Name "$fEqFloat" (Just "GHC.Float") 8214565720323796344
 
                , Name "$c+" Nothing 8214565720323811984
                , Name "$==" Nothing 1
+               , Name "fromInteger" (Just "GHC.Num") 8214565720323796906
+               , Name "fromIntegerInt" (Just "GHC.Num") 8214565720323796918
+               , Name "$cfromInteger" Nothing 8214565720323819153
+
+               , Name "Integer" (Just "GHC.Integer.Type2") 0
 
                , Name "error" (Just "GHC.Err") 8214565720323791940
                ]

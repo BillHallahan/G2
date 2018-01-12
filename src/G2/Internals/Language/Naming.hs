@@ -257,7 +257,11 @@ instance Named KnownValues where
             [tI, tF, tD, tB, dcT, dcF, eqT, numT, ordT, eqF, neqF, geF, gtF, ltF, leF]
 
     rename old new (KnownValues {
-                     tyInt = tI
+                     dcInt = dI
+                   , dcFloat = dF
+                   , dcDouble = dD
+
+                   , tyInt = tI
                    , tyFloat = tF
                    , tyDouble = tD
 
@@ -277,7 +281,11 @@ instance Named KnownValues where
                    , leFunc = leF
                    }) =
                     (KnownValues {
-                          tyInt = rename old new tI
+                          dcInt = rename old new dI
+                        , dcFloat = rename old new dF
+                        , dcDouble = rename old new dD
+
+                        , tyInt = rename old new tI
                         , tyFloat = rename old new tF
                         , tyDouble = rename old new tD
 
