@@ -45,3 +45,16 @@ id2 x = x
 {-@ eq2 :: x:a -> y: a-> {b:Bool | b <=> x == y} @-}
 eq2 :: Eq a => a -> a -> Bool
 eq2 x y = x == y
+
+{-@ eq3Int :: x:Int -> y:Int -> {b:Bool | x == y} @-}
+eq3Int :: Int -> Int -> Bool
+eq3Int x y = x == y
+
+
+{-@ eq3 :: x:a -> y:a -> {b:Bool | x == y} @-}
+eq3 :: Eq a => a -> a -> Bool
+eq3 x y = x == y
+
+{-@ add2 :: x:Int -> y:Int -> {z:Int | x <= z }@-}
+add2 :: Int -> Int -> Int
+add2 x y = x + y

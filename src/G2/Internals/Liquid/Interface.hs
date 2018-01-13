@@ -8,6 +8,7 @@ import G2.Internals.Language as Lang
 import G2.Internals.Execution
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.CreateFuncs
+import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Liquid.TCValues
 import G2.Internals.Solver
@@ -33,7 +34,9 @@ findCounterExamples proj primF fp entry steps = do
     (bnds, tycons, cls) <- translateLoaded proj fp primF False
     let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry
 
-    let (lh_state, eq_walkers, tcv) = createLHEq init_state
+    let init_state' = elimPartialApp init_state
+
+    let (lh_state, eq_walkers, tcv) = createLHEq init_state'
 
     -- putStrLn $ pprExecStateStr lh_state
 

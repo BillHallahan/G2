@@ -12,6 +12,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkDCDouble
                                   , mkIdentity
                                   , functionCalls
+                                  , nonDataFunctionCalls
                                   , mkLamBindings
                                   , mkMappedLamBindings
                                   , leadingLamIds
@@ -93,8 +94,22 @@ functionCalls :: ASTContainer m Expr => m -> [Expr]
 functionCalls = evalContainedASTs functionCalls'
 
 functionCalls' :: Expr -> [Expr]
-functionCalls' e@(App _ e') = e:functionCalls' e'
+functionCalls' e@(App e' e'') = e:functionCallsApp e' ++ functionCalls' e''
 functionCalls' e = functionCalls $ children e
+
+functionCallsApp :: Expr -> [Expr]
+functionCallsApp (App e e') = functionCallsApp e ++ functionCalls' e'
+functionCallsApp _ = []
+
+-- | nonDataFunctionCalls
+-- Returns all function calls to Vars with all arguments
+nonDataFunctionCalls :: ASTContainer m Expr => m -> [Expr]
+nonDataFunctionCalls = filter (not . centerIsData) . functionCalls
+
+centerIsData :: Expr -> Bool
+centerIsData (App e _) = centerIsData e
+centerIsData (Data _) = True
+centerIsData _ = False
 
 -- Generates a lambda binding for each a in the provided list
 -- Takes a function to generate the inner expression
@@ -132,7 +147,7 @@ args (Lam i e) = i:args e
 args _ = []
 
 passedArgs :: Expr -> [Expr]
-passedArgs (App _ e) = e:passedArgs e
+passedArgs (App e e') = e':passedArgs e
 passedArgs _ = []
 
 nthArg :: Expr -> Int -> Id

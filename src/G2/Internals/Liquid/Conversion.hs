@@ -104,7 +104,7 @@ hasLHTC _ _ = False
 addLHTCCalls :: TypeClasses -> Name -> Expr -> Expr
 addLHTCCalls tc lh e =
     let
-        fc = functionCalls e
+        fc = nonDataFunctionCalls e
         lh_dicts = lhDicts lh e
 
         fc' = map (addTCPasses tc lh_dicts lh) fc
@@ -136,7 +136,7 @@ addTCPasses tc ti lh e =
 
 insertInApp :: Expr -> [Expr] -> Expr
 insertInApp (App e e') es = App (insertInApp e es) e'
-insertInApp e es = foldr App e es
+insertInApp e es = foldl' App e es
 
 typeExprType :: Expr -> Maybe Type
 typeExprType (Type t) = Just t
@@ -182,7 +182,7 @@ convertSpecType tcv s@(State { known_values = kv
     let
         lh = lhTC tcv
 
-        tva = filter isTyVar $ specTypeLamTypes st
+        tva = nub . filter isTyVar $ specTypeLamTypes st
         lhtc = map (\t -> TyConApp lh [t]) tva
 
         dsnames = map (Name "d" Nothing) [0 .. (length tva - 1)]
@@ -192,7 +192,7 @@ convertSpecType tcv s@(State { known_values = kv
         dclams = foldr (.) id (map Lam ds) 
 
         lams = specTypeLams st 
-        lams' = lams . dclams . Lam ret
+        lams' = dclams . lams . Lam ret
         apps = specTypeApps st tcv s (M.fromList nt) ret
     in
     primInject $ lams' apps

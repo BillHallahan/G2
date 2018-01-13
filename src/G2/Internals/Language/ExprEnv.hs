@@ -51,6 +51,8 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 -- | From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
 --  1) Redirection pointers can map two names to the same expr
@@ -113,7 +115,7 @@ lookupNameMod ns ms =
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =
     case M.lookup n env' of
-        Just (RedirObj n') -> env ! n'
+        Just (RedirObj n') -> trace (show n') env ! n'
         Just (ExprObj e) -> e
         Just (SymbObj i) -> Var i
         Nothing -> error $ "ExprEnv.!: Given key is not an element of the expr env" ++ show n

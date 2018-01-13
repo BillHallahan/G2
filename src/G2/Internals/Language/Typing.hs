@@ -16,6 +16,7 @@ module G2.Internals.Language.Typing
     , isAlgDataTy
     , tyVars
     , isPolyFunc
+    , numArgs
     , argumentTypes
     , returnType
     , polyIds
@@ -290,7 +291,11 @@ tyVars' :: Type -> [Type]
 tyVars' t@(TyVar _) = [t]
 tyVars' _ = []
 
--- | arguments
+-- | numArgs
+numArgs :: Typed t => t -> Int
+numArgs = length . argumentTypes
+
+-- | argumentTypes
 -- Gives the types of the arguments of the functions 
 argumentTypes :: Typed t => t -> [Type]
 argumentTypes = argumentTypes' . typeOf
