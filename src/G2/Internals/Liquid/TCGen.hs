@@ -104,26 +104,32 @@ createLHTC s@(State { expr_env = eenv
     let
         tenv' = M.toList tenv
 
-        ([lhTCN, lhEqN, lhNeN, lhLtN], ng2) = 
-            freshSeededStrings ["LH", "LHEq", "LHNe", "LHlt"] ng
+        ([lhTCN, lhEqN, lhNeN, lhLtN, lhLeN, lhGtN, lhGeN], ng2) = 
+            freshSeededStrings ["LH", "LHEq", "LHNe", "LHlt", "LHle", "LHgt", "LHge"] ng
 
         lhEqE = Var (Id lhEqN $ TyFun tb (TyFun tb tb))
         lhLtE = Var (Id lhLtN $ TyFun tb (TyFun tb tb))
 
-        (eenv', ng3, eq_w) = createFuncs eenv ng2 tenv' M.empty (lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts) eqFuncCall eenv tenv kv)
-        (eenv'', ng4, neq_w) = createFuncs eenv' ng3 tenv' M.empty (lhNeqName . fst) lhStore (lhNeqExpr eq_w eenv')
-        (eenv''', ng5, lt_w) = createFuncs eenv'' ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN (lhLtCase2Alts lhEqE lhLtE) ltFuncCall eenv tenv kv)
+        (eenv2, ng3, eq_w) = createFuncs eenv ng2 tenv' M.empty (lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts) eqFuncCall eenv tenv kv)
+        (eenv3, ng4, neq_w) = createFuncs eenv2 ng3 tenv' M.empty (lhNeqName . fst) lhStore (lhNeqExpr eq_w eenv2)
+        (eenv4, ng5, lt_w) = createFuncs eenv3 ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN (lhLtCase2Alts lhEqE lhLtE) ltFuncCall eenv3 tenv kv)
+        (eenv5, ng6, le_w) = createFuncs eenv4 ng5 tenv' M.empty (lhLeName . fst) lhStore (lhLeExpr lt_w eq_w eenv4)
+        (eenv6, ng7, gt_w) = createFuncs eenv5 ng6 tenv' M.empty (lhGtName . fst) lhStore (lhGtExpr lt_w eenv5)
+        (eenv7, ng8, ge_w) = createFuncs eenv6 ng7 tenv' M.empty (lhGeName . fst) lhStore (lhGeExpr le_w eenv6)
 
         tb = tyBool kv
 
-        (eenv'''', tenv'', tc', ng6) = genTC eenv''' tenv tc lhTCN
+        (eenv8, tenv'', tc', ng9) = genTC eenv7 tenv tc lhTCN
                         [ (lhEqN, TyFun tb (TyFun tb tb), eq_w) 
                         , (lhNeN, TyFun tb (TyFun tb tb), neq_w)
-                        , (lhLtN, TyFun tb (TyFun tb tb), lt_w)] ng5
+                        , (lhLtN, TyFun tb (TyFun tb tb), lt_w)
+                        , (lhLeN, TyFun tb (TyFun tb tb), le_w)
+                        , (lhGtN, TyFun tb (TyFun tb tb), gt_w)
+                        , (lhGeN, TyFun tb (TyFun tb tb), ge_w)] ng8
 
-        tcv = TCValues {lhTC = lhTCN, lhEq = lhEqN, lhNe = lhNeN, lhLt = lhLtN}
+        tcv = TCValues {lhTC = lhTCN, lhEq = lhEqN, lhNe = lhNeN, lhLt = lhLtN, lhLe = lhLeN, lhGt = lhGtN, lhGe = lhGeN}
     in
-    (s { expr_env = eenv'''', name_gen = ng6, type_env = tenv'', type_classes = tc' }, eq_w, tcv)
+    (s { expr_env = eenv8, name_gen = ng9, type_env = tenv'', type_classes = tc' }, eq_w, tcv)
 
 lhStore :: (Name, AlgDataTy) -> Name -> Walkers -> Walkers
 lhStore (n, adt) n' w =
@@ -396,3 +402,81 @@ dataConName :: DataCon -> Name
 dataConName (DataCon n _ _) = n
 
 
+lhLeName :: Name -> Name
+lhLeName (Name n _ _) = Name ("lhLeName" ++ n) Nothing 0
+
+lhLeExpr :: Walkers -> Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+lhLeExpr ltW eqW eenv w (n, _) ng = 
+    let
+        lt = case M.lookup n ltW of
+            Just f' -> f'
+            Nothing -> error "Unknown function in lhLeExpr"
+        eq = case M.lookup n eqW of
+            Just f' -> f'
+            Nothing -> error "Unknown function in lhLeExpr"
+        fe = case E.lookup (idName eq) eenv of
+            Just fe' -> fe'
+            Nothing -> error "Unknown function def in lhLeExpr"
+        li = leadingLamIds fe
+
+        or_ex = mkOr eenv
+
+        (li', ng') = freshIds (map typeOf li) ng
+
+        ltApp = foldl' App (Var lt) $ map Var li'
+        eqApp = foldl' App (Var eq) $ map Var li'
+
+        orApp = App (App or_ex ltApp) eqApp
+
+        e = foldr Lam orApp li'
+    in
+    (e, ng')
+
+lhGtName :: Name -> Name
+lhGtName (Name n _ _) = Name ("lhGtName" ++ n) Nothing 0
+
+lhGtExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+lhGtExpr ltW eenv w (n, _) ng = 
+    let
+        f = case M.lookup n ltW of
+            Just f' -> f'
+            Nothing -> error "Unknown function in lhGtExpr"
+        fe = case E.lookup (idName f) eenv of
+            Just fe' -> fe'
+            Nothing -> error "Unknown function def in lhGtExpr"
+        li = leadingLamIds fe
+
+        (li', ng') = freshIds (map typeOf li) ng
+
+        fApp = foldl' App (Var f) $ map Var $ flipLastTwo li'
+
+        e = foldr Lam fApp li'
+    in
+    (e, ng')
+
+lhGeName :: Name -> Name
+lhGeName (Name n _ _) = Name ("lhGtName" ++ n) Nothing 0
+
+lhGeExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+lhGeExpr leW eenv w (n, _) ng = 
+    let
+        f = case M.lookup n leW of
+            Just f' -> f'
+            Nothing -> error "Unknown function in lhGeExpr"
+        fe = case E.lookup (idName f) eenv of
+            Just fe' -> fe'
+            Nothing -> error "Unknown function def in lhGeExpr"
+        li = leadingLamIds fe
+
+        (li', ng') = freshIds (map typeOf li) ng
+
+        fApp = foldl' App (Var f) $ map Var $ flipLastTwo li'
+
+        e = foldr Lam fApp li'
+    in
+    (e, ng')
+
+flipLastTwo :: [a] -> [a]
+flipLastTwo (x:y:[]) = y:[x]
+flipLastTwo (x:xs) = x:flipLastTwo xs
+flipLastTwo xs = xs

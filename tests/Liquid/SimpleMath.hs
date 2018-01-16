@@ -63,6 +63,17 @@ add2 x y = x + y
 add3 :: Double -> Double -> Double
 add3 x y = x + y
 
+{-@ add4 :: x:Int -> y:Int -> {z:Int | x <= z }@-}
+add4 :: Int -> Int -> Int
+add4 x y = x + y
+
+{-@ add5 :: x:Int -> y:Int -> {z:Int | x > z }@-}
+add5 :: Int -> Int -> Int
+add5 x y = x + y
+
+{-@ add6 :: x:Int -> y:Int -> {z:Int | x >= z }@-}
+add6 :: Int -> Int -> Int
+add6 x y = x + y
 
 {-@ lt :: {b:Bool | 1 < 0} @-}
 lt :: Bool
