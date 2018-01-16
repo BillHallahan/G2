@@ -36,7 +36,7 @@ findCounterExamples proj primF fp entry steps = do
 
     let init_state' = elimPartialApp init_state
 
-    let (lh_state, eq_walkers, tcv) = createLHEq init_state'
+    let (lh_state, eq_walkers, tcv) = createLHTC init_state'
 
     -- putStrLn $ pprExecStateStr lh_state
 
