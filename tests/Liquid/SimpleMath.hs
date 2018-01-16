@@ -55,6 +55,15 @@ eq3Int x y = x == y
 eq3 :: Eq a => a -> a -> Bool
 eq3 x y = x == y
 
-{-@ add2 :: x:Int -> y:Int -> {z:Int | x <= z }@-}
+{-@ add2 :: x:Int -> y:Int -> {z:Int | x < z }@-}
 add2 :: Int -> Int -> Int
 add2 x y = x + y
+
+{-@ add3 :: x:Double -> y:Double -> {z:Double | x < z }@-}
+add3 :: Double -> Double -> Double
+add3 x y = x + y
+
+
+{-@ lt :: {b:Bool | 1 < 0} @-}
+lt :: Bool
+lt = False

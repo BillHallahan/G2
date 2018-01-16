@@ -4,4 +4,6 @@ import G2.Internals.Language.Syntax
 
 data TCValues = TCValues { lhTC :: Name
                          , lhEq :: Name
-                         , lhNe :: Name }
+                         , lhNe :: Name
+
+                         , lhLt :: Name }

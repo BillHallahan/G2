@@ -423,7 +423,7 @@ brelTCDictName Ref.Eq _ tcv = lhTC tcv
 brelTCDictName Ref.Ne _ tcv = lhTC tcv
 brelTCDictName Ref.Gt kv _ = ordTC kv
 brelTCDictName Ref.Ge kv _ = ordTC kv
-brelTCDictName Ref.Lt kv _ = ordTC kv
+brelTCDictName Ref.Lt _ tcv = lhTC tcv
 brelTCDictName Ref.Le kv _ = ordTC kv
 
 brelTCDict :: Brel -> KnownValues  -> TCValues -> TypeClasses -> Type -> Maybe Expr
@@ -431,7 +431,7 @@ brelTCDict Ref.Eq kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv) -- eqTCDict 
 brelTCDict Ref.Ne kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv) -- eqTCDict kv tc d
 brelTCDict Ref.Gt kv tcv tc = fmap Var . ordTCDict kv tc
 brelTCDict Ref.Ge kv tcv tc = fmap Var . ordTCDict kv tc
-brelTCDict Ref.Lt kv tcv tc = fmap Var . ordTCDict kv tc
+brelTCDict Ref.Lt kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
 brelTCDict Ref.Le kv tcv tc = fmap Var . ordTCDict kv tc
 
 convertBrel :: Brel -> KnownValues -> TCValues -> Expr
@@ -439,7 +439,7 @@ convertBrel Ref.Eq _ tcv = Var $ Id (lhEq tcv) TyBottom
 convertBrel Ref.Ne _ tcv = Var $ Id (lhNe tcv) TyBottom
 convertBrel Ref.Gt kv _ = Var $ Id (gtFunc kv) TyBottom
 convertBrel Ref.Ge kv _ = Var $ Id (geFunc kv) TyBottom
-convertBrel Ref.Lt kv _ = Var $ Id (ltFunc kv) TyBottom
+convertBrel Ref.Lt _ tcv = Var $ Id (lhLt tcv) TyBottom
 convertBrel Ref.Le kv _ = Var $ Id (leFunc kv) TyBottom
 
 
