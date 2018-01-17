@@ -385,7 +385,7 @@ convertSymbol nm@(Name n md _) eenv m =
         t = maybe TyBottom id $ M.lookup nm m
     in
     case E.lookupNameMod n md eenv of
-        Just (n', _) -> Id n' t
+        Just (n', e) -> Id n' (typeOf e)
         Nothing -> Id nm t
 
 convertSymbolT :: Symbol -> Type -> Lang.Id

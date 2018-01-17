@@ -17,3 +17,8 @@ toInt (Succ p) = 1 + toInt p
 add' :: Peano -> Peano -> Peano
 add' Zero p = p
 add' (Succ p) p2 = add' p (Succ p2)
+
+{-@ isZero :: p:Peano -> {b:Bool | toInt p == 0} @-}
+isZero :: Peano -> Bool
+isZero Zero = True
+isZero (Succ _) = False

@@ -386,7 +386,10 @@ ltFuncCall eenv tenv kv w ti e e'
     ,  t == TyLitInt
     || t == TyLitDouble
     || t == TyLitFloat
-    || t == TyLitChar = 
+    || t == TyLitChar =
+        let
+            lt = mkLt eenv
+        in
         App (App (Prim Lt TyBottom) e) e'
     | otherwise = error $ "\nError in ltFuncCall" ++ show (typeOf e)
 

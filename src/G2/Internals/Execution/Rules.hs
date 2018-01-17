@@ -195,6 +195,7 @@ lookupForPrim v@(Var (Id n _)) eenv =
     case E.lookup n eenv of
         Just e -> e
         Nothing -> v
+lookupForPrim (App e e') eenv = App (lookupForPrim e eenv) (lookupForPrim e' eenv)
 lookupForPrim e _ = e
 
 -- | Function for performing rule reductions based on stack based evaluation
