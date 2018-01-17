@@ -42,7 +42,7 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
-        -- , liquidTests
+        , liquidTests
         , testFileTests
         ]
 
@@ -94,21 +94,21 @@ liquidTests :: IO TestTree
 liquidTests = 
     return . testGroup "Liquid"
         =<< sequence [
-                {-
-                  checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "abs2" 500 2 [RForAll (\[x, y] -> isFloat x (const True) && isFloat y ((==) 0)), Exactly 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x > z || y > z), Exactly 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x > 0 && x >= y && z <= 0), Exactly 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 800 2 [RExists (\[Lit (LitInt x), Lit (LitInt y)] -> x > y), AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 800 2 [RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x > y), AtLeast 1]
+                --   checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "abs2" 500 2 [RForAll (\[x, y] -> isFloat x (const True) && isFloat y ((==) 0)), Exactly 1]
+                 checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 400 3 
+                    [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > z' || y' > z'), AtLeast 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 400 3 
+                    [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > 0 && x' >= y' && z' <= 0), AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 800 2 [RExists (\[Lit (LitInt x), Lit (LitInt y)] -> x > y), AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 800 2 [RForAll (\[Lit (LitInt x), Lit (LitInt y)] -> x > y), AtLeast 1]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x /= y && y == z), Exactly 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 400 2 [AtLeast 1, RForAll (\[App (App _ (Lit (LitInt x))) (Lit (LitInt y)), Lit (LitInt z)] -> x > z || y > z)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x /= y && y == z), Exactly 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 400 2 [AtLeast 1, RForAll (\[App (App _ (Lit (LitInt x))) (Lit (LitInt y)), Lit (LitInt z)] -> x > z || y > z)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 2000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 2500 3 [AtLeast 5, RForAll getNthErrors]
-                -}
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 2500 3 [AtLeast 5, RForAll getNthErrors]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
