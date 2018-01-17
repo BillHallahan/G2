@@ -206,7 +206,7 @@ lookupForPrim e _ = e
 -- The distinction is less clear here. For now :)
 reduce :: SMTConverter ast out io -> io -> State -> IO (Rule, [State])
 reduce con hpp s = do
-    let (rule, res) = reduce' s
+    let (rule, res@((_, _, _, a, _, _):xs)) = reduce' s
 
     sts <- resultsToState con hpp rule s res
 
@@ -234,9 +234,11 @@ resultsToState con hpp rule s@(State {known_values = kv}) (red@(_, _, pc, assert
     | not (null asserts) && not (true_assert s) = do
         let assertS = s' { path_conds = foldr (PC.insert kv) (path_conds s') asserts, true_assert = True }
         let assertSRel = assertS {path_conds = PC.relevant kv asserts (path_conds assertS)}
+
+        let negAsserts = map PC.negatePC asserts
         
-        let negAssertS = s' {path_conds = foldr (PC.insert kv) (path_conds s') (map PC.negatePC asserts)}
-        let negAssertSRel = negAssertS {path_conds = PC.relevant kv asserts (path_conds negAssertS)}
+        let negAssertS = s' {path_conds = foldr (PC.insert kv) (path_conds s') negAsserts}
+        let negAssertSRel = negAssertS {path_conds = PC.relevant kv negAsserts (path_conds negAssertS)}
 
         let potentialS = [(assertS, assertSRel), (negAssertS, negAssertSRel)]
 
