@@ -13,6 +13,7 @@ import G2.Internals.Preprocessing.Interface
 import G2.Internals.Execution.Interface
 import G2.Internals.Execution.Rules
 import G2.Internals.Execution.PrimitiveEval
+import G2.Internals.Execution.Memory
 
 import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
@@ -191,7 +192,20 @@ run con hhp n (state@ State { type_env = tenv
 
     (_, mdl) <- checkModel con hhp preproc_state
 
-    let preproc_state' = preproc_state {model = fromJust mdl}
+    let preproc_state_alpha = preproc_state { model = fromJust mdl}
+
+    let preproc_state' = preproc_state_alpha
+    -- let preproc_state' = markAndSweep preproc_state_alpha
+
+    -- putStrLn $ "old tenv: " ++ show (M.size $ type_env preproc_state_alpha)
+    -- putStrLn $ "old eenv: " ++ show (E.size $ expr_env preproc_state_alpha)
+
+    -- putStrLn $ "new tenv: " ++ show (M.size $ type_env preproc_state')
+    -- putStrLn $ "new eenv: " ++ show (E.size $ expr_env preproc_state')
+
+    -- putStrLn $ show $ map fst $ M.toList $ type_env preproc_state'
+    -- putStrLn "--------------------"
+    -- putStrLn $ show $ map fst $ E.toList $ expr_env preproc_state'
 
     -- putStrLn . pprExecStateStr $ state
     -- putStrLn . pprExecStateStr $ preproc_state'
