@@ -94,8 +94,8 @@ liquidTests :: IO TestTree
 liquidTests = 
     return . testGroup "Liquid"
         =<< sequence [
-                --   checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "abs2" 500 2 [RForAll (\[x, y] -> isFloat x (const True) && isFloat y ((==) 0)), Exactly 1]
-                 checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 400 3 
+                  checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "abs2" 1000 2 [RForAll (\[x, y] -> isDouble x ((==) 0) && isDouble y ((==) 0)), Exactly 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 400 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > z' || y' > z'), AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 400 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > 0 && x' >= y' && z' <= 0), AtLeast 1]

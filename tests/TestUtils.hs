@@ -55,7 +55,7 @@ isIntT (TyConApp (Name "Int" _ _) _) = True
 isIntT _ = False
 
 isDouble :: Expr -> (Rational -> Bool) -> Bool
-isDouble (Lit (LitDouble x)) f = f x
+isDouble (App _ (Lit (LitDouble x))) f = f x
 isDouble _ _ = False
 
 isFloat :: Expr -> (Rational -> Bool) -> Bool

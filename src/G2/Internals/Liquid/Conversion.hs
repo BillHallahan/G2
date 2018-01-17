@@ -334,11 +334,25 @@ convertLHExpr (EApp e e') tcv s m =
     case (convertLHExpr e' tcv s m) of
         v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ (convertLHExpr e tcv s m):(map Type ts) ++ [v]
         e'' -> App (convertLHExpr e tcv s m) e''
-convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv }) m =
-    mkApp $ mkPrim Negate eenv
-          : Var (Id (Name "TYPE" Nothing 0) TYPE)
-          : Var (Id (Name "$fordInt" Nothing 0) TyBottom)
-          : [convertLHExpr e tcv s m]
+convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_values = kv }) m =
+    let
+        e' = convertLHExpr e tcv s m
+
+        t = typeOf e'
+        dict = numTCDict kv tc t
+
+        dict' = case dict of
+            Just d -> d
+            Nothing ->
+                case find (tyVarInTyAppHasName (numTC kv) . snd) (M.toList m) of
+                    Just (s, _) -> convertSymbol s eenv m
+                    Nothing -> error "No num dictionary for negate in convertLHExpr"
+
+    in
+    mkApp [ mkPrim Negate eenv
+          , Type t
+          , Var dict'
+          , e']
 convertLHExpr (EBin b e e') tcv s m =
     mkApp [convertBop b, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
 convertLHExpr (PAnd es) tcv s@(State { known_values = kv, expr_env = eenv, type_env = tenv }) m = 
@@ -355,9 +369,9 @@ convertLHExpr (PNot e) tcv s@(State {expr_env = eenv }) m =
     App (mkNot eenv) $ convertLHExpr e tcv s m
 convertLHExpr (PIff e e') tcv s@(State { expr_env = eenv }) m =
     mkApp [mkIff eenv, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
-convertLHExpr (PAtom brel e e') tcv s@(State {known_values = kv, expr_env = eenv, type_classes = tc}) m =
+convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_classes = tc}) m =
     let
-        brel' = convertBrel brel kv tcv
+        brel' = convertBrel brel tcv
 
         ec = convertLHExpr e tcv s m
         ec' = convertLHExpr e' tcv s m
@@ -365,14 +379,14 @@ convertLHExpr (PAtom brel e e') tcv s@(State {known_values = kv, expr_env = eenv
         t = typeOf ec
 
         dict = 
-            case brelTCDict brel kv tcv tc t of
+            case brelTCDict brel tcv tc t of
                 Just d -> d
                 Nothing -> 
-                    case find (tyVarInTyAppHasName (brelTCDictName brel kv tcv) . snd) (M.toList m) of
+                    case find (tyVarInTyAppHasName (brelTCDictName brel tcv) . snd) (M.toList m) of
                         Just (s, _) -> Var $ convertSymbol s eenv m
                         Nothing -> error
                             $ "No dictionary in convertLHExpr\nm=" ++ (show $ M.toList m) 
-                                ++ "\nv = " ++ show (brelTCDictName brel kv tcv) 
+                                ++ "\nv = " ++ show (brelTCDictName brel tcv) 
                                 -- ++ "\nec = " ++ show ec 
                                 ++ "\nt = " ++ show t
     in
@@ -418,29 +432,29 @@ convertCon kv tenv (Ref.R d) = App (mkDCDouble kv tenv) (Lit . LitDouble $ toRat
 convertBop :: Bop -> Expr
 convertBop _ = undefined
 
-brelTCDictName :: Brel -> KnownValues -> TCValues -> Lang.Name
-brelTCDictName Ref.Eq _ tcv = lhTC tcv
-brelTCDictName Ref.Ne _ tcv = lhTC tcv
-brelTCDictName Ref.Gt kv _ = ordTC kv
-brelTCDictName Ref.Ge kv _ = ordTC kv
-brelTCDictName Ref.Lt _ tcv = lhTC tcv
-brelTCDictName Ref.Le _ tcv = lhTC tcv
+brelTCDictName :: Brel -> TCValues -> Lang.Name
+brelTCDictName Ref.Eq tcv = lhTC tcv
+brelTCDictName Ref.Ne tcv = lhTC tcv
+brelTCDictName Ref.Gt tcv = lhTC tcv
+brelTCDictName Ref.Ge tcv = lhTC tcv
+brelTCDictName Ref.Lt tcv = lhTC tcv
+brelTCDictName Ref.Le tcv = lhTC tcv
 
-brelTCDict :: Brel -> KnownValues  -> TCValues -> TypeClasses -> Type -> Maybe Expr
-brelTCDict Ref.Eq kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv) -- eqTCDict kv tc
-brelTCDict Ref.Ne kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv) -- eqTCDict kv tc d
-brelTCDict Ref.Gt kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
-brelTCDict Ref.Ge kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
-brelTCDict Ref.Lt kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
-brelTCDict Ref.Le kv tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
+brelTCDict :: Brel -> TCValues -> TypeClasses -> Type -> Maybe Expr
+brelTCDict Ref.Eq tcv tc = fmap Var . lookupTCDict tc (lhTC tcv) -- eqTCDict kv tc
+brelTCDict Ref.Ne tcv tc = fmap Var . lookupTCDict tc (lhTC tcv) -- eqTCDict kv tc d
+brelTCDict Ref.Gt tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
+brelTCDict Ref.Ge tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
+brelTCDict Ref.Lt tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
+brelTCDict Ref.Le tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
 
-convertBrel :: Brel -> KnownValues -> TCValues -> Expr
-convertBrel Ref.Eq _ tcv = Var $ Id (lhEq tcv) TyBottom
-convertBrel Ref.Ne _ tcv = Var $ Id (lhNe tcv) TyBottom
-convertBrel Ref.Gt _ tcv = Var $ Id (lhGt tcv) TyBottom
-convertBrel Ref.Ge _ tcv = Var $ Id (lhGe tcv) TyBottom
-convertBrel Ref.Lt _ tcv = Var $ Id (lhLt tcv) TyBottom
-convertBrel Ref.Le _ tcv = Var $ Id (lhLe tcv) TyBottom
+convertBrel :: Brel -> TCValues -> Expr
+convertBrel Ref.Eq tcv = Var $ Id (lhEq tcv) TyBottom
+convertBrel Ref.Ne tcv = Var $ Id (lhNe tcv) TyBottom
+convertBrel Ref.Gt tcv = Var $ Id (lhGt tcv) TyBottom
+convertBrel Ref.Ge tcv = Var $ Id (lhGe tcv) TyBottom
+convertBrel Ref.Lt tcv = Var $ Id (lhLt tcv) TyBottom
+convertBrel Ref.Le tcv = Var $ Id (lhLe tcv) TyBottom
 
 
 tyVarInTyAppHasName :: Name -> Type -> Bool

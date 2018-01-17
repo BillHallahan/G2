@@ -78,3 +78,7 @@ add6 x y = x + y
 {-@ lt :: {b:Bool | 1 < 0} @-}
 lt :: Bool
 lt = False
+
+{-@ neg :: Int -> {y:Int | 0 < y} @-}
+neg :: Int -> Int
+neg x = -x
