@@ -347,7 +347,7 @@ lhLtSameAlt lhEq lhLt eenv tenv kv w ti binds1 true false ng dc@(DataCon _ _ ts)
     (Alt (DataAlt dc binds2) e, ng3)
 
 lhLtSameAltCases :: TypeEnv -> KnownValues -> NameGen -> [(Expr, Expr)] -> (Expr, NameGen)
-lhLtSameAltCases tenv kv ng [] = (mkTrue kv tenv, ng)
+lhLtSameAltCases tenv kv ng [] = (mkFalse kv tenv, ng)
 lhLtSameAltCases tenv kv ng ((lt, eq):xs) =
     let
         (Data true) = mkTrue kv tenv
@@ -458,7 +458,7 @@ lhGtExpr ltW eenv w (n, _) ng =
     (e, ng')
 
 lhGeName :: Name -> Name
-lhGeName (Name n _ _) = Name ("lhGtName" ++ n) Nothing 0
+lhGeName (Name n _ _) = Name ("lhGeName" ++ n) Nothing 0
 
 lhGeExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhGeExpr leW eenv w (n, _) ng = 
