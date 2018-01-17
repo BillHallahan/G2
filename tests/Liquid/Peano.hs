@@ -22,3 +22,8 @@ add' (Succ p) p2 = add' p (Succ p2)
 isZero :: Peano -> Bool
 isZero Zero = True
 isZero (Succ _) = False
+
+{-@ fromInt :: v:Int -> {p:Peano | v > 0} @-}
+fromInt :: Int -> Peano
+fromInt 0 = Zero
+fromInt n = Succ (fromInt (n - 1))
