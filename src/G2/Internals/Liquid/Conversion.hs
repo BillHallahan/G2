@@ -107,7 +107,7 @@ addLHTCCalls tc lh e =
         fc = nonDataFunctionCalls e
         lh_dicts = lhDicts lh e
 
-        fc' = map (addTCPasses tc lh_dicts lh) fc
+        fc' = nubBy (\x y -> fst x == fst y) $ map (addTCPasses tc lh_dicts lh) fc
     in
     foldr (uncurry replaceASTs) e fc'
 
