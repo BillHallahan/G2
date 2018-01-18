@@ -107,6 +107,7 @@ liquidTests =
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 2000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
+                , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "fromInt" 600 2 [RForAll (\[x, y] -> isInt x (\x' -> x' == 0)  && y `eqIgT` zeroPeano), AtLeast 1]
 
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 2500 3 [AtLeast 5, RForAll getNthErrors]
         ]

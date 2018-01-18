@@ -109,7 +109,7 @@ addLHTCCalls tc lh e =
 
         fc' = map (addTCPasses tc lh_dicts lh) fc
     in
-    foldr (uncurry replaceASTs) e $ zip fc fc'
+    foldr (uncurry replaceASTs) e fc'
 
 isTYPE :: Type -> Bool
 isTYPE TYPE = True
@@ -125,14 +125,21 @@ lhDicts lh (Lam i@(Lang.Id _ (TyConApp n [t])) e) =
     if lh == n then (t, i):lhDicts lh e else lhDicts lh e
 lhDicts _ _ = []
 
-addTCPasses :: TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> Expr
+addTCPasses :: TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> (Expr, Expr)
 addTCPasses tc ti lh e =
     let
         tva = nub . mapMaybe typeExprType $ passedArgs e
 
         lht = map (typeToLHTypeClass tc ti lh) tva
+
+        e' = appCenter e
     in
-    insertInApp e lht
+    (e', insertInApp e' lht)
+
+appCenter :: Expr -> Expr
+appCenter (App e _) = appCenter e
+appCenter e = e
+
 
 insertInApp :: Expr -> [Expr] -> Expr
 insertInApp (App e e') es = App (insertInApp e es) e'
