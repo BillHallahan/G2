@@ -8,8 +8,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 type BoundName = Name
 
 createDeepSeqWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
@@ -91,12 +89,26 @@ createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon dcn t ts):xs) =
     let
         (binds, ng') = freshIds ts ng
 
-        (e, ng'') = createDeepSeqDataConCase2 tenv w ti binds ng' (Data dc)
+        dct = bindTypes ti (Data dc)
+
+        (e, ng'') = createDeepSeqDataConCase2 tenv w ti binds ng' dct
         alt = Alt (DataAlt dc binds) e
 
         (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n i bn ng'' xs
     in
     (alt:alts, ng''')
+
+bindTypes :: [(Name, Id)] -> Expr -> Expr
+bindTypes ti e =
+    let
+        t = tyForAllIds $ typeOf e
+        tb = map (Type . TyVar) t
+    in
+    foldl' App e tb
+
+tyForAllIds :: Type -> [Id]
+tyForAllIds (TyForAll (NamedTyBndr i) t) = i:tyForAllIds t
+tyForAllIds _ = []
 
 createDeepSeqDataConCase2 :: TypeEnv -> Walkers -> [(Name, Id)] -> [Id] -> NameGen -> Expr -> (Expr, NameGen)
 createDeepSeqDataConCase2 _ _ _ [] ng e = (e, ng)

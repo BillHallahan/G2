@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module GetNthTest where
 
 import G2.Internals.Language
@@ -24,6 +26,14 @@ toCList _ = Nil
 toCListGen :: Expr -> CList Expr
 toCListGen (App (App (Data (DataCon (Name "Cons" _ _) _ _)) e) y) = Cons e (toCListGen y)
 toCListGen _ = Nil
+
+toCListType :: Expr -> CList Int
+toCListType (App (App (App (Data (DataCon (Name "Cons" _ _) _ _)) (Type _)) x) y) = getInt x Nil $ \x' -> Cons x' (toCListType y)
+toCListType _ = Nil
+
+toCListGenType :: Expr -> CList Expr
+toCListGenType (App (App (App (Data (DataCon (Name "Cons" _ _) _ _)) (Type _)) e) y) = Cons e (toCListGenType y)
+toCListGenType _ = Nil
 
 cListLength :: CList a -> Int
 cListLength (Cons _ xs) = 1 + cListLength xs
@@ -54,10 +64,33 @@ getNthErrGenTest' [cl, i, e] =
         Nothing -> False
 getNthErrGenTest' _ = False
 
+getNthErrGenTest2 :: [Expr] -> Bool
+getNthErrGenTest2 [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
+getNthErrGenTest2 [cl, i, e] =
+    case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
+        Just e' -> e' `eqIgT` elimType e
+        Nothing -> False
+getNthErrGenTest2 _ = False
+
+getNthErrGenTest2' :: [Expr] -> Bool
+getNthErrGenTest2' [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
+getNthErrGenTest2' [cl, i, e] =
+    case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
+        Just e' -> e' `eqIgT` elimType e
+        Nothing -> False
+getNthErrGenTest2' _ = False
+
+elimType :: (ASTContainer m Expr) => m -> m
+elimType = modifyASTs elimType'
+
+elimType' :: Expr -> Expr
+elimType' (App e (Type _)) = e
+elimType' e = e
+
 getNthErrors :: [Expr] -> Bool
 getNthErrors [cl, Lit (LitInt i), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
 getNthErrors _ = False
 
 cfmapTest :: [Expr] -> Bool
-cfmapTest [_, e, e'] = cListLength (toCListGen e) == cListLength (toCListGen e')
+cfmapTest [_, e, e'] = cListLength (toCListGen e) == cListLength (toCListGenType e')
 cfmapTest _ = False

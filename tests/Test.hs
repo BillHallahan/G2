@@ -77,8 +77,8 @@ sampleTests =
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthInt" 3 [AtLeast 10, RForAll getNthErrTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthX" 3 [AtLeast 10, RForAll getNthErrGenTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest] -- 533
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest']
-                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest]
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest2']
+                , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest2]
 
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
@@ -102,7 +102,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 4000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 4000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
 
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 400 3 [RForAll (\[Lit (LitInt x), Lit (LitInt y), Lit (LitInt z)] -> x /= y && y == z), Exactly 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 400 3 [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' /= y' && y' == z'), Exactly 1]
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 400 2 [AtLeast 1, RForAll (\[App (App _ (Lit (LitInt x))) (Lit (LitInt y)), Lit (LitInt z)] -> x > z || y > z)]
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
 
@@ -144,7 +144,7 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 1 && y > 100), Exactly 1]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
-                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 1 && dcInAppHasName "J" y 1), AtLeast 2]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 1 && dcInAppHasName "J" y 2), AtLeast 2]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[App _ (Lit (LitInt x)), y] -> x < 0 && dcHasName "A" y)
                                                                                                               , RExists (\[App _ (Lit (LitInt x)), y] -> x >= 0 && dcHasName "C" y), Exactly 2]
@@ -217,8 +217,8 @@ testFileTests =
                                                                                                                                                                 && inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")) ]
 
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
-                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "L" y' 1) (const True))
-                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "R" y' 1) (const True))]
+                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "L" y' 3) (const True))
+                                                                                                                                               , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "R" y' 3) (const True))]
                 , checkExprWithOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getLIntFloat" 2 [ AtLeast 2
                                                                                                                                                , RExists (\[_, y] -> isInt y (const True))
                                                                                                                                                , RExists (\[_, y] -> isError y)]

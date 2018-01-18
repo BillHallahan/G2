@@ -40,12 +40,13 @@ import Debug.Trace
 -- Finally, the two expression environments are merged, before the whole state
 -- is returned.
 mergeLHSpecState :: [(Var, LocSpecType)] -> State -> TCValues -> State
-mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng, type_classes = tc}) tcv =
+mergeLHSpecState xs s@(State {expr_env = eenv, curr_expr = cexpr, name_gen = ng, type_classes = tc}) tcv =
     let
         (meenv, ng') = doRenames (E.keys eenv) ng eenv
-        eenv' = addLHTC eenv tc tcv
+        eenv' = addLHTCExprEnv eenv tc tcv
+        cexpr' = addLHTCCurrExpr cexpr tc tcv
 
-        s' = mergeLHSpecState' xs meenv tcv (s {expr_env = eenv', name_gen = ng'})
+        s' = mergeLHSpecState' xs meenv tcv (s {expr_env = eenv', curr_expr = cexpr', name_gen = ng'})
     in
     s' {expr_env = E.union meenv (expr_env s') }
 
@@ -68,11 +69,11 @@ mergeLHSpecState' ((v,lst):xs) meenv tcv s =
         -- LH has LT assumptions for. E.g. True, False...
         _ -> mergeLHSpecState' xs meenv tcv s
 
--- addLHTC
+-- addLHTCExprEnv
 -- We add a LH type class dict for all polymorphic variables in all function
 -- definitions.
-addLHTC :: ExprEnv -> TypeClasses -> TCValues -> ExprEnv
-addLHTC eenv tc tcv = 
+addLHTCExprEnv :: ExprEnv -> TypeClasses -> TCValues -> ExprEnv
+addLHTCExprEnv eenv tc tcv = 
     let
         lh = lhTC tcv
 
@@ -80,6 +81,15 @@ addLHTC eenv tc tcv =
         eenv'' = modifyContainedASTs (addLHTCCalls tc lh) eenv'
     in
     eenv''
+
+addLHTCCurrExpr :: CurrExpr -> TypeClasses -> TCValues -> CurrExpr
+addLHTCCurrExpr cexpr tc tcv = 
+    let
+        lh = lhTC tcv
+
+        cexpr' = modifyContainedASTs (addLHTCCalls tc lh) cexpr
+    in
+    cexpr'
 
 -- | addLHTCLams
 -- Adds lambdas to Expr to pass in the LH TC
@@ -128,22 +138,17 @@ lhDicts _ _ = []
 addTCPasses :: TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> (Expr, Expr)
 addTCPasses tc ti lh e =
     let
-        tva = nub . mapMaybe typeExprType $ passedArgs e
+        tva = mapMaybe typeExprType $ passedArgs e
 
         lht = map (typeToLHTypeClass tc ti lh) tva
 
         e' = appCenter e
     in
-    (e', insertInApp e' lht)
+    (e', foldl' App e' lht)
 
 appCenter :: Expr -> Expr
 appCenter (App e _) = appCenter e
 appCenter e = e
-
-
-insertInApp :: Expr -> [Expr] -> Expr
-insertInApp (App e e') es = App (insertInApp e es) e'
-insertInApp e es = foldl' App e es
 
 typeExprType :: Expr -> Maybe Type
 typeExprType (Type t) = Just t

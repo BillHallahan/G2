@@ -9,6 +9,8 @@ import qualified G2.Internals.Language.ExprEnv as E
 import Data.Foldable
 import Data.Tuple
 
+import Debug.Trace
+
 elimPartialApp :: State -> State
 elimPartialApp s@(State {expr_env = eenv, name_gen = ng }) =
     let
@@ -33,7 +35,9 @@ elimPartialApp' ns e =
     let        
         diff = req e
 
-        ad = map (\n -> Id n TyBottom) $ take diff ns
+        args = argumentTypes e
+
+        ad = map (uncurry Id) $ zip ns (takeEnd diff args)
 
         e' = insertInLams (\_ _e -> foldr Lam _e ad) e
     in
@@ -45,3 +49,6 @@ addLam i e = Lam i $ App e (Var i)
 lamsCount :: Expr -> Int
 lamsCount (Lam _ e) = 1 + lamsCount e
 lamsCount _ = 0
+
+takeEnd :: Int -> [a] -> [a]
+takeEnd n = reverse . take n . reverse
