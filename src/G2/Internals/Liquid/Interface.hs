@@ -40,7 +40,9 @@ findCounterExamples proj primF fp entry steps = do
 
     -- putStrLn $ pprExecStateStr lh_state
 
-    let merged_state = mergeLHSpecState specs lh_state tcv
+    let lhtc_state = addLHTC lh_state tcv
+
+    let merged_state = mergeLHSpecState specs lhtc_state tcv
 
     -- putStrLn $ pprExecStateStr merged_state
 

@@ -30,6 +30,14 @@ import qualified Data.Text as T
 
 import Debug.Trace
 
+addLHTC :: State -> TCValues -> State
+addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, name_gen = ng, type_classes = tc}) tcv =
+    let
+        eenv' = addLHTCExprEnv eenv tc tcv
+        cexpr' = addLHTCCurrExpr cexpr tc tcv
+    in
+    s { expr_env = eenv', curr_expr = cexpr' }
+
 -- | mergeLHSpecState
 -- From the existing expression environement E, we  generate a new expression
 -- environment E', with renamed copies of all expressions used in the LH
@@ -40,13 +48,11 @@ import Debug.Trace
 -- Finally, the two expression environments are merged, before the whole state
 -- is returned.
 mergeLHSpecState :: [(Var, LocSpecType)] -> State -> TCValues -> State
-mergeLHSpecState xs s@(State {expr_env = eenv, curr_expr = cexpr, name_gen = ng, type_classes = tc}) tcv =
+mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng }) tcv =
     let
-        (meenv, ng') = doRenames (E.keys eenv') ng eenv'
-        eenv' = addLHTCExprEnv eenv tc tcv
-        cexpr' = addLHTCCurrExpr cexpr tc tcv
+        (meenv, ng') = doRenames (E.keys eenv) ng eenv
 
-        s' = mergeLHSpecState' xs meenv tcv (s {expr_env = eenv', curr_expr = cexpr', name_gen = ng'})
+        s' = mergeLHSpecState' xs meenv tcv (s { name_gen = ng' })
     in
     s' {expr_env = E.union meenv (expr_env s') }
 
