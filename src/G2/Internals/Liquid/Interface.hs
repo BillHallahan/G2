@@ -38,9 +38,9 @@ findCounterExamples proj primF fp entry steps = do
 
     let (lh_state, eq_walkers, tcv) = createLHTC init_state'
 
-    -- putStrLn $ pprExecStateStr lh_state
-
     let lhtc_state = addLHTC lh_state tcv
+
+    -- putStrLn $ pprExecStateStr lhtc_state
 
     let merged_state = mergeLHSpecState specs lhtc_state tcv
 

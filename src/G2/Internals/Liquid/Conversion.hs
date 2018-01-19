@@ -262,11 +262,9 @@ specTypeLamTypes (RFun {rt_bind = b, rt_in = fin, rt_out = fout, rt_reft = r}) =
     typeOf i:specTypeLamTypes fout
 specTypeLamTypes (RAllT {rt_tvbind = RTVar (RTV v) info, rt_ty = rty}) =
     let
-        s = rtvInfoSymbol info
-
         i = mkId v
     in
-    typeOf i:specTypeLamTypes rty
+    (TyVar i):specTypeLamTypes rty
 specTypeLamTypes r@(RAllP {rt_ty = rty}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
 specTypeLamTypes r@(RAllS {rt_ty = rty}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
 specTypeLamTypes rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
@@ -431,6 +429,9 @@ convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_classes = tc
                                 ++ "\nv = " ++ show (brelTCDictName brel tcv) 
                                 -- ++ "\nec = " ++ show ec 
                                 ++ "\nt = " ++ show t
+                                ++ "\nbrel = " ++ show brel
+                                ++ "\nec = " ++ show ec
+                                ++ "\nec' = " ++ show ec'
     in
     mkApp [brel', dict, Type t, ec, ec']
 convertLHExpr e _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e

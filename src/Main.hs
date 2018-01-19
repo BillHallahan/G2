@@ -33,12 +33,6 @@ main = do
 
     case (m_liquid, m_liquid_func) of
         (Just l, Just f) -> do
-            let n_val = nVal as
-
-            in_out <- findCounterExamples proj prims l f n_val
-
-            printFuncCalls f in_out
-            
             -- ghcInfos <- getGHCInfos [l]
             -- putStrLn . show $ length ghcInfos
 
@@ -47,7 +41,14 @@ main = do
             --     putStrLn ""
             --     pprint s) specs
 
+            ---------
 
+            let n_val = nVal as
+
+            in_out <- findCounterExamples proj prims l f n_val
+
+            printFuncCalls f in_out
+            
         _ -> runGHC as
 
 runGHC :: [String] -> IO ()
