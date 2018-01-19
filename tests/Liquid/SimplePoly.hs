@@ -6,6 +6,10 @@ data S a = S a
 s :: S Int
 s = S 0
 
+-- {-@ measure sget @-}
+-- sget :: S a -> a
+-- sget (S x) = x
+
 data Pair a b = Pair a b
 
 {-@ p :: {p:Pair Int Int | 0 /= 0} @-}

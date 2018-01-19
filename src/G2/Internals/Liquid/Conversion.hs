@@ -42,7 +42,7 @@ import Debug.Trace
 mergeLHSpecState :: [(Var, LocSpecType)] -> State -> TCValues -> State
 mergeLHSpecState xs s@(State {expr_env = eenv, curr_expr = cexpr, name_gen = ng, type_classes = tc}) tcv =
     let
-        (meenv, ng') = doRenames (E.keys eenv) ng eenv
+        (meenv, ng') = doRenames (E.keys eenv') ng eenv'
         eenv' = addLHTCExprEnv eenv tc tcv
         cexpr' = addLHTCCurrExpr cexpr tc tcv
 
@@ -143,8 +143,11 @@ addTCPasses tc ti lh e =
         lht = map (typeToLHTypeClass tc ti lh) tva
 
         e' = appCenter e
+
+        -- Update the type of e
+        e'' = addToType (map typeOf lht) e'
     in
-    (e', foldl' App e' lht)
+    (e', foldl' App e'' lht)
 
 appCenter :: Expr -> Expr
 appCenter (App e _) = appCenter e
@@ -153,6 +156,15 @@ appCenter e = e
 typeExprType :: Expr -> Maybe Type
 typeExprType (Type t) = Just t
 typeExprType _ = Nothing
+
+addToType :: [Type] -> Expr -> Expr
+addToType ts (Var (Id n t)) =
+    let
+        t' = foldr TyFun t ts
+    in
+    Var (Id n t')
+addToType [] e = e
+addToType _ e = error $ "Non Var in addToType"
 
 typeToLHTypeClass :: TypeClasses -> [(Type, Lang.Id)] -> Name -> Type -> Expr
 typeToLHTypeClass tc ti lh t =
@@ -343,9 +355,12 @@ convertLHExpr (ESym (SL t)) _ _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBot
 convertLHExpr (ECon c) _ (State {known_values = kv, type_env = tenv}) _ = convertCon kv tenv c
 convertLHExpr (EVar s) _ (State { expr_env = eenv }) m = Var $ convertSymbol (symbolName s) eenv m
 convertLHExpr (EApp e e') tcv s m =
-    case (convertLHExpr e' tcv s m) of
-        v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ (convertLHExpr e tcv s m):(map Type ts) ++ [v]
-        e'' -> App (convertLHExpr e tcv s m) e''
+    let
+        f = convertLHExpr e tcv s m
+    in
+    case convertLHExpr e' tcv s m of
+        v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ f:(map Type ts) ++ [v]
+        e'' -> App f e''
 convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_values = kv }) m =
     let
         e' = convertLHExpr e tcv s m
@@ -360,8 +375,17 @@ convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_
                     Just (s, _) -> convertSymbol s eenv m
                     Nothing -> error "No num dictionary for negate in convertLHExpr"
 
+        lhdict = 
+            case brelTCDict Ref.Eq tcv tc t of
+                Just d -> d
+                Nothing -> 
+                    case find (tyVarInTyAppHasName (brelTCDictName Ref.Eq tcv) . snd) (M.toList m) of
+                        Just (s, _) -> Var $ convertSymbol s eenv m
+                        Nothing -> error "Not lh dict in convertLHExpr"
+
     in
     mkApp [ mkPrim Negate eenv
+          , lhdict
           , Type t
           , Var dict'
           , e']
