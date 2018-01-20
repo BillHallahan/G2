@@ -198,6 +198,7 @@ lhTEnvCase ca fc eenv tenv kv w ti _ bn (NewTyCon { rep_type = t@(TyConApp n _) 
         e = fc eenv tenv kv w ti v1 v2
     in
     (Lam i1 (Lam i2 e), ng3)
+lhTEnvCase _ _ _ _ _ _ _ _ _ _ ng = (Var (Id (Name "BADlhTEnvCase" Nothing 0) TyBottom), ng)
 
 lhTEnvDataConAlts :: Case2Alts -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Name -> Id -> Id -> [Name] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 lhTEnvDataConAlts _ _ _ _ _ _ _ _ _ _ ng [] = ([], ng)
