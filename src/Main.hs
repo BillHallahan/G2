@@ -19,6 +19,42 @@ import G2.Internals.Solver
 import G2.Internals.Liquid.Interface
 
 
+eApp = 
+    App 
+        (App 
+            (App 
+                (Var 
+                    (Id 
+                        (Name "sget" (Just "SimplePoly") 8214565720323795719) 
+                        (TyFun 
+                            (TyConApp (Name "LH" Nothing 0) [TyVar (Id (Name "a" Nothing 6989586621679022893) TYPE)]) 
+                            (TyFun 
+                                (TyVar (Id (Name "a" Nothing 6989586621679022893) TYPE)) 
+                                (TyFun 
+                                    (TyConApp (Name "S" (Just "SimplePoly") 8214565720323795712) [TyVar (Id (Name "a" Nothing 6989586621679022893) TYPE)]) 
+                                    (TyVar (Id (Name "a" Nothing 6989586621679022893) TYPE))
+                                )
+                            )
+                        )
+                    )
+                ) 
+                (Var 
+                    (Id 
+                        (Name "lhIntFunc" Nothing 0) 
+                        (TyConApp (Name "LH" Nothing 0) [TyConApp (Name "Int" (Just "GHC.Types") 3674937295934324766) []])
+                    )
+                )
+            ) 
+            (Type (TyConApp (Name "Int" (Just "GHC.Types") 3674937295934324766) []))
+        ) 
+        (Var 
+            (Id 
+                (Name "s" (Just "") 0) 
+                (TyConApp (Name "S" (Just "SimplePoly") 8214565720323786251) [TyConApp (Name "Int" (Just "GHC.Types") 3674937295934324766) []])
+            )
+        )
+
+
 main :: IO ()
 main = do
     as <- getArgs
@@ -49,6 +85,7 @@ main = do
 
             printFuncCalls f in_out
             
+    
         _ -> runGHC as
 
 runGHC :: [String] -> IO ()

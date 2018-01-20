@@ -358,12 +358,24 @@ convertLHExpr :: Ref.Expr -> TCValues -> State -> M.Map Name Type -> Expr
 convertLHExpr (ESym (SL t)) _ _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
 convertLHExpr (ECon c) _ (State {known_values = kv, type_env = tenv}) _ = convertCon kv tenv c
 convertLHExpr (EVar s) _ (State { expr_env = eenv }) m = Var $ convertSymbol (symbolName s) eenv m
-convertLHExpr (EApp e e') tcv s m =
+convertLHExpr (EApp e e') tcv s@(State {type_classes = tc}) m =
     let
         f = convertLHExpr e tcv s m
     in
     case convertLHExpr e' tcv s m of
-        v@(Var (Id _ (TyConApp _ ts))) -> mkApp $ f:(map Type ts) ++ [v]
+        v@(Var (Id _ (TyConApp _ ts))) -> 
+            let
+                te = map Type ts
+
+                lh = lhTC tcv
+                ti = typeIdList tcv m
+                tcs = map (typeToLHTypeClass tc ti lh) ts
+
+                fw = mkApp $ f:tcs
+
+                apps = mkApp $ fw:te ++ [v]
+            in
+            apps -- trace ("apps = " ++ show apps ++ "\napps' = " ++ show apps' ++ "\nm = " ++ show m ++ "\n") apps'
         e'' -> App f e''
 convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_values = kv }) m =
     let
@@ -416,7 +428,7 @@ convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_classes = tc
         ec = convertLHExpr e tcv s m
         ec' = convertLHExpr e' tcv s m
 
-        t = typeOf ec
+        t = returnType ec
 
         dict = 
             case brelTCDict brel tcv tc t of
@@ -503,3 +515,11 @@ convertBrel Ref.Le tcv = Var $ Id (lhLe tcv) TyBottom
 tyVarInTyAppHasName :: Name -> Type -> Bool
 tyVarInTyAppHasName n t@(TyConApp n' (TyVar (Id _ _):_)) = n == n'
 tyVarInTyAppHasName n t = False
+
+typeIdList :: TCValues -> M.Map Name Type -> [(Type, Lang.Id)]
+typeIdList tcv =
+    map (\(n, t) -> (head $ tyConAppList t, Id n t)) . M.toList . M.filter (tyVarInTyAppHasName (lhTC tcv))
+
+tyConAppList :: Type -> [Type]
+tyConAppList (TyConApp _ ts) = ts
+tyConAppList _ = []

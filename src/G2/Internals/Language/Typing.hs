@@ -33,6 +33,8 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
+import Debug.Trace
+
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) [TyLitInt]
 
@@ -87,21 +89,28 @@ instance Typed Expr where
     typeOf' m (Lit lit) = typeOf' m lit
     typeOf' m (Prim _ ty) = (ty, m)
     typeOf' m (Data dcon) = typeOf' m dcon
-    typeOf' m (App fxpr axpr) =
+    typeOf' m e@(App fxpr axpr) =
         let
             (tfxpr, m') = typeOf' m fxpr
             (taxpr, m'') = typeOf' m' axpr
         in
-        case tfxpr of
-            TyForAll (NamedTyBndr i) t2 -> typeOf' (M.insert (idName i) taxpr m'') t2
-            TyFun _ t2 -> (t2, m'')  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
+        case (tfxpr, taxpr) of
+            (TyForAll (NamedTyBndr i) t2, _) -> typeOf' (M.insert (idName i) taxpr m'') t2
+            (TyFun (TyVar (Id n _)) t2, tca@(TyConApp _ _)) ->
+                let
+                    m''' = M.insert n tca m''
+                in
+                typeOf' m''' t2
+            (TyFun _ t2, _) -> (t2, m'')  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
                                -- We should really have this if check- but
-                               -- can't because of TyBottom being introdduced
+                               -- can't because of TyBottom being introduced
                                -- elsewhere...
             _ -> (TyBottom, m'')
     typeOf' m (Lam b expr) =
         let
-            (t1, m') = typeOf' m b
+            (t1, m') = case typeOf' m b of
+                (TYPE, _m) -> (TyVar b, _m)
+                tm -> tm 
             (t2, m'') = typeOf' m' expr
         in
         (TyFun t1 t2, m'')

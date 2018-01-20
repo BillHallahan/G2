@@ -21,7 +21,7 @@ import Debug.Trace
 genTC :: ExprEnv -> TypeEnv -> TypeClasses -> Name -> [(Name, Type, Walkers)] -> NameGen -> (ExprEnv, TypeEnv, TypeClasses, NameGen)
 genTC eenv tenv tc tcn ntws@((_, _, w):_) ng =
     let
-        (tcn', ng2) = freshSeededName tcn ng
+        (tcn', ng2) = (tcn, ng) --freshSeededName tcn ng
 
         (fn, ts, ws) = unzip3 ntws
 
@@ -37,21 +37,21 @@ genTC eenv tenv tc tcn ntws@((_, _, w):_) ng =
         -- Get type names
         ns = M.keys tenv'
 
-        (eenv', ti, ng4) = genTCFuncs eenv tenv' [] ng3 dc ns ws
+        (eenv', ti, ng4) = genTCFuncs tcn' eenv tenv' [] ng3 dc ns ws
 
-        tc' = coerce . M.insert tcn ti $ coerce tc
+        tc' = coerce . M.insert tcn' ti $ coerce tc
 
         --Create functions to access the TC functions
-        (access, ng5) = mapNG (accessFunction tcn dc) [0..length fn] ng4
+        (access, ng5) = mapNG (accessFunction tcn' dc) [0..length fn] ng4
 
         eenv'' = E.insertExprs (zip fn access) eenv'
     in
     (eenv'', tenv', tc', ng5)
 genTC _ _ _ _ [] _ = error "No walkers given to genTC."
 
-genTCFuncs :: ExprEnv -> TypeEnv -> [(Type, Id)] -> NameGen -> DataCon -> [Name] -> [Walkers] -> (ExprEnv, [(Type, Id)], NameGen)
-genTCFuncs eenv tenv ti ng _ [] _ = (eenv, ti, ng)
-genTCFuncs eenv tenv ti ng dc (n:ns) ws =
+genTCFuncs :: Name ->  ExprEnv -> TypeEnv -> [(Type, Id)] -> NameGen -> DataCon -> [Name] -> [Walkers] -> (ExprEnv, [(Type, Id)], NameGen)
+genTCFuncs _ eenv tenv ti ng _ [] _ = (eenv, ti, ng)
+genTCFuncs lh eenv tenv ti ng dc (n:ns) ws =
     let
         (fn, ng') = lhFuncName n ng
 
@@ -67,9 +67,11 @@ genTCFuncs eenv tenv ti ng dc (n:ns) ws =
 
         eenv' = E.insert fn e eenv
 
-        ti' = (TyConApp n [], Id fn (typeOf e)):ti
+        t' = TyConApp lh [TyConApp n []]
+
+        ti' = (TyConApp n [], Id fn t'):ti
     in
-    genTCFuncs eenv' tenv ti' ng' dc ns ws
+    genTCFuncs lh eenv' tenv ti' ng' dc ns ws
 
 lhFuncName :: Name -> NameGen -> (Name, NameGen)
 lhFuncName (Name n _ _) ng = freshSeededString ("lh" ++ n ++ "Func") ng
