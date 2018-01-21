@@ -26,7 +26,12 @@ subToPos x y = x - y
 fib :: Int -> Int
 fib 0 = 0
 fib 1 = 1
-fib n = fib (n - 1) + fib (n - 2)
+fib n = fibx (n - 1) + fibx (n - 2)
+
+fibx :: Int -> Int
+fibx 0 = 0
+fibx 1 = 1
+fibx n = fibx (n - 1) + fibx (n - 2)
 
 {-@ fib' :: n:{v:Int | v >= 0} -> {b:Int | (n >= 0 && b >= n) } @-}
 fib' :: Int -> Int

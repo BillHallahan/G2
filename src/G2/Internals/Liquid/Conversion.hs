@@ -48,21 +48,33 @@ addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, name_gen = ng, type_classe
 -- Finally, the two expression environments are merged, before the whole state
 -- is returned.
 mergeLHSpecState :: [(Var, LocSpecType)] -> State -> TCValues -> State
-mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng }) tcv =
+mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr }) tcv =
     let
         (meenv, ng') = doRenames (E.keys eenv) ng eenv
 
-        s' = mergeLHSpecState' xs meenv tcv (s { name_gen = ng' })
+        s' = mergeLHSpecState' (addAssertSpecType (mkAnd eenv) meenv tcv) xs (s { name_gen = ng' })
+
+        usedCexpr = filter (not . flip E.isSymbolic eenv) $ varNames cexpr
+        eenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) eenv
+        (usedCexpr', ng'') = renameAll usedCexpr ng'
+
+        usedZ = zip usedCexpr usedCexpr'
+
+        cexpr' = foldr (uncurry rename) cexpr usedZ
+        eenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) eenvC
+
+        s'' = mergeLHSpecState' (addAssumeAssertSpecType (mkAnd eenv) meenv tcv) xs (s { expr_env = eenvC', name_gen = ng'' })
     in
-    s' {expr_env = E.union meenv (expr_env s') }
+    s'' { expr_env = E.union (E.union meenv (expr_env s')) $ expr_env s''
+        , curr_expr = cexpr' }
 
 -- | mergeLHSpecState'
 -- Merges a list of Vars and SpecTypes with a State, by finding
 -- cooresponding vars between the list and the state, and calling
 -- mergeLHSpecState on the corresponding exprs and specs
-mergeLHSpecState' :: [(Var, LocSpecType)] -> ExprEnv -> TCValues -> State -> State
-mergeLHSpecState' [] _ _ s = s
-mergeLHSpecState' ((v,lst):xs) meenv tcv s =
+mergeLHSpecState' :: SpecTypeFunc -> [(Var, LocSpecType)] -> State -> State
+mergeLHSpecState' _ [] s = s
+mergeLHSpecState' f ((v,lst):xs) s =
     let
         (Id (Name n m _) _) = mkId v
 
@@ -70,10 +82,10 @@ mergeLHSpecState' ((v,lst):xs) meenv tcv s =
     in
     case g2N of
         Just (n', e) ->
-            mergeLHSpecState' xs  meenv tcv $ addSpecType n' e (val lst) meenv tcv s
+            mergeLHSpecState' f xs $ f n' e (val lst) s
         -- We hit a Nothing for certain functions we consider primitives but which
         -- LH has LT assumptions for. E.g. True, False...
-        _ -> mergeLHSpecState' xs meenv tcv s
+        _ -> mergeLHSpecState' f xs s
 
 -- addLHTCExprEnv
 -- We add a LH type class dict for all polymorphic variables in all function
@@ -180,17 +192,19 @@ typeToLHTypeClass tc ti lh t =
             Just lh -> Var lh
             Nothing -> Var (Lang.Id (Name "BAD" Nothing 0) TyBottom)-- TODO : Can hit this when have TyFun... -- error $ "Typeclass not found in typeToLHTypeClass" ++ show t
 
-addSpecType :: Name -> Expr -> SpecType -> ExprEnv -> TCValues -> State -> State
-addSpecType n e st meenv tcv (s@State { expr_env = eenv
-                                      , type_env = tenv
-                                      , name_gen = ng
-                                      , known_values = kv}) =
+type SpecTypeFunc = Name -> Expr -> SpecType -> State -> State
+
+addAssertSpecType :: Expr -> ExprEnv -> TCValues -> SpecTypeFunc
+addAssertSpecType conn meenv tcv n e st (s@State { expr_env = eenv
+                                        , type_env = tenv
+                                        , name_gen = ng
+                                        , known_values = kv}) =
     let
         (b, ng') = freshId (returnType e) ng
 
         (b', ng'') = freshId (returnType e) ng'
 
-        st' = convertSpecType tcv (s { expr_env = meenv }) st b'
+        st' = convertAssertSpecType conn tcv (s { expr_env = meenv }) st b'
         newE = 
             insertInLams 
                 (\is e' -> 
@@ -200,15 +214,80 @@ addSpecType n e st meenv tcv (s@State { expr_env = eenv
     s { expr_env = E.insert n newE eenv
       , name_gen = ng''}
 
+addAssumeAssertSpecType :: Expr -> ExprEnv -> TCValues -> SpecTypeFunc
+addAssumeAssertSpecType conn meenv tcv n e st (s@State { expr_env = eenv
+                                                       , type_env = tenv
+                                                       , name_gen = ng
+                                                       , known_values = kv}) =
+    let
+        (b, ng') = freshId (returnType e) ng
+
+        (b', ng'') = freshId (returnType e) ng'
+
+        assumest' = convertAssumeSpecType (mkAnd meenv) tcv (s { expr_env = meenv }) st
+        assertst' = convertAssertSpecType conn tcv (s { expr_env = meenv }) st b'
+        newE =
+            insertInLams 
+                (\is e' -> 
+                    Let [(b, e')] $ Lang.Assume (mkApp $ assumest':map Var is)
+                                  $ Lang.Assert (mkApp $ assertst':map Var is ++ [Var b]) (Var b))
+                e
+    in
+    s { expr_env = E.insert n newE eenv
+      , name_gen = ng''}
+
+-- lookupSpecType :: Name -> [(Var, LocSpecType)] -> Maybe SpecType
+-- lookupSpecType n = fmap (val . snd) . find ((==) n . idName . mkId . fst) 
+
+-- getAssume :: Name -> [(Var, LocSpecType)] -> ExprEnv -> TCValues -> State -> (Expr, NameGen)
+-- getAssume n vlst meenv tcv s@(State {name_gen = ng}) =
+--     let
+--         st = lookupSpecType n vlst
+
+--         e = case E.lookup n meenv of
+--             Just e' -> e'
+--             Nothing -> error "No expr found in getAssume"
+--     in
+--     case lookupSpecType n vlst of
+--         Just st -> getAssume' e st meenv tcv s
+--         Nothing -> error "Not spec type found in getAssume"
+
+-- getAssume' :: Expr -> SpecType -> ExprEnv -> TCValues -> State -> (Expr, NameGen)
+-- getAssume' e st meenv tcv (s@State{ name_gen = ng }) = 
+--     let
+--         (b, ng') = freshId (returnType e) ng
+
+--         an = mkAnd meenv
+        
+--         st_ex = convertSpecType tcv (s {expr_env = meenv}) st b
+--     in
+--     (removeLast an $ removeInnerMostLam st_ex, ng')
+
+-- removeInnerMostLam :: Expr -> Expr
+-- removeInnerMostLam (Lam i l@(Lam _ _)) = Lam i $ removeInnerMostLam l
+-- removeInnterMostLam (Lam _ e) = e
+
+-- removeLast :: Expr -> Expr -> Expr
+-- removeLast e = modify (removeLast' e)
+
+-- removeLast' :: Expr -> Expr -> Expr
+-- removeLast' ma app@(App (App e e') e'') = if ma == e && not (exprIn ma e'') then e'' else app
+
+-- exprIn :: Expr -> Expr -> Bool
+-- exprIn e = coerce . eval (exprIn' e)
+
+-- exprIn' :: Expr -> Expr -> Any
+-- exprIn' c e = coerce $ c == e
+
 -- | convertSpecType
 -- We create an Expr from a SpecType in two phases.  First, we create outer
 -- lambda expressions, then we create a conjunction of m boolean expressions
 -- describing allowed  values of the bound variables
-convertSpecType :: TCValues -> State -> SpecType -> Lang.Id -> Expr
-convertSpecType tcv s@(State { known_values = kv
-                             , expr_env = eenv 
-                             , type_env = tenv
-                             , type_classes = tc }) st ret =
+convertAssertSpecType :: Expr -> TCValues -> State -> SpecType -> Lang.Id -> Expr
+convertAssertSpecType conn tcv s@(State { known_values = kv
+                                        , expr_env = eenv 
+                                        , type_env = tenv
+                                        , type_classes = tc }) st ret =
     let
         lh = lhTC tcv
 
@@ -223,7 +302,30 @@ convertSpecType tcv s@(State { known_values = kv
 
         lams = specTypeLams st 
         lams' = dclams . lams . Lam ret
-        apps = specTypeApps st tcv s (M.fromList nt) ret
+        apps = specTypeApps conn st tcv s (M.fromList nt) ret
+    in
+    primInject $ lams' apps
+
+convertAssumeSpecType :: Expr -> TCValues -> State -> SpecType -> Expr
+convertAssumeSpecType conn tcv s@(State { known_values = kv
+                                        , expr_env = eenv 
+                                        , type_env = tenv
+                                        , type_classes = tc }) st =
+    let
+        lh = lhTC tcv
+
+        tva = nub . filter isTyVar $ specTypeLamTypes st
+        lhtc = map (\t -> TyConApp lh [t]) tva
+
+        dsnames = map (Name "d" Nothing) [0 .. (length tva - 1)]
+        nt = (zip dsnames lhtc)
+
+        ds = map (\(n, t) -> Id n t) nt
+        dclams = foldr (.) id (map Lam ds) 
+
+        lams = specTypeLams st 
+        lams' = dclams . lams
+        apps = assumeSpecTypeApps conn st tcv s (M.fromList nt)
     in
     primInject $ lams' apps
 
@@ -275,9 +377,10 @@ specTypeLamTypes rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
     []
 specTypeLamTypes r = error (show $ PPR.rtypeDoc Full r)
 
-
-specTypeApps :: SpecType -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
-specTypeApps (RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
+-- conn specifies hot to connect the different pieces of the spec type together,
+-- typically either Implies or And
+specTypeApps :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
+specTypeApps _ (RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
     let
         symb = reftSymbol $ ur_reft r
 
@@ -290,7 +393,7 @@ specTypeApps (RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
         re = convertLHExpr (reftExpr $ ur_reft r) tcv s m'
     in
     App (Lam symbId re) (Var b)
-specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) tcv s@(State { expr_env = eenv }) m b =
+specTypeApps conn (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) tcv s@(State { expr_env = eenv }) m b =
     -- TODO : rt_reft
     let
         t = specTypeToType fin
@@ -298,17 +401,17 @@ specTypeApps (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) tcv 
 
         m' = M.insert (idName i) t m
     in
-    mkApp [ mkImplies eenv
-          , specTypeApps fin tcv s m' i
-          , specTypeApps fout tcv s m' b]
-specTypeApps (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) tcv s m b =
+    mkApp [ conn
+          , specTypeApps conn fin tcv s m' i
+          , specTypeApps conn fout tcv s m' b]
+specTypeApps conn (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) tcv s m b =
     let
         --sy = rtvInfoSymbol tv
 
         -- i = mkId v
     in
-    specTypeApps rty tcv s m b
-specTypeApps (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) tcv s m b =
+    specTypeApps conn rty tcv s m b
+specTypeApps _ (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) tcv s m b =
     let
         symb = reftSymbol $ ur_reft r
         typ = rTyConType c args
@@ -319,6 +422,22 @@ specTypeApps (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) tcv s m b =
         re = convertLHExpr (reftExpr $ ur_reft r) tcv s m'
     in
     App (Lam i re) (Var b)
+
+assumeSpecTypeApps :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Expr
+assumeSpecTypeApps conn st tcv s@(State {type_env = tenv, name_gen = ng, known_values = kv}) m =
+    let
+        (i, _) = freshId TyBottom ng
+
+        sta = specTypeApps conn st tcv s m i
+    in
+    replaceLam i (mkTrue kv tenv) sta
+
+replaceLam :: Lang.Id -> Expr -> Expr -> Expr
+replaceLam i true = modify (replaceLam' i true)
+
+replaceLam' :: Lang.Id -> Expr -> Expr -> Expr
+replaceLam' i true l@(App (Lam _ _) (Var i')) = if i == i' then true else l
+replaceLam' _ _ e = e
 
 specTypeToType :: SpecType -> Type
 specTypeToType (RVar {rt_var = (RTV var)}) =

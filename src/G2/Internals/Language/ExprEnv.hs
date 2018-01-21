@@ -22,6 +22,7 @@ module G2.Internals.Language.ExprEnv
     , map'
     , mapWithKey
     , mapWithKey'
+    , mapKeys
     , filter
     , filterWithKey
     , filterToSymbolic
@@ -168,6 +169,9 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
 
 mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.Map Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
+
+mapKeys :: (Name -> Name) -> ExprEnv -> ExprEnv
+mapKeys f = coerce . M.mapKeys f . unwrapExprEnv
 
 filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
 filter p = filterWithKey (\_ -> p) 

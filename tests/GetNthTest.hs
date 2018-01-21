@@ -88,7 +88,7 @@ elimType' (App e (Type _)) = e
 elimType' e = e
 
 getNthErrors :: [Expr] -> Bool
-getNthErrors [cl, Lit (LitInt i), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
+getNthErrors [cl, App _ (Lit (LitInt i)), Prim Error _] = getNthErr (toCListGen cl) i == Nothing
 getNthErrors _ = False
 
 cfmapTest :: [Expr] -> Bool
