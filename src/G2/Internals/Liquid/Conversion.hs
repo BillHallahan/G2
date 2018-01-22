@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Internals.Liquid.Conversion where
+module G2.Internals.Liquid.Conversion ( addLHTC
+                                      , mergeLHSpecState) where
 
 import G2.Internals.Translation
 import G2.Internals.Language as Lang
@@ -139,15 +140,6 @@ addLHTCCalls tc lh e =
     in
     foldr (uncurry replaceASTs) e fc'
 
-isTYPE :: Type -> Bool
-isTYPE TYPE = True
-isTYPE (TyConApp (Name "TYPE" _ _) _) = True
-isTYPE _ = False
-
-isTyVar :: Type -> Bool
-isTyVar (TyVar _) = True
-isTyVar _ = False
-
 lhDicts :: Name -> Expr -> [(Type, Lang.Id)]
 lhDicts lh (Lam i@(Lang.Id _ (TyConApp n [t])) e) =
     if lh == n then (t, i):lhDicts lh e else lhDicts lh e
@@ -235,49 +227,6 @@ addAssumeAssertSpecType conn meenv tcv n e st (s@State { expr_env = eenv
     in
     s { expr_env = E.insert n newE eenv
       , name_gen = ng''}
-
--- lookupSpecType :: Name -> [(Var, LocSpecType)] -> Maybe SpecType
--- lookupSpecType n = fmap (val . snd) . find ((==) n . idName . mkId . fst) 
-
--- getAssume :: Name -> [(Var, LocSpecType)] -> ExprEnv -> TCValues -> State -> (Expr, NameGen)
--- getAssume n vlst meenv tcv s@(State {name_gen = ng}) =
---     let
---         st = lookupSpecType n vlst
-
---         e = case E.lookup n meenv of
---             Just e' -> e'
---             Nothing -> error "No expr found in getAssume"
---     in
---     case lookupSpecType n vlst of
---         Just st -> getAssume' e st meenv tcv s
---         Nothing -> error "Not spec type found in getAssume"
-
--- getAssume' :: Expr -> SpecType -> ExprEnv -> TCValues -> State -> (Expr, NameGen)
--- getAssume' e st meenv tcv (s@State{ name_gen = ng }) = 
---     let
---         (b, ng') = freshId (returnType e) ng
-
---         an = mkAnd meenv
-        
---         st_ex = convertSpecType tcv (s {expr_env = meenv}) st b
---     in
---     (removeLast an $ removeInnerMostLam st_ex, ng')
-
--- removeInnerMostLam :: Expr -> Expr
--- removeInnerMostLam (Lam i l@(Lam _ _)) = Lam i $ removeInnerMostLam l
--- removeInnterMostLam (Lam _ e) = e
-
--- removeLast :: Expr -> Expr -> Expr
--- removeLast e = modify (removeLast' e)
-
--- removeLast' :: Expr -> Expr -> Expr
--- removeLast' ma app@(App (App e e') e'') = if ma == e && not (exprIn ma e'') then e'' else app
-
--- exprIn :: Expr -> Expr -> Bool
--- exprIn e = coerce . eval (exprIn' e)
-
--- exprIn' :: Expr -> Expr -> Any
--- exprIn' c e = coerce $ c == e
 
 -- | convertSpecType
 -- We create an Expr from a SpecType in two phases.  First, we create outer
@@ -524,8 +473,36 @@ convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_
           , Type t
           , Var dict'
           , e']
-convertLHExpr (EBin b e e') tcv s m =
-    mkApp [convertBop b, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
+convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, known_values = kv }) m =
+    let
+        lhe = convertLHExpr e tcv s m
+        lhe' = convertLHExpr e' tcv s m
+
+        t = typeOf lhe
+
+        dict = numTCDict kv tc t
+
+        numdict = case dict of
+            Just d -> d
+            Nothing ->
+                case find (tyVarInTyAppHasName (numTC kv) . snd) (M.toList m) of
+                    Just (s, _) -> convertSymbol s eenv m
+                    Nothing -> error "No num dictionary for negate in convertLHExpr"
+
+        lhdict = 
+            case brelTCDict Ref.Eq tcv tc t of
+                Just d -> d
+                Nothing -> 
+                    case find (tyVarInTyAppHasName (brelTCDictName Ref.Eq tcv) . snd) (M.toList m) of
+                        Just (s, _) -> Var $ convertSymbol s eenv m
+                        Nothing -> error "Not lh dict in convertLHExpr"
+    in
+    mkApp [ convertBop b eenv
+          , lhdict
+          , Type t
+          , Var numdict
+          , lhe
+          , lhe']
 convertLHExpr (PAnd es) tcv s@(State { known_values = kv, expr_env = eenv, type_env = tenv }) m = 
     case map (\e -> convertLHExpr e tcv s m) es of
         [] -> mkTrue kv tenv
@@ -603,8 +580,14 @@ convertCon :: KnownValues -> TypeEnv -> Constant -> Expr
 convertCon kv tenv (Ref.I i) = App (mkDCInt kv tenv) (Lit . LitInt $ fromIntegral i)
 convertCon kv tenv (Ref.R d) = App (mkDCDouble kv tenv) (Lit . LitDouble $ toRational d)
 
-convertBop :: Bop -> Expr
-convertBop _ = undefined
+convertBop :: Bop -> ExprEnv -> Expr
+convertBop Ref.Plus = mkPlus
+convertBop Ref.Minus = mkMinus
+convertBop Ref.Times = mkMult
+convertBop Ref.Div = mkDiv
+convertBop Ref.Mod = undefined
+convertBop Ref.RTimes = mkMult
+convertBop Ref.RDiv = mkDiv
 
 brelTCDictName :: Brel -> TCValues -> Lang.Name
 brelTCDictName Ref.Eq tcv = lhTC tcv

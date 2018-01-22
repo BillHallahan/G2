@@ -39,6 +39,10 @@ fib' 0 = 0
 fib' 1 = 1
 fib' n = fib' (n - 1) + fib' (n - 2)
 
+{-@ xSqPlusYSq :: x:Int -> y:Int -> {z:Int | x + y < z} @-}
+xSqPlusYSq :: Int -> Int -> Int
+xSqPlusYSq x y = x * x + y * y
+
 {-@ id2Int :: x:Int -> {y:Int | y /= x} @-}
 id2Int :: Int -> Int
 id2Int x = x

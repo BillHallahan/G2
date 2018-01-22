@@ -11,6 +11,10 @@ import Data.Maybe
 
 import Debug.Trace
 
+---------------------------------------
+-- LH TypeClass Gen
+---------------------------------------
+
 -- genTC
 -- The [(Name, Type, Walkers)] is
 --  1) The name of a TC function
@@ -119,19 +123,25 @@ createLHTC s@(State { expr_env = eenv
         (eenv6, ng7, gt_w) = createFuncs eenv5 ng6 tenv' M.empty (lhGtName . fst) lhStore (lhGtExpr lt_w eenv5)
         (eenv7, ng8, ge_w) = createFuncs eenv6 ng7 tenv' M.empty (lhGeName . fst) lhStore (lhGeExpr le_w eenv6)
 
+        (eenv8, ng9, _) = createFuncs eenv7 ng8 tenv' M.empty (lhPolyPredName . fst) lhStore (lhPolyPred eenv7 tenv lhTCN kv)
+
         tb = tyBool kv
 
-        (eenv8, tenv'', tc', ng9) = genTC eenv7 tenv tc lhTCN
+        (eenv9, tenv'', tc', ng10) = genTC eenv8 tenv tc lhTCN
                         [ (lhEqN, TyFun tb (TyFun tb tb), eq_w) 
                         , (lhNeN, TyFun tb (TyFun tb tb), neq_w)
                         , (lhLtN, TyFun tb (TyFun tb tb), lt_w)
                         , (lhLeN, TyFun tb (TyFun tb tb), le_w)
                         , (lhGtN, TyFun tb (TyFun tb tb), gt_w)
-                        , (lhGeN, TyFun tb (TyFun tb tb), ge_w)] ng8
+                        , (lhGeN, TyFun tb (TyFun tb tb), ge_w)] ng9
 
         tcv = TCValues {lhTC = lhTCN, lhEq = lhEqN, lhNe = lhNeN, lhLt = lhLtN, lhLe = lhLeN, lhGt = lhGtN, lhGe = lhGeN}
     in
-    (s { expr_env = eenv8, name_gen = ng9, type_env = tenv'', type_classes = tc' }, eq_w, tcv)
+    (s { expr_env = eenv9, name_gen = ng10, type_env = tenv'', type_classes = tc' }, eq_w, tcv)
+
+---------------------------------------
+-- Gen Helper
+---------------------------------------
 
 lhStore :: (Name, AlgDataTy) -> Name -> Walkers -> Walkers
 lhStore (n, adt) n' w =
@@ -147,11 +157,9 @@ lhStore (n, adt) n' w =
     in
     M.insert n i w
 
-lhEqName :: Name -> Name
-lhEqName (Name n _ _) = Name ("lhEqName" ++ n) Nothing 0
-
-lhTEnvExpr :: Name -> Case2Alts -> FuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-lhTEnvExpr lhTC ca fc eenv tenv kv w (n, adt) ng =
+-- Returns bindings for TYPE parameters and cooresponding LH typeclasses
+boundNameBindings :: Name -> AlgDataTy -> NameGen -> (AlgDataTy, [Id], [Id], NameGen)
+boundNameBindings lhTC adt ng =
     let
         bn = bound_names adt
 
@@ -162,9 +170,26 @@ lhTEnvExpr lhTC ca fc eenv tenv kv w (n, adt) ng =
         bni = map (flip Id TYPE) bn'
         wbni = map (\(b, f) -> Id f (TyConApp lhTC [TyVar (Id b TYPE)])) $ zip bn' wbn
 
-        bfuncs = zip bn' wbni
-
         adt' = foldr (uncurry rename) adt (zip bn bn')
+    in
+    (adt', bni, wbni, ng'')
+
+---------------------------------------
+-- Eq/Ne/Ord Function Gen
+---------------------------------------
+
+
+lhEqName :: Name -> Name
+lhEqName (Name n _ _) = Name ("lhEqName" ++ n) Nothing 0
+
+lhTEnvExpr :: Name -> Case2Alts -> FuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+lhTEnvExpr lhTC ca fc eenv tenv kv w (n, adt) ng =
+    let
+        (adt', bni, wbni, ng'') = boundNameBindings lhTC adt ng
+
+        bn' = (map idName bni)
+
+        bfuncs = zip bn' wbni
 
         (e, ng''') = lhTEnvCase ca fc eenv tenv kv w bfuncs n bn' adt' ng''
     in
@@ -486,3 +511,100 @@ flipLastTwo :: [a] -> [a]
 flipLastTwo (x:y:[]) = y:[x]
 flipLastTwo (x:xs) = x:flipLastTwo xs
 flipLastTwo xs = xs
+
+---------------------------------------
+-- DataType Ref Gen
+---------------------------------------
+lhPolyPredName :: Name -> Name
+lhPolyPredName (Name n _ _) = Name ("lhPolyPred" ++ n) Nothing 0
+
+lhPolyPred :: ExprEnv -> TypeEnv -> Name -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+lhPolyPred eenv tenv lhTC kv w (n, adt) ng =
+    let
+        (adt', bni, wbni, ng2) = boundNameBindings lhTC adt ng
+        bn = map idName bni
+
+        tb = tyBool kv
+        (fbi, ng3) = freshIds (map (\i -> TyFun (TyVar i) tb) bni) ng2
+
+        bnf = zip bn fbi
+
+        (e, ng4) = lhPolyPredCase eenv tenv kv w n adt' bn bnf ng3
+    in
+    (foldr Lam e (bni ++ fbi), ng4)
+
+lhPolyPredCase :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> Name -> AlgDataTy -> [Name] -> [(Name, Id)] -> NameGen -> (Expr, NameGen)
+lhPolyPredCase eenv tenv kv w n adt@(DataTyCon { data_cons = dc }) bn bnf ng =
+    let
+        t = TyConApp n $ map (TyVar . flip Id TYPE) bn
+
+        (i1, ng2) = freshId t ng
+        (caseB, ng3) = freshId t ng2
+
+        (alts, ng4) = lhPolyPredAlts eenv tenv kv w dc bnf ng3
+
+        c = Case (Var i1) caseB alts
+    in
+    (Lam i1 c, ng4)
+
+lhPolyPredAlts :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [DataCon] -> [(Name, Id)] -> NameGen -> ([Alt], NameGen)
+lhPolyPredAlts _ _ _ _ [] _ ng = ([], ng)
+lhPolyPredAlts eenv tenv kv w (dc@(DataCon _ _ ts):dcs) bnf ng =
+    let
+        (binds, ng2) = freshIds ts ng
+        
+        e = lhPolyPredCaseExpr eenv tenv kv w dc binds bnf
+
+        alt = Alt (DataAlt dc binds) e
+
+        (alts, ng3) = lhPolyPredAlts eenv tenv kv w dcs bnf ng2
+    in
+    (alt:alts, ng3)
+
+lhPolyPredCaseExpr :: ExprEnv -> TypeEnv -> KnownValues -> Walkers-> DataCon -> [Id] -> [(Name, Id)] -> Expr
+lhPolyPredCaseExpr eenv tenv kv w (DataCon n t ts) bn bnf =
+    let
+        tyvs = filter (isTyVar . typeOf) bn
+
+        pc = map (predCalls bnf) tyvs 
+    
+        an = mkAnd eenv
+        true = mkTrue kv tenv
+
+        fs = map (polyPredFuncCall true w bnf) $ filter (not . isTyVar . typeOf) bn
+    in
+    foldr (\e -> App (App an e)) true $ pc ++ fs
+
+predCalls :: [(Name, Id)] -> Id -> Expr
+predCalls bnf i@(Id _ (TyVar tvi)) =
+    let
+        fi = lookup (idName tvi) bnf
+    in
+    case fi of
+        Just fi' -> App (Var fi') (Var i)
+        Nothing -> error $ "No function found in predCalls " ++ show i ++ "\n" ++ show bnf
+
+polyPredFuncCall :: Expr -> Walkers -> [(Name, Id)] -> Id -> Expr
+polyPredFuncCall true w bnf i
+    | TyConApp n ts <- typeOf i
+    , Just f <- M.lookup n w =
+        let
+            as = map Type ts
+            as' = map (polyPredFunc w bnf) ts
+        in
+        foldl' App (Var f) (as ++ as' ++ [Var i])
+    | TyFun _ _ <- typeOf i = true
+    | t <- typeOf i
+    ,  t == TyLitInt
+    || t == TyLitDouble
+    || t == TyLitFloat
+    || t == TyLitChar = true
+    | otherwise = error $ "Unhandled type " ++ show (typeOf i)
+
+polyPredFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
+polyPredFunc _ bnf tyvar@(TyVar (Id n _)) 
+    | Just tyF <- lookup n bnf = 
+        Var tyF
+polyPredFunc w _ t@(TyConApp n _)
+    | Just f <- M.lookup n w =
+        Var f

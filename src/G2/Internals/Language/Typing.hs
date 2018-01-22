@@ -14,6 +14,8 @@ module G2.Internals.Language.Typing
     , appendType
     , higherOrderFuncs
     , isAlgDataTy
+    , isTYPE
+    , isTyVar
     , tyVars
     , isPolyFunc
     , numArgs
@@ -281,6 +283,15 @@ isAlgDataTy = isAlgDataTy' . typeOf
 isAlgDataTy' :: Type -> Bool
 isAlgDataTy' (TyConApp _ _) = True
 isAlgDataTy' _ = False
+
+isTYPE :: Type -> Bool
+isTYPE TYPE = True
+isTYPE (TyConApp (Name "TYPE" _ _) _) = True
+isTYPE _ = False
+
+isTyVar :: Type -> Bool
+isTyVar (TyVar _) = True
+isTyVar _ = False
 
 -- | isPolyFunc
 -- Checks if the given function is a polymorphic function

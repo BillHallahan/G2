@@ -194,6 +194,8 @@ run con hhp n (state@ State { type_env = tenv
 
     let preproc_state_alpha = preproc_state { model = fromJust mdl}
 
+    -- putStrLn . pprExecStateStr $ preproc_state_alpha
+
     -- let preproc_state' = preproc_state_alpha
     let preproc_state' = markAndSweep preproc_state_alpha
 

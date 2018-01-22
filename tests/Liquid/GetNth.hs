@@ -36,3 +36,8 @@ getHeadInt xs = getHead xs
 getHead :: CList a -> a
 getHead (Cons x _) = x
 getHead Nil = die 0
+
+{-@ sumC :: CList {x:Int | x >= 0} -> {y:Int | y > 0} @-}
+sumC :: CList Int -> Int
+sumC (Cons x xs) = x + sumC xs
+sumC Nil = 0

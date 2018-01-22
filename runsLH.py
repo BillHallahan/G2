@@ -7,7 +7,7 @@ src   = sys.argv[2]
 entry = sys.argv[3]
 ticks = int(sys.argv[4])
 
-dumps = "dumps3"
+dumps = "dumps2"
 
 if not os.path.exists(dumps):
   os.makedirs(dumps)
