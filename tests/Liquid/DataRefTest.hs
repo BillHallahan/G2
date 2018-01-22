@@ -15,12 +15,43 @@ addMaybe2 :: Maybe Int -> Int -> Maybe Int
 addMaybe2 (Just x) y = Just (x + y)
 addMaybe2 _ _ = Nothing
 
--- {-@ measure isJust @-} 
--- isJust :: Maybe a -> Bool
--- isJust (Just _) = True
--- isJust _ = False
+{-@ measure isJust @-} 
+isJust :: Maybe a -> Bool
+isJust (Just _) = True
+isJust _ = False
 
--- {-@ measure isNothing @-} 
--- isNothing :: Maybe a -> Bool
--- isNothing Nothing = True
--- isNothing _ = False
+{-@ measure isNothing @-} 
+isNothing :: Maybe a -> Bool
+isNothing Nothing = True
+isNothing _ = False
+
+getLeftInts :: Either Int Int -> Int
+getLeftInts = getLeft
+
+getLeft :: Either a b -> a
+getLeft (Left x) = x
+getLeft _ = die 0
+
+{-@ sumSameInts :: e:Either Int Int -> {e2:Either Int Int | isLeft e => isLeft e2} -> Either Int Int @-} 
+sumSameInts :: Either Int Int -> Either Int Int -> Either Int Int
+sumSameInts = sumSame
+
+{-@ sumSame :: (Num a, Num b) => e:Either a b -> {e2:Either a b | isLeft e => isLeft e2} -> Either a b @-} 
+sumSame :: (Num a, Num b) => Either a b -> Either a b -> Either a b
+sumSame (Left x) (Left y) = Left (x + y)
+sumSame (Right x) (Right y) = Right (x + y)
+sumSame _ _ = die 0 
+
+{-@ measure isLeft @-}
+isLeft :: Either a b -> Bool
+isLeft (Left _) = True
+isLeft _ = False
+
+{-@ measure isRight @-}
+isRight :: Either a b -> Bool
+isRight (Right _) = True
+isRight _ = False
+
+{-@ die :: {x:Int | false} -> a @-}
+die :: Int -> a
+die x = error "die"

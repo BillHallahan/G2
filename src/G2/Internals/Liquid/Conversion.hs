@@ -543,6 +543,8 @@ convertLHExpr (POr es) tcv s@(State { known_values = kv, expr_env = eenv, type_e
         es' -> foldr (\e -> App (App (mkOr eenv) e)) (mkFalse kv tenv) es'
 convertLHExpr (PNot e) tcv s@(State {expr_env = eenv }) m =
     App (mkNot eenv) $ convertLHExpr e tcv s m
+convertLHExpr (PImp e e') tcv s@(State { expr_env = eenv }) m =
+    mkApp [mkImplies eenv, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
 convertLHExpr (PIff e e') tcv s@(State { expr_env = eenv }) m =
     mkApp [mkIff eenv, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
 convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_classes = tc}) m =

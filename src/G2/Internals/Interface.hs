@@ -196,8 +196,8 @@ run con hhp n (state@ State { type_env = tenv
 
     -- putStrLn . pprExecStateStr $ preproc_state_alpha
 
-    -- let preproc_state' = preproc_state_alpha
-    let preproc_state' = markAndSweep preproc_state_alpha
+    let preproc_state' = preproc_state_alpha
+    -- let preproc_state' = markAndSweep preproc_state_alpha
 
     -- putStrLn $ "old tenv: " ++ show (M.size $ type_env preproc_state_alpha)
     -- putStrLn $ "old eenv: " ++ show (E.size $ expr_env preproc_state_alpha)

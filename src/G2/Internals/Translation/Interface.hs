@@ -26,7 +26,9 @@ translateLoaded proj src prelude simpl = do
 
     let (fin_prog, fin_tys) = primInject $ dataInject merged_prog' prog_tys'
 
-    return (fin_prog, fin_tys, merged_classes)
+    let classes = mergeTCs merged_classes fin_prog
+
+    return (fin_prog, fin_tys, classes)
 
 translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType], [(Name, Id)])
 translation = hskToG2

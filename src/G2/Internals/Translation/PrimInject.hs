@@ -6,6 +6,7 @@ module G2.Internals.Translation.PrimInject
     , dataInject
     , mergeProgs
     , mergeProgTys
+    , mergeTCs
     ) where
 
 import G2.Internals.Language.AST
@@ -169,6 +170,16 @@ mergeProgTys prog prog' progTys primTys =
         tL = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) tne) tn
     in
     foldr (uncurry rename) (prog', progTys ++ primTys) (dcL ++ tL)
+
+mergeTCs :: [(Name, Id)] -> Program -> ([(Name, Id)])
+mergeTCs tc prog =
+  let
+    nsp = names prog
+    nstc = names tc
+
+    rep = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) nsp) nstc 
+  in
+  foldr (uncurry rename) tc rep
 
 dataConName :: DataCon -> Maybe Name
 dataConName (DataCon n _ _) = Just n
