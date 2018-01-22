@@ -240,7 +240,7 @@ convertAssertSpecType conn tcv s@(State { known_values = kv
     let
         lh = lhTC tcv
 
-        tva = nub . filter isTyVar $ specTypeLamTypes st
+        tva = nub . filter isTyVar $ specTypeLamTypes tenv st
         lhtc = map (\t -> TyConApp lh [t]) tva
 
         dsnames = map (Name "d" Nothing) [0 .. (length tva - 1)]
@@ -249,7 +249,7 @@ convertAssertSpecType conn tcv s@(State { known_values = kv
         ds = map (\(n, t) -> Id n t) nt
         dclams = foldr (.) id (map Lam ds) 
 
-        lams = specTypeLams st 
+        lams = specTypeLams tenv st 
         lams' = dclams . lams . Lam ret
         apps = specTypeApps conn st tcv s (M.fromList nt) ret
     in
@@ -263,7 +263,7 @@ convertAssumeSpecType conn tcv s@(State { known_values = kv
     let
         lh = lhTC tcv
 
-        tva = nub . filter isTyVar $ specTypeLamTypes st
+        tva = nub . filter isTyVar $ specTypeLamTypes tenv st
         lhtc = map (\t -> TyConApp lh [t]) tva
 
         dsnames = map (Name "d" Nothing) [0 .. (length tva - 1)]
@@ -272,64 +272,64 @@ convertAssumeSpecType conn tcv s@(State { known_values = kv
         ds = map (\(n, t) -> Id n t) nt
         dclams = foldr (.) id (map Lam ds) 
 
-        lams = specTypeLams st 
+        lams = specTypeLams tenv st 
         lams' = dclams . lams
         apps = assumeSpecTypeApps conn st tcv s (M.fromList nt)
     in
     primInject $ lams' apps
 
-specTypeLams :: SpecType -> (Expr -> Expr)
-specTypeLams (RVar {}) = id
-specTypeLams (RFun {rt_bind = b, rt_in = fin, rt_out = fout, rt_reft = r}) =
+specTypeLams :: TypeEnv -> SpecType -> (Expr -> Expr)
+specTypeLams tenv (RVar {}) = id
+specTypeLams tenv (RFun {rt_bind = b, rt_in = fin, rt_out = fout, rt_reft = r}) =
     let
-        t = specTypeToType fin
+        t = specTypeToType tenv fin
         i = convertSymbolT b t
     in
-    Lam i . specTypeLams fout
-specTypeLams (RAllT {rt_tvbind = RTVar (RTV v) info, rt_ty = rty}) =
+    Lam i . specTypeLams tenv fout
+specTypeLams tenv (RAllT {rt_tvbind = RTVar (RTV v) info, rt_ty = rty}) =
     let
         s = rtvInfoSymbol info
 
         i = mkId v
     in
-    Lam i . specTypeLams rty
-specTypeLams r@(RAllP {rt_ty = rty}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
-specTypeLams r@(RAllS {rt_ty = rty}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
-specTypeLams rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
+    Lam i . specTypeLams tenv rty
+specTypeLams tenv r@(RAllP {rt_ty = rty}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
+specTypeLams tenv r@(RAllS {rt_ty = rty}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
+specTypeLams tenv rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
     let
         symb = reftSymbol $ ur_reft r
-        typ = rTyConType c
+        typ = rTyConType tenv c
     in
     id
-specTypeLams r = error (show $ PPR.rtypeDoc Full r)
+specTypeLams tenv r = error (show $ PPR.rtypeDoc Full r)
 
-specTypeLamTypes :: SpecType -> [Type]
-specTypeLamTypes (RVar {}) = []
-specTypeLamTypes (RFun {rt_bind = b, rt_in = fin, rt_out = fout, rt_reft = r}) =
+specTypeLamTypes :: TypeEnv -> SpecType -> [Type]
+specTypeLamTypes tenv (RVar {}) = []
+specTypeLamTypes tenv (RFun {rt_bind = b, rt_in = fin, rt_out = fout, rt_reft = r}) =
     let
-        t = specTypeToType fin
+        t = specTypeToType tenv fin
         i = convertSymbolT b t
     in
-    typeOf i:specTypeLamTypes fout
-specTypeLamTypes (RAllT {rt_tvbind = RTVar (RTV v) info, rt_ty = rty}) =
+    typeOf i:specTypeLamTypes tenv fout
+specTypeLamTypes tenv (RAllT {rt_tvbind = RTVar (RTV v) info, rt_ty = rty}) =
     let
         i = mkId v
     in
-    (TyVar i):specTypeLamTypes rty
-specTypeLamTypes r@(RAllP {rt_ty = rty}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
-specTypeLamTypes r@(RAllS {rt_ty = rty}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
-specTypeLamTypes rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
+    (TyVar i):specTypeLamTypes tenv rty
+specTypeLamTypes tenv r@(RAllP {rt_ty = rty}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
+specTypeLamTypes tenv r@(RAllS {rt_ty = rty}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
+specTypeLamTypes tenv rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
     let
         symb = reftSymbol $ ur_reft r
-        typ = rTyConType c
+        typ = rTyConType tenv c
     in
     []
-specTypeLamTypes r = error (show $ PPR.rtypeDoc Full r)
+specTypeLamTypes tenv r = error (show $ PPR.rtypeDoc Full r)
 
 -- conn specifies hot to connect the different pieces of the spec type together,
 -- typically either Implies or And
 specTypeApps :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
-specTypeApps _ (RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
+specTypeApps _ rvar@(RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
     let
         symb = reftSymbol $ ur_reft r
 
@@ -341,36 +341,68 @@ specTypeApps _ (RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
 
         re = convertLHExpr (reftExpr $ ur_reft r) tcv s m'
     in
+    trace ("rvar = " ++ (show $ pprint rvar) ++ "\n")
     App (Lam symbId re) (Var b)
-specTypeApps conn (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) tcv s@(State { expr_env = eenv }) m b =
+specTypeApps conn rfun@(RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) tcv s@(State { expr_env = eenv, type_env = tenv }) m b =
     -- TODO : rt_reft
     let
-        t = specTypeToType fin
+        t = specTypeToType tenv fin
         i = convertSymbolT rb t
 
         m' = M.insert (idName i) t m
     in
+    trace ("rfun = " ++ (show $ pprint rfun) ++ "\n")
     mkApp [ conn
           , specTypeApps conn fin tcv s m' i
           , specTypeApps conn fout tcv s m' b]
-specTypeApps conn (RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) tcv s m b =
+specTypeApps conn rallt@(RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) tcv s m b =
     let
         --sy = rtvInfoSymbol tv
 
-        -- i = mkId v
+        i = mkId v
     in
+    trace ("rallt = " ++ (show $ pprint rallt) ++ "\n")
     specTypeApps conn rty tcv s m b
-specTypeApps _ (RApp {rt_tycon = c, rt_reft = r, rt_args = args}) tcv s m b =
+specTypeApps conn rapp@(RApp {rt_tycon = c, rt_reft = r, rt_args = args}) tcv s@(State {expr_env = eenv, type_env = tenv, type_classes = tc}) m b =
     let
         symb = reftSymbol $ ur_reft r
-        typ = rTyConType c args
+        typ = rTyConType tenv c args
         i = convertSymbolT symb typ
+
+        rt_args_e = polyPredFunc args eenv tenv tc conn tcv s m b
 
         m' = M.insert (idName i) typ m
 
         re = convertLHExpr (reftExpr $ ur_reft r) tcv s m'
     in
+    -- trace ("rapp = " ++ (show $ pprint rapp) ++ "\nrt_reft = " ++ (show $ pprint rapp) ++ "\nrt_args = " ++ (show $ pprint args) ++ "\n")
+    --trace ("rt_tycon = " ++ (show $ pprint c) ++ "\nrt_args = " ++ (show $ pprint args) ++ "\ncon = " ++ show rt_args_e ++ "\n") 
+    trace ("rapp = " ++ (show $ pprint rapp) ++ "\nrt_args_e = " ++ show rt_args_e ++ "\n")
     App (Lam i re) (Var b)
+
+polyPredFunc :: [SpecType] -> ExprEnv -> TypeEnv -> TypeClasses -> Expr -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
+polyPredFunc args eenv tenv tc conn tcv s m b =
+    let
+        ts = map (specTypeToType tenv) args
+        ts' = map Type ts
+
+        args' = map (\a -> polyPredLam conn a tcv s m b) args
+
+        lhDict = lhTCDict eenv tcv tc (typeOf b) m
+        ppF = App (Var $ Id (lhPP tcv) TyBottom) lhDict
+
+        lhDicts = map (\t' -> lhTCDict eenv tcv tc t' m) ts
+    in
+    foldl' App ppF $ lhDicts ++ ts' ++ args' ++ [Var b]
+
+
+polyPredLam :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
+polyPredLam conn rapp tcv s m b =
+    let
+        App l _ = specTypeApps conn rapp tcv s m b
+    in
+    l
+polyPredLam _ _ _ _ _ _ = error "Unrecognized SpecType in polyPredLam"
 
 assumeSpecTypeApps :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Expr
 assumeSpecTypeApps conn st tcv s@(State {type_env = tenv, name_gen = ng, known_values = kv}) m =
@@ -388,22 +420,22 @@ replaceLam' :: Lang.Id -> Expr -> Expr -> Expr
 replaceLam' i true l@(App (Lam _ _) (Var i')) = if i == i' then true else l
 replaceLam' _ _ e = e
 
-specTypeToType :: SpecType -> Type
-specTypeToType (RVar {rt_var = (RTV var)}) =
+specTypeToType :: TypeEnv -> SpecType -> Type
+specTypeToType tenv (RVar {rt_var = (RTV var)}) =
     let
         i = mkId var
     in
     TyVar i
-specTypeToType (RFun {rt_bind = b, rt_in = fin, rt_out = fout}) =
+specTypeToType tenv (RFun {rt_bind = b, rt_in = fin, rt_out = fout}) =
     let
-        t = specTypeToType fin
-        t' = specTypeToType fout
+        t = specTypeToType tenv fin
+        t' = specTypeToType tenv fout
     in
     TyFun t t'  
 -- specTypeToType (RAllT {rt_ty = rty}) = specTypeToType rty
-specTypeToType (RApp {rt_tycon = c, rt_args = args}) =
+specTypeToType tenv (RApp {rt_tycon = c, rt_args = args}) =
     let
-        t = rTyConType c args
+        t = rTyConType tenv c args
     in
     t
 
@@ -416,8 +448,14 @@ reftExpr = snd . unpackReft
 unpackReft :: Reft -> (Symbol, Ref.Expr) 
 unpackReft = coerce
 
-rTyConType :: RTyCon -> [SpecType]-> Type
-rTyConType rtc sts = TyConApp (mkTyConName . rtc_tc $ rtc) $ map specTypeToType sts
+rTyConType :: TypeEnv -> RTyCon -> [SpecType]-> Type
+rTyConType tenv rtc sts = 
+    let
+        n = case nameModMatch (mkTyConName . rtc_tc $ rtc) tenv of
+            Just n' -> n'
+            Nothing -> error "Name not found in rTyConType"
+    in
+    TyConApp n $ map (specTypeToType tenv) sts
 
 rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
@@ -459,14 +497,7 @@ convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_
                     Just (s, _) -> convertSymbol s eenv m
                     Nothing -> error "No num dictionary for negate in convertLHExpr"
 
-        lhdict = 
-            case brelTCDict Ref.Eq tcv tc t of
-                Just d -> d
-                Nothing -> 
-                    case find (tyVarInTyAppHasName (brelTCDictName Ref.Eq tcv) . snd) (M.toList m) of
-                        Just (s, _) -> Var $ convertSymbol s eenv m
-                        Nothing -> error "Not lh dict in convertLHExpr"
-
+        lhdict = lhTCDict eenv tcv tc t m
     in
     mkApp [ mkPrim Negate eenv
           , lhdict
@@ -489,13 +520,7 @@ convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, k
                     Just (s, _) -> convertSymbol s eenv m
                     Nothing -> error "No num dictionary for negate in convertLHExpr"
 
-        lhdict = 
-            case brelTCDict Ref.Eq tcv tc t of
-                Just d -> d
-                Nothing -> 
-                    case find (tyVarInTyAppHasName (brelTCDictName Ref.Eq tcv) . snd) (M.toList m) of
-                        Just (s, _) -> Var $ convertSymbol s eenv m
-                        Nothing -> error "Not lh dict in convertLHExpr"
+        lhdict = lhTCDict eenv tcv tc t m
     in
     mkApp [ convertBop b eenv
           , lhdict
@@ -526,20 +551,7 @@ convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_classes = tc
 
         t = returnType ec
 
-        dict = 
-            case brelTCDict brel tcv tc t of
-                Just d -> d
-                Nothing -> 
-                    case find (tyVarInTyAppHasName (brelTCDictName brel tcv) . snd) (M.toList m) of
-                        Just (s, _) -> Var $ convertSymbol s eenv m
-                        Nothing -> error
-                            $ "No dictionary in convertLHExpr\nm=" ++ (show $ M.toList m) 
-                                ++ "\nv = " ++ show (brelTCDictName brel tcv) 
-                                -- ++ "\nec = " ++ show ec 
-                                ++ "\nt = " ++ show t
-                                ++ "\nbrel = " ++ show brel
-                                ++ "\nec = " ++ show ec
-                                ++ "\nec' = " ++ show ec'
+        dict = lhTCDict eenv tcv tc t m
     in
     mkApp [brel', dict, Type t, ec, ec']
 convertLHExpr e _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
@@ -575,7 +587,6 @@ symbolName s =
         (n', "") -> Name (T.unpack n') Nothing 0
         _ -> Name (T.unpack n) (Just $ T.unpack m') 0
 
-
 convertCon :: KnownValues -> TypeEnv -> Constant -> Expr
 convertCon kv tenv (Ref.I i) = App (mkDCInt kv tenv) (Lit . LitInt $ fromIntegral i)
 convertCon kv tenv (Ref.R d) = App (mkDCDouble kv tenv) (Lit . LitDouble $ toRational d)
@@ -589,21 +600,21 @@ convertBop Ref.Mod = undefined
 convertBop Ref.RTimes = mkMult
 convertBop Ref.RDiv = mkDiv
 
-brelTCDictName :: Brel -> TCValues -> Lang.Name
-brelTCDictName Ref.Eq tcv = lhTC tcv
-brelTCDictName Ref.Ne tcv = lhTC tcv
-brelTCDictName Ref.Gt tcv = lhTC tcv
-brelTCDictName Ref.Ge tcv = lhTC tcv
-brelTCDictName Ref.Lt tcv = lhTC tcv
-brelTCDictName Ref.Le tcv = lhTC tcv
+lhTCDict :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Expr
+lhTCDict eenv tcv tc t m =
+    case fmap Var $ lookupTCDict tc (lhTC tcv) t of
+        Just d -> d
+        Nothing -> 
+            case find (tyVarInTyAppHasName (lhTC tcv) . snd) (M.toList m) of
+                Just (s, _) -> Var $ convertSymbol s eenv m
+                Nothing -> error
+                    $ "No dictionary in convertLHExpr v = " ++ show (lhTC tcv)  
+                                                            ++ "\nt = " ++ show t
+                                                            ++ "\n tc = " ++ show tc
 
-brelTCDict :: Brel -> TCValues -> TypeClasses -> Type -> Maybe Expr
-brelTCDict Ref.Eq tcv tc = fmap Var . lookupTCDict tc (lhTC tcv) -- eqTCDict kv tc
-brelTCDict Ref.Ne tcv tc = fmap Var . lookupTCDict tc (lhTC tcv) -- eqTCDict kv tc d
-brelTCDict Ref.Gt tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
-brelTCDict Ref.Ge tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
-brelTCDict Ref.Lt tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
-brelTCDict Ref.Le tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
+
+-- lhTCDict :: TCValues -> TypeClasses -> Type -> Maybe Expr
+-- lhTCDict tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
 
 convertBrel :: Brel -> TCValues -> Expr
 convertBrel Ref.Eq tcv = Var $ Id (lhEq tcv) TyBottom

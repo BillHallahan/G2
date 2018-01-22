@@ -9,4 +9,6 @@ data TCValues = TCValues { lhTC :: Name
                          , lhLt :: Name
                          , lhLe :: Name
                          , lhGt :: Name
-                         , lhGe :: Name }
+                         , lhGe :: Name
+
+                         , lhPP :: Name }

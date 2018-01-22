@@ -4,6 +4,7 @@
 module G2.Internals.Language.TypeEnv ( ProgramType
                                      , TypeEnv
                                      , AlgDataTy (..)
+                                     , nameModMatch
                                      , argTypesTEnv
                                      , dataCon
                                      , isPolyAlgDataTy
@@ -42,6 +43,9 @@ data AlgDataTy = DataTyCon { bound_names :: [Name]
                | NewTyCon { bound_names :: [Name]
                           , data_con :: DataCon
                           , rep_type :: Type } deriving (Show, Eq, Read)
+
+nameModMatch :: Name -> TypeEnv -> Maybe Name
+nameModMatch (Name n m _) = find (\(Name n' m' _) -> n == n' && m == m' ) . M.keys
 
 -- Returns a list of all argument function types in the type env
 argTypesTEnv :: TypeEnv -> [Type]

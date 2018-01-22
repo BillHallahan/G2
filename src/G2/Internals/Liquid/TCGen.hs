@@ -65,15 +65,17 @@ genTCFuncs lh eenv tenv ti ng dc (n:ns) ws =
             Just bn' -> bn'
             Nothing -> error "Bound names not found in genTCFuncs"
 
+        bnv = map (TyVar . flip Id TYPE) bn
+
         fs = mapMaybe (M.lookup n) ws
 
         e = mkApp $ Data dc:map Var fs
 
         eenv' = E.insert fn e eenv
 
-        t' = TyConApp lh [TyConApp n []]
+        t' = TyConApp lh [TyConApp n bnv]
 
-        ti' = (TyConApp n [], Id fn t'):ti
+        ti' = (TyConApp n bnv, Id fn t'):ti
     in
     genTCFuncs lh eenv' tenv ti' ng' dc ns ws
 
@@ -110,8 +112,8 @@ createLHTC s@(State { expr_env = eenv
     let
         tenv' = M.toList tenv
 
-        ([lhTCN, lhEqN, lhNeN, lhLtN, lhLeN, lhGtN, lhGeN], ng2) = 
-            freshSeededStrings ["LH", "LHEq", "LHNe", "LHlt", "LHle", "LHgt", "LHge"] ng
+        ([lhTCN, lhEqN, lhNeN, lhLtN, lhLeN, lhGtN, lhGeN, lhPPN], ng2) = 
+            freshSeededStrings ["LH", "LHEq", "LHNe", "LHlt", "LHle", "LHgt", "LHge", "LHpp"] ng
 
         lhEqE = Var (Id lhEqN $ TyFun tb (TyFun tb tb))
         lhLtE = Var (Id lhLtN $ TyFun tb (TyFun tb tb))
@@ -123,7 +125,7 @@ createLHTC s@(State { expr_env = eenv
         (eenv6, ng7, gt_w) = createFuncs eenv5 ng6 tenv' M.empty (lhGtName . fst) lhStore (lhGtExpr lt_w eenv5)
         (eenv7, ng8, ge_w) = createFuncs eenv6 ng7 tenv' M.empty (lhGeName . fst) lhStore (lhGeExpr le_w eenv6)
 
-        (eenv8, ng9, _) = createFuncs eenv7 ng8 tenv' M.empty (lhPolyPredName . fst) lhStore (lhPolyPred eenv7 tenv lhTCN kv)
+        (eenv8, ng9, pp_w) = createFuncs eenv7 ng8 tenv' M.empty (lhPolyPredName . fst) lhStore (lhPolyPred eenv7 tenv lhTCN kv)
 
         tb = tyBool kv
 
@@ -133,9 +135,10 @@ createLHTC s@(State { expr_env = eenv
                         , (lhLtN, TyFun tb (TyFun tb tb), lt_w)
                         , (lhLeN, TyFun tb (TyFun tb tb), le_w)
                         , (lhGtN, TyFun tb (TyFun tb tb), gt_w)
-                        , (lhGeN, TyFun tb (TyFun tb tb), ge_w)] ng9
+                        , (lhGeN, TyFun tb (TyFun tb tb), ge_w)
+                        , (lhPPN, TyFun tb (TyFun tb tb), pp_w) ] ng9
 
-        tcv = TCValues {lhTC = lhTCN, lhEq = lhEqN, lhNe = lhNeN, lhLt = lhLtN, lhLe = lhLeN, lhGt = lhGtN, lhGe = lhGeN}
+        tcv = TCValues {lhTC = lhTCN, lhEq = lhEqN, lhNe = lhNeN, lhLt = lhLtN, lhLe = lhLeN, lhGt = lhGtN, lhGe = lhGeN, lhPP = lhPPN}
     in
     (s { expr_env = eenv9, name_gen = ng10, type_env = tenv'', type_classes = tc' }, eq_w, tcv)
 
