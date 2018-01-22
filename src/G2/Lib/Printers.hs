@@ -276,8 +276,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , paths_str
                , "----- [True Assert] ---------------------"
                , show (true_assert ex_state)
-               , "----- [TypeClasses] ---------------------"
-               , tc_str
+               -- , "----- [TypeClasses] ---------------------"
+               -- , tc_str
                -- , "----- [Cleaned] -------------------"
                -- , cleaned_str
                -- , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 

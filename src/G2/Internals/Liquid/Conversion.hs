@@ -326,10 +326,26 @@ specTypeLamTypes tenv rapp@(RApp {rt_tycon = c, rt_args = args, rt_reft = r}) =
     []
 specTypeLamTypes tenv r = error (show $ PPR.rtypeDoc Full r)
 
+specTypeApps :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
+specTypeApps conn st tcv s m b =
+    let
+        ste = specTypeApps' conn st tcv s m b
+    in
+    foldl1' (\e -> App (App conn e)) $ ste
+
+assumeSpecTypeApps :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Expr
+assumeSpecTypeApps conn st tcv s@(State {type_env = tenv, name_gen = ng, known_values = kv}) m =
+    let
+        (i, _) = freshId TyBottom ng
+    in
+    case init $ specTypeApps' conn st tcv s m i of
+        xs@(_:_) -> foldl1' (\e -> App (App conn e)) xs
+        _ -> mkTrue kv tenv
+
 -- conn specifies hot to connect the different pieces of the spec type together,
 -- typically either Implies or And
-specTypeApps :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
-specTypeApps _ rvar@(RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
+specTypeApps' :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Lang.Id -> [Expr]
+specTypeApps' _ rvar@(RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
     let
         symb = reftSymbol $ ur_reft r
 
@@ -341,9 +357,8 @@ specTypeApps _ rvar@(RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
 
         re = convertLHExpr (reftExpr $ ur_reft r) tcv s m'
     in
-    trace ("rvar = " ++ (show $ pprint rvar) ++ "\n")
-    App (Lam symbId re) (Var b)
-specTypeApps conn rfun@(RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) tcv s@(State { expr_env = eenv, type_env = tenv }) m b =
+    [App (Lam symbId re) (Var b)]
+specTypeApps' conn rfun@(RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) tcv s@(State { expr_env = eenv, type_env = tenv }) m b =
     -- TODO : rt_reft
     let
         t = specTypeToType tenv fin
@@ -351,67 +366,55 @@ specTypeApps conn rfun@(RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft 
 
         m' = M.insert (idName i) t m
     in
-    trace ("rfun = " ++ (show $ pprint rfun) ++ "\n")
-    mkApp [ conn
-          , specTypeApps conn fin tcv s m' i
-          , specTypeApps conn fout tcv s m' b]
-specTypeApps conn rallt@(RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) tcv s m b =
+    specTypeApps' conn fin tcv s m' i ++ specTypeApps' conn fout tcv s m' b
+specTypeApps' conn rallt@(RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) tcv s m b =
     let
         --sy = rtvInfoSymbol tv
 
         i = mkId v
     in
-    trace ("rallt = " ++ (show $ pprint rallt) ++ "\n")
-    specTypeApps conn rty tcv s m b
-specTypeApps conn rapp@(RApp {rt_tycon = c, rt_reft = r, rt_args = args}) tcv s@(State {expr_env = eenv, type_env = tenv, type_classes = tc}) m b =
+    specTypeApps' conn rty tcv s m b
+specTypeApps' conn rapp@(RApp {rt_tycon = c, rt_reft = r, rt_args = args}) tcv s@(State {expr_env = eenv, type_env = tenv, type_classes = tc}) m b =
     let
         symb = reftSymbol $ ur_reft r
         typ = rTyConType tenv c args
         i = convertSymbolT symb typ
 
-        rt_args_e = polyPredFunc args eenv tenv tc conn tcv s m b
+        argsPred = polyPredFunc args eenv tenv tc typ conn tcv s m b
 
         m' = M.insert (idName i) typ m
 
         re = convertLHExpr (reftExpr $ ur_reft r) tcv s m'
-    in
-    -- trace ("rapp = " ++ (show $ pprint rapp) ++ "\nrt_reft = " ++ (show $ pprint rapp) ++ "\nrt_args = " ++ (show $ pprint args) ++ "\n")
-    --trace ("rt_tycon = " ++ (show $ pprint c) ++ "\nrt_args = " ++ (show $ pprint args) ++ "\ncon = " ++ show rt_args_e ++ "\n") 
-    trace ("rapp = " ++ (show $ pprint rapp) ++ "\nrt_args_e = " ++ show rt_args_e ++ "\n")
-    App (Lam i re) (Var b)
 
-polyPredFunc :: [SpecType] -> ExprEnv -> TypeEnv -> TypeClasses -> Expr -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
-polyPredFunc args eenv tenv tc conn tcv s m b =
+        an = mkAnd eenv
+    in
+    [App (App an (App (Lam i re) (Var b))) argsPred]
+
+polyPredFunc :: [SpecType] -> ExprEnv -> TypeEnv -> TypeClasses -> Type -> Expr -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
+polyPredFunc args eenv tenv tc typ conn tcv s m b =
     let
         ts = map (specTypeToType tenv) args
         ts' = map Type ts
 
         args' = map (\a -> polyPredLam conn a tcv s m b) args
 
-        lhDict = lhTCDict eenv tcv tc (typeOf b) m
-        ppF = App (Var $ Id (lhPP tcv) TyBottom) lhDict
+        typE = Type typ
+        lhDict = lhTCDict eenv tcv tc typ m
 
         lhDicts = map (\t' -> lhTCDict eenv tcv tc t' m) ts
     in
-    foldl' App ppF $ lhDicts ++ ts' ++ args' ++ [Var b]
+    mkApp $ [Var $ Id (lhPP tcv) TyBottom, lhDict, typE] ++ lhDicts ++ ts' ++ args' ++ [Var b]
 
 
 polyPredLam :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Lang.Id -> Expr
-polyPredLam conn rapp tcv s m b =
+polyPredLam conn rapp tcv s@(State {type_env = tenv, name_gen = ng}) m b =
     let
-        App l _ = specTypeApps conn rapp tcv s m b
+        t = specTypeToType tenv rapp
+
+        (i, _) = freshId t ng
     in
-    l
+    convertAssertSpecType conn tcv s rapp i -- m i-- l
 polyPredLam _ _ _ _ _ _ = error "Unrecognized SpecType in polyPredLam"
-
-assumeSpecTypeApps :: Expr -> SpecType -> TCValues -> State -> M.Map Name Type -> Expr
-assumeSpecTypeApps conn st tcv s@(State {type_env = tenv, name_gen = ng, known_values = kv}) m =
-    let
-        (i, _) = freshId TyBottom ng
-
-        sta = specTypeApps conn st tcv s m i
-    in
-    replaceLam i (mkTrue kv tenv) sta
 
 replaceLam :: Lang.Id -> Expr -> Expr -> Expr
 replaceLam i true = modify (replaceLam' i true)
@@ -481,7 +484,7 @@ convertLHExpr (EApp e e') tcv s@(State {type_classes = tc}) m =
 
                 apps = mkApp $ fw:te ++ [v]
             in
-            apps -- trace ("apps = " ++ show apps ++ "\napps' = " ++ show apps' ++ "\nm = " ++ show m ++ "\n") apps'
+            apps
         e'' -> App f e''
 convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_values = kv }) m =
     let
