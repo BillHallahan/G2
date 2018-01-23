@@ -57,7 +57,7 @@ data Expr = Var Id
           | Cast Expr Coercion
           | Coercion Coercion
           | Assume Expr Expr
-          | Assert (Maybe (Name, [Id])) Expr Expr
+          | Assert (Maybe (Name, [Id], Id)) Expr Expr
           deriving (Show, Eq, Read, Generic)
 
 instance Hashable Expr

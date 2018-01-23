@@ -19,13 +19,13 @@ import Data.Maybe
 
 import G2.Lib.Printers
 
-subModel :: State -> ([Expr], Expr, Maybe (Name, [Expr]))
+subModel :: State -> ([Expr], Expr, Maybe (Name, [Expr], Expr))
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
                 , input_ids = is
                 , assert_ids = ais
                 , model = m}) =
-    subVar m eenv (map Var is, cexpr, fmap (\(n, ais') -> (n, map Var ais')) ais)
+    subVar m eenv (map Var is, cexpr, fmap (\(n, ais', sis) -> (n, map Var ais', Var sis)) ais)
 
 subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> m -> m
 subVar em eenv = modifyASTsFix (subVar' em eenv)
