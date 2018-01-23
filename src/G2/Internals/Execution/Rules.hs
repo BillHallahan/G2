@@ -206,7 +206,7 @@ lookupForPrim e _ = e
 -- The distinction is less clear here. For now :)
 reduce :: SMTConverter ast out io -> io -> State -> IO (Rule, [State])
 reduce con hpp s = do
-    let (rule, res@((_, _, _, a, _, _):xs)) = reduce' s
+    let (rule, res) = reduce' s
 
     sts <- resultsToState con hpp rule s res
 
@@ -214,7 +214,7 @@ reduce con hpp s = do
 
 resultsToState :: SMTConverter ast out io -> io -> Rule -> State -> [ReduceResult] -> IO [State]
 resultsToState _ _ _ _ [] = return []
-resultsToState con hpp rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, _, _):xs)
+resultsToState con hpp rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _):xs)
     | not (null pc) = do
             --Optimization
             -- We replace the path_conds with only those that are directly
@@ -232,7 +232,7 @@ resultsToState con hpp rule s@(State {known_values = kv}) (red@(_, _, pc, assert
             else
                 resultsToState con hpp rule s xs
     | not (null asserts) && not (true_assert s) = do
-        let assertS = s' { path_conds = foldr (PC.insert kv) (path_conds s') asserts, true_assert = True }
+        let assertS = s' { path_conds = foldr (PC.insert kv) (path_conds s') asserts, true_assert = True, assert_ids = ais }
         let assertSRel = assertS {path_conds = PC.relevant kv asserts (path_conds assertS)}
 
         let negAsserts = map PC.negatePC asserts
@@ -258,7 +258,7 @@ reduceNoConstraintChecks s =
     (rule, map (resultToState s) res)
 
 resultToState :: State -> ReduceResult -> State
-resultToState s (eenv, cexpr, pc, _, ng, st) =
+resultToState s (eenv, cexpr, pc, _, is, ng, st) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
@@ -267,7 +267,7 @@ resultToState s (eenv, cexpr, pc, _, ng, st) =
       , exec_stack = st }
 
 -- | Result of a Evaluate reduction.
-type ReduceResult = (E.ExprEnv, CurrExpr, [PathCond], [PathCond], NameGen, S.Stack Frame)
+type ReduceResult = (E.ExprEnv, CurrExpr, [PathCond], [PathCond], Maybe (Name, [Id]), NameGen, S.Stack Frame)
 
 reduce' :: State -> (Rule, [ReduceResult])
 reduce' s @ State { exec_stack = estk
@@ -276,17 +276,17 @@ reduce' s @ State { exec_stack = estk
                  , name_gen = ngen
                  }
   | isExecValueForm s =
-      (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
+      (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
 
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
   , (Prim Error _):_ <- unApp expr =
-      (RuleError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], ngen, S.empty)])
+      (RuleError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], Nothing, ngen, S.empty)])
 
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
       -- Our current thing is a value form, which means we can return it.
-      (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], ngen, estk) ])
+      (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], Nothing, ngen, estk) ])
 
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = reduceEvaluate eenv expr ngen
@@ -295,6 +295,7 @@ reduce' s @ State { exec_stack = estk
                         , cexpr'
                         , paths'
                         , []
+                        , Nothing
                         , ngen'
                         , maybe estk (\f' -> S.push f' estk) f))
                        eval_results
@@ -304,21 +305,21 @@ reduce' s @ State { exec_stack = estk
   , Just (AssumeFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr True
       in
-         (RuleReturnCAssume, [(eenv, CurrExpr Evaluate fexpr, [cond], [], ngen, estk')])
+         (RuleReturnCAssume, [(eenv, CurrExpr Evaluate fexpr, [cond], [], Nothing, ngen, estk')])
 
   | CurrExpr Return expr <- cexpr
-  , Just (AssertFrame fexpr, estk') <- S.pop estk =
+  , Just (AssertFrame is fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr False
       in
-         (RuleReturnCAssert, [(eenv, CurrExpr Evaluate fexpr, [], [cond], ngen, estk')])
+         (RuleReturnCAssert, [(eenv, CurrExpr Evaluate fexpr, [], [cond], is, ngen, estk')])
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- S.pop estk =
       let (rule, (eenv', cexpr', ngen')) = reduceEReturn eenv expr ngen f
       in
-        (rule, [(eenv', cexpr', [], [], ngen', estk')])
+        (rule, [(eenv', cexpr', [], [], Nothing, ngen', estk')])
 
-  | otherwise = (RuleError, [(eenv, cexpr, [], [], ngen, estk)])
+  | otherwise = (RuleError, [(eenv, cexpr, [], [], Nothing, ngen, estk)])
 
 -- | Result of a Evaluate reduction.
 type EvaluateResult = (E.ExprEnv, CurrExpr, [PathCond], NameGen, Maybe Frame)
@@ -420,8 +421,8 @@ reduceEvaluate eenv (Assume pre lexpr) ngen =
                          , []
                          , ngen
                          , Just frame)])
-reduceEvaluate eenv (Assert pre lexpr) ngen =
-    let frame = AssertFrame lexpr
+reduceEvaluate eenv (Assert is pre lexpr) ngen =
+    let frame = AssertFrame is lexpr
     in (RuleEvalAssert, [( eenv
                          , CurrExpr Evaluate pre
                          , []

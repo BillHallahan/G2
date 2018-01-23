@@ -28,7 +28,7 @@ import G2.Lib.Printers
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> Int -> IO [(State, [Rule], [Expr], Expr)]
+findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> Int -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr]))]
 findCounterExamples proj primF fp entry steps = do
     ghcInfos <- getGHCInfos [fp]
     let specs = funcSpecs ghcInfos

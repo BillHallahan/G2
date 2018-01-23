@@ -54,7 +54,7 @@ main = do
 
             in_out <- findCounterExamples proj prims l f n_val
 
-            printFuncCalls f in_out
+            printLHOut f in_out
             
     
         _ -> runGHC as
@@ -113,9 +113,33 @@ runGHC as = do
     printFuncCalls entry in_out
 
 
-printFuncCalls :: String -> [(State, [Rule], [Expr], Expr)] -> IO ()
+printLHOut :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr]))] -> IO ()
+printLHOut entry =
+    mapM_ (\(s, _, inArg, ex, ais) -> do
+        let funcCall = mkExprHaskell 
+                     . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
+
+        let funcOut = mkExprHaskell $ ex
+
+        let (n, args) = (case ais of
+                        Just (n'@(Name n'' _ _), ais') -> (n'', mkExprHaskell (foldl' App (Var (Id n' TyBottom)) ais'))
+                        _ -> ("", ""))
+
+
+
+        -- print $ model s
+        -- print inArg
+        -- print ex
+        -- print ais
+
+        putStrLn $ funcCall ++ " = " ++ funcOut
+        putStrLn $ "makes a call to"
+        putStrLn $ args
+        putStrLn $ "violating " ++ n ++ "'s refinement type\n")
+
+printFuncCalls :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr]))] -> IO ()
 printFuncCalls entry =
-    mapM_ (\(s, _, inArg, ex) -> do
+    mapM_ (\(s, _, inArg, ex, ais) -> do
         let funcCall = mkExprHaskell 
                      . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
@@ -124,6 +148,7 @@ printFuncCalls entry =
         -- print $ model s
         -- print inArg
         -- print ex
+        -- print ais
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 

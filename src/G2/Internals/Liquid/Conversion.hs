@@ -200,7 +200,7 @@ addAssertSpecType conn meenv tcv n e st (s@State { expr_env = eenv
         newE = 
             insertInLams 
                 (\is e' -> 
-                    Let [(b, e')] $ Lang.Assert (mkApp $ st':map Var is ++ [Var b]) (Var b))
+                    Let [(b, e')] $ Lang.Assert (Just (n, is)) (mkApp $ st':map Var is ++ [Var b]) (Var b))
                 e
     in
     s { expr_env = E.insert n newE eenv
@@ -222,7 +222,7 @@ addAssumeAssertSpecType conn meenv tcv n e st (s@State { expr_env = eenv
             insertInLams 
                 (\is e' -> 
                     Let [(b, e')] $ Lang.Assume (mkApp $ assumest':map Var is)
-                                  $ Lang.Assert (mkApp $ assertst':map Var is ++ [Var b]) (Var b))
+                                  $ Lang.Assert (Just (n, is)) (mkApp $ assertst':map Var is ++ [Var b]) (Var b))
                 e
     in
     s { expr_env = E.insert n newE eenv

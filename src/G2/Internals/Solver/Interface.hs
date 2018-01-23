@@ -6,6 +6,7 @@ module G2.Internals.Solver.Interface
     , checkModel
     ) where
 
+import G2.Internals.Execution.NormalForms
 import G2.Internals.Language hiding (Model)
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.PathConds as PC
@@ -18,21 +19,25 @@ import Data.Maybe
 
 import G2.Lib.Printers
 
-subModel :: State -> ([Expr], Expr)
-subModel (State { curr_expr = CurrExpr _ cexpr
+subModel :: State -> ([Expr], Expr, Maybe (Name, [Expr]))
+subModel (State { expr_env = eenv
+                , curr_expr = CurrExpr _ cexpr
                 , input_ids = is
+                , assert_ids = ais
                 , model = m}) =
-    subVar m (map Var is, cexpr)
+    subVar m eenv (map Var is, cexpr, fmap (\(n, ais') -> (n, map Var ais')) ais)
 
-subVar :: (ASTContainer m Expr) => ExprModel -> m -> m
-subVar em = modifyASTs (subVar' em)
+subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> m -> m
+subVar em eenv = modifyASTsFix (subVar' em eenv)
 
-subVar' :: ExprModel -> Expr -> Expr
-subVar' em v@(Var (Id n _)) =
+subVar' :: ExprModel -> ExprEnv -> Expr -> Expr
+subVar' em eenv v@(Var (Id n _)) =
     case M.lookup n em of
         Just e -> e
-        Nothing -> v
-subVar' _ e = e
+        Nothing -> case E.lookup n eenv of
+            Just e -> if isExprValueForm e eenv then e else v
+            Nothing -> v
+subVar' _ _ e = e
 
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable

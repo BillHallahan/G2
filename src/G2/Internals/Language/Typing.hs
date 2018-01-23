@@ -122,7 +122,7 @@ instance Typed Expr where
     typeOf' m (Type ty) = (ty, m)
     typeOf' m (Cast _ (_ :~ t')) = (t', m)
     typeOf' m (Coercion (_ :~ t')) = (t', m)
-    typeOf' m (Assert _ e) = typeOf' m e
+    typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
 
 instance Typed Type where

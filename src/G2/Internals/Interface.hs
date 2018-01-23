@@ -53,6 +53,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
     , name_gen =  ng''
     , path_conds = PC.fromList kv $ map PCExists is
     , true_assert = if useAssert then False else True
+    , assert_ids = Nothing
     , type_classes = initTypeClasses cls
     , input_ids = is
     , sym_links = Sym.empty
@@ -131,7 +132,7 @@ mkCurrExpr m_assume m_assert s at ng eenv walkers =
                 var_name = Var id_name
 
                 assume_ex = mkAssumeAssert Assume m_assume var_ids var_name var_name eenv
-                assert_ex = mkAssumeAssert Assert m_assert var_ids assume_ex var_name eenv
+                assert_ex = mkAssumeAssert (Assert Nothing) m_assert var_ids assume_ex var_name eenv
                 
                 let_ex = Let [(id_name, strict_app_ex)] assert_ex
             in
@@ -142,7 +143,7 @@ checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe String -> ExprEnv
 checkReaches eenv _ _ Nothing = eenv
 checkReaches eenv tenv kv (Just s) =
     case findFunc s eenv of
-        Left (Id n _, e) -> E.insert n (Assert (mkFalse kv tenv) e) eenv
+        Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv tenv) e) eenv
         Right err -> error err
 
 mkInputs :: ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
@@ -184,7 +185,7 @@ findFunc s eenv =
         _:_ -> Right $ "Multiple functions with name " ++ s
         [] -> Right $ "No functions with name " ++ s
 
-run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr)]
+run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr]))]
 run con hhp n (state@ State { type_env = tenv
                             , known_values = kv }) = do
     -- timedMsg "fuck"
@@ -301,8 +302,9 @@ run con hhp n (state@ State { type_env = tenv
 
     let ident_states''' = catMaybes ident_states''
 
-    let sm = map (\(r, s) -> let (es, e) = subModel s in (s, r, es, e)) $ ident_states'''
+    let sm = map (\(r, s) -> let (es, e, ais) = subModel s in (s, r, es, e, ais)) $ ident_states'''
 
-    let sm' = map (\(s, r, es, e) -> (s, r, es, evalPrims kv tenv e)) sm
 
-    return $ map (\sm''@(s, _, _, _) -> undefunctionalize s sm'') sm'
+    let sm' = map (\(s, r, es, e, ais) -> (s, r, es, evalPrims kv tenv e, ais)) sm
+
+    return $ map (\sm''@(s, _, _, _, _) -> undefunctionalize s sm'') sm'

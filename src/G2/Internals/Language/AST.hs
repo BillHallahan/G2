@@ -121,7 +121,7 @@ instance AST Expr where
     children (Coercion _) = []
     children (Type _) = []
     children (Assume e e') = [e, e']
-    children (Assert e e') = [e, e']
+    children (Assert _ e e') = [e, e']
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
     modifyChildren f (Lam b e) = Lam b (f e)
@@ -132,7 +132,7 @@ instance AST Expr where
         mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
     modifyChildren f (Cast e c) = Cast (f e) c
     modifyChildren f (Assume e e') = Assume (f e) (f e')
-    modifyChildren f (Assert e e') = Assert (f e) (f e')
+    modifyChildren f (Assert is e e') = Assert is (f e) (f e')
     modifyChildren _ e = e
 
 instance AST Type where
@@ -173,7 +173,7 @@ instance ASTContainer Expr Type where
     containedASTs (Coercion c) = containedASTs c
     containedASTs (Type t) = [t]
     containedASTs (Assume e e') = containedASTs e ++ containedASTs e'
-    containedASTs (Assert e e') = containedASTs e ++ containedASTs e'
+    containedASTs (Assert is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
     containedASTs _ = []
 
     modifyContainedASTs f (Var i) = Var (modifyContainedASTs f i)
@@ -187,7 +187,8 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (Cast e c) = Cast (modifyContainedASTs f e) (modifyContainedASTs f c)
     modifyContainedASTs f (Coercion c) = Coercion (modifyContainedASTs f c)
     modifyContainedASTs f (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
-    modifyContainedASTs f (Assert e e') = Assert (modifyContainedASTs f e) (modifyContainedASTs f e')
+    modifyContainedASTs f (Assert is e e') = 
+        Assert (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs _ e = e
 
 instance ASTContainer Id Expr where
@@ -287,6 +288,12 @@ instance {-# OVERLAPPING #-}
         containedASTs (x, y, z, w) = containedASTs x ++ containedASTs y ++ containedASTs z ++ containedASTs w
 
         modifyContainedASTs f (x, y, z, w) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z, modifyContainedASTs f w)
+
+instance {-# OVERLAPPING #-} 
+    (ASTContainer c t, ASTContainer d t, ASTContainer e t, ASTContainer g t, ASTContainer h t) => ASTContainer (c, d, e, g, h) t where
+        containedASTs (x, y, z, w, a) = containedASTs x ++ containedASTs y ++ containedASTs z ++ containedASTs w ++ containedASTs a
+
+        modifyContainedASTs f (x, y, z, w, a) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z, modifyContainedASTs f w, modifyContainedASTs f  a)
 
 -- | Miscellaneous Instances
 --   These instances exist so that we can use them in other types that contain

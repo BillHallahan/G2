@@ -305,14 +305,14 @@ testFile proj src steps m_assume m_assert m_reaches entry = do
 
     r <- run smt2 hhp steps init_state
 
-    return $ map (\(_, _, i, o) -> (i, o)) r
+    return $ map (\(_, _, i, o, _) -> (i, o)) r
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry steps i reqList = do
     r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry steps
     -- r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp entry steps
 
-    let exprs = map (\(_, _, inp, out) -> inp ++ [out]) r
+    let exprs = map (\(_, _, inp, out, _) -> inp ++ [out]) r
 
     let ch = checkExpr' exprs i reqList
 
