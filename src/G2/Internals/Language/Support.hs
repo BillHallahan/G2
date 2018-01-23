@@ -157,6 +157,48 @@ renameState old new_seed s =
              , known_values = rename old new (known_values s)
              , cleaned_names = M.insert new old (cleaned_names s) }
 
+instance Named State where
+    names s = names (expr_env s)
+            ++ names (type_env s)
+            ++ names (curr_expr s)
+            ++ names (path_conds s)
+            ++ names (assert_ids s)
+            ++ names (type_classes s)
+            ++ names (input_ids s)
+            ++ names (sym_links s)
+            ++ names (func_table s)
+            ++ names (apply_types s)
+            ++ names (deepseq_walkers s)
+            ++ names (wrappers s)
+            ++ names (exec_stack s)
+            ++ names (model s)
+            ++ names (known_values s)
+            ++ names (cleaned_names s)
+
+    rename old new s =
+        State { expr_env = rename old new (expr_env s)
+               , type_env =
+                    M.mapKeys (\k -> if k == old then new else k)
+                    $ rename old new (type_env s)
+               , curr_expr = rename old new (curr_expr s)
+               , name_gen = name_gen s
+               , path_conds = rename old new (path_conds s)
+               , true_assert = true_assert s
+               , assert_ids = rename old new (assert_ids s)
+               , type_classes = rename old new (type_classes s)
+               , input_ids = rename old new (input_ids s)
+               , sym_links = rename old new (sym_links s)
+               , func_table = rename old new (func_table s)
+               , apply_types = rename old new (apply_types s)
+               , deepseq_walkers = rename old new (deepseq_walkers s)
+               , polypred_walkers = rename old new (polypred_walkers s)
+               , wrappers = rename old new (wrappers s)
+               , exec_stack = rename old new (exec_stack s)
+               , model = rename old new (model s)
+               , arbValueGen = arbValueGen s
+               , known_values = rename old new (known_values s)
+               , cleaned_names = M.insert new old (cleaned_names s) }
+
 -- | TypeClass definitions
 instance ASTContainer State Expr where
     containedASTs s = (containedASTs $ type_env s) ++

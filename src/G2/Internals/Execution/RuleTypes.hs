@@ -3,7 +3,7 @@
 
 module G2.Internals.Execution.RuleTypes where
 
-import G2.Internals.Language.AST
+import G2.Internals.Language
 
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal
@@ -52,3 +52,7 @@ data Rule = RuleEvalVal
 instance AST e => ASTContainer Rule e where
     containedASTs _ = []
     modifyContainedASTs _ r = r
+
+instance Named Rule where
+     names _ = []
+     rename _ _ = id

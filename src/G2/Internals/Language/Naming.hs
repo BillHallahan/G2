@@ -325,6 +325,16 @@ instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) wher
 
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
 
+instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d) => Named (a, b, c, d) where
+    names (a, b, c, d) = names a ++ names b ++ names c ++ names d
+
+    rename old new (a, b, c, d) = (rename old new a, rename old new b, rename old new c, rename old new d)
+
+instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) where
+    names (a, b, c, d, e) = names a ++ names b ++ names c ++ names d ++ names e
+
+    rename old new (a, b, c, d, e) = (rename old new a, rename old new b, rename old new c, rename old new d, rename old new e)
+
 freshSeededString :: String -> NameGen -> (Name, NameGen)
 freshSeededString s = freshSeededName (Name s Nothing 0)
 

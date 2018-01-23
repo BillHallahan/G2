@@ -18,7 +18,7 @@ import G2.Internals.Execution.Memory
 import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
 
-import G2.Internals.Postprocessing.Undefunctionalize
+import G2.Internals.Postprocessing.Interface
 
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
@@ -307,4 +307,4 @@ run con hhp n (state@ State { type_env = tenv
 
     let sm' = map (\(s, r, es, e, ais) -> (s, r, es, evalPrims kv tenv e, ais)) sm
 
-    return $ map (\sm''@(s, _, _, _, _) -> undefunctionalize s sm'') sm'
+    return $ map (\sm''@(s, _, _, _, _) -> runPostprocessing s sm'') sm'
