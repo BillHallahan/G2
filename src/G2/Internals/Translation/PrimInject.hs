@@ -98,8 +98,8 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("fromIntToReal", Prim IntToReal TyBottom)
            , ("error", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
-
 -}
+
 primDefs = [ (".+#", Prim Plus TyBottom)
            , (".*#", Prim Mult TyBottom)
            , (".-#", Prim Minus TyBottom)
