@@ -63,6 +63,7 @@ evalPrim2 _ _ Plus x y = evalPrim2Num (+) x y
 evalPrim2 _ _ Minus x y = evalPrim2Num (-) x y
 evalPrim2 _ _ Mult x y = evalPrim2Num (*) x y
 evalPrim2 _ _ Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
+evalPrim2 _ _ Mod x y = evalPrim2Integral (mod) x y
 evalPrim2 _ _ p _ _ = error $ "Primitive given wrong number of arguments " ++ show p
 
 isZero :: Lit -> Bool
@@ -75,15 +76,21 @@ evalPrim2NumBool :: (forall a . Ord a => a -> a -> Bool) -> KnownValues -> TypeE
 evalPrim2NumBool f kv tenv (LitInt x) (LitInt y) = mkBool kv tenv $ f x y
 evalPrim2NumBool f kv tenv (LitFloat x) (LitFloat y) = mkBool kv tenv $ f x y
 evalPrim2NumBool f kv tenv (LitDouble x) (LitDouble y) = mkBool kv tenv $ f x y
-evalPrim2NumBool _ _ _ _ _ = error "Primitive given wrong type of arguments"
+evalPrim2NumBool _ _ _ _ _ = error "Bool: Primitive given wrong type of arguments"
 
 evalPrim2Num  :: (forall a . Num a => a -> a -> a) -> Lit -> Lit -> Expr
 evalPrim2Num f (LitInt x) (LitInt y) = Lit . LitInt $ f x y
 evalPrim2Num f (LitFloat x) (LitFloat y) = Lit . LitFloat $ f x y
 evalPrim2Num f (LitDouble x) (LitDouble y) = Lit . LitDouble $ f x y
-evalPrim2Num _ _ _ = error "Primitive given wrong type of arguments"
+evalPrim2Num _ _ _ = error "Num: Primitive given wrong type of arguments"
 
 evalPrim2Fractional  :: (forall a . Fractional a => a -> a -> a) -> Lit -> Lit -> Expr
 evalPrim2Fractional f (LitFloat x) (LitFloat y) = Lit . LitFloat $ f x y
 evalPrim2Fractional f (LitDouble x) (LitDouble y) = Lit . LitDouble $ f x y
-evalPrim2Fractional _ _ _ = error "Primitive given wrong type of arguments"
+evalPrim2Fractional _ _ _ = error "Fractional: Primitive given wrong type of arguments"
+
+evalPrim2Integral :: (forall a . Integral a => a -> a -> a) -> Lit -> Lit -> Expr
+evalPrim2Integral f (LitInt x) (LitInt y) = Lit . LitInt $ f x y
+evalPrim2Integral _ _ _ = error "Integral: Primitive given wrong type of arguments"
+
+

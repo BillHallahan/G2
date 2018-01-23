@@ -13,6 +13,12 @@ import G2.Internals.Execution.RuleTypes
 import Data.Coerce
 import Data.List
 import qualified Data.Map as M
+import Data.Time
+
+timedMsg :: String -> IO ()
+timedMsg msg = do
+  time <- getCurrentTime
+  putStrLn $ "[" ++ (show $ utctDayTime time) ++ "] " ++ msg
 
 sp2 :: String
 sp2 = "  "
@@ -217,6 +223,7 @@ mkPrimHaskell Plus = "+"
 mkPrimHaskell Minus = "-"
 mkPrimHaskell Mult = "*"
 mkPrimHaskell Div = "/"
+mkPrimHaskell Mod = "mod"
 mkPrimHaskell Negate = "-"
 mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
@@ -285,26 +292,26 @@ pprExecStateStr ex_state = injNewLine acc_strs
 
 -- | More raw version of state dumps.
 pprExecStateStrSimple :: State -> [Name] -> String
-pprExecStateStrSimple ex_state excludes = injNewLine acc_strs
+pprExecStateStrSimple ex_state includes = injNewLine acc_strs
   where
-    ex_occs = map nameOccStr excludes
+    include_occs = map nameOccStr includes
 
     eenv_str = eenv_str1 ++ "\n" ++ eenv_str2
     eenv_str1 = intercalate "\n[E] " $ map show
-                                     $ filter (not . (flip elem) ex_occs . nameOccStr)
+                                     $ filter (not . (flip elem) include_occs . nameOccStr)
                                      $ E.keys
                                      $ expr_env ex_state
     eenv_str2 = intercalate "\n[E] " $ map show
-                                     $ filter ((flip elem) ex_occs . nameOccStr . fst)
+                                     $ filter ((flip elem) include_occs . nameOccStr . fst)
                                      $ E.toList
                                      $ expr_env ex_state
     tenv_str = tenv_str1 ++ "\n" ++ tenv_str2
     tenv_str1 = intercalate "\n[T] " $ map show
-                                     $ filter (not . (flip elem) ex_occs . nameOccStr)
+                                     $ filter (not . (flip elem) include_occs . nameOccStr)
                                      $ M.keys
                                      $ type_env ex_state
     tenv_str2 = intercalate "\n[T] " $ map show
-                                     $ filter ((flip elem) ex_occs . nameOccStr . fst)
+                                     $ filter ((flip elem) include_occs . nameOccStr . fst)
                                      $ M.toList
                                      $ type_env ex_state
     estk_str = pprExecStackStr (exec_stack ex_state)
@@ -323,7 +330,7 @@ pprExecStateStrSimple ex_state excludes = injNewLine acc_strs
                , "----- [Exec Stack] ----------------"
                , estk_str
                , "----- [Code] ----------------------"
-               , code_str
+               -- , code_str
                , "----- [Names] ---------------------"
                -- , names_str
                , "----- [Input Ids] -----------------"

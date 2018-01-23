@@ -45,6 +45,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | (:-) SMTAST SMTAST -- Subtraction
             | (:*) SMTAST SMTAST
             | (:/) SMTAST SMTAST
+            | Modulo SMTAST SMTAST
             | Neg SMTAST --Unary negation
 
             | Tester Name SMTAST
@@ -117,6 +118,7 @@ data SMTConverter ast out io =
         , (.-) :: ast -> ast -> ast
         , (.*) :: ast -> ast -> ast
         , (./) :: ast -> ast -> ast
+        , smtModulo :: ast -> ast -> ast
         , neg :: ast -> ast
         , itor :: ast -> ast
 

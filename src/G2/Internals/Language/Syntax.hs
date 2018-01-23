@@ -81,6 +81,7 @@ data Primitive = Ge
                | Minus
                | Mult
                | Div
+               | Mod
                | Negate
                | IntToReal
                | Error

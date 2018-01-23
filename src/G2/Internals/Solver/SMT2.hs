@@ -112,6 +112,7 @@ smt2 = SMTConverter {
         , (.-) = function2 "-"
         , (.*) = function2 "*"
         , (./) = function2 "/"
+        , smtModulo = function2 "mod"
         , neg = function1 "-"
 
         , itor = function1 "to_real"

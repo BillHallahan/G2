@@ -8,6 +8,7 @@ module G2.Internals.Translation.Haskell
     , prim_list
     , rawDump
     , mkId
+    , mkName
     , mkTyConName
     ) where
 

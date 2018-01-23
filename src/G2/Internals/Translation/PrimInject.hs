@@ -56,8 +56,8 @@ occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
                          then Just n
                          else occFind key ns
 
-{-}
 primDefs :: [(String, Expr)]
+{-
 primDefs = [ ("==#", Prim Eq TyBottom)
            , ("/=#", Prim Neq TyBottom)
            , ("+#", Prim Plus TyBottom)
@@ -68,6 +68,8 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("<#", Prim Lt TyBottom)
            , (">#", Prim Gt TyBottom)
            , (">=#", Prim Ge TyBottom)
+           , ("quotInt#", Prim Div TyBottom)
+           , ("remInt#", Prim Mod TyBottom)
 
            , ("==##", Prim Eq TyBottom)
            , ("/=##", Prim Neq TyBottom)
@@ -96,6 +98,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("fromIntToReal", Prim IntToReal TyBottom)
            , ("error", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
+
 -}
 primDefs = [ (".+#", Prim Plus TyBottom)
            , (".*#", Prim Mult TyBottom)
