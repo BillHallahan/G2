@@ -190,6 +190,7 @@ run con hhp n (state@ State { type_env = tenv
                             , known_values = kv }) = do
     -- timedMsg "fuck"
     -- putStrLn . pprExecStateStr $ state
+    -- let swept = state
     let swept = markAndSweep state
 
     -- timedMsg $ "old tenv: " ++ show (M.size $ type_env state)
@@ -226,8 +227,6 @@ run con hhp n (state@ State { type_env = tenv
     -- putStrLn $ "chars in eenv: " ++ (show $ expr_env preproc_state)
     -- putStrLn $ "chars in tenv: " ++ (show $ length $ show $ M.keys $ type_env preproc_state)
     -- putStrLn $ pprExecStateStrSimple preproc_state
-
-    -- error "HELLO"
 
     -- mapM (putStrLn . show) $ E.keys $ expr_env preproc_state
     -- putStrLn "---------------------------------"

@@ -12,13 +12,13 @@ import sys
 # assumep  = None
 # assertp  = None
 
-proj    = "tests/Samples"
-src     = "tests/Samples/HigherOrderMath.hs"
-prelude = "../base-4.9.1.0/Prelude.hs"
-entry   = "fixed"
-start   = 116
-ticks   = 130
-assumep = "isTrue1"
+proj    = "~/Desktop/test/"
+src     = "~/Desktop/test/Main.hs"
+prelude = "~/Desktop/test/PrePrelude.hs"
+entry   = "g2Entry"
+start   = 0
+ticks   = 25
+assumep = None
 assertp = None
 
 dumps = "dumps"

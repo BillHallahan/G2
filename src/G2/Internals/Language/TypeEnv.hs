@@ -19,6 +19,7 @@ module G2.Internals.Language.TypeEnv ( ProgramType
                                      , dataConCanContain
                                      , getDataCon
                                      , dataConArgs
+                                     , dcName
                                      , retypeAlgDataTy) where
 
 import G2.Internals.Language.AST
@@ -58,6 +59,9 @@ argTypesTEnv' _ = []
 dataCon :: AlgDataTy -> [DataCon]
 dataCon (DataTyCon {data_cons = dc}) = dc
 dataCon (NewTyCon {data_con = dc}) = [dc]
+
+dcName :: DataCon -> Name
+dcName (DataCon n _ _) = n
 
 isPolyAlgDataTy :: AlgDataTy -> Bool
 isPolyAlgDataTy = not . null . bound_names

@@ -20,11 +20,11 @@ translateLoaded proj src prelude simpl = do
 
     let (merged_prog', merged_prog_tys) =
             mergeProgTys merged_prog merged_prog prog_tys base_tys
-    let prog_tys' = injectSpecials merged_prog_tys merged_prog'
+    let (merged_prog2', prog_tys') = injectSpecials merged_prog_tys merged_prog'
 
     let merged_classes = prog_cls ++ base_cls
 
-    let (fin_prog, fin_tys) = primInject $ dataInject merged_prog' prog_tys'
+    let (fin_prog, fin_tys) = primInject $ dataInject merged_prog2' prog_tys'
 
     let classes = mergeTCs merged_classes fin_prog
 

@@ -35,8 +35,8 @@ altDataCons :: Alt -> [DataCon]
 altDataCons (Alt (DataAlt dc _) _) = [dc]
 altDataCons _ = []
 
-mkEntry :: Name -> [DataCon] -> (Name, AlgDataTy)
-mkEntry name samples = (name, adt)
+mkEntry :: [DataCon] -> Name -> (Name, AlgDataTy)
+mkEntry samples name = (name, adt)
   where
     adt = DataTyCon { bound_names = binders
                     , data_cons = dcs }
@@ -47,7 +47,7 @@ mkEntry name samples = (name, adt)
               DataCon n t ts -> if nameOccStr n `elem` targets then [dc] else []
               _ -> [])
             samples
-    binders = evalASTs go dcs
+    binders = L.nub $ evalASTs go dcs
 
     go :: Type -> [Name]
     go (TyForAll (NamedTyBndr (Id n _)) _ ) = [n]
@@ -71,14 +71,28 @@ mkEntry name samples = (name, adt)
 --     go (TyForAll (NamedTyBndr (Id n _)) _ ) = [n]
 --     go _ = []
 
-injectSpecials :: [ProgramType] -> Program -> [ProgramType]
-injectSpecials tenv eenv = L.nub $ entries ++ tenv
+injectSpecials :: [ProgramType] -> Program -> (Program, [ProgramType])
+injectSpecials tenv eenv = (eenv', L.nub $ entries ++ tenv)
   where
-    entries = map ((flip mkEntry) dcs) tys
+    -- eenv' = foldr (uncurry rename) eenv renameList
+    eenv' = eenv
+
+    renameList = concatMap (\(n:ns ) -> map (flip (,) n) ns) $
+                           map (map dcName) $ filter (not . null) groups
+
+    entries = map (mkEntry dcs) tys
 
     -- The pairs we end up using
     tys = evalASTs go1 eenv
-    dcs = L.nub $ evalASTs go2 eenv
+    go2res = L.sortOn (\(DataCon n _ _) -> n) $ evalASTs go2 eenv
+    groups = L.groupBy (\(DataCon (Name o1 m1 _) _ _)
+                         (DataCon (Name o2 m2 _) _ _) -> o1 == o2 && m1 == m2)
+                       go2res
+
+    dcs = concatMap (\g -> case g of { [] -> []; (x:_) -> [x] }) groups
+
+    -- dcs = L.nubBy (\(DataCon (Name o1 m1 _) _ _)
+    --                 (DataCon (Name o2 m2 _) _ _) -> o1 == o2 && m1 == m2) $ evalASTs go2 eenv
 
     -- The special ones.
     -- Function for getting the right types out of the tenv.

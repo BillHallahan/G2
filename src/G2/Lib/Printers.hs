@@ -285,11 +285,11 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , show (true_assert ex_state)
                , "----- [Assert Ids] ---------------------"
                , show (assert_ids ex_state)
-               -- , "----- [TypeClasses] ---------------------"
-               -- , tc_str
-               -- , "----- [Cleaned] -------------------"
-               -- , cleaned_str
-               -- , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
+               , "----- [TypeClasses] ---------------------"
+               , tc_str
+               , "----- [Cleaned] -------------------"
+               , cleaned_str
+               , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
                ]
 
 -- | More raw version of state dumps.

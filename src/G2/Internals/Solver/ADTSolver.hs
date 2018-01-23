@@ -6,6 +6,7 @@ import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.PathConds
 import G2.Internals.Language.Typing
+import G2.Internals.Language.TypeEnv
 
 import Data.Maybe
 import Prelude hiding (null)
@@ -106,6 +107,3 @@ replaceReturnType (TyFun t1 t2@(TyFun _ _)) r = TyFun t1 $ replaceReturnType t2 
 replaceReturnType (TyFun t _) r = TyFun t r
 replaceReturnType _ r = r
 
-dcName :: DataCon -> Name
-dcName (DataCon n _ _) = n
-dcName _ = error "Invalid DataCon in dcName"
