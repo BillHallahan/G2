@@ -116,14 +116,16 @@ runGHC as = do
 printLHOut :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printLHOut entry =
     mapM_ (\(s, _, inArg, ex, ais) -> do
-        let funcCall = mkExprHaskell 
+        let funcCall = mkCleanExprHaskell (known_values s) (type_classes s) 
                      . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
-        let funcOut = mkExprHaskell $ ex
+        let funcOut = mkCleanExprHaskell (known_values s) (type_classes s) $ ex
 
         let (n, args, out) = (case ais of
                         Just (n'@(Name n'' _ _), ais', out') -> 
-                            (n'', mkExprHaskell (foldl' App (Var (Id n' TyBottom)) ais'), mkExprHaskell out')
+                            (n''
+                            , mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n' TyBottom)) ais')
+                            , mkCleanExprHaskell (known_values s) (type_classes s) out')
                         _ -> ("", "", ""))
 
 
@@ -141,10 +143,10 @@ printLHOut entry =
 printFuncCalls :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printFuncCalls entry =
     mapM_ (\(s, _, inArg, ex, ais) -> do
-        let funcCall = mkExprHaskell 
+        let funcCall = mkCleanExprHaskell (known_values s) (type_classes s)
                      . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
-        let funcOut = mkExprHaskell $ ex
+        let funcOut = mkCleanExprHaskell (known_values s) (type_classes s) $ ex
 
         -- print $ model s
         -- print inArg

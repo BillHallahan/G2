@@ -4,6 +4,7 @@
 
 module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , initTypeClasses
+                                         , isTypeClassNamed
                                          , eqTCDict
                                          , numTCDict
                                          , ordTCDict
@@ -43,6 +44,9 @@ nameIdToTypeId nm (n, i) =
 affectedType :: Type -> Maybe Type
 affectedType (TyConApp _ [t]) = Just t
 affectedType _ = Nothing
+
+isTypeClassNamed :: Name -> TypeClasses -> Bool
+isTypeClassNamed n = M.member n . (coerce :: TypeClasses -> TCType)
 
 instance ASTContainer TypeClasses Expr where
     containedASTs _ = []

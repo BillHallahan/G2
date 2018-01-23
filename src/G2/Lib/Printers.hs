@@ -2,9 +2,11 @@ module G2.Lib.Printers where
 
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as Sym
+import G2.Internals.Language.KnownValues
 import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.TypeClasses
+import G2.Internals.Language.Typing
 import G2.Internals.Language.Stack
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
@@ -158,8 +160,7 @@ mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a+
 -}
 
 mkSLTStr :: SymLinks -> String
-mkSLTStr = intercalate "\n" . map (\(k, n) -> 
-                                                show k ++ " <- " ++ show n) . M.toList . Sym.map' id
+mkSLTStr = intercalate "\n" . map (\(k, n) -> show k ++ " <- " ++ show n) . M.toList . Sym.map' id
 
 mkFuncSLTStr :: FuncInterps -> String
 mkFuncSLTStr = show
@@ -169,6 +170,23 @@ mkIdHaskell (Id n _) = mkNameHaskell n
 
 mkNameHaskell :: Name -> String
 mkNameHaskell (Name n _ _) = n
+
+mkCleanExprHaskell :: KnownValues -> TypeClasses -> Expr -> String
+mkCleanExprHaskell kv tc = mkExprHaskell . modifyFix (mkCleanExprHaskell' kv tc)
+
+mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Expr
+mkCleanExprHaskell' kv tc e
+    | (App (Data (DataCon n _ _)) e') <- e
+    , n == dcInt kv || n == dcFloat kv || n == dcDouble kv = e'
+    | (App e' e'') <- e
+    , t <- typeOf e'
+    , TyConApp n _ <- t
+    , isTypeClassNamed n tc = e''
+    | (App e' e'') <- e
+    , t <- typeOf e''
+    , TyConApp n _ <- t
+    , isTypeClassNamed n tc = e'
+    | otherwise = e
 
 mkExprHaskell :: Expr -> String
 mkExprHaskell ex = mkExprHaskell' ex 0
