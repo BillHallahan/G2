@@ -6,11 +6,14 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 import G2.Internals.Language.Naming
 import G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.PathConds as PC
 
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.Maybe as B
+
+import Debug.Trace
 
 markAndSweep :: State -> State
 markAndSweep state @ State { expr_env = expr_env
@@ -32,7 +35,8 @@ markAndSweep state @ State { expr_env = expr_env
                            , arbValueGen = arbValueGen
                            , known_values = known_values
                            , cleaned_names = cleaned_names
-                           } = state'
+                           } = -- error $ show $ length $ take 20 $ PC.toList path_conds
+                               state'
   where
     state' = state { expr_env = expr_env'
                    , type_env = type_env'
@@ -49,6 +53,7 @@ markAndSweep state @ State { expr_env = expr_env
     isActive = (flip S.member) active
 
     expr_env' = E.filterWithKey (\n _ -> isActive n) expr_env
+    -- type_env' = type_env
     type_env' = M.filterWithKey (\n _ -> isActive n) type_env
 
     deepseq_walkers' = M.filterWithKey (\n _ -> isActive n) deepseq_walkers

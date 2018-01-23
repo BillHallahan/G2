@@ -27,7 +27,7 @@ module G2.Internals.Language.Naming
     , freshIds
     , freshVar
 
-    ,childrenNames
+    , childrenNames
 
     , mapNG
     ) where

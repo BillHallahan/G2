@@ -2,7 +2,7 @@ module Main where
 
 import System.Environment
 
-import Data.List
+import Data.List as L
 import Data.Maybe
 
 import System.Directory
@@ -20,6 +20,8 @@ import G2.Internals.Liquid.Interface
 
 main :: IO ()
 main = do
+    -- timedMsg "G2 Start"
+
     as <- getArgs
     let (proj:prims:_) = as
 
@@ -42,7 +44,13 @@ main = do
 
             ---------
 
+            -- let lh_names = L.map (nameOccStr . idName . mkId . fst) specs ++
+            --               [l, f] ++
+            --               prim_list
+
             let n_val = nVal as
+
+            -- putStrLn $ show lh_names
 
             in_out <- findCounterExamples proj prims l f n_val
 
@@ -69,10 +77,13 @@ runGHC as = do
     let m_poly_pred_with = mkPolyPredWith tail_args
     let m_poly_pred_i = mkPolyPredInt tail_args
 
-    (binds, tycons, cls) <- translateLoaded proj src lib True
-    -- (binds, tycons) <- translation proj src
-    
+    -- timedMsg "one"
+
+    (pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src lib True
+    let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
     let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
+
+    -- timedMsg "two"
 
     let init_state' = case (m_wrapper, m_wrap_with) of
                             (Just w, Just ww) -> case (findFunc w (expr_env init_state), findFunc ww (expr_env init_state)) of
@@ -81,13 +92,19 @@ runGHC as = do
                             _ -> init_state
 
 
+    -- timedMsg "three"
+
     let init_state'' = case (m_poly_pred, m_poly_pred_with) of
                             (Just p, Just pw) -> case (findFunc p (expr_env init_state), findFunc pw (expr_env init_state)) of
                                 (Left (Id n _, _), Left (ppi, _)) -> addPolyPred init_state n ppi m_poly_pred_i
                                 _ -> init_state'
                             _ -> init_state'
 
+    -- timedMsg "four"
+
     hhp <- getZ3ProcessHandles
+
+    -- timedMsg "five"
 
     in_out <- run smt2 hhp n_val init_state''
 

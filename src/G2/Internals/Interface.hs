@@ -188,29 +188,35 @@ findFunc s eenv =
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 run con hhp n (state@ State { type_env = tenv
                             , known_values = kv }) = do
+    -- timedMsg "fuck"
     -- putStrLn . pprExecStateStr $ state
-    let preproc_state = runPreprocessing state
+    let swept = markAndSweep state
+
+    -- timedMsg $ "old tenv: " ++ show (M.size $ type_env state)
+    -- timedMsg $ "old eenv: " ++ show (E.size $ expr_env state)
+
+    -- timedMsg $ "new tenv: " ++ show (M.size $ type_env swept)
+    -- timedMsg $ "new eenv: " ++ show (E.size $ expr_env swept)
+
+    -- timedMsg $ show $ map fst $ M.toList $ type_env swept
+    -- timedMsg "--------------------"
+    -- timedMsg $ show $ map fst $ E.toList $ expr_env swept
+
+
+    -- timedMsg "ayo"
+    -- putStrLn $ show $ fst $ head $ E.toList $ expr_env swept
+    -- putStrLn $ pprExecStateStrSimple swept []
+    -- error "we managed to get here at least"
+    let preproc_state = runPreprocessing swept
+    -- error "boooooooooooooooooooooo"
 
     (_, mdl) <- checkModel con hhp preproc_state
 
     let preproc_state_alpha = preproc_state { model = fromJust mdl}
 
-    -- putStrLn . pprExecStateStr $ preproc_state_alpha
+    let preproc_state' = preproc_state_alpha
 
-    -- let preproc_state' = preproc_state_alpha
-    let preproc_state' = markAndSweep preproc_state_alpha
-
-    -- putStrLn $ "old tenv: " ++ show (M.size $ type_env preproc_state_alpha)
-    -- putStrLn $ "old eenv: " ++ show (E.size $ expr_env preproc_state_alpha)
-
-    -- putStrLn $ "new tenv: " ++ show (M.size $ type_env preproc_state')
-    -- putStrLn $ "new eenv: " ++ show (E.size $ expr_env preproc_state')
-
-    -- putStrLn $ show $ map fst $ M.toList $ type_env preproc_state'
-    -- putStrLn "--------------------"
-    -- putStrLn $ show $ map fst $ E.toList $ expr_env preproc_state'
-
-    -- putStrLn . pprExecStateStr $ state
+        -- putStrLn . pprExecStateStr $ state
     -- putStrLn . pprExecStateStr $ preproc_state'
 
     -- putStrLn $ "entries in eenv: " ++ (show $ length $ E.keys $ expr_env preproc_state)
