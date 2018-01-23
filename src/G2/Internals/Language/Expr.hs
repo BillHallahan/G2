@@ -202,21 +202,15 @@ mkStrict w = modifyContainedASTs (mkStrict' w)
 
 mkStrict' :: Walkers -> Expr -> Expr
 mkStrict' w e =
-    let
-        ret = returnType e
-    in
-    case ret of
+    case returnType e of
         (TyConApp n ts) -> case M.lookup n w of
             Just i -> App (foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)) e
             Nothing -> error $ "mkStrict: failed to find walker with type: " ++ show n
-
-            -- App (foldl' (App) (Var $ w M.! n) (map Type ts ++ map (typeToWalker w) ts)) e
-        _ -> e
-
+        _ -> error "No walker found in mkStrict'"
 
 typeToWalker :: Walkers -> Type -> Expr
-typeToWalker w (TyConApp n _) =
+typeToWalker w (TyConApp n ts) =
   case M.lookup n w of
-    Just i -> Var i 
+    Just i -> foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)
     Nothing -> error $ "typeToWalker: failed to find type: " ++ show n
 typeToWalker _ t = mkIdentity t

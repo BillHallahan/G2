@@ -209,7 +209,6 @@ run con hhp n (state@ State { type_env = tenv
     -- putStrLn $ pprExecStateStrSimple swept []
     -- error "we managed to get here at least"
     let preproc_state = runPreprocessing swept
-    -- error "boooooooooooooooooooooo"
 
     (_, mdl) <- checkModel con hhp preproc_state
 
@@ -217,7 +216,7 @@ run con hhp n (state@ State { type_env = tenv
 
     let preproc_state' = preproc_state_alpha
 
-        -- putStrLn . pprExecStateStr $ state
+    -- putStrLn . pprExecStateStr $ state
     -- putStrLn . pprExecStateStr $ preproc_state'
 
     -- putStrLn $ "entries in eenv: " ++ (show $ length $ E.keys $ expr_env preproc_state)
