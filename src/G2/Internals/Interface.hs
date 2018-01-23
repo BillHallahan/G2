@@ -185,7 +185,7 @@ findFunc s eenv =
         _:_ -> Right $ "Multiple functions with name " ++ s
         [] -> Right $ "No functions with name " ++ s
 
-run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr]))]
+run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 run con hhp n (state@ State { type_env = tenv
                             , known_values = kv }) = do
     -- timedMsg "fuck"
@@ -202,6 +202,7 @@ run con hhp n (state@ State { type_env = tenv
     -- timedMsg $ show $ map fst $ M.toList $ type_env swept
     -- timedMsg "--------------------"
     -- timedMsg $ show $ map fst $ E.toList $ expr_env swept
+
 
     -- timedMsg "ayo"
     -- putStrLn $ show $ fst $ head $ E.toList $ expr_env swept

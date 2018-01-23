@@ -267,7 +267,7 @@ resultToState s (eenv, cexpr, pc, _, is, ng, st) =
       , exec_stack = st }
 
 -- | Result of a Evaluate reduction.
-type ReduceResult = (E.ExprEnv, CurrExpr, [PathCond], [PathCond], Maybe (Name, [Id]), NameGen, S.Stack Frame)
+type ReduceResult = (E.ExprEnv, CurrExpr, [PathCond], [PathCond], Maybe (Name, [Id], Id), NameGen, S.Stack Frame)
 
 reduce' :: State -> (Rule, [ReduceResult])
 reduce' s @ State { exec_stack = estk
@@ -278,10 +278,20 @@ reduce' s @ State { exec_stack = estk
   | isExecValueForm s =
       (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
-
+  | CurrExpr Evaluate expr <- cexpr
+  , (Prim Error _):_ <- unApp expr
+  , Just (UpdateFrame n, estk') <- S.pop estk =
+      let
+          eenv' = E.insert n expr eenv
+      in
+      (RuleError, [(eenv', CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk')])
+  | CurrExpr Evaluate expr <- cexpr
+  , (Prim Error _):_ <- unApp expr
+  , Just (_, estk') <- S.pop estk =
+      (RuleError, [(eenv, CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk')])
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
   , (Prim Error _):_ <- unApp expr =
-      (RuleError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], Nothing, ngen, S.empty)])
+      (RuleError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], Nothing, ngen, estk)])
 
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =

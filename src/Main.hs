@@ -34,19 +34,19 @@ main = do
 
     case (m_liquid, m_liquid_func) of
         (Just l, Just f) -> do
-            ghcInfos <- getGHCInfos [l]
+            -- ghcInfos <- getGHCInfos [l]
             -- putStrLn . show $ length ghcInfos
 
-            let specs = funcSpecs ghcInfos
+            -- let specs = funcSpecs ghcInfos
             -- mapM_ (\s -> do
             --     putStrLn ""
             --     pprint s) specs
 
             ---------
 
-            let lh_names = L.map (nameOccStr . idName . mkId . fst) specs ++
-                          [l, f] ++
-                          prim_list
+            -- let lh_names = L.map (nameOccStr . idName . mkId . fst) specs ++
+            --               [l, f] ++
+            --               prim_list
 
             let n_val = nVal as
 
@@ -113,7 +113,7 @@ runGHC as = do
     printFuncCalls entry in_out
 
 
-printLHOut :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr]))] -> IO ()
+printLHOut :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printLHOut entry =
     mapM_ (\(s, _, inArg, ex, ais) -> do
         let funcCall = mkExprHaskell 
@@ -121,9 +121,10 @@ printLHOut entry =
 
         let funcOut = mkExprHaskell $ ex
 
-        let (n, args) = (case ais of
-                        Just (n'@(Name n'' _ _), ais') -> (n'', mkExprHaskell (foldl' App (Var (Id n' TyBottom)) ais'))
-                        _ -> ("", ""))
+        let (n, args, out) = (case ais of
+                        Just (n'@(Name n'' _ _), ais', out') -> 
+                            (n'', mkExprHaskell (foldl' App (Var (Id n' TyBottom)) ais'), mkExprHaskell out')
+                        _ -> ("", "", ""))
 
 
 
@@ -134,10 +135,10 @@ printLHOut entry =
 
         putStrLn $ funcCall ++ " = " ++ funcOut
         putStrLn $ "makes a call to"
-        putStrLn $ args
+        putStrLn $ args ++ " = " ++ out
         putStrLn $ "violating " ++ n ++ "'s refinement type\n")
 
-printFuncCalls :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr]))] -> IO ()
+printFuncCalls :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printFuncCalls entry =
     mapM_ (\(s, _, inArg, ex, ais) -> do
         let funcCall = mkExprHaskell 
