@@ -74,8 +74,8 @@ mkEntry samples name = (name, adt)
 injectSpecials :: [ProgramType] -> Program -> (Program, [ProgramType])
 injectSpecials tenv eenv = (eenv', L.nub $ entries ++ tenv)
   where
-    -- eenv' = foldr (uncurry rename) eenv renameList
-    eenv' = eenv
+    eenv' = foldr (uncurry rename) eenv renameList
+    -- eenv' = eenv
 
     renameList = concatMap (\(n:ns ) -> map (flip (,) n) ns) $
                            map (map dcName) $ filter (not . null) groups
