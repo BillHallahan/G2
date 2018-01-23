@@ -156,6 +156,7 @@ instance Named Expr where
             go (Type t) = names t
             go (Cast _ c) = names c
             go (Coercion c) = names c
+            go (Assert is _ _) = names is
             go _ = []
 
     rename old new = modify go
@@ -172,6 +173,7 @@ instance Named Expr where
         go (Type t) = Type (rename old new t)
         go (Cast e c) = Cast e (rename old new c)
         go (Coercion c) = Coercion (rename old new c)
+        go (Assert is e e') = Assert (rename old new is) e e'
         go e = e
 
         goAlt :: Alt -> Alt
