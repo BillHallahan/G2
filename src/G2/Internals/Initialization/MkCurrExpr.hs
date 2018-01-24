@@ -6,16 +6,16 @@ import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.ApplyTypes as AT
 
 import Data.List
-import Debug.Trace
+import Data.Maybe
 
-mkCurrExpr :: Maybe String -> Maybe String -> String -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert s at ng eenv walkers kv =
+mkCurrExpr :: Maybe String -> Maybe String -> String -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
+mkCurrExpr m_assume m_assert s tc at ng eenv walkers kv =
     case findFunc s eenv of
         Left (f, ex) -> 
             let
                 typs = argTys $ typeOf ex
 
-                (typsE, typs') = instantitateTypes kv typs
+                (typsE, typs') = instantitateTypes tc kv typs
 
                 (var_ids, is, ng') = mkInputs at ng typs'
                 
@@ -78,16 +78,35 @@ findFunc s eenv =
 -- distinguish between where a Type is being bound and where it is just the type (see argTys)
 data TypeBT = B Id | T Type deriving (Show, Eq)
 
-instantitateTypes :: KnownValues -> [TypeBT] -> ([Expr], [Type])
-instantitateTypes kv ts = 
+instantitateTypes :: TypeClasses -> KnownValues -> [TypeBT] -> ([Expr], [Type])
+instantitateTypes tc kv ts = 
     let
         tv =  map (TyVar . typeTBId) $ filter (typeB) ts
 
-        tv' = zip tv $ repeat (tyInt kv)
-
+        -- Get non-TyForAll type reqs, identify typeclasses
         ts' = map typeTBType $ filter (not . typeB) ts
+        tcSat = satisfyingTC tc ts'
+
+        -- TyForAll type reqs
+        tv' = map (\(i, ts'') -> (TyVar i, pickForTyVar kv ts'')) tcSat
+
+        -- Type arguments
+        tvt = map (\(i, (t, _)) -> (i, t)) tv'
+        -- Dictionary arguments
+        vi = map (\(_, (_, i)) -> i) tv'
+
+        ex = map (Type . snd) tvt ++ map Var vi
+        tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
     in
-    (map (Type . snd) tv', foldr (uncurry replaceASTs) ts' tv')
+    (ex, tss)
+
+-- From the given list, selects the Type to instantiate a TyVar with
+pickForTyVar :: KnownValues -> [(Type, Id)] -> (Type, Id)
+pickForTyVar kv ts
+    | Just ti <- find ((==) (tyInt kv) . fst) ts = ti
+    | t:_ <- ts = t
+    | otherwise = error "No type found in pickForTyVar"
+
 
 argTys :: Type -> [TypeBT]
 argTys (TyForAll (NamedTyBndr i) t') = (B i):argTys t'

@@ -6,6 +6,8 @@
 module G2.Internals.Language.Typing
     ( Typed (..)
     , tyInt
+    , tyDouble
+    , tyFloat
     , tyBool
     , mkTyApp
     , mkTyFun
@@ -35,10 +37,14 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
-import Debug.Trace
-
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) []
+
+tyDouble :: KV.KnownValues -> Type
+tyDouble kv = TyConApp (KV.tyDouble kv) []
+
+tyFloat :: KV.KnownValues -> Type
+tyFloat kv = TyConApp (KV.tyFloat kv) []
 
 tyBool :: KV.KnownValues -> Type
 tyBool kv = TyConApp (KV.tyBool kv) []
@@ -103,11 +109,11 @@ instance Typed Expr where
                     m''' = M.insert n tca m''
                 in
                 typeOf' m''' t2
-            (TyFun _ t2, _) -> (t2, m'')  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
+            t@(TyFun _ t2, _) -> (t2, m'')  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
                                -- We should really have this if check- but
                                -- can't because of TyBottom being introduced
                                -- elsewhere...
-            _ -> (TyBottom, m'')
+            t -> (TyBottom, m'')
     typeOf' m (Lam b expr) =
         let
             (t1, m') = case typeOf' m b of

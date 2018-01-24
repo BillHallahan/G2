@@ -38,11 +38,13 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
+        tc = initTypeClasses cls
+
         ng = mkNameGen prog prog_typ
 
         (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap, kv) = runInitialization eenv tenv ng
 
-        (ce, is, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' ds_walkers kv
+        (ce, is, ng'') = mkCurrExpr m_assume m_assert f tc at ng' eenv' ds_walkers kv
 
         eenv'' = checkReaches eenv' tenv' kv m_reaches
     in
@@ -54,7 +56,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
     , path_conds = PC.fromList kv $ map PCExists is
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
-    , type_classes = initTypeClasses cls
+    , type_classes = tc
     , input_ids = is
     , sym_links = Sym.empty
     , func_table = ft

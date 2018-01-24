@@ -5,10 +5,12 @@
 module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , initTypeClasses
                                          , isTypeClassNamed
+                                         , isTypeClass
                                          , eqTCDict
                                          , numTCDict
                                          , ordTCDict
-                                         , lookupTCDict) where
+                                         , lookupTCDict
+                                         , satisfyingTC) where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.KnownValues
@@ -48,6 +50,10 @@ affectedType _ = Nothing
 isTypeClassNamed :: Name -> TypeClasses -> Bool
 isTypeClassNamed n = M.member n . (coerce :: TypeClasses -> TCType)
 
+isTypeClass :: TypeClasses -> Type -> Bool
+isTypeClass tc (TyConApp n _) = isTypeClassNamed n tc 
+isTypeClass _ _ = False
+
 instance ASTContainer TypeClasses Expr where
     containedASTs _ = []
     modifyContainedASTs _ = id
@@ -84,3 +90,53 @@ lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
 lookupTCDict tc (Name n _ _) t =
     (fmap snd $ find (\(Name n' _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) -- M.lookup n ((coerce :: TypeClasses -> TCType) tc) 
     >>= fmap snd . find (\(t', _) -> t .:: t')
+
+lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
+lookupTCDicts n = M.lookup n . coerce
+
+lookupTCDictsTypes :: Name -> TypeClasses -> Maybe [Type]
+lookupTCDictsTypes n = fmap (map fst) . lookupTCDicts n
+
+-- satisfyingTC
+-- Finds all types/dict paurs that satisfy the given TC requirements for each polymorphic argument
+-- returns a list of tuples, where each tuple (i, ti) corresponds to a TyVar Id i,
+-- and a list of acceptable types and dicts, ti
+satisfyingTC :: TypeClasses -> [Type] -> [(Id, [(Type, Id)])]
+satisfyingTC tc ts =
+    let
+        tcReq = satisfyTCReq tc ts
+
+        tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDicts tc) ns)) tcReq
+    in
+    map (\(i, ts) -> (i, inter (\ti ti' -> fst ti == fst ti') ts)) tcReqTS
+
+-- satisfyingTCReq
+-- Finds the names of the required typeclasses for each TyVar Id
+-- See satisfyingTC
+satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
+satisfyTCReq tc ts =
+    filter (not . null . snd) 
+    $ map (\(i, ts) -> (i, mapMaybe tyConAppName ts))
+    $ mapMaybe toIdTypeTup
+    $ groupBy (\t1 t2 -> tyConAppArg t1 == tyConAppArg t2)
+    $ filter (typeClassReq tc) ts
+
+toIdTypeTup :: [Type] -> Maybe (Id, [Type])
+toIdTypeTup ts@(TyConApp nt [TyVar i]:_) = Just (i, ts)
+toIdTypeTup _ = Nothing
+
+typeClassReq :: TypeClasses -> Type -> Bool
+typeClassReq tc (TyConApp n _) = isTypeClassNamed n tc
+typeClassReq _ _ = False
+
+tyConAppName :: Type -> Maybe Name
+tyConAppName (TyConApp n _) = Just n
+tyConAppName _ = Nothing
+
+tyConAppArg :: Type -> [Type]
+tyConAppArg (TyConApp _ ts) = ts
+tyConAppArg _ = []
+
+inter :: (a -> a -> Bool) -> [[a]] -> [a]
+inter _ [] = []
+inter f xs = foldr1 (intersectBy f) xs

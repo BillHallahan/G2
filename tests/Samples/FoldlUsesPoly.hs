@@ -2,7 +2,9 @@ module FoldlUsesPoly where
 
 import Prelude hiding (length, foldl, max, min)
 
-data CList a = Cons a (CList a) | Nil
+data CList a = Nil | Cons a (CList a) deriving (Eq, Ord)
+
+data Pair a b = Pair a b
 
 getNth :: CList a -> Int -> a
 getNth (Cons x _)  0 = x 
@@ -21,22 +23,25 @@ sumMinAndMaxInt :: CList Int -> Int
 sumMinAndMaxInt = sumMinAndMax
 
 sumMinAndMax :: (Num a, Ord a) => CList a -> a
-sumMinAndMax xs = min xs + max xs
+sumMinAndMax xs = min2 xs + max2 xs
 
 minInt :: CList Int -> Int
-minInt = min
+minInt = min2
 
-min :: Ord a => CList a -> a
-min (Cons x xs) = min' x xs
-min _ = error "Invalid index"
+maxInt :: CList Int -> Int
+maxInt = max2
+
+min2 :: Ord a => CList a -> a
+min2 (Cons x xs) = min' x xs
+min2 _ = error "Invalid index"
 
 min' :: Ord a => a -> CList a -> a
 min' x (Cons y xs) = if x < y then min' x xs else min' y xs
 min' x _ = x
 
-max :: Ord a => CList a -> a
-max (Cons x xs) = max' x xs
-max _ = error "Invalid index"
+max2 :: Ord a => CList a -> a
+max2 (Cons x xs) = max' x xs
+max2 _ = error "Invalid index"
 
 max' :: Ord a => a -> CList a -> a
 max' x (Cons y xs) = if x > y then max' x xs else max' y xs
@@ -44,3 +49,9 @@ max' x _ = x
 
 sum :: Num a => CList a -> a 
 sum xs = foldl (+) 0 xs
+
+maxesInt :: CList Int -> CList Int -> Pair Int Int
+maxesInt = maxes
+
+maxes :: (Ord a, Ord b) => CList a -> CList b -> Pair a b
+maxes xs ys = Pair (max2 xs) (max2 ys)
