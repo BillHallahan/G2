@@ -47,7 +47,7 @@ max' :: Ord a => a -> CList a -> a
 max' x (Cons y xs) = if x > y then max' x xs else max' y xs
 max' x _ = x
 
-sum :: Num a => CList a -> a 
+sum :: Num a => CList a -> a
 sum xs = foldl (+) 0 xs
 
 maxesInt :: CList Int -> CList Int -> Pair Int Int
@@ -55,3 +55,16 @@ maxesInt = maxes
 
 maxes :: (Ord a, Ord b) => CList a -> CList b -> Pair a b
 maxes xs ys = Pair (max2 xs) (max2 ys)
+
+class Switchable f where
+    switch :: f a b -> f b a
+
+instance Switchable Pair where
+    switch (Pair x y) = Pair y x
+
+{-# NOINLINE switchP #-}
+switchP :: Switchable f => f a b -> f b a
+switchP = switch
+
+switchInt :: Pair Int Int -> Pair Int Int
+switchInt = switchP

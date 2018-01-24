@@ -116,8 +116,7 @@ satisfyingTCTypes tc ts =
 -- See satisfyingTCTypes
 satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
 satisfyTCReq tc ts =
-    filter (not . null . snd) 
-    $ map (\(i, ts) -> (i, mapMaybe tyConAppName ts))
+    map (\(i, ts) -> (i, mapMaybe tyConAppName ts))
     $ mapMaybe toIdTypeTup
     $ groupBy (\t1 t2 -> tyConAppArg t1 == tyConAppArg t2)
     $ filter (typeClassReq tc) ts

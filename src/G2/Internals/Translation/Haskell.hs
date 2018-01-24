@@ -35,6 +35,7 @@ import Unique
 import Var as V
 
 import Data.Foldable
+import Data.Maybe
 
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
@@ -227,5 +228,7 @@ mkCoercion c =
     (pFst k) G2.:~ (pSnd k)
 
 mkClass :: ClsInst -> (G2.Name, G2.Id)
-mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = 
+mkClass (ClsInst { is_cls = c, is_dfun = dfun, is_tcs = tcs, is_tvs = tvs, is_tys = tys }) = 
+    -- trace ("name = " ++ show (mkName . C.className $ c)
+    --     ++ "\nclassTyVars = " ++ show (map mkId $ C.classTyVars c) ++ "\n") $
     (mkName . C.className $ c, mkId dfun)

@@ -8,6 +8,8 @@ import qualified G2.Internals.Language.ApplyTypes as AT
 import Data.List
 import Data.Maybe
 
+import Debug.Trace
+
 mkCurrExpr :: Maybe String -> Maybe String -> String -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
 mkCurrExpr m_assume m_assert s tc at ng eenv walkers kv =
     case findFunc s eenv of
@@ -81,14 +83,18 @@ data TypeBT = B Id | T Type deriving (Show, Eq)
 instantitateTypes :: TypeClasses -> KnownValues -> [TypeBT] -> ([Expr], [Type])
 instantitateTypes tc kv ts = 
     let
-        tv =  map (TyVar . typeTBId) $ filter (typeB) ts
+        tv =  map (typeTBId) $ filter (typeB) ts
 
         -- Get non-TyForAll type reqs, identify typeclasses
         ts' = map typeTBType $ filter (not . typeB) ts
         tcSat = satisfyingTCTypes tc ts'
 
+        -- If a type has not type class constraints, it will not be returned by satisfyingTCTypes.
+        -- So we readd it here
+        tcSat' = reAddNoCons kv tcSat tv
+
         -- TyForAll type reqs
-        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
+        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat'
         tvt = map (\(i, t) -> (TyVar i, t)) tv'
         -- Dictionary arguments
         vi = satisfyingTC tc ts' tv'-- map (\(_, (_, i)) -> i) tv'
@@ -105,6 +111,12 @@ pickForTyVar kv ts
     | t:_ <- ts = t
     | otherwise = error "No type found in pickForTyVar"
 
+reAddNoCons :: KnownValues -> [(Id, [Type])] -> [Id] -> [(Id, [Type])]
+reAddNoCons _ _ [] = []
+reAddNoCons kv it (i:xs) =
+    case lookup i it of
+        Just ts -> (i, ts):reAddNoCons kv it xs
+        Nothing -> (i, [tyInt kv]):reAddNoCons kv it xs
 
 argTys :: Type -> [TypeBT]
 argTys (TyForAll (NamedTyBndr i) t') = (B i):argTys t'
