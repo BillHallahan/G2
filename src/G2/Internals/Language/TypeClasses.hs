@@ -10,6 +10,7 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , numTCDict
                                          , ordTCDict
                                          , lookupTCDict
+                                         , satisfyingTCTypes
                                          , satisfyingTC) where
 
 import G2.Internals.Language.AST
@@ -97,22 +98,22 @@ lookupTCDicts n = M.lookup n . coerce
 lookupTCDictsTypes :: Name -> TypeClasses -> Maybe [Type]
 lookupTCDictsTypes n = fmap (map fst) . lookupTCDicts n
 
--- satisfyingTC
+-- satisfyingTCTypes
 -- Finds all types/dict paurs that satisfy the given TC requirements for each polymorphic argument
--- returns a list of tuples, where each tuple (i, ti) corresponds to a TyVar Id i,
--- and a list of acceptable types and dicts, ti
-satisfyingTC :: TypeClasses -> [Type] -> [(Id, [(Type, Id)])]
-satisfyingTC tc ts =
+-- returns a list of tuples, where each tuple (i, t) corresponds to a TyVar Id i,
+-- and a list of acceptable types
+satisfyingTCTypes :: TypeClasses -> [Type] -> [(Id, [Type])]
+satisfyingTCTypes tc ts =
     let
         tcReq = satisfyTCReq tc ts
 
-        tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDicts tc) ns)) tcReq
+        tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDictsTypes tc) ns)) tcReq
     in
-    map (\(i, ts) -> (i, inter (\ti ti' -> fst ti == fst ti') ts)) tcReqTS
+    map (\(i, ts) -> (i, inter ts)) tcReqTS
 
 -- satisfyingTCReq
 -- Finds the names of the required typeclasses for each TyVar Id
--- See satisfyingTC
+-- See satisfyingTCTypes
 satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
 satisfyTCReq tc ts =
     filter (not . null . snd) 
@@ -137,6 +138,19 @@ tyConAppArg :: Type -> [Type]
 tyConAppArg (TyConApp _ ts) = ts
 tyConAppArg _ = []
 
-inter :: (a -> a -> Bool) -> [[a]] -> [a]
-inter _ [] = []
-inter f xs = foldr1 (intersectBy f) xs
+inter :: Eq a => [[a]] -> [a]
+inter [] = []
+inter xs = foldr1 intersect xs
+
+-- Given a list of type arguments and a mapping of TyVar Ids to actual Types
+-- Gives the required TC's to pass to any TC arguments
+satisfyingTC :: TypeClasses -> [Type] -> [(Id, Type)] -> [Id]
+satisfyingTC  tc ts it =
+    let
+        tcReq = satisfyTCReq tc ts
+    in
+    concat
+    $ mapMaybe 
+        (\(i, t) -> fmap (mapMaybe (\n -> lookupTCDict tc n t))
+                         (lookup i tcReq)
+        ) it

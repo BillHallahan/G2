@@ -85,25 +85,23 @@ instantitateTypes tc kv ts =
 
         -- Get non-TyForAll type reqs, identify typeclasses
         ts' = map typeTBType $ filter (not . typeB) ts
-        tcSat = satisfyingTC tc ts'
+        tcSat = satisfyingTCTypes tc ts'
 
         -- TyForAll type reqs
-        tv' = map (\(i, ts'') -> (TyVar i, pickForTyVar kv ts'')) tcSat
-
-        -- Type arguments
-        tvt = map (\(i, (t, _)) -> (i, t)) tv'
+        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
+        tvt = map (\(i, t) -> (TyVar i, t)) tv'
         -- Dictionary arguments
-        vi = map (\(_, (_, i)) -> i) tv'
+        vi = satisfyingTC tc ts' tv'-- map (\(_, (_, i)) -> i) tv'
 
-        ex = map (Type . snd) tvt ++ map Var vi
+        ex = map (Type . snd) tv' ++ map Var vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
     in
     (ex, tss)
 
 -- From the given list, selects the Type to instantiate a TyVar with
-pickForTyVar :: KnownValues -> [(Type, Id)] -> (Type, Id)
+pickForTyVar :: KnownValues -> [Type] -> Type
 pickForTyVar kv ts
-    | Just ti <- find ((==) (tyInt kv) . fst) ts = ti
+    | Just t <- find ((==) (tyInt kv)) ts = t
     | t:_ <- ts = t
     | otherwise = error "No type found in pickForTyVar"
 
