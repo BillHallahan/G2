@@ -38,7 +38,7 @@ import qualified Data.Map as M
 import Debug.Trace
 
 tyInt :: KV.KnownValues -> Type
-tyInt kv = TyConApp (KV.tyInt kv) [TyLitInt]
+tyInt kv = TyConApp (KV.tyInt kv) []
 
 tyBool :: KV.KnownValues -> Type
 tyBool kv = TyConApp (KV.tyBool kv) []
@@ -111,11 +111,11 @@ instance Typed Expr where
     typeOf' m (Lam b expr) =
         let
             (t1, m') = case typeOf' m b of
-                (TYPE, _m) -> (TyVar b, _m)
-                tm -> tm 
+                (TYPE, _m) -> (TyForAll (NamedTyBndr b), _m)
+                (t, _m) -> (TyFun t, m)
             (t2, m'') = typeOf' m' expr
         in
-        (TyFun t1 t2, m'')
+        (t1 t2, m'')
     typeOf' m (Let _ expr) = typeOf' m expr
     typeOf' m (Case _ _ (a:_)) = typeOf' m a
     typeOf' m (Case _ _ _) = (TyBottom, m)

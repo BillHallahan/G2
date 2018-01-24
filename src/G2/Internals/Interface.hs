@@ -1,12 +1,12 @@
 module G2.Internals.Interface ( initState
                               , addPolyPred
                               , addHigherOrderWrappers
-                              , findFunc
                               , run) where
 
 import G2.Internals.Language
 
 import G2.Internals.Initialization.Interface
+import G2.Internals.Initialization.MkCurrExpr
 
 import G2.Internals.Preprocessing.Interface
 
@@ -42,7 +42,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
 
         (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap, kv) = runInitialization eenv tenv ng
 
-        (ce, is, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' ds_walkers
+        (ce, is, ng'') = mkCurrExpr m_assume m_assert f at ng' eenv' ds_walkers kv
 
         eenv'' = checkReaches eenv' tenv' kv m_reaches
     in
@@ -108,82 +108,6 @@ addHigherOrderWrappers s@(State { expr_env = eenv, wrappers = w }) f fw argN =
             Nothing -> e
     in
     s {expr_env = E.insert f e' eenv}
-
-argTys :: Type -> [Type]
-argTys (TyForAll (AnonTyBndr t) t') = t:argTys t'
-argTys (TyFun t t') = t:argTys t'
-argTys _ = []
-
-mkCurrExpr :: Maybe String -> Maybe String -> String -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert s at ng eenv walkers =
-    case findFunc s eenv of
-        Left (f, ex) -> 
-            let
-                typs = argTys $ typeOf ex
-                (var_ids, is, ng') = mkInputs at ng typs
-                
-                var_ex = Var f
-                app_ex = foldr (\vi e -> App e vi) var_ex var_ids
-
-                strict_app_ex = mkStrict walkers app_ex
-
-                (name, ng'') = freshName ng'
-                id_name = Id name (typeOf strict_app_ex)
-                var_name = Var id_name
-
-                assume_ex = mkAssumeAssert Assume m_assume var_ids var_name var_name eenv
-                assert_ex = mkAssumeAssert (Assert Nothing) m_assert var_ids assume_ex var_name eenv
-                
-                let_ex = Let [(id_name, strict_app_ex)] assert_ex
-            in
-            (let_ex, is, ng'')
-        Right s' -> error s'
-
-checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe String -> ExprEnv
-checkReaches eenv _ _ Nothing = eenv
-checkReaches eenv tenv kv (Just s) =
-    case findFunc s eenv of
-        Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv tenv) e) eenv
-        Right err -> error err
-
-mkInputs :: ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
-mkInputs _ ng [] = ([], [], ng)
-mkInputs at ng (t:ts) =
-    let
-        (name, ng') = freshName ng
-
-        (t', fv) =
-            case AT.lookup t at of
-                Just (t'', f) -> (TyConApp t'' [], App (Var f))
-                Nothing -> (t, id)
-
-        i = Id name t'
-        var_id = fv $ Var i
-
-        (ev, ei, ng'') = mkInputs at ng' ts
-    in
-    (ev ++ [var_id], i:ei, ng'')
-
-mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
-mkAssumeAssert p (Just f) var_ids inter pre_ex eenv =
-    case findFunc f eenv of
-        Left (f', _) -> 
-            let
-                app_ex = foldr (\vi e -> App e vi) (Var f') (pre_ex:var_ids)
-            in
-            p app_ex inter
-        Right s -> error s
-mkAssumeAssert _ Nothing _ e _ _ = e
-
-findFunc :: String -> ExprEnv -> Either (Id, Expr) String
-findFunc s eenv =
-    let
-        match = E.toExprList $ E.filterWithKey (\(Name n _ _) _ -> n == s) eenv
-    in
-    case match of
-        [(n, e)] -> Left (Id n (typeOf e) , e)
-        _:_ -> Right $ "Multiple functions with name " ++ s
-        [] -> Right $ "No functions with name " ++ s
 
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 run con hhp n (state@ State { type_env = tenv

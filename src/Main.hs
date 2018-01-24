@@ -85,20 +85,22 @@ runGHC as = do
 
     -- timedMsg "two"
 
-    let init_state' = case (m_wrapper, m_wrap_with) of
-                            (Just w, Just ww) -> case (findFunc w (expr_env init_state), findFunc ww (expr_env init_state)) of
-                                (Left (Id n _, _), Left (wwi, _)) -> addHigherOrderWrappers init_state n wwi m_wrap_i
-                                _ -> init_state
-                            _ -> init_state
+    -- let init_state' = case (m_wrapper, m_wrap_with) of
+    --                         (Just w, Just ww) -> case (findFunc w (expr_env init_state), findFunc ww (expr_env init_state)) of
+    --                             (Left (Id n _, _), Left (wwi, _)) -> addHigherOrderWrappers init_state n wwi m_wrap_i
+    --                             _ -> init_state
+    --                         _ -> init_state
 
 
-    -- timedMsg "three"
+    -- -- timedMsg "three"
 
-    let init_state'' = case (m_poly_pred, m_poly_pred_with) of
-                            (Just p, Just pw) -> case (findFunc p (expr_env init_state), findFunc pw (expr_env init_state)) of
-                                (Left (Id n _, _), Left (ppi, _)) -> addPolyPred init_state n ppi m_poly_pred_i
-                                _ -> init_state'
-                            _ -> init_state'
+    -- let init_state'' = case (m_poly_pred, m_poly_pred_with) of
+    --                         (Just p, Just pw) -> case (findFunc p (expr_env init_state), findFunc pw (expr_env init_state)) of
+    --                             (Left (Id n _, _), Left (ppi, _)) -> addPolyPred init_state n ppi m_poly_pred_i
+    --                             _ -> init_state'
+    --                         _ -> init_state'
+
+    let init_state'' = init_state
 
     -- timedMsg "four"
 
