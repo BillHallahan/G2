@@ -174,7 +174,7 @@ mergeProgTys prog prog' progTys primTys =
     in
     foldr (uncurry rename) (prog', progTys ++ primTys) (dcL ++ tL)
 
-mergeTCs :: [(Name, Id)] -> Program -> ([(Name, Id)])
+mergeTCs :: [(Name, Id, [Id])] -> Program -> ([(Name, Id, [Id])])
 mergeTCs tc prog =
   let
     nsp = names prog

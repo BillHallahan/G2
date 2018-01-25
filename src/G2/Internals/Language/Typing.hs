@@ -130,6 +130,7 @@ instance Typed Expr where
         let
             (t1, m') = case typeOf' m b of
                 (TYPE, _m) -> (TyForAll (NamedTyBndr b), _m)
+                (TyFun TYPE _, _m) -> (TyForAll (NamedTyBndr b), _m)
                 (t, _m) -> (TyFun t, m)
             (t2, m'') = typeOf' m' expr
         in
@@ -180,8 +181,8 @@ instance Typed Type where
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a
 -- match on the target key that we want to replace.
-retype :: ASTContainer m Type => Id -> Type -> m -> m
-retype key new = modifyContainedASTs (retype' key new)
+retype :: (ASTContainer m Type, Show m) => Id -> Type -> m -> m
+retype key new e = modifyContainedASTs (typeOf . retype' key new) $ e
 
 retype' :: Id -> Type -> Type -> Type
 retype' key new (TyVar test) = if key == test then new else TyVar test

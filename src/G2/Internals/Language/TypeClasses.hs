@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Internals.Language.TypeClasses ( TypeClasses (..)
+                                         , Class (..)
                                          , initTypeClasses
                                          , isTypeClassNamed
                                          , isTypeClass
@@ -24,21 +25,23 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-type TCType = M.Map Name [(Type, Id)]
+data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id]} deriving (Show, Eq, Read)
+
+type TCType = M.Map Name Class
 newtype TypeClasses = TypeClasses TCType
                       deriving (Show, Eq, Read)
 
-initTypeClasses :: [(Name, Id)] -> TypeClasses
+initTypeClasses :: [(Name, Id, [Id])] -> TypeClasses
 initTypeClasses nsi =
     let
-        ns = map fst nsi
-        nsi' = filter (not . null . snd)
-             $ map (\n -> (n, mapMaybe (nameIdToTypeId n) nsi)) ns
+        ns = map (\(n, _, i) -> (n, i)) nsi
+        nsi' = filter (not . null . insts . snd)
+             $ map (\(n, i) -> (n, Class { insts = mapMaybe (nameIdToTypeId n) nsi, typ_ids = i } )) ns
     in
     coerce $ M.fromList nsi'
 
-nameIdToTypeId :: Name -> (Name, Id) -> Maybe (Type, Id)
-nameIdToTypeId nm (n, i) =
+nameIdToTypeId :: Name -> (Name, Id, [Id]) -> Maybe (Type, Id)
+nameIdToTypeId nm (n, i, _) =
     let
         t = affectedType $ returnType i
     in
@@ -64,10 +67,24 @@ instance ASTContainer TypeClasses Type where
     modifyContainedASTs f = 
         coerce . modifyContainedASTs f . (coerce :: TypeClasses -> TCType)
 
+instance ASTContainer Class Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ = id
+
+instance ASTContainer Class Type where
+    containedASTs = containedASTs . insts
+    modifyContainedASTs f c = Class { insts = modifyContainedASTs f $ insts c
+                                    , typ_ids = modifyContainedASTs f $ typ_ids c}
+
 instance Named TypeClasses where
     names = names . (coerce :: TypeClasses -> TCType)
     rename old new (TypeClasses m) =
         coerce $ M.mapKeys (rename old new) $ rename old new m
+
+instance Named Class where
+    names = names . insts
+    rename old new c = Class { insts = rename old new $ insts c
+                             , typ_ids = rename old new $ typ_ids c }
 
 eqTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
 eqTCDict kv tc t = lookupTCDict tc (eqTC kv) t
@@ -78,22 +95,22 @@ numTCDict kv tc t = lookupTCDict tc (numTC kv) t
 ordTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
 ordTCDict kv tc t = lookupTCDict tc (ordTC kv) t
 
-lookupTCDict2 :: TypeClasses -> Name -> Type -> Maybe (Name, [(Type, Id)])
+lookupTCDict2 :: TypeClasses -> Name -> Type -> Maybe (Name, Class)
 lookupTCDict2 tc (Name n _ _) t =
     find (\(Name n' _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))
 
 lookupTCDict3 :: TypeClasses -> Name -> Type -> Maybe [(Type, Id)]
-lookupTCDict3 tc n t =  fmap snd $ lookupTCDict2 tc n t
+lookupTCDict3 tc n t =  fmap (insts . snd) $ lookupTCDict2 tc n t
 
 -- Returns the dictionary for the given typeclass and Type,
 -- if one exists
 lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
 lookupTCDict tc (Name n _ _) t =
-    (fmap snd $ find (\(Name n' _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) -- M.lookup n ((coerce :: TypeClasses -> TCType) tc) 
+    (fmap (insts . snd) $ find (\(Name n' _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) -- M.lookup n ((coerce :: TypeClasses -> TCType) tc) 
     >>= fmap snd . find (\(t', _) -> t .:: t')
 
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
-lookupTCDicts n = M.lookup n . coerce
+lookupTCDicts n = fmap insts . M.lookup n . coerce
 
 lookupTCDictsTypes :: Name -> TypeClasses -> Maybe [Type]
 lookupTCDictsTypes n = fmap (map fst) . lookupTCDicts n

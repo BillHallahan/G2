@@ -397,7 +397,7 @@ pprPathsStr paths = injNewLine cond_strs
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
   where
-    cond_strs = map show $ M.toList $ ((coerce tc) :: M.Map Name [(Type, Id)])
+    cond_strs = map show $ M.toList $ ((coerce tc) :: M.Map Name Class)
 
 pprInputIdsStr :: InputIds -> String
 pprInputIdsStr i = injNewLine id_strs

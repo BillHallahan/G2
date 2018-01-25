@@ -54,7 +54,7 @@ rawDump fp = do
   str <- mkIOString core
   putStrLn str
 
-hskToG2 :: FilePath -> FilePath -> Bool -> IO (G2.Program, [G2.ProgramType], [(G2.Name, G2.Id)])
+hskToG2 :: FilePath -> FilePath -> Bool -> IO (G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])])
 hskToG2 proj src simpl = do
     (sums_gutss, _, _, c) <- mkCompileClosure proj src simpl
     let binds = concatMap (\(_, _, b) -> map mkBinds b) sums_gutss
@@ -227,8 +227,6 @@ mkCoercion c =
     in
     (pFst k) G2.:~ (pSnd k)
 
-mkClass :: ClsInst -> (G2.Name, G2.Id)
+mkClass :: ClsInst -> (G2.Name, G2.Id, [G2.Id])
 mkClass (ClsInst { is_cls = c, is_dfun = dfun, is_tcs = tcs, is_tvs = tvs, is_tys = tys }) = 
-    -- trace ("name = " ++ show (mkName . C.className $ c)
-    --     ++ "\nclassTyVars = " ++ show (map mkId $ C.classTyVars c) ++ "\n") $
-    (mkName . C.className $ c, mkId dfun)
+    (mkName . C.className $ c, mkId dfun, map mkId $ C.classTyVars c)

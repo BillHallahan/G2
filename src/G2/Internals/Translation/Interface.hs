@@ -9,7 +9,7 @@ import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
 
 translateLoaded :: FilePath -> FilePath -> FilePath -> Bool
-                -> IO (Program, [ProgramType], [(Name, Id)])
+                -> IO (Program, [ProgramType], [(Name, Id, [Id])])
 translateLoaded proj src prelude simpl = do
     let basedir = dropWhileEnd (/= '/') prelude
     (data_prog, prog_tys, prog_cls) <- hskToG2 proj src simpl
@@ -30,7 +30,7 @@ translateLoaded proj src prelude simpl = do
 
     return (fin_prog, fin_tys, classes)
 
-translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType], [(Name, Id)])
+translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType], [(Name, Id, [Id])])
 translation = hskToG2
 
 prepBase :: FilePath -> IO ()

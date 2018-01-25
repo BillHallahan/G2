@@ -83,14 +83,14 @@ data TypeBT = B Id | T Type deriving (Show, Eq)
 instantitateTypes :: TypeClasses -> KnownValues -> [TypeBT] -> ([Expr], [Type])
 instantitateTypes tc kv ts = 
     let
-        tv =  map (typeTBId) $ filter (typeB) ts
+        tv = map (typeTBId) $ filter (typeB) ts
 
         -- Get non-TyForAll type reqs, identify typeclasses
         ts' = map typeTBType $ filter (not . typeB) ts
         tcSat = satisfyingTCTypes tc ts'
 
         -- If a type has not type class constraints, it will not be returned by satisfyingTCTypes.
-        -- So we readd it here
+        -- So we re-add it here
         tcSat' = reAddNoCons kv tcSat tv
 
         -- TyForAll type reqs
@@ -102,7 +102,7 @@ instantitateTypes tc kv ts =
         ex = map (Type . snd) tv' ++ map Var vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
     in
-    (ex, tss)
+    (ex, modifyContainedASTs typeOf tss)
 
 -- From the given list, selects the Type to instantiate a TyVar with
 pickForTyVar :: KnownValues -> [Type] -> Type

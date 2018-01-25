@@ -43,14 +43,16 @@ genTC eenv tenv tc tcn ntws@((_, _, w):_) ng =
 
         (eenv', ti, ng4) = genTCFuncs tcn' eenv tenv' [] ng3 dc ns ws
 
-        tc' = coerce . M.insert tcn' ti $ coerce tc
+        (tci, ng5) = freshId TYPE ng
+
+        tc' = coerce . M.insert tcn' (Class { insts = ti, typ_ids = [tci] }) $ coerce tc
 
         --Create functions to access the TC functions
-        (access, ng5) = mapNG (accessFunction tcn' dc) [0..length fn] ng4
+        (access, ng6) = mapNG (accessFunction tcn' dc) [0..length fn] ng5
 
         eenv'' = E.insertExprs (zip fn access) eenv'
     in
-    (eenv'', tenv', tc', ng5)
+    (eenv'', tenv', tc', ng6)
 genTC _ _ _ _ [] _ = error "No walkers given to genTC."
 
 genTCFuncs :: Name ->  ExprEnv -> TypeEnv -> [(Type, Id)] -> NameGen -> DataCon -> [Name] -> [Walkers] -> (ExprEnv, [(Type, Id)], NameGen)

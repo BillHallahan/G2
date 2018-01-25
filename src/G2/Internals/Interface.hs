@@ -33,7 +33,7 @@ import Data.Maybe
 
 import G2.Lib.Printers
 
-initState :: Program -> [ProgramType] -> [(Name, Id)] -> Maybe String -> Maybe String -> Maybe String -> Bool -> String -> State
+initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe String -> Maybe String -> Maybe String -> Bool -> String -> State
 initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
     let
         eenv = mkExprEnv prog
