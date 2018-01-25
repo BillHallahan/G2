@@ -121,6 +121,8 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 4000 3 [AtLeast 3, RForAll getNthErrors]
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 1500 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 3 [AtLeast 3]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 2 [AtLeast 3]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
                     [AtLeast 2, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]

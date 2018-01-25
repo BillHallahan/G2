@@ -24,6 +24,7 @@ primStr Mult = "*"
 primStr Div = "/"
 primStr Mod = "mod"
 primStr Negate = "negate"
+primStr FromInteger = "fromInteger"
 primStr Error = "error"
 primStr Undefined = "undefined"
 
@@ -82,17 +83,19 @@ mkRawPrim primtys name@(Name occ _ _) =
 -- | Primitive lookup helpers
 
 mkPrim :: Primitive -> E.ExprEnv -> Expr
-mkPrim p eenv = case(inClasses, inNum, inPrelude, inClasses2) of
-    (Just e, _, _, _) -> e
-    (_, Just e, _, _) -> e
-    (_, _, Just e, _) -> e
-    (_, _, _, Just e) -> e
+mkPrim p eenv = case(inClasses, inNum, inPrelude, inClasses2, inBase2) of
+    (Just e, _, _, _, _) -> e
+    (_, Just e, _, _, _) -> e
+    (_, _, Just e, _, _) -> e
+    (_, _, _, Just e, _) -> e
+    (_, _, _, _, Just e) -> e
     _ -> error $ "Unrecognized prim " ++ show p ++ " " ++ show (primStr p)
     where
         inClasses = E.occLookup (primStr p) (Just "GHC.Classes") eenv
         inNum = E.occLookup (primStr p) (Just "GHC.Num") eenv
         inPrelude = E.occLookup (primStr p) (Just "Prelude") eenv
         inClasses2 = E.occLookup (primStr p) (Just "GHC.Classes2") eenv
+        inBase2 = E.occLookup (primStr p) (Just "GHC.Base2") eenv
 
 mkGe :: E.ExprEnv -> Expr
 mkGe = mkPrim Ge
@@ -144,3 +147,6 @@ mkImplies = mkPrim Implies
 
 mkIff :: E.ExprEnv -> Expr
 mkIff = mkPrim Iff
+
+mkFromInteger :: E.ExprEnv -> Expr
+mkFromInteger = mkPrim FromInteger

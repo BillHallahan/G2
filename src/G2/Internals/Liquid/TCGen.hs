@@ -551,6 +551,23 @@ lhPolyPredCase eenv tenv kv w n adt@(DataTyCon { data_cons = dc }) bn bnf ng =
         c = Case (Var i1) caseB alts
     in
     (Lam i1 c, ng4)
+lhPolyPredCase eenv tenv kv w n adt@(NewTyCon { rep_type = t }) bn bnf ng =
+    let
+        t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
+
+        (i, ng') = freshId t' ng
+        (caseB, ng'') = freshId t ng'
+
+        cast = Cast (Var i) (t' :~ t)
+
+        e = polyPredFuncCall (mkTrue kv tenv) w bnf caseB
+
+        alt = Alt Default e
+
+        c = Case cast caseB [alt]
+    in
+    (Lam i c, ng')
+
 
 lhPolyPredAlts :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [DataCon] -> [(Name, Id)] -> NameGen -> ([Alt], NameGen)
 lhPolyPredAlts _ _ _ _ [] _ ng = ([], ng)

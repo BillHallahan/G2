@@ -84,6 +84,7 @@ data Primitive = Ge
                | Mod
                | Negate
                | IntToReal
+               | FromInteger
                | Error
                | Undefined
                deriving (Show, Eq, Read, Generic)

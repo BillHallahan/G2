@@ -1,9 +1,11 @@
 {-# LANGUAGE MagicHash #-}
 module PrimDefs where
 
-import Prelude (Int, Integer, Float, Double, Rational, Bool, Char)
+import Prelude (Int, Float, Double, Rational, Bool, Char)
 import GHC.Prim
 import GHC.Types
+
+data Integer = Integer Int
 
 class Num a where
     (+) :: a -> a -> a
@@ -39,9 +41,18 @@ instance Num Int where
     signum n | n < 0 = negate 1
              | n == 0 = 0
              | n > 0 = 1
-    fromInteger = undefined
+    fromInteger = fromInteger##
     (-) (I# x) (I# y) = I# (x .-# y)
     negate (I# x) = I# (negateInt## x)
+
+instance Num Integer where
+    (+) (Integer x) (Integer y) = Integer (x + y)
+    (*) (Integer x) (Integer y) = Integer (x * y)
+    abs (Integer n) = Integer (abs n)
+    signum (Integer n) = Integer (signum n)
+    fromInteger n = n
+    (-) (Integer x) (Integer y) = Integer (x - y)
+    negate (Integer n) = Integer (negate n)
 
 (.+#) :: Int# -> Int# -> Int#
 (.+#) = (.+#)
@@ -54,6 +65,9 @@ instance Num Int where
 
 negateInt## :: Int# -> Int#
 negateInt## = negateInt##
+
+fromInteger## :: Integer -> Int
+fromInteger## (Integer x) = x
 
 instance Num Double where
     (+) (D# x) (D# y) = D# (x .+## y)
@@ -127,6 +141,10 @@ instance Eq Int where
 (./=#) :: Int# -> Int# -> Bool
 (./=#) = (./=#)
 
+instance Eq Integer where
+    (==) (Integer x) (Integer y) = x == y
+    (/=) (Integer x) (Integer y) = x /= y
+
 instance Eq Double where
     (==) (D# x) (D# y) = x .==## y
     (/=) (D# x) (D# y) = x ./=## y
@@ -167,6 +185,15 @@ instance Ord Int where
 
 (.>=#) :: Int# -> Int# -> Bool
 (.>=#) = (.>=#)
+
+instance Ord Integer where
+    compare = undefined
+    (<=) (Integer x) (Integer y) = x <= y
+    (<) (Integer x) (Integer y) = x < y
+    (>) (Integer x) (Integer y) = x > y
+    (>=) (Integer x) (Integer y) = x >= y
+    max = undefined
+    min = undefined
 
 instance Ord Double where
     compare = undefined

@@ -45,3 +45,9 @@ sumC Nil = 0
 sumC' :: CList Int -> Int
 sumC' (Cons x xs) = x + sumC' xs
 sumC' Nil = 0
+
+{-@ sumCList :: Num a => CList {x:a | x >= 0} -> {y:a | y >= 0} @-}
+sumCList :: Num a => CList a -> a
+sumCList (Cons x xs) = x + sumCList xs
+sumCList Nil = 0
+

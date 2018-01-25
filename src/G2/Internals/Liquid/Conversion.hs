@@ -196,7 +196,7 @@ addAssertSpecType conn meenv tcv n e st (s@State { expr_env = eenv
 
         (b', ng'') = freshId (returnType e) ng'
 
-        st' = convertAssertSpecType conn tcv (s { expr_env = meenv }) st b'
+        st' = convertAssertSpecType conn tcv (s { expr_env = meenv }) st b' Nothing
         newE = 
             insertInLams 
                 (\is e' -> 
@@ -217,7 +217,7 @@ addAssumeAssertSpecType conn meenv tcv n e st (s@State { expr_env = eenv
         (b', ng'') = freshId (returnType e) ng'
 
         assumest' = convertAssumeSpecType (mkAnd meenv) tcv (s { expr_env = meenv }) st
-        assertst' = convertAssertSpecType conn tcv (s { expr_env = meenv }) st b'
+        assertst' = convertAssertSpecType conn tcv (s { expr_env = meenv }) st b' Nothing
         newE =
             insertInLams 
                 (\is e' -> 
@@ -232,26 +232,22 @@ addAssumeAssertSpecType conn meenv tcv n e st (s@State { expr_env = eenv
 -- We create an Expr from a SpecType in two phases.  First, we create outer
 -- lambda expressions, then we create a conjunction of m boolean expressions
 -- describing allowed  values of the bound variables
-convertAssertSpecType :: Expr -> TCValues -> State -> SpecType -> Lang.Id -> Expr
+convertAssertSpecType :: Expr -> TCValues -> State -> SpecType -> Lang.Id -> Maybe (M.Map Name Type) -> Expr
 convertAssertSpecType conn tcv s@(State { known_values = kv
                                         , expr_env = eenv 
                                         , type_env = tenv
-                                        , type_classes = tc }) st ret =
+                                        , type_classes = tc }) st ret m =
     let
-        lh = lhTC tcv
-
-        tva = nub . filter isTyVar $ specTypeLamTypes tenv st
-        lhtc = map (\t -> TyConApp lh [t]) tva
-
-        dsnames = map (Name "d" Nothing) [0 .. (length tva - 1)]
-        nt = (zip dsnames lhtc)
+        nt = convertSpecTypeDict tcv s st
 
         ds = map (\(n, t) -> Id n t) nt
         dclams = foldr (.) id (map Lam ds) 
 
         lams = specTypeLams tenv st 
         lams' = dclams . lams . Lam ret
-        apps = specTypeApps conn st tcv s (M.fromList nt) ret
+
+        m' = maybe (M.fromList nt) id m
+        apps = specTypeApps conn st tcv s m' ret
     in
     primInject $ lams' apps
 
@@ -261,13 +257,7 @@ convertAssumeSpecType conn tcv s@(State { known_values = kv
                                         , type_env = tenv
                                         , type_classes = tc }) st =
     let
-        lh = lhTC tcv
-
-        tva = nub . filter isTyVar $ specTypeLamTypes tenv st
-        lhtc = map (\t -> TyConApp lh [t]) tva
-
-        dsnames = map (Name "d" Nothing) [0 .. (length tva - 1)]
-        nt = (zip dsnames lhtc)
+        nt = convertSpecTypeDict tcv s st
 
         ds = map (\(n, t) -> Id n t) nt
         dclams = foldr (.) id (map Lam ds) 
@@ -277,6 +267,18 @@ convertAssumeSpecType conn tcv s@(State { known_values = kv
         apps = assumeSpecTypeApps conn st tcv s (M.fromList nt)
     in
     primInject $ lams' apps
+
+convertSpecTypeDict :: TCValues -> State -> SpecType -> [(Name, Type)]
+convertSpecTypeDict tcv (State {type_env = tenv}) st =
+    let
+        lh = lhTC tcv
+
+        tva = nub . filter isTyVar $ specTypeLamTypes tenv st
+        lhtc = map (\t -> TyConApp lh [t]) tva
+
+        dsnames = map (Name "d" Nothing) [0 .. (length tva - 1)]
+    in 
+    zip dsnames lhtc
 
 specTypeLams :: TypeEnv -> SpecType -> (Expr -> Expr)
 specTypeLams tenv (RVar {}) = id
@@ -355,7 +357,7 @@ specTypeApps' _ rvar@(RVar {rt_var = (RTV var), rt_reft = r}) tcv s m b =
 
         m' = M.insert (idName symbId) (TyVar i) m 
 
-        re = convertLHExpr (reftExpr $ ur_reft r) tcv s m'
+        re =  convertLHExpr (reftExpr $ ur_reft r) tcv s m'
     in
     [App (Lam symbId re) (Var b)]
 specTypeApps' conn rfun@(RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r}) tcv s@(State { expr_env = eenv, type_env = tenv }) m b =
@@ -399,9 +401,9 @@ polyPredFunc args eenv tenv tc typ conn tcv s m b =
         args' = map (\a -> polyPredLam conn a tcv s m b) args
 
         typE = Type typ
-        lhDict = lhTCDict eenv tcv tc typ m
+        lhDict = fromJustErr "No lhDict for polyPredFunc" $ lhTCDict eenv tcv tc typ m
 
-        lhDicts = map (\t' -> lhTCDict eenv tcv tc t' m) ts
+        lhDicts = map (\t' -> fromJustErr "No lhDict for polyPredFuncArg" $ lhTCDict eenv tcv tc t' m) ts
     in
     mkApp $ [Var $ Id (lhPP tcv) TyBottom, lhDict, typE] ++ lhDicts ++ ts' ++ args' ++ [Var b]
 
@@ -413,7 +415,7 @@ polyPredLam conn rapp tcv s@(State {type_env = tenv, name_gen = ng}) m b =
 
         (i, _) = freshId t ng
     in
-    convertAssertSpecType conn tcv s rapp i -- m i-- l
+    convertAssertSpecType conn tcv s rapp i (Just m) -- m i-- l
 polyPredLam _ _ _ _ _ _ = error "Unrecognized SpecType in polyPredLam"
 
 replaceLam :: Lang.Id -> Expr -> Expr -> Expr
@@ -456,7 +458,7 @@ rTyConType tenv rtc sts =
     let
         n = case nameModMatch (mkTyConName . rtc_tc $ rtc) tenv of
             Just n' -> n'
-            Nothing -> error "Name not found in rTyConType"
+            Nothing -> error $ "Name not found in rTyConType " ++ (show . mkTyConName . rtc_tc $ rtc)
     in
     TyConApp n $ map (specTypeToType tenv) sts
 
@@ -491,21 +493,15 @@ convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_
         e' = convertLHExpr e tcv s m
 
         t = typeOf e'
-        dict = numTCDict kv tc t
 
-        dict' = case dict of
-            Just d -> d
-            Nothing ->
-                case find (tyVarInTyAppHasName (numTC kv) . snd) (M.toList m) of
-                    Just (s, _) -> convertSymbol s eenv m
-                    Nothing -> error "No num dictionary for negate in convertLHExpr"
+        ndict = numDict eenv kv tc t m
 
-        lhdict = lhTCDict eenv tcv tc t m
+        lhdict = fromJustErr "No lhDict for ENeg" $ lhTCDict eenv tcv tc t m
     in
     mkApp [ mkPrim Negate eenv
           , lhdict
           , Type t
-          , Var dict'
+          , ndict
           , e']
 convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, known_values = kv }) m =
     let
@@ -514,21 +510,14 @@ convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, k
 
         t = typeOf lhe
 
-        dict = numTCDict kv tc t
+        ndict = numDict eenv kv tc t m
 
-        numdict = case dict of
-            Just d -> d
-            Nothing ->
-                case find (tyVarInTyAppHasName (numTC kv) . snd) (M.toList m) of
-                    Just (s, _) -> convertSymbol s eenv m
-                    Nothing -> error "No num dictionary for negate in convertLHExpr"
-
-        lhdict = lhTCDict eenv tcv tc t m
+        lhdict = fromJustErr "No lhDict for EBin" $ lhTCDict eenv tcv tc t m
     in
     mkApp [ convertBop b eenv
           , lhdict
           , Type t
-          , Var numdict
+          , ndict
           , lhe
           , lhe']
 convertLHExpr (PAnd es) tcv s@(State { known_values = kv, expr_env = eenv, type_env = tenv }) m = 
@@ -556,7 +545,7 @@ convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_classes = tc
 
         t = returnType ec
 
-        dict = lhTCDict eenv tcv tc t m
+        dict = fromJustErr ("No lhDict for PAtom") $ lhTCDict eenv tcv tc t m
     in
     mkApp [brel', dict, Type t, ec, ec']
 convertLHExpr e _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
@@ -605,18 +594,27 @@ convertBop Ref.Mod = undefined
 convertBop Ref.RTimes = mkMult
 convertBop Ref.RDiv = mkDiv
 
-lhTCDict :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Expr
+lhTCDict :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
 lhTCDict eenv tcv tc t m =
     case fmap Var $ lookupTCDict tc (lhTC tcv) t of
-        Just d -> d
+        Just d -> Just d
         Nothing -> 
             case find (tyVarInTyAppHasName (lhTC tcv) . snd) (M.toList m) of
-                Just (s, _) -> Var $ convertSymbol s eenv m
-                Nothing -> error
-                    $ "No dictionary in convertLHExpr v = " ++ show (lhTC tcv)  
-                                                            ++ "\nt = " ++ show t
-                                                            ++ "\n tc = " ++ show tc
+                Just (s, _) -> Just . Var $ convertSymbol s eenv m
+                Nothing -> Nothing
 
+numDict :: ExprEnv -> KnownValues -> TypeClasses -> Type -> M.Map Name Type -> Expr
+numDict eenv kv tc t m =
+    case numTCDict kv tc t of
+        Just d -> Var $ d
+        Nothing ->
+            case find (tyVarInTyAppHasName (numTC kv) . snd) (M.toList m) of
+                Just (s, _) -> Var $ convertSymbol s eenv m
+                Nothing -> error "No num dictionary for negate in convertLHExpr"
+
+fromJustErr :: String -> Maybe a -> a
+fromJustErr _ (Just x) = x
+fromJustErr s _ = error s
 
 -- lhTCDict :: TCValues -> TypeClasses -> Type -> Maybe Expr
 -- lhTCDict tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
