@@ -174,7 +174,7 @@ liftSymDefAltPCs _ Default = Nothing
 
 -- | Trace the type contained in an expression of type TYPE.
 traceTYPE :: Expr -> E.ExprEnv -> Type
-traceTYPE (Var (Id n TYPE)) eenv = case E.lookup n eenv of
+traceTYPE (Var (Id n _)) eenv = case E.lookup n eenv of
     Just (Type res) -> res
     Just expr -> traceTYPE expr eenv
     Nothing -> error "Var of type TYPE not in expression environment."
@@ -413,13 +413,13 @@ reduceEvaluate eenv cast@(Cast e coer) ngen =
     case cast /= cast' of
         True ->
             (RuleEvalCastSplit, [( eenv
-                                 , CurrExpr Evaluate cast'
+                                 , CurrExpr Evaluate $ simplifyCasts cast'
                                  , []
                                  , ngen'
                                  , Nothing)])
         False ->
            (RuleEvalCast, [( eenv
-                          , CurrExpr Evaluate e
+                          , CurrExpr Evaluate $ simplifyCasts e
                           , []
                           , ngen
                           , Just frame)])
@@ -570,32 +570,35 @@ reduceEReturn eenv expr ngen (CaseFrame cvar alts) =
 reduceEReturn eenv e ngen (CastFrame (t1 :~ t2)) =
   ( RuleReturnCast
   , ( eenv
-    , CurrExpr Evaluate $ Cast e (t1 :~ t2)
+    , CurrExpr Evaluate $ simplifyCasts $ Cast e (t1 :~ t2)
     , ngen))
 
 -- In the event that our Lam parameter is a type variable, we have to handle
 -- it by retyping.
-reduceEReturn eenv (Lam a@(Id n TYPE) lexpr) ngen (ApplyFrame aexpr) =
-  let aty = traceTYPE aexpr eenv
-      binds = [(Id n aty, aexpr)]
-      lexpr' = retype a aty lexpr
-      (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
-  in ( RuleReturnEApplyLamType
-     , ( eenv'
-       , CurrExpr Evaluate lexpr''
-       , ngen'))
+reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr) =
+  case hasTYPE t of
+      True ->
+          let aty = traceTYPE aexpr eenv
+              binds = [(Id n aty, aexpr)]
+              lexpr' = retype b aty lexpr
+              (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
+          in ( RuleReturnEApplyLamType
+             , ( eenv'
+               , CurrExpr Evaluate lexpr''
+               , ngen'))
 
 -- When we have an `ApplyFrame` on the top of the stack, things might get a
 -- bit tricky, since we need to make sure that the thing we end up returning
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
-reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
-  let binds = [(b, aexpr)]
-      (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
-  in ( RuleReturnEApplyLamExpr
-     , ( eenv'
-       , CurrExpr Evaluate lexpr'
-       , ngen'))
+-- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
+      _ ->
+          let binds = [(b, aexpr)]
+              (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
+          in ( RuleReturnEApplyLamExpr
+             , ( eenv'
+               , CurrExpr Evaluate lexpr'
+               , ngen'))
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.
@@ -620,3 +623,7 @@ reduceEReturn eenv c ngen (ApplyFrame aexpr) =
 
 reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
 
+hasTYPE :: Type -> Bool
+hasTYPE TYPE = True
+hasTYPE (TyFun t t') = hasTYPE t || hasTYPE t'
+hasTYPE _ = False

@@ -37,6 +37,8 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
+import Debug.Trace
+
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) []
 
@@ -50,7 +52,7 @@ tyBool :: KV.KnownValues -> Type
 tyBool kv = TyConApp (KV.tyBool kv) []
 
 mkTyApp :: Type -> Type -> Type
-mkTyApp (TyConApp n _) t2 = TyConApp n [t2]
+mkTyApp (TyConApp n ts) t2 = TyConApp n $ ts ++ [t2]
 mkTyApp (TyFun _ t2) _ = t2
 mkTyApp t1 t2 = TyApp t1 t2
 
@@ -60,6 +62,12 @@ mkTyFun :: [Type] -> Type
 mkTyFun [] = error "mkTyFun: empty list"
 mkTyFun (t:[]) = t
 mkTyFun (t1:t2:ts) = mkTyFun (TyFun t1 t2 : ts)
+
+-- | unTyApp
+-- Unravels the application spine.
+unTyApp :: Type -> [Type]
+unTyApp (TyApp t t') = unTyApp t ++ [t']
+unTyApp t = [t]
 
 -- | Typed typeclass.
 class Typed a where
@@ -103,7 +111,11 @@ instance Typed Expr where
             (taxpr, m'') = typeOf' m' axpr
         in
         case (tfxpr, taxpr) of
-            (TyForAll (NamedTyBndr i) t2, _) -> typeOf' (M.insert (idName i) taxpr m'') t2
+            (TyForAll (NamedTyBndr i) t2, _) -> 
+                let
+                    m''' = M.insert (idName i) taxpr m''
+                in
+                typeOf' m''' t2
             (TyFun (TyVar (Id n _)) t2, tca@(TyConApp _ _)) ->
                 let
                     m''' = M.insert n tca m''
@@ -158,6 +170,11 @@ instance Typed Type where
         --     TyFun _ t2'' -> (t2'', m'')
         --     _ -> (TyApp t1' t2', m'')
     typeOf' m (TyConApp n ts) = (TyConApp n (map (fst . typeOf' m) ts), m)
+    typeOf' m (TyForAll b t) = 
+        let
+            (t', m') = typeOf' m t
+        in
+        (TyForAll b t', m')
     typeOf' m t = (t, m)
 
 -- | Retyping
@@ -210,6 +227,21 @@ specializesTo m (TyConApp n ts) (TyConApp n' ts') =
         )
         (n == n' && length ts == length ts', m) 
         (zip ts ts')
+specializesTo m (TyConApp n ts) app@(TyApp _ _) =
+    let
+        appts = unTyApp app
+    in
+    case appts of
+        TyConApp n' ts':ts'' -> specializesTo m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
+        _ -> (False, m)
+specializesTo m app@(TyApp _ _) (TyConApp n ts) =
+    let
+        appts = unTyApp app
+    in
+    case appts of
+        TyConApp n' ts':ts'' -> specializesTo m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
+        _ -> (False, m)
+
 
 specializesTo m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
   let

@@ -68,3 +68,18 @@ switchP = switch
 
 switchInt :: Pair Int Int -> Pair Int Int
 switchInt = switchP
+
+data Holds a = H a
+
+class In f where
+    getIn :: f a -> f a
+
+instance In Holds where
+    getIn (H x) = H x
+
+{-# NOINLINE getInP #-}
+getInP :: In f => f a -> f a
+getInP = getIn
+
+getInInt :: Holds Int -> Holds Int
+getInInt = getInP

@@ -281,14 +281,14 @@ pprExecStateStr ex_state = injNewLine acc_strs
     walkers_str = show (deepseq_walkers ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
-               , "----- [Env] -----------------------"
-               , eenv_str
-               , "----- [TEnv] -----------------------"
-               , tenv_str
                , "----- [Exec Stack] ----------------"
                , estk_str
                , "----- [Code] ----------------------"
                , code_str
+               , "----- [Env] -----------------------"
+               , eenv_str
+               , "----- [TEnv] -----------------------"
+               , tenv_str
                , "----- [Names] ---------------------"
                , names_str
                , "----- [Input Ids] -----------------"
