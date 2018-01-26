@@ -5,7 +5,7 @@ import Prelude (Int, Float, Double, Rational, Bool, Char)
 import GHC.Prim
 import GHC.Types
 
-data Integer = Integer__Prim_# Int
+data Integer = Integer__Prim_# Int#
 
 class Num a where
     (+) :: a -> a -> a
@@ -46,13 +46,15 @@ instance Num Int where
     negate (I# x) = I# (negateInt## x)
 
 instance Num Integer where
-    (+) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x + y)
-    (*) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x * y)
-    abs (Integer__Prim_# n) = Integer__Prim_# (abs n)
-    signum (Integer__Prim_# n) = Integer__Prim_# (signum n)
+    (+) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x .+# y)
+    (*) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x .*# y)
+    abs n = if n >= (Integer__Prim_# 0#) then n else negate n
+    signum n | n < (Integer__Prim_# 0#) = negate (Integer__Prim_# 1#)
+             | n == (Integer__Prim_# 0#) = (Integer__Prim_# 0#)
+             | n > (Integer__Prim_# 0#) = (Integer__Prim_# 1#)
     fromInteger n = n
-    (-) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x - y)
-    negate (Integer__Prim_# n) = Integer__Prim_# (negate n)
+    (-) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x .-# y)
+    negate (Integer__Prim_# n) = Integer__Prim_# (negateInt## n)
 
 (.+#) :: Int# -> Int# -> Int#
 (.+#) = (.+#)
@@ -67,7 +69,7 @@ negateInt## :: Int# -> Int#
 negateInt## = negateInt##
 
 fromInteger## :: Integer -> Int
-fromInteger## (Integer__Prim_# x) = x
+fromInteger## (Integer__Prim_# x) = I# x
 
 instance Num Double where
     (+) (D# x) (D# y) = D# (x .+## y)
@@ -142,8 +144,8 @@ instance Eq Int where
 (./=#) = (./=#)
 
 instance Eq Integer where
-    (==) (Integer__Prim_# x) (Integer__Prim_# y) = x == y
-    (/=) (Integer__Prim_# x) (Integer__Prim_# y) = x /= y
+    (==) (Integer__Prim_# x) (Integer__Prim_# y) = x .==# y
+    (/=) (Integer__Prim_# x) (Integer__Prim_# y) = x ./=# y
 
 instance Eq Double where
     (==) (D# x) (D# y) = x .==## y
@@ -188,10 +190,10 @@ instance Ord Int where
 
 instance Ord Integer where
     compare = undefined
-    (<=) (Integer__Prim_# x) (Integer__Prim_# y) = x <= y
-    (<) (Integer__Prim_# x) (Integer__Prim_# y) = x < y
-    (>) (Integer__Prim_# x) (Integer__Prim_# y) = x > y
-    (>=) (Integer__Prim_# x) (Integer__Prim_# y) = x >= y
+    (<=) (Integer__Prim_# x) (Integer__Prim_# y) = x .<=# y
+    (<) (Integer__Prim_# x) (Integer__Prim_# y) = x .<# y
+    (>) (Integer__Prim_# x) (Integer__Prim_# y) = x .># y
+    (>=) (Integer__Prim_# x) (Integer__Prim_# y) = x .>=# y
     max = undefined
     min = undefined
 

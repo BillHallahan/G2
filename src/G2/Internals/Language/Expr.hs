@@ -9,6 +9,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkFalse
                                   , mkBool
                                   , mkDCInt
+                                  , mkDCInteger
                                   , mkDCDouble
                                   , mkIdentity
                                   , functionCalls
@@ -66,6 +67,9 @@ mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
 
 mkDCInt :: KnownValues -> TypeEnv -> Expr
 mkDCInt kv tenv = Data . fromJust $ getDataCon tenv (KV.tyInt kv) (KV.dcInt kv)
+
+mkDCInteger :: KnownValues -> TypeEnv -> Expr
+mkDCInteger kv tenv = Data . fromJust $ getDataCon tenv (KV.tyInteger kv) (KV.dcInteger kv)
 
 mkDCFloat :: KnownValues -> TypeEnv -> Expr
 mkDCFloat kv tenv = Data . fromJust $ getDataCon tenv (KV.tyFloat kv) (KV.dcFloat kv)

@@ -98,6 +98,7 @@ data Lit = LitInt Int
          | LitDouble Rational
          | LitChar Char
          | LitString String
+         | LitInteger Integer
          deriving (Show, Eq, Read, Generic)
 
 instance Hashable Lit

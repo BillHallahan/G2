@@ -144,7 +144,7 @@ mkLit (MachWord i) = G2.LitInt (fromInteger i)
 mkLit (MachWord64 i) = G2.LitInt (fromInteger i)
 mkLit (MachFloat rat) = G2.LitFloat rat
 mkLit (MachDouble rat) = G2.LitDouble rat
-mkLit (LitInteger i _) = G2.LitInt (fromInteger i)
+mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
 mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
