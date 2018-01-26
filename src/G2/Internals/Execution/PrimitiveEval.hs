@@ -1,4 +1,5 @@
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module G2.Internals.Execution.PrimitiveEval (evalPrims) where
 
@@ -7,8 +8,8 @@ import G2.Internals.Language.Expr
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
 
-evalPrims :: KnownValues -> TypeEnv -> Expr -> Expr
-evalPrims kv tenv = evalPrims' kv tenv . simplifyCasts
+evalPrims :: ASTContainer m Expr => KnownValues -> TypeEnv -> m -> m
+evalPrims kv tenv = modifyContainedASTs (evalPrims' kv tenv . simplifyCasts)
 
 evalPrims' :: KnownValues -> TypeEnv -> Expr -> Expr
 evalPrims' kv tenv a@(App x y) =

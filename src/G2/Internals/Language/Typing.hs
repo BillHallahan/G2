@@ -6,6 +6,7 @@
 module G2.Internals.Language.Typing
     ( Typed (..)
     , tyInt
+    , tyInteger
     , tyDouble
     , tyFloat
     , tyBool
@@ -41,6 +42,9 @@ import Debug.Trace
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) []
+
+tyInteger :: KV.KnownValues -> Type
+tyInteger kv = TyConApp (KV.tyInteger kv) []
 
 tyDouble :: KV.KnownValues -> Type
 tyDouble kv = TyConApp (KV.tyDouble kv) []

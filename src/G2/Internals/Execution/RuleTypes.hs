@@ -6,7 +6,7 @@ module G2.Internals.Execution.RuleTypes where
 import G2.Internals.Language
 
 data Rule = RuleEvalVal
-          | RuleEvalVarNonVal
+          | RuleEvalVarNonVal Name
           | RuleEvalVarVal
           | RuleEvalUnInt
           | RuleEvalApp

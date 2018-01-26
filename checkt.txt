@@ -1,0 +1,10 @@
+Preprocessing executable 'G2' for G2-0.0.1.0...
+[62 of 64] Compiling G2.Internals.Liquid.Conversion ( src/G2/Internals/Liquid/Conversion.hs, dist/build/G2/G2-tmp/G2/Internals/Liquid/Conversion.o )
+Linking dist/build/G2/G2 ...
+Running G2...
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m

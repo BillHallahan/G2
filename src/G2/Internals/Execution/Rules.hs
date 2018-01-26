@@ -356,7 +356,7 @@ reduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
         -- latter is done evaluating, we pop the stack to add a redirection
         -- pointer into the heap.
         else let frame = UpdateFrame (idName v)
-             in ( RuleEvalVarNonVal
+             in ( RuleEvalVarNonVal (idName v)
                 , [( eenv
                    , CurrExpr Evaluate expr
                    , []

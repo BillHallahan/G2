@@ -136,11 +136,15 @@ printLHOut entry =
         -- print inArg
         -- print ex
         -- print ais
-
-        putStrLn $ funcCall ++ " = " ++ funcOut
-        putStrLn $ "makes a call to"
-        putStrLn $ args ++ " = " ++ out
-        putStrLn $ "violating " ++ n ++ "'s refinement type\n")
+        if funcCall == args && funcOut == out then do
+            putStrLn "The call "
+            putStrLn $ funcCall ++ " = " ++ funcOut
+            putStrLn $ "violates " ++ entry ++ "'s refinement type.\n"
+        else do
+            putStrLn $ funcCall ++ " = " ++ funcOut
+            putStrLn $ "makes a call to"
+            putStrLn $ args ++ " = " ++ out
+            putStrLn $ "violating " ++ n ++ "'s refinement type\n")
 
 printFuncCalls :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printFuncCalls entry =

@@ -536,7 +536,7 @@ convertLHExpr (PImp e e') tcv s@(State { expr_env = eenv }) m =
     mkApp [mkImplies eenv, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
 convertLHExpr (PIff e e') tcv s@(State { expr_env = eenv }) m =
     mkApp [mkIff eenv, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
-convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_classes = tc}) m =
+convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, known_values = kv, type_classes = tc}) m =
     let
         brel' = convertBrel brel tcv
 
@@ -544,10 +544,17 @@ convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_classes = tc
         ec' = convertLHExpr e' tcv s m
 
         t = returnType ec
+        t' = returnType ec'
 
-        dict = fromJustErr ("No lhDict for PAtom") $ lhTCDict eenv tcv tc t m
+        -- (ec2, ec2', t2) = (ec, ec', t)
+        (ec2, ec2') = if t == t' then (ec, ec') 
+                          else (callFromInteger eenv kv tcv tc ec t' m, callFromInteger eenv kv tcv tc ec' t m)
+
+        t2 = favorNonTyInteger kv t t'
+
+        dict = fromJustErr ("No lhDict for PAtom") $ lhTCDict eenv tcv tc t2 m
     in
-    mkApp [brel', dict, Type t, ec, ec']
+    mkApp [brel', dict, Type t2, ec2, ec2']
 convertLHExpr e _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
 convertSymbol :: Name -> ExprEnv -> M.Map Name Type -> Lang.Id
@@ -582,7 +589,7 @@ symbolName s =
         _ -> Name (T.unpack n) (Just $ T.unpack m') 0
 
 convertCon :: KnownValues -> TypeEnv -> Constant -> Expr
-convertCon kv tenv (Ref.I i) = App (mkDCInt kv tenv) (Lit . LitInt $ fromIntegral i)
+convertCon kv tenv (Ref.I i) = App (mkDCInteger kv tenv) (Lit . LitInt $ fromIntegral i)
 convertCon kv tenv (Ref.R d) = App (mkDCDouble kv tenv) (Lit . LitDouble $ toRational d)
 
 convertBop :: Bop -> ExprEnv -> Expr
@@ -611,6 +618,32 @@ numDict eenv kv tc t m =
             case find (tyVarInTyAppHasName (numTC kv) . snd) (M.toList m) of
                 Just (s, _) -> Var $ convertSymbol s eenv m
                 Nothing -> error "No num dictionary for negate in convertLHExpr"
+
+callFromInteger :: ExprEnv -> KnownValues -> TCValues -> TypeClasses -> Expr -> Type -> M.Map Name Type -> Expr
+callFromInteger eenv kv tcv tc e t m =
+    let
+        retT = returnType e
+
+        lhdict = fromJustErr "No lhDict for callFromInteger" $ lhTCDict eenv tcv tc t m
+        ndict = numDict eenv kv tc t m
+
+        toIntgr = mkFromInteger eenv
+    in
+    if retT /= Lang.tyInteger kv then
+        e
+    else
+        mkApp [ toIntgr
+              , lhdict
+              , Type t
+              , ndict
+              , e]
+
+favorNonTyInteger :: KnownValues -> Type -> Type -> Type
+favorNonTyInteger kv t t' =
+    if t /= Lang.tyInteger kv then
+        t
+    else
+        t'
 
 fromJustErr :: String -> Maybe a -> a
 fromJustErr _ (Just x) = x

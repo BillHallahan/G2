@@ -25,6 +25,7 @@ primStr Div = "/"
 primStr Mod = "mod"
 primStr Negate = "negate"
 primStr FromInteger = "fromInteger"
+primStr ToInteger = "toInteger"
 primStr Error = "error"
 primStr Undefined = "undefined"
 
@@ -150,3 +151,6 @@ mkIff = mkPrim Iff
 
 mkFromInteger :: E.ExprEnv -> Expr
 mkFromInteger = mkPrim FromInteger
+
+mkToInteger :: E.ExprEnv -> Expr
+mkToInteger = mkPrim ToInteger
