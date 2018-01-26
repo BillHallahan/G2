@@ -55,3 +55,15 @@ isRight _ = False
 {-@ die :: {x:Int | false} -> a @-}
 die :: Int -> a
 die x = error "die"
+
+{-@ sub1 :: Num a => a -> {y:a | y >= 0} @-}
+sub1 :: Num a => a -> a
+sub1 x = x - 1
+
+{-@ id2 :: Num a => x:a -> {y:a | y >= 0} @-}
+id2 :: Num a => a -> a
+id2 z = z
+
+{-@ const4 :: Num a => {y:a | y >= 0} @-}
+const4 :: Num a => a
+const4 = -4

@@ -12,6 +12,8 @@ import G2.Internals.Language.Syntax
 import Data.Hashable
 import qualified Data.HashSet as HS
 
+import Debug.Trace
+
 -- | Describes the data types that can be represented in a tree format.
 class AST t where
     -- | Gets the direct children of the given node.
@@ -42,6 +44,13 @@ modifyFix f t = let t' = f t
                 in if t == t'
                     then modifyChildren (modifyFix f) t'
                     else modifyFix f t'
+
+-- | Runs the given function f on the node t, t until t = f t
+modifyContainedFix :: (AST t, Eq t, Show t) => (t -> t) -> t -> t
+modifyContainedFix f t = let t' = f t
+                in if t == t'
+                    then trace ("t1 = " ++ show t) t'
+                    else trace ("t2 = " ++ show t) modifyContainedFix f t'
 
 -- | Combines the methods of modifyM and modifyFix.
 -- Runs until t == t', but does not consider the Monoid's value. However, the
@@ -94,6 +103,10 @@ modifyASTsM f = modifyContainedASTs (modifyM f)
 -- | Runs modifyFix on all the ASTs in the container.
 modifyASTsFix :: (ASTContainer t e, Eq e) => (e -> e) -> t -> t
 modifyASTsFix f = modifyContainedASTs (modifyFix f)
+
+-- | Runs modifyFix on all the ASTs in the container.
+modifyContainedASTsFix :: (ASTContainer t e, Eq e, Show e) => (e -> e) -> t -> t
+modifyContainedASTsFix f = modifyContainedASTs (modifyContainedFix f)
 
 -- | Runs eval on all the ASTs in the container, and uses mappend to results.
 evalASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a

@@ -177,7 +177,7 @@ mkCleanExprHaskell kv tc = mkExprHaskell . modifyFix (mkCleanExprHaskell' kv tc)
 mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Expr
 mkCleanExprHaskell' kv tc e
     | (App (Data (DataCon n _ _)) e') <- e
-    , n == dcInt kv || n == dcFloat kv || n == dcDouble kv = e'
+    , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv = e'
     | (App e' e'') <- e
     , t <- typeOf e'
     , TyConApp n _ <- t

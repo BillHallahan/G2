@@ -19,6 +19,9 @@ initKnownValues eenv tenv =
     , tyDouble = typeWithStrName tenv "Double"
     , dcDouble = dcWithStrName tenv "Double" "D#"
 
+    , tyInteger = typeWithStrName tenv "Integer"
+    , dcInteger = dcWithStrName tenv "Integer" "Integer__Prim_#"
+
     , tyBool = typeWithStrName tenv "Bool"
     , dcTrue = dcWithStrName tenv "Bool" "True"
     , dcFalse = dcWithStrName tenv "Bool" "False"

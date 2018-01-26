@@ -5,7 +5,7 @@ import Prelude (Int, Float, Double, Rational, Bool, Char)
 import GHC.Prim
 import GHC.Types
 
-data Integer = Integer Int
+data Integer = Integer__Prim_# Int
 
 class Num a where
     (+) :: a -> a -> a
@@ -46,13 +46,13 @@ instance Num Int where
     negate (I# x) = I# (negateInt## x)
 
 instance Num Integer where
-    (+) (Integer x) (Integer y) = Integer (x + y)
-    (*) (Integer x) (Integer y) = Integer (x * y)
-    abs (Integer n) = Integer (abs n)
-    signum (Integer n) = Integer (signum n)
+    (+) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x + y)
+    (*) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x * y)
+    abs (Integer__Prim_# n) = Integer__Prim_# (abs n)
+    signum (Integer__Prim_# n) = Integer__Prim_# (signum n)
     fromInteger n = n
-    (-) (Integer x) (Integer y) = Integer (x - y)
-    negate (Integer n) = Integer (negate n)
+    (-) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x - y)
+    negate (Integer__Prim_# n) = Integer__Prim_# (negate n)
 
 (.+#) :: Int# -> Int# -> Int#
 (.+#) = (.+#)
@@ -67,7 +67,7 @@ negateInt## :: Int# -> Int#
 negateInt## = negateInt##
 
 fromInteger## :: Integer -> Int
-fromInteger## (Integer x) = x
+fromInteger## (Integer__Prim_# x) = x
 
 instance Num Double where
     (+) (D# x) (D# y) = D# (x .+## y)
@@ -142,8 +142,8 @@ instance Eq Int where
 (./=#) = (./=#)
 
 instance Eq Integer where
-    (==) (Integer x) (Integer y) = x == y
-    (/=) (Integer x) (Integer y) = x /= y
+    (==) (Integer__Prim_# x) (Integer__Prim_# y) = x == y
+    (/=) (Integer__Prim_# x) (Integer__Prim_# y) = x /= y
 
 instance Eq Double where
     (==) (D# x) (D# y) = x .==## y
@@ -188,10 +188,10 @@ instance Ord Int where
 
 instance Ord Integer where
     compare = undefined
-    (<=) (Integer x) (Integer y) = x <= y
-    (<) (Integer x) (Integer y) = x < y
-    (>) (Integer x) (Integer y) = x > y
-    (>=) (Integer x) (Integer y) = x >= y
+    (<=) (Integer__Prim_# x) (Integer__Prim_# y) = x <= y
+    (<) (Integer__Prim_# x) (Integer__Prim_# y) = x < y
+    (>) (Integer__Prim_# x) (Integer__Prim_# y) = x > y
+    (>=) (Integer__Prim_# x) (Integer__Prim_# y) = x >= y
     max = undefined
     min = undefined
 

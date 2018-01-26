@@ -133,6 +133,7 @@ liquidTests =
                     [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 1)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sumSameInts" 2000 3 
                     [AtLeast 1, RForAll (\[x, y, _] -> dcInAppHasName "Right" x 1 && dcInAppHasName "Left" y 1)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1000 2 [AtLeast 1]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -190,7 +191,8 @@ testFileTests =
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error1.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error1.hs" 400 Nothing Nothing "g" 2 [AtLeast 1, RForAll(errors)]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error2.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
-                -- , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error3.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error3.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
+                , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/Error/Error3.hs" 400 Nothing Nothing "g" 2 [AtLeast 1, RForAll(not . errors)]
 
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "abs'" 2 [Exactly 2]
                 , checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "xswitch" 2 [AtLeast 10]

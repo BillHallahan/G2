@@ -237,9 +237,15 @@ instance Named AlgDataTy where
 
 instance Named KnownValues where
     names (KnownValues {
-              tyInt = tI
+              dcInt = dI
+            , dcFloat = dF
+            , dcDouble = dD
+            , dcInteger = dI2
+
+            , tyInt = tI
             , tyFloat = tF
             , tyDouble = tD
+            , tyInteger = tI2
 
             , tyBool = tB
             , dcTrue = dcT
@@ -256,16 +262,19 @@ instance Named KnownValues where
             , ltFunc = ltF
             , leFunc = leF
             }) =
-            [tI, tF, tD, tB, dcT, dcF, eqT, numT, ordT, eqF, neqF, geF, gtF, ltF, leF]
+            [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF
+            , eqT, numT, ordT, eqF, neqF, geF, gtF, ltF, leF]
 
     rename old new (KnownValues {
                      dcInt = dI
                    , dcFloat = dF
                    , dcDouble = dD
+                   , dcInteger = dI2
 
                    , tyInt = tI
                    , tyFloat = tF
                    , tyDouble = tD
+                   , tyInteger = tI2
 
                    , tyBool = tB
                    , dcTrue = dcT
@@ -286,10 +295,12 @@ instance Named KnownValues where
                           dcInt = rename old new dI
                         , dcFloat = rename old new dF
                         , dcDouble = rename old new dD
+                        , dcInteger = rename old new dI2
 
                         , tyInt = rename old new tI
                         , tyFloat = rename old new tF
                         , tyDouble = rename old new tD
+                        , tyInteger = rename old new tI2
 
                         , tyBool = rename old new tB
                         , dcTrue = rename old new dcT

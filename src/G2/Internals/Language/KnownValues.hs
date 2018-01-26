@@ -16,6 +16,9 @@ data KnownValues = KnownValues {
                  , tyDouble :: Name
                  , dcDouble :: Name
 
+                 , tyInteger :: Name
+                 , dcInteger :: Name
+
                  , tyBool :: Name
                  , dcTrue :: Name
                  , dcFalse :: Name

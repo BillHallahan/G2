@@ -19,6 +19,8 @@ import Data.Maybe
 
 import G2.Lib.Printers
 
+import Debug.Trace
+
 subModel :: State -> ([Expr], Expr, Maybe (Name, [Expr], Expr))
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
@@ -28,16 +30,27 @@ subModel (State { expr_env = eenv
     subVar m eenv (map Var is, cexpr, fmap (\(n, ais', sis) -> (n, map Var ais', Var sis)) ais)
 
 subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> m -> m
-subVar em eenv = modifyASTsFix (subVar' em eenv)
+subVar em eenv = modifyContainedVars (subVar' em eenv)
 
 subVar' :: ExprModel -> ExprEnv -> Expr -> Expr
 subVar' em eenv v@(Var (Id n _)) =
     case M.lookup n em of
         Just e -> e
         Nothing -> case E.lookup n eenv of
-            Just e -> if isExprValueForm e eenv then e else v
+            Just e -> if isExprValueForm e eenv && notLam e then e else v
             Nothing -> v
 subVar' _ _ e = e
+
+notLam :: Expr -> Bool
+notLam (Lam _ _) = False
+notLam _ = True
+
+modifyContainedVars :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
+modifyContainedVars f = modifyContainedASTs (modifyVars' f [])
+
+modifyVars' :: (Expr -> Expr) -> [Id] -> Expr -> Expr
+modifyVars' f is v@(Var i) = if i `elem` is then v else modifyVars' f (i:is) (f v)
+modifyVars' f is e = modifyChildren (modifyVars' f is) e
 
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable
