@@ -21,7 +21,7 @@ runNBreadth con hpp rss n = do
     where
         go :: ([Rule], State) -> IO [([Rule], State)]
         go (rules, state) = do
-            (rule, states) <- reduce con hpp state
+            (rule, states) <- reduce con hpp state rules
             return $ map (\s -> (rules ++ [rule], s)) states
  
 runNBreadthNoConstraintChecks :: [([Rule], State)] -> Int -> [([Rule], State)]
@@ -40,7 +40,7 @@ runNDepth con hpp states d = runNDepth' $ map (\s -> (([], s), d)) states
     runNDepth' [] = return []
     runNDepth' ((rss, 0):xs) = return . (:) rss =<< runNDepth' xs
     runNDepth' ((((rs, s), n)):xs) = do
-        (app_rule, reduceds) <- reduce con hpp s
+        (app_rule, reduceds) <- reduce con hpp s rs
         
         let mod_info = map (\s' -> ((rs ++ [app_rule], s'), n - 1)) reduceds
         

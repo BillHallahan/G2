@@ -16,7 +16,8 @@ specials = [ ("[]", ["[]", ":"])
            , ("Double", ["D#"])
            , ("Char", ["C#"])
            , ("String", [])
-           , ("Bool", ["True", "False"])]
+           , ("Bool", ["True", "False"])
+           , ("Ordering", ["EQ", "LT", "GT"]) ]
 
 isNameSpecial :: Name -> Bool
 isNameSpecial name = nameOccStr name `elem` flattened

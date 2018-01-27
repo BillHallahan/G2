@@ -57,8 +57,8 @@ occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
                          else occFind key ns
 
 primDefs :: [(String, Expr)]
-{-
 
+{-
 primDefs = [ ("==#", Prim Eq TyBottom)
            , ("/=#", Prim Neq TyBottom)
            , ("+#", Prim Plus TyBottom)
@@ -135,8 +135,14 @@ primDefs = [ (".+#", Prim Plus TyBottom)
            , ("error", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
 
+favoredModules :: [String]
+favoredModules = ["GHC.Base2", "PrimDefs"]
+
 nameStrEq :: Name -> Name -> Bool
-nameStrEq (Name n _ _) (Name n' _ _) = n == n'
+nameStrEq (Name n m _) (Name n' m' _) =
+  any id [ n == n' && m == m'
+         , n == n' && m `elem` (map Just favoredModules)
+         , n == n' && m' `elem` (map Just favoredModules) ]
 
 replaceFromPD :: [Name] -> Id -> Expr -> (Id, Expr)
 replaceFromPD ns (Id n t) e =
@@ -146,6 +152,7 @@ replaceFromPD ns (Id n t) e =
         e' = fmap snd $ find ((==) (nameOccStr n) . fst) primDefs
     in
     (Id n' t, maybe e id e')
+
 
 mergeProgs :: Program -> Program -> Program
 mergeProgs prog prims =
