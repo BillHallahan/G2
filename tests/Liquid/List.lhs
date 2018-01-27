@@ -7,6 +7,10 @@ Lists
 {-@ LIQUID "--short-names" @-}
 {-@ LIQUID "--no-termination" @-}
 
+
+-- ADDED:
+{-@ LIQUID "--prune-unsorted" @-}
+
 -- CHECKBINDER prop_size
 -- CHECKBINDER empty
 -- CHECKBINDER add
@@ -28,6 +32,7 @@ module List ( List
             , foldr1
             , zipWith
             , concat
+            , length
             ) where
 
 -- import Assert

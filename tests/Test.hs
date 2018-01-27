@@ -133,7 +133,7 @@ liquidTests =
                     [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 1)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sumSameInts" 2000 3 
                     [AtLeast 1, RForAll (\[x, y, _] -> dcInAppHasName "Right" x 1 && dcInAppHasName "Left" y 1)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1000 2 [AtLeast 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1200 2 [AtLeast 1]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

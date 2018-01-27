@@ -191,10 +191,7 @@ repeatedLookup v@(Var (Id n _)) eenv
 repeatedLookup e _ = e
 
 lookupForPrim :: Expr -> ExprEnv -> Expr
-lookupForPrim v@(Var (Id n _)) eenv =
-    case E.lookup n eenv of
-        Just e -> e
-        Nothing -> v
+lookupForPrim v@(Var (Id n _)) eenv = repeatedLookup v eenv
 lookupForPrim (App e e') eenv = App (lookupForPrim e eenv) (lookupForPrim e' eenv)
 lookupForPrim e _ = e
 

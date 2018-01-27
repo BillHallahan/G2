@@ -7,11 +7,11 @@ module Logic where
 main :: IO ()
 main = return ()
 
-{-@ type TRUE  = {v:Bool | Prop v} @-}
-{-@ type FALSE = {v:Bool | not (Prop v)} @-}
+{-@ type TRUE  = {v:Bool |  v} @-}
+{-@ type FALSE = {v:Bool | not ( v)} @-}
 
-{-@ (==>) :: p:Bool -> q:Bool -> {v:Bool | Prop v <=> (Prop p =>  Prop q)} @-}
-{-@ (<=>) :: p:Bool -> q:Bool -> {v:Bool | Prop v <=> (Prop p <=> Prop q)} @-}
+{-@ (==>) :: p:Bool -> q:Bool -> {v:Bool |  v <=> ( p =>   q)} @-}
+{-@ (<=>) :: p:Bool -> q:Bool -> {v:Bool |  v <=> ( p <=>  q)} @-}
 {-@ size  :: xs:[a] -> {v:Int | v = size xs} @-}
 
 ax1 :: Int -> Bool
@@ -413,9 +413,6 @@ inputs.
 
 Let us define an uninterpreted function from `Int` to `Int`:
 
-\begin{code}
-{-@ measure f :: Int -> Int @-}
-\end{code}
 
 \newthought{We Test the Axiom of Congruence} by checking that the
 following predicate
