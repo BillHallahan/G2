@@ -16,7 +16,13 @@ translateLoaded proj src prelude simpl = do
     -- prims <- mkPrims primsF
     (base_prog, base_tys, base_cls) <- hskToG2 basedir prelude simpl
 
+    -- print $ data_prog
+    -- print $ base_prog
+
     let merged_prog = mergeProgs data_prog base_prog
+
+    -- putStrLn "-------"
+    -- print $ merged_prog
 
     let (merged_prog', merged_prog_tys) =
             mergeProgTys merged_prog merged_prog prog_tys base_tys

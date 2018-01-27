@@ -58,48 +58,48 @@ occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
 
 primDefs :: [(String, Expr)]
 
-{-
-primDefs = [ ("==#", Prim Eq TyBottom)
-           , ("/=#", Prim Neq TyBottom)
-           , ("+#", Prim Plus TyBottom)
-           , ("*#", Prim Mult TyBottom)
-           , ("-#", Prim Minus TyBottom)
-           , ("negateInt#", Prim Negate TyBottom)
-           , ("<=#", Prim Le TyBottom)
-           , ("<#", Prim Lt TyBottom)
-           , (">#", Prim Gt TyBottom)
-           , (">=#", Prim Ge TyBottom)
-           , ("quotInt#", Prim Div TyBottom)
-           , ("remInt#", Prim Mod TyBottom)
 
-           , ("==##", Prim Eq TyBottom)
-           , ("/=##", Prim Neq TyBottom)
-           , ("+##", Prim Plus TyBottom)
-           , ("*##", Prim Mult TyBottom)
-           , ("-##", Prim Minus TyBottom)
-           , ("negateDouble##", Prim Negate TyBottom)
-           , ("<=##", Prim Le TyBottom)
-           , ("<##", Prim Lt TyBottom)
-           , (">##", Prim Gt TyBottom)
-           , (">=##", Prim Ge TyBottom)
+-- primDefs = [ ("==#", Prim Eq TyBottom)
+--            , ("/=#", Prim Neq TyBottom)
+--            , ("+#", Prim Plus TyBottom)
+--            , ("*#", Prim Mult TyBottom)
+--            , ("-#", Prim Minus TyBottom)
+--            , ("negateInt#", Prim Negate TyBottom)
+--            , ("<=#", Prim Le TyBottom)
+--            , ("<#", Prim Lt TyBottom)
+--            , (">#", Prim Gt TyBottom)
+--            , (">=#", Prim Ge TyBottom)
+--            , ("quotInt#", Prim Div TyBottom)
+--            , ("remInt#", Prim Mod TyBottom)
 
-           , ("plusFloat#", Prim Plus TyBottom)
-           , ("timesFloat#", Prim Mult TyBottom)
-           , ("minusFloat#", Prim Minus TyBottom)
-           , ("negateFloat#", Prim Negate TyBottom)
-           , ("/##", Prim Div TyBottom)
-           , ("divFloat#", Prim Div TyBottom)
-           , ("eqFloat#", Prim Eq TyBottom)
-           , ("neqFloat#", Prim Neq TyBottom)
-           , ("leFloat#", Prim Le TyBottom)
-           , ("ltFloat#", Prim Lt TyBottom)
-           , ("gtFloat#", Prim Gt TyBottom)
-           , ("geFloat#", Prim Ge TyBottom)
+--            , ("==##", Prim Eq TyBottom)
+--            , ("/=##", Prim Neq TyBottom)
+--            , ("+##", Prim Plus TyBottom)
+--            , ("*##", Prim Mult TyBottom)
+--            , ("-##", Prim Minus TyBottom)
+--            , ("negateDouble##", Prim Negate TyBottom)
+--            , ("<=##", Prim Le TyBottom)
+--            , ("<##", Prim Lt TyBottom)
+--            , (">##", Prim Gt TyBottom)
+--            , (">=##", Prim Ge TyBottom)
 
-           , ("fromIntToReal", Prim IntToReal TyBottom)
-           , ("error", Prim Error TyBottom)
-           , ("undefined", Prim Error TyBottom)]
--}
+--            , ("plusFloat#", Prim Plus TyBottom)
+--            , ("timesFloat#", Prim Mult TyBottom)
+--            , ("minusFloat#", Prim Minus TyBottom)
+--            , ("negateFloat#", Prim Negate TyBottom)
+--            , ("/##", Prim Div TyBottom)
+--            , ("divFloat#", Prim Div TyBottom)
+--            , ("eqFloat#", Prim Eq TyBottom)
+--            , ("neqFloat#", Prim Neq TyBottom)
+--            , ("leFloat#", Prim Le TyBottom)
+--            , ("ltFloat#", Prim Lt TyBottom)
+--            , ("gtFloat#", Prim Gt TyBottom)
+--            , ("geFloat#", Prim Ge TyBottom)
+
+--            , ("fromIntToReal", Prim IntToReal TyBottom)
+--            , ("error", Prim Error TyBottom)
+--            , ("undefined", Prim Error TyBottom)]
+
 primDefs = [ (".+#", Prim Plus TyBottom)
            , (".*#", Prim Mult TyBottom)
            , (".-#", Prim Minus TyBottom)
@@ -157,15 +157,28 @@ replaceFromPD ns (Id n t) e =
 mergeProgs :: Program -> Program -> Program
 mergeProgs prog prims =
     let
-        ns = names prog ++ names prims
+        ns_progs = nub $ names prog
+        ns_prims = nub $ names prims
+        ns = union ns_progs ns_prims
 
         prims' = map (map (uncurry (replaceFromPD ns))) prims
 
-        n_pairs = [ (y, x) | x <- nub $ names $ concat prog
-                           , y <- nub $ names $ map fst $ concat prims
-                           , nameStrEq x y]
+
+        n_pairs = getNPairs ns_progs prims
     in
     foldr (uncurry rename) (prog ++ prims') n_pairs 
+
+getNPairs :: [Name] -> Program -> [(Name, Name)]
+getNPairs ns_prog prims = getNPairs' (sortOn nameOccStr ns_prog) (sortOn nameOccStr $ nub $ names $ map fst $ concat prims)
+
+getNPairs' :: [Name] -> [Name] -> [(Name, Name)]
+getNPairs' prog@(n1:prog') prims@(n2:prims') = 
+    let
+        xs = if n1 < n2 then getNPairs' prog' prims else getNPairs' prog prims'
+        xs' = getNPairs' prog' prims'
+    in
+    if nameStrEq n1 n2 then (n2, n1):xs' else xs
+getNPairs' _ _ = []
 
 -- The prog is used to change the names of types in the prog' and primTys
 mergeProgTys :: Program -> Program -> [ProgramType] -> [ProgramType] -> (Program, [ProgramType])
