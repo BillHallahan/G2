@@ -28,8 +28,8 @@ renames n a = foldr (\(old, new) -> rename old new) a n
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
-             (E.ExprEnv, Expr, NameGen)
-liftBinds binds eenv expr ngen = (eenv', expr', ngen')
+             (E.ExprEnv, Expr, NameGen, [Name])
+liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
   where
     (bindsLHS, bindsRHS) = unzip binds
 
@@ -49,8 +49,8 @@ liftCaseBinds ((b, e):xs) expr = liftCaseBinds xs $ replaceASTs (Var b) e expr
 
 -- Due to recursion, Let bindings have to rename the RHS of the bindings
 liftLetBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
-             (E.ExprEnv, Expr, NameGen)
-liftLetBinds binds eenv expr ngen = (eenv', expr', ngen')
+             (E.ExprEnv, Expr, NameGen, [Name])
+liftLetBinds binds eenv expr ngen = (eenv', expr', ngen', news)
   where
     olds = map (idName . fst) binds
     (news, ngen') = freshSeededNames olds ngen
@@ -204,9 +204,12 @@ lookupForPrim e _ = e
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-reduce :: SMTConverter ast out io -> io -> State -> IO (Rule, [State])
-reduce con hpp s = do
+reduce :: SMTConverter ast out io -> io -> State -> [Rule] -> IO (Rule, [State])
+reduce con hpp s rs = do
     let (rule, res) = reduce' s
+
+    -- putStrLn "----------------------------------"
+    -- mapM_ (putStrLn . show) $ zip [1..] rs
 
     sts <- resultsToState con hpp rule s res
 
@@ -343,7 +346,7 @@ reduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
       -- If the target in our environment is already a value form, we do not
       -- need to push additional redirects for updating later on.
       if isExprValueForm expr eenv
-        then ( RuleEvalVarVal
+        then ( RuleEvalVarVal (idName v)
              , [( eenv
                 , CurrExpr Evaluate expr
                 , []
@@ -393,8 +396,8 @@ reduceEvaluate eenv app@(App fexpr aexpr) ngen =
 reduceEvaluate eenv (Let binds expr) ngen =
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
-    let (eenv', expr', ngen') = liftLetBinds binds eenv expr ngen
-    in ( RuleEvalLet
+    let (eenv', expr', ngen', news) = liftLetBinds binds eenv expr ngen
+    in ( RuleEvalLet news
        , [( eenv'
           , CurrExpr Evaluate expr'
           , []
@@ -475,9 +478,9 @@ reduceCase eenv mexpr bind alts ngen
           dbind = [(bind, mexpr)]
           expr' = liftCaseBinds dbind expr
           pbinds = zip params ar'
-          (eenv', expr'', ngen') = liftBinds pbinds eenv expr' ngen
+          (eenv', expr'', ngen', news) = liftBinds pbinds eenv expr' ngen
       in 
-         ( RuleEvalCaseData
+         ( RuleEvalCaseData news
          , [( eenv'
             , CurrExpr Evaluate expr''
             , []
@@ -542,7 +545,7 @@ reduceEReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, EReturnResult)
 -- `ExecExprEnv`, and continue with execution. This is the equivalent of
 -- performing memoization on values that we have seen.
 reduceEReturn eenv (Var (Id name ty)) ngen (UpdateFrame frm_name) =
-  ( RuleReturnEUpdateVar
+  ( RuleReturnEUpdateVar frm_name
   , ( E.redirect frm_name name eenv
     , CurrExpr Return (Var $ Id name ty)
     , ngen))
@@ -551,7 +554,7 @@ reduceEReturn eenv (Var (Id name ty)) ngen (UpdateFrame frm_name) =
 -- immediate top level, then we have to insert it into the `ExecExprEnv`
 -- directly.
 reduceEReturn eenv expr ngen (UpdateFrame frm_name) =
-  ( RuleReturnEUpdateNonVar
+  ( RuleReturnEUpdateNonVar frm_name
   , ( E.insert frm_name expr eenv
     , CurrExpr Return expr
     , ngen))
@@ -581,8 +584,8 @@ reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr) =
           let aty = traceTYPE aexpr eenv
               binds = [(Id n aty, aexpr)]
               lexpr' = retype b aty lexpr
-              (eenv', lexpr'', ngen') = liftBinds binds eenv lexpr' ngen
-          in ( RuleReturnEApplyLamType
+              (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
+          in ( RuleReturnEApplyLamType news
              , ( eenv'
                , CurrExpr Evaluate lexpr''
                , ngen'))
@@ -594,8 +597,8 @@ reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr) =
 -- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
       _ ->
           let binds = [(b, aexpr)]
-              (eenv', lexpr', ngen') = liftBinds binds eenv lexpr ngen
-          in ( RuleReturnEApplyLamExpr
+              (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
+          in ( RuleReturnEApplyLamExpr news
              , ( eenv'
                , CurrExpr Evaluate lexpr'
                , ngen'))

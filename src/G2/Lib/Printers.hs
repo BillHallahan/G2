@@ -281,7 +281,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     walkers_str = show (deepseq_walkers ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
-               , "----- [Exec Stack] ----------------"
+               , "----- [Stack] ---------------------"
                , estk_str
                , "----- [Code] ----------------------"
                , code_str

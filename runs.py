@@ -12,12 +12,12 @@ import sys
 # assumep  = None
 # assertp  = None
 
-proj    = "~/Desktop/test/"
-src     = "~/Desktop/test/Main.hs"
-prelude = "~/Desktop/test/PrePrelude.hs"
-entry   = "g2Entry"
+proj    = "tests/Samples/"
+src     = "tests/Samples/Sorting.hs"
+prelude = "~/Desktop/small-base/PrePrelude.hs"
+entry   = "g2Entry2"
 start   = 0
-ticks   = 25
+ticks   = 200
 assumep = None
 assertp = None
 
@@ -27,7 +27,7 @@ if not os.path.exists(dumps):
   os.makedirs(dumps)
 
 for i in range(start, ticks + 1):
-  run = "cabal run G2 -- {0} {1} {2} {3}" \
+  run = "time cabal run G2 -- {0} {1} {2} {3}" \
           .format(proj, src, prelude, entry)
   run = run + " --n {0}".format(str(i))
 

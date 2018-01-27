@@ -7,16 +7,16 @@ import G2.Internals.Language
 
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal Name
-          | RuleEvalVarVal
+          | RuleEvalVarVal Name
           | RuleEvalUnInt
           | RuleEvalApp
 
           | RuleEvalPrimAlreadyNorm
           | RuleEvalPrimToNorm
 
-          | RuleEvalLet
+          | RuleEvalLet [Name]
 
-          | RuleEvalCaseData
+          | RuleEvalCaseData [Name]
           | RuleEvalCaseLit
           | RuleEvalCaseDefault
           | RuleEvalCaseSym
@@ -29,15 +29,15 @@ data Rule = RuleEvalVal
           | RuleEvalAssume
           | RuleEvalAssert
 
-          | RuleReturnEUpdateVar
-          | RuleReturnEUpdateNonVar
+          | RuleReturnEUpdateVar Name
+          | RuleReturnEUpdateNonVar Name
 
           | RuleReturnECase
 
           | RuleReturnCast
 
-          | RuleReturnEApplyLamExpr
-          | RuleReturnEApplyLamType 
+          | RuleReturnEApplyLamExpr [Name]
+          | RuleReturnEApplyLamType [Name]
           | RuleReturnEApplyData
           | RuleReturnEApplySym
 
