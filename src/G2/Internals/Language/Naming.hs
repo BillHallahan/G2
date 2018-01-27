@@ -182,18 +182,34 @@ instance Named Expr where
 instance Named Type where
     names = eval go
         where
-            go (TyVar i) = names i
+            go (TyVar i) = idNamesInType i
             go (TyConApp n _) = [n]
-            go (TyForAll b _) = names b
+            go (TyForAll b _) = tyBinderNamesInType b
             go _ = []
 
     rename old new = modify go
       where
         go :: Type -> Type
-        go (TyVar i) = TyVar (rename old new i)
+        go (TyVar i) = TyVar (renameIdInType old new i)
         go (TyConApp n ts) = TyConApp (rename old new n) ts
-        go (TyForAll tb t) = TyForAll (rename old new tb) t
+        go (TyForAll tb t) = TyForAll (renameTyBinderInType old new tb) t
         go t = t
+
+-- We don't want both modify and go to recurse on the Type's in TyBinders or Ids
+-- so we introduce functions to collect or rename only the Names directly in those types
+tyBinderNamesInType :: TyBinder -> [Name]
+tyBinderNamesInType (NamedTyBndr i) = idNamesInType i
+tyBinderNamesInType _ = []
+
+idNamesInType :: Id -> [Name]
+idNamesInType (Id n _) = [n]
+
+renameTyBinderInType :: Name -> Name -> TyBinder -> TyBinder
+renameTyBinderInType old new (NamedTyBndr i) = NamedTyBndr $ renameIdInType old new i
+renameTyBinderInType _ _ tyb = tyb
+
+renameIdInType :: Name -> Name -> Id -> Id
+renameIdInType old new (Id n t) = Id (rename old new n) t
 
 instance Named Alt where
     names (Alt am e) = names am ++ names e
@@ -217,11 +233,11 @@ instance Named AltMatch where
     rename _ _ am = am
 
 instance Named TyBinder where
+    names (AnonTyBndr t) = names t
     names (NamedTyBndr i) = names i
-    names _ = []
 
-    rename old new (NamedTyBndr n) = NamedTyBndr (rename old new n)
-    rename _ _ tb = tb
+    rename old new (AnonTyBndr t) = AnonTyBndr (rename old new t)
+    rename old new (NamedTyBndr i) = NamedTyBndr (rename old new i)
 
 instance Named Coercion where
     names (t1 :~ t2) = names t1 ++ names t2
