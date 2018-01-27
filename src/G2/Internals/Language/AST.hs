@@ -26,6 +26,9 @@ class AST t where
 modify :: AST t => (t -> t) -> t -> t
 modify f t = modifyChildren (modify f) (f t)
 
+{-# SPECIALISE modify :: (Expr -> Expr) -> Expr -> Expr #-}
+{-# SPECIALISE modify :: (Type -> Type) -> Type -> Type #-}
+
 -- | Similar to modify. Also passes a Monoid instance to the modify function. 
 -- Children have access to the mconcated results from higher in the tree
 -- As exposed by modifyM, the head of the tree is given mempty.

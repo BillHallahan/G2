@@ -161,9 +161,9 @@ mergeProgs prog prims =
 
         prims' = map (map (uncurry (replaceFromPD ns))) prims
 
-        n_pairs = nub [ (y, x) | x <- names $ concat prog
-                               , y <- names $ map fst $ concat prims
-                               , nameStrEq x y]
+        n_pairs = [ (y, x) | x <- nub $ names $ concat prog
+                           , y <- nub $ names $ map fst $ concat prims
+                           , nameStrEq x y]
     in
     foldr (uncurry rename) (prog ++ prims') n_pairs 
 
