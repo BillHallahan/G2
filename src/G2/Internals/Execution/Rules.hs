@@ -25,6 +25,9 @@ import Data.Maybe
 renames :: Named a => [(Name, Name)] -> a -> a
 renames n a = foldr (\(old, new) -> rename old new) a n
 
+exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
+exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
+
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
@@ -35,8 +38,8 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
 
     olds = map (idName) bindsLHS
     (news, ngen') = freshSeededNames olds ngen
-    expr' = renames (zip olds news) expr
-    bindsLHS' = renames (zip olds news) bindsLHS
+    expr' = exprRenames (zip olds news) expr
+    bindsLHS' = exprRenames (zip olds news) bindsLHS
 
     binds' = zip bindsLHS' bindsRHS
 
@@ -54,8 +57,8 @@ liftLetBinds binds eenv expr ngen = (eenv', expr', ngen', news)
   where
     olds = map (idName . fst) binds
     (news, ngen') = freshSeededNames olds ngen
-    expr' = renames (zip olds news) expr
-    binds' = renames (zip olds news) binds
+    expr' = exprRenames (zip olds news) expr
+    binds' = exprRenames (zip olds news) binds
 
     eenv' = E.insertExprs (zip news (map snd binds')) eenv
 
@@ -110,7 +113,7 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
     eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
 
-    (cond', aexpr') = renames (zip olds news) (cond, aexpr)
+    (cond', aexpr') = exprRenames (zip olds news) (cond, aexpr)
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
