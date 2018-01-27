@@ -69,6 +69,6 @@ test-suite test
   hs-source-dirs:      tests, src
   main-is:             Test.hs
   ghc-options:         -O2 -Wall
-                       -fprof-auto "-with-rtsopts=-p"
+                       -- -fprof-auto "-with-rtsopts=-p"
                        -threaded
   type:                exitcode-stdio-1.0
