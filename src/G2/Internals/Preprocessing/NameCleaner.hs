@@ -50,11 +50,13 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns)
 
         (new_name, ng') = freshSeededName (Name n'' m' i) ng
 
-        new_state = renameState name new_name 
+        new_state = rename name new_name 
                   $ s { name_gen = ng'}
     in
     cleanNames' new_state ns
-    
 
 allNames :: State -> [Name]
-allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)
+allNames s = exprNames s ++ E.keys (expr_env s)
+
+-- allNames :: State -> [Name]
+-- allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)

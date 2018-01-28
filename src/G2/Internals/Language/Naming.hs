@@ -14,6 +14,9 @@ module G2.Internals.Language.Naming
     , exprNames
     , typeNames
 
+    , renameExpr
+    , renameVars
+
     , freshSeededString
     , freshSeededStrings
 
@@ -178,6 +181,59 @@ instance Named Expr where
 
         goAlt :: Alt -> Alt
         goAlt (Alt am e) = Alt (rename old new am) e
+
+-- Rename only the names in an Expr that are the Name of an Id/Let/Data/Case Binding.
+-- Does not change Types.
+renameExpr :: ASTContainer m Expr => Name -> Name -> m -> m
+renameExpr old new = modifyASTs (renameExpr' old new)
+
+renameExpr' :: Name -> Name -> Expr -> Expr
+renameExpr' old new (Var i) = Var (renameExprId old new i)
+renameExpr' old new (Data d) = Data (renameExprDataCon old new d)
+renameExpr' old new (Lam i e) = Lam (renameExprId old new i) e
+renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
+renameExpr' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAlt old new) a
+renameExpr' old new (Assert is e e') = Assert (fmap (renameAssertTrackExpr old new) is) e e'
+renameExpr' _ _ e = e
+
+
+renameVars :: ASTContainer m Expr => Name -> Name -> m -> m
+renameVars old new = modifyASTs (renameVars' old new)
+
+renameVars' :: Name -> Name -> Expr -> Expr
+renameVars' old new (Var i) = Var (renameExprId old new i)
+renameVars' old new (Lam i e) = Lam (renameExprId old new i) e
+renameVars' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
+renameVars' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAltIds old new) a
+renameVars' old new (Assert is e e') = Assert (fmap (renameAssertTrackExpr old new) is) e e'
+renameVars' _ _ e = e
+
+
+renameExprId :: Name -> Name -> Id -> Id
+renameExprId old new (Id n t) = Id (rename old new n) t
+
+renameExprDataCon :: Name -> Name -> DataCon -> DataCon
+renameExprDataCon old new (DataCon n t ts) = DataCon (rename old new n) t ts
+
+renameExprAlt :: Name -> Name -> Alt -> Alt
+renameExprAlt old new (Alt (DataAlt dc is) e) =
+    let
+        dc' = renameExprDataCon old new dc
+        is' = map (renameExprId old new) is
+    in
+    Alt (DataAlt dc' is') e
+renameExprAlt _ _ a = a
+
+renameExprAltIds :: Name -> Name -> Alt -> Alt
+renameExprAltIds old new (Alt (DataAlt dc is) e) =
+    let
+        is' = map (renameExprId old new) is
+    in
+    Alt (DataAlt dc is') e
+renameExprAltIds _ _ a = a
+
+renameAssertTrackExpr :: Name -> Name -> (Name, [Id], Id) -> (Name, [Id], Id)
+renameAssertTrackExpr old new (n, is, i) = (rename old new n, map (renameExprId old new) is, renameExprId old new i)
 
 instance Named Type where
     names = eval go

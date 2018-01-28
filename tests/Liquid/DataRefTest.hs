@@ -68,9 +68,9 @@ id2 z = z
 const4 :: Num a => a
 const4 = -4
 
--- {-@ check :: (Num a, Num b) => x:a -> y:b -> {y:b | y <= x || y > x} @-}
--- check :: (Num a, Num b) => a -> b -> b
--- check x y  = y
+{-@ check :: (Num a, Num b) => x:a -> y:b -> {y:b | y <= x || y > x} @-}
+check :: (Num a, Num b) => a -> b -> b
+check x y  = y
 
 -- 800
 fI :: Num a => a
