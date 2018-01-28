@@ -79,9 +79,9 @@ runGHC as = do
 
     -- timedMsg "one"
 
-    (pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src lib True
+    (mod_name, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src lib True
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
-    let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
+    let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry (Just mod_name)
 
     -- error $ pprExecStateStr init_state
 

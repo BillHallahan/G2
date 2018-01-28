@@ -34,8 +34,8 @@ import Data.Maybe
 
 import G2.Lib.Printers
 
-initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe String -> Maybe String -> Maybe String -> Bool -> String -> State
-initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
+initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe String -> Maybe String -> Maybe String -> Bool -> String -> Maybe String -> State
+initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
@@ -45,16 +45,10 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
 
         (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap, kv) = runInitialization eenv tenv ng
 
-        (ce, is, ng'') = mkCurrExpr m_assume m_assert f tc at ng' eenv' ds_walkers kv
+        (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc at ng' eenv' ds_walkers kv
 
-        eenv'' = checkReaches eenv' tenv' kv m_reaches
+        eenv'' = checkReaches eenv' tenv' kv m_reaches m_mod
     in
-      -- error $ L.intercalate "\n" $ map show $ concat prog
-      -- error $ L.intercalate "\n" $ ["FIRST EENV"] ++ (map show $ E.toList eenv)
-      -- error $ L.intercalate "\n" $ ["SECOND EENV"] ++ (map show $ E.toList eenv')
-      -- error $ L.intercalate "\n" $ ["WHAT IS IS"] ++ (map show is)
-      -- error $ L.intercalate "\n" $ ["THIRD EENV"] ++ (map show $ E.toList eenv'')
-
     State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv'' is
     , type_env = tenv'

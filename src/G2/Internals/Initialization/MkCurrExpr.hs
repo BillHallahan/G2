@@ -10,9 +10,9 @@ import Data.Maybe
 
 import Debug.Trace
 
-mkCurrExpr :: Maybe String -> Maybe String -> String -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert s tc at ng eenv walkers kv =
-    case findFunc s eenv of
+mkCurrExpr :: Maybe String -> Maybe String -> String -> Maybe String -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
+mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv =
+    case findFunc s m_mod eenv of
         Left (f, ex) -> 
             let
                 typs = argTys $ typeOf ex
@@ -30,8 +30,8 @@ mkCurrExpr m_assume m_assert s tc at ng eenv walkers kv =
                 id_name = Id name (typeOf strict_app_ex)
                 var_name = Var id_name
 
-                assume_ex = mkAssumeAssert Assume m_assume var_ids var_name var_name eenv
-                assert_ex = mkAssumeAssert (Assert Nothing) m_assert var_ids assume_ex var_name eenv
+                assume_ex = mkAssumeAssert Assume m_assume m_mod var_ids var_name var_name eenv
+                assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod var_ids assume_ex var_name eenv
                 
                 let_ex = Let [(id_name, strict_app_ex)] assert_ex
             in
@@ -56,26 +56,34 @@ mkInputs at ng (t:ts) =
     in
     (var_id:ev, i:ei, ng'')
 
-mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
-mkAssumeAssert p (Just f) var_ids inter pre_ex eenv =
-    case findFunc f eenv of
+mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> Maybe String -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
+mkAssumeAssert p (Just f) m_mod var_ids inter pre_ex eenv =
+    case findFunc f m_mod eenv of
         Left (f', _) -> 
             let
                 app_ex = foldl' App (Var f') (var_ids ++ [pre_ex])
             in
             p app_ex inter
         Right s -> error s
-mkAssumeAssert _ Nothing _ e _ _ = e
+mkAssumeAssert _ Nothing _ _ e _ _ = e
 
-findFunc :: String -> ExprEnv -> Either (Id, Expr) String
-findFunc s eenv =
+findFunc :: String -> Maybe String -> ExprEnv -> Either (Id, Expr) String
+findFunc s m_mod eenv =
     let
         match = E.toExprList $ E.filterWithKey (\(Name n _ _) _ -> n == s) eenv
     in
     case match of
+        [] -> Right $ "No functions with name " ++ (show match)
         [(n, e)] -> Left (Id n (typeOf e) , e)
-        _:_ -> Right $ "Multiple functions with name " ++ s
-        [] -> Right $ "No functions with name " ++ s
+        pairs -> case m_mod of
+            Nothing -> Right $ "Multiple functions with same name. " ++
+                               "Wrap the target function in a module so we can try again!"
+            Just mod -> case filter (\(Name _ m _, _) -> m == Just mod) pairs of
+                [(n, e)] -> Left (Id n (typeOf e), e)
+                [] -> Right $ "No function with name " ++ s ++ " in module " ++ mod
+                _ -> Right $ "Multiple functions with same name " ++ s ++
+                             " in module " ++ mod
+
 
 -- distinguish between where a Type is being bound and where it is just the type (see argTys)
 data TypeBT = B Id | T Type deriving (Show, Eq)
@@ -135,9 +143,9 @@ typeB :: TypeBT -> Bool
 typeB (B _) = True
 typeB _ = False
 
-checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe String -> ExprEnv
-checkReaches eenv _ _ Nothing = eenv
-checkReaches eenv tenv kv (Just s) =
-    case findFunc s eenv of
+checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe String -> Maybe String -> ExprEnv
+checkReaches eenv _ _ Nothing m_mod = eenv
+checkReaches eenv tenv kv (Just s) m_mod =
+    case findFunc s m_mod eenv of
         Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv tenv) e) eenv
         Right err -> error err

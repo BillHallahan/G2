@@ -9,12 +9,12 @@ import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
 
 translateLoaded :: FilePath -> FilePath -> FilePath -> Bool
-                -> IO (Program, [ProgramType], [(Name, Id, [Id])])
+                -> IO (String, Program, [ProgramType], [(Name, Id, [Id])])
 translateLoaded proj src prelude simpl = do
     let basedir = dropWhileEnd (/= '/') prelude
-    (data_prog, prog_tys, prog_cls) <- hskToG2 proj src simpl
+    (tgt_name, data_prog, prog_tys, prog_cls) <- hskToG2 proj src simpl
     -- prims <- mkPrims primsF
-    (base_prog, base_tys, base_cls) <- hskToG2 basedir prelude simpl
+    (base_name, base_prog, base_tys, base_cls) <- hskToG2 basedir prelude simpl
 
     -- mapM_ print data_prog
     -- putStrLn "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
@@ -40,9 +40,9 @@ translateLoaded proj src prelude simpl = do
 
     let classes = mergeTCs merged_classes fin_prog
 
-    return (fin_prog, fin_tys, classes)
+    return (tgt_name, fin_prog, fin_tys, classes)
 
-translation :: FilePath -> FilePath -> Bool -> IO (Program, [ProgramType], [(Name, Id, [Id])])
+translation :: FilePath -> FilePath -> Bool -> IO (String, Program, [ProgramType], [(Name, Id, [Id])])
 translation = hskToG2
 
 prepBase :: FilePath -> IO ()

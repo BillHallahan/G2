@@ -33,10 +33,10 @@ findCounterExamples proj primF fp entry steps = do
     ghcInfos <- getGHCInfos [fp]
     let specs = funcSpecs ghcInfos
 
-    (pre_bnds, pre_tycons, pre_cls) <- translateLoaded proj fp primF False
+    (mod_name, pre_bnds, pre_tycons, pre_cls) <- translateLoaded proj fp primF False
     let (bnds, tycons, cls) = (pre_bnds, pre_tycons, pre_cls)
     
-    let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry
+    let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry (Just mod_name)
 
     -- mapM_ (putStrLn . show . idName . fst) $ concatMap id bnds
 

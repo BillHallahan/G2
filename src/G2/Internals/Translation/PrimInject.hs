@@ -77,7 +77,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("+##", Prim Plus TyBottom)
            , ("*##", Prim Mult TyBottom)
            , ("-##", Prim Minus TyBottom)
-           , ("negateDouble##", Prim Negate TyBottom)
+           , ("negateDouble#", Prim Negate TyBottom)
            , ("<=##", Prim Le TyBottom)
            , ("<##", Prim Lt TyBottom)
            , (">##", Prim Gt TyBottom)
@@ -96,9 +96,11 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("gtFloat#", Prim Gt TyBottom)
            , ("geFloat#", Prim Ge TyBottom)
 
-           , ("fromIntToReal", Prim IntToReal TyBottom)
+           , ("fromIntToFloat", Prim IntToReal TyBottom)
+           , ("fromIntToDouble", Prim IntToReal TyBottom)
            , ("error", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
+
 -}
 
 primDefs = [ (".+#", Prim Plus TyBottom)

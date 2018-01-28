@@ -54,15 +54,15 @@ rawDump fp = do
   str <- mkIOString core
   putStrLn str
 
-hskToG2 :: FilePath -> FilePath -> Bool -> IO (G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])])
+hskToG2 :: FilePath -> FilePath -> Bool -> IO (String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])])
 hskToG2 proj src simpl = do
-    (sums_gutss, _, _, c) <- mkCompileClosure proj src simpl
+    (mod_name, sums_gutss, _, _, c) <- mkCompileClosure proj src simpl
     let binds = concatMap (\(_, _, b) -> map mkBinds b) sums_gutss
     let tycons = concatMap (\(_, t, _) -> map mkTyCon t) sums_gutss
     let classes = map (mkClass) c
-    return (binds, tycons, classes)
+    return (mod_name, binds, tycons, classes)
 
-type CompileClosure = ([(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv, [ClsInst])
+type CompileClosure = (String, [(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv, [ClsInst])
 
 mkCompileClosure :: FilePath -> FilePath -> Bool -> IO CompileClosure
 mkCompileClosure proj src simpl = do
@@ -104,7 +104,9 @@ mkCompileClosure proj src simpl = do
     -- Get TypeClasses
     let cls_insts = concatMap mg_insts mod_gutss
 
-    return (zip3 mod_graph tcss bindss, dflags, env, cls_insts)
+    let mod_name = moduleNameString $ moduleName $ ms_mod $ head mod_graph
+
+    return (mod_name, zip3 mod_graph tcss bindss, dflags, env, cls_insts)
     -- return (zip3 mod_graph (map mg_tcs mod_gutss) (map mg_binds mod_gutss), dflags, env)
 
 mkBinds :: CoreBind -> [(G2.Id, G2.Expr)]
