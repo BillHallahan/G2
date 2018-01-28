@@ -13,6 +13,8 @@ translateLoaded :: FilePath -> FilePath -> FilePath -> Bool
 translateLoaded proj src prelude simpl = do
     let basedir = dropWhileEnd (/= '/') prelude
     (tgt_name, data_prog, prog_tys, prog_cls) <- hskToG2 proj src simpl
+
+    -- print data_prog
     -- prims <- mkPrims primsF
     (base_name, base_prog, base_tys, base_cls) <- hskToG2 basedir prelude simpl
 
@@ -34,9 +36,14 @@ translateLoaded proj src prelude simpl = do
             mergeProgTys merged_prog merged_prog prog_tys base_tys
     let (merged_prog2', prog_tys') = injectSpecials merged_prog_tys merged_prog'
 
+    -- print merged_prog_tys
+
+    -- print prog_tys'
+
     let merged_classes = prog_cls ++ base_cls
 
     let (fin_prog, fin_tys) = primInject $ dataInject merged_prog2' prog_tys'
+
 
     let classes = mergeTCs merged_classes fin_prog
 

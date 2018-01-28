@@ -23,6 +23,7 @@ module G2.Internals.Language.Typing
     , isPolyFunc
     , numArgs
     , argumentTypes
+    , nonTyForAllArgumentTypes
     , returnType
     , polyIds
     , splitTyForAlls
@@ -368,6 +369,14 @@ argumentTypes' (TyForAll (AnonTyBndr t1) t2) = t1:argumentTypes' t2
 argumentTypes' (TyForAll (NamedTyBndr i) t2) = TyVar i:argumentTypes' t2
 argumentTypes' (TyFun t1 t2) = t1:argumentTypes' t2
 argumentTypes' _ = []
+
+nonTyForAllArgumentTypes :: Typed t => t -> [Type]
+nonTyForAllArgumentTypes = nonTyForAllArgumentTypes' . typeOf
+
+nonTyForAllArgumentTypes' :: Type -> [Type]
+nonTyForAllArgumentTypes' (TyForAll _ t) = nonTyForAllArgumentTypes t
+nonTyForAllArgumentTypes' (TyFun t1 t2) = t1:nonTyForAllArgumentTypes' t2
+nonTyForAllArgumentTypes' _ = []
 
 -- | returnType
 -- Gives the return type if the given function type is fully saturated

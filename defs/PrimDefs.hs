@@ -7,7 +7,7 @@ import GHC.Prim hiding
   ( (+#), (-#), (*#)
   , (+##), (-##), (*##), (/##)
   , (==##), (/=##), (<##), (<=##), (>##), (>=##)
-  , plusFloat#, minusFloat#, timesFloat#, negateFloat#
+  , plusFloat#, minusFloat#, timesFloat#, negateFloat#, negateInt#, negateDouble#
   , eqFloat#, gtFloat#, geFloat#, ltFloat#, leFloat#
   , (==#), (/=#), (<#), (<=#), (>#), (>=#)
   )
@@ -52,7 +52,7 @@ instance Num Int where
     fromInteger = fromInteger##
     toInteger = toInteger##
     (-) (I# x) (I# y) = I# (x -# y)
-    negate (I# x) = I# (negateInt## x)
+    negate (I# x) = I# (negateInt# x)
 
 (+#) :: Int# -> Int# -> Int#
 (+#) = (+#)
@@ -63,8 +63,8 @@ instance Num Int where
 (-#) :: Int# -> Int# -> Int#
 (-#) = (-#)
 
-negateInt## :: Int# -> Int#
-negateInt## = negateInt##
+negateInt# :: Int# -> Int#
+negateInt# = negateInt#
 
 fromInteger## :: Integer -> Int
 fromInteger## (Z# x) = I# x
@@ -82,7 +82,7 @@ instance Num Integer where
     fromInteger n = n
     toInteger n = n
     (-) (Z# x) (Z# y) = Z# (x -# y)
-    negate (Z# n) = Z# (negateInt## n)
+    negate (Z# n) = Z# (negateInt# n)
 
 instance Num Double where
     (+) (D# x) (D# y) = D# (x +## y)
@@ -94,7 +94,7 @@ instance Num Double where
     fromInteger = undefined
     toInteger = undefined
     (-) (D# x) (D# y) = D# (x -## y)
-    negate (D# x) = D# (negateDouble## x)
+    negate (D# x) = D# (negateDouble# x)
 
 (+##) :: Double# -> Double# -> Double#
 (+##) = (+##)
@@ -105,8 +105,8 @@ instance Num Double where
 (-##) :: Double# -> Double# -> Double#
 (-##) = (-##)
 
-negateDouble## :: Double# -> Double#
-negateDouble## = negateDouble##
+negateDouble# :: Double# -> Double#
+negateDouble# = negateDouble#
 
 instance Num Float where
     (+) (F# x) (F# y) = F# (x `plusFloat#` y)
