@@ -73,7 +73,7 @@ findFunc s m_mod eenv =
         match = E.toExprList $ E.filterWithKey (\(Name n _ _) _ -> n == s) eenv
     in
     case match of
-        [] -> Right $ "No functions with name " ++ (show match)
+        [] -> Right $ "No functions with name " ++ s
         [(n, e)] -> Left (Id n (typeOf e) , e)
         pairs -> case m_mod of
             Nothing -> Right $ "Multiple functions with same name. " ++

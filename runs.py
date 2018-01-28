@@ -13,11 +13,12 @@ import sys
 # assertp  = None
 
 proj    = "tests/Samples/"
-src     = "tests/Samples/Tupes.hs"
-prelude = "defs/PrimDefs.hs"
-entry   = "oneTwo"
-start   = 20
-ticks   = 30
+src     = "tests/Samples/Sorting.hs"
+# prelude = "defs/PrimDefs.hs"
+prelude = "~/foo/yale/base-4.9.1.0/G2Prelude.hs"
+entry   = "g2Entry6"
+start   = 0
+ticks   = 15
 assumep = None
 assertp = None
 

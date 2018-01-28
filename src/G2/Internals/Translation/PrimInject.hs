@@ -150,6 +150,7 @@ specialModules = [ "GHC.Classes2"
                  , "GHC.CString2"
                  , "PrimDefs"
                  , "GHC.Tuple"
+                 , "Data.Map.Base"
                  ]
 
 nameStrEq :: Name -> Name -> Bool
@@ -178,10 +179,8 @@ mergeProgs prog prims =
 
         prims' = map (map (uncurry (replaceFromPD ns))) prims
 
-
         n_pairs = getNPairs ns_progs prims
-    in
-    foldr (uncurry rename) (prog ++ prims') n_pairs 
+    in foldr (uncurry rename) (prog ++ prims') n_pairs 
 
 getNPairs :: [Name] -> Program -> [(Name, Name)]
 getNPairs ns_prog prims = getNPairs' (sortOn nameOccStr ns_prog) (sortOn nameOccStr $ nub $ names $ map fst $ concat prims)
