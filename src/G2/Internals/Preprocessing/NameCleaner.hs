@@ -55,8 +55,8 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns)
     in
     cleanNames' new_state ns
 
-allNames :: State -> [Name]
-allNames s = exprNames s ++ E.keys (expr_env s)
-
 -- allNames :: State -> [Name]
--- allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)
+-- allNames s = exprNames s ++ E.keys (expr_env s)
+
+allNames :: State -> [Name]
+allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)

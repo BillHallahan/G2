@@ -211,9 +211,9 @@ run con hhp n (state@ State { type_env = tenv
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
 
-    -- mapM_ (\(rs, st) -> do
+    mapM_ (\(rs, st) -> do
     --     putStrLn $ L.intercalate "\n" $ map show $ zip ([1..] :: [Integer]) rs
-    --     putStrLn $ pprExecStateStr st
+        putStrLn $ pprExecStateStr st
     --     -- putStrLn $ pprExecStateStrSimple st
 
     -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
@@ -225,7 +225,7 @@ run con hhp n (state@ State { type_env = tenv
     -- --     -- print $ input_ids st
     -- --     -- print $ model st
     --     putStrLn "----\n"
-    --     ) exec_states
+        ) exec_states
 
 
     ident_states'' <- 

@@ -10,7 +10,8 @@ import G2.Internals.Language
 specials :: [(String, [String])]
 specials = [ ("[]", ["[]", ":"])
            , ("~", [])
-           , ("~~", [])] ++
+           , ("~~", [])]
+           ++
            [ ("Int", ["I#"])
            , ("Float", ["F#"])
            , ("Double", ["D#"])
@@ -18,6 +19,13 @@ specials = [ ("[]", ["[]", ":"])
            , ("String", [])
            , ("Bool", ["True", "False"])
            , ("Ordering", ["EQ", "LT", "GT"]) ]
+           ++
+           (map (\t -> (t, [t])) $ mkTuples 20)
+
+mkTuples :: Int -> [String]
+mkTuples n | n <= 0    = []
+           | otherwise = ("(" ++ replicate n ',' ++ ")") : mkTuples (n - 1)
+
 
 isNameSpecial :: Name -> Bool
 isNameSpecial name = nameOccStr name `elem` flattened
@@ -84,29 +92,29 @@ injectSpecials tenv eenv = (eenv', L.nub $ entries ++ tenv)
     entries = map (mkEntry dcs) tys
 
     -- The pairs we end up using
-    tys = evalASTs go1 eenv
-    go2res = L.sortOn (\(DataCon n _ _) -> n) $ evalASTs go2 eenv
+    tys = evalASTs tyNames eenv
+    dcNamesres = L.sortOn (\(DataCon n _ _) -> n) $ evalASTs dcNames eenv
     groups = L.groupBy (\(DataCon (Name o1 m1 _) _ _)
                          (DataCon (Name o2 m2 _) _ _) -> o1 == o2 && m1 == m2)
-                       go2res
+                       dcNamesres
 
     dcs = concatMap (\g -> case g of { [] -> []; (x:_) -> [x] }) groups
 
     -- dcs = L.nubBy (\(DataCon (Name o1 m1 _) _ _)
-    --                 (DataCon (Name o2 m2 _) _ _) -> o1 == o2 && m1 == m2) $ evalASTs go2 eenv
+    --                 (DataCon (Name o2 m2 _) _ _) -> o1 == o2 && m1 == m2) $ evalASTs dcNames eenv
 
     -- The special ones.
     -- Function for getting the right types out of the tenv.
-    go1 :: Type -> [Name]
-    go1 (TyConApp n _) = if isNameSpecial n then [n] else []
-    go1 _ = []
+    tyNames :: Type -> [Name]
+    tyNames (TyConApp n _) = if isNameSpecial n then [n] else []
+    tyNames _ = []
 
     -- Function for getting the right constructors out of the eenv.
-    go2 :: Expr -> [DataCon]
-    go2 (Var (Id n t)) = if isNameSpecial n then [DataCon n t (argumentTypes t)] else []
-    go2 (Data dc) = if isDataConSpecial dc then [dc] else []
-    go2 (Case _ _ as) = filter isDataConSpecial $ concatMap altDataCons as
-    go2 _ = []
+    dcNames :: Expr -> [DataCon]
+    dcNames (Var (Id n t)) = if isNameSpecial n then [DataCon n t (argumentTypes t)] else []
+    dcNames (Data dc) = if isDataConSpecial dc then [dc] else []
+    dcNames (Case _ _ as) = filter isDataConSpecial $ concatMap altDataCons as
+    dcNames _ = []
 
 -- injectSpecials :: TypeEnv -> ExprEnv -> TypeEnv
 -- injectSpecials tenv eenv = foldr (\(n, dcs) m -> M.insert n dcs m) tenv entries
@@ -114,18 +122,18 @@ injectSpecials tenv eenv = (eenv', L.nub $ entries ++ tenv)
 --     entries = map ((flip mkEntry) dcs) tys
 
 --     -- The pairs we end up using
---     tys = L.nub $ evalASTs go1 eenv --Anton, you had the tenv here- it seems like it should be the eenv?  But I'mm not sure, maybe I'm missing something..,
---     dcs = L.nub $ evalASTs go2 eenv
+--     tys = L.nub $ evalASTs tyNames eenv --Anton, you had the tenv here- it seems like it should be the eenv?  But I'mm not sure, maybe I'm missing something..,
+--     dcs = L.nub $ evalASTs dcNames eenv
 
 --     -- The special ones.
 --     -- Function for getting the right types out of the tenv.
---     go1 :: Type -> [Name]
---     go1 (TyConApp n _) = if isNameSpecial n then [n] else []
---     go1 _ = []
+--     tyNames :: Type -> [Name]
+--     tyNames (TyConApp n _) = if isNameSpecial n then [n] else []
+--     tyNames _ = []
 
 --     -- Function for getting the right constructors out of the eenv.
---     go2 :: Expr -> [DataCon]
---     go2 (Data dc) = if isDataConSpecial dc then [dc] else []
---     go2 (Case _ _ as) = filter isDataConSpecial $ concatMap altDataCons as
---     go2 _ = []
+--     dcNames :: Expr -> [DataCon]
+--     dcNames (Data dc) = if isDataConSpecial dc then [dc] else []
+--     dcNames (Case _ _ as) = filter isDataConSpecial $ concatMap altDataCons as
+--     dcNames _ = []
 
