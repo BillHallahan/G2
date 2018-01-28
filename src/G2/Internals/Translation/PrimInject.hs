@@ -143,6 +143,7 @@ specialModules :: [String]
 specialModules = [ "GHC.Classes2"
                  , "GHC.Types2"
                  , "GHC.Integer2"
+                 , "GHC.Integer.Type2"
                  , "GHC.Prim2"
                  , "GHC.Tuple2"
                  , "GHC.Magic2"
