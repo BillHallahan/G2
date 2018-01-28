@@ -83,6 +83,8 @@ runGHC as = do
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
     let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry
 
+    -- error $ pprExecStateStr init_state
+
     -- timedMsg "two"
 
     -- let init_state' = case (m_wrapper, m_wrap_with) of

@@ -5,7 +5,7 @@ import Prelude (Int, Float, Double, Rational, Bool, Char)
 import GHC.Prim
 import GHC.Types
 
-data Integer = Integer__Prim_# Int#
+data Integer = Z# Int#
 
 class Num a where
     (+) :: a -> a -> a
@@ -60,22 +60,22 @@ negateInt## :: Int# -> Int#
 negateInt## = negateInt##
 
 fromInteger## :: Integer -> Int
-fromInteger## (Integer__Prim_# x) = I# x
+fromInteger## (Z# x) = I# x
 
 toInteger## :: Int -> Integer
-toInteger## (I# x) = Integer__Prim_# x
+toInteger## (I# x) = Z# x
 
 instance Num Integer where
-    (+) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x .+# y)
-    (*) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x .*# y)
-    abs n = if n >= (Integer__Prim_# 0#) then n else negate n
-    signum n | n < (Integer__Prim_# 0#) = negate (Integer__Prim_# 1#)
-             | n == (Integer__Prim_# 0#) = (Integer__Prim_# 0#)
-             | n > (Integer__Prim_# 0#) = (Integer__Prim_# 1#)
+    (+) (Z# x) (Z# y) = Z# (x .+# y)
+    (*) (Z# x) (Z# y) = Z# (x .*# y)
+    abs n = if n >= (Z# 0#) then n else negate n
+    signum n | n < (Z# 0#) = negate (Z# 1#)
+             | n == (Z# 0#) = (Z# 0#)
+             | n > (Z# 0#) = (Z# 1#)
     fromInteger n = n
     toInteger n = n
-    (-) (Integer__Prim_# x) (Integer__Prim_# y) = Integer__Prim_# (x .-# y)
-    negate (Integer__Prim_# n) = Integer__Prim_# (negateInt## n)
+    (-) (Z# x) (Z# y) = Z# (x .-# y)
+    negate (Z# n) = Z# (negateInt## n)
 
 instance Num Double where
     (+) (D# x) (D# y) = D# (x .+## y)
@@ -152,8 +152,8 @@ instance Eq Int where
 (./=#) = (./=#)
 
 instance Eq Integer where
-    (==) (Integer__Prim_# x) (Integer__Prim_# y) = x .==# y
-    (/=) (Integer__Prim_# x) (Integer__Prim_# y) = x ./=# y
+    (==) (Z# x) (Z# y) = x .==# y
+    (/=) (Z# x) (Z# y) = x ./=# y
 
 instance Eq Double where
     (==) (D# x) (D# y) = x .==## y
@@ -198,10 +198,10 @@ instance Ord Int where
 
 instance Ord Integer where
     compare = undefined
-    (<=) (Integer__Prim_# x) (Integer__Prim_# y) = x .<=# y
-    (<) (Integer__Prim_# x) (Integer__Prim_# y) = x .<# y
-    (>) (Integer__Prim_# x) (Integer__Prim_# y) = x .># y
-    (>=) (Integer__Prim_# x) (Integer__Prim_# y) = x .>=# y
+    (<=) (Z# x) (Z# y) = x .<=# y
+    (<) (Z# x) (Z# y) = x .<# y
+    (>) (Z# x) (Z# y) = x .># y
+    (>=) (Z# x) (Z# y) = x .>=# y
     max = undefined
     min = undefined
 

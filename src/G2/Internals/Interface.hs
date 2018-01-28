@@ -29,6 +29,7 @@ import qualified G2.Internals.Language.SymLinks as Sym
 import Debug.Trace as T
 
 import qualified Data.Map as M
+import qualified Data.List as L
 import Data.Maybe
 
 import G2.Lib.Printers
@@ -48,6 +49,12 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f =
 
         eenv'' = checkReaches eenv' tenv' kv m_reaches
     in
+      -- error $ L.intercalate "\n" $ map show $ concat prog
+      -- error $ L.intercalate "\n" $ ["FIRST EENV"] ++ (map show $ E.toList eenv)
+      -- error $ L.intercalate "\n" $ ["SECOND EENV"] ++ (map show $ E.toList eenv')
+      -- error $ L.intercalate "\n" $ ["WHAT IS IS"] ++ (map show is)
+      -- error $ L.intercalate "\n" $ ["THIRD EENV"] ++ (map show $ E.toList eenv'')
+
     State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv'' is
     , type_env = tenv'
@@ -116,7 +123,9 @@ run con hhp n (state@ State { type_env = tenv
                             , known_values = kv }) = do
     -- timedMsg "fuck"
     -- putStrLn . pprExecStateStr $ state
+    -- error "STOPPP"
     -- let swept = state
+
     let swept = markAndSweep state
 
     -- timedMsg $ "old tenv: " ++ show (M.size $ type_env state)
@@ -130,17 +139,23 @@ run con hhp n (state@ State { type_env = tenv
     -- timedMsg $ show $ map fst $ E.toList $ expr_env swept
 
 
+
     -- timedMsg "ayo"
     -- putStrLn $ show $ fst $ head $ E.toList $ expr_env swept
     -- putStrLn $ pprExecStateStrSimple swept []
     -- error "we managed to get here at least"
     let preproc_state = runPreprocessing swept
 
+
     (_, mdl) <- checkModel con hhp preproc_state
 
     let preproc_state_alpha = preproc_state { model = fromJust mdl}
 
     let preproc_state' = preproc_state_alpha
+
+    -- timedMsg "after preprocessing"
+    -- putStrLn $ pprExecStateStr preproc_state'
+    -- error "this is bad"
 
     -- putStrLn . pprExecStateStr $ state
     -- putStrLn . pprExecStateStr $ preproc_state'
@@ -203,7 +218,7 @@ run con hhp n (state@ State { type_env = tenv
     -- let ident_states' = ident_states
 
     -- mapM_ (\(rs, st) -> do
-    --     putStrLn $ show $ zip ([1..] :: [Integer]) rs
+    --     putStrLn $ L.intercalate "\n" $ map show $ zip ([1..] :: [Integer]) rs
     --     putStrLn $ pprExecStateStr st
     --     -- putStrLn $ pprExecStateStrSimple st
 

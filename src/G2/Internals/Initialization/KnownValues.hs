@@ -20,7 +20,7 @@ initKnownValues eenv tenv =
     , dcDouble = dcWithStrName tenv "Double" "D#"
 
     , tyInteger = typeWithStrName tenv "Integer"
-    , dcInteger = dcWithStrName tenv "Integer" "Integer__Prim_#"
+    , dcInteger = dcWithStrName tenv "Integer" "Z#"
 
     , tyBool = typeWithStrName tenv "Bool"
     , dcTrue = dcWithStrName tenv "Bool" "True"
@@ -53,11 +53,13 @@ typeWithStrName tenv s =
 dcWithStrName :: TypeEnv -> String -> String -> Name
 dcWithStrName tenv ts dcs =
   case concatMap dataCon . M.elems $ M.filterWithKey (\(Name n _ _) _ -> n == ts) tenv of
-    [] -> error "No type found in typeWithStrName"
+    [] -> error $ "No type found in typeWithStrName [" ++
+                  ts ++ "] [" ++ dcs ++ "]"
     dc -> dcWithStrName' dc dcs
 
 dcWithStrName' :: [DataCon] -> String -> Name
 dcWithStrName' (DataCon n@(Name n' _ _) _ _:xs) s =
   if n' == s then n else dcWithStrName' xs s
 dcWithStrName' (_:xs) s = dcWithStrName' xs s
-dcWithStrName' _ _ = error "No dc found in dcWithStrName"
+dcWithStrName' _ s = error $ "No dc found in dcWithStrName [" ++ s ++ "]"
+

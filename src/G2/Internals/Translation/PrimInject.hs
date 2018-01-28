@@ -58,47 +58,48 @@ occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
 
 primDefs :: [(String, Expr)]
 
+{-
+primDefs = [ ("==#", Prim Eq TyBottom)
+           , ("/=#", Prim Neq TyBottom)
+           , ("+#", Prim Plus TyBottom)
+           , ("*#", Prim Mult TyBottom)
+           , ("-#", Prim Minus TyBottom)
+           , ("negateInt#", Prim Negate TyBottom)
+           , ("<=#", Prim Le TyBottom)
+           , ("<#", Prim Lt TyBottom)
+           , (">#", Prim Gt TyBottom)
+           , (">=#", Prim Ge TyBottom)
+           , ("quotInt#", Prim Div TyBottom)
+           , ("remInt#", Prim Mod TyBottom)
 
--- primDefs = [ ("==#", Prim Eq TyBottom)
---            , ("/=#", Prim Neq TyBottom)
---            , ("+#", Prim Plus TyBottom)
---            , ("*#", Prim Mult TyBottom)
---            , ("-#", Prim Minus TyBottom)
---            , ("negateInt#", Prim Negate TyBottom)
---            , ("<=#", Prim Le TyBottom)
---            , ("<#", Prim Lt TyBottom)
---            , (">#", Prim Gt TyBottom)
---            , (">=#", Prim Ge TyBottom)
---            , ("quotInt#", Prim Div TyBottom)
---            , ("remInt#", Prim Mod TyBottom)
+           , ("==##", Prim Eq TyBottom)
+           , ("/=##", Prim Neq TyBottom)
+           , ("+##", Prim Plus TyBottom)
+           , ("*##", Prim Mult TyBottom)
+           , ("-##", Prim Minus TyBottom)
+           , ("negateDouble##", Prim Negate TyBottom)
+           , ("<=##", Prim Le TyBottom)
+           , ("<##", Prim Lt TyBottom)
+           , (">##", Prim Gt TyBottom)
+           , (">=##", Prim Ge TyBottom)
 
---            , ("==##", Prim Eq TyBottom)
---            , ("/=##", Prim Neq TyBottom)
---            , ("+##", Prim Plus TyBottom)
---            , ("*##", Prim Mult TyBottom)
---            , ("-##", Prim Minus TyBottom)
---            , ("negateDouble##", Prim Negate TyBottom)
---            , ("<=##", Prim Le TyBottom)
---            , ("<##", Prim Lt TyBottom)
---            , (">##", Prim Gt TyBottom)
---            , (">=##", Prim Ge TyBottom)
+           , ("plusFloat#", Prim Plus TyBottom)
+           , ("timesFloat#", Prim Mult TyBottom)
+           , ("minusFloat#", Prim Minus TyBottom)
+           , ("negateFloat#", Prim Negate TyBottom)
+           , ("/##", Prim Div TyBottom)
+           , ("divFloat#", Prim Div TyBottom)
+           , ("eqFloat#", Prim Eq TyBottom)
+           , ("neqFloat#", Prim Neq TyBottom)
+           , ("leFloat#", Prim Le TyBottom)
+           , ("ltFloat#", Prim Lt TyBottom)
+           , ("gtFloat#", Prim Gt TyBottom)
+           , ("geFloat#", Prim Ge TyBottom)
 
---            , ("plusFloat#", Prim Plus TyBottom)
---            , ("timesFloat#", Prim Mult TyBottom)
---            , ("minusFloat#", Prim Minus TyBottom)
---            , ("negateFloat#", Prim Negate TyBottom)
---            , ("/##", Prim Div TyBottom)
---            , ("divFloat#", Prim Div TyBottom)
---            , ("eqFloat#", Prim Eq TyBottom)
---            , ("neqFloat#", Prim Neq TyBottom)
---            , ("leFloat#", Prim Le TyBottom)
---            , ("ltFloat#", Prim Lt TyBottom)
---            , ("gtFloat#", Prim Gt TyBottom)
---            , ("geFloat#", Prim Ge TyBottom)
-
---            , ("fromIntToReal", Prim IntToReal TyBottom)
---            , ("error", Prim Error TyBottom)
---            , ("undefined", Prim Error TyBottom)]
+           , ("fromIntToReal", Prim IntToReal TyBottom)
+           , ("error", Prim Error TyBottom)
+           , ("undefined", Prim Error TyBottom)]
+-}
 
 primDefs = [ (".+#", Prim Plus TyBottom)
            , (".*#", Prim Mult TyBottom)
@@ -135,14 +136,23 @@ primDefs = [ (".+#", Prim Plus TyBottom)
            , ("error", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
 
-favoredModules :: [String]
-favoredModules = ["GHC.Base2", "PrimDefs"]
+specialModules :: [String]
+specialModules = [ "GHC.Classes2"
+                 , "GHC.Types2"
+                 , "GHC.Integer2"
+                 , "GHC.Prim2"
+                 , "GHC.Tuple2"
+                 , "GHC.Magic2"
+                 , "GHC.CString2"
+                 , "PrimDefs"
+                 ]
 
 nameStrEq :: Name -> Name -> Bool
 nameStrEq (Name n m _) (Name n' m' _) =
   any id [ n == n' && m == m'
-         , n == n' && m `elem` (map Just favoredModules)
-         , n == n' && m' `elem` (map Just favoredModules) ]
+         , n == n' && m `elem` (map Just specialModules)
+         , n == n' && m' `elem` (map Just specialModules)
+         ]
 
 replaceFromPD :: [Name] -> Id -> Expr -> (Id, Expr)
 replaceFromPD ns (Id n t) e =
