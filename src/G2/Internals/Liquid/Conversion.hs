@@ -369,7 +369,8 @@ specTypeApps' conn rfun@(RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft
         m' = M.insert (idName i) t m
     in
     case hasFuncType i of
-        True -> specTypeApps' conn fin tcv s m b ++ specTypeApps' conn fout tcv s m b
+        -- True -> specTypeApps' conn fin tcv s m b ++ specTypeApps' conn fout tcv s m b
+        True -> specTypeApps' conn fout tcv s m b
         _ -> specTypeApps' conn fin tcv s m' i ++ specTypeApps' conn fout tcv s m' b
 specTypeApps' conn rallt@(RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) tcv s m b =
     let
