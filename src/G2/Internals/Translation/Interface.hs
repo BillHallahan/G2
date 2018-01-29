@@ -33,6 +33,8 @@ translateLoaded proj src prelude simpl m_mapsrc = do
     let (lib_prog1, lib_tys) = mergeProgTys lib_prog0 lib_prog0 base_tys map_tys
     let lib_cls = base_cls ++ map_cls
 
+    -- mapM_ print lib_prog1
+
 
     let merged_prog0 = mergeProgs data_prog lib_prog1
     let (merged_prog1, merged_tys) = mergeProgTys merged_prog0 merged_prog0 prog_tys lib_tys
@@ -42,6 +44,12 @@ translateLoaded proj src prelude simpl m_mapsrc = do
     let (final_prog, final_tys) = primInject $ dataInject special_prog special_tys
 
     let classes = mergeTCs merged_cls merged_prog1
+
+
+    -- mapM_ print final_prog
+
+    -- error "HALT"
+
     return (tgt_name, final_prog, final_tys, classes)
     -- return (tgt_name, merged_prog1, merged_tys, classes)
 

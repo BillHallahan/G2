@@ -198,11 +198,14 @@ mergeProgs prog prims =
 
         n_pairs = getNPairs ns_progs prims
     in
-    -- error $ intercalate "\n" $ map show n_pairs
+    -- error $ intercalate "\n" $ (map show n_pairs) ++ ["------------"] ++ (map show ns)
+    -- error $ (intercalate "\n" (map show ns_progs)) ++ "\n-----------------\n" ++
+    --         (intercalate "\n" (map show ns_prims))
     foldr (uncurry rename) (prog ++ prims') n_pairs 
 
 getNPairs :: [Name] -> Program -> [(Name, Name)]
-getNPairs ns_prog prims = getNPairs' (sortOn nameOccStr ns_prog) (sortOn nameOccStr $ nub $ names $ map fst $ concat prims)
+-- getNPairs ns_prog prims = getNPairs' (sortOn nameOccStr ns_prog) (sortOn nameOccStr $ nub $ names $ map fst $ concat prims)
+getNPairs ns_prog prims = getNPairs' (sortOn decomposeName ns_prog) (sortOn decomposeName $ nub $ names prims)
 
 getNPairs' :: [Name] -> [Name] -> [(Name, Name)]
 getNPairs' prog@(n1:prog') prims@(n2:prims') = 
@@ -212,6 +215,9 @@ getNPairs' prog@(n1:prog') prims@(n2:prims') =
     in
     if nameStrEq n1 n2 then (n2, n1):xs' else xs
 getNPairs' _ _ = []
+
+decomposeName :: Name -> (String, Maybe String)
+decomposeName (Name n m _) = (n, m)
 
 -- The prog is used to change the names of types in the prog' and primTys
 mergeProgTys :: Program -> Program -> [ProgramType] -> [ProgramType] -> (Program, [ProgramType])
