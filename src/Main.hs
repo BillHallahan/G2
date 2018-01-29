@@ -31,6 +31,7 @@ main = do
 
     let m_liquid = mkLiquid as
     let m_liquid_func = mkLiquidFunc as
+    let m_mapsrc = mkMapSrc as
 
     case (m_liquid, m_liquid_func) of
         (Just l, Just f) -> do
@@ -52,7 +53,7 @@ main = do
 
             -- putStrLn $ show lh_names
 
-            in_out <- findCounterExamples proj prims l f n_val
+            in_out <- findCounterExamples proj prims l f m_mapsrc n_val
 
             printLHOut f in_out
             
@@ -77,9 +78,11 @@ runGHC as = do
     let m_poly_pred_with = mkPolyPredWith tail_args
     let m_poly_pred_i = mkPolyPredInt tail_args
 
+    let m_mapsrc = mkMapSrc tail_args
+
     -- timedMsg "one"
 
-    (mod_name, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src lib True
+    (mod_name, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src lib True m_mapsrc
 
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
     let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry (Just mod_name)
@@ -206,4 +209,7 @@ mkLiquid a = mArg "--liquid" a Just Nothing
 
 mkLiquidFunc :: [String] -> Maybe String
 mkLiquidFunc a = mArg "--liquid-func" a Just Nothing
+
+mkMapSrc :: [String] -> Maybe String
+mkMapSrc a = mArg "--mapsrc" a Just Nothing
 

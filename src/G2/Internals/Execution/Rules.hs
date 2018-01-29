@@ -209,7 +209,7 @@ reduce con hpp s rs = do
     let (rule, res) = reduce' s
 
     -- putStrLn "----------------------------------"
-    -- mapM_ (putStrLn . show) $ zip [1..] rs
+    -- putStrLn $ show $ zip [1..] rs
 
     sts <- resultsToState con hpp rule s res
 

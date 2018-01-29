@@ -307,8 +307,8 @@ checkExpr' exprs i reqList =
 
 testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src steps m_assume m_assert m_reaches entry = do
-    (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True
-    -- (mod, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True
+    (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True Nothing
+    -- (mod, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True Nothing
 
     let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry (Just mod)
 
@@ -320,8 +320,8 @@ testFile proj src steps m_assume m_assert m_reaches entry = do
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry steps i reqList = do
-    r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry steps
-    -- r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp entry steps
+    r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry Nothing steps
+    -- r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp entry Nothing steps
 
     let exprs = map (\(_, _, inp, out, _) -> inp ++ [out]) r
 

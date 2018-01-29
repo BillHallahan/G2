@@ -28,12 +28,12 @@ import G2.Lib.Printers
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> Int -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-findCounterExamples proj primF fp entry steps = do
+findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> Maybe FilePath -> Int -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples proj primF fp entry m_mapsrc steps = do
     ghcInfos <- getGHCInfos [fp]
     let specs = funcSpecs ghcInfos
 
-    (mod_name, pre_bnds, pre_tycons, pre_cls) <- translateLoaded proj fp primF False
+    (mod_name, pre_bnds, pre_tycons, pre_cls) <- translateLoaded proj fp primF False m_mapsrc
     let (bnds, tycons, cls) = (pre_bnds, pre_tycons, pre_cls)
     
     let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry (Just mod_name)
