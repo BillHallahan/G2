@@ -53,7 +53,7 @@ mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr 
     let
         (meenv, ng') = doRenames (E.keys eenv) ng eenv
 
-        s' = mergeLHSpecState' (addAssertSpecType (mkAnd eenv) meenv tcv) xs (s { name_gen = ng' })
+        s' = mergeLHSpecState' (addAssertSpecType (mkAnd meenv) meenv tcv) xs (s { name_gen = ng' })
 
         usedCexpr = filter (not . flip E.isSymbolic eenv) $ varNames cexpr
         eenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) eenv
@@ -64,7 +64,7 @@ mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr 
         cexpr' = foldr (uncurry rename) cexpr usedZ
         eenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) eenvC
 
-        s'' = mergeLHSpecState' (addAssumeAssertSpecType (mkAnd eenv) meenv tcv) xs (s { expr_env = eenvC', name_gen = ng'' })
+        s'' = mergeLHSpecState' (addAssumeAssertSpecType (mkAnd meenv) meenv tcv) xs (s { expr_env = eenvC', name_gen = ng'' })
     in
     s'' { expr_env = E.union (E.union meenv (expr_env s')) $ expr_env s''
         , curr_expr = cexpr' }
@@ -368,7 +368,9 @@ specTypeApps' conn rfun@(RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft
 
         m' = M.insert (idName i) t m
     in
-    specTypeApps' conn fin tcv s m' i ++ specTypeApps' conn fout tcv s m' b
+    case hasFuncType i of
+        True -> specTypeApps' conn fin tcv s m b ++ specTypeApps' conn fout tcv s m b
+        _ -> specTypeApps' conn fin tcv s m' i ++ specTypeApps' conn fout tcv s m' b
 specTypeApps' conn rallt@(RAllT {rt_tvbind = RTVar (RTV v) tv, rt_ty = rty}) tcv s m b =
     let
         --sy = rtvInfoSymbol tv

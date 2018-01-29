@@ -17,8 +17,10 @@ import qualified G2.Internals.Language.Stack as S
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
+import G2.Lib.Printers
 
 import Control.Monad
+import Data.List
 import Data.Maybe
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
@@ -209,9 +211,13 @@ reduce con hpp s rs = do
     let (rule, res) = reduce' s
 
     -- putStrLn "----------------------------------"
+    -- print (length rs)
     -- putStrLn $ show $ zip [1..] rs
 
     sts <- resultsToState con hpp rule s res
+
+    -- let write = (intercalate "\n\n" $ map pprExecStateStr sts) ++ "\n\n" ++ show (zip [1..] rs)
+    -- writeFile ("res/states" ++ show (length rs) ++ ".txt") write
 
     return (rule, sts)
 

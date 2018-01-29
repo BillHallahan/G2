@@ -26,7 +26,7 @@
 -- This allows us to symbolically choose some constructor for the ApplyType
 -- with the SMT solver, but immediately convert it to the cooresponding expression
 -- in the evaluator.  This way, we don't have to deal with issues with lambda
--- expressions partial evaluation, and a flull program transformation that would
+-- expressions partial evaluation, and a full program transformation that would
 -- arise with full defunctionalization, but we still can vary any symbolic
 -- higher order functions over all options in the expression environment.
 

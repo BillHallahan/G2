@@ -35,7 +35,7 @@ main = do
 
     case (m_liquid, m_liquid_func) of
         (Just l, Just f) -> do
-            -- ghcInfos <- getGHCInfos [l]
+            -- ghcInfos <- getGHCInfos proj [l]
             -- putStrLn . show $ length ghcInfos
 
             -- let specs = funcSpecs ghcInfos
@@ -43,7 +43,7 @@ main = do
             --     putStrLn ""
             --     pprint s) specs
 
-            ---------
+            -------
 
             -- let lh_names = L.map (nameOccStr . idName . mkId . fst) specs ++
             --               [l, f] ++

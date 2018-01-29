@@ -30,7 +30,7 @@ import G2.Lib.Printers
 -- attempt to find counterexamples to the functions liquid type
 findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> Maybe FilePath -> Int -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 findCounterExamples proj primF fp entry m_mapsrc steps = do
-    ghcInfos <- getGHCInfos [fp]
+    ghcInfos <- getGHCInfos proj [fp]
     let specs = funcSpecs ghcInfos
 
     (mod_name, pre_bnds, pre_tycons, pre_cls) <- translateLoaded proj fp primF False m_mapsrc
@@ -61,10 +61,11 @@ findCounterExamples proj primF fp entry m_mapsrc steps = do
 
     run smt2 hhp steps merged_state
 
-getGHCInfos :: [FilePath] -> IO [GhcInfo]
-getGHCInfos fp = do
+getGHCInfos :: FilePath -> [FilePath] -> IO [GhcInfo]
+getGHCInfos proj fp = do
     config <- getOpts []
-    return . fst =<< LHI.getGhcInfos Nothing config fp
+    let config' = config {idirs = idirs config ++ [proj], ghcOptions = ["-v"]}
+    return . fst =<< LHI.getGhcInfos Nothing config' fp
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
 funcSpecs = concatMap (gsTySigs . spec)
