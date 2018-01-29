@@ -139,26 +139,43 @@ primDefs = [ (".+#", Prim Plus TyBottom)
            , ("undefined", Prim Error TyBottom)]
 -}
 
-specialModules :: [String]
-specialModules = [ "GHC.Classes2"
-                 , "GHC.Types2"
-                 , "GHC.Integer2"
-                 , "GHC.Integer.Type2"
-                 , "GHC.Prim2"
-                 , "GHC.Tuple2"
-                 , "GHC.Magic2"
-                 , "GHC.CString2"
-                 , "PrimDefs"
-                 , "GHC.Tuple"
-                 , "Data.Map.Base"
-                 ]
+equivMods :: [(String, String)]
+equivMods = [ ("GHC.Classes", "GHC.Classes2")
+            , ("GHC.Types", "GHC.Types2")
+            , ("GHC.Integer", "GHC.Integer2")
+            , ("GHC.Integer.Type", "GHC.Integer.Type2")
+            , ("GHC.Prim", "GHC.Prim2")
+            , ("GHC.Tuple", "GHC.Tuple2")
+            , ("GHC.Magic", "GHC.Magic2")
+            , ("GHC.CString", "GHC.CString2")
+            , ("Data.Map", "Data.Map.Base")
+
+            , ("PrimDefs", "GHC.Classes")
+            , ("PrimDefs", "GHC.Types")
+            , ("PrimDefs", "GHC.Integer")
+            , ("PrimDefs", "GHC.Integer.Type")
+            , ("PrimDefs", "GHC.Prim")
+            , ("PrimDefs", "GHC.Tuple")
+            , ("PrimDefs", "GHC.Magic")
+            , ("PrimDefs", "GHC.CString")
+            , ("PrimDefs", "GHC.Base")
+            , ("PrimDefs", "GHC.Num")
+            , ("PrimDefs", "GHC.Int")
+            , ("PrimDefs", "GHC.Float")
+            , ("PrimDefs", "GHC.Real")
+            , ("PrimDefs", "GHC.Rational")
+            , ("PrimDefs", "GHC.Err")
+            -- , "PrimDefs"
+            -- , "GHC.Tuple"
+            -- , "Data.Map.Base"
+            ]
 
 nameStrEq :: Name -> Name -> Bool
 nameStrEq (Name n m _) (Name n' m' _) =
-  any id [ n == n' && m == m'
-         , n == n' && m `elem` (map Just specialModules)
-         , n == n' && m' `elem` (map Just specialModules)
-         ]
+  n == n' && (any id [ m == m'
+                     , m `elem` (map (Just . snd) $ filter ((== m') . Just . fst) equivMods)
+                     , m' `elem` (map (Just . snd) $ filter ((== m) . Just . fst) equivMods)
+                     ])
 
 replaceFromPD :: [Name] -> Id -> Expr -> (Id, Expr)
 replaceFromPD ns (Id n t) e =
@@ -180,7 +197,9 @@ mergeProgs prog prims =
         prims' = map (map (uncurry (replaceFromPD ns))) prims
 
         n_pairs = getNPairs ns_progs prims
-    in foldr (uncurry rename) (prog ++ prims') n_pairs 
+    in
+    -- error $ intercalate "\n" $ map show n_pairs
+    foldr (uncurry rename) (prog ++ prims') n_pairs 
 
 getNPairs :: [Name] -> Program -> [(Name, Name)]
 getNPairs ns_prog prims = getNPairs' (sortOn nameOccStr ns_prog) (sortOn nameOccStr $ nub $ names $ map fst $ concat prims)

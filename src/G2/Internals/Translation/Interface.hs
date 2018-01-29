@@ -25,15 +25,37 @@ translateLoaded proj src prelude simpl m_mapsrc = do
           (_, map_prog, map_tys, map_cls) <- hskToG2 mapdir mapsrc simpl
           return (map_prog, map_tys, map_cls)
 
+    -- mapM_ print base_prog
+    -- mapM_ print map_prog
+    -- error "STOPPP"
+
+    let lib_prog0 = mergeProgs base_prog map_prog
+    let (lib_prog1, lib_tys) = mergeProgTys lib_prog0 lib_prog0 base_tys map_tys
+    let lib_cls = base_cls ++ map_cls
+
+
+    let merged_prog0 = mergeProgs data_prog lib_prog1
+    let (merged_prog1, merged_tys) = mergeProgTys merged_prog0 merged_prog0 prog_tys lib_tys
+    let merged_cls = prog_cls ++ lib_cls
+
+    let (special_prog, special_tys) = injectSpecials merged_tys merged_prog1
+    let (final_prog, final_tys) = primInject $ dataInject special_prog special_tys
+
+    let classes = mergeTCs merged_cls merged_prog1
+    return (tgt_name, final_prog, final_tys, classes)
+    -- return (tgt_name, merged_prog1, merged_tys, classes)
+
+{-
 
     let lib_prog = base_prog ++ map_prog
     let lib_tys = base_tys ++ map_tys
     let lib_cls = base_cls ++ map_cls
 
-    -- mapM_ print data_prog
+    -- mapM_ print lib_prog
     -- putStrLn "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
     -- mapM_ print base_prog
 
+    -- error "STOPPP"
 
     -- print $ data_prog
     -- print $ base_prog
@@ -42,13 +64,13 @@ translateLoaded proj src prelude simpl m_mapsrc = do
 
     -- putStrLn "-------"
     -- mapM_ print merged_prog
-    -- error "NOOO"
 
     let (merged_prog', merged_prog_tys) =
             mergeProgTys merged_prog merged_prog prog_tys lib_tys
     let (merged_prog2', prog_tys') = injectSpecials merged_prog_tys merged_prog'
 
-    -- print merged_prog_tys
+    -- mapM_ print merged_prog
+    -- error "STOPPP"
 
     -- print prog_tys'
 
@@ -60,6 +82,7 @@ translateLoaded proj src prelude simpl m_mapsrc = do
     let classes = mergeTCs merged_classes fin_prog
 
     return (tgt_name, fin_prog, fin_tys, classes)
+-}
 
 translation :: FilePath -> FilePath -> Bool -> IO (String, Program, [ProgramType], [(Name, Id, [Id])])
 translation = hskToG2

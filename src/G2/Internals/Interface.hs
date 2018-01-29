@@ -212,8 +212,8 @@ run con hhp n (state@ State { type_env = tenv
     -- let ident_states' = ident_states
 
     -- mapM_ (\(rs, st) -> do
-    -- --     putStrLn $ L.intercalate "\n" $ map show $ zip ([1..] :: [Integer]) rs
     --     putStrLn $ pprExecStateStr st
+    --     putStrLn $ L.intercalate "\n" $ map show $ zip ([1..] :: [Integer]) rs
     -- --     -- putStrLn $ pprExecStateStrSimple st
 
     -- -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
