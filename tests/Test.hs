@@ -54,7 +54,6 @@ sampleTests :: IO TestTree
 sampleTests =
     return . testGroup "Samples"
         =<< sequence [
-                  {-
                   checkExprWithOutput "tests/Samples/" "tests/Samples/Peano.hs" 900 Nothing (Just "equalsFour") "add" 3 [RForAll $ not . peano_4_out, AtLeast 10]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 900 (Just "fstIsEvenAddToFour") (Just "fstIsTwo") "add" 2 [RExists peano_0_4, RExists peano_4_0, Exactly 2]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 1000 (Just "multiplyToFour") (Just "equalsFour") "add" 2 [RExists peano_1_4, RExists peano_4_1, Exactly 2]
@@ -96,7 +95,6 @@ sampleTests =
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchInt" 2 [AtLeast 1]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "getInInt" 2 [AtLeast 1]
                 , checkExprWithOutput "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchP" 2 [AtLeast 1]
-              -}
         ]
 
 liquidTests :: IO TestTree
@@ -142,7 +140,6 @@ testFileTests :: IO TestTree
 testFileTests = 
     return . testGroup "TestFiles"
         =<< sequence [
-                  {-
                   checkExprWithOutput "tests/TestFiles/" "tests/TestFiles/IfTest.hs" 400 Nothing Nothing "f" 3 [RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y)), App _ (Lit (LitInt r))] -> if x == y then r == x + y else r == y), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGt5" 1 [Exactly 0]
@@ -263,7 +260,6 @@ testFileTests =
                 --                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                 --                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]
                 
-              -}
         ]
 
 
@@ -311,8 +307,8 @@ checkExpr' exprs i reqList =
 
 testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src steps m_assume m_assert m_reaches entry = do
-    -- (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True
-    (mod, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True
+    (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True
+    -- (mod, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True
 
     let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry (Just mod)
 
@@ -324,8 +320,8 @@ testFile proj src steps m_assume m_assert m_reaches entry = do
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry steps i reqList = do
-    -- r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry steps
-    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp entry steps
+    r <- findCounterExamples proj "./defs/PrimDefs.hs" fp entry steps
+    -- r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp entry steps
 
     let exprs = map (\(_, _, inp, out, _) -> inp ++ [out]) r
 

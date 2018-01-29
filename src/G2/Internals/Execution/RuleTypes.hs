@@ -45,6 +45,7 @@ data Rule = RuleEvalVal
           | RuleReturnCAssert
 
           | RuleIdentity
+          | RulePrimError
 
           | RuleError
            deriving (Show, Eq, Read)

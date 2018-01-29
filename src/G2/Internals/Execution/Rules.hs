@@ -287,14 +287,14 @@ reduce' s @ State { exec_stack = estk
       let
           eenv' = E.insert n expr eenv
       in
-      (RuleError, [(eenv', CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk')])
+      (RulePrimError, [(eenv', CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk')])
   | CurrExpr Evaluate expr <- cexpr
   , (Prim Error _):_ <- unApp expr
   , Just (_, estk') <- S.pop estk =
-      (RuleError, [(eenv, CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk')])
+      (RulePrimError, [(eenv, CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk')])
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
   , (Prim Error _):_ <- unApp expr =
-      (RuleError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], Nothing, ngen, estk)])
+      (RulePrimError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], Nothing, ngen, estk)])
 
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
@@ -619,6 +619,11 @@ reduceEReturn eenv c ngen (ApplyFrame aexpr) =
   case unApp c of
       p@(Prim _ _):_ ->  
           ( RuleReturnEApplySym
+          , ( eenv
+            , CurrExpr Evaluate (App c aexpr)
+            , ngen))
+      d@(Data dc):_ ->
+          ( RuleReturnEApplyData
           , ( eenv
             , CurrExpr Evaluate (App c aexpr)
             , ngen))

@@ -1,6 +1,7 @@
 module Sorting where
 
 import qualified Data.Map as M
+import qualified Data.List as L
 
 g2Entry :: Int -> Int
 g2Entry a = maximum (map (+1) [1, 2, a, 4, 5])
@@ -25,3 +26,14 @@ g2Entry6 a = let m = M.fromList [(1, 'a'), (2, 'b')]
                Just _ -> 13579
                _ -> 24680
 
+fromList22 :: [(Int, Float)] -> [(Int, Float)]
+fromList22 = foldr (:) []
+
+fromList23 :: [Int] -> [Int]
+fromList23 = foldr (:) []
+
+foldrx :: (a -> b -> b) -> b -> [a] -> b
+foldrx k z = go
+          where
+            go []     = z
+            go (y:ys) = y `k` go ys
