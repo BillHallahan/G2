@@ -216,8 +216,8 @@ reduce con hpp s rs = do
 
     sts <- resultsToState con hpp rule s res
 
-    let write = (intercalate "\n\n" $ map pprExecStateStr sts) ++ "\n\n" ++ show (zip [1..] rs)
-    writeFile ("res/states" ++ show (length rs) ++ ".txt") write
+    -- let write = (intercalate "\n\n" $ map pprExecStateStr sts) ++ "\n\n" ++ show (zip [1..] rs)
+    -- writeFile ("res/states" ++ show (length rs) ++ ".txt") write
 
     return (rule, sts)
 
@@ -639,5 +639,6 @@ reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
 
 hasTYPE :: Type -> Bool
 hasTYPE TYPE = True
+hasTYPE (TyConApp (Name "TYPE" _ _) _) = True
 hasTYPE (TyFun t t') = hasTYPE t || hasTYPE t'
 hasTYPE _ = False

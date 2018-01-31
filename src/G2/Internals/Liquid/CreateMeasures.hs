@@ -14,6 +14,9 @@ import qualified GHC as GHC
 
 import Debug.Trace
 
+-- Creates measures from LH measure specifications
+-- We need this to support measures witten in comments
+
 createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State -> State
 createMeasures meas tcv s@(State {type_env = tenv}) = 
     let
@@ -46,7 +49,6 @@ convertMeasure s@(State {expr_env = eenv, type_env = tenv, type_classes = tc, na
 
         st = specTypeToType tenv srt
         
-
         bnds = tyForAllBindings $ fromJust st
         ds = map (Name "d" Nothing) [1 .. length bnds]
         nbnds = zip ds $ map TyVar bnds
@@ -61,7 +63,7 @@ convertMeasure s@(State {expr_env = eenv, type_env = tenv, type_classes = tc, na
 
         (lam_i, ng2) = freshId (head stArgs) ng1
         (cb, ng3) = freshId (head stArgs) ng2
-        alts = mapMaybe (convertDefs s tcv (M.union (M.union m nt) (M.fromList nbnds)) lhid stArgs) eq
+        alts = mapMaybe (convertDefs s tcv (M.union (M.union m nt) (M.fromList nbnds)) lhid bnds) eq
 
         e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
     in
@@ -69,8 +71,8 @@ convertMeasure s@(State {expr_env = eenv, type_env = tenv, type_classes = tc, na
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
-convertDefs :: State -> TCValues -> M.Map Name Type -> LHId -> [Type] -> Def SpecType GHC.DataCon -> Maybe Alt
-convertDefs s@(State {type_env = tenv}) tcv m lhid ts (Def { ctor = dc, dsort = srt, body = b, binds = bds}) =
+convertDefs :: State -> TCValues -> M.Map Name Type -> LHId -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
+convertDefs s@(State {type_env = tenv}) tcv m lhid bnds (Def { ctor = dc, dsort = srt, body = b, binds = bds}) =
     let
         dc'@(DataCon n t _) = mkData dc
         (TyConApp tn _) = returnType t
@@ -78,9 +80,13 @@ convertDefs s@(State {type_env = tenv}) tcv m lhid ts (Def { ctor = dc, dsort = 
         
         -- See [1] below, we only evaluate this if Just
         dc'''@(DataCon _ dct _) = fromJust dc''
+        bnds' = tyForAllBindings dct
         dctarg = nonTyForAllArgumentTypes dct
 
-        nt = map (\((s, t), t')-> (symbolName s, maybe t' (unsafeSpecTypeToType tenv) t)) $ zip bds dctarg
+        -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
+        dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds') (map TyVar bnds)
+
+        nt = map (\((s, t), t')-> (symbolName s, maybe t' (unsafeSpecTypeToType tenv) t)) $ zip bds dctarg'
 
         is = map (uncurry Id) nt
 
@@ -88,7 +94,7 @@ convertDefs s@(State {type_env = tenv}) tcv m lhid ts (Def { ctor = dc, dsort = 
     in
     case dc'' of
         Just _ -> Just $ Alt (DataAlt dc''' is) e -- [1]
-        Nothing -> trace ("Nothing dc' = " ++ show dc' ++ "\nn = " ++ show n ++ "\ntn = " ++ show tn ++ "\ntenv = " ++ show tenv) Nothing
+        Nothing -> Nothing
 
 mkExprFromBody :: State -> TCValues  -> M.Map Name Type-> LHId -> Body -> Expr
 mkExprFromBody s tcv m lhid (E e) = convertLHExpr e tcv s m
