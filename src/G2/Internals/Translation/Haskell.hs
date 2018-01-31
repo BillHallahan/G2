@@ -10,6 +10,7 @@ module G2.Internals.Translation.Haskell
     , mkId
     , mkName
     , mkTyConName
+    , mkData
     ) where
 
 import qualified G2.Internals.Language as G2

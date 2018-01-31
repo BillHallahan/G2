@@ -5,9 +5,11 @@ module G2.Internals.Liquid.Interface where
 import G2.Internals.Translation
 import G2.Internals.Interface
 import G2.Internals.Language as Lang
+import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Execution
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.CreateFuncs
+import G2.Internals.Liquid.CreateMeasures
 import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Liquid.TCValues
@@ -17,10 +19,12 @@ import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
-import Language.Fixpoint.Types.PrettyPrint
+import  Language.Fixpoint.Types.Names
+import Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.Time
 
+import qualified GHC as GHC
 import Var
 
 import G2.Lib.Printers
@@ -32,24 +36,32 @@ findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> Maybe FileP
 findCounterExamples proj primF fp entry m_mapsrc steps = do
     ghcInfos <- getGHCInfos proj [fp]
     let specs = funcSpecs ghcInfos
+    let measures = measureSpecs ghcInfos
 
     (mod_name, pre_bnds, pre_tycons, pre_cls) <- translateLoaded proj fp primF False m_mapsrc
     let (bnds, tycons, cls) = (pre_bnds, pre_tycons, pre_cls)
     
     let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry (Just mod_name)
 
+    let measure_state = init_state -- createMeasures measures init_state
+
     -- mapM_ (putStrLn . show . idName . fst) $ concatMap id bnds
 
     -- timedMsg "state inited"
 
     -- let init_state' = elimPartialApp init_state
-    let init_state' = elimPartialApp init_state
+    let no_part_state = elimPartialApp measure_state
 
     -- timedMsg "state cleaned"
 
-    let (lh_state, eq_walkers, tcv) = createLHTC init_state'
+    let (lh_state, eq_walkers, tcv) = createLHTC no_part_state
 
-    let lhtc_state = addLHTC lh_state tcv
+    let meas = createMeasures measures tcv lh_state
+
+    let meas_state = lh_state
+    -- let meas_state = lh_state {expr_env = foldr (uncurry E.insert) (expr_env lh_state) meas}
+
+    let lhtc_state = addLHTC meas_state tcv
 
     -- putStrLn $ pprExecStateStr lhtc_state
 
@@ -69,6 +81,9 @@ getGHCInfos proj fp = do
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
 funcSpecs = concatMap (gsTySigs . spec)
+
+measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
+measureSpecs = concatMap (gsMeasures . spec)
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do

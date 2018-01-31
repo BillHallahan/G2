@@ -24,6 +24,7 @@ mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv =
                 var_ex = Var f
                 app_ex = foldl' App var_ex $ typsE ++ var_ids
 
+                -- strict_app_ex = app_ex
                 strict_app_ex = mkStrict walkers app_ex
 
                 (name, ng'') = freshName ng'

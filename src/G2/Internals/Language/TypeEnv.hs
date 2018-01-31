@@ -18,6 +18,8 @@ module G2.Internals.Language.TypeEnv ( ProgramType
                                      , selfRecursive
                                      , dataConCanContain
                                      , getDataCon
+                                     , getDataConNameMod
+                                     , getDataConNameMod'
                                      , dataConArgs
                                      , dcName
                                      , retypeAlgDataTy) where
@@ -149,6 +151,16 @@ getDataCon tenv adt dc =
     in
     maybe Nothing (flip dataConWithName dc) adt'
 
+getDataConNameMod :: TypeEnv -> Name -> Name -> Maybe DataCon
+getDataConNameMod tenv (Name n m _) dc =
+    let
+        adt' = fmap snd $ find (\(Name n' m' _, _) -> n == n' && m == m') $ M.toList tenv
+    in
+    maybe Nothing (flip dataConWithNameMod dc) adt'
+
+getDataConNameMod' :: TypeEnv -> Name -> Maybe DataCon
+getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ M.elems tenv
+
 dataConArgs :: DataCon -> [Type]
 dataConArgs (DataCon _ _ ts) = ts
 dataConArgs _ = []
@@ -160,6 +172,14 @@ dataConWithName _ _ = Nothing
 dataConHasName :: DataCon -> Name -> Bool
 dataConHasName (DataCon n _ _) n' = n == n'
 dataConHasName _ _ = False
+
+dataConWithNameMod :: AlgDataTy -> Name -> Maybe DataCon
+dataConWithNameMod (DataTyCon _ dcs) n = listToMaybe $ filter (flip dataConHasNameMod n) dcs
+dataConWithNameMod _ _ = Nothing
+
+dataConHasNameMod :: DataCon -> Name -> Bool
+dataConHasNameMod (DataCon (Name n m _) _ _) (Name n' m' _) = n == n' && m == m'
+dataConHasNameMod _ _ = False
 
 retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
 retypeAlgDataTy ts adt =

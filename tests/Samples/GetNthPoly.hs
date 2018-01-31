@@ -4,6 +4,8 @@ import Prelude hiding (length)
 
 data CList a = Cons !a (CList a) | Nil
 
+data IList = ICons Int IList
+
 data X = X
 
 data Peano = Succ Peano | Zero
@@ -33,6 +35,17 @@ getNth :: CList a -> Int -> a
 getNth (Cons x _)  0 = x 
 getNth (Cons _ xs) n = getNth xs (n - 1)
 getNth _      _ = error "Invalid index"
+
+getHead :: CList a -> a
+getHead (Cons x _) = x
+getHead _ = error "Empty CList passed to getHead."
+
+getTail :: CList a -> CList a
+getTail (Cons _ xs) = xs
+getTail _ = error "Empty CList passed to getTail."
+
+getHeadI :: IList -> Int
+getHeadI (ICons x _) = x
 
 {-@ measure length @-}
 length :: CList a -> Int
