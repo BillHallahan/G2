@@ -19,7 +19,15 @@ simplifyAsserts' tenv kv mkv (Assert i a e) = Assert i (simplifyIn tenv kv mkv a
 simplifyAsserts' _ _ _ e = e
 
 simplifyIn :: TypeEnv -> KnownValues -> ModifiedKnownValues -> Expr -> Expr
-simplifyIn tenv kv mkv = elimAnds tenv kv mkv . varBetaReduction
+simplifyIn tenv kv mkv e =
+    -- simplifyIn' tenv kv mkv e
+    let
+        e' = simplifyIn' tenv kv mkv e
+    in
+    if e == e' then e else simplifyIn tenv kv mkv e'
+
+simplifyIn' :: TypeEnv -> KnownValues -> ModifiedKnownValues -> Expr -> Expr
+simplifyIn' tenv kv mkv = elimAnds tenv kv mkv . varBetaReduction
 
 elimAnds :: TypeEnv -> KnownValues -> ModifiedKnownValues -> Expr -> Expr
 elimAnds tenv kv mkv = elimCalls2 (andFunc mkv) (mkTrue kv tenv)

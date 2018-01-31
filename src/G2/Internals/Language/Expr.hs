@@ -45,6 +45,7 @@ import G2.Internals.Language.Typing
 import Data.Foldable
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Semigroup
 
 import Debug.Trace
 
@@ -209,14 +210,34 @@ freeVars' eenv bound (Var i) =
         ([], [i])
 freeVars' _ _ _ = ([], [])
 
+alphaReduction :: ASTContainer m Expr => m -> m
+alphaReduction = modifyASTsM alphaReduction'
+
+alphaReduction' :: Max Int -> Expr -> (Expr, Max Int)
+alphaReduction' mi l@(Lam i@(Id (Name n m ii) t) e) =
+    let
+        mi' = mi + 1
+        n' = Name n m (getMax mi')
+        i' = Id n' t
+
+        e' = replaceASTs (Var i) (Var i') e
+    in
+    if ii > getMax mi then (l, mi') else (Lam i' e', mi')
+
 -- | varBetaReduction
 -- Performs beta reduction, if a Var is being applied 
 varBetaReduction :: ASTContainer m Expr => m -> m
 varBetaReduction = modifyASTs varBetaReduction'
 
 varBetaReduction' :: Expr -> Expr
-varBetaReduction' (App (Lam i e) v@(Var _)) = replaceASTs (Var i) v e
+varBetaReduction' a@(App (Lam i e) (Var v)) = 
+    if not (isTYPE . typeOf $ i) then replaceLamIds i v e else a
 varBetaReduction' e = e
+
+replaceLamIds :: Id -> Id -> Expr -> Expr
+replaceLamIds i i' v@(Var v') = if i == v' then Var i' else v
+replaceLamIds i i' l@(Lam l' e) = if i == l' then l else Lam l' (replaceLamIds i i' e)
+replaceLamIds i i' e = modifyChildren (replaceLamIds i i') e
 
 -- | mkStrict
 -- Forces the complete evaluation of an expression

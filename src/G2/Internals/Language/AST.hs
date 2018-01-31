@@ -12,8 +12,6 @@ import G2.Internals.Language.Syntax
 import Data.Hashable
 import qualified Data.HashSet as HS
 
-import Debug.Trace
-
 -- | Describes the data types that can be represented in a tree format.
 class AST t where
     -- | Gets the direct children of the given node.
@@ -28,6 +26,11 @@ modify f t = modifyChildren (modify f) (f t)
 
 {-# SPECIALISE modify :: (Expr -> Expr) -> Expr -> Expr #-}
 {-# SPECIALISE modify :: (Type -> Type) -> Type -> Type #-}
+
+-- | modify'
+-- Calls the given function on each Expr, starting from the bottom and working up
+-- modify' :: AST t => (t -> t) -> t -> t
+-- modify' f = f . modifyChildren (modify' f)
 
 -- | Similar to modify. Also passes a Monoid instance to the modify function. 
 -- Children have access to the mconcated results from higher in the tree
@@ -52,8 +55,8 @@ modifyFix f t = let t' = f t
 modifyContainedFix :: (AST t, Eq t, Show t) => (t -> t) -> t -> t
 modifyContainedFix f t = let t' = f t
                 in if t == t'
-                    then trace ("t1 = " ++ show t) t'
-                    else trace ("t2 = " ++ show t) modifyContainedFix f t'
+                    then t'
+                    else modifyContainedFix f t'
 
 -- | Combines the methods of modifyM and modifyFix.
 -- Runs until t == t', but does not consider the Monoid's value. However, the

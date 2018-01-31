@@ -216,8 +216,8 @@ reduce con hpp s rs = do
 
     sts <- resultsToState con hpp rule s res
 
-    -- let write = (intercalate "\n\n" $ map pprExecStateStr sts) ++ "\n\n" ++ show (zip [1..] rs)
-    -- writeFile ("res/states" ++ show (length rs) ++ ".txt") write
+    let write = (intercalate "\n\n" $ map pprExecStateStr sts) ++ "\n\n" ++ show (zip [1..] rs)
+    writeFile ("res/states" ++ show (length rs) ++ ".txt") write
 
     return (rule, sts)
 
