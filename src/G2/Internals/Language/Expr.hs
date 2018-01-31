@@ -29,6 +29,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , varId
                                   , symbVars
                                   , freeVars
+                                  , varBetaReduction
                                   , mkStrict) where
 
 import G2.Internals.Language.AST
@@ -207,6 +208,15 @@ freeVars' eenv bound (Var i) =
     else
         ([], [i])
 freeVars' _ _ _ = ([], [])
+
+-- | varBetaReduction
+-- Performs beta reduction, if a Var is being applied 
+varBetaReduction :: ASTContainer m Expr => m -> m
+varBetaReduction = modifyASTs varBetaReduction'
+
+varBetaReduction' :: Expr -> Expr
+varBetaReduction' (App (Lam i e) v@(Var _)) = replaceASTs (Var i) v e
+varBetaReduction' e = e
 
 -- | mkStrict
 -- Forces the complete evaluation of an expression

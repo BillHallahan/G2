@@ -33,4 +33,7 @@ data KnownValues = KnownValues {
                  , gtFunc :: Name
                  , ltFunc :: Name
                  , leFunc :: Name
+
+                 , andFunc :: Name
+                 , orFunc :: Name
                  } deriving (Show, Eq, Read)

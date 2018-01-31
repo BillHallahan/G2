@@ -11,6 +11,7 @@ import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.CreateFuncs
 import G2.Internals.Liquid.CreateMeasures
 import G2.Internals.Liquid.ElimPartialApp
+import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Liquid.TCValues
 import G2.Internals.Solver
@@ -29,6 +30,8 @@ import Var
 
 import G2.Lib.Printers
 
+import G2.Internals.Language.KnownValues
+
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
@@ -43,35 +46,33 @@ findCounterExamples proj primF fp entry m_mapsrc steps = do
     
     let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry (Just mod_name)
 
-    let measure_state = init_state -- createMeasures measures init_state
-
     -- mapM_ (putStrLn . show . idName . fst) $ concatMap id bnds
 
     -- timedMsg "state inited"
 
     -- let init_state' = elimPartialApp init_state
-    let no_part_state = elimPartialApp measure_state
+    let no_part_state = elimPartialApp init_state
 
     -- timedMsg "state cleaned"
 
     let (lh_state, eq_walkers, tcv) = createLHTC no_part_state
 
-    let meas = createMeasures measures tcv lh_state
+    let measure_state = lh_state
+    -- let measure_state = createMeasures measures tcv lh_state
 
-    let meas_state = lh_state
-    -- let meas_state = lh_state {expr_env = foldr (uncurry E.insert) (expr_env lh_state) meas}
-
-    let lhtc_state = addLHTC meas_state tcv
+    let lhtc_state = addLHTC measure_state tcv
 
     -- putStrLn $ pprExecStateStr lhtc_state
 
-    let merged_state = mergeLHSpecState specs lhtc_state tcv
-
+    let (merged_state, mkv) = mergeLHSpecState specs lhtc_state tcv
     -- putStrLn $ pprExecStateStr merged_state
 
     hhp <- getZ3ProcessHandles
 
-    run smt2 hhp steps merged_state
+    -- let beta_red_state = merged_state
+    let beta_red_state = simplifyAsserts mkv merged_state
+
+    run smt2 hhp steps beta_red_state
 
 getGHCInfos :: FilePath -> [FilePath] -> IO [GhcInfo]
 getGHCInfos proj fp = do

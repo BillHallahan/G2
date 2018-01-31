@@ -32,6 +32,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 type ProgramType = (Name, AlgDataTy)
 
 -- | Type environments map names of types to their appropriate types. However
@@ -156,7 +158,7 @@ getDataConNameMod tenv (Name n m _) dc =
     let
         adt' = fmap snd $ find (\(Name n' m' _, _) -> n == n' && m == m') $ M.toList tenv
     in
-    maybe Nothing (flip dataConWithNameMod dc) adt'
+    trace ("n = " ++ n ++ " m = " ++ show m ++ "\nadt' = " ++ show adt') maybe Nothing (flip dataConWithNameMod dc) adt'
 
 getDataConNameMod' :: TypeEnv -> Name -> Maybe DataCon
 getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ M.elems tenv

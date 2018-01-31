@@ -36,6 +36,11 @@ dcInAppHasName s (Data (DataCon (Name n _ _) _ _)) 0 = s == n
 dcInAppHasName s (App a _) n = dcInAppHasName s a (n - 1)
 dcInAppHasName _ _ _ = False
 
+buriedDCName :: String -> Expr -> Bool
+buriedDCName s (App a _) = buriedDCName s a
+buriedDCName s (Data (DataCon (Name n _ _) _ _)) = s == n
+buriedDCName _ _ = False
+
 appNthArgIs :: Expr -> (Expr -> Bool) -> Int -> Bool
 appNthArgIs a f i = 
     let

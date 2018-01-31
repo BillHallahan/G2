@@ -205,8 +205,8 @@ run con hhp n (state@ State { type_env = tenv
     let ident_states' = filter (true_assert . snd) ident_states
     let nonident_states = filter (not . isExecValueForm . snd) exec_states
 
-    putStrLn $ "exec states: " ++ (show $ length exec_states)
-    putStrLn $ "ident states: " ++ (show $ length ident_states')
+    -- putStrLn $ "exec states: " ++ (show $ length exec_states)
+    -- putStrLn $ "ident states: " ++ (show $ length ident_states')
 
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states

@@ -36,6 +36,9 @@ initKnownValues eenv tenv =
     , gtFunc = exprWithStrName eenv ">"
     , ltFunc = exprWithStrName eenv "<"
     , leFunc = exprWithStrName eenv "<="
+
+    , andFunc = exprWithStrName eenv "&&"
+    , orFunc = exprWithStrName eenv "||"
     }
 
 exprWithStrName :: E.ExprEnv -> String -> Name

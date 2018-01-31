@@ -333,9 +333,13 @@ instance Named KnownValues where
             , gtFunc = gtF
             , ltFunc = ltF
             , leFunc = leF
+
+            , andFunc = andF
+            , orFunc = orF
             }) =
             [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF
-            , eqT, numT, ordT, eqF, neqF, geF, gtF, ltF, leF]
+            , eqT, numT, ordT, eqF, neqF, geF, gtF, ltF, leF
+            , andF, orF]
 
     rename old new (KnownValues {
                      dcInt = dI
@@ -362,6 +366,9 @@ instance Named KnownValues where
                    , gtFunc = gtF
                    , ltFunc = ltF
                    , leFunc = leF
+
+                   , andFunc = andF
+                   , orFunc = orF
                    }) =
                     (KnownValues {
                           dcInt = rename old new dI
@@ -387,6 +394,9 @@ instance Named KnownValues where
                         , gtFunc = rename old new gtF
                         , ltFunc = rename old new ltF
                         , leFunc = rename old new leF
+
+                        , andFunc = rename old new andF
+                        , orFunc = rename old new orF
                         })
 
 instance (Foldable f, Functor f, Named a) => Named (f a) where

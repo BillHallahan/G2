@@ -53,10 +53,10 @@ addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, name_gen = ng, type_classe
 -- reference expressions in E'.  This prevents infinite chains of Assumes/Asserts.  
 -- Finally, the two expression environments are merged, before the whole state
 -- is returned.
-mergeLHSpecState :: [(Var, LocSpecType)] -> State -> TCValues -> State
-mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr }) tcv =
+mergeLHSpecState :: [(Var, LocSpecType)] -> State -> TCValues -> (State, KnownValues)
+mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr, known_values = kv }) tcv =
     let
-        (meenv, ng') = doRenames (E.keys eenv) ng eenv
+        ((meenv, mkv), ng') = doRenames (E.keys eenv) ng (eenv, kv)
 
         s' = mergeLHSpecState' (addAssertSpecType (mkAnd meenv) meenv tcv) xs (s { name_gen = ng' })
 
@@ -71,8 +71,9 @@ mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr 
 
         s'' = mergeLHSpecState' (addAssumeAssertSpecType (mkAnd meenv) meenv tcv) xs (s { expr_env = eenvC', name_gen = ng'' })
     in
-    s'' { expr_env = E.union (E.union meenv (expr_env s')) $ expr_env s''
-        , curr_expr = cexpr' }
+    (s'' { expr_env = E.union (E.union meenv (expr_env s')) $ expr_env s''
+         , curr_expr = cexpr' }
+    , mkv )
 
 -- | mergeLHSpecState'
 -- Merges a list of Vars and SpecTypes with a State, by finding

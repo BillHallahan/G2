@@ -23,6 +23,7 @@ module G2.Internals.Language.Typing
     , isPolyFunc
     , numArgs
     , argumentTypes
+    , tyForAllBindings
     , nonTyForAllArgumentTypes
     , returnType
     , polyIds
@@ -369,6 +370,15 @@ argumentTypes' (TyForAll (AnonTyBndr t1) t2) = t1:argumentTypes' t2
 argumentTypes' (TyForAll (NamedTyBndr i) t2) = TyVar i:argumentTypes' t2
 argumentTypes' (TyFun t1 t2) = t1:argumentTypes' t2
 argumentTypes' _ = []
+
+tyForAllBindings :: Typed t => t -> [Id]
+tyForAllBindings = tyForAllBindings' . typeOf
+
+tyForAllBindings' :: Type -> [Id]
+tyForAllBindings' (TyForAll (NamedTyBndr i) t) = i:tyForAllBindings' t
+tyForAllBindings' (TyForAll _ t) = tyForAllBindings' t
+tyForAllBindings' (TyFun t t') = tyForAllBindings' t ++ tyForAllBindings t'
+tyForAllBindings' _ = []
 
 nonTyForAllArgumentTypes :: Typed t => t -> [Type]
 nonTyForAllArgumentTypes = nonTyForAllArgumentTypes' . typeOf
