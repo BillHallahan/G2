@@ -12,6 +12,7 @@ import G2.Internals.Translation
 import G2.Internals.Language as Lang
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.KnownValues
+import G2.Internals.Liquid.Types
 import G2.Internals.Liquid.Primitives
 import G2.Internals.Liquid.TCValues
 

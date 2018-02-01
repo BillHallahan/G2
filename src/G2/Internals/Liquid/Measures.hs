@@ -1,12 +1,12 @@
-module G2.Internals.Liquid.CreateMeasures where
+module G2.Internals.Liquid.Measures (Measures, createMeasures) where
 
 import G2.Internals.Language
 import qualified  G2.Internals.Language.ExprEnv as E
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.TCValues
-import G2.Internals.Translation.Haskell
-
+import G2.Internals.Liquid.Types
 import Language.Haskell.Liquid.Types
+import G2.Internals.Translation.Haskell
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -16,15 +16,14 @@ import Debug.Trace
 
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
-
 createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State -> State
-createMeasures meas tcv s@(State {type_env = tenv}) = 
+createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv}) = 
     let
-        nt = M.fromList $ mapMaybe (measureTypeMappings (type_env s)) meas
+        nt = M.fromList $ mapMaybe (measureTypeMappings tenv) meas
 
         meas' = mapMaybe (convertMeasure s tcv nt) $ filter (allTypesKnown tenv) meas
     in
-    s {expr_env = foldr (uncurry E.insert) (expr_env s) meas'}
+    s {expr_env = foldr (uncurry E.insert) eenv meas'}
 
 type LHId = Id
 
@@ -41,7 +40,7 @@ measureTypeMappings tenv (M {name = n, sort = srt}) =
         _ -> Nothing
 
 convertMeasure :: State -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
-convertMeasure s@(State {expr_env = eenv, type_env = tenv, type_classes = tc, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
+convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
     let
         nt = M.fromList $ convertSpecTypeDict tcv s srt
 
@@ -95,6 +94,20 @@ convertDefs s@(State {type_env = tenv}) tcv m lhid bnds (Def { ctor = dc, dsort 
     case dc'' of
         Just _ -> Just $ Alt (DataAlt dc''' is) e -- [1]
         Nothing -> Nothing
+
+-- We remove the LH typeclass
+-- This prevents there being two LH typeclasses, when it is added again in Conversion
+-- removeLH :: Name -> Expr -> Expr
+-- removeLH lh = modify (removeLH' lh)
+
+-- removeLH' :: Name -> Expr -> Expr
+-- removeLH' lh l@(Lam i e) = if tyConAppName (typeOf i) == Just lh then e else l
+-- removeLH' lh a@(App e e') = if tyConAppName (typeOf e') == Just lh then e else a
+-- removeLH' _ e = e
+
+-- tyConAppName :: Type -> Maybe Name
+-- tyConAppName (TyConApp n _) = Just n
+-- tyConAppName _ = Nothing
 
 mkExprFromBody :: State -> TCValues  -> M.Map Name Type-> LHId -> Body -> Expr
 mkExprFromBody s tcv m lhid (E e) = convertLHExpr e tcv s m

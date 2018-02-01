@@ -55,6 +55,11 @@ isInt (Lit (LitInt x)) f = f x
 isInt (App _ (Lit (LitInt x))) f = f x
 isInt _ _ = False
 
+appNth :: Expr -> Int -> (Expr -> Bool) -> Bool
+appNth e 0 p = p e
+appNth (App _ e) i p = appNth e (i - 1) p
+appNth _ _ _ = False
+
 isIntT :: Type -> Bool
 isIntT (TyConApp (Name "Int" _ _) _) = True
 isIntT _ = False
