@@ -44,31 +44,31 @@ notNegativeAt0NegativeAt1 :: Expr
 notNegativeAt0NegativeAt1 = Var (Id (Name "notNegativeAt0NegativeAt1" (Just "HigherOrderMath") 0) TyBottom)
 
 abs2NonNeg :: [Expr] -> Bool
-abs2NonNeg [f, App _ (Lit (LitFloat x))] = f `eqIgT` abs2 && x >= 0
+abs2NonNeg [f, App _ (Lit (LitFloat x)), _] = f `eqIgT` abs2 && x >= 0
 abs2NonNeg _ = False
 
 allabs2NonNeg :: [Expr] -> Bool
-allabs2NonNeg [f, App _ (Lit (LitFloat x))] = not (f `eqIgT` abs3) || x >= 0
+allabs2NonNeg [f, App _ (Lit (LitFloat x)), _] = not (f `eqIgT` abs3) || x >= 0
 allabs2NonNeg _ = True
 
 squareRes :: [Expr] -> Bool
-squareRes [f, App _ (Lit (LitFloat x))] = f `eqIgT` square && (x == 0 || x == 1)
+squareRes [f, App _ (Lit (LitFloat x)), _] = f `eqIgT` square && (x == 0 || x == 1)
 squareRes _ = False
 
 negativeSquareRes :: [Expr] -> Bool
-negativeSquareRes [f] = f `eqIgT` negativeSquare
+negativeSquareRes [f, _] = f `eqIgT` negativeSquare
 negativeSquareRes _ = False
 
 fourthPowerRes :: [Expr] -> Bool
-fourthPowerRes [f, App _ (Lit (LitFloat x))] = f `eqIgT` square && (x == 0 || x == 1)
+fourthPowerRes [f, App _ (Lit (LitFloat x)), _] = f `eqIgT` square && (x == 0 || x == 1)
 fourthPowerRes _ = False
 
 addRes :: [Expr] -> Bool
-addRes [f, App _ (Lit (LitFloat x))] = f `eqIgT` add && x > 0
+addRes [f, App _ (Lit (LitFloat x)), _] = f `eqIgT` add && x > 0
 addRes _ = False
 
 subRes :: [Expr] -> Bool
-subRes [f, App _ (Lit (LitFloat x))] = f `eqIgT` sub && x < 0
+subRes [f, App _ (Lit (LitFloat x)), _] = f `eqIgT` sub && x < 0
 subRes _ = False
 
 approxSqrtRes :: [Expr] -> Bool

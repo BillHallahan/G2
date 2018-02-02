@@ -14,6 +14,8 @@ import qualified GHC as GHC
 
 import Debug.Trace
 
+import qualified Data.HashMap.Lazy as HM
+
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
 createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State -> State
@@ -73,7 +75,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
 convertDefs :: State -> TCValues -> M.Map Name Type -> LHId -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
 convertDefs s@(State {type_env = tenv}) tcv m lhid bnds (Def { ctor = dc, dsort = srt, body = b, binds = bds}) =
     let
-        dc'@(DataCon n t _) = mkData dc
+        dc'@(DataCon n t _) = mkData HM.empty HM.empty dc
         (TyConApp tn _) = returnType t
         dc'' = getDataConNameMod tenv tn n
         

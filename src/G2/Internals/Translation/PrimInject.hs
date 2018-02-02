@@ -198,10 +198,8 @@ mergeProgs prog prims =
 
         n_pairs = getNPairs ns_progs prims
     in
-    -- error $ intercalate "\n" $ (map show n_pairs) ++ ["------------"] ++ (map show ns)
-    -- error $ (intercalate "\n" (map show ns_progs)) ++ "\n-----------------\n" ++
-    --         (intercalate "\n" (map show ns_prims))
-    foldr (uncurry rename) (prog ++ prims') n_pairs 
+    -- foldr (uncurry rename) (prog ++ prims') n_pairs
+    prog ++ prims'
 
 getNPairs :: [Name] -> Program -> [(Name, Name)]
 -- getNPairs ns_prog prims = getNPairs' (sortOn nameOccStr ns_prog) (sortOn nameOccStr $ nub $ names $ map fst $ concat prims)
@@ -231,7 +229,8 @@ mergeProgTys prog prog' progTys primTys =
         tne = nub $ filter (isUpper . head . strName) $ concatMap tyNames prog
         tL = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) tne) tn
     in
-    foldr (uncurry rename) (prog', progTys ++ primTys) (dcL ++ tL)
+    --foldr (uncurry rename) (prog', progTys ++ primTys) (dcL ++ tL)
+    (prog', progTys ++ primTys)
 
 mergeTCs :: [(Name, Id, [Id])] -> Program -> ([(Name, Id, [Id])])
 mergeTCs tc prog =

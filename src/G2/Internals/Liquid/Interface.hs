@@ -83,7 +83,7 @@ measureSpecs = concatMap (gsMeasures . spec)
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do
-    let i = mkId v
+    let i = mkIdUnsafe v
 
     let doc = PPR.rtypeDoc Full $ val r
     putStrLn $ show i

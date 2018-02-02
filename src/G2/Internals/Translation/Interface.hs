@@ -1,6 +1,7 @@
 module G2.Internals.Translation.Interface where
 
 import Data.List
+import qualified Data.HashMap.Lazy as HM
 
 import G2.Internals.Language
 import G2.Internals.Translation.Cabal
@@ -12,18 +13,19 @@ translateLoaded :: FilePath -> FilePath -> FilePath -> Bool -> Maybe FilePath
                 -> IO (String, Program, [ProgramType], [(Name, Id, [Id])])
 translateLoaded proj src prelude simpl m_mapsrc = do
     let basedir = dropWhileEnd (/= '/') prelude
-    (tgt_name, data_prog, prog_tys, prog_cls) <- hskToG2 proj src simpl
+    (base_name, base_prog, base_tys, base_cls, base_nm, base_tm) <- hskToG2 basedir prelude HM.empty HM.empty simpl
+
+    (map_prog, map_tys, map_cls, map_nm, map_tm) <- case m_mapsrc of
+        Nothing -> return ([], [], [], base_nm, base_tm)
+        Just mapsrc -> do
+          let mapdir = dropWhileEnd (/= '/') mapsrc
+          (_, map_prog, map_tys, map_cls, map_nm, map_tm) <- hskToG2 mapdir mapsrc base_nm base_tm simpl
+          return (map_prog, map_tys, map_cls, map_nm, map_tm)
+
+    (tgt_name, data_prog, prog_tys, prog_cls, _, _) <- hskToG2 proj src map_nm map_tm simpl
 
     -- print data_prog
     -- prims <- mkPrims primsF
-    (base_name, base_prog, base_tys, base_cls) <- hskToG2 basedir prelude simpl
-
-    (map_prog, map_tys, map_cls) <- case m_mapsrc of
-        Nothing -> return ([], [], [])
-        Just mapsrc -> do
-          let mapdir = dropWhileEnd (/= '/') mapsrc
-          (_, map_prog, map_tys, map_cls) <- hskToG2 mapdir mapsrc simpl
-          return (map_prog, map_tys, map_cls)
 
     -- mapM_ print base_prog
     -- mapM_ print map_prog
@@ -91,9 +93,6 @@ translateLoaded proj src prelude simpl m_mapsrc = do
 
     return (tgt_name, fin_prog, fin_tys, classes)
 -}
-
-translation :: FilePath -> FilePath -> Bool -> IO (String, Program, [ProgramType], [(Name, Id, [Id])])
-translation = hskToG2
 
 prepBase :: FilePath -> IO ()
 prepBase destination = do

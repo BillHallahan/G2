@@ -52,3 +52,10 @@ sumSameOneOfs _ _ = die "A and B given"
 {-@ die :: {x:String| false} -> a @-}
 die :: String -> a
 die s = error s
+
+{-@ measure addsToLarger :: C -> Bool
+	addsToLarger (C x) = x < x + x @-}
+
+{-@ addsToLarger' :: {c:C | addsToLarger c} @-}
+addsToLarger' :: C
+addsToLarger' = C 0
