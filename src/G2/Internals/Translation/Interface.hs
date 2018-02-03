@@ -16,6 +16,8 @@ translateLoaded proj src prelude simpl m_mapsrc = do
     let basedir = dropWhileEnd (/= '/') prelude
     (base_name, base_prog, base_tys, base_cls, base_nm, base_tm) <- hskToG2 basedir prelude HM.empty HM.empty simpl
 
+    let base_prog' = addPrimsToBase base_prog
+
     (map_prog, map_tys, map_cls, map_nm, map_tm) <- case m_mapsrc of
         Nothing -> return ([], [], [], base_nm, base_tm)
         Just mapsrc -> do
@@ -32,7 +34,7 @@ translateLoaded proj src prelude simpl m_mapsrc = do
     -- mapM_ print map_prog
     -- error "STOPPP"
 
-    let lib_prog0 = mergeProgs base_prog map_prog
+    let lib_prog0 = mergeProgs base_prog' map_prog
     let (lib_prog1, lib_tys) = mergeProgTys lib_prog0 lib_prog0 base_tys map_tys
     let lib_cls = base_cls ++ map_cls
 

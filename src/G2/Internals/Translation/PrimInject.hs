@@ -5,6 +5,7 @@
 module G2.Internals.Translation.PrimInject
     ( primInject
     , dataInject
+    , addPrimsToBase
     , mergeProgs
     , mergeProgTys
     , mergeTCs
@@ -178,26 +179,19 @@ nameStrEq (Name n m _) (Name n' m' _) =
                      , m' `elem` (map (Just . snd) $ filter ((== m) . Just . fst) equivMods)
                      ])
 
-replaceFromPD :: [Name] -> Id -> Expr -> (Id, Expr)
-replaceFromPD ns (Id n t) e =
+replaceFromPD :: Id -> Expr -> (Id, Expr)
+replaceFromPD i@(Id n t) e =
     let
-        n' = maybe n id $ find (nameStrEq n) ns
-
         e' = fmap snd $ find ((==) (nameOccStr n) . fst) primDefs
     in
-    (Id n' t, maybe e id e')
+    (i, maybe e id e')
 
+
+addPrimsToBase :: Program -> Program
+addPrimsToBase prims = map (map (uncurry replaceFromPD)) prims
 
 mergeProgs :: Program -> Program -> Program
-mergeProgs prog prims =
-    let
-        ns_progs = nub $ names prog
-        ns_prims = nub $ names prims
-        ns = union ns_progs ns_prims
-
-        prims' = map (map (uncurry (replaceFromPD ns))) prims
-    in
-    prog ++ prims'
+mergeProgs prog prims = prog ++ prims
 
 -- The prog is used to change the names of types in the prog' and primTys
 mergeProgTys :: Program -> Program -> [ProgramType] -> [ProgramType] -> (Program, [ProgramType])
