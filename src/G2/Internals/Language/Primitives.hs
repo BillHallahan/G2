@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Language.Primitives where
 
 import qualified G2.Internals.Language.ExprEnv as E 
@@ -5,8 +7,9 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
 import Data.Foldable
+import qualified Data.Text as T
 
-primStr :: Primitive -> String
+primStr :: Primitive -> T.Text
 primStr Ge = ">="
 primStr Gt = ">"
 primStr Eq = "=="
@@ -29,7 +32,7 @@ primStr ToInteger = "toInteger"
 primStr Error = "error"
 primStr Undefined = "undefined"
 
-strToPrim :: String -> Maybe Primitive
+strToPrim :: T.Text -> Maybe Primitive
 strToPrim "not" = Just Not
 strToPrim "&&" = Just And
 strToPrim "||" = Just Or
@@ -51,7 +54,7 @@ strToPrim "iff" = Just Iff
 strToPrim _ = Nothing
 
 findPrim :: Primitive -> [(Name, Type)] -> (Name, Type)
-findPrim prim [] = error $ "findPrim: not found: " ++ primStr prim
+findPrim prim [] = error $ "findPrim: not found: " ++ (T.unpack $ primStr prim)
 findPrim prim (p@(Name occ _ _, _):ps) =
     if primStr prim == occ then p else findPrim prim ps
 

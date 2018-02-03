@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Language.Naming
     ( nameOccStr
@@ -45,18 +46,20 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.List.Utils
+import Data.String
+import qualified Data.Text as T
 
-nameOccStr :: Name -> String
+nameOccStr :: Name -> T.Text
 nameOccStr (Name occ _ _) = occ
 
-data NameGen = NameGen { max_uniq :: (HM.HashMap (String, Maybe String) Int)
+data NameGen = NameGen { max_uniq :: (HM.HashMap (T.Text, Maybe T.Text) Int)
                        , dc_children :: (HM.HashMap Name [Name]) }
                 deriving (Show, Eq, Read)
 
 -- This relies on NameCleaner eliminating all '_', to preserve uniqueness
 nameToStr :: Name -> String
-nameToStr (Name n (Just m) i) = n ++ "_m_" ++ m ++ "_" ++ show i
-nameToStr (Name n Nothing i) = n ++ "_n__" ++ show i
+nameToStr (Name n (Just m) i) = T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
+nameToStr (Name n Nothing i) = T.unpack n ++ "_n__" ++ show i
 
 -- Inverse of nameToStr
 strToName :: String -> Name
@@ -66,7 +69,7 @@ strToName str =
         (m, _:i) = break ((==) '_') mi
         m' = if q == 'm' then Just m else Nothing
     in
-    Name n m' (read i :: Int)
+    Name (T.pack n) (fmap T.pack m') (read i :: Int)
 
 mkNameGen :: Program -> [ProgramType] -> NameGen
 mkNameGen prog progTypes =
@@ -428,11 +431,11 @@ instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d, Named e) => Na
 
     rename old new (a, b, c, d, e) = (rename old new a, rename old new b, rename old new c, rename old new d, rename old new e)
 
-freshSeededString :: String -> NameGen -> (Name, NameGen)
-freshSeededString s = freshSeededName (Name s Nothing 0)
+freshSeededString :: T.Text -> NameGen -> (Name, NameGen)
+freshSeededString t = freshSeededName (Name t Nothing 0)
 
-freshSeededStrings :: [String] -> NameGen -> ([Name], NameGen)
-freshSeededStrings s = freshSeededNames (map (\s' -> Name s' Nothing 0) s)
+freshSeededStrings :: [T.Text] -> NameGen -> ([Name], NameGen)
+freshSeededStrings t = freshSeededNames (map (\t' -> Name t' Nothing 0) t)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _) (NameGen { max_uniq = hm, dc_children = chm }) =

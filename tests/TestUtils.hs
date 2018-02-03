@@ -1,4 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module TestUtils where
+
+import qualified Data.Text as T
 
 import G2.Internals.Language
 
@@ -19,11 +23,11 @@ eqIgIds (Id n _) (Id n' _) = eqIgNames n n'
 eqIgNames :: Name -> Name -> Bool
 eqIgNames (Name n m _) (Name n' m' _) = n == n' && m == m'
 
-typeNameIs :: Type -> String -> Bool
+typeNameIs :: Type -> T.Text -> Bool
 typeNameIs (TyConApp (Name n _ _) _) s = n == s
 typeNameIs _ _ = False
 
-dcHasName :: String -> Expr -> Bool
+dcHasName :: T.Text -> Expr -> Bool
 dcHasName s (Data (DataCon (Name n _ _) _ _)) = s == n
 dcHasName _ _ = False
 
@@ -31,12 +35,12 @@ isBool :: Expr -> Bool
 isBool (Data (DataCon _ (TyConApp (Name "Bool" _ _) _) _)) = True
 isBool _ = False
 
-dcInAppHasName :: String -> Expr -> Int -> Bool
+dcInAppHasName :: T.Text -> Expr -> Int -> Bool
 dcInAppHasName s (Data (DataCon (Name n _ _) _ _)) 0 = s == n
 dcInAppHasName s (App a _) n = dcInAppHasName s a (n - 1)
 dcInAppHasName _ _ _ = False
 
-buriedDCName :: String -> Expr -> Bool
+buriedDCName :: T.Text -> Expr -> Bool
 buriedDCName s (App a _) = buriedDCName s a
 buriedDCName s (Data (DataCon (Name n _ _) _ _)) = s == n
 buriedDCName _ _ = False

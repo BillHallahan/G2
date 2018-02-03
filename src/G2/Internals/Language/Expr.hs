@@ -1,5 +1,6 @@
 {-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , replaceVar

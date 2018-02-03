@@ -490,7 +490,7 @@ rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
 
 convertLHExpr :: Ref.Expr -> TCValues -> State -> M.Map Name Type -> Expr
-convertLHExpr (ESym (SL t)) _ _ _ = Var $ Id (Name (T.unpack t) Nothing 0) TyBottom
+convertLHExpr (ESym (SL t)) _ _ _ = Var $ Id (Name t Nothing 0) TyBottom
 convertLHExpr (ECon c) _ (State {known_values = kv, type_env = tenv}) _ = convertCon kv tenv c
 convertLHExpr (EVar s) _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m
 convertLHExpr (EApp e e') tcv s@(State {type_classes = tc}) m =
@@ -636,8 +636,8 @@ symbolName s =
         m' = T.dropEnd i m
     in
     case (m', n) of
-        (n', "") -> Name (T.unpack n') Nothing 0
-        _ -> Name (T.unpack n) (Just $ T.unpack m') 0
+        (n', "") -> Name n' Nothing 0
+        _ -> Name n (Just m') 0
 
 convertCon :: KnownValues -> TypeEnv -> Constant -> Expr
 convertCon kv tenv (Ref.I i) = App (mkDCInteger kv tenv) (Lit . LitInt $ fromIntegral i)

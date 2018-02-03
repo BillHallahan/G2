@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | Primitive inejction into the environment
 module G2.Internals.Translation.PrimInject
@@ -19,6 +20,7 @@ import G2.Internals.Translation.Haskell
 import Data.Char
 import Data.List
 import Data.Maybe
+import qualified Data.Text as T
 
 primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
 primInject = modifyASTs primInjectT
@@ -56,8 +58,7 @@ occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
                          then Just n
                          else occFind key ns
 
-primDefs :: [(String, Expr)]
-
+primDefs :: [(T.Text, Expr)]
 primDefs = [ ("==#", Prim Eq TyBottom)
            , ("/=#", Prim Neq TyBottom)
            , ("+#", Prim Plus TyBottom)
@@ -139,7 +140,7 @@ primDefs = [ (".+#", Prim Plus TyBottom)
            , ("undefined", Prim Error TyBottom)]
 -}
 
-equivMods :: [(String, String)]
+equivMods :: [(T.Text, T.Text)]
 equivMods = [ ("GHC.Classes", "GHC.Classes2")
             , ("GHC.Types", "GHC.Types2")
             , ("GHC.Integer", "GHC.Integer2")
@@ -195,41 +196,12 @@ mergeProgs prog prims =
         ns = union ns_progs ns_prims
 
         prims' = map (map (uncurry (replaceFromPD ns))) prims
-
-        n_pairs = getNPairs ns_progs prims
     in
-    -- foldr (uncurry rename) (prog ++ prims') n_pairs
     prog ++ prims'
-
-getNPairs :: [Name] -> Program -> [(Name, Name)]
--- getNPairs ns_prog prims = getNPairs' (sortOn nameOccStr ns_prog) (sortOn nameOccStr $ nub $ names $ map fst $ concat prims)
-getNPairs ns_prog prims = getNPairs' (sortOn decomposeName ns_prog) (sortOn decomposeName $ nub $ names prims)
-
-getNPairs' :: [Name] -> [Name] -> [(Name, Name)]
-getNPairs' prog@(n1:prog') prims@(n2:prims') = 
-    let
-        xs = if n1 < n2 then getNPairs' prog' prims else getNPairs' prog prims'
-        xs' = getNPairs' prog' prims'
-    in
-    if nameStrEq n1 n2 then (n2, n1):xs' else xs
-getNPairs' _ _ = []
-
-decomposeName :: Name -> (String, Maybe String)
-decomposeName (Name n m _) = (n, m)
 
 -- The prog is used to change the names of types in the prog' and primTys
 mergeProgTys :: Program -> Program -> [ProgramType] -> [ProgramType] -> (Program, [ProgramType])
 mergeProgTys prog prog' progTys primTys =
-    let
-        dcNT = nub $ filter (isUpper . head . strName) $ dataNames prog ++ (mapMaybe dataConName $ concatMap (dataCon . snd) primTys)
-        dcNE = nub $ filter (isUpper . head . strName) $ dataNames prog
-        dcL = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) dcNE) dcNT
-
-        tn = nub $ filter (isUpper . head . strName) $ map fst primTys
-        tne = nub $ filter (isUpper . head . strName) $ concatMap tyNames prog
-        tL = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) tne) tn
-    in
-    --foldr (uncurry rename) (prog', progTys ++ primTys) (dcL ++ tL)
     (prog', progTys ++ primTys)
 
 mergeTCs :: [(Name, Id, [Id])] -> Program -> ([(Name, Id, [Id])])
@@ -241,29 +213,3 @@ mergeTCs tc prog =
     rep = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) nsp) nstc 
   in
   foldr (uncurry rename) tc rep
-
-dataConName :: DataCon -> Maybe Name
-dataConName (DataCon n _ _) = Just n
-dataConName _ = Nothing
-
-dataNames :: ASTContainer m Expr => m -> [Name]
-dataNames = evalASTs dataNames'
-
-dataNames' :: Expr -> [Name]
-dataNames' (Var (Id n _)) = [n]
-dataNames' (Case _ _ as) = mapMaybe dataNames'' as
-dataNames' _ = []
-
-dataNames'' :: Alt -> Maybe Name
-dataNames'' (Alt (DataAlt (DataCon n _ _) _) _) = Just n
-dataNames'' _ = Nothing
-
-tyNames :: ASTContainer m Type => m -> [Name]
-tyNames = evalASTs tyNames'
-
-tyNames' :: Type -> [Name]
-tyNames' (TyConApp n _) = [n]
-tyNames' _ = []
-
-strName :: Name -> String
-strName (Name n _ _) = n

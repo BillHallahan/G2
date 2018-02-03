@@ -1,9 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Translation.InjectSpecials
   ( injectSpecials
   ) where
 
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Text as T
 
 import G2.Internals.Language
 
@@ -11,7 +14,7 @@ import Debug.Trace
 
 _MAX_TUPLE = 62
 
-specials :: [(String, [String])]
+specials :: [(T.Text, [T.Text])]
 specials = [ ("[]", ["[]", ":"])
            , ("~", [])
            , ("~~", [])]
@@ -26,9 +29,9 @@ specials = [ ("[]", ["[]", ":"])
            ++
            (map (\t -> (t, [t])) $ mkTuples _MAX_TUPLE)
 
-mkTuples :: Int -> [String]
+mkTuples :: Int -> [T.Text]
 mkTuples n | n < 0    = []
-           | otherwise = ("(" ++ replicate n ',' ++ ")") : mkTuples (n - 1)
+           | otherwise = ("(" `T.append` T.pack (replicate n ',') `T.append` ")") : mkTuples (n - 1)
 
 
 isNameSpecial :: Name -> Bool

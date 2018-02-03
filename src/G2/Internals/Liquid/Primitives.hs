@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Liquid.Primitives where
 
 import G2.Internals.Language.Expr

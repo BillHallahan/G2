@@ -2,6 +2,7 @@ module G2.Internals.Translation.Interface where
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Text as T
 
 import G2.Internals.Language
 import G2.Internals.Translation.Cabal
@@ -10,7 +11,7 @@ import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
 
 translateLoaded :: FilePath -> FilePath -> FilePath -> Bool -> Maybe FilePath
-                -> IO (String, Program, [ProgramType], [(Name, Id, [Id])])
+                -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])])
 translateLoaded proj src prelude simpl m_mapsrc = do
     let basedir = dropWhileEnd (/= '/') prelude
     (base_name, base_prog, base_tys, base_cls, base_nm, base_tm) <- hskToG2 basedir prelude HM.empty HM.empty simpl
@@ -52,7 +53,7 @@ translateLoaded proj src prelude simpl m_mapsrc = do
 
     -- error "HALT"
 
-    return (tgt_name, final_prog, final_tys, classes)
+    return (T.pack tgt_name, final_prog, final_tys, classes)
     -- return (tgt_name, merged_prog1, merged_tys, classes)
 
 {-

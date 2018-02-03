@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Liquid.Measures (Measures, createMeasures) where
 
 import G2.Internals.Language

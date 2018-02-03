@@ -9,6 +9,7 @@ module G2.Internals.Language.Syntax
 
 import GHC.Generics (Generic)
 import Data.Hashable
+import qualified Data.Text as T
 
 -- | The native GHC defintion states that a `Program` is a list of `Binds`.
 type Program = [Binds]
@@ -24,7 +25,7 @@ type Binds = [(Id, Expr)]
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
-data Name = Name String (Maybe String) Int deriving (Show, Eq, Read, Ord, Generic)
+data Name = Name T.Text (Maybe T.Text) Int deriving (Show, Eq, Read, Ord, Generic)
 
 instance Hashable Name
 

@@ -24,6 +24,7 @@ import  Language.Fixpoint.Types.Names
 import Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.Time
+import qualified Data.Text as T
 
 import qualified GHC as GHC
 import Var
@@ -35,7 +36,7 @@ import G2.Internals.Language.KnownValues
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> String -> Maybe FilePath -> Int -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> Maybe FilePath -> Int -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 findCounterExamples proj primF fp entry m_mapsrc steps = do
     ghcInfos <- getGHCInfos proj [fp]
     let specs = funcSpecs ghcInfos

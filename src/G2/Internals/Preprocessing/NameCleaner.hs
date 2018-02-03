@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- | NameCleaner
 -- Adjusts all names in a state to ensure they will not cause problems in the SMT solver
 -- In particular, we make sure that:
@@ -10,6 +12,7 @@ module G2.Internals.Preprocessing.NameCleaner
 
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Text as T
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
@@ -28,9 +31,9 @@ allowedSymbol = allowedStartSymbols ++ ['0'..'9'] ++ ['@', '.']
 
 allowedName :: Name -> Bool
 allowedName (Name n m _) =
-       all (`elem` allowedSymbol) n
-    && all (`elem` allowedSymbol) (maybe "" (id) m)
-    && (head n) `elem` allowedStartSymbols
+       T.all (`elem` allowedSymbol) n
+    && T.all (`elem` allowedSymbol) (maybe "" (id) m)
+    && (T.head n) `elem` allowedStartSymbols
 
 cleanNames :: State -> State
 cleanNames s = cleanNames' s (L.nub $ allNames s)
@@ -41,12 +44,12 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns)
     | allowedName name = cleanNames' s ns
     | otherwise =
     let
-        n' = filter (\x -> x `elem` allowedSymbol) n
-        m' = fmap (filter $ \x -> x `elem` allowedSymbol) m
+        n' = T.filter (\x -> x `elem` allowedSymbol) n
+        m' = fmap (T.filter $ \x -> x `elem` allowedSymbol) m
 
         -- No reserved symbols start with a $, so this ensures both uniqueness
         -- and starting with an allowed symbol
-        n'' = "$" ++ n'
+        n'' = "$" `T.append` n'
 
         (new_name, ng') = freshSeededName (Name n'' m' i) ng
 

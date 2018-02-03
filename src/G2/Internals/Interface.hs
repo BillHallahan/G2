@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Interface ( initState
                               , addPolyPred
                               , addHigherOrderWrappers
@@ -26,15 +28,14 @@ import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
-import Debug.Trace as T
-
 import qualified Data.Map as M
 import qualified Data.List as L
 import Data.Maybe
+import qualified Data.Text as T
 
 import G2.Lib.Printers
 
-initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe String -> Maybe String -> Maybe String -> Bool -> String -> Maybe String -> State
+initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> State
 initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     let
         eenv = mkExprEnv prog

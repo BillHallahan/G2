@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Lib.Printers where
 
 import qualified G2.Internals.Language.ExprEnv as E
@@ -16,6 +18,7 @@ import Data.Coerce
 import Data.List
 import qualified Data.Map as M
 import Data.Time
+import qualified Data.Text as T
 
 timedMsg :: String -> IO ()
 timedMsg msg = do
@@ -169,7 +172,7 @@ mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 
 mkNameHaskell :: Name -> String
-mkNameHaskell (Name n _ _) = n
+mkNameHaskell (Name n _ _) = T.unpack n
 
 mkCleanExprHaskell :: KnownValues -> TypeClasses -> Expr -> String
 mkCleanExprHaskell kv tc = mkExprHaskell . modifyFix (mkCleanExprHaskell' kv tc)

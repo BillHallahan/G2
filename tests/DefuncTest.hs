@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module DefuncTest where
 
 import G2.Internals.Language

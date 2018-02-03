@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | Reduction Rules for Stack Execution Semantics
 module G2.Internals.Execution.Rules

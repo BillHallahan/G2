@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- This module generates functions in the expr_env that walk over the whole structure of an ADT.
 -- This forces evaluation of the ADT
 module G2.Internals.Initialization.DeepSeqWalks (createDeepSeqWalks) where
@@ -7,6 +9,7 @@ import G2.Internals.Language
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Text as T
 
 type BoundName = Name
 
@@ -18,7 +21,7 @@ createDeepSeqWalks eenv tenv ng =
     createFuncs eenv ng tenv' M.empty (createDeepSeqName . fst) createDeepSeqStore (createDeepSeqExpr tenv)
 
 createDeepSeqName ::  Name -> Name
-createDeepSeqName (Name n _ _) = Name ("walk" ++ n) Nothing 0
+createDeepSeqName (Name n _ _) = Name ("walk" `T.append` n) Nothing 0
 
 createDeepSeqStore :: (Name, AlgDataTy) -> Name -> Walkers -> Walkers
 createDeepSeqStore (n, adt) n' w =

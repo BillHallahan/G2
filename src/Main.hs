@@ -1,9 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import System.Environment
 
 import Data.List as L
 import Data.Maybe
+import qualified Data.Text as T
 
 import System.Directory
 
@@ -53,9 +56,9 @@ main = do
 
             -- putStrLn $ show lh_names
 
-            in_out <- findCounterExamples proj prims l f m_mapsrc n_val
+            in_out <- findCounterExamples proj prims l (T.pack f) m_mapsrc n_val
 
-            printLHOut f in_out
+            printLHOut (T.pack f) in_out
             
     
         _ -> runGHC as
@@ -80,12 +83,14 @@ runGHC as = do
 
     let m_mapsrc = mkMapSrc tail_args
 
+    let tentry = T.pack entry
+
     -- timedMsg "one"
 
     (mod_name, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src lib True m_mapsrc
 
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
-    let init_state = initState binds tycons cls m_assume m_assert m_reaches (isJust m_assert || isJust m_reaches) entry (Just mod_name)
+    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry (Just mod_name)
 
     -- error $ pprExecStateStr init_state
 
@@ -118,10 +123,10 @@ runGHC as = do
 
     -- putStrLn "----------------\n----------------"
 
-    printFuncCalls entry in_out
+    printFuncCalls tentry in_out
 
 
-printLHOut :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printLHOut :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printLHOut entry =
     mapM_ (\(s, _, inArg, ex, ais) -> do
         let funcCall = mkCleanExprHaskell (known_values s) (type_classes s) 
@@ -145,14 +150,14 @@ printLHOut entry =
         if funcCall == args && funcOut == out then do
             putStrLn "The call "
             putStrLn $ funcCall ++ " = " ++ funcOut
-            putStrLn $ "violates " ++ entry ++ "'s refinement type.\n"
+            putStrLn $ "violates " ++ (show entry) ++ "'s refinement type.\n"
         else do
             putStrLn $ funcCall ++ " = " ++ funcOut
             putStrLn $ "makes a call to"
             putStrLn $ args ++ " = " ++ out
-            putStrLn $ "violating " ++ n ++ "'s refinement type\n")
+            putStrLn $ "violating " ++ (show n) ++ "'s refinement type\n")
 
-printFuncCalls :: String -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printFuncCalls :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printFuncCalls entry =
     mapM_ (\(s, _, inArg, ex, ais) -> do
         let funcCall = mkCleanExprHaskell (known_values s) (type_classes s)

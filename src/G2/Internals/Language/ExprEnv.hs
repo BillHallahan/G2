@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Language.ExprEnv
     ( ExprEnv
@@ -51,6 +52,7 @@ import Data.Coerce
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Text as T
 
 import Debug.Trace
 
@@ -102,14 +104,14 @@ isSymbolic n eenv@(ExprEnv eenv') =
         _ -> False
 
 -- TODO -- This seems kinda too much like a special case to be here...
-occLookup :: String -> Maybe String -> ExprEnv -> Maybe Expr
+occLookup :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
 occLookup n m (ExprEnv eenv) = 
     let ex = L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) $ eenv
     in
     fmap (\(n', e) -> Var $ Id n' (typeOf e)) ex
 
-lookupNameMod :: String -> Maybe String -> ExprEnv -> Maybe (Name, Expr)
+lookupNameMod :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =
     listToMaybe . L.filter (\(Name n m _, _) -> ns == n && ms == m) . toExprList
 

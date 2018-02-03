@@ -27,6 +27,7 @@ import G2.Internals.Language.TypeEnv
 import G2.Internals.Language.PathConds
 
 import qualified Data.Map as M
+import qualified Data.Text as T
 
 -- | The State is something that is passed around in G2. It can be utilized to
 -- perform defunctionalization, execution, and SMT solving.
@@ -87,7 +88,7 @@ type Wrappers = [(Type, Id)]
 type CleanedNames = M.Map Name Name
 
 -- | Naive expression lookup by only the occurrence name string.
-naiveLookup :: String -> E.ExprEnv -> [(Name, Expr)]
+naiveLookup :: T.Text -> E.ExprEnv -> [(Name, Expr)]
 naiveLookup key = filter (\(Name occ _ _, _) -> occ == key) . E.toExprList
 
 emptyFuncInterps :: FuncInterps

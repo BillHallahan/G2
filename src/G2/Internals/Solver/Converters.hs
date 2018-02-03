@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | Converters
 -- This contains functions to switch from
@@ -18,6 +19,7 @@ module G2.Internals.Solver.Converters
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Text as T
 
 -- import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Language.Naming
@@ -282,7 +284,7 @@ smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
-    Data (DataCon (Name (show b) Nothing 0) (TyConApp (Name "Bool" Nothing 0) []) [])
+    Data (DataCon (Name (T.pack $ show b) Nothing 0) (TyConApp (Name "Bool" Nothing 0) []) [])
 smtastToExpr (Cons n smts s) =
     foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon (strToName n) (sortToType s) [])) smts
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)

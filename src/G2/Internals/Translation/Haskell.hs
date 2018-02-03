@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- | Haskell Translation
 module G2.Internals.Translation.Haskell
     ( CompileClosure
@@ -42,6 +44,7 @@ import qualified Outputable as Out
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Text as T
 
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
@@ -60,10 +63,10 @@ rawDump fp = do
   str <- mkIOString core
   putStrLn str
 
-type NameMap = HM.HashMap (String, Maybe String) G2.Name
-type TypeNameMap = HM.HashMap (String, Maybe String) G2.Name
+type NameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
+type TypeNameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 
-equivMods :: HM.HashMap String String
+equivMods :: HM.HashMap T.Text T.Text
 equivMods = HM.fromList
             [ ("GHC.Classes2", "GHC.Classes")
             , ("GHC.Types2", "GHC.Types")
@@ -190,11 +193,11 @@ mkIdUpdatingNM vid nm tm =
 mkName :: Name -> G2.Name
 mkName name = G2.Name occ mdl unq
   where
-    occ = (occNameString . nameOccName) name
+    occ = T.pack . occNameString . nameOccName $ name
     unq = (getKey . nameUnique) name
     mdl = case nameModule_maybe name of
               Nothing -> Nothing
-              Just md -> switchModule ((moduleNameString . moduleName) md)
+              Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
 
 mkNameLookup :: Name -> NameMap -> G2.Name
 mkNameLookup name nm =
@@ -204,13 +207,13 @@ mkNameLookup name nm =
                     Just n' -> n'
                     Nothing -> G2.Name occ mdl unq
     where
-        occ = (occNameString . nameOccName) name
-        unq = (getKey . nameUnique) name
+        occ = T.pack . occNameString . nameOccName $ name
+        unq = getKey . nameUnique $ name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
-                  Just md -> switchModule ((moduleNameString . moduleName) md)
+                  Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
 
-switchModule :: String -> Maybe String
+switchModule :: T.Text -> Maybe T.Text
 switchModule m =
     case HM.lookup m equivMods of
         Just m'' -> Just m''

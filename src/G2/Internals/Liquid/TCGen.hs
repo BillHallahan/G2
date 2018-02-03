@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Liquid.TCGen (createLHTC) where
 
 import G2.Internals.Language
@@ -8,8 +10,7 @@ import Data.Coerce
 import Data.Foldable
 import qualified Data.Map as M
 import Data.Maybe
-
-import Debug.Trace
+import qualified Data.Text as T
 
 ---------------------------------------
 -- LH TypeClass Gen
@@ -82,7 +83,7 @@ genTCFuncs lh eenv tenv ti ng dc (n:ns) ws =
     genTCFuncs lh eenv' tenv ti' ng' dc ns ws
 
 lhFuncName :: Name -> NameGen -> (Name, NameGen)
-lhFuncName (Name n _ _) ng = freshSeededString ("lh" ++ n ++ "Func") ng
+lhFuncName (Name n _ _) ng = freshSeededString ("lh" `T.append` n `T.append` "Func") ng
 
 -- | accessFunction
 --Create a function to access a TC function from the ADT
@@ -185,7 +186,7 @@ boundNameBindings lhTC adt ng =
 
 
 lhEqName :: Name -> Name
-lhEqName (Name n _ _) = Name ("lhEqName" ++ n) Nothing 0
+lhEqName (Name n _ _) = Name ("lhEqName" `T.append` n) Nothing 0
 
 lhTEnvExpr :: Name -> Case2Alts -> FuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhTEnvExpr lhTC ca fc eenv tenv kv w (n, adt) ng =
@@ -304,7 +305,7 @@ eqFunc w _ t@(TyConApp n _)
        Var f
 
 lhNeqName :: Name -> Name
-lhNeqName (Name n _ _) = Name ("lhNeName" ++ n) Nothing 0
+lhNeqName (Name n _ _) = Name ("lhNeName" `T.append` n) Nothing 0
 
 lhNeqExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhNeqExpr eqW eenv w (n, _) ng = 
@@ -328,7 +329,7 @@ lhNeqExpr eqW eenv w (n, _) ng =
     (e, ng')
 
 lhLtName :: Name -> Name
-lhLtName (Name n _ _) = Name ("lhLtName" ++ n) Nothing 0
+lhLtName (Name n _ _) = Name ("lhLtName" `T.append` n) Nothing 0
 
 -- Once we have the first datacon (dc1) selected, we have to branch on all datacons less than dc1
 lhLtCase2Alts :: Expr -> Expr -> Case2Alts
@@ -439,7 +440,7 @@ dataConName (DataCon n _ _) = n
 
 
 lhLeName :: Name -> Name
-lhLeName (Name n _ _) = Name ("lhLeName" ++ n) Nothing 0
+lhLeName (Name n _ _) = Name ("lhLeName" `T.append` n) Nothing 0
 
 lhLeExpr :: Walkers -> Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhLeExpr ltW eqW eenv w (n, _) ng = 
@@ -469,7 +470,7 @@ lhLeExpr ltW eqW eenv w (n, _) ng =
     (e, ng')
 
 lhGtName :: Name -> Name
-lhGtName (Name n _ _) = Name ("lhGtName" ++ n) Nothing 0
+lhGtName (Name n _ _) = Name ("lhGtName" `T.append` n) Nothing 0
 
 lhGtExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhGtExpr ltW eenv w (n, _) ng = 
@@ -491,7 +492,7 @@ lhGtExpr ltW eenv w (n, _) ng =
     (e, ng')
 
 lhGeName :: Name -> Name
-lhGeName (Name n _ _) = Name ("lhGeName" ++ n) Nothing 0
+lhGeName (Name n _ _) = Name ("lhGeName" `T.append` n) Nothing 0
 
 lhGeExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhGeExpr leW eenv w (n, _) ng = 
@@ -521,7 +522,7 @@ flipLastTwo xs = xs
 -- DataType Ref Gen
 ---------------------------------------
 lhPolyPredName :: Name -> Name
-lhPolyPredName (Name n _ _) = Name ("lhPolyPred" ++ n) Nothing 0
+lhPolyPredName (Name n _ _) = Name ("lhPolyPred" `T.append` n) Nothing 0
 
 lhPolyPred :: ExprEnv -> TypeEnv -> Name -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhPolyPred eenv tenv lhTC kv w (n, adt) ng =

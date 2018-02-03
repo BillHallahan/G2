@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Initialization.MkCurrExpr ( mkCurrExpr
                                               , checkReaches ) where
 
@@ -7,10 +9,11 @@ import qualified G2.Internals.Language.ApplyTypes as AT
 
 import Data.List
 import Data.Maybe
+import qualified Data.Text as T
 
 import Debug.Trace
 
-mkCurrExpr :: Maybe String -> Maybe String -> String -> Maybe String -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
+mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
 mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv =
     case findFunc s m_mod eenv of
         Left (f, ex) -> 
@@ -57,7 +60,7 @@ mkInputs at ng (t:ts) =
     in
     (var_id:ev, i:ei, ng'')
 
-mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe String -> Maybe String -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
+mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe T.Text -> Maybe T.Text -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
 mkAssumeAssert p (Just f) m_mod var_ids inter pre_ex eenv =
     case findFunc f m_mod eenv of
         Left (f', _) -> 
@@ -68,22 +71,22 @@ mkAssumeAssert p (Just f) m_mod var_ids inter pre_ex eenv =
         Right s -> error s
 mkAssumeAssert _ Nothing _ _ e _ _ = e
 
-findFunc :: String -> Maybe String -> ExprEnv -> Either (Id, Expr) String
+findFunc :: T.Text -> Maybe T.Text -> ExprEnv -> Either (Id, Expr) String
 findFunc s m_mod eenv =
     let
         match = E.toExprList $ E.filterWithKey (\(Name n _ _) _ -> n == s) eenv
     in
     case match of
-        [] -> Right $ "No functions with name " ++ s
+        [] -> Right $ "No functions with name " ++ (T.unpack s)
         [(n, e)] -> Left (Id n (typeOf e) , e)
         pairs -> case m_mod of
             Nothing -> Right $ "Multiple functions with same name. " ++
                                "Wrap the target function in a module so we can try again!"
             Just mod -> case filter (\(Name _ m _, _) -> m == Just mod) pairs of
                 [(n, e)] -> Left (Id n (typeOf e), e)
-                [] -> Right $ "No function with name " ++ s ++ " in module " ++ mod
-                _ -> Right $ "Multiple functions with same name " ++ s ++
-                             " in module " ++ mod
+                [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in module " ++ (T.unpack mod)
+                _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
+                             " in module " ++ (T.unpack mod)
 
 
 -- distinguish between where a Type is being bound and where it is just the type (see argTys)
@@ -144,9 +147,9 @@ typeB :: TypeBT -> Bool
 typeB (B _) = True
 typeB _ = False
 
-checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe String -> Maybe String -> ExprEnv
+checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ _ Nothing m_mod = eenv
 checkReaches eenv tenv kv (Just s) m_mod =
     case findFunc s m_mod eenv of
         Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv tenv) e) eenv
-        Right err -> error err
+        Right err -> error  err
