@@ -116,9 +116,7 @@ addHigherOrderWrappers s@(State { expr_env = eenv, wrappers = w }) f fw argN =
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 run con hhp n (state@ State { type_env = tenv
                             , known_values = kv }) = do
-    -- timedMsg "fuck"
     -- putStrLn . pprExecStateStr $ state
-    -- error "STOPPP"
     -- let swept = state
 
     let swept = markAndSweep state

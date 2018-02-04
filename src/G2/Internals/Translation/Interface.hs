@@ -14,7 +14,7 @@ translateLoaded :: FilePath -> FilePath -> FilePath -> Bool -> Maybe FilePath
                 -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])])
 translateLoaded proj src prelude simpl m_mapsrc = do
     let basedir = dropWhileEnd (/= '/') prelude
-    (base_name, base_prog, base_tys, base_cls, base_nm, base_tm) <- hskToG2 basedir prelude HM.empty HM.empty simpl
+    (base_name, base_prog, base_tys, base_cls, base_nm, base_tm) <- hskToG2 basedir prelude specialConstructors specialTypeNames simpl
 
     let base_prog' = addPrimsToBase base_prog
 
@@ -34,18 +34,19 @@ translateLoaded proj src prelude simpl m_mapsrc = do
     -- mapM_ print map_prog
     -- error "STOPPP"
 
+    let start_tys = base_tys ++ specialTypes
+
     let lib_prog0 = mergeProgs base_prog' map_prog
-    let (lib_prog1, lib_tys) = mergeProgTys lib_prog0 lib_prog0 base_tys map_tys
+    let (lib_prog1, lib_tys) = mergeProgTys lib_prog0 lib_prog0 start_tys map_tys
     let lib_cls = base_cls ++ map_cls
 
     -- mapM_ print lib_prog1
-
 
     let merged_prog0 = mergeProgs data_prog lib_prog1
     let (merged_prog1, merged_tys) = mergeProgTys merged_prog0 merged_prog0 prog_tys lib_tys
     let merged_cls = prog_cls ++ lib_cls
 
-    let (special_prog, special_tys) = injectSpecials merged_tys merged_prog1
+    let (special_prog, special_tys) = (merged_prog1, merged_tys) -- injectSpecials merged_tys merged_prog1
     let (final_prog, final_tys) = primInject $ dataInject special_prog special_tys
 
     let classes = mergeTCs merged_cls merged_prog1

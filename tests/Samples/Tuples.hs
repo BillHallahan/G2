@@ -1,4 +1,4 @@
-module Tupes where
+module Tuples where
 
 addTupleElems :: (Int, Float, Double, Int, Int) -> (Int, Int)
 addTupleElems (a, b, c, d, e) = case a + e of
