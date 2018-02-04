@@ -93,5 +93,5 @@ getNthErrors [cl, App _ (Lit (LitInt i)), Prim Error _] = getNthErr (toCListGen 
 getNthErrors _ = False
 
 cfmapTest :: [Expr] -> Bool
-cfmapTest [_, e, e'] = cListLength (toCListGen e) == cListLength (toCListGenType e')
+cfmapTest [_, e, e'] = cListLength (toCListGen e) == cListLength (toCListGenType e') || isError e'
 cfmapTest _ = False
