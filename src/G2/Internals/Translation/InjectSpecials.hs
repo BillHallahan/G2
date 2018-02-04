@@ -134,8 +134,13 @@ mkTuples n | n < 0    = []
            | otherwise =
                 let
                     s = "(" `T.append` T.pack (replicate n ',') `T.append` ")"
+                    m = Just "GHC.Tuple"
+
+                    ns = if n == 0 then [] else map (Name "a" m) [0..n]
+                    tv = map (TyVar . flip Id TYPE) ns
                 in
-                ((s, Just s, []), [(s, Just s, [])]) : mkTuples (n - 1)
+                ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
+                -- ((s, m, ns), [(s, m, tv)]) : mkTuples (n - 1)
 
 mkTuples' :: Int -> [T.Text]
 mkTuples' n | n < 0    = []

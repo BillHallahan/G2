@@ -150,12 +150,12 @@ printLHOut entry =
         if funcCall == args && funcOut == out then do
             putStrLn "The call "
             putStrLn $ funcCall ++ " = " ++ funcOut
-            putStrLn $ "violates " ++ (show entry) ++ "'s refinement type.\n"
+            putStrLn . T.unpack $ "violates " `T.append` entry `T.append` "'s refinement type.\n"
         else do
             putStrLn $ funcCall ++ " = " ++ funcOut
             putStrLn $ "makes a call to"
             putStrLn $ args ++ " = " ++ out
-            putStrLn $ "violating " ++ (show n) ++ "'s refinement type\n")
+            putStrLn . T.unpack $ "violating " `T.append` n `T.append`"'s refinement type\n")
 
 printFuncCalls :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printFuncCalls entry =

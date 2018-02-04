@@ -14,8 +14,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified GHC as GHC
 
-import Debug.Trace
-
 import qualified Data.HashMap.Lazy as HM
 
 -- Creates measures from LH measure specifications

@@ -484,7 +484,7 @@ rTyConType tenv rtc sts =
     in
     case (not . any isNothing $ ts) of
         True -> fmap (\n' -> TyConApp n' (catMaybes ts)) n
-        False -> Nothing
+        False ->  Nothing
 
 rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s

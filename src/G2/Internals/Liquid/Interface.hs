@@ -23,6 +23,8 @@ import Language.Haskell.Liquid.UX.CmdLine
 import  Language.Fixpoint.Types.Names
 import Language.Fixpoint.Types.PrettyPrint as FPP
 
+import Data.Coerce
+import qualified Data.Map as M
 import Data.Time
 import qualified Data.Text as T
 
@@ -47,26 +49,25 @@ findCounterExamples proj primF fp entry m_mapsrc steps = do
     
     let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry (Just mod_name)
 
-    let no_part_state = elimPartialApp init_state
+    -- We filter the State to clean up the expr env
+    -- We can't do this to the Types, because we don't know what the measures
+    -- will require.
+    let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) {type_env = type_env init_state}
+    let no_part_state = elimPartialApp cleaned_state
 
     let (lh_state, eq_walkers, tcv) = createLHTC no_part_state
 
 
     let lhtc_state = addLHTC lh_state tcv
+    let measure_state = createMeasures lh_measures tcv lhtc_state
 
 
-    let (merged_state, mkv) = mergeLHSpecState specs lhtc_state tcv
-
-    -- We create measures after doing the rest of the conversion
-    -- This is important, so that expressions from measures
-    -- don't get LH typeclasses readded (added twice) to function calls
-    -- or Lambda chains
-    let measure_state = createMeasures lh_measures tcv merged_state
+    let (merged_state, mkv) = mergeLHSpecState specs measure_state tcv
 
     hhp <- getZ3ProcessHandles
 
     -- let beta_red_state = merged_state
-    let beta_red_state = simplifyAsserts mkv measure_state
+    let beta_red_state = simplifyAsserts mkv merged_state
 
     run smt2 hhp steps beta_red_state
 
@@ -81,6 +82,33 @@ funcSpecs = concatMap (gsTySigs . spec)
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)
+
+reqNames :: State -> [Name]
+reqNames (State { expr_env = eenv
+                , type_classes = tc
+                , known_values = kv }) = 
+    Lang.names [ mkGe eenv
+               , mkGt eenv
+               , mkEq eenv
+               , mkNeq eenv
+               , mkLt eenv
+               , mkLe eenv
+               , mkAnd eenv
+               , mkOr eenv
+               , mkNot eenv
+               , mkPlus eenv
+               , mkMinus eenv
+               , mkMult eenv
+               -- , mkDiv eenv
+               -- , mkMod eenv
+               , mkNegate eenv
+               , mkImplies eenv
+               , mkIff eenv
+               , mkFromInteger eenv
+               -- , mkToInteger eenv
+               ]
+    ++
+    Lang.names (M.filterWithKey (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv) (coerce tc :: M.Map Name Class))
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do
