@@ -47,6 +47,9 @@ max' :: Ord a => a -> CList a -> a
 max' x (Cons y xs) = if x > y then max' x xs else max' y xs
 max' x _ = x
 
+maxInt' :: Int -> CList Int -> Int
+maxInt' x xs = max' x xs
+
 sum :: Num a => CList a -> a
 sum xs = foldl (+) 0 xs
 

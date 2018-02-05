@@ -221,7 +221,7 @@ reduce con hpp s is rs = do
     -- let dir = "res/" ++ foldl' (\s i -> s ++ show i ++ "/") "" is
     -- createDirectoryIfMissing True dir
     -- let fn = dir ++ "state" ++ show (length rs) ++ ".txt"
-    -- let write = (intercalate "\n\n" $ map pprExecStateStr sts) ++ "\n\n" ++ show (zip ([1..] :: [Integer]) rs)
+    -- let write = (intercalate "\n\n" $ map pprExecStateStr sts) ++ "\n\n" ++ show (zip ([0..] :: [Integer]) rs)
     -- writeFile fn write
 
     -- putStrLn fn

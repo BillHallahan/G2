@@ -201,11 +201,13 @@ mkName name = G2.Name occ mdl unq
 
 mkNameLookup :: Name -> NameMap -> G2.Name
 mkNameLookup name nm =
-        case HM.lookup (occ, mdl) nm of
-        Just n' -> n'
-        Nothing -> case HM.lookup (occ, Just "PrimDefs") nm of
-                    Just n' -> n'
-                    Nothing -> G2.Name occ mdl unq
+    -- We only lookup in the NameMap if the Module name is not Nothing
+    -- Internally, a module may use multiple variables with the same name and a module Nothing
+    case mdl of
+        Nothing -> G2.Name occ mdl unq
+        _ -> case HM.lookup (occ, mdl) nm of
+                Just n' -> n'
+                Nothing -> G2.Name occ mdl unq
     where
         occ = T.pack . occNameString . nameOccName $ name
         unq = getKey . nameUnique $ name

@@ -10,6 +10,10 @@ module G2.Internals.Execution.Interface
 import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
 import G2.Internals.Solver.Language
+import G2.Lib.Printers
+
+import Data.List
+import System.Directory
 
 runNBreadth :: SMTConverter ast out io -> io -> [([Rule], State)] -> Int -> IO [([Rule], State)]
 runNBreadth _ _ [] _ = return []
@@ -40,6 +44,8 @@ runNDepth con hpp states d = runNDepth' $ map (\s -> (([], [], s), d)) states
     runNDepth' [] = return []
     runNDepth' ((rss, 0):xs) = return . (:) rss =<< runNDepth' xs
     runNDepth' ((((rs, is, s), n)):xs) = do
+        -- outputState rs is s
+
         (app_rule, reduceds) <- reduce con hpp s is rs
 
         let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else  zip (repeat Nothing) reduceds
@@ -58,3 +64,14 @@ runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (([], s), d)) 
         let (app_rule, reduceds) = reduceNoConstraintChecks s
             mod_info = map (\s' -> ((rs ++ [app_rule], s'), n - 1)) reduceds
         in runNDepthNCC' (mod_info ++ xs)
+
+outputState :: [Rule] -> [Int] -> State -> IO ()
+outputState rs is s = do
+    let dir = "res/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
+    createDirectoryIfMissing True dir
+
+    let fn = dir ++ "state" ++ show (length rs) ++ ".txt"
+    let write = pprExecStateStr s ++ "\n\n" ++ show (zip ([0..] :: [Integer]) rs)
+    writeFile fn write
+
+    putStrLn fn

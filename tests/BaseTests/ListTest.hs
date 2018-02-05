@@ -1,13 +1,13 @@
-module Sorting where
+module ListTests where
 
 -- import qualified Data.Map as M
 import qualified Data.List
 
 maxMap :: Int -> Int
-g2Entry a = maximum (map (+1) [1, 2, a, 4, 5])
+maxMap a = maximum (map (+1) [1, 2, a, 4, 5])
 
 minTest :: Int -> Int
-minTest a = minimum [1, 2, 3]
+minTest a = minimum [1, 2, 3, a]
 
 
 foldrTest :: Int -> Int
