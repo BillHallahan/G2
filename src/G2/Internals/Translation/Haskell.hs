@@ -320,4 +320,4 @@ mkCoercion tm c =
 
 mkClass :: TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id])
 mkClass tm (ClsInst { is_cls = c, is_dfun = dfun, is_tcs = tcs, is_tvs = tvs, is_tys = tys }) = 
-    (mkName . C.className $ c, mkId tm dfun, map (mkId tm) $ C.classTyVars c)
+    (flip mkNameLookup tm . C.className $ c, mkId tm dfun, map (mkId tm) $ C.classTyVars c)

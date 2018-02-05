@@ -23,6 +23,8 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
+import Debug.Trace
+
 primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
 primInject = modifyASTs primInjectT
 
@@ -199,11 +201,4 @@ mergeProgTys prog prog' progTys primTys =
     (prog', progTys ++ primTys)
 
 mergeTCs :: [(Name, Id, [Id])] -> Program -> ([(Name, Id, [Id])])
-mergeTCs tc prog =
-  let
-    nsp = names prog
-    nstc = names tc
-
-    rep = mapMaybe (\n -> fmap ((,) n) $ find (nameStrEq n) nsp) nstc 
-  in
-  foldr (uncurry rename) tc rep
+mergeTCs tc prog = tc
