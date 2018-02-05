@@ -137,6 +137,7 @@ instance Typed Expr where
         let
             (t1, m') = case typeOf' m b of
                 (TYPE, _m) -> (TyForAll (NamedTyBndr b), _m)
+                (TyConApp (Name "TYPE" _ _ ) _, _m) -> (TyForAll (NamedTyBndr b), _m)
                 (TyFun TYPE _, _m) -> (TyForAll (NamedTyBndr b), _m)
                 (t, _m) -> (TyFun t, m)
             (t2, m'') = typeOf' m' expr

@@ -593,7 +593,8 @@ convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, type_env = tenv, 
 
         t2 = favorNonTyInteger kv t t'
 
-        dict = fromJustErr ("No lhDict for PAtom " ++ show t2 ++ "\ntenv = " ++ show tenv) $ lhTCDict eenv tcv tc t2 m
+        dict = fromJustErr ("No lhDict for PAtom ec = " ++ show ec ++ "\nec' = " 
+                            ++ show ec' ++ "\nt2 = " ++ show t2 ++ "\nm = " ++ show m) $ lhTCDict eenv tcv tc t2 m
     in
     mkApp [brel', dict, Type t2, ec2, ec2']
 convertLHExpr e _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
