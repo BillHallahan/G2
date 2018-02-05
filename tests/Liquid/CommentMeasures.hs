@@ -43,11 +43,25 @@ getsA :: OneOf a b -> a
 getsA (A a) = a
 getsA _ = die "Not A"
 
+{-@ getsAInt :: x:OneOf Int Double -> {y:Int | y == valA x} @-}
+getsAInt :: OneOf Int Double -> Int
+getsAInt (A a) = a
+getsAInt _ = die "Not A"
+
 {-@ sumSameOneOfs :: x:OneOf Int Int -> {y:OneOf Int Int | isValA x <=> isValA y} -> Int @-}
 sumSameOneOfs :: OneOf Int Int -> OneOf Int Int -> Int
 sumSameOneOfs (A a) (A a') = a + a'
 sumSameOneOfs (B b) (B b') = b + b'
 sumSameOneOfs _ _ = die "A and B given"
+
+{-@ gets2As :: x:OneOf Int Int -> {y:OneOf Int Int | isValA x <=> isValA y} -> Int @-}
+gets2As :: OneOf Int Int -> OneOf Int Int -> Int
+gets2As (A a) (A a') = a + a'
+gets2As _ _ = die "A and B, or 2 Bs, given"
+
+gets2As' :: OneOf Int Int -> OneOf Int Int -> Int
+gets2As' (A a) (A a') = a + a'
+gets2As' _ _ = die "A and B, or 2 Bs, given"
 
 {-@ die :: {x:String| false} -> a @-}
 die :: String -> a

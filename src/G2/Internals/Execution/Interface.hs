@@ -21,7 +21,7 @@ runNBreadth con hpp rss n = do
     where
         go :: ([Rule], State) -> IO [([Rule], State)]
         go (rules, state) = do
-            (rule, states) <- reduce con hpp state rules
+            (rule, states) <- reduce con hpp state [] rules
             return $ map (\s -> (rules ++ [rule], s)) states
  
 runNBreadthNoConstraintChecks :: [([Rule], State)] -> Int -> [([Rule], State)]
@@ -33,16 +33,18 @@ runNBreadthNoConstraintChecks rss n = runNBreadthNoConstraintChecks (concatMap g
     go (rules, state) = let (rule, states) = reduceNoConstraintChecks state
                         in map (\s -> (rules ++ [rule], s)) states
 
-runNDepth :: SMTConverter ast out io -> io -> [State] -> Int -> IO [([Rule], State)]
-runNDepth con hpp states d = runNDepth' $ map (\s -> (([], s), d)) states
+runNDepth :: SMTConverter ast out io -> io -> [State] -> Int -> IO [([Rule], [Int], State)]
+runNDepth con hpp states d = runNDepth' $ map (\s -> (([], [], s), d)) states
   where
-    runNDepth' :: [(([Rule], State), Int)] -> IO [([Rule], State)]
+    runNDepth' :: [(([Rule], [Int], State), Int)] -> IO [([Rule], [Int], State)]
     runNDepth' [] = return []
     runNDepth' ((rss, 0):xs) = return . (:) rss =<< runNDepth' xs
-    runNDepth' ((((rs, s), n)):xs) = do
-        (app_rule, reduceds) <- reduce con hpp s rs
+    runNDepth' ((((rs, is, s), n)):xs) = do
+        (app_rule, reduceds) <- reduce con hpp s is rs
+
+        let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else  zip (repeat Nothing) reduceds
         
-        let mod_info = map (\s' -> ((rs ++ [app_rule], s'), n - 1)) reduceds
+        let mod_info = map (\(i, s') -> ((rs ++ [app_rule], is ++ maybe [] (\i' -> [i']) i, s'), n - 1)) isred
         
         runNDepth' (mod_info ++ xs)
 

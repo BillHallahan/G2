@@ -23,6 +23,7 @@ import G2.Lib.Printers
 import Control.Monad
 import Data.List
 import Data.Maybe
+import System.Directory
 
 -- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
 renames :: Named a => [(Name, Name)] -> a -> a
@@ -207,8 +208,8 @@ lookupForPrim e _ = e
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-reduce :: SMTConverter ast out io -> io -> State -> [Rule] -> IO (Rule, [State])
-reduce con hpp s rs = do
+reduce :: SMTConverter ast out io -> io -> State -> [Int] -> [Rule] -> IO (Rule, [State])
+reduce con hpp s is rs = do
     let (rule, res) = reduce' s
 
     -- putStrLn "----------------------------------"
@@ -217,8 +218,13 @@ reduce con hpp s rs = do
 
     sts <- resultsToState con hpp rule s res
 
+    -- let dir = "res/" ++ foldl' (\s i -> s ++ show i ++ "/") "" is
+    -- createDirectoryIfMissing True dir
+    -- let fn = dir ++ "state" ++ show (length rs) ++ ".txt"
     -- let write = (intercalate "\n\n" $ map pprExecStateStr sts) ++ "\n\n" ++ show (zip ([1..] :: [Integer]) rs)
-    -- writeFile ("res/states" ++ show (length rs) ++ ".txt") write
+    -- writeFile fn write
+
+    -- putStrLn fn
 
     return (rule, sts)
 

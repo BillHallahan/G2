@@ -20,8 +20,6 @@ import Data.Maybe
 
 import G2.Lib.Printers
 
-import Debug.Trace
-
 subModel :: State -> ([Expr], Expr, Maybe (Name, [Expr], Expr))
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr

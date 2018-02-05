@@ -200,9 +200,9 @@ run con hhp n (state@ State { type_env = tenv
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s list)) exec_states
 
-    let ident_states = filter (isExecValueForm . snd) exec_states
-    let ident_states' = filter (true_assert . snd) ident_states
-    let nonident_states = filter (not . isExecValueForm . snd) exec_states
+    let ident_states = filter (isExecValueForm . thd) exec_states
+    let ident_states' = filter (true_assert . thd) ident_states
+    let nonident_states = filter (not . isExecValueForm . thd) exec_states
 
     -- putStrLn $ "exec states: " ++ (show $ length exec_states)
     -- putStrLn $ "ident states: " ++ (show $ length ident_states')
@@ -228,7 +228,7 @@ run con hhp n (state@ State { type_env = tenv
 
 
     ident_states'' <- 
-        mapM (\(r, s) -> do
+        mapM (\(r, _, s) -> do
             (_, m) <- checkModel con hhp s
             return . fmap (\m' -> (r, s {model = m'})) $ m
             ) $ ident_states'
@@ -241,3 +241,6 @@ run con hhp n (state@ State { type_env = tenv
     let sm'' = map (\(s, r, es, e, ais) -> (s, r, es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
 
     return sm''
+
+thd :: (a, b, c) -> c
+thd (_, _, x) = x

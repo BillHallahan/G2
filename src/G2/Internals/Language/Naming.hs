@@ -316,6 +316,8 @@ instance Named Alt where
 
     rename old new (Alt am e) = Alt (rename old new am) (rename old new e)
 
+    renames hm (Alt am e) = Alt (renames hm am) (renames hm e)
+
 instance Named DataCon where
     names (DataCon n t ts) = n:(names t ++ concatMap names ts)
     names _ = []

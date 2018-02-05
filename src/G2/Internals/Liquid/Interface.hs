@@ -61,12 +61,11 @@ findCounterExamples proj primF fp entry m_mapsrc steps = do
     let lhtc_state = addLHTC lh_state tcv
     let measure_state = createMeasures lh_measures tcv lhtc_state
 
-
     let (merged_state, mkv) = mergeLHSpecState specs measure_state tcv
 
     hhp <- getZ3ProcessHandles
 
-    -- let beta_red_state = merged_state
+    -- let beta_red_state = measure_state'
     let beta_red_state = simplifyAsserts mkv merged_state
 
     run smt2 hhp steps beta_red_state
