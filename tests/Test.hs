@@ -140,7 +140,12 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackBool" 1000 2 [AtLeast 1, RForAll (\[_, r] -> getBoolB r (== False))]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 1000 3 
-                    [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "A" x && buriedDCName "B" y)]
+                    [Exactly 0]
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As" 1000 3 
+                    [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "B" y)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As'" 1000 3 
+                    [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "A" x && buriedDCName "B" y)
+                              , RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "A" y)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "ge4gt5" 1000 2 
                     [AtLeast 1, RForAll (\[x, y] -> appNth x 1 $ \x' -> isInt x' $ \x'' -> isInt y $ \y' ->  x'' == 4 && y' == 5)]
         ]
