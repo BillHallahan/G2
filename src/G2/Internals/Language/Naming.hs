@@ -5,7 +5,7 @@
 module G2.Internals.Language.Naming
     ( nameOccStr
     , NameGen
-    , Named (names, rename)
+    , Named (names, rename, renames)
     , doRename
     , doRenames
     , renameAll
@@ -118,9 +118,12 @@ doRename n ngen x = (rename n n' x, ngen')
   where (n', ngen') = freshSeededName n ngen
 
 doRenames :: Named a => [Name] -> NameGen -> a -> (a, NameGen)
-doRenames [] ngen x = (x, ngen)
-doRenames (n:ns) ngen x = doRenames ns ngen' x'
-  where (x', ngen') = doRename n ngen x
+doRenames ns ng e =
+    let
+        (ns', ng') = freshSeededNames ns ng
+        hm = HM.fromList $ zip ns ns'
+    in
+    (renames hm e, ng')
 
 renameAll :: (Named a) => a -> NameGen -> (a, NameGen)
 renameAll x ng =
@@ -138,16 +141,20 @@ class Named a where
     name :: a -> Name
     names :: a -> [Name]
     rename :: Name -> Name -> a -> a
+    renames :: HM.HashMap Name Name -> a -> a
 
     name = head . names
+    renames hm e = HM.foldrWithKey (\k v -> rename k v) e hm
 
 instance Named Name where
     names n = [n]
     rename old new n = if old == n then new else n
+    renames hm n = HM.lookupDefault n n hm
 
 instance Named Id where
     names (Id n t) = n:names t
     rename old new (Id n t) = Id (rename old new n) (rename old new t)
+    renames hm (Id n t) = Id (renames hm n) (renames hm t)
 
 instance Named Expr where
     names = eval go
@@ -184,6 +191,25 @@ instance Named Expr where
 
         goAlt :: Alt -> Alt
         goAlt (Alt am e) = Alt (rename old new am) e
+
+    renames hm = modify go
+        where
+            go :: Expr -> Expr
+            go (Var i) = Var (renames hm i)
+            go (Data d) = Data (renames hm d)
+            go (Lam i e) = Lam (renames hm i) e
+            go (Let b e) = 
+                let b' = map (\(n, e') -> (renames hm n, e')) b
+                in Let b' e
+            go (Case e i a) = Case e (renames hm i) (map goAlt a)
+            go (Type t) = Type (renames hm t)
+            go (Cast e c) = Cast e (renames hm c)
+            go (Coercion c) = Coercion (renames hm c)
+            go (Assert is e e') = Assert (renames hm is) e e'
+            go e = e
+
+            goAlt :: Alt -> Alt
+            goAlt (Alt am e) = Alt (renames hm am) e
 
 -- Rename only the names in an Expr that are the Name of an Id/Let/Data/Case Binding.
 -- Does not change Types.
@@ -254,6 +280,14 @@ instance Named Type where
         go (TyForAll tb t) = TyForAll (renameTyBinderInType old new tb) t
         go t = t
 
+    renames hm = modify go
+      where
+        go :: Type -> Type
+        go (TyVar i) = TyVar (renamesIdInType hm i)
+        go (TyConApp n ts) = TyConApp (renames hm n) ts
+        go (TyForAll tb t) = TyForAll (renamesTyBinderInType hm tb) t
+        go t = t
+
 -- We don't want both modify and go to recurse on the Type's in TyBinders or Ids
 -- so we introduce functions to collect or rename only the Names directly in those types
 tyBinderNamesInType :: TyBinder -> [Name]
@@ -270,6 +304,13 @@ renameTyBinderInType _ _ tyb = tyb
 renameIdInType :: Name -> Name -> Id -> Id
 renameIdInType old new (Id n t) = Id (rename old new n) t
 
+renamesTyBinderInType :: HM.HashMap Name Name -> TyBinder -> TyBinder
+renamesTyBinderInType hm (NamedTyBndr i) = NamedTyBndr $ renamesIdInType hm i
+renamesTyBinderInType _ tyb = tyb
+
+renamesIdInType :: HM.HashMap Name Name -> Id -> Id
+renamesIdInType hm (Id n t) = Id (renames hm n) t
+
 instance Named Alt where
     names (Alt am e) = names am ++ names e
 
@@ -283,6 +324,10 @@ instance Named DataCon where
         DataCon (rename old new n) (rename old new t) (rename old new ts)
     rename _ _ d = d
 
+    renames hm (DataCon n t ts) =
+        DataCon (renames hm n) (renames hm t) (renames hm ts)
+    renames _ d = d
+
 instance Named AltMatch where
     names (DataAlt dc i) = names dc ++ names i
     names _ = []
@@ -291,6 +336,10 @@ instance Named AltMatch where
         DataAlt (rename old new dc) (rename old new i)
     rename _ _ am = am
 
+    renames hm (DataAlt dc i) =
+        DataAlt (renames hm dc) (renames hm i)
+    renames _ am = am
+
 instance Named TyBinder where
     names (AnonTyBndr t) = names t
     names (NamedTyBndr i) = names i
@@ -298,10 +347,13 @@ instance Named TyBinder where
     rename old new (AnonTyBndr t) = AnonTyBndr (rename old new t)
     rename old new (NamedTyBndr i) = NamedTyBndr (rename old new i)
 
+    renames hm (AnonTyBndr t) = AnonTyBndr (renames hm t)
+    renames hm (NamedTyBndr i) = NamedTyBndr (renames hm i)
+
 instance Named Coercion where
     names (t1 :~ t2) = names t1 ++ names t2
-
     rename old new (t1 :~ t2) = rename old new t1 :~ rename old new t2
+    renames hm (t1 :~ t2) = renames hm t1 :~ renames hm t2
 
 instance Named AlgDataTy where
     names (DataTyCon ns dc) = ns ++ names dc
@@ -309,6 +361,9 @@ instance Named AlgDataTy where
 
     rename old new (DataTyCon n dc) = DataTyCon (rename old new n) (rename old new dc)
     rename old new (NewTyCon n dc rt) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt)
+
+    renames hm (DataTyCon n dc) = DataTyCon (renames hm n) (renames hm dc)
+    renames hm (NewTyCon n dc rt) = NewTyCon (renames hm n) (renames hm dc) (renames hm rt)
 
 instance Named KnownValues where
     names (KnownValues {
@@ -405,31 +460,32 @@ instance Named KnownValues where
 instance (Foldable f, Functor f, Named a) => Named (f a) where
     names = foldMap names
     rename old new = fmap (rename old new)
+    renames hm = fmap (renames hm)
 
 instance {-# OVERLAPPING #-}  (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
     names = names . HS.toList 
-
     rename old new = HS.map (rename old new)
+    renames hm = HS.map (renames hm)
 
 instance {-# OVERLAPPING #-} (Named a, Named b) => Named (a, b) where
     names (a, b) = names a ++ names b
-
     rename old new (a, b) = (rename old new a, rename old new b)
+    renames hm (a, b) = (renames hm a, renames hm b)
 
 instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) where
     names (a, b, c) = names a ++ names b ++ names c
-
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
+    renames hm (a, b, c) = (renames hm a, renames hm b, renames hm c)
 
 instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d) => Named (a, b, c, d) where
     names (a, b, c, d) = names a ++ names b ++ names c ++ names d
-
     rename old new (a, b, c, d) = (rename old new a, rename old new b, rename old new c, rename old new d)
+    renames hm (a, b, c, d) = (renames hm a, renames hm b, renames hm c, renames hm d)
 
 instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) where
     names (a, b, c, d, e) = names a ++ names b ++ names c ++ names d ++ names e
-
     rename old new (a, b, c, d, e) = (rename old new a, rename old new b, rename old new c, rename old new d, rename old new e)
+    renames hm (a, b, c, d, e) = (renames hm a, renames hm b, renames hm c, renames hm d, renames hm e)
 
 freshSeededString :: T.Text -> NameGen -> (Name, NameGen)
 freshSeededString t = freshSeededName (Name t Nothing 0)

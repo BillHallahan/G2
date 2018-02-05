@@ -281,6 +281,12 @@ instance Named ExprEnv where
         . rename old new
         . unwrapExprEnv
 
+    renames hm =
+        ExprEnv
+        . M.mapKeys (renames hm)
+        . renames hm
+        . unwrapExprEnv
+
 instance Named EnvObj where
     names (ExprObj e) = names e
     names (RedirObj r) = [r]
@@ -289,6 +295,10 @@ instance Named EnvObj where
     rename old new (ExprObj e) = ExprObj $ rename old new e
     rename old new (RedirObj r) = RedirObj $ rename old new r
     rename old new (SymbObj s) = SymbObj $ rename old new s
+
+    renames hm (ExprObj e) = ExprObj $ renames hm e
+    renames hm (RedirObj r) = RedirObj $ renames hm r
+    renames hm (SymbObj s) = SymbObj $ renames hm s
 
 -- Helpers for EnvObjs
 
