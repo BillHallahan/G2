@@ -41,10 +41,10 @@ foldrx k z = go
             go []     = z
             go (y:ys) = y `k` go ys
 
-g2Entry7 :: Int -> [(Int, Int)]
-g2Entry7 a = let m = M.fromList [(123456, a)]
-             in M.toList m
+-- g2Entry7 :: Int -> [(Int, Int)]
+-- g2Entry7 a = let m = M.fromList [(123456, a)]
+--              in M.toList m
 
-g2Entry8 :: [(Int, Float)] -> M.Map Int Float
-g2Entry8 = M.fromList
+-- g2Entry8 :: [(Int, Float)] -> M.Map Int Float
+-- g2Entry8 = M.fromList
 
