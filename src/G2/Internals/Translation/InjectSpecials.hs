@@ -16,7 +16,8 @@ import qualified Data.Text as T
 import G2.Internals.Language
 
 _MAX_TUPLE :: Int
-_MAX_TUPLE = 62
+_MAX_TUPLE = 20
+-- _MAX_TUPLE = 62
 
 specialTypes :: [ProgramType]
 specialTypes = map (uncurry specialTypes') specials
@@ -139,8 +140,8 @@ mkTuples n | n < 0    = []
                     ns = if n == 0 then [] else map (Name "a" m) [0..n]
                     tv = map (TyVar . flip Id TYPE) ns
                 in
-                ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
-                -- ((s, m, ns), [(s, m, tv)]) : mkTuples (n - 1)
+                -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
+                ((s, m, ns), [(s, m, tv)]) : mkTuples (n - 1)
 
 mkTuples' :: Int -> [T.Text]
 mkTuples' n | n < 0    = []
