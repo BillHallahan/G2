@@ -39,11 +39,13 @@ import qualified G2.Internals.Language.ExprEnv as E
 import Data.List
 import qualified Data.Map as M
 
+import Debug.Trace
+
 functionalize :: TypeEnv -> ExprEnv -> NameGen -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
 functionalize tenv eenv ng =
     let
         -- Get names for all need apply type
-        types = nub $ argTypesTEnv tenv ++ E.higherOrderExprs eenv
+        types = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs eenv
         (appT, ng2) = applyTypeNames ng types
 
         -- Update the expression and  type environments with apply types

@@ -52,10 +52,10 @@ nameModMatch (Name n m _) = find (\(Name n' m' _) -> n == n' && m == m' ) . M.ke
 
 -- Returns a list of all argument function types in the type env
 argTypesTEnv :: TypeEnv -> [Type]
-argTypesTEnv = concatMap (evalASTs argTypesTEnv') . M.elems
+argTypesTEnv = concatMap (evalASTs argTypesTEnv') . M.elems -- concatMap (evalASTs argTypesTEnv') . M.elems
 
 argTypesTEnv' :: Type -> [Type]
-argTypesTEnv' t@(TyFun _ _) = [t]
+argTypesTEnv' (TyFun t@(TyFun _ _) _) = [t]
 argTypesTEnv' _ = []
 
 dataCon :: AlgDataTy -> [DataCon]

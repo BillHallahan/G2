@@ -14,6 +14,7 @@ module G2.Internals.Language.Typing
     , mkTyApp
     , mkTyFun
     , (.::)
+    , (.::.)
     , hasFuncType
     , appendType
     , higherOrderFuncs
@@ -204,7 +205,10 @@ retype' key new ty = modifyChildren (retype' key new) ty
 -- Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> Type -> Bool
-(.::) t1 t2 = fst $ specializesTo M.empty (typeOf t1) t2
+t1 .:: t2 = fst $ specializesTo M.empty (typeOf t1) t2
+
+(.::.) :: Type -> Type -> Bool
+t1 .::. t2 = fst (specializesTo M.empty t1 t2) && fst (specializesTo M.empty t2 t1)
 
 specializesTo :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
 specializesTo m _ TYPE = (True, m)

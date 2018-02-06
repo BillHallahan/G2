@@ -207,7 +207,7 @@ elems = exprObjs . M.elems . unwrapExprEnv
 -- | higherOrderExprs
 -- Returns a list of all argument function types 
 higherOrderExprs :: ExprEnv -> [Type]
-higherOrderExprs = concatMap (higherOrderFuncs . typeOf) . elems
+higherOrderExprs = concatMap (higherOrderFuncs) . elems
 
 
 toList :: ExprEnv -> [(Name, EnvObj)]
