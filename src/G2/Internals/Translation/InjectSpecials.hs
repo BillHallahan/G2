@@ -16,8 +16,7 @@ import qualified Data.Text as T
 import G2.Internals.Language
 
 _MAX_TUPLE :: Int
-_MAX_TUPLE = 20
--- _MAX_TUPLE = 62
+_MAX_TUPLE = 32
 
 specialTypes :: [ProgramType]
 specialTypes = map (uncurry specialTypes') specials

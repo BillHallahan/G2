@@ -71,15 +71,21 @@ applyTypeNames ng ts =
 -- creates FuncInterps and ApplyTypes tables
 mkApplyFuncAndTypes :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)] -> 
                        (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
-mkApplyFuncAndTypes tenv eenv ng tyn = mkApplyFuncAndTypes' tenv eenv ng tyn (FuncInterps M.empty) (AT.empty)
+mkApplyFuncAndTypes tenv eenv ng tyn = 
+    let
+        -- This just gets passed around unmodified in mkApplyFuncTypes'
+        -- but precomputing is faster
+        funcT = M.toList $ E.map' typeOf eenv
+    in
+    mkApplyFuncAndTypes' tenv eenv ng tyn funcT (FuncInterps M.empty) (AT.empty)
 
-mkApplyFuncAndTypes' :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)] -> FuncInterps -> AT.ApplyTypes -> 
+mkApplyFuncAndTypes' :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)] -> [(Name, Type)] -> FuncInterps -> AT.ApplyTypes -> 
                         (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
-mkApplyFuncAndTypes' tenv eenv ng [] fi at = (tenv, eenv, fi, at, ng)
-mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) (FuncInterps fi) at =
+mkApplyFuncAndTypes' tenv eenv ng [] _ fi at = (tenv, eenv, fi, at, ng)
+mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
     let
         -- Functions of type t
-        funcs = E.funcsOfType t eenv
+        funcs = map fst $ filter ((==) t . snd) funcT -- E.funcsOfType t eenv
 
         -- Update type environment
         (applyCons, ng2) = freshSeededNames funcs ng
@@ -102,7 +108,7 @@ mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) (FuncInterps fi) at =
         (expr, ng4) = mkApplyTypeMap ng3 (zip applyCons funcs) (TyConApp n []) t
         eenv2 = E.insert applyFuncN expr eenv
     in
-    mkApplyFuncAndTypes' tenv2 eenv2 ng4 xs (FuncInterps fi') at2
+    mkApplyFuncAndTypes' tenv2 eenv2 ng4 xs funcT (FuncInterps fi') at2
 
 -- Makes a function to map the apply types to the cooresponding Apply Functions
 mkApplyTypeMap :: NameGen -> [(Name, Name)] -> Type -> Type -> (Expr, NameGen)
