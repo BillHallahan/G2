@@ -6,6 +6,7 @@ module G2.Internals.Initialization.DeepSeqWalks (createDeepSeqWalks) where
 
 import G2.Internals.Language
 
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -51,7 +52,7 @@ createDeepSeqExpr tenv w (n, adt) ng =
 
         bfuncs = zip bn' wbni
 
-        adt' = foldr (uncurry rename) adt (zip bn bn')
+        adt' = renames (HM.fromList (zip bn bn')) adt
 
         (e, ng''') = createDeepSeqCase1 tenv w bfuncs n bn' adt' ng''
     in
