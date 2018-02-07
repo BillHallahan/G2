@@ -169,7 +169,6 @@ dataConWithName _ _ = Nothing
 
 dataConHasName :: DataCon -> Name -> Bool
 dataConHasName (DataCon n _ _) n' = n == n'
-dataConHasName _ _ = False
 
 dataConWithNameMod :: AlgDataTy -> Name -> Maybe DataCon
 dataConWithNameMod (DataTyCon _ dcs) n = listToMaybe $ filter (flip dataConHasNameMod n) dcs

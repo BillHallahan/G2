@@ -21,14 +21,14 @@ createFuncs :: ExprEnv
 createFuncs eenv ng genFrom store namef storef exprf =
     let
         --Generate names, put them in the store
-        (names, ng2) = freshSeededNames (map namef genFrom) ng
-        genFromNames = zip genFrom names
+        (ns, ng2) = freshSeededNames (map namef genFrom) ng
+        genFromNames = zip genFrom ns
 
         fullStore = foldr (uncurry storef) store genFromNames
 
         --Generate functions, put them in the expression environment
         (exprfs, ng3) = mapNG (exprf fullStore) genFrom ng2
-        eenv2 = foldr (uncurry E.insert) eenv (zip names exprfs)
+        eenv2 = foldr (uncurry E.insert) eenv (zip ns exprfs)
 
     in
     (eenv2, ng3, fullStore)

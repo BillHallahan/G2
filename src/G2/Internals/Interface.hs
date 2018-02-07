@@ -1,8 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Interface ( initState
-                              , addPolyPred
-                              , addHigherOrderWrappers
                               , run) where
 
 import G2.Internals.Language
@@ -44,7 +42,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
 
         ng = mkNameGen prog prog_typ
 
-        (eenv', tenv', ng', ft, at, ds_walkers, pt_walkers, wrap, kv) = runInitialization eenv tenv ng
+        (eenv', tenv', ng', ft, at, ds_walkers, kv) = runInitialization eenv tenv ng
 
         (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc at ng' eenv' ds_walkers kv
 
@@ -63,8 +61,6 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     , sym_links = Sym.empty
     , func_table = ft
     , deepseq_walkers = ds_walkers
-    , polypred_walkers = pt_walkers
-    , wrappers = wrap
     , apply_types = at
     , exec_stack = Stack.empty
     , model = M.empty
@@ -79,39 +75,6 @@ mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
-
--- TODO: Move addPolyPreds and addHigherOrderWrappers elsewhere (somewhere
--- specific to LH?)
-addPolyPred :: State -> Name -> Id -> Int -> State
-addPolyPred s@(State { expr_env = eenv
-                     , polypred_walkers = ppw
-                     , known_values = kv}) f fw argN =
-    let
-        e = eenv E.! f
-        i@(Id _ (TyConApp n _)) = nthArg e argN
-
-        wf = M.lookup n ppw
-
-        d = fmap (\wf' -> App (App (App (Var wf') (Type (tyInt kv))) (Var fw)) (Var i)) wf
-        e' = case d of
-            Just d' -> insertInLams (\_ -> Assume d')  e
-            Nothing -> e
-    in
-    s {expr_env = E.insert f e' eenv}
-
-addHigherOrderWrappers :: State -> Name -> Id -> Int -> State
-addHigherOrderWrappers s@(State { expr_env = eenv, wrappers = w }) f fw argN =
-    let
-        e = eenv E.! f
-        i@(Id _ t) = nthArg e argN
-
-        wf = lookup t w
-
-        e' = case wf of
-            Just wf' -> replaceASTs (Var i) (App (App (Var wf') (Var fw)) (Var i)) e
-            Nothing -> e
-    in
-    s {expr_env = E.insert f e' eenv}
 
 run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 run con hhp n (state@ State { type_env = tenv

@@ -29,7 +29,7 @@ arbValueInit = ArbValueGen { intGen = 0
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue (TyConApp n ts) tenv av =
+arbValue (TyConApp n _) tenv av =
     maybe (Prim Undefined TyBottom, av) 
           (\adt -> getADT tenv adt av)
           (M.lookup n tenv)
@@ -57,14 +57,8 @@ numArgs = length . dataConArgs
 minArgLen :: [DataCon] -> DataCon
 minArgLen = minimumBy (\dc dc' -> numArgs dc `compare` numArgs dc')
 
-sortArgLen :: [DataCon] -> [DataCon]
-sortArgLen = sortBy (\dc dc' -> numArgs dc `compare` numArgs dc')
-
 minArgLenADT :: AlgDataTy -> DataCon
 minArgLenADT = minArgLen . dataCon
-
-sortArgLenADT :: AlgDataTy -> [DataCon]
-sortArgLenADT = sortArgLen . dataCon
 
 -- | numRecArgs
 -- Just the minimum number of constructors that must exist below the current DataCon
@@ -124,11 +118,6 @@ noTyConsNamed ns = not . any (flip elem ns) . mapMaybe tyConAppName
 scoreTuple :: TypeEnv -> DataCon -> (DataCon, Int)
 scoreTuple tenv dc = 
     let
-        score' = mapMaybe tyConAppName
-              . dataConArgs $ dc
-
-        score'' = mapMaybe (\n -> fmap (numRecArgsADT tenv) $ M.lookup n tenv) score'
-
         score = mconcat
               . catMaybes
               . (coerce :: ([Maybe Int] -> [Maybe (Sum Int)]))

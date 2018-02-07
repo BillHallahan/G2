@@ -95,13 +95,6 @@ numTCDict kv tc t = lookupTCDict tc (numTC kv) t
 ordTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
 ordTCDict kv tc t = lookupTCDict tc (ordTC kv) t
 
-lookupTCDict2 :: TypeClasses -> Name -> Type -> Maybe (Name, Class)
-lookupTCDict2 tc (Name n _ _) t =
-    find (\(Name n' _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))
-
-lookupTCDict3 :: TypeClasses -> Name -> Type -> Maybe [(Type, Id)]
-lookupTCDict3 tc n t =  fmap (insts . snd) $ lookupTCDict2 tc n t
-
 -- Returns the dictionary for the given typeclass and Type,
 -- if one exists
 lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
@@ -126,20 +119,20 @@ satisfyingTCTypes tc ts =
 
         tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDictsTypes tc) ns)) tcReq
     in
-    map (\(i, ts) -> (i, inter ts)) tcReqTS
+    map (\(i, ts') -> (i, inter ts')) tcReqTS
 
 -- satisfyingTCReq
 -- Finds the names of the required typeclasses for each TyVar Id
 -- See satisfyingTCTypes
 satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
 satisfyTCReq tc ts =
-    map (\(i, ts) -> (i, mapMaybe tyConAppName ts))
+    map (\(i, ts') -> (i, mapMaybe tyConAppName ts'))
     $ mapMaybe toIdTypeTup
     $ groupBy (\t1 t2 -> tyConAppArg t1 == tyConAppArg t2)
     $ filter (typeClassReq tc) ts
 
 toIdTypeTup :: [Type] -> Maybe (Id, [Type])
-toIdTypeTup ts@(TyConApp nt [TyVar i]:_) = Just (i, ts)
+toIdTypeTup ts@(TyConApp _ [TyVar i]:_) = Just (i, ts)
 toIdTypeTup _ = Nothing
 
 typeClassReq :: TypeClasses -> Type -> Bool

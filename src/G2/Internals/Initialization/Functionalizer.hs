@@ -39,8 +39,6 @@ import qualified G2.Internals.Language.ExprEnv as E
 import Data.List
 import qualified Data.Map as M
 
-import Debug.Trace
-
 functionalize :: TypeEnv -> ExprEnv -> NameGen -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
 functionalize tenv eenv ng =
     let
@@ -158,7 +156,6 @@ baseFuncADTs' ((n, dc):xs) =
 
 baseFuncDataCon :: DataCon -> Bool
 baseFuncDataCon (DataCon _ _ ts) = any hasFuncType ts
-baseFuncDataCon _ = False
 
 -- [2] Get all functionalizable ADTs that contain another functionalizable ADT
 inductFunc :: [Name] -> TypeEnv -> [Name]
@@ -176,7 +173,6 @@ containsParam ns dc = any (containsParam' ns) $ dataCon dc
 
 containsParam' :: [Name] -> DataCon -> Bool
 containsParam' ns (DataCon _ _ ts) = any (containsParam'' ns) ts
-containsParam' _ _ = False
 
 containsParam'' :: [Name] -> Type -> Bool
 containsParam'' ns (TyConApp n _) = n `elem` ns

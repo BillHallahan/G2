@@ -18,8 +18,6 @@ import G2.Internals.Solver.Language
 import qualified Data.Map as M
 import Data.Maybe
 
-import G2.Lib.Printers
-
 subModel :: State -> ([Expr], Expr, Maybe (Name, [Expr], Expr))
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr

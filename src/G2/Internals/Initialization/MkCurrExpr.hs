@@ -8,10 +8,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.ApplyTypes as AT
 
 import Data.List
-import Data.Maybe
 import qualified Data.Text as T
-
-import Debug.Trace
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
 mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv =

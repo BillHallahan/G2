@@ -13,6 +13,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkBool
                                   , mkDCInt
                                   , mkDCInteger
+                                  , mkDCFloat
                                   , mkDCDouble
                                   , mkIdentity
                                   , functionCalls
@@ -222,6 +223,7 @@ alphaReduction' mi l@(Lam i@(Id (Name n m ii) t) e) =
         e' = replaceASTs (Var i) (Var i') e
     in
     if ii > getMax mi then (l, mi') else (Lam i' e', mi')
+alphaReduction' m e = (e, m)
 
 -- | varBetaReduction
 -- Performs beta reduction, if a Var is being applied 

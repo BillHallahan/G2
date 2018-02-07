@@ -9,7 +9,6 @@ import G2.Internals.Language
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 import qualified Data.Text as T
 
 type BoundName = Name
@@ -59,7 +58,7 @@ createDeepSeqExpr tenv w (n, adt) ng =
     (foldr Lam e (bni ++ wbni), ng''')
 
 createDeepSeqCase1 :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
-createDeepSeqCase1 tenv w ti n bn adt@(DataTyCon {data_cons = dc}) ng =
+createDeepSeqCase1 tenv w ti n bn (DataTyCon {data_cons = dc}) ng =
     let
         (i, ng') = freshId (TyConApp n $ map (TyVar . flip Id TYPE) bn) ng
         (caseB, ng'') = freshId (TyConApp n $ map (TyVar . flip Id TYPE) bn) ng'
@@ -69,7 +68,7 @@ createDeepSeqCase1 tenv w ti n bn adt@(DataTyCon {data_cons = dc}) ng =
         c = Case (Var i) caseB alts
     in
     (Lam i c, ng''')
-createDeepSeqCase1 _ w ti n bn adt@(NewTyCon {data_con = dc, rep_type = t}) ng =
+createDeepSeqCase1 _ w ti n bn (NewTyCon {rep_type = t}) ng =
     let
         t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
 
@@ -89,11 +88,11 @@ createDeepSeqCase1 _ w ti n bn adt@(NewTyCon {data_con = dc, rep_type = t}) ng =
 
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 createDeepSeqDataConCase1Alts _ _ _ _ _ _ ng [] = ([], ng)
-createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon dcn t ts):xs) =
+createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon _ _ ts):xs) =
     let
         (binds, ng') = freshIds ts ng
 
-        dct = bindTypes ti (Data dc)
+        dct = bindTypes (Data dc)
 
         (e, ng'') = createDeepSeqDataConCase2 tenv w ti binds ng' dct
         alt = Alt (DataAlt dc binds) e
@@ -102,8 +101,8 @@ createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon dcn t ts):xs) =
     in
     (alt:alts, ng''')
 
-bindTypes :: [(Name, Id)] -> Expr -> Expr
-bindTypes ti e =
+bindTypes :: Expr -> Expr
+bindTypes e =
     let
         t = tyForAllIds $ typeOf e
         tb = map (Type . TyVar) t
@@ -151,25 +150,15 @@ deepSeqFuncCall w ti e
             as' = map (walkerFunc w ti) ts
         in
         foldl' App (Var f) (as ++ as' ++ [e])
-    | t@(TyVar (Id n _)) <- typeOf e
+    | (TyVar (Id n _)) <- typeOf e
     , Just f <- lookup n ti =
         App (Var f) e
     | otherwise = e
 
 walkerFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
-walkerFunc _ ti tyvar@(TyVar (Id n _)) 
+walkerFunc _ ti (TyVar (Id n _)) 
     | Just tyF <- lookup n ti = 
         Var tyF
-walkerFunc w _ t@(TyConApp n _)
+walkerFunc w _ (TyConApp n _)
     | Just f <- M.lookup n w =
        Var f
-
--- Passing a higher order function
-walkerFuncArgs :: Walkers -> [(Name, Id)] -> Type -> [Expr]
-walkerFuncArgs _ ti tyvar@(TyVar (Id n _)) 
-    | Just tyF <- lookup n ti = 
-        [Type tyvar, Var tyF]
-walkerFuncArgs w _ t@(TyConApp n _)
-    | Just f <- M.lookup n w =
-       [Var f]
-walkerFuncArgs _ _ _ = []

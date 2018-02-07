@@ -24,7 +24,7 @@ import qualified Data.Text as T
 -- We first generate a new dictionary type Dict for the TC.  Then we generate new functions
 -- to get that Dict for each type.
 genTC :: ExprEnv -> TypeEnv -> TypeClasses -> Name -> [(Name, Type, Walkers)] -> NameGen -> (ExprEnv, TypeEnv, TypeClasses, NameGen)
-genTC eenv tenv tc tcn ntws@((_, _, w):_) ng =
+genTC eenv tenv tc tcn ntws ng =
     let
         (tcn', ng2) = (tcn, ng) --freshSeededName tcn ng
 
@@ -44,7 +44,7 @@ genTC eenv tenv tc tcn ntws@((_, _, w):_) ng =
 
         (eenv', ti, ng4) = genTCFuncs tcn' eenv tenv' [] ng3 dc ns ws
 
-        (tci, ng5) = freshId TYPE ng
+        (tci, ng5) = freshId TYPE ng4
 
         tc' = coerce . M.insert tcn' (Class { insts = ti, typ_ids = [tci] }) $ coerce tc
 
@@ -54,10 +54,9 @@ genTC eenv tenv tc tcn ntws@((_, _, w):_) ng =
         eenv'' = E.insertExprs (zip fn access) eenv'
     in
     (eenv'', tenv', tc', ng6)
-genTC _ _ _ _ [] _ = error "No walkers given to genTC."
 
 genTCFuncs :: Name ->  ExprEnv -> TypeEnv -> [(Type, Id)] -> NameGen -> DataCon -> [Name] -> [Walkers] -> (ExprEnv, [(Type, Id)], NameGen)
-genTCFuncs _ eenv tenv ti ng _ [] _ = (eenv, ti, ng)
+genTCFuncs _ eenv _ ti ng _ [] _ = (eenv, ti, ng)
 genTCFuncs lh eenv tenv ti ng dc (n:ns) ws =
     let
         (fn, ng') = lhFuncName n ng
@@ -118,12 +117,9 @@ createLHTC s@(State { expr_env = eenv
         ([lhTCN, lhEqN, lhNeN, lhLtN, lhLeN, lhGtN, lhGeN, lhPPN], ng2) = 
             freshSeededStrings ["LH", "LHEq", "LHNe", "LHlt", "LHle", "LHgt", "LHge", "LHpp"] ng
 
-        lhEqE = Var (Id lhEqN $ TyFun tb (TyFun tb tb))
-        lhLtE = Var (Id lhLtN $ TyFun tb (TyFun tb tb))
-
         (eenv2, ng3, eq_w) = createFuncs eenv ng2 tenv' M.empty (lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts) eqFuncCall eenv tenv kv)
         (eenv3, ng4, neq_w) = createFuncs eenv2 ng3 tenv' M.empty (lhNeqName . fst) lhStore (lhNeqExpr eq_w eenv2)
-        (eenv4, ng5, lt_w) = createFuncs eenv3 ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN (lhLtCase2Alts lhEqE lhLtE) ltFuncCall eenv3 tenv kv)
+        (eenv4, ng5, lt_w) = createFuncs eenv3 ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN lhLtCase2Alts ltFuncCall eenv3 tenv kv)
         (eenv5, ng6, le_w) = createFuncs eenv4 ng5 tenv' M.empty (lhLeName . fst) lhStore (lhLeExpr lt_w eq_w eenv4)
         (eenv6, ng7, gt_w) = createFuncs eenv5 ng6 tenv' M.empty (lhGtName . fst) lhStore (lhGtExpr lt_w eenv5)
         (eenv7, ng8, ge_w) = createFuncs eenv6 ng7 tenv' M.empty (lhGeName . fst) lhStore (lhGeExpr le_w eenv6)
@@ -165,7 +161,7 @@ lhStore (n, adt) n' w =
 
 -- Returns bindings for TYPE parameters and cooresponding LH typeclasses
 boundNameBindings :: Name -> AlgDataTy -> NameGen -> (AlgDataTy, [Id], [Id], NameGen)
-boundNameBindings lhTC adt ng =
+boundNameBindings lh adt ng =
     let
         bn = bound_names adt
 
@@ -174,7 +170,7 @@ boundNameBindings lhTC adt ng =
         (wbn, ng'') = freshNames (length bn) ng'
 
         bni = map (flip Id TYPE) bn'
-        wbni = map (\(b, f) -> Id f (TyConApp lhTC [TyVar (Id b TYPE)])) $ zip bn' wbn
+        wbni = map (\(b, f) -> Id f (TyConApp lh [TyVar (Id b TYPE)])) $ zip bn' wbn
 
         adt' = foldr (uncurry rename) adt (zip bn bn')
     in
@@ -189,9 +185,9 @@ lhEqName :: Name -> Name
 lhEqName (Name n _ _) = Name ("lhEqName" `T.append` n) Nothing 0
 
 lhTEnvExpr :: Name -> Case2Alts -> FuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-lhTEnvExpr lhTC ca fc eenv tenv kv w (n, adt) ng =
+lhTEnvExpr lh ca fc eenv tenv kv w (n, adt) ng =
     let
-        (adt', bni, wbni, ng'') = boundNameBindings lhTC adt ng
+        (adt', bni, wbni, ng'') = boundNameBindings lh adt ng
 
         bn' = (map idName bni)
 
@@ -202,7 +198,7 @@ lhTEnvExpr lhTC ca fc eenv tenv kv w (n, adt) ng =
     (foldr Lam e (bni ++ wbni), ng''')
 
 lhTEnvCase :: Case2Alts -> FuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Name -> [Name] -> AlgDataTy -> NameGen -> (Expr, NameGen)
-lhTEnvCase ca _ eenv tenv kv w ti n bn adt@(DataTyCon {data_cons = dc}) ng =
+lhTEnvCase ca _ eenv tenv kv w ti n bn (DataTyCon {data_cons = dc}) ng =
     let
         t = TyConApp n $ map (TyVar . flip Id TYPE) bn
 
@@ -216,7 +212,7 @@ lhTEnvCase ca _ eenv tenv kv w ti n bn adt@(DataTyCon {data_cons = dc}) ng =
         c = Case (Var i1) caseB alts
     in
     (Lam i1 (Lam i2 c), ng5)
-lhTEnvCase ca fc eenv tenv kv w ti _ bn (NewTyCon { rep_type = t@(TyConApp n _) }) ng =
+lhTEnvCase _ fc eenv tenv kv w ti _ bn (NewTyCon { rep_type = t@(TyConApp n _) }) ng =
     let
         t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
 
@@ -233,7 +229,7 @@ lhTEnvCase _ _ _ _ _ _ _ _ _ _ ng = (Var (Id (Name "BADlhTEnvCase" Nothing 0) Ty
 
 lhTEnvDataConAlts :: Case2Alts -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Name -> Id -> Id -> [Name] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 lhTEnvDataConAlts _ _ _ _ _ _ _ _ _ _ ng [] = ([], ng)
-lhTEnvDataConAlts ca eenv tenv kv w ti n caseB1 i2 bn ng (dc@(DataCon dcn t ts):xs) =
+lhTEnvDataConAlts ca eenv tenv kv w ti n caseB1 i2 bn ng (dc@(DataCon _ t ts):xs) =
     let
         (binds1, ng2) = freshIds ts ng
 
@@ -252,7 +248,7 @@ lhTEnvDataConAlts ca eenv tenv kv w ti n caseB1 i2 bn ng (dc@(DataCon dcn t ts):
 type Case2Alts = ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Id -> Id -> [Id] -> DataCon -> NameGen -> ([Alt], NameGen)
 
 lhEqCase2Alts :: Case2Alts
-lhEqCase2Alts eenv tenv kv w ti caseB1 caseB2 binds1 dc@(DataCon dcn t ts) ng =
+lhEqCase2Alts eenv tenv kv w ti _ _ binds1 dc@(DataCon _ _ ts) ng =
     let
         (binds2, ng2) = freshIds ts ng
 
@@ -262,7 +258,7 @@ lhEqCase2Alts eenv tenv kv w ti caseB1 caseB2 binds1 dc@(DataCon dcn t ts) ng =
         -- Check that the two DataCons args are equal
         zbinds = zip (map Var binds1) (map Var binds2)
 
-        e = foldr (\e -> App (App (Prim And TyBottom) e)) true
+        e = foldr (\e' -> App (App (Prim And TyBottom) e')) true
           $ map (uncurry (eqFuncCall eenv tenv kv w ti)) zbinds
     in
      ([ Alt (DataAlt dc binds2) e
@@ -272,7 +268,7 @@ lhEqCase2Alts eenv tenv kv w ti caseB1 caseB2 binds1 dc@(DataCon dcn t ts) ng =
 type FuncCall = ExprEnv -> TypeEnv -> KnownValues ->  Walkers -> [(Name, Id)] -> Expr -> Expr -> Expr
 
 eqFuncCall :: FuncCall
-eqFuncCall eenv tenv kv w ti e e'
+eqFuncCall _ tenv kv w ti e e'
     | (TyConApp n ts) <- typeOf e
     , Just f <- M.lookup n w =
         let
@@ -280,7 +276,7 @@ eqFuncCall eenv tenv kv w ti e e'
             as' = map (eqFunc w ti) ts
         in
         foldl' App (Var f) (as ++ as' ++ [e, e'])
-    | t@(TyVar (Id n _)) <- typeOf e
+    | (TyVar (Id n _)) <- typeOf e
     , Just f <- lookup n ti =
         App (App (Var f) e) e'
     | TyFun _ _ <- typeOf e =
@@ -290,17 +286,14 @@ eqFuncCall eenv tenv kv w ti e e'
     || t == TyLitDouble
     || t == TyLitFloat
     || t == TyLitChar =
-        let
-            eq = mkEq eenv
-        in
         App (App (Prim Eq TyBottom) e) e'
     | otherwise = error $ "\nError in eqFuncCall" ++ show (typeOf e)
 
 eqFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
-eqFunc _ ti tyvar@(TyVar (Id n _)) 
+eqFunc _ ti (TyVar (Id n _)) 
     | Just tyF <- lookup n ti = 
         Var tyF
-eqFunc w _ t@(TyConApp n _)
+eqFunc w _ (TyConApp n _)
     | Just f <- M.lookup n w =
        Var f
 
@@ -308,7 +301,7 @@ lhNeqName :: Name -> Name
 lhNeqName (Name n _ _) = Name ("lhNeName" `T.append` n) Nothing 0
 
 lhNeqExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-lhNeqExpr eqW eenv w (n, _) ng = 
+lhNeqExpr eqW eenv _ (n, _) ng = 
     let
         f = case M.lookup n eqW of
             Just f' -> f'
@@ -332,29 +325,29 @@ lhLtName :: Name -> Name
 lhLtName (Name n _ _) = Name ("lhLtName" `T.append` n) Nothing 0
 
 -- Once we have the first datacon (dc1) selected, we have to branch on all datacons less than dc1
-lhLtCase2Alts :: Expr -> Expr -> Case2Alts
-lhLtCase2Alts lhEq lhLt eenv tenv kv w ti caseB1 caseB2 binds1 dc@(DataCon dcn t ts) ng =
+lhLtCase2Alts :: Case2Alts
+lhLtCase2Alts eenv tenv kv w ti caseB1 _ binds1 dc@(DataCon dcn _ _) ng =
     let
         true = mkTrue kv tenv
         false = mkFalse kv tenv
 
         t = typeOf caseB1
 
-        (n, adt) = case t of
-                    (TyConApp n' _) -> (n', M.lookup n' tenv)
-                    _ -> error "Bad type in lhLtCase2Alts"
+        adt = case t of
+                (TyConApp n' _) -> M.lookup n' tenv
+                _ -> error "Bad type in lhLtCase2Alts"
 
         dcs = fmap (takeWhile ((/=) dcn . dataConName) . dataCon) adt
         (la, ng2) = maybe ([], ng) (lhLtDCAlts true ng) dcs
 
-        (asame, ng3) = lhLtSameAlt lhEq lhLt eenv tenv kv w ti binds1 true false ng dc
+        (asame, ng3) = lhLtSameAlt eenv tenv kv w ti binds1 ng2 dc
     in
     (Alt Default false:asame:la
     , ng3)
 
 lhLtDCAlts :: Expr -> NameGen -> [DataCon] -> ([Alt], NameGen)
 lhLtDCAlts _ ng [] = ([], ng)
-lhLtDCAlts true ng (dc@(DataCon dcn t ts):dcs) = 
+lhLtDCAlts true ng (dc@(DataCon _ _ ts):dcs) = 
     let
         (binds2, ng2) = freshIds ts ng
 
@@ -364,8 +357,8 @@ lhLtDCAlts true ng (dc@(DataCon dcn t ts):dcs) =
     in
     (alt:alts, ng3)
 
-lhLtSameAlt :: Expr -> Expr -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> [Id] -> Expr -> Expr -> NameGen -> DataCon -> (Alt, NameGen)
-lhLtSameAlt lhEq lhLt eenv tenv kv w ti binds1 true false ng dc@(DataCon _ _ ts) =
+lhLtSameAlt :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> [Id] -> NameGen -> DataCon -> (Alt, NameGen)
+lhLtSameAlt eenv tenv kv w ti binds1 ng dc@(DataCon _ _ ts) =
     let
         (binds2, ng2) = freshIds ts ng
 
@@ -403,7 +396,7 @@ lhLtSameAltCases tenv kv ng ((lt, eq):xs) =
     (c, ng3)
 
 ltFuncCall :: FuncCall
-ltFuncCall eenv tenv kv w ti e e'
+ltFuncCall _ tenv kv w ti e e'
     | (TyConApp n ts) <- typeOf e
     , Just f <- M.lookup n w =
         let
@@ -411,7 +404,7 @@ ltFuncCall eenv tenv kv w ti e e'
             as' = map (ltFunc w ti) ts
         in
         foldl' App (Var f) (as ++ as' ++ [e, e'])
-    | t@(TyVar (Id n _)) <- typeOf e
+    | (TyVar (Id n _)) <- typeOf e
     , Just f <- lookup n ti =
         App (App (Var f) e) e'
     | TyFun _ _ <- typeOf e =
@@ -421,17 +414,14 @@ ltFuncCall eenv tenv kv w ti e e'
     || t == TyLitDouble
     || t == TyLitFloat
     || t == TyLitChar =
-        let
-            lt = mkLt eenv
-        in
         App (App (Prim Lt TyBottom) e) e'
     | otherwise = error $ "\nError in ltFuncCall" ++ show (typeOf e)
 
 ltFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
-ltFunc _ ti tyvar@(TyVar (Id n _)) 
+ltFunc _ ti (TyVar (Id n _)) 
     | Just tyF <- lookup n ti = 
         Var tyF
-ltFunc w _ t@(TyConApp n _)
+ltFunc w _ (TyConApp n _)
     | Just f <- M.lookup n w =
        Var f
 
@@ -443,7 +433,7 @@ lhLeName :: Name -> Name
 lhLeName (Name n _ _) = Name ("lhLeName" `T.append` n) Nothing 0
 
 lhLeExpr :: Walkers -> Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-lhLeExpr ltW eqW eenv w (n, _) ng = 
+lhLeExpr ltW eqW eenv _ (n, _) ng = 
     let
         lt = case M.lookup n ltW of
             Just f' -> f'
@@ -473,7 +463,7 @@ lhGtName :: Name -> Name
 lhGtName (Name n _ _) = Name ("lhGtName" `T.append` n) Nothing 0
 
 lhGtExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-lhGtExpr ltW eenv w (n, _) ng = 
+lhGtExpr ltW eenv _ (n, _) ng = 
     let
         f = case M.lookup n ltW of
             Just f' -> f'
@@ -495,7 +485,7 @@ lhGeName :: Name -> Name
 lhGeName (Name n _ _) = Name ("lhGeName" `T.append` n) Nothing 0
 
 lhGeExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-lhGeExpr leW eenv w (n, _) ng = 
+lhGeExpr leW eenv _ (n, _) ng = 
     let
         f = case M.lookup n leW of
             Just f' -> f'
@@ -525,9 +515,9 @@ lhPolyPredName :: Name -> Name
 lhPolyPredName (Name n _ _) = Name ("lhPolyPred" `T.append` n) Nothing 0
 
 lhPolyPred :: ExprEnv -> TypeEnv -> Name -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-lhPolyPred eenv tenv lhTC kv w (n, adt) ng =
+lhPolyPred eenv tenv lh kv w (n, adt) ng =
     let
-        (adt', bni, wbni, ng2) = boundNameBindings lhTC adt ng
+        (adt', bni, _, ng2) = boundNameBindings lh adt ng
         bn = map idName bni
 
         tb = tyBool kv
@@ -540,7 +530,7 @@ lhPolyPred eenv tenv lhTC kv w (n, adt) ng =
     (foldr Lam e (bni ++ fbi), ng4)
 
 lhPolyPredCase :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> Name -> AlgDataTy -> [Name] -> [(Name, Id)] -> NameGen -> (Expr, NameGen)
-lhPolyPredCase eenv tenv kv w n adt@(DataTyCon { data_cons = dc }) bn bnf ng =
+lhPolyPredCase eenv tenv kv w n (DataTyCon { data_cons = dc }) bn bnf ng =
     let
         t = TyConApp n $ map (TyVar . flip Id TYPE) bn
 
@@ -552,12 +542,12 @@ lhPolyPredCase eenv tenv kv w n adt@(DataTyCon { data_cons = dc }) bn bnf ng =
         c = Case (Var i1) caseB alts
     in
     (Lam i1 c, ng4)
-lhPolyPredCase eenv tenv kv w n adt@(NewTyCon { rep_type = t }) bn bnf ng =
+lhPolyPredCase _ tenv kv w n (NewTyCon { rep_type = t }) bn bnf ng =
     let
         t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
 
-        (i, ng') = freshId t' ng
-        (caseB, ng'') = freshId t ng'
+        (i, ng2) = freshId t' ng
+        (caseB, ng3) = freshId t ng2
 
         cast = Cast (Var i) (t' :~ t)
 
@@ -567,7 +557,7 @@ lhPolyPredCase eenv tenv kv w n adt@(NewTyCon { rep_type = t }) bn bnf ng =
 
         c = Case cast caseB [alt]
     in
-    (Lam i c, ng')
+    (Lam i c, ng3)
 
 
 lhPolyPredAlts :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [DataCon] -> [(Name, Id)] -> NameGen -> ([Alt], NameGen)
@@ -576,7 +566,7 @@ lhPolyPredAlts eenv tenv kv w (dc@(DataCon _ _ ts):dcs) bnf ng =
     let
         (binds, ng2) = freshIds ts ng
         
-        e = lhPolyPredCaseExpr eenv tenv kv w dc binds bnf
+        e = lhPolyPredCaseExpr eenv tenv kv w binds bnf
 
         alt = Alt (DataAlt dc binds) e
 
@@ -584,8 +574,8 @@ lhPolyPredAlts eenv tenv kv w (dc@(DataCon _ _ ts):dcs) bnf ng =
     in
     (alt:alts, ng3)
 
-lhPolyPredCaseExpr :: ExprEnv -> TypeEnv -> KnownValues -> Walkers-> DataCon -> [Id] -> [(Name, Id)] -> Expr
-lhPolyPredCaseExpr eenv tenv kv w (DataCon n t ts) bn bnf =
+lhPolyPredCaseExpr :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [Id] -> [(Name, Id)] -> Expr
+lhPolyPredCaseExpr eenv tenv kv w bn bnf =
     let
         tyvs = filter (isTyVar . typeOf) bn
 
@@ -625,9 +615,9 @@ polyPredFuncCall true w bnf i
     | otherwise = error $ "Unhandled type " ++ show (typeOf i)
 
 polyPredFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
-polyPredFunc _ bnf tyvar@(TyVar (Id n _)) 
+polyPredFunc _ bnf (TyVar (Id n _)) 
     | Just tyF <- lookup n bnf = 
         Var tyF
-polyPredFunc w _ t@(TyConApp n _)
+polyPredFunc w _ (TyConApp n _)
     | Just f <- M.lookup n w =
         Var f

@@ -13,17 +13,11 @@ module G2.Internals.Translation.PrimInject
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
-import G2.Internals.Language.Primitives
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeEnv
-import G2.Internals.Translation.Haskell
 
-import Data.Char
 import Data.List
-import Data.Maybe
 import qualified Data.Text as T
-
-import Debug.Trace
 
 primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
 primInject = modifyASTs primInjectT
@@ -106,7 +100,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
 
 
 replaceFromPD :: Id -> Expr -> (Id, Expr)
-replaceFromPD i@(Id n t) e =
+replaceFromPD i@(Id n _) e =
     let
         e' = fmap snd $ find ((==) (nameOccStr n) . fst) primDefs
     in

@@ -5,7 +5,6 @@ module G2.Internals.Liquid.SimplifyAsserts (simplifyAsserts) where
 import G2.Internals.Language
 import G2.Internals.Language.KnownValues
 
-import Debug.Trace
 
 type ModifiedKnownValues = KnownValues
 

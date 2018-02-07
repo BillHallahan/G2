@@ -5,33 +5,26 @@ module G2.Internals.Liquid.Interface where
 import G2.Internals.Translation
 import G2.Internals.Interface
 import G2.Internals.Language as Lang
-import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Execution
 import G2.Internals.Liquid.Conversion
-import G2.Internals.Liquid.CreateFuncs
 import G2.Internals.Liquid.Measures
 import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.TCGen
-import G2.Internals.Liquid.TCValues
 import G2.Internals.Solver
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
-import  Language.Fixpoint.Types.Names
 import Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.Coerce
 import qualified Data.Map as M
-import Data.Time
 import qualified Data.Text as T
 
 import qualified GHC as GHC
 import Var
-
-import G2.Lib.Printers
 
 import G2.Internals.Language.KnownValues
 
@@ -45,9 +38,9 @@ findCounterExamples proj primF fp entry m_mapsrc steps = do
     let lh_measures = measureSpecs ghcInfos
 
     (mod_name, pre_bnds, pre_tycons, pre_cls) <- translateLoaded proj fp primF False m_mapsrc
-    let (bnds, tycons, cls) = (pre_bnds, pre_tycons, pre_cls)
+    let (bnds, tycons, cl) = (pre_bnds, pre_tycons, pre_cls)
     
-    let init_state = initState bnds tycons cls Nothing Nothing Nothing True entry (Just mod_name)
+    let init_state = initState bnds tycons cl Nothing Nothing Nothing True entry (Just mod_name)
 
     -- We filter the State to clean up the expr env
     -- We can't do this to the Types, because we don't know what the measures
@@ -65,7 +58,6 @@ findCounterExamples proj primF fp entry m_mapsrc steps = do
 
     hhp <- getZ3ProcessHandles
 
-    -- let beta_red_state = measure_state'
     let beta_red_state = simplifyAsserts mkv merged_state
 
     run smt2 hhp steps beta_red_state

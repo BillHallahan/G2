@@ -1,7 +1,6 @@
 module G2.Internals.Translation.Interface where
 
 import Data.List
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 import G2.Internals.Language
@@ -14,7 +13,7 @@ translateLoaded :: FilePath -> FilePath -> FilePath -> Bool -> Maybe FilePath
                 -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])])
 translateLoaded proj src prelude simpl m_mapsrc = do
     let basedir = dropWhileEnd (/= '/') prelude
-    (base_name, base_prog, base_tys, base_cls, base_nm, base_tm) <- hskToG2 basedir prelude specialConstructors specialTypeNames simpl
+    (_, base_prog, base_tys, base_cls, base_nm, base_tm) <- hskToG2 basedir prelude specialConstructors specialTypeNames simpl
 
     let base_prog' = addPrimsToBase base_prog
 

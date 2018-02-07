@@ -117,7 +117,7 @@ varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
 varNamesInPC kv (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varNamesInPC kv $ AltCond altC e b
-varNamesInPC kv pc@(AltCond (DataAlt (DataCon _ _ _) _) (Var (Id n t)) _) 
+varNamesInPC kv (AltCond (DataAlt (DataCon _ _ _) _) (Var (Id n t)) _) 
              | t /= tyBool kv = [n]
 varNamesInPC _ (AltCond a e _) = varNamesInAltMatch a ++ varNames e
 varNamesInPC _ (ExtCond e _) = varNames e

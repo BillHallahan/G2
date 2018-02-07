@@ -62,12 +62,12 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon n@(Name "True" _ _) _ _) e b) =
+pathConsToSMT (ConsCond (DataCon (Name "True" _ _) _ _) e b) =
     let
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon n@(Name "False" _ _) _ _) e b) =
+pathConsToSMT (ConsCond (DataCon (Name "False" _ _) _ _) e b) =
     let
         exprSMT = exprToSMT e
     in
@@ -78,7 +78,6 @@ pathConsToSMT (ConsCond (DataCon n _ _) e b) =
     in
     Just $ if b then Tester n exprSMT else (:!) $ Tester n exprSMT
 pathConsToSMT (PCExists _) = Nothing
-pathConsToSMT _ = error "Invalid path condition."
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -116,16 +115,9 @@ exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
 -- | funcToSMT
 -- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
-funcToSMT (Var (Id (Name "$I" _ _) _)) [a] = exprToSMT a -- Todo: Get rid of this
-funcToSMT (Var (Id (Name "$F" _ _) _)) [a] = exprToSMT a -- Todo: Get rid of this
-funcToSMT (Var (Id (Name "$D" _ _) _)) [a] = exprToSMT a -- Todo: Get rid of this
 funcToSMT (Var (Id n t)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t) -- TODO : DO WE NEED THIS???
 funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
 funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
--- funcToSMT (Prim p) [a1, a2, a3, a4] = funcToSMT4Prim p a1 a2 a3 a4
-funcToSMT (Data (DataCon (Name "$I" _ _) _ _)) [a] = exprToSMT a -- Todo: Get rid of this
-funcToSMT (Data (DataCon (Name "$F" _ _) _ _)) [a] = exprToSMT a -- Todo: Get rid of this
-funcToSMT (Data (DataCon (Name "$D" _ _) _ _)) [a] = exprToSMT a -- Todo: Get rid of this
 funcToSMT (Data (DataCon n t _)) es = Cons (nameToStr n) (map exprToSMT es) (typeToSMT t)
 funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
@@ -157,8 +149,8 @@ altToSMT :: AltMatch -> SMTAST
 altToSMT (LitAlt (LitInt i)) = VInt i
 altToSMT (LitAlt (LitFloat f)) = VFloat f
 altToSMT (LitAlt (LitDouble d)) = VDouble d
-altToSMT (DataAlt (DataCon (Name "True" _ _) t ts) ns) = VBool True
-altToSMT (DataAlt (DataCon (Name "False" _ _) t ts) ns) = VBool False
+altToSMT (DataAlt (DataCon (Name "True" _ _) _ _) _) = VBool True
+altToSMT (DataAlt (DataCon (Name "False" _ _) _ _) _) = VBool False
 altToSMT (DataAlt (DataCon n t ts) ns) =
     Cons (nameToStr n) (map f $ zip ns ts) (typeToSMT t)
     where
@@ -219,7 +211,6 @@ typesToSMTSorts tenv =
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =
                 DC (nameToStr n) $ map typeToSMT ts
-            dataConToDC err = error $ "dataConToDC: invalid DataCon: " ++ show err
 
 -- | toSolver
 toSolver :: SMTConverter ast out io -> [SMTHeader] -> out
