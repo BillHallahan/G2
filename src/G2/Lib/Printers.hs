@@ -225,6 +225,7 @@ mkExprHaskell ex = mkExprHaskell' ex 0
 
 mkLitHaskell :: Lit -> String
 mkLitHaskell (LitInt i) = show i
+mkLitHaskell (LitInteger i) = show i
 mkLitHaskell (LitFloat r) = "(" ++ show r ++ ")"
 mkLitHaskell (LitDouble r) = "(" ++ show r ++ ")"
 mkLitHaskell (LitChar c) = [c]
@@ -246,6 +247,9 @@ mkPrimHaskell Mult = "*"
 mkPrimHaskell Div = "/"
 mkPrimHaskell Mod = "mod"
 mkPrimHaskell Negate = "-"
+mkPrimHaskell IntToReal = "intToReal"
+mkPrimHaskell FromInteger = "fromInteger"
+mkPrimHaskell ToInteger = "toInteger"
 mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"

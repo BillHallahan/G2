@@ -279,6 +279,8 @@ mkTyCon nm tm t = ((nm', tm'), (n, dcs))
                      , nt_rhs = rhst} -> G2.NewTyCon { G2.bound_names = bv
                                                      , G2.data_con = mkData nm' tm dc
                                                      , G2.rep_type = mkType tm rhst}
+            AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
+            TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
 mkTyConName :: TypeNameMap -> TyCon -> G2.Name

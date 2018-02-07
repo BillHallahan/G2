@@ -6,6 +6,8 @@ module Main where
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import G2.Internals.Config.Config
+
 import G2.Internals.Interface
 import G2.Internals.Language as G2
 import G2.Internals.Translation
@@ -308,7 +310,7 @@ checkExprGen exprs i reqList =
     argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
 
 testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
-testFile proj src steps m_assume m_assert m_reaches entry = do
+testFile proj src stps m_assume m_assert m_reaches entry = do
     -- (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True Nothing
     (m, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True Nothing
 
@@ -316,14 +318,14 @@ testFile proj src steps m_assume m_assert m_reaches entry = do
 
     hhp <- getZ3ProcessHandles
 
-    r <- run smt2 hhp steps init_state
+    r <- run smt2 hhp (mkConfigDef {steps = stps}) init_state
 
     return $ map (\(_, _, i, o, _) -> (i, o)) r
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
-checkLiquid proj fp entry steps i reqList = do
+checkLiquid proj fp entry stps i reqList = do
     -- r <- findCounterExamples proj "./defs/PrimDefs.hs" fp (T.pack entry) Nothing steps
-    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) Nothing steps
+    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) Nothing (mkConfigDef {steps = stps})
 
     let exprs = map (\(_, _, inp, out, _) -> inp ++ [out]) r
 

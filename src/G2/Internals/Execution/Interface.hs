@@ -7,6 +7,8 @@ module G2.Internals.Execution.Interface
     , runNDepthNoConstraintChecks
     ) where
 
+import G2.Internals.Config.Config
+
 import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
 import G2.Internals.Solver.Language
@@ -37,14 +39,16 @@ runNBreadthNoConstraintChecks rss n = runNBreadthNoConstraintChecks (concatMap g
     go (rules, state) = let (rule, states) = reduceNoConstraintChecks state
                         in map (\s -> (rules ++ [rule], s)) states
 
-runNDepth :: SMTConverter ast out io -> io -> [State] -> Int -> IO [([Rule], [Int], State)]
-runNDepth con hpp states d = runNDepth' $ map (\s -> (([], [], s), d)) states
+runNDepth :: SMTConverter ast out io -> io -> [State] -> Config -> IO [([Rule], [Int], State)]
+runNDepth con hpp states config = runNDepth' $ map (\s -> (([], [], s), steps config)) states
   where
     runNDepth' :: [(([Rule], [Int], State), Int)] -> IO [([Rule], [Int], State)]
     runNDepth' [] = return []
     runNDepth' ((rss, 0):xs) = return . (:) rss =<< runNDepth' xs
     runNDepth' ((((rs, is, s), n)):xs) = do
-        -- outputState rs is s
+        case logStates config of
+            Just f -> outputState f rs is s
+            Nothing -> return ()
 
         (app_rule, reduceds) <- reduce con hpp s
 
@@ -65,9 +69,9 @@ runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (([], s), d)) 
             mod_info = map (\s' -> ((rs ++ [app_rule], s'), n - 1)) reduceds
         in runNDepthNCC' (mod_info ++ xs)
 
-outputState :: [Rule] -> [Int] -> State -> IO ()
-outputState rs is s = do
-    let dir = "res/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
+outputState :: String -> [Rule] -> [Int] -> State -> IO ()
+outputState fdn rs is s = do
+    let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
     createDirectoryIfMissing True dir
 
     let fn = dir ++ "state" ++ show (length rs) ++ ".txt"

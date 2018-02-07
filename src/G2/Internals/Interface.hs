@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Interface ( initState
-                              , run) where
+                              , run
+                              , Config) where
+
+import G2.Internals.Config.Config
 
 import G2.Internals.Language
 
@@ -74,9 +77,9 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: SMTConverter ast out io -> io -> Int -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-run con hhp n (state@ State { type_env = tenv
-                            , known_values = kv }) = do
+run :: SMTConverter ast out io -> io -> Config -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+run con hhp config (state@ State { type_env = tenv
+                                 , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
     -- let swept = state
 
@@ -129,7 +132,7 @@ run con hhp n (state@ State { type_env = tenv
 
     -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
 
-    exec_states <- runNDepth con hhp [preproc_state'] n
+    exec_states <- runNDepth con hhp [preproc_state'] config
 
     let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
                -- , Name "walkInt" Nothing 0

@@ -2,6 +2,8 @@
 
 module G2.Internals.Liquid.Interface where
 
+import G2.Internals.Config.Config
+
 import G2.Internals.Translation
 import G2.Internals.Interface
 import G2.Internals.Language as Lang
@@ -14,7 +16,7 @@ import G2.Internals.Liquid.TCGen
 import G2.Internals.Solver
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
-import Language.Haskell.Liquid.Types
+import Language.Haskell.Liquid.Types hiding (Config)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
 import Language.Fixpoint.Types.PrettyPrint as FPP
@@ -31,8 +33,8 @@ import G2.Internals.Language.KnownValues
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> Maybe FilePath -> Int -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-findCounterExamples proj primF fp entry m_mapsrc steps = do
+findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> Maybe FilePath -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples proj primF fp entry m_mapsrc config = do
     ghcInfos <- getGHCInfos proj [fp]
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
@@ -56,11 +58,11 @@ findCounterExamples proj primF fp entry m_mapsrc steps = do
 
     let (merged_state, mkv) = mergeLHSpecState specs measure_state tcv
 
-    hhp <- getZ3ProcessHandles
-
     let beta_red_state = simplifyAsserts mkv merged_state
 
-    run smt2 hhp steps beta_red_state
+    hhp <- getZ3ProcessHandles
+
+    run smt2 hhp config beta_red_state
 
 getGHCInfos :: FilePath -> [FilePath] -> IO [GhcInfo]
 getGHCInfos proj fp = do

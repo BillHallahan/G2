@@ -10,6 +10,7 @@ import qualified Data.Text as T
 
 import G2.Lib.Printers
 
+import G2.Internals.Config.Config
 import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
@@ -49,11 +50,11 @@ main = do
             --               [l, f] ++
             --               prim_list
 
-            let n_val = nVal as
-
             -- putStrLn $ show lh_names
 
-            in_out <- findCounterExamples proj prims l (T.pack f) m_mapsrc n_val
+            let config = mkConfig as
+
+            in_out <- findCounterExamples proj prims l (T.pack f) m_mapsrc config
 
             printLHOut (T.pack f) in_out
             
@@ -65,7 +66,6 @@ runGHC as = do
     let (proj:src:lib:entry:tail_args) = as
 
     --Get args
-    let n_val = nVal tail_args
     let m_assume = mAssume tail_args
     let m_assert = mAssert tail_args
     let m_reaches = mReaches tail_args
@@ -85,7 +85,9 @@ runGHC as = do
 
     hhp <- getZ3ProcessHandles
 
-    in_out <- run smt2 hhp n_val init_state'
+    let config = mkConfig as
+
+    in_out <- run smt2 hhp config init_state'
 
     -- putStrLn "----------------\n----------------"
 
@@ -137,16 +139,6 @@ printFuncCalls entry =
         -- print ais
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
-
-mArg :: String -> [String] -> (String -> a) -> a -> a
-mArg s a f d = case elemIndex s a of
-               Nothing -> d
-               Just i -> if i >= length a
-                              then error ("Invalid use of " ++ s)
-                              else f (a !! (i + 1))
-
-nVal :: [String] -> Int
-nVal a = mArg "--n" a read 500
 
 mAssume :: [String] -> Maybe String
 mAssume a = mArg "--assume" a Just Nothing

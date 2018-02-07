@@ -127,7 +127,7 @@ instance Typed Expr where
                     m''' = M.insert n tca m''
                 in
                 typeOf' m''' t2
-            t@(TyFun _ t2, _) -> (t2, m'')  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
+            (TyFun _ t2, _) -> (t2, m'')  -- if t1 == tfxpr then t2 else TyBottom -- TODO:
                                -- We should really have this if check- but
                                -- can't because of TyBottom being introduced
                                -- elsewhere...
@@ -221,7 +221,6 @@ specializesTo m (TyFun t1 t2) (TyFun t1' t2') =
         (b2, m'') = specializesTo m' t2 t2'
     in
     (b1 && b2, m'')
-specializesTo m t (TyFun _ t2') = specializesTo m t t2'
 specializesTo m (TyApp t1 t2) (TyApp t1' t2') =
     let
         (b1, m') = specializesTo m t1 t1'
@@ -274,6 +273,7 @@ specializesTo m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyFun t1' t2') =
       (b1, m') = specializesTo (M.insert n t1' m) t1 t1'
       (b2, m'') = specializesTo m' t2 t2'
   in (b1 && b2, m'')
+specializesTo m t (TyFun _ t2') = specializesTo m t t2'
 specializesTo m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
   let
       (b1, m') = specializesTo m t1 t1'
