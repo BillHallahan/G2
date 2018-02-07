@@ -25,9 +25,6 @@ import Data.List
 import Data.Maybe
 import System.Directory
 
--- | Rename multiple things at once with [(olds, news)] on a `Renameable`.
-renames :: Named a => [(Name, Name)] -> a -> a
-renames n a = foldr (\(old, new) -> rename old new) a n
 
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n

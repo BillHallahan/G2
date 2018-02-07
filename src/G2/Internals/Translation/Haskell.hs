@@ -38,9 +38,6 @@ import Unique
 import Var as V
 
 import Data.Foldable
-import Data.Maybe
-
-import qualified Outputable as Out
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
@@ -254,9 +251,9 @@ mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v-- (mkName (V.varName v)) (mkType (v
 mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
 mkType tm (ForAllTy (Anon t) ty) = G2.TyFun (mkType tm t) (mkType tm ty)
 mkType tm (ForAllTy b ty) = G2.TyForAll (mkTyBinder tm b) (mkType tm ty)
-mkType tm (LitTy _) = G2.TyBottom
-mkType tm (CastTy _ _) = error "mkType: CastTy"
-mkType tm (CoercionTy _) = error "mkType: Coercion"
+mkType _ (LitTy _) = G2.TyBottom
+mkType _ (CastTy _ _) = error "mkType: CastTy"
+mkType _ (CoercionTy _) = error "mkType: Coercion"
 mkType tm (TyConApp tc ts) = if not (isFunTyCon tc) || (length ts /= 2)
     then G2.TyConApp (mkTyConName tm tc) (map (mkType tm) ts)
     else case ts of
@@ -279,9 +276,9 @@ mkTyCon nm tm t = ((nm', tm'), (n, dcs))
         case algTyConRhs t of
             DataTyCon { data_cons = dc } -> G2.DataTyCon bv $ map (mkData nm' tm) dc
             NewTyCon { data_con = dc
-                     , nt_rhs = t} -> G2.NewTyCon { G2.bound_names = bv
-                                                  , G2.data_con = mkData nm' tm dc
-                                                  , G2.rep_type = mkType tm t}
+                     , nt_rhs = rhst} -> G2.NewTyCon { G2.bound_names = bv
+                                                     , G2.data_con = mkData nm' tm dc
+                                                     , G2.rep_type = mkType tm rhst}
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
 mkTyConName :: TypeNameMap -> TyCon -> G2.Name
@@ -321,5 +318,5 @@ mkCoercion tm c =
     (pFst k) G2.:~ (pSnd k)
 
 mkClass :: TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id])
-mkClass tm (ClsInst { is_cls = c, is_dfun = dfun, is_tcs = tcs, is_tvs = tvs, is_tys = tys }) = 
+mkClass tm (ClsInst { is_cls = c, is_dfun = dfun }) = 
     (flip mkNameLookup tm . C.className $ c, mkId tm dfun, map (mkId tm) $ C.classTyVars c)

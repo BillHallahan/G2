@@ -1,13 +1,9 @@
 module G2.Internals.Language.CreateFuncs where
 
-import G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
-
-import qualified Data.Map as M
-import Data.Maybe
 
 -- | createFuncs
 -- Give a list of b's, and functions to generate names and expressions from those

@@ -42,8 +42,6 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 
-import Debug.Trace
-
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) []
 
@@ -113,7 +111,7 @@ instance Typed Expr where
     typeOf' m (Lit lit) = typeOf' m lit
     typeOf' m (Prim _ ty) = (ty, m)
     typeOf' m (Data dcon) = typeOf' m dcon
-    typeOf' m e@(App fxpr axpr) =
+    typeOf' m (App fxpr axpr) =
         let
             (tfxpr, m') = typeOf' m fxpr
             (taxpr, m'') = typeOf' m' axpr
@@ -133,7 +131,7 @@ instance Typed Expr where
                                -- We should really have this if check- but
                                -- can't because of TyBottom being introduced
                                -- elsewhere...
-            t -> (TyBottom, m'')
+            _ -> (TyBottom, m'')
     typeOf' m (Lam b expr) =
         let
             (t1, m') = case typeOf' m b of

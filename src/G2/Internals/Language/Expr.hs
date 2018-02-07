@@ -30,6 +30,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , varId
                                   , symbVars
                                   , freeVars
+                                  , alphaReduction
                                   , varBetaReduction
                                   , mkStrict) where
 
@@ -40,15 +41,12 @@ import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
-import G2.Internals.Language.TypeEnv
 import G2.Internals.Language.Typing
 
 import Data.Foldable
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
-
-import Debug.Trace
 
 replaceVar :: (ASTContainer m Expr) => Name -> Expr -> m -> m
 replaceVar n re = modifyASTs (replaceVar' n re)
@@ -143,7 +141,7 @@ mkMappedLamBindings ng at f =
     let
         (as, _) = unzip at
     in
-    mkLamBindings ng (map snd at) (\ng ns -> f ng (zip as ns))
+    mkLamBindings ng (map snd at) (\ng' ns -> f ng' (zip as ns))
 
 -- Runs the given function f on the expression nested in the lambdas, and
 -- rewraps the new expression with the Lambdas

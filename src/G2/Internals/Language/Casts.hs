@@ -13,8 +13,6 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
-import Debug.Trace
-
 -- | unsafeElimCast
 -- Removes all casts from the expression.  Makes no guarentees about the type
 -- correctness of the resulting expression.  In particular, the expression
@@ -79,8 +77,8 @@ liftCasts'' :: Expr -> Expr
 -- liftCasts'' (App (Cast f ((TyFun t1 t2) :~ (TyFun t1' t2'))) e) = 
 --     Cast (App f e) (t2 :~ t2')
 liftCasts'' (App (Cast f (t1 :~ t2)) e)
-    | (TyFun t1' t1'') <- inTyForAlls t1
-    , (TyFun t2' t2'') <- inTyForAlls t2
+    | (TyFun _ t1'') <- inTyForAlls t1
+    , (TyFun _ t2'') <- inTyForAlls t2
     , nt1 <- nestTyForAlls t1
     , nt2 <- nestTyForAlls t2 =
         Cast (App f e) ((nt1 t1'') :~ (nt2 t2''))

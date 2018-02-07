@@ -238,7 +238,6 @@ instance ASTContainer DataCon Expr where
 
 instance ASTContainer DataCon Type where
     containedASTs (DataCon _ t ts) = t:ts
-    containedASTs _ = []
 
     modifyContainedASTs f (DataCon n t ts) = DataCon n (f t) (map f ts)
 

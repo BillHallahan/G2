@@ -138,7 +138,6 @@ dataConCanContain' tenv (DataCon _ _ ts) =
         recT = concatMap (dataConCanContain tenv) adts
     in
     pt ++ (map typeOf dcs) ++ recT
-dataConCanContain' _ _ = []
 
 tyConAppName :: Type -> Name
 tyConAppName (TyConApp n _) = n
@@ -163,7 +162,6 @@ getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon 
 
 dataConArgs :: DataCon -> [Type]
 dataConArgs (DataCon _ _ ts) = ts
-dataConArgs _ = []
 
 dataConWithName :: AlgDataTy -> Name -> Maybe DataCon
 dataConWithName (DataTyCon _ dcs) n = listToMaybe $ filter (flip dataConHasName n) dcs
@@ -179,7 +177,6 @@ dataConWithNameMod _ _ = Nothing
 
 dataConHasNameMod :: DataCon -> Name -> Bool
 dataConHasNameMod (DataCon (Name n m _) _ _) (Name n' m' _) = n == n' && m == m'
-dataConHasNameMod _ _ = False
 
 retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
 retypeAlgDataTy ts adt =

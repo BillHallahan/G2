@@ -39,7 +39,7 @@ primInjectT t = t
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
 dataInject prog progTy = 
     let
-        dcNames = catMaybes . concatMap (\(_, dc) -> map conName (dataCon dc)) $ progTy
+        dcNames = concatMap (\(_, dc) -> map conName (dataCon dc)) $ progTy
     in
     (modifyASTs (dataInject' dcNames) prog, progTy)
 
@@ -51,9 +51,8 @@ dataInject' ns v@(Var (Id (Name n m _) t)) =
         Nothing -> v
 dataInject' _ e = e
 
-conName :: DataCon -> Maybe (Name, [Type])
-conName (DataCon n _ ts) = Just (n, ts)
-conName _ = Nothing
+conName :: DataCon -> (Name, [Type])
+conName (DataCon n _ ts) = (n, ts)
 
 occFind :: Name -> [Name] -> Maybe Name
 occFind _ [] = Nothing
@@ -105,81 +104,6 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("errorWithoutStackTrace", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
 
-
-{-
-primDefs = [ (".+#", Prim Plus TyBottom)
-           , (".*#", Prim Mult TyBottom)
-           , (".-#", Prim Minus TyBottom)
-           , ("negateInt##", Prim Negate TyBottom)
-           , (".+##", Prim Plus TyBottom)
-           , (".*##", Prim Mult TyBottom)
-           , (".-##", Prim Minus TyBottom)
-           , ("negateDouble##", Prim Negate TyBottom)
-           , ("plusFloat##", Prim Plus TyBottom)
-           , ("timesFloat##", Prim Mult TyBottom)
-           , ("minusFloat##", Prim Minus TyBottom)
-           , ("negateFloat##", Prim Negate TyBottom)
-           , ("./##", Prim Div TyBottom)
-           , ("divFloat##", Prim Div TyBottom)
-           , (".==#", Prim Eq TyBottom)
-           , ("./=#", Prim Neq TyBottom)
-           , (".==##", Prim Eq TyBottom)
-           , ("./=##", Prim Neq TyBottom)
-           , ("eqFloat'#", Prim Eq TyBottom)
-           , ("neqFloat'#", Prim Neq TyBottom)
-           , (".<=#", Prim Le TyBottom)
-           , (".<#", Prim Lt TyBottom)
-           , (".>#", Prim Gt TyBottom)
-           , (".>=#", Prim Ge TyBottom)
-           , (".<=##", Prim Le TyBottom)
-           , (".<##", Prim Lt TyBottom)
-           , (".>##", Prim Gt TyBottom)
-           , (".>=##", Prim Ge TyBottom)
-           , ("leFloat'#", Prim Le TyBottom)
-           , ("ltFloat'#", Prim Lt TyBottom)
-           , ("gtFloat'#", Prim Gt TyBottom)
-           , ("geFloat'#", Prim Ge TyBottom)
-           , ("error", Prim Error TyBottom)
-           , ("undefined", Prim Error TyBottom)]
--}
-
-equivMods :: [(T.Text, T.Text)]
-equivMods = [ ("GHC.Classes", "GHC.Classes2")
-            , ("GHC.Types", "GHC.Types2")
-            , ("GHC.Integer", "GHC.Integer2")
-            , ("GHC.Integer.Type", "GHC.Integer.Type2")
-            , ("GHC.Prim", "GHC.Prim2")
-            , ("GHC.Tuple", "GHC.Tuple2")
-            , ("GHC.Magic", "GHC.Magic2")
-            , ("GHC.CString", "GHC.CString2")
-            , ("Data.Map", "Data.Map.Base")
-
-            , ("PrimDefs", "GHC.Classes")
-            , ("PrimDefs", "GHC.Types")
-            , ("PrimDefs", "GHC.Integer")
-            , ("PrimDefs", "GHC.Integer.Type")
-            , ("PrimDefs", "GHC.Prim")
-            , ("PrimDefs", "GHC.Tuple")
-            , ("PrimDefs", "GHC.Magic")
-            , ("PrimDefs", "GHC.CString")
-            , ("PrimDefs", "GHC.Base")
-            , ("PrimDefs", "GHC.Num")
-            , ("PrimDefs", "GHC.Int")
-            , ("PrimDefs", "GHC.Float")
-            , ("PrimDefs", "GHC.Real")
-            , ("PrimDefs", "GHC.Rational")
-            , ("PrimDefs", "GHC.Err")
-            -- , "PrimDefs"
-            -- , "GHC.Tuple"
-            -- , "Data.Map.Base"
-            ]
-
-nameStrEq :: Name -> Name -> Bool
-nameStrEq (Name n m _) (Name n' m' _) =
-  n == n' && (any id [ m == m'
-                     , m `elem` (map (Just . snd) $ filter ((== m') . Just . fst) equivMods)
-                     , m' `elem` (map (Just . snd) $ filter ((== m) . Just . fst) equivMods)
-                     ])
 
 replaceFromPD :: Id -> Expr -> (Id, Expr)
 replaceFromPD i@(Id n t) e =

@@ -46,7 +46,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.List.Utils
-import Data.String
 import qualified Data.Text as T
 
 nameOccStr :: Name -> T.Text
@@ -102,7 +101,6 @@ altMatchNames _ = []
 
 dataConName :: DataCon -> [Name]
 dataConName (DataCon n _ _) = [n]
-dataConName _ = []
 
 typeNames :: (ASTContainer m Type) => m -> [Name]
 typeNames = evalASTs typeTopNames
@@ -320,15 +318,12 @@ instance Named Alt where
 
 instance Named DataCon where
     names (DataCon n t ts) = n:(names t ++ concatMap names ts)
-    names _ = []
 
     rename old new (DataCon n t ts) =
         DataCon (rename old new n) (rename old new t) (rename old new ts)
-    rename _ _ d = d
 
     renames hm (DataCon n t ts) =
         DataCon (renames hm n) (renames hm t) (renames hm ts)
-    renames _ d = d
 
 instance Named AltMatch where
     names (DataAlt dc i) = names dc ++ names i
