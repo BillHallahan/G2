@@ -244,11 +244,6 @@ mkAppliedDCs at ng appTN (DataCon n _ ts:xs) =
         (end, ng3) = mkAppliedDCs at ng2 appTN xs
     in
     (appDC:end, ng3)
-mkAppliedDCs at ng appTN (x:xs) = 
-    let
-        (end, ng2) = mkAppliedDCs at ng appTN xs
-    in
-    (x:end, ng2)
 
 mkAppliedToFunc :: ApplyTypes -> NameGen -> Name -> [(DataCon, DataCon)] -> (Expr, NameGen)
 mkAppliedToFunc at ng appTN dcs =
@@ -281,7 +276,6 @@ mkAppliedToAlts at ng ((appDC@(DataCon _ _ appTs), funcDC@(DataCon _ _ funcTs)):
         (end, ng3) = mkAppliedToAlts at ng2 xs
     in
     (Alt am dcExpr:end, ng3)
-mkAppliedToAlts at ng (_:xs) = mkAppliedToAlts at ng xs
 
 mkAppliedToAlts' :: ApplyTypes -> Type -> Id -> Expr
 mkAppliedToAlts' at t i =

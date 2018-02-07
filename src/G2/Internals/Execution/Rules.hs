@@ -18,13 +18,9 @@ import qualified G2.Internals.Language.Stack as S
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
-import G2.Lib.Printers
 
 import Control.Monad
-import Data.List
 import Data.Maybe
-import System.Directory
-
 
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
@@ -195,7 +191,7 @@ repeatedLookup v@(Var (Id n _)) eenv
 repeatedLookup e _ = e
 
 lookupForPrim :: Expr -> ExprEnv -> Expr
-lookupForPrim v@(Var (Id n _)) eenv = repeatedLookup v eenv
+lookupForPrim v@(Var (Id _ _)) eenv = repeatedLookup v eenv
 lookupForPrim (App e e') eenv = App (lookupForPrim e eenv) (lookupForPrim e' eenv)
 lookupForPrim e _ = e
 
@@ -205,8 +201,8 @@ lookupForPrim e _ = e
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-reduce :: SMTConverter ast out io -> io -> State -> [Int] -> [Rule] -> IO (Rule, [State])
-reduce con hpp s is rs = do
+reduce :: SMTConverter ast out io -> io -> State -> IO (Rule, [State])
+reduce con hpp s = do
     let (rule, res) = reduce' s
 
     -- putStrLn "----------------------------------"
@@ -271,7 +267,7 @@ reduceNoConstraintChecks s =
     (rule, map (resultToState s) res)
 
 resultToState :: State -> ReduceResult -> State
-resultToState s (eenv, cexpr, pc, _, is, ng, st) =
+resultToState s (eenv, cexpr, pc, _, _, ng, st) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
@@ -377,7 +373,7 @@ reduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
                    , Just frame)])
     Nothing -> error "reduceEvaluate: lookup was Nothing"
 
-reduceEvaluate eenv app@(App fexpr aexpr) ngen =
+reduceEvaluate eenv (App fexpr aexpr) ngen =
     -- Push application RHS onto the stack. This is essentially the same as the
     -- original STG rules, but we pretend that every function is (appropriately)
     -- single argument. However one problem is that eenv sharing has a redundant
@@ -627,12 +623,12 @@ reduceEReturn eenv c@(Var v) ngen (ApplyFrame aexpr) =
               , ngen'))
 reduceEReturn eenv c ngen (ApplyFrame aexpr) =
   case unApp c of
-      p@(Prim _ _):_ ->  
+      (Prim _ _):_ ->  
           ( RuleReturnEApplySym
           , ( eenv
             , CurrExpr Evaluate (App c aexpr)
             , ngen))
-      d@(Data dc):_ ->
+      (Data _):_ ->
           ( RuleReturnEApplyData
           , ( eenv
             , CurrExpr Evaluate (App c aexpr)

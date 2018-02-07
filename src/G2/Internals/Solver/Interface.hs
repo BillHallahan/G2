@@ -100,7 +100,7 @@ checkModel' con io (Id n t@(TyConApp tn ts):is) s
             SAT -> checkModel' con io (is ++ is'') s'
             r' -> return (r', Nothing)
 checkModel' con io ((Id n _):is) s = do
-    let (Just (Var i'@(Id n' t))) = E.lookup n (expr_env s)
+    let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
  
     let pc = PC.scc (known_values s) [n] (path_conds s)
     let s' = s {path_conds = pc }
@@ -153,14 +153,14 @@ addADTs n tn ts s =
                         -- number of undefined's.
                         -- In the case of a PrimCon, we still need one undefined if the primitive is not
                         -- in the type env
-                        ts = case fdc of
+                        ts'' = case fdc of
                             Data (DataCon _ _ ts') -> map (const $ Name "a" Nothing 0) ts'
                             _ -> [Name "a" Nothing 0]
 
-                        (ns, _) = childrenNames n ts (name_gen s)
+                        (ns, _) = childrenNames n ts'' (name_gen s)
 
-                        vs = map (\n -> 
-                                case  E.lookup n eenv of
+                        vs = map (\n' -> 
+                                case  E.lookup n' eenv of
                                     Just e -> e
                                     Nothing -> Prim Undefined TyBottom) ns
                         is = mapMaybe (varId) vs

@@ -25,7 +25,7 @@ runNBreadth con hpp rss n = do
     where
         go :: ([Rule], State) -> IO [([Rule], State)]
         go (rules, state) = do
-            (rule, states) <- reduce con hpp state [] rules
+            (rule, states) <- reduce con hpp state
             return $ map (\s -> (rules ++ [rule], s)) states
  
 runNBreadthNoConstraintChecks :: [([Rule], State)] -> Int -> [([Rule], State)]
@@ -46,7 +46,7 @@ runNDepth con hpp states d = runNDepth' $ map (\s -> (([], [], s), d)) states
     runNDepth' ((((rs, is, s), n)):xs) = do
         -- outputState rs is s
 
-        (app_rule, reduceds) <- reduce con hpp s is rs
+        (app_rule, reduceds) <- reduce con hpp s
 
         let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else  zip (repeat Nothing) reduceds
         

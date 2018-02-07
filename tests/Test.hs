@@ -252,7 +252,7 @@ testFileTests =
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2
-                                                                                                                                          , RForAll (\[_, x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")
+                                                                                                                                          , RForAll (\[_, x, _] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")
                                                                                                                                                                 && inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")) ]
 
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
@@ -270,7 +270,7 @@ testFileTests =
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 2
                                                                                                                                                  , RExists (\[x, y] -> inCast x (\x' -> dcInAppHasName "TR" x' 1) (const True)
                                                                                                                                                                     && isInt y (const True))
-                                                                                                                                                 , RExists (\[x, y] -> isError y)]
+                                                                                                                                                 , RExists (\[_, y] -> isError y)]
                 -- , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                 --                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                 --                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]
@@ -310,9 +310,9 @@ checkExprGen exprs i reqList =
 testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
 testFile proj src steps m_assume m_assert m_reaches entry = do
     -- (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True Nothing
-    (mod, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True Nothing
+    (m, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True Nothing
 
-    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) (Just mod)
+    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) (Just m)
 
     hhp <- getZ3ProcessHandles
 

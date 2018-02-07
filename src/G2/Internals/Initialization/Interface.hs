@@ -6,8 +6,6 @@ import G2.Internals.Initialization.DeepSeqWalks
 import G2.Internals.Initialization.Functionalizer
 import G2.Internals.Initialization.KnownValues
 
-import qualified Data.Map as M
-
 runInitialization :: ExprEnv -> TypeEnv -> NameGen -> 
     (ExprEnv, TypeEnv, NameGen, FuncInterps, ApplyTypes, Walkers, KnownValues)
 runInitialization eenv tenv ng =

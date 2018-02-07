@@ -48,7 +48,7 @@ findCounterExamples proj primF fp entry m_mapsrc steps = do
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) {type_env = type_env init_state}
     let no_part_state = elimPartialApp cleaned_state
 
-    let (lh_state, eq_walkers, tcv) = createLHTC no_part_state
+    let (lh_state, tcv) = createLHTC no_part_state
 
 
     let lhtc_state = addLHTC lh_state tcv

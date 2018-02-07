@@ -8,14 +8,11 @@ import Data.List as L
 import Data.Maybe
 import qualified Data.Text as T
 
-import System.Directory
-
 import G2.Lib.Printers
 
 import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
-import G2.Internals.Language.ExprEnv as E
 import G2.Internals.Translation
 import G2.Internals.Solver
 
@@ -73,19 +70,9 @@ runGHC as = do
     let m_assert = mAssert tail_args
     let m_reaches = mReaches tail_args
 
-    let m_wrapper = mWrapper tail_args
-    let m_wrap_with = mWrapWith tail_args
-    let m_wrap_i = mWrapperInt tail_args
-
-    let m_poly_pred = mkPolyPred tail_args
-    let m_poly_pred_with = mkPolyPredWith tail_args
-    let m_poly_pred_i = mkPolyPredInt tail_args
-
     let m_mapsrc = mkMapSrc tail_args
 
     let tentry = T.pack entry
-
-    -- timedMsg "one"
 
     (mod_name, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src lib True m_mapsrc
 
@@ -94,32 +81,11 @@ runGHC as = do
 
     -- error $ pprExecStateStr init_state
 
-    -- timedMsg "two"
-
-    -- let init_state' = case (m_wrapper, m_wrap_with) of
-    --                         (Just w, Just ww) -> case (findFunc w (expr_env init_state), findFunc ww (expr_env init_state)) of
-    --                             (Left (Id n _, _), Left (wwi, _)) -> addHigherOrderWrappers init_state n wwi m_wrap_i
-    --                             _ -> init_state
-    --                         _ -> init_state
-
-
-    -- -- timedMsg "three"
-
-    -- let init_state'' = case (m_poly_pred, m_poly_pred_with) of
-    --                         (Just p, Just pw) -> case (findFunc p (expr_env init_state), findFunc pw (expr_env init_state)) of
-    --                             (Left (Id n _, _), Left (ppi, _)) -> addPolyPred init_state n ppi m_poly_pred_i
-    --                             _ -> init_state'
-    --                         _ -> init_state'
-
-    let init_state'' = init_state
-
-    -- timedMsg "four"
+    let init_state' = init_state
 
     hhp <- getZ3ProcessHandles
 
-    -- timedMsg "five"
-
-    in_out <- run smt2 hhp n_val init_state''
+    in_out <- run smt2 hhp n_val init_state'
 
     -- putStrLn "----------------\n----------------"
 
@@ -134,7 +100,7 @@ printLHOut entry =
 
         let funcOut = mkCleanExprHaskell (known_values s) (type_classes s) $ ex
 
-        let (n, args, out) = (case ais of
+        let (n, as, out) = (case ais of
                         Just (n'@(Name n'' _ _), ais', out') -> 
                             (n''
                             , mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n' TyBottom)) ais')
@@ -147,14 +113,14 @@ printLHOut entry =
         -- print inArg
         -- print ex
         -- print ais
-        if funcCall == args && funcOut == out then do
+        if funcCall == as && funcOut == out then do
             putStrLn "The call "
             putStrLn $ funcCall ++ " = " ++ funcOut
             putStrLn . T.unpack $ "violates " `T.append` entry `T.append` "'s refinement type.\n"
         else do
             putStrLn $ funcCall ++ " = " ++ funcOut
             putStrLn $ "makes a call to"
-            putStrLn $ args ++ " = " ++ out
+            putStrLn $ as ++ " = " ++ out
             putStrLn . T.unpack $ "violating " `T.append` n `T.append`"'s refinement type\n")
 
 printFuncCalls :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()

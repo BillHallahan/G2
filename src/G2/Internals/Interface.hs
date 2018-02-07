@@ -20,14 +20,12 @@ import G2.Internals.Solver.Language hiding (Assert)
 
 import G2.Internals.Postprocessing.Interface
 
-import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
 import qualified Data.Map as M
-import qualified Data.List as L
 import Data.Maybe
 import qualified Data.Text as T
 

@@ -27,8 +27,6 @@ createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv}) =
     in
     s {expr_env = foldr (uncurry E.insert) eenv meas'}
 
-type LHId = Id
-
 allTypesKnown :: TypeEnv -> Measure SpecType GHC.DataCon -> Bool
 allTypesKnown tenv (M {sort = srt}) = isJust $ specTypeToType tenv srt
 
@@ -58,13 +56,9 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
 
         stArgs = nonTyForAllArgumentTypes $ fromJust st
 
-        -- The fromJust in lhid is safe, because of the case st of at [1]
-        -- We only access lhid in the Just case
-        (lhid, ng1) = freshId (TyConApp (lhTC tcv) [fromJust st]) ng
-
-        (lam_i, ng2) = freshId (head stArgs) ng1
-        (cb, ng3) = freshId (head stArgs) ng2
-        alts = mapMaybe (convertDefs s tcv (M.union (M.union m nt) (M.fromList nbnds)) lhid bnds) eq
+        (lam_i, ng1) = freshId (head stArgs) ng
+        (cb, _) = freshId (head stArgs) ng1
+        alts = mapMaybe (convertDefs s tcv (M.union (M.union m nt) (M.fromList nbnds)) bnds) eq
 
         e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
     in
@@ -72,45 +66,32 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
-convertDefs :: State -> TCValues -> M.Map Name Type -> LHId -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
-convertDefs s@(State {type_env = tenv}) tcv m lhid bnds (Def { ctor = dc, dsort = srt, body = b, binds = bds}) =
+convertDefs :: State -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
+convertDefs s@(State {type_env = tenv}) tcv m bnds (Def { ctor = dc, body = b, binds = bds}) =
     let
-        dc'@(DataCon n t _) = mkData HM.empty HM.empty dc
+        (DataCon n t _) = mkData HM.empty HM.empty dc
         (TyConApp tn _) = returnType t
-        dc'' = getDataConNameMod tenv tn n
+        dc' = getDataConNameMod tenv tn n
         
         -- See [1] below, we only evaluate this if Just
-        dc'''@(DataCon _ dct _) = fromJust dc''
+        dc''@(DataCon _ dct _) = fromJust dc'
         bnds' = tyForAllBindings dct
         dctarg = nonTyForAllArgumentTypes dct
 
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
         dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds') (map TyVar bnds)
 
-        nt = map (\((s, t), t')-> (symbolName s, maybe t' (unsafeSpecTypeToType tenv) t)) $ zip bds dctarg'
+        nt = map (\((sym, t'), t'')-> (symbolName sym, maybe t'' (unsafeSpecTypeToType tenv) t')) $ zip bds dctarg'
 
         is = map (uncurry Id) nt
 
-        e = mkExprFromBody s tcv (M.union m $ M.fromList nt) lhid b
+        e = mkExprFromBody s tcv (M.union m $ M.fromList nt) b
     in
-    case dc'' of
-        Just _ -> Just $ Alt (DataAlt dc''' is) e -- [1]
+    case dc' of
+        Just _ -> Just $ Alt (DataAlt dc'' is) e -- [1]
         Nothing -> Nothing
 
--- We remove the LH typeclass
--- This prevents there being two LH typeclasses, when it is added again in Conversion
--- removeLH :: Name -> Expr -> Expr
--- removeLH lh = modify (removeLH' lh)
 
--- removeLH' :: Name -> Expr -> Expr
--- removeLH' lh l@(Lam i e) = if tyConAppName (typeOf i) == Just lh then e else l
--- removeLH' lh a@(App e e') = if tyConAppName (typeOf e') == Just lh then e else a
--- removeLH' _ e = e
-
--- tyConAppName :: Type -> Maybe Name
--- tyConAppName (TyConApp n _) = Just n
--- tyConAppName _ = Nothing
-
-mkExprFromBody :: State -> TCValues  -> M.Map Name Type-> LHId -> Body -> Expr
-mkExprFromBody s tcv m lhid (E e) = convertLHExpr e tcv s m
-mkExprFromBody s tcv m lhid (P e) = convertLHExpr e tcv s m
+mkExprFromBody :: State -> TCValues  -> M.Map Name Type -> Body -> Expr
+mkExprFromBody s tcv m (E e) = convertLHExpr e tcv s m
+mkExprFromBody s tcv m (P e) = convertLHExpr e tcv s m
