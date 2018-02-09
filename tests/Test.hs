@@ -348,8 +348,8 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = do
-    -- r <- findCounterExamples proj "./defs/PrimDefs.hs" fp (T.pack entry) Nothing steps
-    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) Nothing (mkConfigDef {steps = stps})
+    -- r <- findCounterExamples proj "./defs/PrimDefs.hs" fp (T.pack entry) Nothing Nothing steps
+    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) Nothing Nothing (mkConfigDef {steps = stps})
 
     let exprs = map (\(_, _, inp, out, _) -> inp ++ [out]) r
 

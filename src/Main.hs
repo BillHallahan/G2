@@ -33,33 +33,48 @@ main = do
     let m_liquid = mkLiquid as
     let m_liquid_func = mkLiquidFunc as
     let m_mapsrc = mkMapSrc as
+    let m_lhlib = mkLiquidLib as
+    let m_fulltest = mkLiquidFullTest as
 
-    case (m_liquid, m_liquid_func) of
-        (Just l, Just f) -> do
-            -- ghcInfos <- getGHCInfos proj [l]
-            -- putStrLn . show $ length ghcInfos
-
-            -- let specs = funcSpecs ghcInfos
-            -- mapM_ (\s -> do
-            --     putStrLn ""
-            --     pprint s) specs
-
-            -------
-
-            -- let lh_names = L.map (nameOccStr . idName . mkId . fst) specs ++
-            --               [l, f] ++
-            --               prim_list
-
-            -- putStrLn $ show lh_names
-
+    case m_fulltest of
+      Just _ ->
+        case m_liquid of
+          Just l -> do
             let config = mkConfig as
 
-            in_out <- findCounterExamples proj prims l (T.pack f) m_mapsrc config
+            in_out <- testLiquidFile proj prims l m_mapsrc (fmap (:[]) m_lhlib) config
 
-            printLHOut (T.pack f) in_out
-            
-    
-        _ -> runGHC as
+            return ()
+
+          Nothing -> error "which file are you testing exactly?"
+
+      Nothing ->
+        case (m_liquid, m_liquid_func) of
+          (Just l, Just f) -> do
+              -- ghcInfos <- getGHCInfos proj [l]
+              -- putStrLn . show $ length ghcInfos
+
+              -- let specs = funcSpecs ghcInfos
+              -- mapM_ (\s -> do
+              --     putStrLn ""
+              --     pprint s) specs
+
+              -------
+
+              -- let lh_names = L.map (nameOccStr . idName . mkId . fst) specs ++
+              --               [l, f] ++
+              --               prim_list
+
+              -- putStrLn $ show lh_names
+
+              let config = mkConfig as
+
+              in_out <- findCounterExamples proj prims l (T.pack f) m_mapsrc (fmap (:[]) m_lhlib) config
+
+              printLHOut (T.pack f) in_out
+              
+      
+          _ -> runGHC as
 
 runGHC :: [String] -> IO ()
 runGHC as = do
@@ -175,4 +190,10 @@ mkLiquidFunc a = mArg "--liquid-func" a Just Nothing
 
 mkMapSrc :: [String] -> Maybe String
 mkMapSrc a = mArg "--mapsrc" a Just Nothing
+
+mkLiquidLib :: [String] -> Maybe String
+mkLiquidLib a = mArg "--liquid-lib" a Just Nothing
+
+mkLiquidFullTest :: [String] -> Maybe String
+mkLiquidFullTest a = mArg "--liquid-full-test" a Just Nothing
 

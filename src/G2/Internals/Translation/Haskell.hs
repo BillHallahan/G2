@@ -13,6 +13,8 @@ module G2.Internals.Translation.Haskell
     , mkName
     , mkTyConName
     , mkData
+    , NameMap
+    , TypeNameMap
     ) where
 
 import qualified G2.Internals.Language as G2
@@ -21,16 +23,26 @@ import qualified Class as C
 import Coercion
 import CoreSyn
 import DataCon
+import DriverPhases
+import DriverPipeline
 import DynFlags
+import FastString
 import GHC
 import GHC.Paths
 import HscMain
 import HscTypes
 import InstEnv
+import Lexer
 import Literal
 import Name
 import Outputable
 import Pair
+import qualified Parser as P
+import RdrName
+import SrcLoc
+import StaticFlags
+import StringBuffer
+import SysTools
 import TidyPgm
 import TyCon
 import TyCoRep
@@ -322,3 +334,4 @@ mkCoercion tm c =
 mkClass :: TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id])
 mkClass tm (ClsInst { is_cls = c, is_dfun = dfun }) = 
     (flip mkNameLookup tm . C.className $ c, mkId tm dfun, map (mkId tm) $ C.classTyVars c)
+

@@ -24,6 +24,7 @@ import Language.Fixpoint.Types.PrettyPrint as FPP
 import Data.Coerce
 import qualified Data.Map as M
 import qualified Data.Text as T
+import qualified Data.Maybe as B
 
 import qualified GHC as GHC
 import Var
@@ -33,9 +34,9 @@ import G2.Internals.Language.KnownValues
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> Maybe FilePath -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-findCounterExamples proj primF fp entry m_mapsrc config = do
-    ghcInfos <- getGHCInfos proj [fp]
+findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> Maybe FilePath -> Maybe [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples proj primF fp entry m_mapsrc m_lhlibs config = do
+    ghcInfos <- getGHCInfos proj [fp] m_lhlibs
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
 
@@ -64,10 +65,16 @@ findCounterExamples proj primF fp entry m_mapsrc config = do
 
     run smt2 hhp config beta_red_state
 
-getGHCInfos :: FilePath -> [FilePath] -> IO [GhcInfo]
-getGHCInfos proj fp = do
+getGHCInfos :: FilePath -> [FilePath] -> Maybe [FilePath] -> IO [GhcInfo]
+getGHCInfos proj fp m_lhlibs = do
     config <- getOpts []
-    let config' = config {idirs = idirs config ++ [proj], ghcOptions = ["-v"]}
+
+    let config' = config {idirs = idirs config ++ [proj] ++
+                                  -- []
+                                  (B.fromMaybe [] m_lhlibs)
+                         , files = files config ++ (B.fromMaybe [] m_lhlibs)
+                                  -- ["/home/celery/foo/yale/liquidhaskell-study/wi15/"]
+                         , ghcOptions = ["-v"]}
     return . fst =<< LHI.getGhcInfos Nothing config' fp
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
@@ -102,6 +109,10 @@ reqNames (State { expr_env = eenv
                ]
     ++
     Lang.names (M.filterWithKey (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv) (coerce tc :: M.Map Name Class))
+
+testLiquidFile :: FilePath -> FilePath -> FilePath -> Maybe FilePath -> Maybe [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+testLiquidFile proj primF fp m_mapsrc m_lhlibs config = do
+  error "what?"
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do
