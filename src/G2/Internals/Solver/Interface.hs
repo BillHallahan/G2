@@ -192,13 +192,29 @@ addADTs n tn ts s =
                     True -> (SAT, nst, s {model = M.union m (model s)})
                     False -> (UNSAT, [], s)
 
--- Remove all types from the type environment that contain a function
+-- Narrow the TypeEnv to the types relevant to the given PathConds
 filterTEnv :: TypeEnv -> PC.PathConds -> TypeEnv
 filterTEnv tenv pc =
     let
-        ns = nub $ names pc
+        ns = filter (typeEnvName tenv) $ nub $ names pc
     in
-    M.filterWithKey (\k _ -> k `elem` ns) tenv
+    filterTEnv' ns ns tenv-- M.filterWithKey (\k _ -> k `elem` ns) tenv
+
+filterTEnv' :: [Name] -> [Name] -> TypeEnv -> TypeEnv
+filterTEnv' [] keep tenv =
+    M.filterWithKey (\k _ -> k `elem` keep) tenv
+filterTEnv' search keep tenv =
+    let
+        new = filter (not . flip elem keep) 
+            $ filter (typeEnvName tenv) 
+            $ names 
+            $ mapMaybe (flip M.lookup tenv) search
+    in
+    filterTEnv' new (new ++ keep) tenv
+
+typeEnvName :: TypeEnv -> Name -> Bool
+typeEnvName tenv = flip elem (M.keys tenv)
+
 -- filterTEnv :: State -> State
 -- filterTEnv s@State { type_env = tenv} =
 --     if tenv == tenv'

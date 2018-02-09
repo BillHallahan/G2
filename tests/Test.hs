@@ -48,6 +48,7 @@ tests = return . testGroup "Tests"
           sampleTests
         , liquidTests
         , testFileTests
+        , smtADTTests
         ]
 
 timeout :: Timeout
@@ -279,13 +280,33 @@ testFileTests =
                 
         ]
 
+smtADTTests :: IO TestTree
+smtADTTests =
+    return . testGroup "Liquid"
+        =<< sequence [
+              checkExprWithConfig "tests/Samples/" "tests/Samples/Peano.hs" (Just "equalsFour") Nothing "add" 3 (mkConfigDef {steps = 600, smtADTs = True}) [RForAll peano_4_out, Exactly 5]
+            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNth.hs" Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True}) [AtLeast 10, RForAll getNthTest]
+        ]
+
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
-checkExpr proj src steps m_assume m_assert entry i reqList =
-    checkExprReaches proj src steps m_assume m_assert Nothing entry i reqList
+checkExpr proj src stps m_assume m_assert entry i reqList =
+    checkExprReaches proj src stps m_assume m_assert Nothing entry i reqList
 
 checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprReaches proj src steps m_assume m_assert m_reaches entry i reqList = do
     exprs <- return . map (\(inp, out) -> inp ++ [out]) =<< testFile proj src steps m_assume m_assert m_reaches entry
+    
+    let ch = checkExprGen exprs i reqList
+
+    return . testCase src
+        $ assertBool ("Assume/Assert for file " ++ src ++ 
+                      " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
+                                      "[" ++ (fromMaybe "" m_assert) ++ "] " ++
+                                              entry ++ " failed.\n") ch
+
+checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs] -> IO TestTree
+checkExprWithConfig proj src m_assume m_assert entry i config reqList = do
+    exprs <- return . map (\(inp, out) -> inp ++ [out]) =<< testFileWithConfig proj src m_assume m_assert Nothing entry config
     
     let ch = checkExprGen exprs i reqList
 
@@ -310,7 +331,10 @@ checkExprGen exprs i reqList =
     argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
 
 testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
-testFile proj src stps m_assume m_assert m_reaches entry = do
+testFile proj src stps m_assume m_assert m_reaches entry = testFileWithConfig proj src m_assume m_assert m_reaches entry (mkConfigDef {steps = stps})
+
+testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO ([([Expr], Expr)])
+testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     -- (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True Nothing
     (m, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True Nothing
 
@@ -318,7 +342,7 @@ testFile proj src stps m_assume m_assert m_reaches entry = do
 
     hhp <- getZ3ProcessHandles
 
-    r <- run smt2 hhp (mkConfigDef {steps = stps}) init_state
+    r <- run smt2 hhp config init_state
 
     return $ map (\(_, _, i, o, _) -> (i, o)) r
 
