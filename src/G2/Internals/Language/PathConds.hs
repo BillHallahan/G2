@@ -11,6 +11,7 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , empty
                                        , fromList
                                        , insert
+                                       , insertWithSMTADT
                                        , null
                                        , number
                                        , relevant
@@ -77,21 +78,29 @@ fromList kv = coerce . foldr (insert kv) empty
 -- PC is associated with only one name.
 -- This is ok, because the PCs can only be externally accessed by toList (which 
 -- returns all PCs anyway) or scc (which forces exploration over all shared names)
+{-# INLINE insert #-}
 insert :: KV.KnownValues -> PathCond -> PathConds -> PathConds
-insert kv p (PathConds pcs) =
+insert = insert' varNamesInPC
+
+{-# INLINE insertWithSMTADT #-}
+insertWithSMTADT :: KV.KnownValues -> PathCond -> PathConds -> PathConds
+insertWithSMTADT = insert' varNamesInPCWithSMTADT
+
+insert' :: (KV.KnownValues -> PathCond -> [Name]) -> KV.KnownValues -> PathCond -> PathConds -> PathConds
+insert' f kv p (PathConds pcs) =
     let
-        ns = varNamesInPC kv p
+        ns = f kv p
 
         (hd, insertAt) = case ns of
             [] -> (Nothing, [Nothing])
             (h:_) -> (Just h, map Just ns)
     in
     PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
-              $ foldr (M.alter (insert' ns)) pcs insertAt
+              $ foldr (M.alter (insert'' ns)) pcs insertAt
 
-insert' :: [Name] -> Maybe (HS.HashSet PathCond, [Name]) -> Maybe (HS.HashSet PathCond, [Name])
-insert' ns Nothing = Just (HS.empty, ns)
-insert' ns (Just (p', ns')) = Just (p', ns ++ ns')
+insert'' :: [Name] -> Maybe (HS.HashSet PathCond, [Name]) -> Maybe (HS.HashSet PathCond, [Name])
+insert'' ns Nothing = Just (HS.empty, ns)
+insert'' ns (Just (p', ns')) = Just (p', ns ++ ns')
 
 number :: PathConds -> Int
 number = length . toList
@@ -123,6 +132,13 @@ varNamesInPC _ (AltCond a e _) = varNamesInAltMatch a ++ varNames e
 varNamesInPC _ (ExtCond e _) = varNames e
 varNamesInPC _ (ConsCond _ e _) = varNames e
 varNamesInPC _ (PCExists _) = []
+
+varNamesInPCWithSMTADT :: KV.KnownValues -> PathCond -> [Name]
+varNamesInPCWithSMTADT kv (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varNamesInPCWithSMTADT kv $ AltCond altC e b
+varNamesInPCWithSMTADT _ (AltCond a e _) = varNamesInAltMatch a ++ varNames e
+varNamesInPCWithSMTADT _ (ExtCond e _) = varNames e
+varNamesInPCWithSMTADT _ (ConsCond _ e _) = varNames e
+varNamesInPCWithSMTADT _ (PCExists _) = []
 
 varNamesInAltMatch :: AltMatch -> [Name]
 varNamesInAltMatch (DataAlt _ i) = names i

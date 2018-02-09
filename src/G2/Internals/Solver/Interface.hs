@@ -4,6 +4,7 @@
 module G2.Internals.Solver.Interface
     ( subModel
     , checkConstraints
+    , checkConstraintsWithSMTSorts
     , checkModel
     ) where
 
@@ -15,6 +16,7 @@ import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Converters
 import G2.Internals.Solver.Language
 
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -68,6 +70,16 @@ checkConstraints' con io s = do
     let s' = s {path_conds = unsafeElimCast . simplifyPrims $ path_conds s}
 
     let headers = toSMTHeaders s'
+    let formula = toSolver con headers
+
+    checkSat con io formula
+
+checkConstraintsWithSMTSorts :: SMTConverter ast out io -> io -> State -> IO Result
+checkConstraintsWithSMTSorts con io s = do
+    let s' = s { type_env = filterTEnv (type_env s) (path_conds s)
+               , path_conds = unsafeElimCast . simplifyPrims $ path_conds s}
+
+    let headers = toSMTHeadersWithSMTSorts s'
     let formula = toSolver con headers
 
     checkSat con io formula
@@ -181,6 +193,12 @@ addADTs n tn ts s =
                     False -> (UNSAT, [], s)
 
 -- Remove all types from the type environment that contain a function
+filterTEnv :: TypeEnv -> PC.PathConds -> TypeEnv
+filterTEnv tenv pc =
+    let
+        ns = nub $ names pc
+    in
+    M.filterWithKey (\k _ -> k `elem` ns) tenv
 -- filterTEnv :: State -> State
 -- filterTEnv s@State { type_env = tenv} =
 --     if tenv == tenv'

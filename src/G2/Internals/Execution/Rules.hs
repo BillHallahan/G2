@@ -10,6 +10,7 @@ module G2.Internals.Execution.Rules
   , reduceNoConstraintChecks
   ) where
 
+import G2.Internals.Config.Config
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Execution.RuleTypes
 import G2.Internals.Language
@@ -201,15 +202,15 @@ lookupForPrim e _ = e
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-reduce :: SMTConverter ast out io -> io -> State -> IO (Rule, [State])
-reduce con hpp s = do
+reduce :: SMTConverter ast out io -> io -> Config -> State -> IO (Rule, [State])
+reduce con hpp config s = do
     let (rule, res) = reduce' s
 
     -- putStrLn "----------------------------------"
     -- print (length rs)
     -- putStrLn $ show $ zip [1..] rs
 
-    sts <- resultsToState con hpp rule s res
+    sts <- resultsToState con hpp config rule s res
 
     -- let dir = "res/" ++ foldl' (\s i -> s ++ show i ++ "/") "" is
     -- createDirectoryIfMissing True dir
@@ -221,11 +222,11 @@ reduce con hpp s = do
 
     return (rule, sts)
 
-resultsToState :: SMTConverter ast out io -> io -> Rule -> State -> [ReduceResult] -> IO [State]
-resultsToState _ _ _ _ [] = return []
-resultsToState con hpp rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _):xs)
+resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State -> [ReduceResult] -> IO [State]
+resultsToState _ _ _ _ _ [] = return []
+resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _):xs)
     | not (null pc) = do
-            --Optimization
+            -- Optimization
             -- We replace the path_conds with only those that are directly
             -- affected by the new path constraints
             -- This allows for more efficient solving, and in some cases may
@@ -234,44 +235,55 @@ resultsToState con hpp rule s@(State {known_values = kv}) (red@(_, _, pc, assert
             -- let s'' = s'
             let s'' = s' {path_conds = PC.relevant (known_values s) pc (path_conds s')}
 
-            res <- checkConstraints con hpp s''
+            res <- (selectCheckConstraints config) con hpp s''
 
             if res == SAT then
-                return . (:) s' =<< resultsToState con hpp rule s xs
+                return . (:) s' =<< resultsToState con hpp config rule s xs
             else
-                resultsToState con hpp rule s xs
+                resultsToState con hpp config rule s xs
     | not (null asserts) && not (true_assert s) = do
-        let assertS = s' { path_conds = foldr (PC.insert kv) (path_conds s') asserts, true_assert = True, assert_ids = ais }
+        let assertS = s' { path_conds = foldr (pcInsert config kv) (path_conds s') asserts, true_assert = True, assert_ids = ais }
         let assertSRel = assertS {path_conds = PC.relevant kv asserts (path_conds assertS)}
 
         let negAsserts = map PC.negatePC asserts
         
-        let negAssertS = s' {path_conds = foldr (PC.insert kv) (path_conds s') negAsserts}
+        let negAssertS = s' {path_conds = foldr (pcInsert config kv) (path_conds s') negAsserts}
         let negAssertSRel = negAssertS {path_conds = PC.relevant kv negAsserts (path_conds negAssertS)}
 
         let potentialS = [(assertS, assertSRel), (negAssertS, negAssertSRel)]
 
-        finalS <- filterM (\(_, s_) -> return . isSat =<< checkConstraints con hpp s_) potentialS
+        finalS <- filterM (\(_, s_) -> return . isSat =<< (selectCheckConstraints config) con hpp s_) potentialS
         let finalS' = map fst finalS
 
-        return . (++) finalS' =<< resultsToState con hpp rule s xs
-    | otherwise = return . (:) s' =<< resultsToState con hpp rule s xs
+        return . (++) finalS' =<< resultsToState con hpp config rule s xs
+    | otherwise = return . (:) s' =<< resultsToState con hpp config rule s xs
     where
-        s' = resultToState s red
+        s' = resultToState config s red
 
-reduceNoConstraintChecks :: State -> (Rule, [State])
-reduceNoConstraintChecks s =
+{-# INLINE selectCheckConstraints #-}
+selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State -> IO Result)
+selectCheckConstraints (Config {smtADTs = False}) = checkConstraints
+selectCheckConstraints _ = checkConstraintsWithSMTSorts
+
+{-# INLINE pcInsert #-}
+pcInsert :: Config -> KnownValues -> PC.PathCond -> PC.PathConds -> PC.PathConds
+pcInsert (Config {smtADTs = False}) = PC.insert
+pcInsert _ = PC.insertWithSMTADT
+
+reduceNoConstraintChecks :: Config -> State -> (Rule, [State])
+reduceNoConstraintChecks config s =
     let
         (rule, res) = reduce' s
     in
-    (rule, map (resultToState s) res)
+    (rule, map (resultToState config s) res)
 
-resultToState :: State -> ReduceResult -> State
-resultToState s (eenv, cexpr, pc, _, _, ng, st) =
+{-# INLINE resultToState #-}
+resultToState :: Config -> State -> ReduceResult -> State
+resultToState config s (eenv, cexpr, pc, _, _, ng, st) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
-      , path_conds = foldr (PC.insert (known_values s)) (path_conds s) $ pc
+      , path_conds = foldr (pcInsert config (known_values s)) (path_conds s) $ pc
       , name_gen = ng
       , exec_stack = st }
 

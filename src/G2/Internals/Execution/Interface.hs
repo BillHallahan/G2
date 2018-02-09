@@ -27,7 +27,7 @@ runNBreadth con hpp rss n = do
     where
         go :: ([Rule], State) -> IO [([Rule], State)]
         go (rules, state) = do
-            (rule, states) <- reduce con hpp state
+            (rule, states) <- reduce con hpp undefined state
             return $ map (\s -> (rules ++ [rule], s)) states
  
 runNBreadthNoConstraintChecks :: [([Rule], State)] -> Int -> [([Rule], State)]
@@ -36,7 +36,7 @@ runNBreadthNoConstraintChecks rss 0 = rss
 runNBreadthNoConstraintChecks rss n = runNBreadthNoConstraintChecks (concatMap go rss) (n - 1)
   where
     go :: ([Rule], State) -> [([Rule], State)]
-    go (rules, state) = let (rule, states) = reduceNoConstraintChecks state
+    go (rules, state) = let (rule, states) = reduceNoConstraintChecks undefined state
                         in map (\s -> (rules ++ [rule], s)) states
 
 runNDepth :: SMTConverter ast out io -> io -> [State] -> Config -> IO [([Rule], [Int], State)]
@@ -50,7 +50,7 @@ runNDepth con hpp states config = runNDepth' $ map (\s -> (([], [], s), steps co
             Just f -> outputState f rs is s
             Nothing -> return ()
 
-        (app_rule, reduceds) <- reduce con hpp s
+        (app_rule, reduceds) <- reduce con hpp config s
 
         let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else  zip (repeat Nothing) reduceds
         
@@ -65,7 +65,7 @@ runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (([], s), d)) 
     runNDepthNCC' [] = []
     runNDepthNCC' ((rss, 0):xs) = rss : runNDepthNCC' xs
     runNDepthNCC' ((((rs, s), n)):xs) =
-        let (app_rule, reduceds) = reduceNoConstraintChecks s
+        let (app_rule, reduceds) = reduceNoConstraintChecks undefined s
             mod_info = map (\s' -> ((rs ++ [app_rule], s'), n - 1)) reduceds
         in runNDepthNCC' (mod_info ++ xs)
 

@@ -8,6 +8,7 @@
 -- (3) SMTASTs/Sorts to Exprs/Types
 module G2.Internals.Solver.Converters
     ( toSMTHeaders
+    , toSMTHeadersWithSMTSorts
     , toSolver
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
@@ -40,11 +41,15 @@ toSMTHeaders s  =
     let
         pc = PC.toList $ path_conds s
     in
-    -- (typesToSMTSorts $ type_env s)
-    -- ++
     nub (pcVarDecls pc)
     ++
     (pathConsToSMTHeaders pc)
+
+toSMTHeadersWithSMTSorts :: State -> [SMTHeader]
+toSMTHeadersWithSMTSorts s =
+    (typesToSMTSorts $ type_env s)
+    ++
+    toSMTHeaders s
 
 pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
 pathConsToSMTHeaders = map Assert . mapMaybe pathConsToSMT
