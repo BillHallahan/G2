@@ -110,8 +110,13 @@ reqNames (State { expr_env = eenv
     ++
     Lang.names (M.filterWithKey (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv) (coerce tc :: M.Map Name Class))
 
-testLiquidFile :: FilePath -> FilePath -> FilePath -> Maybe FilePath -> Maybe [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-testLiquidFile proj primF fp m_mapsrc m_lhlibs config = do
+testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+testLiquidFile proj primF fp libs lhlibs config = do
+  
+  (mod_name, pre_bnds, pre_tycons, pre_cls, tgt_lhs) <- translateLoadedV proj fp primF libs False 
+
+  mapM_ (putStrLn . show) tgt_lhs
+
   error "what?"
 
 pprint :: (Var, LocSpecType) -> IO ()

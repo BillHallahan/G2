@@ -88,7 +88,7 @@ equivMods = HM.fromList
             , ("Data.Map.Base", "Data.Map")]
 
 hskToG2 :: FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
-    IO (String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap)
+    IO (String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String])
 hskToG2 proj src nm tm simpl = do
     (mod_name, sums_gutss, _, _, c) <- mkCompileClosure proj src simpl
     
@@ -99,7 +99,12 @@ hskToG2 proj src nm tm simpl = do
     let tycons' = concat tycons
 
     let classes = map (mkClass tm2) c
-    return (mod_name, binds', tycons', classes, nm3, tm2)
+
+    let tgt_lhs = map (occNameString . nameOccName . V.varName) $
+                  concatMap bindersOf $ 
+                  concatMap (\(_, _, bs) -> bs) sums_gutss
+
+    return (mod_name, binds', tycons', classes, nm3, tm2, tgt_lhs)
 
 type CompileClosure = (String, [(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv, [ClsInst])
 

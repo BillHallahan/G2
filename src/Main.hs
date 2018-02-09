@@ -41,8 +41,10 @@ main = do
         case m_liquid of
           Just l -> do
             let config = mkConfig as
+            let libs = maybeToList m_mapsrc
+            let lhlibs = maybeToList m_lhlib
 
-            in_out <- testLiquidFile proj prims l m_mapsrc (fmap (:[]) m_lhlib) config
+            in_out <- testLiquidFile proj prims l libs lhlibs config
 
             return ()
 

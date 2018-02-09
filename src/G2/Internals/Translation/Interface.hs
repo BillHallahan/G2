@@ -16,7 +16,7 @@ translateLibs [] nm tnm _ = return ([], nm, tnm)
 translateLibs (f:fs) nm tnm simpl = do
   (others, others_nm, others_tnm) <- translateLibs fs nm tnm simpl
   let guess_dir = dropWhileEnd (/= '/') f
-  (_, prog, tys, cls, new_nm, new_tnm) <- hskToG2 guess_dir f others_nm others_tnm simpl
+  (_, prog, tys, cls, new_nm, new_tnm, _) <- hskToG2 guess_dir f others_nm others_tnm simpl
   return $ ((prog, tys, cls) : others, new_nm, new_tnm)
 
 mergeTranslates :: [(Program, [ProgramType], [(Name, Id, [Id])])] -> (Program, [ProgramType], [(Name, Id, [Id])])
@@ -32,12 +32,12 @@ mergeTranslates ((prog, tys, cls):ts) =
 translateLoaded :: FilePath -> FilePath -> FilePath -> Bool -> Maybe FilePath
                 -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])])
 translateLoaded proj src prelude simpl m_mapsrc = do
-  (tgt_name, final_prog, final_tys, classes, _) <- translateLoadedV proj src prelude simpl (maybeToList m_mapsrc)
+  (tgt_name, final_prog, final_tys, classes, _) <- translateLoadedV proj src prelude (maybeToList m_mapsrc) simpl
   return (tgt_name, final_prog, final_tys, classes)
 
-translateLoadedV :: FilePath -> FilePath -> FilePath -> Bool -> [FilePath]
-                -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])], [T.Text])
-translateLoadedV proj src prelude simpl libs = do
+translateLoadedV :: FilePath -> FilePath -> FilePath -> [FilePath] -> Bool
+                 -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])], [T.Text])
+translateLoadedV proj src prelude libs simpl = do
   ((base_prog, base_tys, base_cls), b_nm, b_tnm) <-
       (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
       translateLibs [prelude] specialConstructors specialTypeNames simpl
@@ -50,7 +50,7 @@ translateLoadedV proj src prelude simpl libs = do
   let merged_lib = mergeTranslates (base_trans' : lib_transs)
 
   -- Now the stuff with the actual target
-  (tgt_name, tgt_prog, tgt_tys, tgt_cls, _, _) <- hskToG2 proj src lib_nm lib_tnm simpl
+  (tgt_name, tgt_prog, tgt_tys, tgt_cls, _, _, tgt_lhs) <- hskToG2 proj src lib_nm lib_tnm simpl
   let tgt_trans = (tgt_prog, tgt_tys, tgt_cls)
   let (merged_prog, merged_tys, merged_cls) = mergeTranslates [tgt_trans, merged_lib]
 
@@ -58,6 +58,5 @@ translateLoadedV proj src prelude simpl libs = do
   let (final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys
   let final_cls = mergeTCs merged_cls merged_prog
 
-  return (T.pack tgt_name, final_prog, final_tys, final_cls, [])
-  
+  return (T.pack tgt_name, final_prog, final_tys, final_cls, map T.pack tgt_lhs)
 
