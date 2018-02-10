@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module G2.Internals.Liquid.Interface where
@@ -15,6 +16,8 @@ import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Solver
 
+import G2.Lib.Printers
+
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types hiding (Config)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
@@ -22,6 +25,7 @@ import Language.Haskell.Liquid.UX.CmdLine
 import Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.Coerce
+import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Maybe as B
@@ -108,3 +112,67 @@ pprint (v, r) = do
     let doc = PPR.rtypeDoc Full $ val r
     putStrLn $ show i
     putStrLn $ show doc
+
+printLHOut :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printLHOut entry = printParsedLHOut . parseLHOut entry
+
+printParsedLHOut :: [Either (T.Text, T.Text, T.Text)
+                            ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))]
+                 -> IO ()
+printParsedLHOut [] = return ()
+printParsedLHOut ((Left (f, call, output)):xs) = do
+    putStrLn "The call"
+    putStrLn . T.unpack $ call `T.append` " = " `T.append` output
+    putStrLn . T.unpack $ "violates " `T.append` f `T.append` "'s refinement type"
+    putStrLn ""
+    printParsedLHOut xs
+printParsedLHOut ((Right ((f, call, output), (f', call', output'))):xs) = do
+    putStrLn . T.unpack $ call `T.append` " = " `T.append` output
+    putStrLn "makes a call to"
+    putStrLn . T.unpack $ call' `T.append` " = " `T.append` output'
+    putStrLn . T.unpack $ "violating " `T.append` f' `T.append` "'s refinement type"
+    putStrLn ""
+    printParsedLHOut xs
+
+parseLHOut :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+           -> [Either (T.Text, T.Text, T.Text)
+                      ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))]
+parseLHOut entry [] = []
+parseLHOut entry ((s, _, inArg, ex, ais):xs) =
+  let tail = parseLHOut entry xs
+      funcCall = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) 
+               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
+      funcOut = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) $ ex
+      (n, as, out) = (case ais of
+        Just (n'@(Name n'' _ _), ais', out') -> 
+          ( n''
+          , T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n' TyBottom)) ais')
+          , T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) out')
+        _ -> (T.pack "", T.pack "", T.pack ""))
+   in 
+   if funcCall == as && funcOut == out then do
+      Left (entry, funcCall, funcOut) : tail
+   else
+      Right ((entry, funcCall, funcOut), (n, as, out)) : tail
+
+
+testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
+               -> IO [Either (T.Text, T.Text, T.Text)
+                             ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))]
+testLiquidFile proj primF fp libs lhlibs config = do
+    ghcInfos <- getGHCInfos proj [fp] lhlibs
+    tgt_transv <- translateLoadedV proj fp primF libs False
+
+    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs) = tgt_transv
+    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls)
+
+    putStrLn $ "******** Liquid File Test: *********"
+    putStrLn fp
+
+    let whitelist = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] 
+
+    let cleaned_tgt_lhs = filter (\n -> T.all (`elem` whitelist) n) tgt_lhs
+
+    fmap concat $ mapM (\e -> runLHCore e tgt_trans ghcInfos config >>= (return . parseLHOut e))
+                       cleaned_tgt_lhs
+

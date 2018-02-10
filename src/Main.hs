@@ -47,6 +47,8 @@ main = do
 
             in_out <- testLiquidFile proj prims l libs lhlibs config
 
+            printParsedLHOut in_out
+
             return ()
 
           Nothing -> error "which file are you testing exactly?"
@@ -79,22 +81,6 @@ main = do
       
           _ -> runGHC as
 
-testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-testLiquidFile proj primF fp libs lhlibs config = do
-    ghcInfos <- getGHCInfos proj [fp] lhlibs
-    tgt_transv <- translateLoadedV proj fp primF libs False
-
-    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs) = tgt_transv
-    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls)
-
-    mapM_ (\e -> do
-             putStrLn $ "running: " ++ (T.unpack e)
-             in_out <- runLHCore e tgt_trans ghcInfos config
-             printLHOut e in_out
-          -- ) tgt_lhs
-          ) $ map T.pack ["add", "replicate", "map", "zipWith"]
-
-    error "what?"
 
 runGHC :: [String] -> IO ()
 runGHC as = do
@@ -131,36 +117,6 @@ runGHC as = do
     printFuncCalls tentry in_out
 
 
-printLHOut :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
-printLHOut entry =
-    mapM_ (\(s, _, inArg, ex, ais) -> do
-        let funcCall = mkCleanExprHaskell (known_values s) (type_classes s) 
-                     . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
-
-        let funcOut = mkCleanExprHaskell (known_values s) (type_classes s) $ ex
-
-        let (n, as, out) = (case ais of
-                        Just (n'@(Name n'' _ _), ais', out') -> 
-                            (n''
-                            , mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n' TyBottom)) ais')
-                            , mkCleanExprHaskell (known_values s) (type_classes s) out')
-                        _ -> ("", "", ""))
-
-
-
-        -- print $ model s
-        -- print inArg
-        -- print ex
-        -- print ais
-        if funcCall == as && funcOut == out then do
-            putStrLn "The call "
-            putStrLn $ funcCall ++ " = " ++ funcOut
-            putStrLn . T.unpack $ "violates " `T.append` entry `T.append` "'s refinement type.\n"
-        else do
-            putStrLn $ funcCall ++ " = " ++ funcOut
-            putStrLn $ "makes a call to"
-            putStrLn $ as ++ " = " ++ out
-            putStrLn . T.unpack $ "violating " `T.append` n `T.append`"'s refinement type\n")
 
 printFuncCalls :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printFuncCalls entry =
