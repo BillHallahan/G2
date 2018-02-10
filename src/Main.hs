@@ -79,6 +79,23 @@ main = do
       
           _ -> runGHC as
 
+testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+testLiquidFile proj primF fp libs lhlibs config = do
+    ghcInfos <- getGHCInfos proj [fp] lhlibs
+    tgt_transv <- translateLoadedV proj fp primF libs False
+
+    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs) = tgt_transv
+    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls)
+
+    mapM_ (\e -> do
+             putStrLn $ "running: " ++ (T.unpack e)
+             in_out <- runLHCore e tgt_trans ghcInfos config
+             printLHOut e in_out
+          -- ) tgt_lhs
+          ) $ map T.pack ["add", "replicate", "map", "zipWith"]
+
+    error "what?"
+
 runGHC :: [String] -> IO ()
 runGHC as = do
     let (proj:src:base:entry:tail_args) = as
@@ -94,10 +111,10 @@ runGHC as = do
 
     let libs = maybeToList m_mapsrc
 
-    (mod_name, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src base libs True
+    (mb_modname, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src base libs True
 
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
-    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry (Just mod_name)
+    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry mb_modname
 
     -- error $ pprExecStateStr init_state
 

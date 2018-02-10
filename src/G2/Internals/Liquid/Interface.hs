@@ -40,15 +40,14 @@ findCounterExamples proj primF fp entry libs lhlibs config = do
     tgt_trans <- translateLoaded proj fp primF libs False
     runLHCore entry tgt_trans ghcInfos config
 
-
-runLHCore :: T.Text -> (T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])])
+runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])])
                     -> [GhcInfo]
                     -> Config
           -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-runLHCore entry (mod_name, prog, tys, cls) ghcInfos config = do
+runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
-    let init_state = initState prog tys cls Nothing Nothing Nothing True entry (Just mod_name)
+    let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
     let no_part_state = elimPartialApp cleaned_state
     let (lh_state, tcv) = createLHTC no_part_state
@@ -66,7 +65,6 @@ getGHCInfos proj fp lhlibs = do
 
     let config' = config {idirs = idirs config ++ [proj] ++ lhlibs
                          , files = files config ++ lhlibs
-                                  -- ["/home/celery/foo/yale/liquidhaskell-study/wi15/"]
                          , ghcOptions = ["-v"]}
     return . fst =<< LHI.getGhcInfos Nothing config' fp
     
@@ -102,15 +100,6 @@ reqNames (State { expr_env = eenv
                ]
     ++
     Lang.names (M.filterWithKey (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv) (coerce tc :: M.Map Name Class))
-
-testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-testLiquidFile proj primF fp libs lhlibs config = do
-  
-  (mod_name, pre_bnds, pre_tycons, pre_cls, tgt_lhs) <- translateLoadedV proj fp primF libs False 
-
-  mapM_ (putStrLn . show) tgt_lhs
-
-  error "what?"
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do

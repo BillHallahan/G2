@@ -52,6 +52,7 @@ import Var as V
 import Data.Foldable
 
 import Data.List
+import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
@@ -88,9 +89,9 @@ equivMods = HM.fromList
             , ("Data.Map.Base", "Data.Map")]
 
 hskToG2 :: FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
-    IO (String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String])
+    IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String])
 hskToG2 proj src nm tm simpl = do
-    (mod_name, sums_gutss, _, _, c) <- mkCompileClosure proj src simpl
+    (mb_modname, sums_gutss, _, _, c) <- mkCompileClosure proj src simpl
     
     let (nm2, binds) = mapAccumR (\nm' (_, _, b) -> mapAccumR (\v -> mkBinds v tm) nm' b) nm sums_gutss
     let binds' = concat binds
@@ -104,13 +105,13 @@ hskToG2 proj src nm tm simpl = do
                   concatMap bindersOf $ 
                   concatMap (\(_, _, bs) -> bs) sums_gutss
 
-    return (mod_name, binds', tycons', classes, nm3, tm2, tgt_lhs)
+    return (mb_modname, binds', tycons', classes, nm3, tm2, tgt_lhs)
 
-type CompileClosure = (String, [(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv, [ClsInst])
+type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv, [ClsInst])
 
 mkCompileClosure :: FilePath -> FilePath -> Bool -> IO CompileClosure
 mkCompileClosure proj src simpl = do
-    (mod_graph, mod_gutss, dflags, env) <- runGhc (Just libdir) $ do
+    (mb_modname, mod_graph, mod_gutss, dflags, env) <- runGhc (Just libdir) $ do
         beta_flags <- getSessionDynFlags
         let gen_flags = []
         -- let gen_flags = [ Opt_CmmSink
@@ -135,7 +136,12 @@ mkCompileClosure proj src simpl = do
         tmods <- mapM typecheckModule pmods
         dmods <- mapM desugarModule tmods
         let mod_gutss = map coreModule dmods
-        return (mod_graph, mod_gutss, dflags, env)
+
+        let mb_modname = listToMaybe $ map (moduleNameString . moduleName . ms_mod)
+                                     $ filter ((== Just src) . ml_hs_file . ms_location)
+                                     $ map (pm_mod_summary) pmods
+
+        return (mb_modname, mod_graph, mod_gutss, dflags, env)
 
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
@@ -148,10 +154,7 @@ mkCompileClosure proj src simpl = do
     -- Get TypeClasses
     let cls_insts = concatMap mg_insts mod_gutss
 
-    let mod_name = moduleNameString $ moduleName $ ms_mod $ head mod_graph
-
-    return (mod_name, zip3 mod_graph tcss bindss, dflags, env, cls_insts)
-    -- return (zip3 mod_graph (map mg_tcs mod_gutss) (map mg_binds mod_gutss), dflags, env)
+    return (mb_modname, zip3 mod_graph tcss bindss, dflags, env, cls_insts)
 
 mkBinds :: NameMap -> TypeNameMap -> CoreBind -> (NameMap, [(G2.Id, G2.Expr)])
 mkBinds nm tm (NonRec var expr) = 
