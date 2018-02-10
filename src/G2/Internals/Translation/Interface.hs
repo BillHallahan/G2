@@ -29,18 +29,18 @@ mergeTranslates ((prog, tys, cls):ts) =
       cls1 = cls ++ m_cls
   in (prog1, tys1, cls1)
 
-translateLoaded :: FilePath -> FilePath -> FilePath -> Bool -> Maybe FilePath
+translateLoaded :: FilePath -> FilePath -> FilePath -> [FilePath] -> Bool
                 -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])])
-translateLoaded proj src prelude simpl m_mapsrc = do
-  (tgt_name, final_prog, final_tys, classes, _) <- translateLoadedV proj src prelude (maybeToList m_mapsrc) simpl
+translateLoaded proj src base libs simpl = do
+  (tgt_name, final_prog, final_tys, classes, _) <- translateLoadedV proj src base libs simpl
   return (tgt_name, final_prog, final_tys, classes)
 
 translateLoadedV :: FilePath -> FilePath -> FilePath -> [FilePath] -> Bool
                  -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])], [T.Text])
-translateLoadedV proj src prelude libs simpl = do
+translateLoadedV proj src base libs simpl = do
   ((base_prog, base_tys, base_cls), b_nm, b_tnm) <-
       (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
-      translateLibs [prelude] specialConstructors specialTypeNames simpl
+      translateLibs [base] specialConstructors specialTypeNames simpl
   (lib_transs, lib_nm, lib_tnm) <- translateLibs libs b_nm b_tnm simpl
 
   let base_prog' = addPrimsToBase base_prog

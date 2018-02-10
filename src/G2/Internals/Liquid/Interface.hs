@@ -34,45 +34,38 @@ import G2.Internals.Language.KnownValues
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> Maybe FilePath -> Maybe [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-findCounterExamples proj primF fp entry m_mapsrc m_lhlibs config = do
-    ghcInfos <- getGHCInfos proj [fp] m_lhlibs
+findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples proj primF fp entry libs lhlibs config = do
+    ghcInfos <- getGHCInfos proj [fp] lhlibs
+    tgt_trans <- translateLoaded proj fp primF libs False
+    runLHCore entry tgt_trans ghcInfos config
+
+
+runLHCore :: T.Text -> (T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])])
+                    -> [GhcInfo]
+                    -> Config
+          -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+runLHCore entry (mod_name, prog, tys, cls) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
-
-    (mod_name, pre_bnds, pre_tycons, pre_cls) <- translateLoaded proj fp primF False m_mapsrc
-    let (bnds, tycons, cl) = (pre_bnds, pre_tycons, pre_cls)
-    
-    let init_state = initState bnds tycons cl Nothing Nothing Nothing True entry (Just mod_name)
-
-    -- We filter the State to clean up the expr env
-    -- We can't do this to the Types, because we don't know what the measures
-    -- will require.
-    let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) {type_env = type_env init_state}
+    let init_state = initState prog tys cls Nothing Nothing Nothing True entry (Just mod_name)
+    let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
     let no_part_state = elimPartialApp cleaned_state
-
     let (lh_state, tcv) = createLHTC no_part_state
-
-
     let lhtc_state = addLHTC lh_state tcv
     let measure_state = createMeasures lh_measures tcv lhtc_state
-
     let (merged_state, mkv) = mergeLHSpecState specs measure_state tcv
-
     let beta_red_state = simplifyAsserts mkv merged_state
+    hpp <- getZ3ProcessHandles
+    run smt2 hpp config beta_red_state
 
-    hhp <- getZ3ProcessHandles
 
-    run smt2 hhp config beta_red_state
-
-getGHCInfos :: FilePath -> [FilePath] -> Maybe [FilePath] -> IO [GhcInfo]
-getGHCInfos proj fp m_lhlibs = do
+getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
+getGHCInfos proj fp lhlibs = do
     config <- getOpts []
 
-    let config' = config {idirs = idirs config ++ [proj] ++
-                                  -- []
-                                  (B.fromMaybe [] m_lhlibs)
-                         , files = files config ++ (B.fromMaybe [] m_lhlibs)
+    let config' = config {idirs = idirs config ++ [proj] ++ lhlibs
+                         , files = files config ++ lhlibs
                                   -- ["/home/celery/foo/yale/liquidhaskell-study/wi15/"]
                          , ghcOptions = ["-v"]}
     return . fst =<< LHI.getGhcInfos Nothing config' fp

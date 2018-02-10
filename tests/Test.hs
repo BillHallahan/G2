@@ -335,8 +335,8 @@ testFile proj src stps m_assume m_assert m_reaches entry = testFileWithConfig pr
 
 testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO ([([Expr], Expr)])
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
-    -- (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" True Nothing
-    (m, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" True Nothing
+    -- (mod, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" [] True
+    (m, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" [] True
 
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) (Just m)
 
@@ -348,8 +348,8 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = do
-    -- r <- findCounterExamples proj "./defs/PrimDefs.hs" fp (T.pack entry) Nothing Nothing steps
-    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) Nothing Nothing (mkConfigDef {steps = stps})
+    -- r <- findCounterExamples proj "./defs/PrimDefs.hs" fp (T.pack entry) [] [] steps
+    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) [] [] (mkConfigDef {steps = stps})
 
     let exprs = map (\(_, _, inp, out, _) -> inp ++ [out]) r
 

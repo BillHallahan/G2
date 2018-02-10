@@ -36,13 +36,14 @@ main = do
     let m_lhlib = mkLiquidLib as
     let m_fulltest = mkLiquidFullTest as
 
+    let libs = maybeToList m_mapsrc
+    let lhlibs = maybeToList m_lhlib
+
     case m_fulltest of
       Just _ ->
         case m_liquid of
           Just l -> do
             let config = mkConfig as
-            let libs = maybeToList m_mapsrc
-            let lhlibs = maybeToList m_lhlib
 
             in_out <- testLiquidFile proj prims l libs lhlibs config
 
@@ -71,7 +72,7 @@ main = do
 
               let config = mkConfig as
 
-              in_out <- findCounterExamples proj prims l (T.pack f) m_mapsrc (fmap (:[]) m_lhlib) config
+              in_out <- findCounterExamples proj prims l (T.pack f) libs lhlibs config
 
               printLHOut (T.pack f) in_out
               
@@ -80,7 +81,7 @@ main = do
 
 runGHC :: [String] -> IO ()
 runGHC as = do
-    let (proj:src:lib:entry:tail_args) = as
+    let (proj:src:base:entry:tail_args) = as
 
     --Get args
     let m_assume = mAssume tail_args
@@ -91,7 +92,9 @@ runGHC as = do
 
     let tentry = T.pack entry
 
-    (mod_name, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src lib True m_mapsrc
+    let libs = maybeToList m_mapsrc
+
+    (mod_name, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src base libs True
 
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry (Just mod_name)
