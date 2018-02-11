@@ -60,9 +60,9 @@ findCounterExamples proj primF fp entry m_mapsrc config = do
 
     let beta_red_state = simplifyAsserts mkv merged_state
 
-    hhp <- getZ3ProcessHandles
+    (con, hhp) <- getSMT config
 
-    run smt2 hhp config beta_red_state
+    run con hhp config beta_red_state
 
 getGHCInfos :: FilePath -> [FilePath] -> IO [GhcInfo]
 getGHCInfos proj fp = do

@@ -1,5 +1,6 @@
 module G2.Internals.Solver.ParseSMT
-    (parseSMT) where
+    ( parseSMT
+    , parseGetValues) where
 
 import G2.Internals.Solver.Language
 
@@ -49,6 +50,9 @@ parens = Token.parens smtLexer
 
 smtParser :: Parser SMTAST
 smtParser = whiteSpace >> sExpr
+
+getValuesParser :: Parser SMTAST
+getValuesParser = parens $ parens $ count 1 identifier >> sExpr
 
 sExpr :: Parser SMTAST
 sExpr = parens sExpr <|> letExpr <|> consExpr <|> try doubleFloatExprRat <|> try doubleFloatExprDec <|> intExpr
@@ -111,3 +115,11 @@ parseSMT :: String -> SMTAST
 parseSMT s = case parse smtParser s s of
     Left e -> error $ show e
     Right r -> r
+
+-- | parseGetValues
+-- Parse the result of a get-values call
+parseGetValues :: String -> SMTAST
+parseGetValues s =
+    case parse getValuesParser s s of
+        Left e -> error $ "get values parser error on " ++ show e
+        Right r -> r

@@ -2,6 +2,7 @@
 -- It provides methods to construct formulas, as well as feed them to an external solver
 module G2.Internals.Solver.SMT2 where
 
+import G2.Internals.Config.Config
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Support hiding (Model)
 import G2.Internals.Language.Syntax hiding (Assert)
@@ -18,10 +19,20 @@ import Data.Ratio
 import System.IO
 import System.Process
 
+import Debug.Trace
+
 type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
 
-smt2 :: SMT2Converter
-smt2 = SMTConverter {
+z3 :: SMT2Converter
+z3 = smt2 setUpFormulaZ3 getModelZ3
+
+cvc4 :: SMT2Converter
+cvc4 = smt2 setUpFormulaCVC4 getModelCVC4
+
+smt2 :: (Handle -> String -> IO ())
+     -> (Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)])
+     -> SMT2Converter
+smt2 setup getmdl = SMTConverter {
           empty = ""  
         , merge = (++)
 
@@ -29,7 +40,7 @@ smt2 = SMTConverter {
             -- putStrLn "checkSat"
             -- putStrLn formula
             
-            setUpFormula h_in formula
+            setup h_in formula
             r <- checkSat' h_in h_out
 
             -- putStrLn $ show r
@@ -37,31 +48,32 @@ smt2 = SMTConverter {
             return r
 
         , checkSatGetModel = \(h_in, h_out, _) formula headers vs -> do
-            setUpFormula h_in formula
+            setup h_in formula
             -- putStrLn "\n\n checkSatGetModel"
             -- putStrLn formula
             r <- checkSat' h_in h_out
             -- putStrLn $ "r =  " ++ show r
             if r == SAT then do
-                mdl <- getModel h_in h_out vs
+                mdl <- getmdl h_in h_out vs
                 -- putStrLn "======"
                 -- putStrLn formula
                 -- putStrLn ""
                 -- putStrLn (show mdl)
                 -- putStrLn "======"
                 let m = parseModel headers mdl
+                -- putStrLn (show m)
                 return (r, Just m)
             else do
                 return (r, Nothing)
 
         , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) -> do
-            setUpFormula h_in formula
+            setup h_in formula
             -- putStrLn "\n\n checkSatGetModelGetExpr"
             -- putStrLn formula
             r <- checkSat' h_in h_out
             -- putStrLn $ "r =  " ++ show r
             if r == SAT then do
-                mdl <- getModel h_in h_out vs
+                mdl <- getmdl h_in h_out vs
                 -- putStrLn "======"
                 -- putStrLn formula
                 -- putStrLn ""
@@ -69,7 +81,7 @@ smt2 = SMTConverter {
                 -- putStrLn "======"
                 let m = parseModel headers mdl
 
-                expr <- solveExpr h_in h_out smt2 headers eenv e
+                expr <- solveExpr h_in h_out (smt2 setup getmdl) headers eenv e
                 -- putStrLn (show expr)
                 return (r, Just m, Just expr)
             else do
@@ -82,16 +94,20 @@ smt2 = SMTConverter {
                 dcHandler [] = ""
                 dcHandler (DC n s:dc) =
                     let
-                        si = map (\(s'', i) -> (s'', (selectorName s'') ++ show i)) $ zip s ([0..] :: [Integer])
-                        s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ "_F " ++ (selectorName _s) ++ ")") $ si
+                        si = map (\(s'', i) -> (s'', (selectorName (smt2 setup getmdl) s'') ++ show i)) $ zip s ([0..] :: [Integer])
+                        s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ "_F " ++ (selectorName (smt2 setup getmdl) _s) ++ ")") $ si
                     in
                     "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
 
-                binders = intercalate " " $ concatMap (\(_, s, _) -> s) ns
+                -- binders = intercalate " " $ concatMap (\(_, s, _) -> s) ns
+                adtDecs = intercalate " " $ map (\(n, bn, _) -> "(" ++ n ++ " " ++ show (length bn) ++ ")") ns
             in
-            "(declare-datatypes (" ++ binders ++ ") ("
-            ++ (foldr (\(n, _, dc) e -> 
-                "(" ++ n ++ " " ++ (dcHandler dc) ++ ") " ++ e) "" ns) ++  "))"
+            if length ns > 0 then
+                "(declare-datatypes (" ++ adtDecs ++ ") ("
+                ++ (foldr (\(n, bn, dc) e -> 
+                    "(par " ++ "(" ++ (intercalate " " bn) ++ ")" ++ " (" ++ (dcHandler dc) ++ ") )" ++ e) "" ns) ++  "))"
+            else
+                ""
             
         , varDecl = \n s -> "(declare-const " ++ n ++ " " ++ s ++ ")"
         
@@ -133,7 +149,7 @@ smt2 = SMTConverter {
         , sortFloat = "Real"
         , sortDouble = "Real"
         , sortBool = "Bool"
-        , sortADT = \n ts -> if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map sortN ts) ++ ")"
+        , sortADT = \n ts -> if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map (sortN (smt2 setup getmdl)) ts) ++ ")"
 
         , cons = \n asts _ ->
             if asts /= [] then
@@ -156,28 +172,26 @@ function3 :: String -> String -> String -> String -> String
 function3 f a b c = "(" ++ f ++ " " ++ a ++ " " ++ b ++ " " ++ c ++ ")"
 
 --TODO: SAME AS sortName in language, fix
-sortN :: Sort -> String
-sortN SortInt = sortInt smt2
-sortN SortFloat = sortFloat smt2
-sortN SortDouble = sortDouble smt2
-sortN SortBool = sortBool smt2
-sortN (Sort n s) = sortADT smt2 n s
+sortN :: SMTConverter ast out io -> Sort -> ast
+sortN smt SortInt = sortInt smt
+sortN smt SortFloat = sortFloat smt
+sortN smt SortDouble = sortDouble smt
+sortN smt SortBool = sortBool smt
+sortN smt (Sort n s) = sortADT smt n s
 
-selectorName :: Sort -> String
-selectorName SortInt = sortInt smt2
-selectorName SortFloat = sortFloat smt2
-selectorName SortDouble = sortDouble smt2
-selectorName SortBool = sortBool smt2
-selectorName (Sort n _) = n
+selectorName :: SMT2Converter -> Sort -> SMTName
+selectorName smt SortInt = sortInt smt
+selectorName smt SortFloat = sortFloat smt
+selectorName smt SortDouble = sortDouble smt
+selectorName smt SortBool = sortBool smt
+selectorName _ (Sort n _) = n
 
--- | getZ3ProcessHandles
--- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
--- returned handles to interact with Z3
+-- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
-getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getZ3ProcessHandles = do
-    (m_h_in, m_h_out, _, p) <- createProcess (proc "z3" ["-smt2", "-in"])
+getProcessHandles :: CreateProcess -> IO (Handle, Handle, ProcessHandle)
+getProcessHandles pr = do
+    (m_h_in, m_h_out, _, p) <- createProcess (pr)
         { std_in = CreatePipe, std_out = CreatePipe }
 
     let (h_in, h_out) =
@@ -189,11 +203,40 @@ getZ3ProcessHandles = do
 
     return (h_in, h_out, p)
 
--- | setUpFormula
+getSMT :: Config -> IO (SMT2Converter, (Handle, Handle, ProcessHandle))
+getSMT (Config {smt = Z3}) = do
+    hpp <- getZ3ProcessHandles
+    return (z3, hpp)
+getSMT (Config {smt = CVC4}) = do
+    hpp <- getCVC4ProcessHandles
+    return (cvc4, hpp)
+
+-- | getZ3ProcessHandles
+-- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
+-- returned handles to interact with Z3
+-- Ideally, this function should be called only once, and the same Handles should be used
+-- in all future calls
+getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
+getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in"]
+
+getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
+getCVC4ProcessHandles = do
+    hhp@(h_in, h_out, pr) <- getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]
+    hPutStr h_in "(set-logic ALL_SUPPORTED)\n"
+
+    return hhp
+
+-- | setUpFormulaZ3
 -- Writes a function to Z3
-setUpFormula :: Handle -> String -> IO ()
-setUpFormula h_in form = do
+setUpFormulaZ3 :: Handle -> String -> IO ()
+setUpFormulaZ3 h_in form = do
     hPutStr h_in "(reset)"
+    hPutStr h_in form
+
+setUpFormulaCVC4 :: Handle -> String -> IO ()
+setUpFormulaCVC4 h_in form = do
+    hPutStr h_in "(reset)"
+    hPutStr h_in "(set-logic ALL_SUPPORTED)\n"
     hPutStr h_in form
 
 -- Checks if a formula, previously written by setUp formula, is SAT
@@ -221,7 +264,7 @@ parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty
     . map (\(n, str, s) -> (n, parseToSMTAST headers str s))
 
 parseToSMTAST :: [SMTHeader] -> String -> Sort -> SMTAST
-parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ str
+parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseGetValues $ str
     where
         correctTypes :: Sort -> SMTAST -> SMTAST
         correctTypes (SortFloat) (VDouble r) = VFloat r
@@ -256,15 +299,28 @@ parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseSMT $ s
         replaceLets n a c@(Cons n' _ _) = if n == n' then a else c
         replaceLets _ _ a = a
 
-getModel :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
-getModel h_in h_out ns = do
+getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
+getModelZ3 h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
     getModel' ns
     where
         getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
         getModel' [] = return []
         getModel' ((n, s):nss) = do
-            hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
+            hPutStr h_in ("(get-value (" ++ n ++ "))\n") -- hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
+            out <- getLinesMatchParens h_out
+            _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
+
+            return . (:) (n, out, s) =<< getModel' nss
+
+getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
+getModelCVC4 h_in h_out ns = do
+    getModel' ns
+    where
+        getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
+        getModel' [] = return []
+        getModel' ((n, s):nss) = do
+            hPutStr h_in ("(get-value (" ++ n ++ "))\n")
             out <- getLinesMatchParens h_out
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 

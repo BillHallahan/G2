@@ -83,11 +83,11 @@ runGHC as = do
 
     let init_state' = init_state
 
-    hhp <- getZ3ProcessHandles
-
     let config = mkConfig as
 
-    in_out <- run smt2 hhp config init_state'
+    (con, hhp) <- getSMT config
+
+    in_out <- run con hhp config init_state'
 
     -- putStrLn "----------------\n----------------"
 

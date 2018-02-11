@@ -282,10 +282,11 @@ testFileTests =
 
 smtADTTests :: IO TestTree
 smtADTTests =
-    return . testGroup "Liquid"
+    return . testGroup "SMTADT"
         =<< sequence [
-              checkExprWithConfig "tests/Samples/" "tests/Samples/Peano.hs" (Just "equalsFour") Nothing "add" 3 (mkConfigDef {steps = 600, smtADTs = True}) [RForAll peano_4_out, Exactly 5]
-            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNth.hs" Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True}) [AtLeast 10, RForAll getNthTest]
+              checkExprWithConfig "tests/Samples/" "tests/Samples/Peano.hs" (Just "equalsFour") Nothing "add" 3 (mkConfigDef {steps = 600, smtADTs = True, smt = CVC4}) [RForAll peano_4_out, Exactly 5]
+            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNth.hs" Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True, smt = CVC4}) [AtLeast 10, RForAll getNthTest]
+            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNthPoly.hs" Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True, smt = CVC4}) [AtLeast 10]
         ]
 
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
@@ -293,8 +294,8 @@ checkExpr proj src stps m_assume m_assert entry i reqList =
     checkExprReaches proj src stps m_assume m_assert Nothing entry i reqList
 
 checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
-checkExprReaches proj src steps m_assume m_assert m_reaches entry i reqList = do
-    exprs <- return . map (\(inp, out) -> inp ++ [out]) =<< testFile proj src steps m_assume m_assert m_reaches entry
+checkExprReaches proj src stps m_assume m_assert m_reaches entry i reqList = do
+    exprs <- return . map (\(inp, out) -> inp ++ [out]) =<< testFile proj src stps m_assume m_assert m_reaches entry
     
     let ch = checkExprGen exprs i reqList
 
@@ -340,9 +341,9 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) (Just m)
 
-    hhp <- getZ3ProcessHandles
+    (con, hhp) <- getSMT config
 
-    r <- run smt2 hhp config init_state
+    r <- run con hhp config init_state
 
     return $ map (\(_, _, i, o, _) -> (i, o)) r
 
