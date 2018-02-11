@@ -9,98 +9,54 @@ import G2.Internals.Translation.Haskell
 import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
 
-translateLoaded :: FilePath -> FilePath -> FilePath -> Bool -> Maybe FilePath
-                -> IO (T.Text, Program, [ProgramType], [(Name, Id, [Id])])
-translateLoaded proj src prelude simpl m_mapsrc = do
-    let basedir = dropWhileEnd (/= '/') prelude
-    (_, base_prog, base_tys, base_cls, base_nm, base_tm) <- hskToG2 basedir prelude specialConstructors specialTypeNames simpl
+import Data.Maybe
 
-    let base_prog' = addPrimsToBase base_prog
+translateLibs :: [FilePath] -> NameMap -> TypeNameMap -> Bool -> IO ([(Program, [ProgramType], [(Name, Id, [Id])])], NameMap, TypeNameMap)
+translateLibs [] nm tnm _ = return ([], nm, tnm)
+translateLibs (f:fs) nm tnm simpl = do
+  (others, others_nm, others_tnm) <- translateLibs fs nm tnm simpl
+  let guess_dir = dropWhileEnd (/= '/') f
+  (_, prog, tys, cls, new_nm, new_tnm, _) <- hskToG2 guess_dir f others_nm others_tnm simpl
+  return $ ((prog, tys, cls) : others, new_nm, new_tnm)
 
-    (map_prog, map_tys, map_cls, map_nm, map_tm) <- case m_mapsrc of
-        Nothing -> return ([], [], [], base_nm, base_tm)
-        Just mapsrc -> do
-          let mapdir = dropWhileEnd (/= '/') mapsrc
-          (_, map_prog, map_tys, map_cls, map_nm, map_tm) <- hskToG2 mapdir mapsrc base_nm base_tm simpl
-          return (map_prog, map_tys, map_cls, map_nm, map_tm)
+mergeTranslates :: [(Program, [ProgramType], [(Name, Id, [Id])])] -> (Program, [ProgramType], [(Name, Id, [Id])])
+mergeTranslates [] = error "mergeTranslates: nothing to merge!"
+mergeTranslates (t:[]) = t
+mergeTranslates ((prog, tys, cls):ts) =
+  let (m_prog, m_tys, m_cls) = mergeTranslates ts
+      prog0 = mergeProgs m_prog prog
+      (prog1, tys1) = mergeProgTys prog0 prog0 m_tys tys
+      cls1 = cls ++ m_cls
+  in (prog1, tys1, cls1)
 
-    (tgt_name, data_prog, prog_tys, prog_cls, _, _) <- hskToG2 proj src map_nm map_tm simpl
+translateLoaded :: FilePath -> FilePath -> FilePath -> [FilePath] -> Bool
+                -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])])
+translateLoaded proj src base libs simpl = do
+  (mb_modname, final_prog, final_tys, classes, _) <- translateLoadedV proj src base libs simpl
+  return (mb_modname, final_prog, final_tys, classes)
 
-    -- print data_prog
-    -- prims <- mkPrims primsF
+translateLoadedV :: FilePath -> FilePath -> FilePath -> [FilePath] -> Bool
+                 -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [T.Text])
+translateLoadedV proj src base libs simpl = do
+  ((base_prog, base_tys, base_cls), b_nm, b_tnm) <-
+      (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
+      translateLibs [base] specialConstructors specialTypeNames simpl
+  (lib_transs, lib_nm, lib_tnm) <- translateLibs libs b_nm b_tnm simpl
 
-    -- mapM_ print base_prog
-    -- mapM_ print map_prog
-    -- error "STOPPP"
+  let base_prog' = addPrimsToBase base_prog
+  let base_tys' = base_tys ++ specialTypes
+  let base_trans' = (base_prog', base_tys', base_cls)
 
-    let start_tys = base_tys ++ specialTypes
+  let merged_lib = mergeTranslates (base_trans' : lib_transs)
 
-    let lib_prog0 = mergeProgs base_prog' map_prog
-    let (lib_prog1, lib_tys) = mergeProgTys lib_prog0 lib_prog0 start_tys map_tys
-    let lib_cls = base_cls ++ map_cls
+  -- Now the stuff with the actual target
+  (mb_modname, tgt_prog, tgt_tys, tgt_cls, _, _, tgt_lhs) <- hskToG2 proj src lib_nm lib_tnm simpl
+  let tgt_trans = (tgt_prog, tgt_tys, tgt_cls)
+  let (merged_prog, merged_tys, merged_cls) = mergeTranslates [tgt_trans, merged_lib]
 
-    -- mapM_ print lib_prog1
+  -- final injection phase
+  let (final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys
+  let final_cls = mergeTCs merged_cls merged_prog
 
-    let merged_prog0 = mergeProgs data_prog lib_prog1
-    let (merged_prog1, merged_tys) = mergeProgTys merged_prog0 merged_prog0 prog_tys lib_tys
-    let merged_cls = prog_cls ++ lib_cls
-
-    let (special_prog, special_tys) = (merged_prog1, merged_tys) -- injectSpecials merged_tys merged_prog1
-    let (final_prog, final_tys) = primInject $ dataInject special_prog special_tys
-
-    let classes = mergeTCs merged_cls merged_prog1
-
-
-    -- mapM_ print final_prog
-
-    -- error "HALT"
-
-    return (T.pack tgt_name, final_prog, final_tys, classes)
-    -- return (tgt_name, merged_prog1, merged_tys, classes)
-
-{-
-
-    let lib_prog = base_prog ++ map_prog
-    let lib_tys = base_tys ++ map_tys
-    let lib_cls = base_cls ++ map_cls
-
-    -- mapM_ print lib_prog
-    -- putStrLn "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"
-    -- mapM_ print base_prog
-
-    -- error "STOPPP"
-
-    -- print $ data_prog
-    -- print $ base_prog
-
-    let merged_prog = mergeProgs data_prog lib_prog
-
-    -- putStrLn "-------"
-    -- mapM_ print merged_prog
-
-    let (merged_prog', merged_prog_tys) =
-            mergeProgTys merged_prog merged_prog prog_tys lib_tys
-    let (merged_prog2', prog_tys') = injectSpecials merged_prog_tys merged_prog'
-
-    -- mapM_ print merged_prog
-    -- error "STOPPP"
-
-    -- print prog_tys'
-
-    let merged_classes = prog_cls ++ lib_cls
-
-    let (fin_prog, fin_tys) = primInject $ dataInject merged_prog2' prog_tys'
-
-
-    let classes = mergeTCs merged_classes fin_prog
-
-    return (tgt_name, fin_prog, fin_tys, classes)
--}
-
-prepBase :: FilePath -> IO ()
-prepBase destination = do
-    putStrLn $ "Downloading base to " ++ destination
-    downloadBase destination
-    putStrLn $ "Unpacking " ++ destination
-    unpackTarSameDir destination
+  return (fmap T.pack mb_modname, final_prog, final_tys, final_cls, map T.pack tgt_lhs)
 

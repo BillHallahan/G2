@@ -8,7 +8,10 @@
 -- 3) Names do not conflict with a symbol reserved by the SMT solver
 
 module G2.Internals.Preprocessing.NameCleaner
-    (cleanNames) where
+    ( cleanNames
+    , allowedStartSymbols
+    , allowedSymbol
+    ) where
 
 import qualified Data.List as L
 import qualified Data.Map as M
