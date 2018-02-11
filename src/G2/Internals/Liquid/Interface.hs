@@ -30,6 +30,8 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Maybe as B
 
+import System.Directory
+
 import qualified GHC as GHC
 import Var
 
@@ -61,7 +63,6 @@ runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let beta_red_state = simplifyAsserts mkv merged_state
     hpp <- getZ3ProcessHandles
     run smt2 hpp config beta_red_state
-
 
 getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
 getGHCInfos proj fp lhlibs = do
@@ -155,7 +156,6 @@ parseLHOut entry ((s, _, inArg, ex, ais):xs) =
    else
       Right ((entry, funcCall, funcOut), (n, as, out)) : tail
 
-
 testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
                -> IO [Either (T.Text, T.Text, T.Text)
                              ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))]
@@ -175,4 +175,18 @@ testLiquidFile proj primF fp libs lhlibs config = do
 
     fmap concat $ mapM (\e -> runLHCore e tgt_trans ghcInfos config >>= (return . parseLHOut e))
                        cleaned_tgt_lhs
+
+testLiquidDir :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
+              -> IO [(FilePath, [Either (T.Text, T.Text, T.Text)
+                                        ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))])]
+testLiquidDir proj primF dir libs lhlibs config = do
+  raw_files <- listDirectory dir
+  let hs_files = filter (\a -> (".hs" `isSuffixOf` a) || (".lhs" `isSuffixOf` a)) raw_files
+  
+  results <- mapM (\file -> do
+      res <- testLiquidFile proj primF file libs lhlibs config
+      return (file, res)
+    ) hs_files
+
+  return results
 
