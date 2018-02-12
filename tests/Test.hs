@@ -168,7 +168,7 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 2 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 2 [Exactly 0]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/CheckSq.hs" 400 Nothing Nothing "checkSq" 2 [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 9))]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/CheckSq.hs" 400 Nothing Nothing "checkSq" 2 [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3))]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 400 Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" 400 Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
