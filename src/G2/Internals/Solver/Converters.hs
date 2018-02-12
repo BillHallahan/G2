@@ -17,6 +17,7 @@ module G2.Internals.Solver.Converters
     , smtastToExpr
     , modelAsExpr ) where
 
+import Control.Monad
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -30,8 +31,6 @@ import G2.Internals.Language.Typing
 import G2.Internals.Language.Support hiding (Model)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Solver.Language
-
-import Debug.Trace
 
 -- | toSMTHeaders
 -- Here we convert from a State, to an SMTHeader.  This SMTHeader can later
@@ -68,13 +67,17 @@ addSetLogic xs =
     let
         lia = isLIA xs
         lra = isLRA xs
+        lira = isLIRA xs
         nia = isNIA xs
         nra = isNRA xs
+        nira = isNIRA xs
 
         sl = if lia then SetLogic QF_LIA else
-             if lra then SetLogic QF_LRA else 
+             if lra then SetLogic QF_LRA else
+             if lira then SetLogic QF_LIRA else
              if nia then SetLogic QF_NIA else
-             if nra then SetLogic QF_NRA else SetLogic ALL
+             if nra then SetLogic QF_NRA else 
+             if nira then SetLogic QF_NIRA else SetLogic ALL
     in
     sl:xs
 
@@ -101,12 +104,12 @@ isLIA' (_ :- _) = All True
 isLIA' (x :* y) = All $ isIntegerCoeff x || isIntegerCoeff y
 isLIA' (Neg _) = All True
 isLIA' (VInt _) = All True
-isLIA' (V _ s) = All $ isLIASort s
+isLIA' (V _ s) = All $ isIASort s
 isLIA' s = isCore' s
 
-isLIASort :: Sort -> Bool
-isLIASort SortInt = True
-isLIASort s = isCoreSort s
+isIASort :: Sort -> Bool
+isIASort SortInt = True
+isIASort s = isCoreSort s
 
 isIntegerCoeff :: SMTAST -> Bool
 isIntegerCoeff (Neg s) = isIntegerCoeff s
@@ -137,19 +140,33 @@ isLRA' (x :* y) = All $ isRationalCoeff x || isRationalCoeff y
 isLRA' (Neg _) = All True
 isLRA' (VFloat _) = All True
 isLRA' (VDouble _) = All True
-isLRA' (V _ s) = All $ isLRASort s
+isLRA' (V _ s) = All $ isRASort s
 isLRA' s = isCore' s
 
-isLRASort :: Sort -> Bool
-isLRASort SortFloat = True
-isLRASort SortDouble = True
-isLRASort s = isCoreSort s
+isRASort :: Sort -> Bool
+isRASort SortFloat = True
+isRASort SortDouble = True
+isRASort s = isCoreSort s
 
 isRationalCoeff :: SMTAST -> Bool
 isRationalCoeff (Neg s) = isRationalCoeff s
 isRationalCoeff (VFloat _) = True
 isRationalCoeff (VDouble _) = True
 isRationalCoeff _ = False
+
+isLIRA :: (ASTContainer m SMTAST) => m -> Bool
+isLIRA = getAll . evalASTs isLIRA'
+
+isLIRA' :: SMTAST -> All
+isLIRA' (ItoR _) = All True
+isLIRA' s = All $ getAll (isLIA' s) || getAll (isLRA' s)
+
+isNIRA :: (ASTContainer m SMTAST) => m -> Bool
+isNIRA = getAll . evalASTs isNIRA'
+
+isNIRA' :: SMTAST -> All
+isNIRA' (ItoR _) = All True
+isNIRA' s = All $ getAll (isNIA' s) || getAll (isNRA' s)
 
 isCore :: (ASTContainer m SMTAST) => m -> Bool
 isCore = getAll . evalASTs isCore'
@@ -163,7 +180,7 @@ isCore' (_ :=> _) = All True
 isCore' (_ :<=> _) = All True
 isCore' (VBool _) = All True
 isCore' (V _ s) = All $ isCoreSort s
-isCore' s = trace ("false from " ++ show s) All False
+isCore' s = All False
 
 isCoreSort :: Sort -> Bool
 isCoreSort SortBool = True

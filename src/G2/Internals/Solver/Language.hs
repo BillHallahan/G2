@@ -26,7 +26,7 @@ data SMTHeader = Assert SMTAST
                | SetLogic Logic
                deriving (Show, Eq)
 
-data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA deriving (Show, Eq)
+data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA | QF_LIRA | QF_NIRA deriving (Show, Eq)
 
 -- | SMTAST
 -- These coorespond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
