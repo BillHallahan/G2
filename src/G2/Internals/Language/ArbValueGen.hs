@@ -11,7 +11,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
 
-data ArbValueGen = ArbValueGen { intGen :: Int
+data ArbValueGen = ArbValueGen { intGen :: Integer
                                , floatGen :: Rational
                                , doubleGen :: Rational
                                , boolGen :: Bool

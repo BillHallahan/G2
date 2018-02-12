@@ -53,7 +53,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Ite SMTAST SMTAST SMTAST
             | SLet (SMTName, SMTAST) SMTAST
 
-            | VInt Int
+            | VInt Integer
             | VFloat Rational
             | VDouble Rational
             | VBool Bool
@@ -128,7 +128,7 @@ data SMTConverter ast out io =
         , ite :: ast -> ast -> ast -> ast
 
         --values
-        , int :: Int -> ast
+        , int :: Integer -> ast
         , float :: Rational -> ast
         , double :: Rational -> ast
         , bool :: Bool -> ast

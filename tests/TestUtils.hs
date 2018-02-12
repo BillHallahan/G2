@@ -54,7 +54,7 @@ appNthArgIs a f i =
         True -> f (u !! i)
         False -> False
 
-isInt :: Expr -> (Int -> Bool) -> Bool
+isInt :: Expr -> (Integer -> Bool) -> Bool
 isInt (Lit (LitInt x)) f = f x
 isInt (App _ (Lit (LitInt x))) f = f x
 isInt _ _ = False
@@ -85,12 +85,12 @@ notCast :: Expr -> Bool
 notCast (Cast _ _) = False
 notCast _ = True
 
-getInt :: Expr -> a -> (Int -> a) -> a
+getInt :: Expr -> a -> (Integer -> a) -> a
 getInt (Lit (LitInt x)) _ f = f x
 getInt (App _ (Lit (LitInt x))) _ f = f x
 getInt _ x _ = x
 
-getIntB :: Expr -> (Int -> Bool) -> Bool
+getIntB :: Expr -> (Integer -> Bool) -> Bool
 getIntB e = getInt e False
 
 getBoolB :: Expr -> (Bool -> Bool) -> Bool

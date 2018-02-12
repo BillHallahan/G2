@@ -95,7 +95,7 @@ instance Hashable Primitive
 
 -- | Literals for denoting unwrapped types such as Int#, Double#. These would
 -- be contained within primitives.
-data Lit = LitInt Int
+data Lit = LitInt Integer
          | LitFloat Rational
          | LitDouble Rational
          | LitChar Char

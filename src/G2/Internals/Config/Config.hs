@@ -18,7 +18,7 @@ mkConfigDef = mkConfig []
 mkConfig :: [String] -> Config
 mkConfig as = Config {
       logStates = mArg "--log-states" as Just Nothing
-    , smt = mArg "--smt" as smtSolverArg Z3
+    , smt = mArg "--smt" as smtSolverArg CVC4
     , smtADTs = bArg "--smt-adts" as False
     , steps = mArg "--n" as read 500
 }

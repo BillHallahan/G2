@@ -54,13 +54,13 @@ fListF = Data $ DataCon (Name "F" (Just "Defunc2") 0) (TyConApp (Name "FList" (J
 fListNil :: Expr
 fListNil = Data $ DataCon (Name "FNil" (Just "Defunc2") 0) (TyConApp (Name "FList" (Just "Defunc2") 0) []) []
 
-add1Def :: Int -> Int
+add1Def :: Integer -> Integer
 add1Def x = x + 1
 
-sub1Def :: Int -> Int
+sub1Def :: Integer -> Integer
 sub1Def x = x - 1
 
-squareDef :: Int -> Int
+squareDef :: Integer -> Integer
 squareDef x = x * x
 
 defunc2Check :: [Expr] -> Bool
@@ -73,7 +73,7 @@ defunc2Check' (App (App _ f) fs)
               (App (App _ (Lit (LitInt i'))) is') = defunc2Check'' f i i' && defunc2Check' fs is is'
 defunc2Check' _ _ _ = True
 
-defunc2Check'' :: Expr -> Int -> Int -> Bool
+defunc2Check'' :: Expr -> Integer -> Integer -> Bool
 defunc2Check'' (Var (Id (Name "add1" _ _) _)) i i' = add1Def i == i'
 defunc2Check'' (Var (Id (Name "sub1" _ _) _)) i i' = sub1Def i == i'
 defunc2Check'' (Var (Id (Name "square" _ _) _)) i i' = squareDef i == i'

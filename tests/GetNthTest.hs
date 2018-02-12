@@ -10,17 +10,17 @@ data CList a = Cons a (CList a) | Nil
 
 data Peano = Succ Peano | Zero
 
-getNth :: CList Int -> Int -> Int
+getNth :: CList Integer -> Integer -> Integer
 getNth (Cons x _)  0 = x 
 getNth (Cons _ xs) n = getNth xs (n - 1)
 getNth _      _ = -1
 
-getNthErr :: CList a -> Int -> Maybe a 
+getNthErr :: CList a -> Integer -> Maybe a 
 getNthErr (Cons x _)  0 = Just x 
 getNthErr (Cons _ xs) n = getNthErr xs (n - 1)
 getNthErr _      _ = Nothing
 
-toCList :: Expr -> CList Int
+toCList :: Expr -> CList Integer
 toCList (App (App (Data (DataCon (Name "Cons" _ _) _ _)) x) y) = getInt x Nil $ \x' -> Cons x' (toCList y)
 toCList _ = Nil
 
@@ -28,7 +28,7 @@ toCListGen :: Expr -> CList Expr
 toCListGen (App (App (Data (DataCon (Name "Cons" _ _) _ _)) e) y) = Cons e (toCListGen y)
 toCListGen _ = Nil
 
-toCListType :: Expr -> CList Int
+toCListType :: Expr -> CList Integer
 toCListType (App (App (App (Data (DataCon (Name "Cons" _ _) _ _)) (Type _)) x) y) = getInt x Nil $ \x' -> Cons x' (toCListType y)
 toCListType _ = Nil
 
@@ -36,7 +36,7 @@ toCListGenType :: Expr -> CList Expr
 toCListGenType (App (App (App (Data (DataCon (Name "Cons" _ _) _ _)) (Type _)) e) y) = Cons e (toCListGenType y)
 toCListGenType _ = Nil
 
-cListLength :: CList a -> Int
+cListLength :: CList a -> Integer
 cListLength (Cons _ xs) = 1 + cListLength xs
 cListLength Nil = 0
 

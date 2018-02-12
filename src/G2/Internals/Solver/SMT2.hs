@@ -37,13 +37,13 @@ smt2 setup getmdl = SMTConverter {
         , merge = (++)
 
         , checkSat = \(h_in, h_out, _) formula -> do
-            -- putStrLn "checkSat"
-            -- putStrLn formula
+            putStrLn "checkSat"
+            putStrLn formula
             
             setup h_in formula
             r <- checkSat' h_in h_out
 
-            -- putStrLn $ show r
+            putStrLn $ show r
 
             return r
 
@@ -136,7 +136,7 @@ smt2 setup getmdl = SMTConverter {
 
         , ite = function3 "ite"
 
-        , int = show
+        , int = \x -> if x >= 0 then show x else "(- " ++ show (abs x) ++ ")"
         , float = \r -> 
             "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
         , double = \r ->
