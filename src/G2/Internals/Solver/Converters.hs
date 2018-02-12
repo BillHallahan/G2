@@ -284,7 +284,7 @@ toSolverAST con (As ast s) =
     let
         ast' = toSolverAST con ast
     in
-    as con ast' s 
+    asSort con ast' s 
 toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 

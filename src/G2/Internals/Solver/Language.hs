@@ -134,7 +134,7 @@ data SMTConverter ast out io =
         , bool :: Bool -> ast
         , cons :: SMTName -> [ast] -> Sort -> ast
         , var :: SMTName -> ast -> ast
-        , as :: ast -> Sort -> ast
+        , asSort :: ast -> Sort -> ast
 
         --sorts
         , sortInt :: ast

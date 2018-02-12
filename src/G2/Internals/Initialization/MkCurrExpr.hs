@@ -79,11 +79,11 @@ findFunc s m_mod eenv =
         pairs -> case m_mod of
             Nothing -> Right $ "Multiple functions with same name. " ++
                                "Wrap the target function in a module so we can try again!"
-            Just mod -> case filter (\(Name _ m _, _) -> m == Just mod) pairs of
+            Just m -> case filter (\(Name _ m' _, _) -> m' == Just m) pairs of
                 [(n, e)] -> Left (Id n (typeOf e), e)
-                [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in module " ++ (T.unpack mod)
+                [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in module " ++ (T.unpack m)
                 _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
-                             " in module " ++ (T.unpack mod)
+                             " in module " ++ (T.unpack m)
 
 
 -- distinguish between where a Type is being bound and where it is just the type (see argTys)
@@ -134,7 +134,7 @@ argTys _ = []
 
 typeTBId :: TypeBT -> Id
 typeTBId (B i) = i
-typeTBId (T t) = error "No Id in T"
+typeTBId (T _) = error "No Id in T"
 
 typeTBType :: TypeBT -> Type
 typeTBType (B _) = error "No type in B"
@@ -145,7 +145,7 @@ typeB (B _) = True
 typeB _ = False
 
 checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
-checkReaches eenv _ _ Nothing m_mod = eenv
+checkReaches eenv _ _ Nothing _ = eenv
 checkReaches eenv tenv kv (Just s) m_mod =
     case findFunc s m_mod eenv of
         Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv tenv) e) eenv

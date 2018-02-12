@@ -4,12 +4,9 @@ import Data.List
 import qualified Data.Text as T
 
 import G2.Internals.Language
-import G2.Internals.Translation.Cabal
 import G2.Internals.Translation.Haskell
 import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
-
-import Data.Maybe
 
 translateLibs :: [FilePath] -> NameMap -> TypeNameMap -> Bool -> IO ([(Program, [ProgramType], [(Name, Id, [Id])])], NameMap, TypeNameMap)
 translateLibs [] nm tnm _ = return ([], nm, tnm)

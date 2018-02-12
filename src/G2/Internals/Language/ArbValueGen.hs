@@ -10,6 +10,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
+import Data.Tuple
 
 data ArbValueGen = ArbValueGen { intGen :: Integer
                                , floatGen :: Rational
@@ -95,10 +96,11 @@ getADT' ns tenv adt av
     , Just dc <- minimumByMaybe (\x y -> snd x ` compare` snd y) $ map (scoreTuple tenv) dcs
         =
         let
-            es = map (\t -> fst $ arbValue t tenv av) . dataConArgs $ fst dc
+            (av', es) = mapAccumR (\av'' t -> swap $ arbValue t tenv av'') av $ dataConArgs $ fst dc
+            -- es = map (\t -> fst $ arbValue t tenv av) . dataConArgs $ fst dc
             e = foldl' App (Data $ fst dc) es
         in
-        (e, av)
+        (e, av')
     | otherwise = (Prim Undefined TyBottom, av)
 
 minimumByMaybe :: (a -> a -> Ordering) -> [a] -> Maybe a

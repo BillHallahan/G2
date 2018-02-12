@@ -157,7 +157,7 @@ smt2 setup getmdl = SMTConverter {
                 n
         , varName = \n _ -> n
 
-        , as = \ast s -> "(as " ++ ast ++ sortN (smt2 setup getmdl) s ++ ")"
+        , asSort = \ast s -> "(as " ++ ast ++ sortN (smt2 setup getmdl) s ++ ")"
     }
 
 functionList :: String -> [String] -> String
