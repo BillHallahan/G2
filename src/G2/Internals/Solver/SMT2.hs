@@ -110,6 +110,17 @@ smt2 setup getmdl = SMTConverter {
             
         , varDecl = \n s -> "(declare-const " ++ n ++ " " ++ s ++ ")"
         
+        , setLogic = \lgc ->
+            let 
+                s = case lgc of
+                    QF_LIA -> "QF_LIA"
+                    QF_LRA -> "QF_LRA"
+                    QF_NIA -> "QF_NIA"
+                    QF_NRA -> "QF_NRA"
+                    _ -> "ALL"
+            in
+            "(set-logic " ++ s ++ ")"
+
         , (.>=) = function2 ">="
         , (.>) = function2 ">"
         , (.=) = function2 "="
@@ -223,7 +234,7 @@ getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in"]
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getCVC4ProcessHandles = do
     hhp@(h_in, h_out, pr) <- getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]
-    hPutStr h_in "(set-logic ALL_SUPPORTED)\n"
+    -- hPutStr h_in "(set-logic ALL)\n"
 
     return hhp
 
@@ -237,7 +248,7 @@ setUpFormulaZ3 h_in form = do
 setUpFormulaCVC4 :: Handle -> String -> IO ()
 setUpFormulaCVC4 h_in form = do
     hPutStr h_in "(reset)"
-    hPutStr h_in "(set-logic ALL_SUPPORTED)\n"
+    -- hPutStr h_in "(set-logic ALL)\n"
     hPutStr h_in form
 
 -- Checks if a formula, previously written by setUp formula, is SAT

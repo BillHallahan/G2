@@ -70,6 +70,7 @@ sampleTests =
 
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 2 [RExists negativeSquareRes, AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue1") Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
+                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 Nothing Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger" 3 [RExists addRes, RExists subRes, AtLeast 2]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
                 -- -- The below test fails because Z3 returns unknown.
@@ -166,6 +167,8 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 Nothing (Just "assertGt5") "outShouldBeGe5" 2 [AtLeast 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGt5" 2 [Exactly 0]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/AssumeAssert.hs" 400 (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" 2 [Exactly 0]
+
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/CheckSq.hs" 400 Nothing Nothing "checkSq" 2 [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 9))]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 400 Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" 400 Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]

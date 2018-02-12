@@ -20,6 +20,7 @@ module G2.Internals.Solver.Converters
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid
 import qualified Data.Text as T
 
 -- import G2.Internals.Translation.HaskellPrelude
@@ -30,6 +31,8 @@ import G2.Internals.Language.Support hiding (Model)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Solver.Language
 
+import Debug.Trace
+
 -- | toSMTHeaders
 -- Here we convert from a State, to an SMTHeader.  This SMTHeader can later
 -- be given to an SMT solver by using toSolver.
@@ -38,7 +41,10 @@ import G2.Internals.Solver.Language
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
 toSMTHeaders :: State -> [SMTHeader]
-toSMTHeaders s  = 
+toSMTHeaders = addSetLogic . toSMTHeaders'
+
+toSMTHeaders' :: State -> [SMTHeader]
+toSMTHeaders' s  = 
     let
         pc = PC.toList $ path_conds s
     in
@@ -47,14 +53,127 @@ toSMTHeaders s  =
     (pathConsToSMTHeaders pc)
 
 toSMTHeadersWithSMTSorts :: State -> [SMTHeader]
-toSMTHeadersWithSMTSorts s =
+toSMTHeadersWithSMTSorts = addSetLogic . toSMTHeadersWithSMTSorts'
+
+toSMTHeadersWithSMTSorts' :: State -> [SMTHeader]
+toSMTHeadersWithSMTSorts' s =
     (typesToSMTSorts $ type_env s)
     ++
-    toSMTHeaders s
+    toSMTHeaders' s
 
+-- | addSetLogic
+-- Determines an appropriate SetLogic command, and adds it to the headers
+addSetLogic :: [SMTHeader] -> [SMTHeader]
+addSetLogic xs =
+    let
+        lia = isLIA xs
+        lra = isLRA xs
+        nia = isNIA xs
+        nra = isNRA xs
+
+        sl = if lia then SetLogic QF_LIA else
+             if lra then SetLogic QF_LRA else 
+             if nia then SetLogic QF_NIA else
+             if nra then SetLogic QF_NRA else SetLogic ALL
+    in
+    sl:xs
+
+isNIA :: (ASTContainer m SMTAST) => m -> Bool
+isNIA = getAll . evalASTs isNIA'
+
+isNIA' :: SMTAST -> All
+isNIA' (_ :* _) = All True
+isNIA' (_ :/ _) = All True
+isNIA' s = isLIA' s
+
+isLIA :: (ASTContainer m SMTAST) => m -> Bool
+isLIA = getAll . evalASTs isLIA'
+
+isLIA' :: SMTAST -> All
+isLIA' (_ :>= _) = All True
+isLIA' (_ :> _) = All True
+isLIA' (_ := _) = All True
+isLIA' (_ :/= _) = All True
+isLIA' (_ :< _) = All True
+isLIA' (_ :<= _) = All True
+isLIA' (_ :+ _) = All True
+isLIA' (_ :- _) = All True
+isLIA' (x :* y) = All $ isIntegerCoeff x || isIntegerCoeff y
+isLIA' (Neg _) = All True
+isLIA' (VInt _) = All True
+isLIA' (V _ s) = All $ isLIASort s
+isLIA' s = isCore' s
+
+isLIASort :: Sort -> Bool
+isLIASort SortInt = True
+isLIASort s = isCoreSort s
+
+isIntegerCoeff :: SMTAST -> Bool
+isIntegerCoeff (Neg s) = isIntegerCoeff s
+isIntegerCoeff (VInt _) = True
+isIntegerCoeff _ = False
+
+isNRA :: (ASTContainer m SMTAST) => m -> Bool
+isNRA = getAll . evalASTs isNRA'
+
+isNRA' :: SMTAST -> All
+isNRA' (_ :* _) = All True
+isNRA' (_ :/ _) = All True
+isNRA' s = isLRA' s
+
+isLRA :: (ASTContainer m SMTAST) => m -> Bool
+isLRA = getAll . evalASTs isLRA'
+
+isLRA' :: SMTAST -> All
+isLRA' (_ :>= _) = All True
+isLRA' (_ :> _) = All True
+isLRA' (_ := _) = All True
+isLRA' (_ :/= _) = All True
+isLRA' (_ :< _) = All True
+isLRA' (_ :<= _) = All True
+isLRA' (_ :+ _) = All True
+isLRA' (_ :- _) = All True
+isLRA' (x :* y) = All $ isRationalCoeff x || isRationalCoeff y
+isLRA' (Neg _) = All True
+isLRA' (VFloat _) = All True
+isLRA' (VDouble _) = All True
+isLRA' (V _ s) = All $ isLRASort s
+isLRA' s = isCore' s
+
+isLRASort :: Sort -> Bool
+isLRASort SortFloat = True
+isLRASort SortDouble = True
+isLRASort s = isCoreSort s
+
+isRationalCoeff :: SMTAST -> Bool
+isRationalCoeff (Neg s) = isRationalCoeff s
+isRationalCoeff (VFloat _) = True
+isRationalCoeff (VDouble _) = True
+isRationalCoeff _ = False
+
+isCore :: (ASTContainer m SMTAST) => m -> Bool
+isCore = getAll . evalASTs isCore'
+
+isCore' :: SMTAST -> All
+isCore' (_ := _) = All True
+isCore' (_ :&& _) = All True
+isCore' (_ :|| _) = All True
+isCore' ((:!) _) = All True
+isCore' (_ :=> _) = All True
+isCore' (_ :<=> _) = All True
+isCore' (VBool _) = All True
+isCore' (V _ s) = All $ isCoreSort s
+isCore' s = trace ("false from " ++ show s) All False
+
+isCoreSort :: Sort -> Bool
+isCoreSort SortBool = True
+isCoreSort _ = False
+
+-------------------------------------------------------------------------------
+
+-- | pathConsToSMTHeaders
 pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
 pathConsToSMTHeaders = map Assert . mapMaybe pathConsToSMT
-
 
 pathConsToSMT :: PathCond -> Maybe SMTAST
 pathConsToSMT (AltCond a e b) =
@@ -242,6 +361,7 @@ toSolver con (Assert ast:xs) =
     merge con (assert con $ toSolverAST con ast) (toSolver con xs)
 toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver con xs)
 toSolver con (SortDecl ns:xs) = merge con (toSolverSortDecl con ns) (toSolver con xs)
+toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
 
 -- | toSolverAST
 toSolverAST :: SMTConverter ast out io -> SMTAST -> ast
@@ -295,6 +415,10 @@ toSolverSortDecl = sortDecl
 -- | toSolverVarDecl
 toSolverVarDecl :: SMTConverter ast out io -> SMTName -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
+
+-- | toSolverSetLogic
+toSolverSetLogic :: SMTConverter ast out io -> Logic -> out
+toSolverSetLogic = setLogic
 
 -- | smtastToExpr
 smtastToExpr :: SMTAST -> Expr

@@ -23,7 +23,10 @@ type SMTName = String
 data SMTHeader = Assert SMTAST
                | SortDecl [(SMTName, [SMTName], [DC])]
                | VarDecl SMTName Sort
+               | SetLogic Logic
                deriving (Show, Eq)
+
+data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA deriving (Show, Eq)
 
 -- | SMTAST
 -- These coorespond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
@@ -101,6 +104,7 @@ data SMTConverter ast out io =
         , assert :: ast -> out
         , sortDecl :: [(SMTName, [SMTName], [DC])] -> out
         , varDecl :: SMTName -> ast -> out
+        , setLogic :: Logic -> out
 
         , (.>=) :: ast -> ast -> ast
         , (.>) :: ast -> ast -> ast
