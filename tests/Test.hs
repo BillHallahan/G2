@@ -8,12 +8,14 @@ import Test.Tasty.HUnit
 
 import G2.Internals.Config.Config
 
+import G2.Internals.Execution.RuleTypes
 import G2.Internals.Interface
 import G2.Internals.Language as G2
 import G2.Internals.Translation
 import G2.Internals.Solver
 import G2.Internals.Liquid.Interface
 
+import Control.Exception
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -284,9 +286,9 @@ smtADTTests :: IO TestTree
 smtADTTests =
     return . testGroup "SMTADT"
         =<< sequence [
-              checkExprWithConfig "tests/Samples/" "tests/Samples/Peano.hs" (Just "equalsFour") Nothing "add" 3 (mkConfigDef {steps = 600, smtADTs = True, smt = CVC4}) [RForAll peano_4_out, Exactly 5]
-            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNth.hs" Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True, smt = CVC4}) [AtLeast 10, RForAll getNthTest]
-            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNthPoly.hs" Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True, smt = CVC4}) [AtLeast 10]
+              checkExprWithConfig "tests/Samples/" "tests/Samples/Peano.hs" (Just "equalsFour") Nothing Nothing "add" 3 (mkConfigDef {steps = 600, smtADTs = True, smt = CVC4}) [RForAll peano_4_out, Exactly 5]
+            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNth.hs" Nothing Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True, smt = CVC4}) [AtLeast 10, RForAll getNthTest]
+            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNthPoly.hs" Nothing Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True, smt = CVC4}) [AtLeast 10]
         ]
 
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
@@ -295,21 +297,15 @@ checkExpr proj src stps m_assume m_assert entry i reqList =
 
 checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExprReaches proj src stps m_assume m_assert m_reaches entry i reqList = do
-    exprs <- return . map (\(inp, out) -> inp ++ [out]) =<< testFile proj src stps m_assume m_assert m_reaches entry
-    
-    let ch = checkExprGen exprs i reqList
+    checkExprWithConfig proj src m_assume m_assert m_reaches entry i (mkConfigDef {steps = stps}) reqList
 
-    return . testCase src
-        $ assertBool ("Assume/Assert for file " ++ src ++ 
-                      " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
-                                      "[" ++ (fromMaybe "" m_assert) ++ "] " ++
-                                              entry ++ " failed.\n") ch
-
-checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs] -> IO TestTree
-checkExprWithConfig proj src m_assume m_assert entry i config reqList = do
-    exprs <- return . map (\(inp, out) -> inp ++ [out]) =<< testFileWithConfig proj src m_assume m_assert Nothing entry config
+checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs] -> IO TestTree
+checkExprWithConfig proj src m_assume m_assert m_reaches entry i config reqList = do
+    res <- testFile proj src m_assume m_assert m_reaches entry config
     
-    let ch = checkExprGen exprs i reqList
+    let ch = case res of
+                Left _ -> False
+                Right exprs -> checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) i reqList
 
     return . testCase src
         $ assertBool ("Assume/Assert for file " ++ src ++ 
@@ -330,13 +326,13 @@ checkExprGen exprs i reqList =
         checkArgCount = and . map ((==) i . length) $ exprs
     in
     argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
-
-testFile :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> IO ([([Expr], Expr)])
-testFile proj src stps m_assume m_assert m_reaches entry = testFileWithConfig proj src m_assume m_assert m_reaches entry (mkConfigDef {steps = stps})
+ 
+testFile :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO (Either SomeException [([Expr], Expr)])
+testFile proj src m_assume m_assert m_reaches entry config =
+    try (testFileWithConfig proj src m_assume m_assert m_reaches entry config)
 
 testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO ([([Expr], Expr)])
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
-    -- (mb_modname, binds, tycons, cls) <- translateLoaded proj src "./defs/PrimDefs.hs" [] True
     (mb_modname, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" [] True
 
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname
@@ -349,16 +345,18 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = do
-    -- r <- findCounterExamples proj "./defs/PrimDefs.hs" fp (T.pack entry) [] [] steps
-    r <- findCounterExamples proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) [] [] (mkConfigDef {steps = stps})
+    res <- findCounterExamples' proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) [] [] (mkConfigDef {steps = stps})
 
-    let exprs = map (\(_, _, inp, out, _) -> inp ++ [out]) r
-
-    let ch = checkExprGen exprs i reqList
+    let ch = case res of
+                Left _ -> False
+                Right exprs -> checkExprGen (map (\(_, _, inp, out, _) -> inp ++ [out]) exprs) i reqList
 
     return . testCase fp
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n") ch
+
+findCounterExamples' :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))])
+findCounterExamples' proj primF fp entry libs lhlibs config = try (findCounterExamples proj primF fp entry libs lhlibs config)
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
