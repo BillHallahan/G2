@@ -90,8 +90,6 @@ liftSymDataAlt eenv mexpr ngen cvar = map (liftSymDataAlt' eenv mexpr ngen cvar)
 liftSymDataAlt' :: E.ExprEnv -> Expr -> NameGen -> Id -> (DataCon, [Id], Expr) -> EvaluateResult
 liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
   where
-    -- Condition that was matched.
-    cond = AltCond (DataAlt dcon params) mexpr True
 
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
@@ -104,6 +102,11 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
     (news, ngen') = case exprInCasts mexpr of
         (Var (Id n _)) -> childrenNames n olds ngen
         _ -> freshSeededNames olds ngen
+
+    newparams = map (uncurry Id) $ zip news (map typeOf params)
+
+    -- Condition that was matched.
+    cond = AltCond (DataAlt dcon newparams) mexpr True
 
     -- (news, ngen') = freshSeededNames olds ngen
 
@@ -233,7 +236,7 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
             -- change an Unknown into a SAT or UNSAT
             -- Switching which of the following two lines is commented turns this on/off
             -- let s'' = s'
-            let s'' = s' {path_conds = PC.relevant (known_values s) pc (path_conds s')}
+            let s'' = s' {path_conds = pcRelevant config (known_values s) pc (path_conds s')}
 
             res <- (selectCheckConstraints config) con hpp s''
 
@@ -243,12 +246,12 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
                 resultsToState con hpp config rule s xs
     | not (null asserts) && not (true_assert s) = do
         let assertS = s' { path_conds = foldr (pcInsert config kv) (path_conds s') asserts, true_assert = True, assert_ids = ais }
-        let assertSRel = assertS {path_conds = PC.relevant kv asserts (path_conds assertS)}
+        let assertSRel = assertS {path_conds = pcRelevant config kv asserts (path_conds assertS)}
 
         let negAsserts = map PC.negatePC asserts
         
         let negAssertS = s' {path_conds = foldr (pcInsert config kv) (path_conds s') negAsserts}
-        let negAssertSRel = negAssertS {path_conds = PC.relevant kv negAsserts (path_conds negAssertS)}
+        let negAssertSRel = negAssertS {path_conds = pcRelevant config kv negAsserts (path_conds negAssertS)}
 
         let potentialS = [(assertS, assertSRel), (negAssertS, negAssertSRel)]
 
@@ -269,6 +272,11 @@ selectCheckConstraints _ = checkConstraintsWithSMTSorts
 pcInsert :: Config -> KnownValues -> PC.PathCond -> PC.PathConds -> PC.PathConds
 pcInsert (Config {smtADTs = False}) = PC.insert
 pcInsert _ = PC.insertWithSMTADT
+
+{-# INLINE pcRelevant #-}
+pcRelevant :: Config -> KnownValues -> [PC.PathCond] -> PC.PathConds -> PC.PathConds
+pcRelevant (Config {smtADTs = False}) = PC.relevant
+pcRelevant _ = PC.relevantWithSMTADT
 
 reduceNoConstraintChecks :: Config -> State -> (Rule, [State])
 reduceNoConstraintChecks config s =

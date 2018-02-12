@@ -28,6 +28,7 @@ import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -174,9 +175,9 @@ run con hhp config (state@ State { type_env = tenv
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
 
-    -- mapM_ (\(rs, st) -> do
+    -- mapM_ (\(rs, _, st) -> do
     --     putStrLn $ pprExecStateStr st
-    --     putStrLn $ L.intercalate "\n" $ map show $ zip ([1..] :: [Integer]) rs
+    --     putStrLn $ intercalate "\n" $ map show $ zip ([1..] :: [Integer]) rs
     -- --     -- putStrLn $ pprExecStateStrSimple st
 
     -- -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
@@ -193,7 +194,9 @@ run con hhp config (state@ State { type_env = tenv
 
     ident_states'' <- 
         mapM (\(r, _, s) -> do
-            (_, m) <- checkModel con hhp s
+            (_, m) <- case smtADTs config of
+                          False -> checkModel con hhp s
+                          True -> checkModelWithSMTSorts con hhp config s
             return . fmap (\m' -> (r, s {model = m'})) $ m
             ) $ ident_states'
 

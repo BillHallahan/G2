@@ -58,6 +58,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | VDouble Rational
             | VBool Bool
             | Cons SMTName [SMTAST] Sort
+            | As SMTAST Sort
 
             | V SMTName Sort
 
@@ -133,6 +134,7 @@ data SMTConverter ast out io =
         , bool :: Bool -> ast
         , cons :: SMTName -> [ast] -> Sort -> ast
         , var :: SMTName -> ast -> ast
+        , as :: ast -> Sort -> ast
 
         --sorts
         , sortInt :: ast

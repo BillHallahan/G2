@@ -25,6 +25,7 @@ import qualified Data.Text as T
 -- import G2.Internals.Translation.HaskellPrelude
 import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.PathConds as PC
+import G2.Internals.Language.Typing
 import G2.Internals.Language.Support hiding (Model)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Solver.Language
@@ -59,7 +60,7 @@ pathConsToSMT :: PathCond -> Maybe SMTAST
 pathConsToSMT (AltCond a e b) =
     let
         exprSMT = exprToSMT e
-        altSMT = altToSMT a
+        altSMT = altToSMT a e
     in
     Just $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
 pathConsToSMT (ExtCond e b) =
@@ -150,18 +151,34 @@ funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
-altToSMT :: AltMatch -> SMTAST
-altToSMT (LitAlt (LitInt i)) = VInt i
-altToSMT (LitAlt (LitFloat f)) = VFloat f
-altToSMT (LitAlt (LitDouble d)) = VDouble d
-altToSMT (DataAlt (DataCon (Name "True" _ _) _ _) _) = VBool True
-altToSMT (DataAlt (DataCon (Name "False" _ _) _ _) _) = VBool False
-altToSMT (DataAlt (DataCon n t ts) ns) =
-    Cons (nameToStr n) (map f $ zip ns ts) (typeToSMT t)
+altToSMT :: AltMatch -> Expr -> SMTAST
+altToSMT (LitAlt (LitInt i)) _ = VInt i
+altToSMT (LitAlt (LitFloat f)) _ = VFloat f
+altToSMT (LitAlt (LitDouble d)) _ = VDouble d
+altToSMT (DataAlt (DataCon (Name "True" _ _) _ _) _) _ = VBool True
+altToSMT (DataAlt (DataCon (Name "False" _ _) _ _) _) _ = VBool False
+altToSMT (DataAlt (DataCon n t ts) ns) e =
+    let
+        c = Cons (nameToStr n) (map f $ zip ns ts) (typeToSMT t)
+
+        ta = typeArgs e
+        t' = case (null ta, returnType t) of
+            (False, TyConApp n _) -> Just $ TyConApp n ta
+            _ -> Nothing
+    in
+    case t' of
+        Just tas -> As c $ typeToSMT tas
+        _ -> c
     where
         f :: (Id, Type) -> SMTAST
         f (n', t') = V (nameToStr . idName $ n') (typeToSMT t')
-altToSMT am = error $ "Unhandled " ++ show am
+altToSMT am _ = error $ "Unhandled " ++ show am
+
+typeArgs :: Expr -> [Type]
+typeArgs e =
+    case typeOf e of
+        TyConApp _ ts -> ts
+        _ -> []
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []
@@ -204,6 +221,7 @@ typeToSMT TyLitFloat = SortFloat
 typeToSMT (TyConApp (Name "Bool" _ _) _) = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
+typeToSMT (TyForAll (NamedTyBndr _) t) = Sort "TyForAll" []
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]
@@ -262,7 +280,11 @@ toSolverAST con (Cons n asts s) =
         asts' = map (toSolverAST con) asts
     in
     cons con n asts' s
-
+toSolverAST con (As ast s) =
+    let
+        ast' = toSolverAST con ast
+    in
+    as con ast' s 
 toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 

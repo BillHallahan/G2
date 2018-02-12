@@ -6,8 +6,10 @@ module G2.Internals.Solver.Interface
     , checkConstraints
     , checkConstraintsWithSMTSorts
     , checkModel
+    , checkModelWithSMTSorts
     ) where
 
+import G2.Internals.Config.Config
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Language hiding (Model)
 import qualified G2.Internals.Language.ExprEnv as E
@@ -79,6 +81,7 @@ checkConstraintsWithSMTSorts con io s = do
     let s' = s { type_env = filterTEnv (type_env s) (path_conds s)
                , path_conds = unsafeElimCast . simplifyPrims $ path_conds s}
 
+
     let headers = toSMTHeadersWithSMTSorts s'
     let formula = toSolver con headers
 
@@ -111,29 +114,34 @@ checkModel' con io (Id n t@(TyConApp tn ts):is) s
         case r of
             SAT -> checkModel' con io (is ++ is'') s'
             r' -> return (r', Nothing)
-checkModel' con io ((Id n _):is) s = do
+checkModel' con io (i:is) s = do
+    (m, av) <- getModelVal con io i Nothing s
+    case m of
+        Just m' -> checkModel' con io is (s {model = M.union m' (model s), arbValueGen = av})
+        Nothing -> return (UNSAT, Nothing)
+
+getModelVal :: SMTConverter ast out io -> io -> Id -> Maybe Config -> State -> IO (Maybe ExprModel, ArbValueGen)
+getModelVal con io (Id n _) config s = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
  
     let pc = PC.scc (known_values s) [n] (path_conds s)
     let s' = s {path_conds = pc }
 
-    (m, av') <- case PC.null pc of
+    case PC.null pc of
                 True -> 
                     let
                         (e, av) = arbValue t (type_env s) (arbValueGen s)
                     in
                     return (Just $ M.singleton n' e, av) 
                 False -> do
-                    e <- checkNumericConstraints con io s'
+                    e <- checkNumericConstraints con io config s'
                     return (e, arbValueGen s)
 
-    case m of
-        Just m' -> checkModel' con io is (s {model = M.union m' (model s), arbValueGen = av'})
-        Nothing -> return (UNSAT, Nothing)
-
-checkNumericConstraints :: SMTConverter ast out io -> io -> State -> IO (Maybe ExprModel)
-checkNumericConstraints con io s = do
-    let headers = toSMTHeaders s
+checkNumericConstraints :: SMTConverter ast out io -> io -> Maybe Config -> State -> IO (Maybe ExprModel)
+checkNumericConstraints con io config s = do
+    let headers = case maybe False smtADTs config of
+                        False -> toSMTHeaders s
+                        True -> toSMTHeadersWithSMTSorts s
     let formula = toSolver con headers
 
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars . PC.toList $ path_conds s
@@ -192,6 +200,24 @@ addADTs n tn ts s =
                     True -> (SAT, nst, s {model = M.union m (model s)})
                     False -> (UNSAT, [], s)
 
+-- | checkModelWithSMTSorts
+-- Checks if the constraints are satisfiable, and returns a model if they are
+checkModelWithSMTSorts :: SMTConverter ast out io -> io -> Config -> State -> IO (Result, Maybe ExprModel)
+checkModelWithSMTSorts con io config s@(State {expr_env = eenv}) = do
+    let s' = s { type_env = filterTEnv (type_env s) (path_conds s)
+               , curr_expr = earlySubVar eenv $ curr_expr s
+               , path_conds = unsafeElimCast . earlySubVar eenv . simplifyPrims $ path_conds s }
+    return . fmap liftCasts =<< checkModelWithSMTSorts' con io (input_ids s') config s'
+
+checkModelWithSMTSorts' :: SMTConverter ast out io -> io -> [Id] -> Config -> State -> IO (Result, Maybe ExprModel)
+checkModelWithSMTSorts' _ _ [] _ s = do
+    return (SAT, Just $ model s)
+checkModelWithSMTSorts' con io (i:is) config s = do
+    (m, av) <- getModelVal con io i (Just config) s
+    case m of
+        Just m' -> checkModelWithSMTSorts' con io is config (s {model = M.union m' (model s), arbValueGen = av})
+        Nothing -> return (UNSAT, Nothing)
+
 -- Narrow the TypeEnv to the types relevant to the given PathConds
 filterTEnv :: TypeEnv -> PC.PathConds -> TypeEnv
 filterTEnv tenv pc =
@@ -214,6 +240,16 @@ filterTEnv' search keep tenv =
 
 typeEnvName :: TypeEnv -> Name -> Bool
 typeEnvName tenv = flip elem (M.keys tenv)
+
+earlySubVar :: (ASTContainer m Expr) => ExprEnv -> m -> m
+earlySubVar eenv = modifyASTs (earlySubVar' eenv)
+
+earlySubVar' :: ExprEnv -> Expr -> Expr
+earlySubVar' eenv v@(Var (Id n _)) =
+    case E.deepLookup n eenv of
+        Just v' -> v'
+        Nothing -> v
+earlySubVar' _ e = e
 
 -- filterTEnv :: State -> State
 -- filterTEnv s@State { type_env = tenv} =

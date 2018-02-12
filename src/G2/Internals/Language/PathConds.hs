@@ -15,6 +15,7 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , null
                                        , number
                                        , relevant
+                                       , relevantWithSMTADT
                                        , scc
                                        , toList) where
 
@@ -113,6 +114,12 @@ null = M.null . toMap
 relevant :: KV.KnownValues -> [PathCond] -> PathConds -> PathConds
 relevant kv pc pcs = 
     case concatMap (varNamesInPC kv) pc of
+        [] -> fromList kv pc
+        rel -> scc kv rel pcs
+
+relevantWithSMTADT :: KV.KnownValues -> [PathCond] -> PathConds -> PathConds
+relevantWithSMTADT kv pc pcs = 
+    case concatMap (varNamesInPCWithSMTADT kv) pc of
         [] -> fromList kv pc
         rel -> scc kv rel pcs
 

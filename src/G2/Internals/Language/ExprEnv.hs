@@ -9,6 +9,7 @@ module G2.Internals.Language.ExprEnv
     , size
     , member
     , lookup
+    , deepLookup
     , isSymbolic
     , occLookup
     , lookupNameMod
@@ -95,6 +96,12 @@ lookup n (ExprEnv smap) =
         Just (RedirObj redir) -> lookup redir (ExprEnv smap)
         Just (SymbObj i) -> Just $ Var i
         Nothing -> Nothing
+
+deepLookup :: Name -> ExprEnv -> Maybe Expr
+deepLookup n eenv =
+    case lookup n eenv of
+        Just (Var (Id n' _)) -> lookup n' eenv
+        r -> r
 
 isSymbolic :: Name -> ExprEnv -> Bool
 isSymbolic n eenv@(ExprEnv eenv') =

@@ -50,7 +50,6 @@ smt2 setup getmdl = SMTConverter {
         , checkSatGetModel = \(h_in, h_out, _) formula headers vs -> do
             setup h_in formula
             -- putStrLn "\n\n checkSatGetModel"
-            -- putStrLn formula
             r <- checkSat' h_in h_out
             -- putStrLn $ "r =  " ++ show r
             if r == SAT then do
@@ -59,9 +58,9 @@ smt2 setup getmdl = SMTConverter {
                 -- putStrLn formula
                 -- putStrLn ""
                 -- putStrLn (show mdl)
-                -- putStrLn "======"
                 let m = parseModel headers mdl
-                -- putStrLn (show m)
+                -- putStrLn $ "m = " ++ show m
+                -- putStrLn "======"
                 return (r, Just m)
             else do
                 return (r, Nothing)
@@ -151,12 +150,14 @@ smt2 setup getmdl = SMTConverter {
         , sortBool = "Bool"
         , sortADT = \n ts -> if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map (sortN (smt2 setup getmdl)) ts) ++ ")"
 
-        , cons = \n asts _ ->
+        , cons = \n asts s ->
             if asts /= [] then
                 "(" ++ n ++ " " ++ (intercalate " " asts) ++ ")" 
             else
                 n
         , varName = \n _ -> n
+
+        , as = \ast s -> "(as " ++ ast ++ sortN (smt2 setup getmdl) s ++ ")"
     }
 
 functionList :: String -> [String] -> String

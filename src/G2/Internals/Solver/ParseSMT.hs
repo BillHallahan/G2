@@ -22,7 +22,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["let", "-", "/"]}
+             , Token.reservedNames = ["as", "let", "-", "/"]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
@@ -52,7 +52,7 @@ smtParser :: Parser SMTAST
 smtParser = whiteSpace >> sExpr
 
 getValuesParser :: Parser SMTAST
-getValuesParser = parens $ parens $ count 1 identifier >> sExpr
+getValuesParser = parens (parens (identifier >> sExpr))
 
 sExpr :: Parser SMTAST
 sExpr = parens sExpr <|> letExpr <|> consExpr <|> try doubleFloatExprRat <|> try doubleFloatExprDec <|> intExpr
@@ -72,12 +72,19 @@ identExprTuple = do
 
 consExpr :: Parser SMTAST
 consExpr = do
-    n <- identifier
+    n <- consName <|> identifier
     l <- optionMaybe (many1 sExpr)
     let l' = case l of 
                 Just l'' -> l''
                 Nothing -> []
     return $ Cons n l' (Sort "" [])
+
+consName :: Parsec String st String
+consName = do
+    reserved "as"
+    ex <- identifier
+    _ <- parens $ many1 anyToken
+    return ex
 
 intExpr :: Parser SMTAST
 intExpr = do
@@ -113,7 +120,7 @@ doubleFloat = do
 
 parseSMT :: String -> SMTAST
 parseSMT s = case parse smtParser s s of
-    Left e -> error $ show e
+    Left e -> error $ "get model parser error on " ++ show e
     Right r -> r
 
 -- | parseGetValues
