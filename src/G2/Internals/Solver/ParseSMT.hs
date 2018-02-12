@@ -5,6 +5,9 @@ module G2.Internals.Solver.ParseSMT
 import G2.Internals.Solver.Language
 
 import Data.Ratio
+
+import Debug.Trace
+
 -- | SMT Parser
 -- This is not complete!  It currently only covers the small amount of the SMT
 -- language needed to parse models
@@ -55,7 +58,8 @@ getValuesParser :: Parser SMTAST
 getValuesParser = parens (parens (identifier >> sExpr))
 
 sExpr :: Parser SMTAST
-sExpr = parens sExpr <|> letExpr <|> consExpr <|> try doubleFloatExprRat <|> try doubleFloatExprDec <|> intExpr
+sExpr = try consExpr <|> parens sExpr <|> letExpr <|> try doubleFloatExprRat
+                     <|> try doubleFloatExprDec <|> intExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -72,18 +76,21 @@ identExprTuple = do
 
 consExpr :: Parser SMTAST
 consExpr = do
-    n <- consName <|> identifier
+    n <- parensConsName <|> identifier
     l <- optionMaybe (many1 sExpr)
     let l' = case l of 
                 Just l'' -> l''
                 Nothing -> []
     return $ Cons n l' (Sort "" [])
 
+parensConsName :: Parsec String st String
+parensConsName = parens parensConsName <|> consName
+
 consName :: Parsec String st String
 consName = do
     reserved "as"
     ex <- identifier
-    _ <- parens $ many1 anyToken
+    sk <- parens (many1 identifier)
     return ex
 
 intExpr :: Parser SMTAST
