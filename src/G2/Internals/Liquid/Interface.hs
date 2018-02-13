@@ -40,7 +40,7 @@ import G2.Internals.Language.KnownValues
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State (), [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 findCounterExamples proj primF fp entry libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_trans <- translateLoaded proj fp primF libs False
@@ -49,10 +49,11 @@ findCounterExamples proj primF fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])])
                     -> [GhcInfo]
                     -> Config
-          -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+          -> IO [(State (), [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
+
     let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
     let no_part_state = elimPartialApp cleaned_state
@@ -61,6 +62,7 @@ runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let measure_state = createMeasures lh_measures tcv lhtc_state
     let (merged_state, mkv) = mergeLHSpecState specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv merged_state
+    
     (con, hhp) <- getSMT config
 
     run con hhp config beta_red_state
@@ -80,7 +82,7 @@ funcSpecs = concatMap (gsTySigs . spec)
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)
 
-reqNames :: State -> [Name]
+reqNames :: State t -> [Name]
 reqNames (State { expr_env = eenv
                 , type_classes = tc
                 , known_values = kv }) = 
@@ -97,7 +99,7 @@ reqNames (State { expr_env = eenv
                , mkMinus eenv
                , mkMult eenv
                -- , mkDiv eenv
-               -- , mkMod eenv
+               , mkMod eenv
                , mkNegate eenv
                , mkImplies eenv
                , mkIff eenv
@@ -115,7 +117,7 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printLHOut :: T.Text -> [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [Either (T.Text, T.Text, T.Text)
@@ -136,7 +138,7 @@ printParsedLHOut ((Right ((f, call, output), (f', call', output'))):xs) = do
     putStrLn ""
     printParsedLHOut xs
 
-parseLHOut :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+parseLHOut :: T.Text -> [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
            -> [Either (T.Text, T.Text, T.Text)
                       ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))]
 parseLHOut entry [] = []

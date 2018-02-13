@@ -26,6 +26,7 @@ data KnownValues = KnownValues {
                  , eqTC :: Name
                  , numTC :: Name
                  , ordTC :: Name
+                 , integralTC :: Name
 
                  , eqFunc :: Name
                  , neqFunc :: Name

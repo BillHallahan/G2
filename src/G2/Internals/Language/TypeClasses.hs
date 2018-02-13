@@ -10,6 +10,7 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , eqTCDict
                                          , numTCDict
                                          , ordTCDict
+                                         , integralTCDict
                                          , lookupTCDict
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
@@ -94,6 +95,9 @@ numTCDict kv tc t = lookupTCDict tc (numTC kv) t
 
 ordTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
 ordTCDict kv tc t = lookupTCDict tc (ordTC kv) t
+
+integralTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
+integralTCDict kv tc t = lookupTCDict tc (integralTC kv) t
 
 -- Returns the dictionary for the given typeclass and Type,
 -- if one exists

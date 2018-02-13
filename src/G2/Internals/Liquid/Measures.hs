@@ -18,7 +18,7 @@ import qualified Data.HashMap.Lazy as HM
 
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
-createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State -> State
+createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State t -> State t
 createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv}) = 
     let
         nt = M.fromList $ mapMaybe (measureTypeMappings tenv) meas
@@ -39,7 +39,7 @@ measureTypeMappings tenv (M {name = n, sort = srt}) =
         Just t' -> Just (symbolName $ val n, t')
         _ -> Nothing
 
-convertMeasure :: State -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
+convertMeasure :: State t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
 convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
     let
         nt = M.fromList $ convertSpecTypeDict tcv s srt
@@ -66,7 +66,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
-convertDefs :: State -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
+convertDefs :: State t -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
 convertDefs s@(State {type_env = tenv}) tcv m bnds (Def { ctor = dc, body = b, binds = bds}) =
     let
         (DataCon n t _) = mkData HM.empty HM.empty dc
@@ -92,6 +92,6 @@ convertDefs s@(State {type_env = tenv}) tcv m bnds (Def { ctor = dc, body = b, b
         Nothing -> Nothing
 
 
-mkExprFromBody :: State -> TCValues  -> M.Map Name Type -> Body -> Expr
+mkExprFromBody :: State t -> TCValues  -> M.Map Name Type -> Body -> Expr
 mkExprFromBody s tcv m (E e) = convertLHExpr e tcv s m
 mkExprFromBody s tcv m (P e) = convertLHExpr e tcv s m

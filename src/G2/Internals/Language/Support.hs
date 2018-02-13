@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module G2.Internals.Language.Support
     ( module G2.Internals.Language.ArbValueGen
@@ -31,7 +32,7 @@ import qualified Data.Text as T
 
 -- | The State is something that is passed around in G2. It can be utilized to
 -- perform defunctionalization, execution, and SMT solving.
-data State = State { expr_env :: E.ExprEnv
+data State t = State { expr_env :: E.ExprEnv
                    , type_env :: TypeEnv
                    , curr_expr :: CurrExpr
                    , name_gen :: NameGen
@@ -49,6 +50,7 @@ data State = State { expr_env :: E.ExprEnv
                    , arbValueGen :: ArbValueGen
                    , known_values :: KnownValues
                    , cleaned_names :: CleanedNames
+                   , track :: t
                    } deriving (Show, Eq, Read)
 
 -- | The InputIds are a list of the variable names passed as input to the
@@ -126,7 +128,7 @@ data Frame = CaseFrame Id [Alt]
 type Model = M.Map Name Expr
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
-renameState :: Name -> Name -> State -> State
+renameState :: Named t => Name -> Name -> State t -> State t
 renameState old new_seed s =
     let (new, ng') = freshSeededName new_seed (name_gen s)
     in State { expr_env = rename old new (expr_env s)
@@ -148,9 +150,10 @@ renameState old new_seed s =
              , model = model s
              , arbValueGen = arbValueGen s
              , known_values = rename old new (known_values s)
-             , cleaned_names = M.insert new old (cleaned_names s) }
+             , cleaned_names = M.insert new old (cleaned_names s)
+             , track = rename old new (track s) }
 
-instance Named State where
+instance {-# OVERLAPPING #-} Named t => Named (State t) where
     names s = names (expr_env s)
             ++ names (type_env s)
             ++ names (curr_expr s)
@@ -166,6 +169,7 @@ instance Named State where
             ++ names (model s)
             ++ names (known_values s)
             ++ names (cleaned_names s)
+            ++ names (track s)
 
     rename old new s =
         State { expr_env = rename old new (expr_env s)
@@ -187,10 +191,11 @@ instance Named State where
                , model = rename old new (model s)
                , arbValueGen = arbValueGen s
                , known_values = rename old new (known_values s)
-               , cleaned_names = M.insert new old (cleaned_names s) }
+               , cleaned_names = M.insert new old (cleaned_names s)
+               , track = rename old new (track s) }
 
 -- | TypeClass definitions
-instance ASTContainer State Expr where
+instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++
                       (containedASTs $ expr_env s) ++
                       (containedASTs $ curr_expr s) ++
@@ -198,7 +203,8 @@ instance ASTContainer State Expr where
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ sym_links s) ++
                       (containedASTs $ input_ids s) ++
-                      (containedASTs $ exec_stack s)
+                      (containedASTs $ exec_stack s) ++
+                      (containedASTs $ track s)
 
     modifyContainedASTs f s = s { type_env  = modifyContainedASTs f $ type_env s
                                 , expr_env  = modifyContainedASTs f $ expr_env s
@@ -207,10 +213,11 @@ instance ASTContainer State Expr where
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , sym_links = modifyContainedASTs f $ sym_links s
                                 , input_ids = modifyContainedASTs f $ input_ids s
-                                , exec_stack = modifyContainedASTs f $ exec_stack s }
+                                , exec_stack = modifyContainedASTs f $ exec_stack s
+                                , track = modifyContainedASTs f $ track s }
 
 
-instance ASTContainer State Type where
+instance {-# OVERLAPPING #-} ASTContainer t Type => ASTContainer (State t) Type where
     containedASTs s = ((containedASTs . expr_env) s) ++
                       ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
@@ -219,7 +226,8 @@ instance ASTContainer State Type where
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . sym_links) s) ++
                       ((containedASTs . input_ids) s) ++
-                      ((containedASTs . exec_stack) s)
+                      ((containedASTs . exec_stack) s) ++
+                      (containedASTs $ track s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
@@ -229,7 +237,8 @@ instance ASTContainer State Type where
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
                                 , input_ids = (modifyContainedASTs f . input_ids) s
-                                , exec_stack = (modifyContainedASTs f . exec_stack) s }
+                                , exec_stack = (modifyContainedASTs f . exec_stack) s
+                                , track = modifyContainedASTs f $ track s }
 
 instance ASTContainer CurrExpr Expr where
     containedASTs (CurrExpr _ e) = [e]

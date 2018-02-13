@@ -41,3 +41,4 @@ mArg s a f d = case elemIndex s a of
                Just i -> if i >= length a
                               then error ("Invalid use of " ++ s)
                               else f (a !! (i + 1))
+

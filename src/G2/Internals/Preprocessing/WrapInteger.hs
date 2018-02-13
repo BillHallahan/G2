@@ -14,7 +14,7 @@ import G2.Internals.Language
 -- data Integer = Integer Int#
 -- and change ((fromInteger [Dict]) LitInteger) to:
 -- ((fromInteger [Dict]) (dcInteger LitInt))
-wrapInteger :: State -> State
+wrapInteger :: ASTContainer t Expr => State t -> State t
 wrapInteger s@(State {known_values = kv, type_env = tenv}) = modifyASTs (wrapInteger' (mkDCInteger kv tenv)) s
 
 wrapInteger' :: Expr -> Expr -> Expr

@@ -205,7 +205,7 @@ lookupForPrim e _ = e
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-reduce :: SMTConverter ast out io -> io -> Config -> State -> IO (Rule, [State])
+reduce :: SMTConverter ast out io -> io -> Config -> State t -> IO (Rule, [State t])
 reduce con hpp config s = do
     let (rule, res) = reduce' s
 
@@ -225,7 +225,7 @@ reduce con hpp config s = do
 
     return (rule, sts)
 
-resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State -> [ReduceResult] -> IO [State]
+resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State t -> [ReduceResult] -> IO [State t]
 resultsToState _ _ _ _ _ [] = return []
 resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _):xs)
     | not (null pc) = do
@@ -264,7 +264,7 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
         s' = resultToState config s red
 
 {-# INLINE selectCheckConstraints #-}
-selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State -> IO Result)
+selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State t -> IO Result)
 selectCheckConstraints (Config {smtADTs = False}) = checkConstraints
 selectCheckConstraints config = checkConstraintsWithSMTSorts config
 
@@ -278,7 +278,7 @@ pcRelevant :: Config -> KnownValues -> [PC.PathCond] -> PC.PathConds -> PC.PathC
 pcRelevant (Config {smtADTs = False}) = PC.relevant
 pcRelevant _ = PC.relevantWithSMTADT
 
-reduceNoConstraintChecks :: Config -> State -> (Rule, [State])
+reduceNoConstraintChecks :: Config -> State t -> (Rule, [State t])
 reduceNoConstraintChecks config s =
     let
         (rule, res) = reduce' s
@@ -286,7 +286,7 @@ reduceNoConstraintChecks config s =
     (rule, map (resultToState config s) res)
 
 {-# INLINE resultToState #-}
-resultToState :: Config -> State -> ReduceResult -> State
+resultToState :: Config -> State t -> ReduceResult -> State t
 resultToState config s (eenv, cexpr, pc, _, _, ng, st) =
     s {
         expr_env = eenv
@@ -298,7 +298,7 @@ resultToState config s (eenv, cexpr, pc, _, _, ng, st) =
 -- | Result of a Evaluate reduction.
 type ReduceResult = (E.ExprEnv, CurrExpr, [PathCond], [PathCond], Maybe (Name, [Id], Id), NameGen, S.Stack Frame)
 
-reduce' :: State -> (Rule, [ReduceResult])
+reduce' :: State t -> (Rule, [ReduceResult])
 reduce' s @ State { exec_stack = estk
                  , expr_env = eenv
                  , curr_expr = cexpr

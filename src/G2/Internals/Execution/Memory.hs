@@ -11,10 +11,10 @@ import G2.Internals.Language.ExprEnv as E
 import qualified Data.Set as S
 import qualified Data.Map as M
 
-markAndSweep :: State -> State
+markAndSweep :: State t -> State t
 markAndSweep = markAndSweepPreserving []
 
-markAndSweepPreserving :: [Name] -> State -> State
+markAndSweepPreserving :: [Name] -> State t -> State t
 markAndSweepPreserving ns (state@State { expr_env = eenv
                                        , type_env = tenv
                                        , curr_expr = cexpr
@@ -31,7 +31,6 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
     state' = state { expr_env = eenv'
                    , type_env = tenv'
                    , deepseq_walkers = dsw'
-                   , cleaned_names = cn'
                    }
 
     active = activeNames tenv eenv S.empty $ names cexpr ++
@@ -48,8 +47,6 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
     tenv' = M.filterWithKey (\n _ -> isActive n) tenv
 
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
-
-    cn' = M.empty
 
 activeNames :: TypeEnv -> ExprEnv -> S.Set Name -> [Name] -> S.Set Name
 activeNames _ _ explored [] = explored

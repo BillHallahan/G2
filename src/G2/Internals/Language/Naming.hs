@@ -381,6 +381,7 @@ instance Named KnownValues where
             , eqTC = eqT
             , numTC = numT
             , ordTC = ordT
+            , integralTC = integralT
 
             , eqFunc = eqF
             , neqFunc = neqF
@@ -393,7 +394,7 @@ instance Named KnownValues where
             , orFunc = orF
             }) =
             [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF
-            , eqT, numT, ordT, eqF, neqF, geF, gtF, ltF, leF
+            , eqT, numT, ordT, integralT, eqF, neqF, geF, gtF, ltF, leF
             , andF, orF]
 
     rename old new (KnownValues {
@@ -414,6 +415,7 @@ instance Named KnownValues where
                    , eqTC = eqT
                    , numTC = numT
                    , ordTC = ordT
+                   , integralTC = integralT
 
                    , eqFunc = eqF
                    , neqFunc = neqF
@@ -442,6 +444,7 @@ instance Named KnownValues where
                         , eqTC = rename old new eqT
                         , numTC = rename old new numT
                         , ordTC = rename old new ordT
+                        , integralTC = rename old new integralT
 
                         , eqFunc = rename old new eqF
                         , neqFunc = rename old new neqF

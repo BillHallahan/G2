@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 -- | NameCleaner
 -- Adjusts all names in a state to ensure they will not cause problems in the SMT solver
@@ -38,10 +39,10 @@ allowedName (Name n m _) =
     && T.all (`elem` allowedSymbol) (maybe "" (id) m)
     && (T.head n) `elem` allowedStartSymbols
 
-cleanNames :: State -> State
+cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> State t
 cleanNames s = cleanNames' s (L.nub $ allNames s)
 
-cleanNames' :: State -> [Name] -> State
+cleanNames' :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name] -> State t
 cleanNames' s [] = s
 cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns) 
     | allowedName name = cleanNames' s ns
@@ -64,5 +65,5 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i):ns)
 -- allNames :: State -> [Name]
 -- allNames s = exprNames s ++ E.keys (expr_env s)
 
-allNames :: State -> [Name]
+allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
 allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)

@@ -94,7 +94,7 @@ runGHC as = do
 
 
 
-printFuncCalls :: T.Text -> [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printFuncCalls :: T.Text -> [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printFuncCalls entry =
     mapM_ (\(s, _, inArg, ex, ais) -> do
         let funcCall = mkCleanExprHaskell (known_values s) (type_classes s)

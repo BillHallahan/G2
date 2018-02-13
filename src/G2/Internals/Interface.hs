@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Interface ( initState
@@ -35,7 +36,7 @@ import qualified Data.Text as T
 
 import G2.Lib.Printers
 
-initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> State
+initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> State ()
 initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     let
         eenv = mkExprEnv prog
@@ -69,6 +70,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     , arbValueGen = arbValueInit
     , known_values = kv
     , cleaned_names = M.empty
+    , track = ()
  }
 
 mkExprEnv :: Program -> E.ExprEnv
@@ -78,11 +80,12 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: SMTConverter ast out io -> io -> Config -> State -> IO [(State, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+run :: (ASTContainer t Expr, ASTContainer t Type, Named t) => SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 run con hhp config (state@ State { type_env = tenv
                                  , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
     -- let swept = state
+    print $ E.keys $ expr_env state
 
     let swept = markAndSweep state
 

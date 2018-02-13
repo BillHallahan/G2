@@ -32,6 +32,7 @@ initKnownValues eenv tenv =
     , eqTC = typeWithStrName tenv "Eq"
     , numTC = typeWithStrName tenv "Num"
     , ordTC = typeWithStrName tenv "Ord"
+    , integralTC = typeWithStrName tenv "Integral"
 
     , eqFunc = exprWithStrName eenv "=="
     , neqFunc = exprWithStrName eenv "/="

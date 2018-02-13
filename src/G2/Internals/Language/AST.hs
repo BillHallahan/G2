@@ -280,7 +280,7 @@ instance ASTContainer Coercion Type where
     containedASTs (t :~ t') = [t, t']
     modifyContainedASTs f (t :~ t') = f t :~ f t'
 
-instance {-# OVERLAPPING #-} (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
+instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
@@ -290,11 +290,11 @@ instance {-# OVERLAPPING #-} (ASTContainer s t, Hashable s, Eq s) => ASTContaine
 
     modifyContainedASTs f = HS.map (modifyContainedASTs f)
 
-instance ASTContainer () Expr where
+instance {-# OVERLAPPING #-} ASTContainer () Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer () Type where
+instance {-# OVERLAPPING #-} ASTContainer () Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 

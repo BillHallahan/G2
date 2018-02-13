@@ -31,7 +31,7 @@ isExprValueForm _ _ = True
 -- | Is the execution state in a value form of some sort? This would entail:
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
-isExecValueForm :: State -> Bool
+isExecValueForm :: State t -> Bool
 isExecValueForm state | Nothing <- S.pop (exec_stack state)
                       , CurrExpr Return _ <- curr_expr state = True
 
