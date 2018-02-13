@@ -189,7 +189,7 @@ run con hhp config (state@ State { type_env = tenv
     -- -- --     -- print $ input_ids st
     -- -- --     -- print $ model st
     -- --     putStrLn "----\n"
-    --     ) exec_states
+    --     ) ident_states'
 
 
     ident_states'' <- 

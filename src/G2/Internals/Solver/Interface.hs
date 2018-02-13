@@ -115,6 +115,15 @@ nonTyVarTyConApp _ = []
 
 genNewAlgDataTy :: TypeEnv -> TypeEnv -> [Type] -> HM.HashMap Name Name -> [(Type, Type)] -> NameGen -> (TypeEnv, HM.HashMap Name Name, [(Type, Type)])
 genNewAlgDataTy _ tenv [] nm tm _ = (tenv, nm, tm)
+genNewAlgDataTy tenv ntenv (t@(TyConApp n []):xs) nm tm ng =
+    let
+        adt = case M.lookup n tenv of
+                    Just a -> a
+                    Nothing -> error "ADT not found in genNewAlgDataTy"
+
+        ntenv' = M.insert n adt ntenv
+    in
+    genNewAlgDataTy tenv ntenv' xs nm tm ng
 genNewAlgDataTy tenv ntenv (t@(TyConApp n ts):xs) nm tm ng =
     let
         adt = case M.lookup n tenv of
