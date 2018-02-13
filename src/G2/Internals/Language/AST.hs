@@ -290,6 +290,14 @@ instance {-# OVERLAPPING #-} (ASTContainer s t, Hashable s, Eq s) => ASTContaine
 
     modifyContainedASTs f = HS.map (modifyContainedASTs f)
 
+instance ASTContainer () Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ t = t
+
+instance ASTContainer () Type where
+    containedASTs _ = []
+    modifyContainedASTs _ t = t
+
 instance {-# OVERLAPPING #-} (ASTContainer c t, ASTContainer d t) => ASTContainer (c, d) t where
     containedASTs (x, y) = containedASTs x ++ containedASTs y
 

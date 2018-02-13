@@ -10,6 +10,7 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , toMap
                                        , empty
                                        , fromList
+                                       , map
                                        , insert
                                        , insertWithSMTADT
                                        , null
@@ -32,7 +33,8 @@ import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
-import Prelude hiding (null)
+import Prelude hiding (map, null)
+import qualified Prelude as P (map)
 
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
 --
@@ -74,6 +76,9 @@ empty = PathConds M.empty
 fromList :: KV.KnownValues -> [PathCond] -> PathConds
 fromList kv = coerce . foldr (insert kv) empty
 
+map :: (PathCond -> PathCond) -> PathConds -> PathConds
+map f = PathConds . M.map (\(pc, ns) -> (HS.map f pc, ns)) . toMap
+
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each
 -- PC is associated with only one name.
@@ -94,7 +99,7 @@ insert' f kv p (PathConds pcs) =
 
         (hd, insertAt) = case ns of
             [] -> (Nothing, [Nothing])
-            (h:_) -> (Just h, map Just ns)
+            (h:_) -> (Just h, P.map Just ns)
     in
     PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
               $ foldr (M.alter (insert'' ns)) pcs insertAt

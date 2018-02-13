@@ -266,7 +266,7 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
 {-# INLINE selectCheckConstraints #-}
 selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State -> IO Result)
 selectCheckConstraints (Config {smtADTs = False}) = checkConstraints
-selectCheckConstraints _ = checkConstraintsWithSMTSorts
+selectCheckConstraints config = checkConstraintsWithSMTSorts config
 
 {-# INLINE pcInsert #-}
 pcInsert :: Config -> KnownValues -> PC.PathCond -> PC.PathConds -> PC.PathConds

@@ -4,7 +4,7 @@ module G2.Internals.Solver.ADTSolver ( checkConsistency
 import G2.Internals.Language.Casts
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
-import G2.Internals.Language.PathConds
+import G2.Internals.Language.PathConds hiding (map)
 import G2.Internals.Language.Typing
 
 import Data.Maybe

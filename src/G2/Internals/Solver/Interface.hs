@@ -18,9 +18,14 @@ import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Converters
 import G2.Internals.Solver.Language
 
+import G2.Lib.Printers
+
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+
+import Debug.Trace
 
 subModel :: State -> ([Expr], Expr, Maybe (Name, [Expr], Expr))
 subModel (State { expr_env = eenv
@@ -76,16 +81,73 @@ checkConstraints' con io s = do
 
     checkSat con io formula
 
-checkConstraintsWithSMTSorts :: SMTConverter ast out io -> io -> State -> IO Result
-checkConstraintsWithSMTSorts con io s = do
-    let s' = s { type_env = filterTEnv (type_env s) (path_conds s)
-               , path_conds = unsafeElimCast . simplifyPrims $ path_conds s}
+checkConstraintsWithSMTSorts :: Config -> SMTConverter ast out io -> io -> State -> IO Result
+checkConstraintsWithSMTSorts config con io s = do
+    let tenv = filterTEnv (type_env s) (path_conds s)
+    let pc = unsafeElimCast . simplifyPrims $ path_conds s
 
+    let (tenv', pc', _) = case smt config of
+                                Z3 -> elimPolymorphic tenv pc () (name_gen s)
+                                CVC4 -> (tenv, pc, ())
+
+    let s' = s { type_env = tenv'
+               , path_conds = pc' }
 
     let headers = toSMTHeadersWithSMTSorts s'
     let formula = toSolver con headers
 
     checkSat con io formula
+
+elimPolymorphic :: (ASTContainer m Type, Named m) => TypeEnv -> PC.PathConds -> m -> NameGen -> (TypeEnv, PC.PathConds, m)
+elimPolymorphic tenv pc e ng =
+    let
+       ts = nub $ evalASTs nonTyVarTyConApp (tenv, pc)
+       (tenv', nm, tm) = genNewAlgDataTy tenv M.empty ts HM.empty [] ng
+
+       pc' = elimTyForAll $ foldr (uncurry replaceASTs) pc tm
+       e' = elimTyForAll $ foldr (uncurry replaceASTs) e tm
+    in
+    renames nm (tenv', pc', e')
+
+nonTyVarTyConApp :: Type -> [Type]
+nonTyVarTyConApp t@(TyConApp _ ts) = if not $ any isTyVar ts then [t] else []
+nonTyVarTyConApp _ = []
+
+genNewAlgDataTy :: TypeEnv -> TypeEnv -> [Type] -> HM.HashMap Name Name -> [(Type, Type)] -> NameGen -> (TypeEnv, HM.HashMap Name Name, [(Type, Type)])
+genNewAlgDataTy _ tenv [] nm tm _ = (tenv, nm, tm)
+genNewAlgDataTy tenv ntenv (t@(TyConApp n ts):xs) nm tm ng =
+    let
+        adt = case M.lookup n tenv of
+                    Just a -> a
+                    Nothing -> error "ADT not found in genNewAlgDataTy"
+        tyVars = map (TyVar . flip Id TYPE) $ bound_names adt
+        tyRep = (t, TyConApp n []):zip tyVars ts
+
+        adt' = adt {bound_names = []}
+
+        -- ns = nub $ names adt
+        -- (ns', ng') = renameAll ns ng
+        (n', ng') = freshSeededName n ng
+        nns = HM.singleton n n'
+
+        adt'' = renames nns $ foldr (uncurry replaceASTs) adt' tyRep
+
+        adt''' = elimTyForAll adt''
+
+        ntenv' = M.insert n' adt''' ntenv
+
+        dcs = zip (data_cons adt) (data_cons adt''')
+    in
+    genNewAlgDataTy tenv ntenv' xs (HM.union nns nm) (tm ++ tyRep) ng'
+genNewAlgDataTy _ _ _ _ _ _ = error "Unhandled type in genNewAlgDataTy"
+
+
+elimTyForAll :: (ASTContainer m Type) => m -> m
+elimTyForAll = modifyASTs elimTyForAll'
+
+elimTyForAll' :: Type -> Type
+elimTyForAll' (TyForAll _ t) = t
+elimTyForAll' t = t
 
 -- | checkModel
 -- Checks if the constraints are satisfiable, and returns a model if they are
@@ -204,9 +266,17 @@ addADTs n tn ts s =
 -- Checks if the constraints are satisfiable, and returns a model if they are
 checkModelWithSMTSorts :: SMTConverter ast out io -> io -> Config -> State -> IO (Result, Maybe ExprModel)
 checkModelWithSMTSorts con io config s@(State {expr_env = eenv}) = do
-    let s' = s { type_env = filterTEnv (type_env s) (path_conds s)
-               , curr_expr = earlySubVar eenv $ curr_expr s
-               , path_conds = unsafeElimCast . earlySubVar eenv . simplifyPrims $ path_conds s }
+    let tenv = filterTEnv (type_env s) (path_conds s)
+    let cexpr = earlySubVar eenv $ curr_expr s
+    let pc = unsafeElimCast . earlySubVar eenv . simplifyPrims $ path_conds s
+
+    let (tenv', pc', cexpr') = case smt config of
+                                    Z3 -> elimPolymorphic tenv pc cexpr (name_gen s)
+                                    CVC4 -> (tenv, pc, cexpr)
+
+    let s' = s { type_env = tenv'
+               , curr_expr = cexpr'
+               , path_conds = pc' }
     return . fmap liftCasts =<< checkModelWithSMTSorts' con io (input_ids s') config s'
 
 checkModelWithSMTSorts' :: SMTConverter ast out io -> io -> [Id] -> Config -> State -> IO (Result, Maybe ExprModel)

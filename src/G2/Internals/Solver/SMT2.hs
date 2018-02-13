@@ -24,7 +24,7 @@ import Debug.Trace
 type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
 
 z3 :: SMT2Converter
-z3 = smt2 setUpFormulaZ3 getModelZ3
+z3 = (smt2 setUpFormulaZ3 getModelZ3) {sortDecl = sortDeclZ3 z3}
 
 cvc4 :: SMT2Converter
 cvc4 = smt2 setUpFormulaCVC4 getModelCVC4
@@ -50,13 +50,12 @@ smt2 setup getmdl = SMTConverter {
         , checkSatGetModel = \(h_in, h_out, _) formula headers vs -> do
             setup h_in formula
             -- putStrLn "\n\n checkSatGetModel"
+            -- putStrLn formula
             r <- checkSat' h_in h_out
             -- putStrLn $ "r =  " ++ show r
             if r == SAT then do
                 mdl <- getmdl h_in h_out vs
                 -- putStrLn "======"
-                -- putStrLn formula
-                -- putStrLn ""
                 -- putStrLn (show mdl)
                 let m = parseModel headers mdl
                 -- putStrLn $ "m = " ++ show m
@@ -381,3 +380,21 @@ solveExpr'' h_in h_out con headers e = do
     _ <- evaluate (length out)
 
     return $ parseToSMTAST headers out (typeToSMT . typeOf $ e)
+
+sortDeclZ3 :: SMT2Converter -> [(SMTName, [SMTName], [DC])] -> String
+sortDeclZ3 con ns = 
+            let
+                dcHandler :: [DC] -> String
+                dcHandler [] = ""
+                dcHandler (DC n s:dc) =
+                    let
+                        si = map (\(s'', i) -> (s'', selectorName con s'' ++ show i)) $ zip s ([0..] :: [Integer])
+                        s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ "_F " ++ (selectorName con _s) ++ ")") $ si
+                    in
+                    "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
+
+                binders = intercalate " " $ concatMap (\(_, s, _) -> s) ns
+            in
+            "(declare-datatypes (" ++ binders ++ ") ("
+            ++ (foldr (\(n, _, dc) e -> 
+                "(" ++ n ++ " " ++ (dcHandler dc) ++ ") " ++ e) "" ns) ++  "))"

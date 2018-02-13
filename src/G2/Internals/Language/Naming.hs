@@ -459,6 +459,11 @@ instance (Foldable f, Functor f, Named a) => Named (f a) where
     rename old new = fmap (rename old new)
     renames hm = fmap (renames hm)
 
+instance Named () where
+    names _ = []
+    rename _ _ = id
+    renames _ = id
+
 instance {-# OVERLAPPING #-}  (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
     names = names . HS.toList 
     rename old new = HS.map (rename old new)

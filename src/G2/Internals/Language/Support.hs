@@ -24,7 +24,7 @@ import G2.Internals.Language.SymLinks hiding (filter, map)
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeClasses
 import G2.Internals.Language.TypeEnv
-import G2.Internals.Language.PathConds
+import G2.Internals.Language.PathConds hiding (map)
 
 import qualified Data.Map as M
 import qualified Data.Text as T
