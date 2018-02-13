@@ -85,7 +85,7 @@ run con hhp config (state@ State { type_env = tenv
                                  , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
     -- let swept = state
-    print $ E.keys $ expr_env state
+    -- print $ E.keys $ expr_env state
 
     let swept = markAndSweep state
 
