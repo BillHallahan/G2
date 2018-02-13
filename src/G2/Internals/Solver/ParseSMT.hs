@@ -43,7 +43,10 @@ integer :: Parsec String st Integer
 integer = Token.integer smtLexer
 
 floatT :: Parsec String st Double
-floatT = Token.float smtLexer
+floatT = try (Token.float smtLexer)
+
+flexFloatT :: Parsec String st Double
+flexFloatT = try (Token.float smtLexer) <|> return . fromInteger =<< integer
 
 whiteSpace :: Parsec String st ()
 whiteSpace = Token.whiteSpace smtLexer
@@ -113,8 +116,8 @@ doubleFloatExprNeg = do
 doubleFloatExprRat :: Parser SMTAST
 doubleFloatExprRat = do
     s <- optionMaybe (reserved "/")
-    f <- doubleFloat
-    f' <- doubleFloat
+    f <- flexDoubleFloat
+    f' <- flexDoubleFloat
     let r = approxRational (f / f') (0.000001)
     case s of 
         Just _ -> return (VDouble r)
@@ -129,6 +132,15 @@ doubleFloat :: Parser Rational
 doubleFloat = do
     s <- optionMaybe (reserved "-")
     f <- floatT
+    let r = approxRational f (0.00001)
+    case s of 
+        Just _ -> return (-r)
+        Nothing -> return r
+
+flexDoubleFloat :: Parser Rational
+flexDoubleFloat = do
+    s <- optionMaybe (reserved "-")
+    f <- flexFloatT
     let r = approxRational f (0.00001)
     case s of 
         Just _ -> return (-r)
