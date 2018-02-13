@@ -234,10 +234,10 @@ testFileTests =
                                                                                                                       , RExists (\[x, y] -> appNthArgIs x (dcHasName "C") 2 && appNthArgIs y (dcHasName "A") 2)
                                                                                                                       , Exactly 3]
 
-                -- -- , checkExpr "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "eq" 3 [AtLeast  2, RForAll (\[_, _, x] -> isBool x)]
-                -- -- , checkExpr "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
-                -- -- , checkExpr "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "eq" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
-                -- -- , checkExpr "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                , checkExpr "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "eq" 3 [AtLeast  2, RForAll (\[_, _, x] -> isBool x)]
+                , checkExpr "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingSimple.hs" 400 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                , checkExpr "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 800 Nothing Nothing "eq" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+                , checkExpr "tests/TestFiles/Deriving" "tests/TestFiles/Deriving/DerivingComp.hs" 800 Nothing Nothing "lt" 3 [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
 
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/Age.hs" 400 Nothing Nothing "born" 1 [ Exactly 1
                                                                                                                                   , RForAll (\[x] -> inCast x (\x' -> appNthArgIs x' (Lit (LitInt 0) ==) 1) (\(t1 :~ t2) -> isIntT t1 && typeNameIs t2 "Age"))]

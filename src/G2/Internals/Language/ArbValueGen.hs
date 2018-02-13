@@ -72,12 +72,12 @@ numRecArgsADT' ns tenv adt
     | dc <- minArgLenADT adt
     , numArgs dc == 0 = Just $ Sum 0
     | dcs <- filter ( noTyConsNamed ns . dataConArgs) $ dataCon adt
-    , i <- minimum 
-            $ mapMaybe ( mconcat 
-                       . mapMaybe (\n -> fmap (numRecArgsADT' (n:ns) tenv) $ M.lookup n tenv)
-                       . mapMaybe tyConAppName
-                       . dataConArgs) dcs =
-        Just i
+    , re <- mapMaybe ( mconcat 
+                     . mapMaybe (\n -> fmap (numRecArgsADT' (n:ns) tenv) $ M.lookup n tenv)
+                     . mapMaybe tyConAppName
+                     . dataConArgs) dcs
+    , length re /= 0 =
+        Just $ minimum re
     | otherwise = Nothing
 
 tyConAppName :: Type -> Maybe Name
