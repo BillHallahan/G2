@@ -70,7 +70,7 @@ sampleTests =
 
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 2 [RExists negativeSquareRes, AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue1") Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
-                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 Nothing Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
+                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 Nothing Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger" 3 [RExists addRes, RExists subRes, AtLeast 2]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
                 -- -- The below test fails because Z3 returns unknown.

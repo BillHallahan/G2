@@ -58,7 +58,7 @@ getValuesParser :: Parser SMTAST
 getValuesParser = parens (parens (identifier >> sExpr))
 
 sExpr :: Parser SMTAST
-sExpr = try consExpr <|> parens sExpr <|> letExpr <|> try doubleFloatExprRat
+sExpr = try consExpr <|> parens sExpr <|> letExpr <|> try doubleFloatExpr
                      <|> try doubleFloatExprDec <|> intExpr
 
 letExpr :: Parser SMTAST
@@ -101,12 +101,21 @@ intExpr = do
         Just _ -> return (VInt (-i))
         Nothing -> return (VInt i)
 
+doubleFloatExpr :: Parser SMTAST
+doubleFloatExpr = doubleFloatExprNeg <|> doubleFloatExprRat
+
+doubleFloatExprNeg :: Parser SMTAST
+doubleFloatExprNeg = do
+    si <- reserved "-"
+    (VDouble r) <- parens doubleFloatExprRat
+    return (VDouble (-r))
+
 doubleFloatExprRat :: Parser SMTAST
 doubleFloatExprRat = do
     s <- optionMaybe (reserved "/")
     f <- doubleFloat
     f' <- doubleFloat
-    let r = approxRational (f / f') (0.00001)
+    let r = approxRational (f / f') (0.000001)
     case s of 
         Just _ -> return (VDouble r)
         Nothing -> return (VDouble r)
