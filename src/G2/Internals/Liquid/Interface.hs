@@ -62,7 +62,7 @@ runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let measure_state = createMeasures lh_measures tcv lhtc_state
     let (merged_state, mkv) = mergeLHSpecState specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv merged_state
-    
+
     (con, hhp) <- getSMT config
 
     run con hhp config beta_red_state
@@ -107,7 +107,7 @@ reqNames (State { expr_env = eenv
                -- , mkToInteger eenv
                ]
     ++
-    Lang.names (M.filterWithKey (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv) (coerce tc :: M.Map Name Class))
+    Lang.names (M.filterWithKey (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv) (coerce tc :: M.Map Name Class))
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do
