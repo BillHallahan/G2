@@ -31,7 +31,7 @@ import Debug.Trace
 subModel :: State t -> ([Expr], Expr, Maybe (Name, [Expr], Expr))
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
-                , input_ids = is
+                , symbolic_ids = is
                 , assert_ids = ais
                 , model = m}) =
     subVar m eenv (map Var is, cexpr, fmap (\(n, ais', sis) -> (n, map Var ais', Var sis)) ais)
@@ -165,7 +165,7 @@ checkModel :: SMTConverter ast out io -> io -> State t -> IO (Result, Maybe Expr
 checkModel con io s = do
     -- let s' = filterTEnv . simplifyPrims $ s
     let s' = s {path_conds = simplifyPrims $ path_conds s}
-    return . fmap liftCasts =<< checkModel' con io (input_ids s') s'
+    return . fmap liftCasts =<< checkModel' con io (symbolic_ids s') s'
 
 -- | checkModel'
 -- We split based on whether we are evaluating a ADT or a literal.
@@ -287,7 +287,7 @@ checkModelWithSMTSorts con io config s@(State {expr_env = eenv}) = do
     let s' = s { type_env = tenv'
                , curr_expr = cexpr'
                , path_conds = pc' }
-    return . fmap liftCasts =<< checkModelWithSMTSorts' con io (input_ids s') config s'
+    return . fmap liftCasts =<< checkModelWithSMTSorts' con io (symbolic_ids s') config s'
 
 checkModelWithSMTSorts' :: SMTConverter ast out io -> io -> [Id] -> Config -> State t -> IO (Result, Maybe ExprModel)
 checkModelWithSMTSorts' _ _ [] _ s = do

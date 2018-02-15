@@ -50,6 +50,7 @@ lhReduce' State { expr_env = eenv
                  , Nothing
                  , ng
                  , stck'
+                 , []
                  , tr)
 
             sb = symbState expr eenv vv ng stck tr
@@ -75,7 +76,7 @@ symbState vv eenv cexpr@(Var (Id n _)) ng stck tr =
     in
     case cexpr' of
         Just cexpr'' -> 
-            Just (eenv'', CurrExpr Evaluate cexpr'', [], [], Nothing, ng'', stck'
+            Just (eenv'', CurrExpr Evaluate cexpr'', [], [], Nothing, ng'', stck', [i]
                         , tr `mappend` [(n, map Var lIds', Var i)])
         Nothing -> Nothing
 symbState _ _ _ _ _ _ = Nothing
