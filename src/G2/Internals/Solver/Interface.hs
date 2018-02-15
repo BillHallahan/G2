@@ -31,7 +31,8 @@ import Debug.Trace
 subModel :: State t -> ([Expr], Expr, Maybe (Name, [Expr], Expr))
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
-                , symbolic_ids = is
+                , input_ids = is
+                , symbolic_ids = sid
                 , assert_ids = ais
                 , model = m}) =
     subVar m eenv (map Var is, cexpr, fmap (\(n, ais', sis) -> (n, map Var ais', Var sis)) ais)

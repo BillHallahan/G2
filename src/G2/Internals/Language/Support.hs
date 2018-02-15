@@ -43,7 +43,8 @@ data State t = State { expr_env :: E.ExprEnv
                    , assert_ids :: Maybe (Name, [Id], Id)
                    , type_classes :: TypeClasses
                    , sym_links :: SymLinks
-                   , symbolic_ids :: InputIds
+                   , input_ids :: InputIds
+                   , symbolic_ids :: SymbolicIds
                    , func_table :: FuncInterps
                    , deepseq_walkers :: Walkers
                    , apply_types :: AT.ApplyTypes
@@ -58,6 +59,10 @@ data State t = State { expr_env :: E.ExprEnv
 -- | The InputIds are a list of the variable names passed as input to the
 -- function being symbolically executed
 type InputIds = [Id]
+
+-- | The SmbolicIds are a list of the variable names that we should ensure are
+-- inserted in the model, after we solve the path constraints
+type SymbolicIds = [Id]
 
 -- | `CurrExpr` is the current expression we have. We are either evaluating it, or
 -- it is in some terminal form that is simply returned. Technically we do not
@@ -143,6 +148,7 @@ renameState old new_seed s =
              , true_assert = true_assert s
              , assert_ids = rename old new (assert_ids s)
              , type_classes = rename old new (type_classes s)
+             , input_ids = rename old new (input_ids s)
              , symbolic_ids = rename old new (symbolic_ids s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
@@ -162,6 +168,7 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
             ++ names (path_conds s)
             ++ names (assert_ids s)
             ++ names (type_classes s)
+            ++ names (input_ids s)
             ++ names (symbolic_ids s)
             ++ names (sym_links s)
             ++ names (func_table s)
@@ -184,6 +191,7 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
                , true_assert = true_assert s
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
+               , input_ids = rename old new (input_ids s)
                , symbolic_ids = rename old new (symbolic_ids s)
                , sym_links = rename old new (sym_links s)
                , func_table = rename old new (func_table s)
@@ -204,6 +212,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr 
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ sym_links s) ++
+                      (containedASTs $ input_ids s) ++
                       (containedASTs $ symbolic_ids s) ++
                       (containedASTs $ exec_stack s) ++
                       (containedASTs $ track s)
@@ -214,6 +223,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr 
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , sym_links = modifyContainedASTs f $ sym_links s
+                                , input_ids = modifyContainedASTs f $ input_ids s
                                 , symbolic_ids = modifyContainedASTs f $ symbolic_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s }
@@ -227,6 +237,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Type => ASTContainer (State t) Type 
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . sym_links) s) ++
+                      ((containedASTs . input_ids) s) ++
                       ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . exec_stack) s) ++
                       (containedASTs $ track s)
@@ -238,6 +249,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Type => ASTContainer (State t) Type 
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
+                                , input_ids = (modifyContainedASTs f . input_ids) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s }

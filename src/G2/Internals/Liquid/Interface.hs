@@ -29,6 +29,7 @@ import Data.Coerce
 import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
+import qualified Data.Text.IO as TI
 import qualified Data.Maybe as B
 
 import System.Directory
@@ -140,21 +141,39 @@ printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, f
                            , violating = Nothing
                            , abstracted = abs} : xs) = do
     putStrLn "The call"
-    putStrLn . T.unpack $ call `T.append` " = " `T.append` output
-    putStrLn . T.unpack $ "violates " `T.append` f `T.append` "'s refinement type"
+    TI.putStrLn $ call `T.append` " = " `T.append` output
+    TI.putStrLn $ "violates " `T.append` f `T.append` "'s refinement type"
+    printAbs abs
     putStrLn ""
     printParsedLHOut xs
-    print abs
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
                            , violating = Just (FuncInfo {func = f', funcArgs = call', funcReturn = output'})
                            , abstracted = abs } : xs) = do
-    putStrLn . T.unpack $ call `T.append` " = " `T.append` output
+    TI.putStrLn $ call `T.append` " = " `T.append` output
     putStrLn "makes a call to"
-    putStrLn . T.unpack $ call' `T.append` " = " `T.append` output'
-    putStrLn . T.unpack $ "violating " `T.append` f' `T.append` "'s refinement type"
+    TI.putStrLn $ call' `T.append` " = " `T.append` output'
+    TI.putStrLn $ "violating " `T.append` f' `T.append` "'s refinement type"
+    printAbs abs
     putStrLn ""
     printParsedLHOut xs
-    print abs
+
+printAbs :: [FuncInfo] -> IO ()
+printAbs fi = do
+    let fn = T.intercalate ", " $ map func fi
+
+    if length fi > 0 then do
+        putStrLn "when"
+        mapM_ printFuncInfo fi
+        if length fi > 1 then
+            TI.putStrLn $ "Strengthen the refinement types of " `T.append` fn `T.append` " to eliminate these possibilities"
+        else
+            TI.putStrLn $ "Strengthen the refinement type of " `T.append` fn `T.append` " to eliminate this possibility"
+    else
+        return () 
+
+printFuncInfo :: FuncInfo -> IO ()
+printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
+    TI.putStrLn $ call `T.append` " = " `T.append` output
 
 parseLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
            -> [LHReturn]

@@ -60,6 +60,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc
+    , input_ids = is
     , symbolic_ids = is
     , sym_links = Sym.empty
     , func_table = ft
