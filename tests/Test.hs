@@ -359,7 +359,7 @@ checkLiquid proj fp entry stps i reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n") ch
 
-findCounterExamples' :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [(Name, [Id], Id)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))])
+findCounterExamples' :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))])
 findCounterExamples' proj primF fp entry libs lhlibs config = try (findCounterExamples proj primF fp entry libs lhlibs config)
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool

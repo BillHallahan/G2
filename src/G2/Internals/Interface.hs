@@ -80,7 +80,7 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: (ASTContainer t Expr, ASTContainer t Type, Named t, Monoid t) => 
+run :: (ASTContainer t Expr, ASTContainer t Type, Named t) => 
     (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 run red con hhp config (state@ State { type_env = tenv
                                  , known_values = kv }) = do

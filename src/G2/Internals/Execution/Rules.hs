@@ -89,10 +89,10 @@ matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
-liftSymDataAlt :: Monoid t => E.ExprEnv -> Expr -> NameGen -> Id -> [(DataCon, [Id], Expr)] -> [EvaluateResult t]
+liftSymDataAlt :: E.ExprEnv -> Expr -> NameGen -> Id -> [(DataCon, [Id], Expr)] -> [EvaluateResult]
 liftSymDataAlt eenv mexpr ngen cvar = map (liftSymDataAlt' eenv mexpr ngen cvar)
 
-liftSymDataAlt' :: Monoid t => E.ExprEnv -> Expr -> NameGen -> Id -> (DataCon, [Id], Expr) -> EvaluateResult t
+liftSymDataAlt' :: E.ExprEnv -> Expr -> NameGen -> Id -> (DataCon, [Id], Expr) -> EvaluateResult
 liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
   where
 
@@ -128,14 +128,13 @@ liftSymDataAlt' eenv mexpr ngen cvar (dcon, params, aexpr) = res
           , CurrExpr Evaluate aexpr''
           , [cond']
           , ngen'
-          , Nothing
-          , mempty)
+          , Nothing)
 
-liftSymLitAlt :: Monoid t => E.ExprEnv -> Expr -> NameGen -> Id -> [(Lit, Expr)] -> [EvaluateResult t]
+liftSymLitAlt :: E.ExprEnv -> Expr -> NameGen -> Id -> [(Lit, Expr)] -> [EvaluateResult]
 liftSymLitAlt eenv mexpr ngen cvar = map (liftSymLitAlt' eenv mexpr ngen cvar)
 
 -- | Lift literal alts found in symbolic case matching.
-liftSymLitAlt' :: Monoid t => E.ExprEnv -> Expr -> NameGen -> Id -> (Lit, Expr) -> EvaluateResult t
+liftSymLitAlt' :: E.ExprEnv -> Expr -> NameGen -> Id -> (Lit, Expr) -> EvaluateResult
 liftSymLitAlt' eenv mexpr ngen cvar (lit, aexpr) = res
   where
     -- Condition that was matched.
@@ -147,10 +146,9 @@ liftSymLitAlt' eenv mexpr ngen cvar (lit, aexpr) = res
           , CurrExpr Evaluate aexpr'
           , [cond]
           , ngen
-          , Nothing
-          , mempty)
+          , Nothing)
 
-liftSymDefAlt :: Monoid t => E.ExprEnv -> Expr -> NameGen ->  Id -> [Alt] -> [EvaluateResult t]
+liftSymDefAlt :: E.ExprEnv -> Expr -> NameGen ->  Id -> [Alt] -> [EvaluateResult]
 liftSymDefAlt eenv mexpr ngen cvar as =
     let
         aexpr = defAltExpr as
@@ -159,7 +157,7 @@ liftSymDefAlt eenv mexpr ngen cvar as =
         Just aexpr' -> liftSymDefAlt' eenv mexpr aexpr' ngen cvar as
         _ -> []
 
-liftSymDefAlt' :: Monoid t => E.ExprEnv -> Expr -> Expr -> NameGen ->  Id -> [Alt] -> [EvaluateResult t]
+liftSymDefAlt' :: E.ExprEnv -> Expr -> Expr -> NameGen ->  Id -> [Alt] -> [EvaluateResult]
 liftSymDefAlt' eenv mexpr aexpr ngen cvar as =
     let
         conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch as)
@@ -171,8 +169,7 @@ liftSymDefAlt' eenv mexpr aexpr ngen cvar as =
      , CurrExpr Evaluate aexpr'
      , conds
      , ngen
-     , Nothing
-     , mempty)]
+     , Nothing)]
 
 defAltExpr :: [Alt] -> Maybe Expr
 defAltExpr [] = Nothing
@@ -213,20 +210,20 @@ lookupForPrim e _ = e
 -- | Result of a Evaluate reduction.
 type ReduceResult t = (E.ExprEnv, CurrExpr, [Constraint], [Assertion], Maybe (Name, [Id], Id), NameGen, S.Stack Frame, t)
 
-reduce :: Monoid t => (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO (Rule, [State t])
+reduce :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO (Rule, [State t])
 reduce red con hpp config s = do
     let (rule, res) = red s
     sts <- resultsToState con hpp config rule s res
     return (rule, sts)
 
-reduceNoConstraintChecks :: Monoid t => (State t -> (Rule, [ReduceResult t])) -> Config -> State t -> (Rule, [State t])
+reduceNoConstraintChecks :: (State t -> (Rule, [ReduceResult t])) -> Config -> State t -> (Rule, [State t])
 reduceNoConstraintChecks red config s =
     let
         (rule, res) = red s
     in
     (rule, map (resultToState config s) res)
 
-resultsToState :: Monoid t => SMTConverter ast out io -> io -> Config -> Rule -> State t -> [ReduceResult t] -> IO [State t]
+resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State t -> [ReduceResult t] -> IO [State t]
 resultsToState _ _ _ _ _ [] = return []
 resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _, _):xs)
     | not (null pc) = do
@@ -280,7 +277,7 @@ pcRelevant (Config {smtADTs = False}) = PC.relevant
 pcRelevant _ = PC.relevantWithSMTADT
 
 {-# INLINE resultToState #-}
-resultToState :: Monoid t => Config -> State t -> ReduceResult t -> State t
+resultToState :: Config -> State t -> ReduceResult t -> State t
 resultToState config s (eenv, cexpr, pc, _, _, ng, st, tv) =
     s {
         expr_env = eenv
@@ -292,10 +289,10 @@ resultToState config s (eenv, cexpr, pc, _, _, ng, st, tv) =
 
 -- | stdReduce
 -- Interprets Haskell with no special semantics.
-stdReduce :: Monoid t => State t -> (Rule, [ReduceResult t])
+stdReduce :: State t -> (Rule, [ReduceResult t])
 stdReduce = stdReduceBase (const Nothing)
 
-stdReduceBase :: Monoid t => (State t -> Maybe (Rule, [ReduceResult t])) -> State t -> (Rule, [ReduceResult t])
+stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> State t -> (Rule, [ReduceResult t])
 stdReduceBase redEx s@State { exec_stack = estk
                             , expr_env = eenv
                             , curr_expr = cexpr
@@ -303,7 +300,7 @@ stdReduceBase redEx s@State { exec_stack = estk
                             , track = tr
                             }
   | isExecValueForm s =
-      (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk, mempty)])
+      (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk, tr)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
   | CurrExpr Evaluate expr <- cexpr
   , (Prim Error _):_ <- unApp expr
@@ -311,25 +308,25 @@ stdReduceBase redEx s@State { exec_stack = estk
       let
           eenv' = E.insert n expr eenv
       in
-      (RulePrimError, [(eenv', CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk', mempty)])
+      (RulePrimError, [(eenv', CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk', tr)])
   | CurrExpr Evaluate expr <- cexpr
   , (Prim Error _):_ <- unApp expr
   , Just (_, estk') <- S.pop estk =
-      (RulePrimError, [(eenv, CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk', mempty)])
+      (RulePrimError, [(eenv, CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk', tr)])
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
   , (Prim Error _):_ <- unApp expr =
-      (RulePrimError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], Nothing, ngen, estk, mempty)])
+      (RulePrimError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], Nothing, ngen, estk, tr)])
 
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
       -- Our current thing is a value form, which means we can return it.
-      (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], Nothing, ngen, estk, mempty) ])
+      (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], Nothing, ngen, estk, tr) ])
 
   | Just red <- redEx s = red
 
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = stdReduceEvaluate eenv expr ngen
-          states = map (\(eenv', cexpr', paths', ngen', f, tv) ->
+          states = map (\(eenv', cexpr', paths', ngen', f) ->
                         ( eenv'
                         , cexpr'
                         , paths'
@@ -337,7 +334,7 @@ stdReduceBase redEx s@State { exec_stack = estk
                         , Nothing
                         , ngen'
                         , maybe estk (\f' -> S.push f' estk) f
-                        , tr `mappend` tv))
+                        , tr))
                        eval_results
       in (rule, states)
 
@@ -345,29 +342,29 @@ stdReduceBase redEx s@State { exec_stack = estk
   , Just (AssumeFrame fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr True
       in
-         (RuleReturnCAssume, [(eenv, CurrExpr Evaluate fexpr, [cond], [], Nothing, ngen, estk', mempty)])
+         (RuleReturnCAssume, [(eenv, CurrExpr Evaluate fexpr, [cond], [], Nothing, ngen, estk', tr)])
 
   | CurrExpr Return expr <- cexpr
   , Just (AssertFrame is fexpr, estk') <- S.pop estk =
       let cond = ExtCond expr False
       in
-         (RuleReturnCAssert, [(eenv, CurrExpr Evaluate fexpr, [], [cond], is, ngen, estk', mempty)])
+         (RuleReturnCAssert, [(eenv, CurrExpr Evaluate fexpr, [], [cond], is, ngen, estk', tr)])
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- S.pop estk =
       let (rule, (eenv', cexpr', ngen')) = reduceEReturn eenv expr ngen f
       in
-        (rule, [(eenv', cexpr', [], [], Nothing, ngen', estk', mempty)])
+        (rule, [(eenv', cexpr', [], [], Nothing, ngen', estk', tr)])
 
-  | otherwise = (RuleError, [(eenv, cexpr, [], [], Nothing, ngen, estk, mempty)])
+  | otherwise = (RuleError, [(eenv, cexpr, [], [], Nothing, ngen, estk, tr)])
 
 -- | Result of a Evaluate reduction.
-type EvaluateResult t = (E.ExprEnv, CurrExpr, [Constraint], NameGen, Maybe Frame, t)
+type EvaluateResult = (E.ExprEnv, CurrExpr, [Constraint], NameGen, Maybe Frame)
 
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-stdReduceEvaluate :: Monoid t => E.ExprEnv -> Expr -> NameGen -> (Rule, [EvaluateResult t])
+stdReduceEvaluate ::  E.ExprEnv -> Expr -> NameGen -> (Rule, [EvaluateResult])
 stdReduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
     Just expr ->
       -- If the target in our environment is already a value form, we do not
@@ -387,8 +384,7 @@ stdReduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
          , CurrExpr Evaluate expr
          , []
          , ngen
-         , frame
-         , mempty)])
+         , frame)])
     Nothing -> error "stdReduceEvaluate: lookup was Nothing"
 
 stdReduceEvaluate eenv (App fexpr aexpr) ngen =
@@ -408,8 +404,7 @@ stdReduceEvaluate eenv (App fexpr aexpr) ngen =
                    , CurrExpr Return (mkApp (Prim prim ty : ar'))
                    , []
                    , ngen
-                   , Nothing
-                   , mempty)])
+                   , Nothing)])
         _ ->
             let frame = ApplyFrame aexpr
             in ( RuleEvalApp
@@ -417,8 +412,7 @@ stdReduceEvaluate eenv (App fexpr aexpr) ngen =
                   , CurrExpr Evaluate fexpr
                   , []
                   , ngen
-                  , Just frame
-                  , mempty)])
+                  , Just frame)])
 stdReduceEvaluate eenv (Let binds expr) ngen =
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
@@ -428,8 +422,7 @@ stdReduceEvaluate eenv (Let binds expr) ngen =
           , CurrExpr Evaluate expr'
           , []
           , ngen'
-          , Nothing
-          , mempty)])
+          , Nothing)])
 
 stdReduceEvaluate eenv (Case mexpr cvar alts) ngen =
     reduceCase eenv mexpr cvar alts ngen
@@ -446,15 +439,13 @@ stdReduceEvaluate eenv cast@(Cast e coer) ngen =
                                  , CurrExpr Evaluate $ simplifyCasts cast'
                                  , []
                                  , ngen'
-                                 , Nothing
-                                 , mempty)])
+                                 , Nothing)])
         False ->
            (RuleEvalCast, [( eenv
                           , CurrExpr Evaluate $ simplifyCasts e
                           , []
                           , ngen
-                          , Just frame
-                          , mempty)])
+                          , Just frame)])
 
 stdReduceEvaluate eenv (Assume pre lexpr) ngen =
     let frame = AssumeFrame lexpr
@@ -462,22 +453,20 @@ stdReduceEvaluate eenv (Assume pre lexpr) ngen =
                          , CurrExpr Evaluate pre
                          , []
                          , ngen
-                         , Just frame
-                         , mempty)])
+                         , Just frame)])
 stdReduceEvaluate eenv (Assert is pre lexpr) ngen =
     let frame = AssertFrame is lexpr
     in (RuleEvalAssert, [( eenv
                          , CurrExpr Evaluate pre
                          , []
                          , ngen
-                         , Just frame
-                         , mempty)])
+                         , Just frame)])
 
 stdReduceEvaluate eenv c ngen =
-    (RuleError, [(eenv, CurrExpr Evaluate c, [], ngen, Nothing, mempty)])
+    (RuleError, [(eenv, CurrExpr Evaluate c, [], ngen, Nothing)])
 
 -- | Handle the Case forms of Evaluate.
-reduceCase :: Monoid t => E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, [EvaluateResult t])
+reduceCase :: E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, [EvaluateResult])
 reduceCase eenv mexpr bind alts ngen
   -- | Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -491,8 +480,7 @@ reduceCase eenv mexpr bind alts ngen
             , CurrExpr Evaluate expr'
             , []
             , ngen
-            , Nothing
-            , mempty)])
+            , Nothing)])
 
   -- Is the current expression able to match a data consturctor based `Alt`?
   -- If so, then we bind all the parameters to the appropriate arguments and
@@ -517,8 +505,7 @@ reduceCase eenv mexpr bind alts ngen
             , CurrExpr Evaluate expr''
             , []
             , ngen'
-            , Nothing
-            , mempty)] )
+            , Nothing)] )
 
   -- | We are not able to match any constructor but don't have a symbolic variable?
   -- We hit a DEFAULT instead.
@@ -534,8 +521,7 @@ reduceCase eenv mexpr bind alts ngen
             , CurrExpr Evaluate expr'
             , []
             , ngen
-            , Nothing
-            , mempty)])
+            , Nothing)])
 
   -- | If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
@@ -564,8 +550,7 @@ reduceCase eenv mexpr bind alts ngen
             , CurrExpr Evaluate mexpr
             , []
             , ngen
-            , Just frame
-            , mempty)])
+            , Just frame)])
 
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 

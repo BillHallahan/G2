@@ -18,7 +18,7 @@ import G2.Lib.Printers
 import Data.List
 import System.Directory
 
-runNBreadth :: Monoid t => SMTConverter ast out io -> io -> [([Rule], State t)] -> Int -> IO [([Rule], State t)]
+runNBreadth :: SMTConverter ast out io -> io -> [([Rule], State t)] -> Int -> IO [([Rule], State t)]
 runNBreadth _ _ [] _ = return []
 runNBreadth _ _ rss 0 = return rss
 runNBreadth con hpp rss n = do
@@ -26,24 +26,24 @@ runNBreadth con hpp rss n = do
     runNBreadth con hpp rss' (n - 1)
 
     where
-        go :: Monoid t => ([Rule], State t) -> IO [([Rule], State t)]
+        go :: ([Rule], State t) -> IO [([Rule], State t)]
         go (rules, state) = do
             (rule, states) <- reduce stdReduce con hpp undefined state
             return $ map (\s -> (rules ++ [rule], s)) states
  
-runNBreadthNoConstraintChecks :: Monoid t => [([Rule], State t)] -> Int -> [([Rule], State t)]
+runNBreadthNoConstraintChecks :: [([Rule], State t)] -> Int -> [([Rule], State t)]
 runNBreadthNoConstraintChecks [] _ = []
 runNBreadthNoConstraintChecks rss 0 = rss
 runNBreadthNoConstraintChecks rss n = runNBreadthNoConstraintChecks (concatMap go rss) (n - 1)
   where
-    go :: Monoid t => ([Rule], State t) -> [([Rule], State t)]
+    go :: ([Rule], State t) -> [([Rule], State t)]
     go (rules, state) = let (rule, states) = reduceNoConstraintChecks stdReduce undefined state
                         in map (\s -> (rules ++ [rule], s)) states
 
-runNDepth :: Monoid t => (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> [State t] -> Config -> IO [([Rule], [Int], State t)]
+runNDepth :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> [State t] -> Config -> IO [([Rule], [Int], State t)]
 runNDepth red con hpp states config = runNDepth' red $ map (\s -> (([], [], s), steps config)) states
   where
-    runNDepth' :: Monoid t => (State t -> (Rule, [ReduceResult t])) -> [(([Rule], [Int], State t), Int)] -> IO [([Rule], [Int], State t)]
+    runNDepth' :: (State t -> (Rule, [ReduceResult t])) -> [(([Rule], [Int], State t), Int)] -> IO [([Rule], [Int], State t)]
     runNDepth' _ [] = return []
     runNDepth' red' ((rss, 0):xs) = return . (:) rss =<< runNDepth' red' xs
     runNDepth' red' ((((rs, is, s), n)):xs) = do
@@ -59,10 +59,10 @@ runNDepth red con hpp states config = runNDepth' red $ map (\s -> (([], [], s), 
         
         runNDepth' red' (mod_info ++ xs)
 
-runNDepthNoConstraintChecks :: Monoid t => [State t] -> Int -> [([Rule], State t)]
+runNDepthNoConstraintChecks :: [State t] -> Int -> [([Rule], State t)]
 runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (([], s), d)) states
   where
-    runNDepthNCC' :: Monoid t => [(([Rule], State t), Int)] -> [([Rule], State t)]
+    runNDepthNCC' :: [(([Rule], State t), Int)] -> [([Rule], State t)]
     runNDepthNCC' [] = []
     runNDepthNCC' ((rss, 0):xs) = rss : runNDepthNCC' xs
     runNDepthNCC' ((((rs, s), n)):xs) =

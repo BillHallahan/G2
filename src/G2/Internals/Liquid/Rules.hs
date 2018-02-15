@@ -19,21 +19,23 @@ import Data.Maybe
 --
 --     We introduce a new symbolic variable x_s, with the same type of s, and
 --     set the curr expr to
---     lam x_1 ... lam x_n . let x = x_s in Assert (a x_1 ... x_n x_s) x_s
+--     let x = x_s in Assert (a x'_1 ... x'_n x_s) x_s
+--     appropriately binding x'_i to x_i in the expression environment
 --
 --     This allows us to choose any value for the return type of the function.
---     In this rule, we also return a b, oldb ++ [(f, [x_1, ..., x_n], x)]
+--     In this rule, we also return a b, oldb `mappend` [(f, [x_1, ..., x_n], x)]
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: State [(Name, [Id], Id)] -> (Rule, [ReduceResult [(Name, [Id], Id)]])
+lhReduce :: State [(Name, [Expr], Expr)] -> (Rule, [ReduceResult [(Name, [Expr], Expr)]])
 lhReduce = stdReduceBase lhReduce'
 
-lhReduce' :: State [(Name, [Id], Id)] -> Maybe (Rule, [ReduceResult [(Name, [Id], Id)]])
+lhReduce' :: State [(Name, [Expr], Expr)] -> Maybe (Rule, [ReduceResult [(Name, [Expr], Expr)]])
 lhReduce' State { expr_env = eenv
                , curr_expr = CurrExpr Evaluate vv@(Var v)
                , name_gen = ng
-               , exec_stack = stck }
+               , exec_stack = stck
+               , track = tr }
     | Just expr <- E.lookup (idName v) eenv =
         let
             (r, stck') = if isExprValueForm expr eenv 
@@ -48,17 +50,17 @@ lhReduce' State { expr_env = eenv
                  , Nothing
                  , ng
                  , stck'
-                 , [])
+                 , tr)
 
-            sb = symbState expr eenv vv ng stck
+            sb = symbState expr eenv vv ng stck tr
         in
         Just $ (r, sa:maybeToList sb)
 lhReduce' _ = Nothing
 
 -- | symbState
 -- See [StateB]
-symbState :: Expr -> ExprEnv -> Expr -> NameGen -> S.Stack Frame -> Maybe (ReduceResult [(Name, [Id], Id)])
-symbState vv eenv cexpr@(Var (Id n _)) ng stck =
+symbState :: Expr -> ExprEnv -> Expr -> NameGen -> S.Stack Frame -> [(Name, [Expr], Expr)] -> Maybe (ReduceResult [(Name, [Expr], Expr)])
+symbState vv eenv cexpr@(Var (Id n _)) ng stck tr =
     let
         (i, ng') = freshId (returnType cexpr) ng
         eenv' = E.insertSymbolic (idName i) i eenv
@@ -73,10 +75,12 @@ symbState vv eenv cexpr@(Var (Id n _)) ng stck =
     in
     case cexpr' of
         Just cexpr'' -> 
-            Just (eenv'', CurrExpr Evaluate cexpr'', [], [], Nothing, ng'', stck', [])
+            Just (eenv'', CurrExpr Evaluate cexpr'', [], [], Nothing, ng'', stck'
+                        , tr `mappend` [(n, map Var lIds', Var i)])
         Nothing -> Nothing
-symbState _ _ _ _ _ = Nothing
+symbState _ _ _ _ _ _ = Nothing
 
+-- Binds the lambda args in the expr env
 bindArgs :: [Id] -> ExprEnv -> S.Stack Frame -> (ExprEnv, S.Stack Frame)
 bindArgs is eenv stck =
     let

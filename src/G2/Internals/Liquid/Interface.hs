@@ -41,7 +41,7 @@ import G2.Internals.Language.KnownValues
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [(Name, [Lang.Id], Lang.Id)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 findCounterExamples proj primF fp entry libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_trans <- translateLoaded proj fp primF libs False
@@ -50,7 +50,7 @@ findCounterExamples proj primF fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])])
                     -> [GhcInfo]
                     -> Config
-          -> IO [(State [(Name, [Lang.Id], Lang.Id)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+          -> IO [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
