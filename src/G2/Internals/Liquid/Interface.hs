@@ -38,6 +38,13 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
+data LHReturn = LHReturn { calledFunc :: FuncInfo
+                         , violating :: Maybe FuncInfo }
+
+data FuncInfo = FuncInfo { func :: T.Text
+                         , funcArgs :: T.Text
+                         , funcReturn :: T.Text }
+
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
@@ -125,17 +132,18 @@ pprint (v, r) = do
 printLHOut :: T.Text -> [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
-printParsedLHOut :: [Either (T.Text, T.Text, T.Text)
-                            ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))]
+printParsedLHOut :: [LHReturn]
                  -> IO ()
 printParsedLHOut [] = return ()
-printParsedLHOut ((Left (f, call, output)):xs) = do
+printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
+                           , violating = Nothing} : xs) = do
     putStrLn "The call"
     putStrLn . T.unpack $ call `T.append` " = " `T.append` output
     putStrLn . T.unpack $ "violates " `T.append` f `T.append` "'s refinement type"
     putStrLn ""
     printParsedLHOut xs
-printParsedLHOut ((Right ((f, call, output), (f', call', output'))):xs) = do
+printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
+                           , violating = Just (FuncInfo {func = f', funcArgs = call', funcReturn = output'}) } : xs) = do
     putStrLn . T.unpack $ call `T.append` " = " `T.append` output
     putStrLn "makes a call to"
     putStrLn . T.unpack $ call' `T.append` " = " `T.append` output'
@@ -144,29 +152,31 @@ printParsedLHOut ((Right ((f, call, output), (f', call', output'))):xs) = do
     printParsedLHOut xs
 
 parseLHOut :: T.Text -> [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-           -> [Either (T.Text, T.Text, T.Text)
-                      ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))]
+           -> [LHReturn]
 parseLHOut entry [] = []
 parseLHOut entry ((s, _, inArg, ex, ais):xs) =
   let tail = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) 
                . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) $ ex
+
       (n, as, out) = (case ais of
         Just (n'@(Name n'' _ _), ais', out') -> 
           ( n''
           , T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n' TyBottom)) ais')
           , T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) out')
+
         _ -> (T.pack "", T.pack "", T.pack ""))
    in 
    if funcCall == as && funcOut == out then do
-      Left (entry, funcCall, funcOut) : tail
+      LHReturn { calledFunc = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
+               , violating = Nothing} : tail
    else
-      Right ((entry, funcCall, funcOut), (n, as, out)) : tail
+      LHReturn { calledFunc = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut }
+               , violating = Just (FuncInfo {func = n, funcArgs = as, funcReturn = out}) } : tail
 
 testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
-               -> IO [Either (T.Text, T.Text, T.Text)
-                             ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))]
+               -> IO [LHReturn]
 testLiquidFile proj primF fp libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_transv <- translateLoadedV proj fp primF libs False
@@ -185,8 +195,7 @@ testLiquidFile proj primF fp libs lhlibs config = do
                        cleaned_tgt_lhs
 
 testLiquidDir :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
-              -> IO [(FilePath, [Either (T.Text, T.Text, T.Text)
-                                        ((T.Text, T.Text, T.Text), (T.Text, T.Text, T.Text))])]
+              -> IO [(FilePath, [LHReturn])]
 testLiquidDir proj primF dir libs lhlibs config = do
   raw_files <- listDirectory dir
   let hs_files = filter (\a -> (".hs" `isSuffixOf` a) || (".lhs" `isSuffixOf` a)) raw_files
