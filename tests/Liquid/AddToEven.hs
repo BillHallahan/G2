@@ -8,6 +8,6 @@ f x = x + g 5
 
 -- Without the below refinement type for g, this file does not verify
 -- {-@ g :: Int -> Even @-}
-{-@ g :: Int -> Int @-}
+{-@ g :: Int -> {v:Int | v /= -1} @-}
 g :: Int -> Int
 g x = x + x

@@ -96,9 +96,9 @@ bindArg (Id n _) (ApplyFrame e) = Just (n, e)
 bindArg _ _ = Nothing
 
 symbCExpr :: Id -> Expr -> Maybe Expr
-symbCExpr i (Let [(b, e)] a@(Assert _ _ (Var b'))) =
+symbCExpr i (Let [(b, e)] (Assert _ a v@(Var b'))) =
     if b == b' 
-        then Just $ Let [(b, Var i)] a 
+        then Just $ Let [(b, Var i)] (Assume a v)
         else Nothing
 symbCExpr _ _ = Nothing
 
