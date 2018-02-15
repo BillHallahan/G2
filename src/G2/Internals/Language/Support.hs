@@ -11,6 +11,8 @@ module G2.Internals.Language.Support
     , E.ExprEnv
     , KnownValues
     , PathCond (..)
+    , Constraint
+    , Assertion
     , SymLinks
     ) where
 

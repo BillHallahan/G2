@@ -8,7 +8,7 @@ import Test.Tasty.HUnit
 
 import G2.Internals.Config.Config
 
-import G2.Internals.Execution.RuleTypes
+import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language as G2
 import G2.Internals.Translation
@@ -343,7 +343,7 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
     (con, hhp) <- getSMT config
 
-    r <- run con hhp config init_state
+    r <- run stdReduce con hhp config init_state
 
     return $ map (\(_, _, i, o, _) -> (i, o)) r
 
@@ -359,7 +359,7 @@ checkLiquid proj fp entry stps i reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n") ch
 
-findCounterExamples' :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State (), [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))])
+findCounterExamples' :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [(Name, [Id], Id)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))])
 findCounterExamples' proj primF fp entry libs lhlibs config = try (findCounterExamples proj primF fp entry libs lhlibs config)
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool

@@ -10,8 +10,9 @@ import G2.Internals.Interface
 import G2.Internals.Language as Lang
 import G2.Internals.Execution
 import G2.Internals.Liquid.Conversion
-import G2.Internals.Liquid.Measures
 import G2.Internals.Liquid.ElimPartialApp
+import G2.Internals.Liquid.Measures
+import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Solver
@@ -40,7 +41,7 @@ import G2.Internals.Language.KnownValues
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State (), [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [(Name, [Lang.Id], Lang.Id)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 findCounterExamples proj primF fp entry libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_trans <- translateLoaded proj fp primF libs False
@@ -49,10 +50,11 @@ findCounterExamples proj primF fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])])
                     -> [GhcInfo]
                     -> Config
-          -> IO [(State (), [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+          -> IO [(State [(Name, [Lang.Id], Lang.Id)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
+    -- let lh_measure_names = map (symbolName . val .name) lh_measures
 
     let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
@@ -63,9 +65,12 @@ runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let (merged_state, mkv) = mergeLHSpecState specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv merged_state
 
+    let final_state = beta_red_state {track = []}
+
     (con, hhp) <- getSMT config
 
-    run con hhp config beta_red_state
+    -- run lhReduce con hhp config final_state
+    run stdReduce con hhp config final_state
 
 getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
 getGHCInfos proj fp lhlibs = do

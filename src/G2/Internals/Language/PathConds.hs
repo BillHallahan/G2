@@ -5,6 +5,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module G2.Internals.Language.PathConds ( PathCond (..)
+                                       , Constraint
+                                       , Assertion
                                        , PathConds
                                        , negatePC
                                        , toMap
@@ -58,6 +60,9 @@ data PathCond = AltCond AltMatch Expr Bool
               | ConsCond DataCon Expr Bool
               | PCExists Id
               deriving (Show, Eq, Read, Generic)
+
+type Constraint = PathCond
+type Assertion = PathCond
 
 instance Hashable PathCond
 

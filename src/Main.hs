@@ -86,7 +86,7 @@ runGHC as = do
 
   (con, hhp) <- getSMT config
 
-  in_out <- run con hhp config init_state
+  in_out <- run stdReduce con hhp config init_state
 
   -- putStrLn "----------------\n----------------"
 

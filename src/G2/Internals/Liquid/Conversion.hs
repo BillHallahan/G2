@@ -6,7 +6,9 @@ module G2.Internals.Liquid.Conversion ( addLHTC
                                       , convertLHExpr
                                       , specTypeToType
                                       , unsafeSpecTypeToType
-                                      , symbolName) where
+                                      , symbolName
+                                      , lhTCDict
+                                      , numDict) where
 
 import G2.Internals.Translation
 import G2.Internals.Language as Lang
@@ -323,7 +325,7 @@ assumeSpecTypeApps conn st tcv s@(State {type_env = tenv, name_gen = ng, known_v
         xs@(_:_) -> foldl1' (\e -> App (App conn e)) xs
         _ -> mkTrue knv tenv
 
--- conn specifies hot to connect the different pieces of the spec type together,
+-- conn specifies how to connect the different pieces of the spec type together,
 -- typically either Implies or And
 specTypeApps' :: Expr -> SpecType -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> [Expr]
 specTypeApps' _ (RVar {rt_var = (RTV v), rt_reft = r}) tcv s m b =
@@ -496,18 +498,32 @@ convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, k
         lhe = convertLHExpr e tcv s m
         lhe' = convertLHExpr e' tcv s m
 
+        -- t = typeOf lhe
         t = typeOf lhe
+        t' = typeOf lhe'
 
-        ndict = fromJustErr "No numDict for EBin" $ bopDict b eenv knv tc t m
+        (lhe2, lhe2') = if t == t' then (lhe, lhe') 
+                          else (callFromInteger eenv knv tcv tc lhe t' m, callFromInteger eenv knv tcv tc lhe' t m)
 
-        lhdict = fromJustErr "No lhDict for EBin" $ lhTCDict eenv tcv tc t m
+        t2 = favorNonTyInteger knv t t'
+
+        ndict = fromJustErr "No numDict for EBin" $ bopDict b eenv knv tc t2 m
+
+        lhdict = fromJustErr "No lhDict for EBin" $ lhTCDict eenv tcv tc t2 m
+
+        app = mkApp [ convertBop b eenv
+          , lhdict
+          , Type t2
+          , ndict
+          , lhe2
+          , lhe2']
     in
     mkApp [ convertBop b eenv
           , lhdict
-          , Type t
+          , Type t2
           , ndict
-          , lhe
-          , lhe']
+          , lhe2
+          , lhe2']
 convertLHExpr (EIte b e1 e2) tcv s@(State { type_env = tenv, name_gen = ng, known_values = knv }) m =
     let
         tr = mkDCTrue knv tenv
@@ -559,6 +575,8 @@ convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, known_values = kn
 
         dict = fromJustErr ("No lhDict for PAtom ec = " ++ show ec ++ "\nec' = " 
                             ++ show ec' ++ "\nt2 = " ++ show t2 ++ "\nm = " ++ show m) $ lhTCDict eenv tcv tc t2 m
+
+        app = mkApp [brel', dict, Type t2, ec2, ec2']
     in
     mkApp [brel', dict, Type t2, ec2, ec2']
 convertLHExpr e _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
@@ -654,14 +672,14 @@ callFromInteger eenv knv tcv tc e t m =
         retT = returnType e
 
         lhdict = fromJustErr "No lhDict for callFromInteger" $ lhTCDict eenv tcv tc t m
-        ndict = fromJustErr "No numDic for callFromInteger" $ numDict eenv knv tc t m
+        ndict = fromJustErr "No numDict for callFromInteger" $ numDict eenv knv tc t m
 
-        toIntgr = mkFromInteger eenv
+        fIntgr = mkFromInteger eenv
     in
     if retT /= Lang.tyInteger knv then
         e
     else
-        mkApp [ toIntgr
+        mkApp [ fIntgr
               , lhdict
               , Type t
               , ndict

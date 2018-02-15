@@ -16,12 +16,14 @@ import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
 
+import Debug.Trace
+
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
 createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State t -> State t
 createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv}) = 
     let
-        nt = M.fromList $ mapMaybe (measureTypeMappings tenv) meas
+        nt = M.fromList $ mapMaybe (measureTypeMappings tenv tcv) meas
 
         meas' = mapMaybe (convertMeasure s tcv nt) $ filter (allTypesKnown tenv) meas
     in
@@ -30,14 +32,22 @@ createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv}) =
 allTypesKnown :: TypeEnv -> Measure SpecType GHC.DataCon -> Bool
 allTypesKnown tenv (M {sort = srt}) = isJust $ specTypeToType tenv srt
 
-measureTypeMappings :: TypeEnv -> Measure SpecType GHC.DataCon -> Maybe (Name, Type)
-measureTypeMappings tenv (M {name = n, sort = srt}) =
+measureTypeMappings :: TypeEnv-> TCValues  -> Measure SpecType GHC.DataCon -> Maybe (Name, Type)
+measureTypeMappings tenv tcv (M {name = n, sort = srt}) =
     let
-        t = specTypeToType tenv srt
+        lh = lhTC tcv
+        t = fmap (addLHDictToType lh) $ specTypeToType tenv srt
     in
     case t of
         Just t' -> Just (symbolName $ val n, t')
         _ -> Nothing
+
+addLHDictToType :: Name -> Type -> Type
+addLHDictToType lh t =
+    let
+        lhD = map (\i -> TyConApp lh [TyVar i]) $ tyForAllBindings t
+    in
+    foldr TyFun t lhD
 
 convertMeasure :: State t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
 convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
@@ -58,7 +68,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
 
         (lam_i, ng1) = freshId (head stArgs) ng
         (cb, _) = freshId (head stArgs) ng1
-        alts = mapMaybe (convertDefs s tcv (M.union (M.union m nt) (M.fromList nbnds)) bnds) eq
+        alts = fixAlts s tcv m $ mapMaybe (convertDefs s tcv (M.union (M.union m nt) (M.fromList nbnds)) bnds) eq
 
         e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
     in
@@ -95,3 +105,28 @@ convertDefs s@(State {type_env = tenv}) tcv m bnds (Def { ctor = dc, body = b, b
 mkExprFromBody :: State t -> TCValues  -> M.Map Name Type -> Body -> Expr
 mkExprFromBody s tcv m (E e) = convertLHExpr e tcv s m
 mkExprFromBody s tcv m (P e) = convertLHExpr e tcv s m
+
+--Adjusts the alts, to make sure they all return the same Type
+fixAlts :: State t -> TCValues -> M.Map Name Type -> [Alt] -> [Alt]
+fixAlts s@(State {known_values = kv}) tcv m alts =
+    let
+        anyInt = any (\(Alt _ e) -> typeOf e == tyInt kv) alts
+    in
+    if anyInt then map (convertInteger s tcv m) alts else alts
+
+convertInteger :: State t -> TCValues -> M.Map Name Type -> Alt -> Alt
+convertInteger s@(State {expr_env = eenv, known_values = kv, type_classes = tc}) tcv m a@(Alt am e) =
+    let
+        fIntgr = mkFromInteger eenv
+        t = tyInt kv
+        lhdict = fromJustErr "No lhDict for callFromInteger" $ lhTCDict eenv tcv tc t m
+        ndict = fromJustErr "No numDict for callFromInteger" $ numDict eenv kv tc t m
+
+        e' = mkApp [fIntgr, lhdict, Type t, ndict, e]
+        a' = Alt am e'
+    in
+    if typeOf e == tyInteger kv then a' else a
+
+fromJustErr :: String -> Maybe a -> a
+fromJustErr _ (Just x) = x
+fromJustErr s _ = error s

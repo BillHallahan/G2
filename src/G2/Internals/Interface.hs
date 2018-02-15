@@ -80,14 +80,17 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: (ASTContainer t Expr, ASTContainer t Type, Named t) => SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-run con hhp config (state@ State { type_env = tenv
+run :: (ASTContainer t Expr, ASTContainer t Type, Named t, Monoid t) => 
+    (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+run red con hhp config (state@ State { type_env = tenv
                                  , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
     -- let swept = state
     -- print $ E.keys $ expr_env state
 
     let swept = markAndSweep state
+
+    -- putStrLn . pprExecStateStr $ swept
 
     -- timedMsg $ "old tenv: " ++ show (M.size $ type_env state)
     -- timedMsg $ "old eenv: " ++ show (E.size $ expr_env state)
@@ -136,7 +139,7 @@ run con hhp config (state@ State { type_env = tenv
 
     -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
 
-    exec_states <- runNDepth con hhp [preproc_state'] config
+    exec_states <- runNDepth red con hhp [preproc_state'] config
 
     let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
                -- , Name "walkInt" Nothing 0
@@ -193,7 +196,6 @@ run con hhp config (state@ State { type_env = tenv
     -- -- --     -- print $ model st
     -- --     putStrLn "----\n"
     --     ) ident_states'
-
 
     ident_states'' <- 
         mapM (\(r, _, s) -> do
