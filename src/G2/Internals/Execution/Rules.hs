@@ -293,10 +293,10 @@ resultToState config s (eenv, cexpr, pc, _, _, ng, st, tv) =
 -- | stdReduce
 -- Interprets Haskell with no special semantics.
 stdReduce :: Monoid t => State t -> (Rule, [ReduceResult t])
-stdReduce = stdReduceBase stdReduceEvaluate
+stdReduce = stdReduceBase (const Nothing)
 
-stdReduceBase :: Monoid t => (E.ExprEnv -> Expr -> NameGen -> (Rule, [EvaluateResult t])) -> State t -> (Rule, [ReduceResult t])
-stdReduceBase redEv s@State { exec_stack = estk
+stdReduceBase :: Monoid t => (State t -> Maybe (Rule, [ReduceResult t])) -> State t -> (Rule, [ReduceResult t])
+stdReduceBase redEx s@State { exec_stack = estk
                             , expr_env = eenv
                             , curr_expr = cexpr
                             , name_gen = ngen
@@ -325,8 +325,10 @@ stdReduceBase redEv s@State { exec_stack = estk
       -- Our current thing is a value form, which means we can return it.
       (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], Nothing, ngen, estk, mempty) ])
 
+  | Just red <- redEx s = red
+
   | CurrExpr Evaluate expr <- cexpr =
-      let (rule, eval_results) = redEv eenv expr ngen
+      let (rule, eval_results) = stdReduceEvaluate eenv expr ngen
           states = map (\(eenv', cexpr', paths', ngen', f, tv) ->
                         ( eenv'
                         , cexpr'

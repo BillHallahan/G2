@@ -6,6 +6,7 @@ module G2.Internals.Language.Stack
     , empty
     , push
     , pop
+    , popN
     , toList) where
 
 import G2.Internals.Language.AST
@@ -25,6 +26,16 @@ push x (Stack xs) = Stack (x : xs)
 pop :: Stack a -> Maybe (a, Stack a)
 pop (Stack []) = Nothing
 pop (Stack (x:xs)) = Just (x, Stack xs)
+
+popN :: Stack a -> Int -> ([a], Stack a)
+popN s 0 = ([], s)
+popN s n = case pop s of
+    Just (x, s') -> 
+        let
+            (xs, s'') = popN s' (n - 1)
+        in
+        (x:xs, s'')
+    Nothing -> ([], s)
 
 -- | Convert an `Stack` to a list.
 toList :: Stack a -> [a]
