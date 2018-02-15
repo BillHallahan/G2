@@ -39,11 +39,12 @@ import Var
 import G2.Internals.Language.KnownValues
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
-                         , violating :: Maybe FuncInfo }
+                         , violating :: Maybe FuncInfo
+                         , abstracted :: [FuncInfo] } deriving (Eq, Show)
 
 data FuncInfo = FuncInfo { func :: T.Text
                          , funcArgs :: T.Text
-                         , funcReturn :: T.Text }
+                         , funcReturn :: T.Text } deriving (Eq, Show)
 
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
@@ -76,7 +77,8 @@ runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
 
     (con, hhp) <- getSMT config
 
-    -- run lhReduce con hhp config final_state
+    -- ret <- run lhReduce con hhp config final_state
+    -- return $ map (\(s, rs, es, e, ais) -> (s {track = subVar (model s) (expr_env s) $ track s}, rs, es, e, ais)) ret
     run stdReduce con hhp config final_state
 
 getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
@@ -129,29 +131,32 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
-printParsedLHOut :: [LHReturn]
-                 -> IO ()
+printParsedLHOut :: [LHReturn] -> IO ()
 printParsedLHOut [] = return ()
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
-                           , violating = Nothing} : xs) = do
+                           , violating = Nothing
+                           , abstracted = abs} : xs) = do
     putStrLn "The call"
     putStrLn . T.unpack $ call `T.append` " = " `T.append` output
     putStrLn . T.unpack $ "violates " `T.append` f `T.append` "'s refinement type"
     putStrLn ""
     printParsedLHOut xs
+    print abs
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
-                           , violating = Just (FuncInfo {func = f', funcArgs = call', funcReturn = output'}) } : xs) = do
+                           , violating = Just (FuncInfo {func = f', funcArgs = call', funcReturn = output'})
+                           , abstracted = abs } : xs) = do
     putStrLn . T.unpack $ call `T.append` " = " `T.append` output
     putStrLn "makes a call to"
     putStrLn . T.unpack $ call' `T.append` " = " `T.append` output'
     putStrLn . T.unpack $ "violating " `T.append` f' `T.append` "'s refinement type"
     putStrLn ""
     printParsedLHOut xs
+    print abs
 
-parseLHOut :: T.Text -> [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+parseLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
            -> [LHReturn]
 parseLHOut entry [] = []
 parseLHOut entry ((s, _, inArg, ex, ais):xs) =
@@ -160,20 +165,28 @@ parseLHOut entry ((s, _, inArg, ex, ais):xs) =
                . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) $ ex
 
-      (n, as, out) = (case ais of
-        Just (n'@(Name n'' _ _), ais', out') -> 
-          ( n''
-          , T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n' TyBottom)) ais')
-          , T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) out')
 
-        _ -> (T.pack "", T.pack "", T.pack ""))
-   in 
-   if funcCall == as && funcOut == out then do
-      LHReturn { calledFunc = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
-               , violating = Nothing} : tail
-   else
-      LHReturn { calledFunc = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut }
-               , violating = Just (FuncInfo {func = n, funcArgs = as, funcReturn = out}) } : tail
+      called = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
+      viFunc = fmap (parseLHFuncTuple s) ais
+
+      abs = map (parseLHFuncTuple s) $ track s
+      -- (n, as, out) = (case ais of
+      --   Just (n'@(Name n'' _ _), ais', out') -> 
+      --     ( n''
+      --     , T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n' TyBottom)) ais')
+      --     , T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) out')
+
+      --  _ -> (T.pack "", T.pack "", T.pack ""))
+  in 
+  LHReturn { calledFunc = called
+           , violating = if Just called == viFunc then Nothing else viFunc
+           , abstracted = abs} : tail
+
+parseLHFuncTuple :: State t -> (Name, [Expr], Expr) -> FuncInfo
+parseLHFuncTuple s (n@(Name n' _ _), ais, out) =
+    FuncInfo { func = n'
+             , funcArgs = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n TyBottom)) ais)
+             , funcReturn = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) out }
 
 testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
                -> IO [LHReturn]

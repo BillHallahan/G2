@@ -3,6 +3,7 @@
 
 module G2.Internals.Solver.Interface
     ( subModel
+    , subVar
     , checkConstraints
     , checkConstraintsWithSMTSorts
     , checkModel
