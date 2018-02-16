@@ -48,7 +48,8 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
-        , liquidTests
+        , 
+        liquidTests
         , testFileTests
         , smtADTTests
         ]
@@ -116,7 +117,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 1000 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > 0 && x' >= y' && z' <= 0), AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 4000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 6000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 4000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "xSqPlusYSq" 1000 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' + y' >= z'), AtLeast 1]
 
@@ -146,8 +147,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "d" 1000 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackBool" 1000 2 [AtLeast 1, RForAll (\[_, r] -> getBoolB r (== False))]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 1000 3 
-                    [Exactly 0]
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 1000 3 [Exactly 0]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As" 1000 3 
                     [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "B" y)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As'" 1000 3 

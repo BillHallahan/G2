@@ -78,16 +78,15 @@ runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
 
     (con, hhp) <- getSMT config
 
-    -- ret <- run lhReduce con hhp config final_state
+    ret <- run lhReduce con hhp config final_state
 
-    -- -- We filter the returned states to only those with the minimal number of abstracted functions
-    -- let mi = case length ret of
-    --               0 -> 0
-    --               _ -> minimum $ map (\(s, _, _, _, _) -> length $ track s) ret
-    -- let ret' = filter (\(s, _, _, _, _) -> mi == (length $ track s)) ret
+    -- We filter the returned states to only those with the minimal number of abstracted functions
+    let mi = case length ret of
+                  0 -> 0
+                  _ -> minimum $ map (\(s, _, _, _, _) -> length $ track s) ret
+    let ret' = filter (\(s, _, _, _, _) -> mi == (length $ track s)) ret
 
-    -- return $ map (\(s, rs, es, e, ais) -> (s {track = subVar (model s) (expr_env s) $ track s}, rs, es, e, ais)) ret'
-    run stdReduce con hhp config final_state
+    return $ map (\(s, rs, es, e, ais) -> (s {track = subVar (model s) (expr_env s) $ track s}, rs, es, e, ais)) ret'
 
 getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
 getGHCInfos proj fp lhlibs = do
