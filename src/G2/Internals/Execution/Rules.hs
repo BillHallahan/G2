@@ -652,9 +652,3 @@ reduceEReturn eenv c ngen (ApplyFrame aexpr) =
       _ -> (RuleError, (eenv, CurrExpr Return c, ngen))
 
 reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
-
-hasTYPE :: Type -> Bool
-hasTYPE TYPE = True
-hasTYPE (TyConApp (Name "TYPE" _ _) _) = True
-hasTYPE (TyFun t t') = hasTYPE t || hasTYPE t'
-hasTYPE _ = False

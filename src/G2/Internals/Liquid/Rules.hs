@@ -30,86 +30,39 @@ import Data.Maybe
 lhReduce :: State [(Name, [Expr], Expr)] -> (Rule, [ReduceResult [(Name, [Expr], Expr)]])
 lhReduce = stdReduceBase lhReduce'
 
+
 lhReduce' :: State [(Name, [Expr], Expr)] -> Maybe (Rule, [ReduceResult [(Name, [Expr], Expr)]])
 lhReduce' State { expr_env = eenv
-               , curr_expr = CurrExpr Evaluate vv@(Var v)
+               , curr_expr = CurrExpr Evaluate vv@(Let [(b, e)] a@(Assert _ _ _))
                , name_gen = ng
                , exec_stack = stck
-               , track = tr }
-    | Just expr <- E.lookup (idName v) eenv =
+               , track = tr } =
         let
-            (r, stck') = if isExprValueForm expr eenv 
-                            then ( RuleEvalVarVal (idName v), stck)
-                            else ( RuleEvalVarNonVal (idName v)
-                                 , S.push (UpdateFrame (idName v)) stck)
-
-            sa = ( eenv
-                 , CurrExpr Evaluate expr
-                 , []
-                 , []
-                 , Nothing
-                 , ng
-                 , stck'
-                 , []
-                 , tr)
-
-            sb = symbState expr eenv vv ng stck tr
+            (r, er) = stdReduceEvaluate eenv vv ng
+            states = map (\(eenv', cexpr', paths', ngen', f) ->
+                        ( eenv'
+                        , cexpr'
+                        , paths'
+                        , []
+                        , Nothing
+                        , ngen'
+                        , maybe stck (\f' -> S.push f' stck) f
+                        , []
+                        , tr))
+                       er
+            sb = symbState eenv vv ng stck tr
         in
-        Just $ (r, sa:maybeToList sb)
+        Just $ (r, states ++ [sb])
 lhReduce' _ = Nothing
 
--- | symbState
--- See [StateB]
-symbState :: Expr -> ExprEnv -> Expr -> NameGen -> S.Stack Frame -> [(Name, [Expr], Expr)] -> Maybe (ReduceResult [(Name, [Expr], Expr)])
-symbState vv eenv cexpr@(Var (Id n _)) ng stck tr =
+symbState :: ExprEnv -> Expr -> NameGen -> S.Stack Frame -> [(Name, [Expr], Expr)] -> (ReduceResult [(Name, [Expr], Expr)])
+symbState eenv cexpr@(Let [(b, _)] (Assert (Just (fn, ars, re)) e e')) ng stck tr =
     let
         (i, ng') = freshId (returnType cexpr) ng
+
+        cexpr' = Let [(b, Var i)] $ Assume e (Var b)
+
         eenv' = E.insertSymbolic (idName i) i eenv
-
-        lIds = leadingLamIds vv
-        vv' = stripLams vv
-        ((lIds', vv''), ng'') = doRenames (map idName lIds) ng' (lIds, vv')
-
-        (eenv'', stck') = bindArgs lIds' eenv' stck
-
-        cexpr' = symbCExpr i vv''
     in
-    case cexpr' of
-        Just cexpr'' -> 
-            Just (eenv'', CurrExpr Evaluate cexpr'', [], [], Nothing, ng'', stck', [i]
-                        , tr `mappend` [(n, map Var lIds', Var i)])
-        Nothing -> Nothing
-symbState _ _ _ _ _ _ = Nothing
-
--- Binds the lambda args in the expr env
-bindArgs :: [Id] -> ExprEnv -> S.Stack Frame -> (ExprEnv, S.Stack Frame)
-bindArgs is eenv stck =
-    let
-        (fs, stck') = S.popN stck (length is)
-
-        eenv' = foldr (uncurry E.insert) eenv $ mapMaybe (uncurry bindArg) $ zip is fs
-    in
-    (eenv', stck')
-
-bindArg :: Id -> Frame -> Maybe (Name, Expr)
-bindArg (Id n _) (ApplyFrame e) = Just (n, e)
-bindArg _ _ = Nothing
-
-symbCExpr :: Id -> Expr -> Maybe Expr
-symbCExpr i (Let [(b, e)] (Assert _ a v@(Var b'))) =
-    if b == b' 
-        then Just $ Let [(b, Var i)] (Assume a v)
-        else Nothing
-symbCExpr _ _ = Nothing
-
-stripLams :: Expr -> Expr
-stripLams (Lam _ e) = stripLams e
-stripLams e = e
-
-argsAndRet :: Expr -> ([Id], Id)
-argsAndRet (Lam i e) =
-    let
-        (is, a) = argsAndRet e
-    in
-    (i:is, a)
-argsAndRet (Let [(b, _)] _) = ([], b)
+    (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck, [i], (fn, map Var ars, Var i):tr)
+symbState _ _ _ _ _ = error "Bad expr in symbState"

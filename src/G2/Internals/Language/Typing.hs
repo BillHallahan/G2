@@ -20,6 +20,7 @@ module G2.Internals.Language.Typing
     , higherOrderFuncs
     , isAlgDataTy
     , isTYPE
+    , hasTYPE
     , isTyVar
     , tyVars
     , isPolyFunc
@@ -337,6 +338,12 @@ isTYPE :: Type -> Bool
 isTYPE TYPE = True
 isTYPE (TyConApp (Name "TYPE" _ _) _) = True
 isTYPE _ = False
+
+hasTYPE :: Type -> Bool
+hasTYPE TYPE = True
+hasTYPE (TyConApp (Name "TYPE" _ _) _) = True
+hasTYPE (TyFun t t') = hasTYPE t || hasTYPE t'
+hasTYPE _ = False
 
 isTyVar :: Type -> Bool
 isTyVar (TyVar _) = True
