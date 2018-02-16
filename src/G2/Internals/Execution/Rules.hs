@@ -409,7 +409,7 @@ stdReduceEvaluate eenv (App fexpr aexpr) ngen =
                    , Nothing)])
         _ ->
             let frame = ApplyFrame aexpr
-            in ( RuleEvalApp
+            in ( RuleEvalApp aexpr
                , [( eenv
                   , CurrExpr Evaluate fexpr
                   , []

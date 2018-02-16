@@ -67,8 +67,10 @@ mkTyApp t1 t2 = TyApp t1 t2
 -- Turns the Expr list into an application spine
 mkTyFun :: [Type] -> Type
 mkTyFun [] = error "mkTyFun: empty list"
-mkTyFun (t:[]) = t
-mkTyFun (t1:t2:ts) = mkTyFun (TyFun t1 t2 : ts)
+mkTyFun [t] = t
+mkTyFun (t1:ts) = TyFun t1 (mkTyFun ts)
+-- mkTyFun (t:[]) = t
+-- mkTyFun (t1:t2:ts) = mkTyFun (TyFun t1 t2 : ts)
 
 -- | unTyApp
 -- Unravels the application spine.

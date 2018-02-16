@@ -76,7 +76,7 @@ outputState fdn rs is s = do
     createDirectoryIfMissing True dir
 
     let fn = dir ++ "state" ++ show (length rs) ++ ".txt"
-    let write = pprExecStateStr s ++ "\n\n" ++ show (zip ([0..] :: [Integer]) rs)
+    let write = pprExecStateStr s ++ "\n\n" ++ (intercalate "\n" $ map show (zip ([0..] :: [Integer]) rs))
     writeFile fn write
 
     putStrLn fn

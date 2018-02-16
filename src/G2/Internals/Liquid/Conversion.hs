@@ -31,7 +31,10 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid
 import qualified Data.Text as T
+
+import Debug.Trace
 
 addLHTC :: State t -> TCValues -> State t
 addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, type_classes = tc}) tcv =
@@ -227,6 +230,35 @@ addAssumeAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
     s { expr_env = E.insert n newE eenv
       , name_gen = ng''}
 
+-- | addTrueAsserts
+-- adds an assertion of True to all functions without an assertion
+addTrueAsserts :: State t -> State t
+addTrueAsserts s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = kv}) =
+    let
+        (b, ng') = freshName ng
+    in
+    s {expr_env = E.mapWithKey (addTrueAsserts' kv tenv b) eenv, name_gen = ng'}
+
+addTrueAsserts' :: KnownValues -> TypeEnv -> Name -> Name -> Expr -> Expr
+addTrueAsserts' kv tenv bn n@(Name nn _ _) e =
+    let
+        t = returnType e
+        b = Id bn t
+    
+        ee = insertInLams 
+                (\is e' -> 
+                    Let [(b, e')] $ Lang.Assert (Just (n, is, b)) (mkTrue kv tenv) (Var b))
+                e
+    in
+    trace (if nn == "divZeroError" then "e = " ++ show e ++ "\nee = " ++ show ee ++ "\n\n" else "") $ if not $ hasAssert e then ee else e
+
+hasAssert :: Expr -> Bool
+hasAssert = getAny . eval hasAssert'
+
+hasAssert' :: Expr -> Any
+hasAssert' (Assert _ _ _) = Any True
+hasAssert' _ = Any False
+
 -- | convertSpecType
 -- We create an Expr from a SpecType in two phases.  First, we create outer
 -- lambda expressions, then we create a conjunction of m boolean expressions
@@ -257,6 +289,7 @@ convertAssumeSpecType tcv s@(State { type_env = tenv }) st =
 
         lams = specTypeLams tenv st 
         lams' = dclams . lams
+
         apps = assumeSpecTypeApps st tcv s (M.fromList nt)
     in
     primInject $ lams' apps

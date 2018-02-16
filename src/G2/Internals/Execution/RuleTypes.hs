@@ -9,7 +9,7 @@ data Rule = RuleEvalVal
           | RuleEvalVarNonVal Name
           | RuleEvalVarVal Name
           | RuleEvalUnInt
-          | RuleEvalApp
+          | RuleEvalApp Expr
 
           | RuleEvalPrimAlreadyNorm
           | RuleEvalPrimToNorm

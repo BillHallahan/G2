@@ -11,3 +11,10 @@ f x = x + g 5
 -- {-@ g :: Int -> {v:Int | v /= -1} @-}
 g :: Int -> Int
 g x = x + x
+
+
+{-@ type Pred = {v:Int | v = 0} @-}
+
+{-@ h :: Int -> Pred @-}
+h :: Int -> Int
+h x = x

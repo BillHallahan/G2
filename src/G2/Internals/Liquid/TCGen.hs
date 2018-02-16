@@ -12,6 +12,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Debug.Trace
+
 ---------------------------------------
 -- LH TypeClass Gen
 ---------------------------------------
@@ -258,7 +260,10 @@ lhEqCase2Alts eenv tenv kv w ti _ _ binds1 dc@(DataCon _ _ ts) ng =
         -- Check that the two DataCons args are equal
         zbinds = zip (map Var binds1) (map Var binds2)
 
-        e = foldr (\e' -> App (App (Prim And TyBottom) e')) true
+        b = tyBool kv
+        pt = TyFun b (TyFun b b)
+
+        e = foldr (\e' -> App (App (Prim And pt) e')) true
           $ map (uncurry (eqFuncCall eenv tenv kv w ti)) zbinds
     in
      ([ Alt (DataAlt dc binds2) e
@@ -286,7 +291,11 @@ eqFuncCall _ tenv kv w ti e e'
     || t == TyLitDouble
     || t == TyLitFloat
     || t == TyLitChar =
-        App (App (Prim Eq TyBottom) e) e'
+        let
+            b = tyBool kv
+            pt = TyFun t (TyFun t b)
+        in
+        App (App (Prim Eq pt) e) e'
     | otherwise = error $ "\nError in eqFuncCall" ++ show (typeOf e)
 
 eqFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
@@ -381,8 +390,10 @@ lhLtSameAltCases tenv kv ng ((lt, eq):xs) =
         (Data false) = mkFalse kv tenv
 
         (e, ng2) = lhLtSameAltCases tenv kv ng xs
+
+        b = tyBool kv
     
-        ([b1, b2], ng3) = freshIds [TyBottom, TyBottom] ng2
+        ([b1, b2], ng3) = freshIds [b, b] ng2
 
         c = Case lt b1 
             [ Alt (DataAlt true []) (Data true)
@@ -414,7 +425,11 @@ ltFuncCall _ tenv kv w ti e e'
     || t == TyLitDouble
     || t == TyLitFloat
     || t == TyLitChar =
-        App (App (Prim Lt TyBottom) e) e'
+        let
+            b = tyBool kv
+            pt = TyFun t (TyFun t b)
+        in
+        App (App (Prim Lt pt) e) e'
     | otherwise = error $ "\nError in ltFuncCall" ++ show (typeOf e)
 
 ltFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
