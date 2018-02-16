@@ -6,8 +6,8 @@ module AddToEven where
 f :: Int -> Int
 f x = x + g 5
 
--- Without the below refinement type for g, this file does not verify
+-- Without the below refinement type for g, this file can not be verified
 -- {-@ g :: Int -> Even @-}
-{-@ g :: Int -> {v:Int | v /= -1} @-}
+-- {-@ g :: Int -> {v:Int | v /= -1} @-}
 g :: Int -> Int
 g x = x + x
