@@ -39,13 +39,17 @@ import System.Directory
 --     go (rules, state) = let (rule, states) = reduceNoConstraintChecks stdReduce undefined state
 --                         in map (\s -> (rules ++ [rule], s)) states
 
-runNDepth :: (State t -> (Rule, [ReduceResult t])) -> ([(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> SMTConverter ast out io -> io -> [State t] -> Config -> IO [([Int], State t)]
-runNDepth red sel con hpp states config = runNDepth' red sel $ map (\s -> (([], s), steps config)) states
+runNDepth :: (State t -> (Rule, [ReduceResult t])) -> ([([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> SMTConverter ast out io -> io -> [State t] -> Config -> IO [([Int], State t)]
+runNDepth red sel con hpp states config = runNDepth' red sel [] $ map (\s -> (([], s), steps config)) states
   where
-    runNDepth' :: (State t -> (Rule, [ReduceResult t])) -> ([(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> [(([Int], State t), Int)] -> IO [([Int], State t)]
-    runNDepth' _ _ [] = return []
-    runNDepth' red' sel' ((rss, 0):xs) = return . (:) rss =<< runNDepth' red' sel' (sel' xs)
-    runNDepth' red' sel' (((is, s), n):xs) = do
+    runNDepth' :: (State t -> (Rule, [ReduceResult t])) -> ([([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> [([Int], State t)] -> [(([Int], State t), Int)] -> IO [([Int], State t)]
+    runNDepth' _ _ _ [] = return []
+    runNDepth' red' sel' fnsh ((rss, 0):xs) =
+        let
+            fnsh' = if true_assert (snd rss) && isExecValueForm (snd rss) then rss:fnsh else fnsh
+        in
+        return . (:) rss =<< runNDepth' red' sel' fnsh' (sel' fnsh' xs)
+    runNDepth' red' sel' fnsh (((is, s), n):xs) = do
         case logStates config of
             Just f -> outputState f is s
             Nothing -> return ()
@@ -56,10 +60,10 @@ runNDepth red sel con hpp states config = runNDepth' red sel $ map (\s -> (([], 
         
         let mod_info = map (\(i, s') -> ((is ++ maybe [] (\i' -> [i']) i, s'), n - 1)) isred
         
-        runNDepth' red' sel' (mod_info ++ xs)
+        runNDepth' red' sel' fnsh (mod_info ++ xs)
 
-executeNext :: [(([Int], State t), Int)] -> [(([Int], State t), Int)]
-executeNext xs = xs
+executeNext :: [([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]
+executeNext _ xs = xs
 
 runNDepthNoConstraintChecks :: [State t] -> Int -> [State t]
 runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (s, d)) states

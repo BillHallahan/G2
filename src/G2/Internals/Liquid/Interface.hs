@@ -72,15 +72,15 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     let (lh_state, tcv) = createLHTC no_part_state
     let lhtc_state = addLHTC lh_state tcv
     let measure_state = createMeasures lh_measures tcv lhtc_state
-    -- let (merged_state, mkv) = mergeLHSpecState (filter isJust$ nub $ map (\(Name _ m _) -> m) tgt_ns) specs measure_state tcv
-    let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
+    let (merged_state, mkv) = mergeLHSpecState (filter isJust$ nub $ map (\(Name _ m _) -> m) tgt_ns) specs measure_state tcv
+    -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv merged_state
 
     let final_state = beta_red_state {track = []}
 
     (con, hhp) <- getSMT config
 
-    ret <- run lhReduce executeNext con hhp config final_state
+    ret <- run lhReduce selectLH con hhp config final_state
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of

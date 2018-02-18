@@ -1,4 +1,4 @@
-module G2.Internals.Liquid.Rules where
+module G2.Internals.Liquid.Rules (lhReduce, selectLH) where
 
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Execution.Rules
@@ -32,7 +32,6 @@ import Debug.Trace
 --     refinment type.)
 lhReduce :: State [(Name, [Expr], Expr)] -> (Rule, [ReduceResult [(Name, [Expr], Expr)]])
 lhReduce = stdReduceBase lhReduce'
-
 
 lhReduce' :: State [(Name, [Expr], Expr)] -> Maybe (Rule, [ReduceResult [(Name, [Expr], Expr)]])
 lhReduce' State { expr_env = eenv
@@ -86,3 +85,17 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (fn, ars, re)) e e')) ng at stc
         True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (fn, map Var ars, Var i):tr)
         False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
+
+selectLH :: [([Int], State [(Name, [Expr], Expr)])] -> [(([Int], State [(Name, [Expr], Expr)]), Int)] -> [(([Int], State [(Name, [Expr], Expr)]), Int)]
+selectLH solved next =
+    let
+        mi = case solved of
+                [] -> Nothing
+                _ -> Just $ minimum $ map (length . track . snd) solved
+        next' = dropWhile (\((_, s), _) -> trackingGreater s mi) next
+    in
+    next'
+
+trackingGreater :: State [(Name, [Expr], Expr)] -> Maybe Int -> Bool
+trackingGreater (State {track = tr}) (Just i) = length tr > i
+trackingGreater _ _ = False
