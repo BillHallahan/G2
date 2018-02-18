@@ -75,7 +75,7 @@ runGHC as = do
 
   let libs = maybeToList m_mapsrc
 
-  (mb_modname, pre_binds, pre_tycons, pre_cls) <- translateLoaded proj src base libs True
+  (mb_modname, pre_binds, pre_tycons, pre_cls,_) <- translateLoaded proj src base libs True
 
   let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
   let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry mb_modname

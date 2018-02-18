@@ -337,7 +337,7 @@ testFile proj src m_assume m_assert m_reaches entry config =
 
 testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO ([([Expr], Expr)])
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
-    (mb_modname, binds, tycons, cls) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" [] True
+    (mb_modname, binds, tycons, cls, _) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" [] True
 
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname
 

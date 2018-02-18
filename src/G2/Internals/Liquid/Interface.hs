@@ -31,7 +31,7 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
-import qualified Data.Maybe as B
+import Data.Maybe
 
 import System.Directory
 
@@ -57,11 +57,11 @@ findCounterExamples proj primF fp entry libs lhlibs config = do
     tgt_trans <- translateLoaded proj fp primF libs False
     runLHCore entry tgt_trans ghcInfos config
 
-runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])])
+runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
                     -> [GhcInfo]
                     -> Config
           -> IO [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
+runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
     -- let lh_measure_names = map (symbolName . val .name) lh_measures
@@ -72,7 +72,8 @@ runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let (lh_state, tcv) = createLHTC no_part_state
     let lhtc_state = addLHTC lh_state tcv
     let measure_state = createMeasures lh_measures tcv lhtc_state
-    let (merged_state, mkv) = mergeLHSpecState [Just "AddToEven"] specs measure_state tcv
+    -- let (merged_state, mkv) = mergeLHSpecState (filter isJust$ nub $ map (\(Name _ m _) -> m) tgt_ns) specs measure_state tcv
+    let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv merged_state
 
     let final_state = beta_red_state {track = []}
@@ -213,8 +214,8 @@ testLiquidFile proj primF fp libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_transv <- translateLoadedV proj fp primF libs False
 
-    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs) = tgt_transv
-    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls)
+    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns) = tgt_transv
+    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns)
 
     putStrLn $ "******** Liquid File Test: *********"
     putStrLn fp
