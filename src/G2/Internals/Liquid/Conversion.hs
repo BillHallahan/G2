@@ -216,7 +216,7 @@ addAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
 
 addAssumeAssertSpecType :: ExprEnv -> TCValues -> SpecTypeFunc t
 addAssumeAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
-                                                       , name_gen = ng }) =
+                                                  , name_gen = ng }) =
     let
         (b, ng') = freshId (returnType e) ng
 
@@ -237,14 +237,14 @@ addAssumeAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
 -- | addTrueAsserts
 -- adds an assertion of True to all functions without an assertion
 addTrueAsserts :: [Maybe T.Text] -> State t -> State t
-addTrueAsserts mn s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = kv}) =
+addTrueAsserts mn s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = kv, type_classes = tc}) =
     let
         (b, ng') = freshName ng
     in
-    s {expr_env = E.mapWithKey (addTrueAsserts' mn kv tenv b) eenv, name_gen = ng'}
+    s {expr_env = E.mapWithKey (addTrueAsserts' mn kv tenv (map idName $ tcDicts tc) b) eenv, name_gen = ng'}
 
-addTrueAsserts' :: [Maybe T.Text] -> KnownValues -> TypeEnv-> Name -> Name -> Expr -> Expr
-addTrueAsserts' mn kv tenv bn n@(Name nn _ _) e =
+addTrueAsserts' :: [Maybe T.Text] -> KnownValues -> TypeEnv -> [Name] -> Name -> Name -> Expr -> Expr
+addTrueAsserts' mn kv tenv tcn bn n@(Name nn _ _) e =
     let
         t = returnType e
         b = Id bn t
@@ -254,7 +254,7 @@ addTrueAsserts' mn kv tenv bn n@(Name nn _ _) e =
                     Let [(b, e')] $ Lang.Assert (Just (n, is, b)) (mkTrue kv tenv) (Var b))
                 e
     in
-    if not (hasAssert e) && moduleName n `elem` mn then ee else e
+    if not (hasAssert e) && not (n `elem` tcn) && moduleName n `elem` mn then ee else e
 
 moduleName :: Name -> Maybe T.Text
 moduleName (Name _ m _) = m

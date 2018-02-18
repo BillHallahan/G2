@@ -35,9 +35,17 @@ translateLoaded proj src base libs simpl = do
 translateLoadedV :: FilePath -> FilePath -> FilePath -> [FilePath] -> Bool
                  -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [T.Text])
 translateLoadedV proj src base libs simpl = do
+  (err@(err_prog, err_tys, err_cls), e_nm, e_tnm) <-
+      (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
+      translateLibs ["../base-4.9.1.0/Control/Exception/Base.hs"] specialConstructors specialTypeNames simpl
+
+  let err_prog' = addPrimsToBase err_prog
+  let err' = (err_prog', err_tys, err_cls)
+
   ((base_prog, base_tys, base_cls), b_nm, b_tnm) <-
       (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
-      translateLibs [base] specialConstructors specialTypeNames simpl
+      translateLibs [base] e_nm e_tnm simpl
+
   (lib_transs, lib_nm, lib_tnm) <- translateLibs libs b_nm b_tnm simpl
 
   let base_prog' = addPrimsToBase base_prog
@@ -49,7 +57,7 @@ translateLoadedV proj src base libs simpl = do
   -- Now the stuff with the actual target
   (mb_modname, tgt_prog, tgt_tys, tgt_cls, _, _, tgt_lhs) <- hskToG2 proj src lib_nm lib_tnm simpl
   let tgt_trans = (tgt_prog, tgt_tys, tgt_cls)
-  let (merged_prog, merged_tys, merged_cls) = mergeTranslates [tgt_trans, merged_lib]
+  let (merged_prog, merged_tys, merged_cls) = mergeTranslates [tgt_trans, merged_lib, err']
 
   -- final injection phase
   let (final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys

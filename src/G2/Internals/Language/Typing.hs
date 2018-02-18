@@ -22,6 +22,7 @@ module G2.Internals.Language.Typing
     , isTYPE
     , hasTYPE
     , isTyVar
+    , hasTyBottom
     , tyVars
     , isPolyFunc
     , numArgs
@@ -42,6 +43,7 @@ import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
+import Data.Monoid hiding (Alt)
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) []
@@ -368,6 +370,15 @@ tyVars = evalASTs tyVars'
 tyVars' :: Type -> [Type]
 tyVars' t@(TyVar _) = [t]
 tyVars' _ = []
+
+-- hasTyBottom
+hasTyBottom :: ASTContainer m Type => m -> Bool
+hasTyBottom = getAny . evalASTs hasTyBottom'
+
+hasTyBottom' :: Type -> Any
+hasTyBottom' TyBottom = Any True
+hasTyBottom' _ = Any False
+
 
 -- | numArgs
 numArgs :: Typed t => t -> Int

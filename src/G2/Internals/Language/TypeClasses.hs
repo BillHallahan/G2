@@ -12,6 +12,7 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , ordTCDict
                                          , integralTCDict
                                          , lookupTCDict
+                                         , tcDicts
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
 
@@ -111,6 +112,10 @@ lookupTCDicts n = fmap insts . M.lookup n . coerce
 
 lookupTCDictsTypes :: Name -> TypeClasses -> Maybe [Type]
 lookupTCDictsTypes n = fmap (map fst) . lookupTCDicts n
+
+-- tcDicts
+tcDicts :: TypeClasses -> [Id]
+tcDicts = map snd . concatMap insts . M.elems . coerce
 
 -- satisfyingTCTypes
 -- Finds all types/dict paurs that satisfy the given TC requirements for each polymorphic argument

@@ -56,10 +56,10 @@ lhReduce' State { expr_env = eenv
                        er
             sb = symbState eenv vv ng at stck tr
         in
-        Just $ (r, states ++ [sb])
+        Just $ (r, states ++ maybeToList sb)
 lhReduce' _ = Nothing
 
-symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [(Name, [Expr], Expr)] -> (ReduceResult [(Name, [Expr], Expr)])
+symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [(Name, [Expr], Expr)] -> Maybe (ReduceResult [(Name, [Expr], Expr)])
 symbState eenv cexpr@(Let [(b, _)] (Assert (Just (fn, ars, re)) e e')) ng at stck tr =
     let
         cexprT = returnType cexpr
@@ -80,5 +80,9 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (fn, ars, re)) e e')) ng at stc
                     Just (UpdateFrame u, stck'') -> if u == fn then stck'' else stck
                     _ -> stck
     in
-    (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (fn, map Var ars, Var i):tr)
+    -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
+    -- In this case, we cannot branch into a symbolic state
+    case not (hasTyBottom cexprT) && null (tyVars cexprT) of
+        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (fn, map Var ars, Var i):tr)
+        False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
