@@ -8,6 +8,7 @@ import G2.Internals.Config.Config
 import G2.Internals.Translation
 import G2.Internals.Interface
 import G2.Internals.Language as Lang
+import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Execution
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ElimPartialApp
@@ -71,7 +72,7 @@ runLHCore entry (mb_modname, prog, tys, cls) ghcInfos config = do
     let (lh_state, tcv) = createLHTC no_part_state
     let lhtc_state = addLHTC lh_state tcv
     let measure_state = createMeasures lh_measures tcv lhtc_state
-    let (merged_state, mkv) = mergeLHSpecState specs measure_state tcv
+    let (merged_state, mkv) = mergeLHSpecState [Just "AddToEven"] specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv merged_state
 
     let final_state = beta_red_state {track = []}

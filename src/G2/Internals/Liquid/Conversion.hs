@@ -34,8 +34,6 @@ import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
 
-import Debug.Trace
-
 addLHTC :: State t -> TCValues -> State t
 addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, type_classes = tc}) tcv =
     let
@@ -53,12 +51,12 @@ addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, type_classes = tc}) tcv =
 -- reference expressions in E'.  This prevents infinite chains of Assumes/Asserts.  
 -- Finally, the two expression environments are merged, before the whole state
 -- is returned.
-mergeLHSpecState :: [(Var, LocSpecType)] -> State t -> TCValues -> (State t, KnownValues)
-mergeLHSpecState xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr, known_values = knv }) tcv =
+mergeLHSpecState :: [Maybe T.Text] -> [(Var, LocSpecType)] -> State t -> TCValues -> (State t, KnownValues)
+mergeLHSpecState ns xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr, known_values = knv }) tcv =
     let
         ((meenv, mkv), ng') = doRenames (E.keys eenv) ng (eenv, knv)
 
-        s' = mergeLHSpecState' (addAssertSpecType meenv tcv) xs (s { name_gen = ng' })
+        s' = addTrueAsserts ns $ mergeLHSpecState' (addAssertSpecType meenv tcv) xs (s { name_gen = ng' })
 
         usedCexpr = filter (not . flip E.isSymbolic eenv) $ varNames cexpr
         eenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) eenv
@@ -121,13 +119,19 @@ addLHTCCurrExpr cexpr tc tcv =
 addLHTCLams :: Name -> Expr -> Expr
 addLHTCLams lh e =
     let
-        tva = nub . filter (isTYPE . typeOf) $ args e
+        tva = nub . mapMaybe (tYPEOrTyVar) $ args e
         
         ds = map (Name "d" Nothing) [1 .. length tva]
 
         as = map (\(d, i) -> Lang.Id d $ TyConApp lh [TyVar i]) (zip ds tva)
     in
     if not (hasLHTC lh e) then foldr Lam e as else e
+
+tYPEOrTyVar :: Lang.Id -> Maybe Lang.Id
+tYPEOrTyVar e
+    | isTYPE $ typeOf e = Just e
+    | (TyVar i@(Id _ TYPE)) <- typeOf e = Just i
+    | otherwise = Nothing
 
 hasLHTC :: Name -> Expr -> Bool
 hasLHTC lh (Lam (Id _ (TyConApp n _)) e) = if n == lh then True else hasLHTC lh e 
@@ -232,15 +236,15 @@ addAssumeAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
 
 -- | addTrueAsserts
 -- adds an assertion of True to all functions without an assertion
-addTrueAsserts :: State t -> State t
-addTrueAsserts s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = kv}) =
+addTrueAsserts :: [Maybe T.Text] -> State t -> State t
+addTrueAsserts mn s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = kv}) =
     let
         (b, ng') = freshName ng
     in
-    s {expr_env = E.mapWithKey (addTrueAsserts' kv tenv b) eenv, name_gen = ng'}
+    s {expr_env = E.mapWithKey (addTrueAsserts' mn kv tenv b) eenv, name_gen = ng'}
 
-addTrueAsserts' :: KnownValues -> TypeEnv -> Name -> Name -> Expr -> Expr
-addTrueAsserts' kv tenv bn n@(Name nn _ _) e =
+addTrueAsserts' :: [Maybe T.Text] -> KnownValues -> TypeEnv-> Name -> Name -> Expr -> Expr
+addTrueAsserts' mn kv tenv bn n@(Name nn _ _) e =
     let
         t = returnType e
         b = Id bn t
@@ -250,7 +254,10 @@ addTrueAsserts' kv tenv bn n@(Name nn _ _) e =
                     Let [(b, e')] $ Lang.Assert (Just (n, is, b)) (mkTrue kv tenv) (Var b))
                 e
     in
-    trace (if nn == "divZeroError" then "e = " ++ show e ++ "\nee = " ++ show ee ++ "\n\n" else "") $ if not $ hasAssert e then ee else e
+    if not (hasAssert e) && moduleName n `elem` mn then ee else e
+
+moduleName :: Name -> Maybe T.Text
+moduleName (Name _ m _) = m
 
 hasAssert :: Expr -> Bool
 hasAssert = getAny . eval hasAssert'

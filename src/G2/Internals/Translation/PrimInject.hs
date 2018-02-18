@@ -97,6 +97,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("fromIntToDouble", Prim IntToReal TyBottom)
            , ("error", Prim Error TyBottom)
            , ("errorWithoutStackTrace", Prim Error TyBottom)
+           , ("divZeroError", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
 
 

@@ -130,18 +130,21 @@ createLHTC s@(State { expr_env = eenv
 
         tb = tyBool kv
 
-        (eenv9, tenv'', tc', ng10) = genTC eenv8 tenv tc lhTCN
-                        [ (lhEqN, TyFun tb (TyFun tb tb), eq_w) 
-                        , (lhNeN, TyFun tb (TyFun tb tb), neq_w)
-                        , (lhLtN, TyFun tb (TyFun tb tb), lt_w)
-                        , (lhLeN, TyFun tb (TyFun tb tb), le_w)
-                        , (lhGtN, TyFun tb (TyFun tb tb), gt_w)
-                        , (lhGeN, TyFun tb (TyFun tb tb), ge_w)
-                        , (lhPPN, TyFun tb (TyFun tb tb), pp_w) ] ng9
+        (tvAN, ng10) = freshSeededString "a" ng9
+        tvA = TyVar $ Id tvAN TYPE
+
+        (eenv9, tenv'', tc', ng11) = genTC eenv8 tenv tc lhTCN
+                        [ (lhEqN, TyFun tvA (TyFun tvA tb), eq_w) 
+                        , (lhNeN, TyFun tvA (TyFun tvA tb), neq_w)
+                        , (lhLtN, TyFun tvA (TyFun tvA tb), lt_w)
+                        , (lhLeN, TyFun tvA (TyFun tvA tb), le_w)
+                        , (lhGtN, TyFun tvA (TyFun tvA tb), gt_w)
+                        , (lhGeN, TyFun tvA (TyFun tvA tb), ge_w)
+                        , (lhPPN, TyFun (TyFun tvA tb) tb, pp_w) ] ng10
 
         tcv = TCValues {lhTC = lhTCN, lhEq = lhEqN, lhNe = lhNeN, lhLt = lhLtN, lhLe = lhLeN, lhGt = lhGtN, lhGe = lhGeN, lhPP = lhPPN}
     in
-    (s { expr_env = eenv9, name_gen = ng10, type_env = tenv'', type_classes = tc' }, tcv)
+    (s { expr_env = eenv9, name_gen = ng11, type_env = tenv'', type_classes = tc' }, tcv)
 
 ---------------------------------------
 -- Gen Helper

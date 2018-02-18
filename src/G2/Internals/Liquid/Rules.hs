@@ -3,11 +3,14 @@ module G2.Internals.Liquid.Rules where
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
+import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as S
 
 import qualified Data.Map as M
 import Data.Maybe
+
+import Debug.Trace
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -35,6 +38,7 @@ lhReduce' :: State [(Name, [Expr], Expr)] -> Maybe (Rule, [ReduceResult [(Name, 
 lhReduce' State { expr_env = eenv
                , curr_expr = CurrExpr Evaluate vv@(Let [(b, e)] a@(Assert _ _ _))
                , name_gen = ng
+               , apply_types = at
                , exec_stack = stck
                , track = tr } =
         let
@@ -50,19 +54,31 @@ lhReduce' State { expr_env = eenv
                         , []
                         , tr))
                        er
-            sb = symbState eenv vv ng stck tr
+            sb = symbState eenv vv ng at stck tr
         in
         Just $ (r, states ++ [sb])
 lhReduce' _ = Nothing
 
-symbState :: ExprEnv -> Expr -> NameGen -> S.Stack Frame -> [(Name, [Expr], Expr)] -> (ReduceResult [(Name, [Expr], Expr)])
-symbState eenv cexpr@(Let [(b, _)] (Assert (Just (fn, ars, re)) e e')) ng stck tr =
+symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [(Name, [Expr], Expr)] -> (ReduceResult [(Name, [Expr], Expr)])
+symbState eenv cexpr@(Let [(b, _)] (Assert (Just (fn, ars, re)) e e')) ng at stck tr =
     let
-        (i, ng') = freshId (returnType cexpr) ng
+        cexprT = returnType cexpr
 
-        cexpr' = Let [(b, Var i)] $ Assume e (Var b)
+        (t, atf) = case AT.lookup cexprT at of
+                        Just (t', f) -> trace ("t' = " ++ show t') (TyConApp t' [], App (Var f))
+                        Nothing -> (cexprT, id)
+
+        (i, ng') = freshId t ng
+
+        cexpr' = Let [(b, atf (Var i))] $ Assume e (Var b)
 
         eenv' = E.insertSymbolic (idName i) i eenv
+
+        -- the top of the stack may be an update frame for the variable currently being evaluated
+        -- we don't want the definition to be updated with a symbolic variable, so we remove it
+        stck' = case S.pop stck of
+                    Just (UpdateFrame u, stck'') -> if u == fn then stck'' else stck
+                    _ -> stck
     in
-    (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck, [i], (fn, map Var ars, Var i):tr)
-symbState _ _ _ _ _ = error "Bad expr in symbState"
+    (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (fn, map Var ars, Var i):tr)
+symbState _ _ _ _ _ _ = error "Bad expr in symbState"
