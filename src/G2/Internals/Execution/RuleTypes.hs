@@ -3,7 +3,9 @@
 
 module G2.Internals.Execution.RuleTypes where
 
-import G2.Internals.Language
+import G2.Internals.Language.AST
+import G2.Internals.Language.Naming
+import G2.Internals.Language.Syntax
 
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal Name

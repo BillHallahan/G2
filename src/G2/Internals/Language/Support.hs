@@ -28,6 +28,7 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeClasses
 import G2.Internals.Language.TypeEnv
 import G2.Internals.Language.PathConds hiding (map)
+import G2.Internals.Execution.RuleTypes
 
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -53,6 +54,7 @@ data State t = State { expr_env :: E.ExprEnv
                    , arbValueGen :: ArbValueGen
                    , known_values :: KnownValues
                    , cleaned_names :: CleanedNames
+                   , rules :: [Rule]
                    , track :: t
                    } deriving (Show, Eq, Read)
 
@@ -159,6 +161,7 @@ renameState old new_seed s =
              , arbValueGen = arbValueGen s
              , known_values = rename old new (known_values s)
              , cleaned_names = M.insert new old (cleaned_names s)
+             , rules = rules s
              , track = rename old new (track s) }
 
 instance {-# OVERLAPPING #-} Named t => Named (State t) where
@@ -202,6 +205,7 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
                , arbValueGen = arbValueGen s
                , known_values = rename old new (known_values s)
                , cleaned_names = M.insert new old (cleaned_names s)
+               , rules = rules s
                , track = rename old new (track s) }
 
 -- | TypeClass definitions

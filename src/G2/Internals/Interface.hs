@@ -71,6 +71,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     , arbValueGen = arbValueInit
     , known_values = kv
     , cleaned_names = M.empty
+    , rules = []
     , track = ()
  }
 
@@ -82,8 +83,8 @@ mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
 run :: (ASTContainer t Expr, ASTContainer t Type, Named t) => 
-    (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-run red con hhp config (state@ State { type_env = tenv
+    (State t -> (Rule, [ReduceResult t])) -> ([(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe (Name, [Expr], Expr))]
+run red sel con hhp config (state@ State { type_env = tenv
                                  , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
     -- let swept = state
@@ -140,7 +141,7 @@ run red con hhp config (state@ State { type_env = tenv
 
     -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
 
-    exec_states <- runNDepth red con hhp [preproc_state'] config
+    exec_states <- runNDepth red sel con hhp [preproc_state'] config
 
     let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
                -- , Name "walkInt" Nothing 0
@@ -172,9 +173,9 @@ run red con hhp config (state@ State { type_env = tenv
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
     -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s list)) exec_states
 
-    let ident_states = filter (isExecValueForm . thd) exec_states
-    let ident_states' = filter (true_assert . thd) ident_states
-    let nonident_states = filter (not . isExecValueForm . thd) exec_states
+    let ident_states = filter (isExecValueForm . snd) exec_states
+    let ident_states' = filter (true_assert . snd) ident_states
+    let nonident_states = filter (not . isExecValueForm . snd) exec_states
 
     -- putStrLn $ "exec states: " ++ (show $ length exec_states)
     -- putStrLn $ "ident states: " ++ (show $ length ident_states')
@@ -199,19 +200,19 @@ run red con hhp config (state@ State { type_env = tenv
     --     ) ident_states'
 
     ident_states'' <- 
-        mapM (\(r, _, s) -> do
+        mapM (\(_, s) -> do
             (_, m) <- case smtADTs config of
                           False -> checkModel con hhp s
                           True -> checkModelWithSMTSorts con hhp config s
-            return . fmap (\m' -> (r, s {model = m'})) $ m
+            return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states'
 
     let ident_states''' = catMaybes ident_states''
 
-    let sm = map (\(r, s) -> let (es, e, ais) = subModel s in (s, r, es, e, ais)) $ ident_states'''
+    let sm = map (\s -> let (es, e, ais) = subModel s in (s, es, e, ais)) $ ident_states'''
 
-    let sm' = map (\sm''@(s, _, _, _, _) -> runPostprocessing s sm'') sm
-    let sm'' = map (\(s, r, es, e, ais) -> (s, r, es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
+    let sm' = map (\sm''@(s, _, _, _) -> runPostprocessing s sm'') sm
+    let sm'' = map (\(s, es, e, ais) -> (s, es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
 
     return sm''
 

@@ -287,6 +287,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     tc_str = pprTCStr (type_classes ex_state)
     walkers_str = show (deepseq_walkers ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
+    rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Code] ----------------------"
                , code_str
@@ -314,6 +315,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , tc_str
                , "----- [Cleaned] -------------------"
                , cleaned_str
+               , "----- [Rules] -------------------"
+               , rules_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
                ]
 

@@ -210,18 +210,18 @@ lookupForPrim e _ = e
 -- | Result of a Evaluate reduction.
 type ReduceResult t = (E.ExprEnv, CurrExpr, [Constraint], [Assertion], Maybe (Name, [Id], Id), NameGen, S.Stack Frame, [Id], t)
 
-reduce :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO (Rule, [State t])
+reduce :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO [State t]
 reduce red con hpp config s = do
     let (rule, res) = red s
     sts <- resultsToState con hpp config rule s res
-    return (rule, sts)
+    return sts
 
-reduceNoConstraintChecks :: (State t -> (Rule, [ReduceResult t])) -> Config -> State t -> (Rule, [State t])
+reduceNoConstraintChecks :: (State t -> (Rule, [ReduceResult t])) -> Config -> State t -> [State t]
 reduceNoConstraintChecks red config s =
     let
         (rule, res) = red s
     in
-    (rule, map (resultToState config s) res)
+    map (resultToState config s rule) res
 
 resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State t -> [ReduceResult t] -> IO [State t]
 resultsToState _ _ _ _ _ [] = return []
@@ -259,7 +259,7 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
         return . (++) finalS' =<< resultsToState con hpp config rule s xs
     | otherwise = return . (:) s' =<< resultsToState con hpp config rule s xs
     where
-        s' = resultToState config s red
+        s' = resultToState config s rule red
 
 {-# INLINE selectCheckConstraints #-}
 selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State t -> IO Result)
@@ -277,8 +277,8 @@ pcRelevant (Config {smtADTs = False}) = PC.relevant
 pcRelevant _ = PC.relevantWithSMTADT
 
 {-# INLINE resultToState #-}
-resultToState :: Config -> State t -> ReduceResult t -> State t
-resultToState config s (eenv, cexpr, pc, _, _, ng, st, is, tv) =
+resultToState :: Config -> State t -> Rule -> ReduceResult t -> State t
+resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, tv) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
@@ -286,6 +286,7 @@ resultToState config s (eenv, cexpr, pc, _, _, ng, st, is, tv) =
       , name_gen = ng
       , exec_stack = st
       , symbolic_ids = symbolic_ids s ++ is
+      , rules = rules s ++ [r]
       , track = tv }
 
 -- | stdReduce

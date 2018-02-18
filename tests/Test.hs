@@ -343,9 +343,9 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
     (con, hhp) <- getSMT config
 
-    r <- run stdReduce con hhp config init_state
+    r <- run stdReduce executeNext con hhp config init_state
 
-    return $ map (\(_, _, i, o, _) -> (i, o)) r
+    return $ map (\(_, i, o, _) -> (i, o)) r
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = do
@@ -353,13 +353,13 @@ checkLiquid proj fp entry stps i reqList = do
 
     let ch = case res of
                 Left _ -> False
-                Right exprs -> checkExprGen (map (\(_, _, inp, out, _) -> inp ++ [out]) exprs) i reqList
+                Right exprs -> checkExprGen (map (\(_, inp, out, _) -> inp ++ [out]) exprs) i reqList
 
     return . testCase fp
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n") ch
 
-findCounterExamples' :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))])
+findCounterExamples' :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))])
 findCounterExamples' proj primF fp entry libs lhlibs config = try (findCounterExamples proj primF fp entry libs lhlibs config)
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool

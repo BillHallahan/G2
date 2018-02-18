@@ -51,7 +51,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 findCounterExamples proj primF fp entry libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_trans <- translateLoaded proj fp primF libs False
@@ -60,7 +60,7 @@ findCounterExamples proj primF fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
                     -> [GhcInfo]
                     -> Config
-          -> IO [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+          -> IO [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))]
 runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
@@ -80,15 +80,15 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
 
     (con, hhp) <- getSMT config
 
-    ret <- run lhReduce con hhp config final_state
+    ret <- run lhReduce executeNext con hhp config final_state
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
                   0 -> 0
-                  _ -> minimum $ map (\(s, _, _, _, _) -> length $ track s) ret
-    let ret' = filter (\(s, _, _, _, _) -> mi == (length $ track s)) ret
+                  _ -> minimum $ map (\(s, _, _, _) -> length $ track s) ret
+    let ret' = filter (\(s, _, _, _) -> mi == (length $ track s)) ret
 
-    return $ map (\(s, rs, es, e, ais) -> (s {track = subVar (model s) (expr_env s) $ track s}, rs, es, e, ais)) ret'
+    return $ map (\(s, es, e, ais) -> (s {track = subVar (model s) (expr_env s) $ track s}, es, e, ais)) ret'
 
 getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
 getGHCInfos proj fp lhlibs = do
@@ -140,7 +140,7 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [LHReturn] -> IO ()
@@ -183,10 +183,10 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+parseLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))]
            -> [LHReturn]
 parseLHOut entry [] = []
-parseLHOut entry ((s, _, inArg, ex, ais):xs) =
+parseLHOut entry ((s, inArg, ex, ais):xs) =
   let tail = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) 
                . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg

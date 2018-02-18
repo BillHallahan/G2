@@ -86,7 +86,7 @@ runGHC as = do
 
   (con, hhp) <- getSMT config
 
-  in_out <- run stdReduce con hhp config init_state
+  in_out <- run stdReduce executeNext con hhp config init_state
 
   -- putStrLn "----------------\n----------------"
 
@@ -94,9 +94,9 @@ runGHC as = do
 
 
 
-printFuncCalls :: T.Text -> [(State t, [Rule], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printFuncCalls :: T.Text -> [(State t, [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
 printFuncCalls entry =
-    mapM_ (\(s, _, inArg, ex, ais) -> do
+    mapM_ (\(s, inArg, ex, ais) -> do
         let funcCall = mkCleanExprHaskell (known_values s) (type_classes s)
                      . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
