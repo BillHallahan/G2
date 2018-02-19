@@ -5,6 +5,7 @@ dist-*
 cabal-dev
 *.o
 *.hi
+*.cfg
 *.chi
 *.chs.h
 *.dyn_o

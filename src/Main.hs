@@ -5,12 +5,14 @@ module Main where
 import System.Environment
 
 import Data.List as L
+import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
 import G2.Lib.Printers
 
 import G2.Internals.Config.Config
+import G2.Internals.Config.Interface
 import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
@@ -43,20 +45,20 @@ main = do
 
 runMultiLHFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
 runMultiLHFile proj prim lhdir libs lhlibs args = do
-  let config = mkConfig args
+  config <- getConfig args
   in_out <- testLiquidDir proj prim lhdir libs lhlibs config
 
   return ()
 
 runSingleLHFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
 runSingleLHFile proj prim lhfile libs lhlibs args = do
-  let config = mkConfig args
+  config <- getConfig args
   in_out <- testLiquidFile proj prim lhfile libs lhlibs config
   printParsedLHOut in_out
 
 runSingleLHFun :: FilePath -> FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO()
 runSingleLHFun proj prim lhfile lhfun libs lhlibs args = do
-  let config = mkConfig args
+  config <- getConfig args
   in_out <- findCounterExamples proj prim lhfile (T.pack lhfun) libs lhlibs config
   printLHOut (T.pack lhfun) in_out
 
@@ -82,7 +84,7 @@ runGHC as = do
 
   -- error $ pprExecStateStr init_state
 
-  let config = mkConfig as
+  config <- getConfig as
 
   (con, hhp) <- getSMT config
 
@@ -110,47 +112,29 @@ printFuncCalls entry =
         putStrLn $ funcCall ++ " = " ++ funcOut)
 
 mAssume :: [String] -> Maybe String
-mAssume a = mArg "--assume" a Just Nothing
+mAssume a = strArg "assume" a M.empty Just Nothing
 
 mAssert :: [String] -> Maybe String
-mAssert a = mArg "--assert" a Just Nothing
+mAssert a = strArg "assert" a M.empty Just Nothing
 
 mReaches :: [String] -> Maybe String
-mReaches a = mArg "--reaches" a Just Nothing
-
-mWrapper :: [String] -> Maybe String
-mWrapper a = mArg "--wrapper" a Just Nothing
-
-mWrapWith :: [String] -> Maybe String
-mWrapWith a = mArg "--wrap-with" a Just Nothing
-
-mWrapperInt :: [String] -> Int
-mWrapperInt a = mArg "--wrap-i" a read (-1)
-
-mkPolyPred :: [String] -> Maybe String
-mkPolyPred a = mArg "--poly-pred" a Just Nothing
-
-mkPolyPredWith :: [String] -> Maybe String
-mkPolyPredWith a = mArg "--poly-pred-with" a Just Nothing
-
-mkPolyPredInt :: [String] -> Int
-mkPolyPredInt a = mArg "--poly-pred-i" a read (-1)
+mReaches a = strArg "reaches" a M.empty Just Nothing
 
 mkLiquid :: [String] -> Maybe String
-mkLiquid a = mArg "--liquid" a Just Nothing
+mkLiquid a = strArg "liquid" a M.empty Just Nothing
 
 mkLiquidFunc :: [String] -> Maybe String
-mkLiquidFunc a = mArg "--liquid-func" a Just Nothing
+mkLiquidFunc a = strArg "liquid-func" a M.empty Just Nothing
 
 mkMapSrc :: [String] -> Maybe String
-mkMapSrc a = mArg "--mapsrc" a Just Nothing
+mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing
 
 mkLiquidLibs :: [String] -> Maybe String
-mkLiquidLibs a = mArg "--liquid-libs" a Just Nothing
+mkLiquidLibs a = strArg "liquid-libs" a M.empty Just Nothing
 
 mkLiquidFileTest :: [String] -> Maybe String
-mkLiquidFileTest a = mArg "--liquid-file-test" a Just Nothing
+mkLiquidFileTest a = strArg "liquid-file-test" a M.empty Just Nothing
 
 mkLiquidDirTest :: [String] -> Maybe String
-mkLiquidDirTest a = mArg "--liquid-dir-test" a Just Nothing
+mkLiquidDirTest a = strArg "liquid-dir-test" a M.empty Just Nothing
 
