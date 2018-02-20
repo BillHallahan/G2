@@ -246,9 +246,9 @@ addADTs n tn ts s =
                         -- number of undefined's.
                         -- In the case of a PrimCon, we still need one undefined if the primitive is not
                         -- in the type env
-                        ts'' = case fdc of
+                        ts'' = case exprInCasts fdc of
                             Data (DataCon _ _ ts') -> map (const $ Name "a" Nothing 0) ts'
-                            _ -> [Name "a" Nothing 0]
+                            _ -> [Name "b" Nothing 0]
 
                         (ns, _) = childrenNames n ts'' (name_gen s)
 

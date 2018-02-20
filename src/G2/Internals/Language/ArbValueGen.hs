@@ -12,6 +12,8 @@ import Data.Maybe
 import Data.Monoid
 import Data.Tuple
 
+import Debug.Trace
+
 data ArbValueGen = ArbValueGen { intGen :: Integer
                                , floatGen :: Rational
                                , doubleGen :: Rational

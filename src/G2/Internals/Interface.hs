@@ -112,12 +112,10 @@ run red sel con hhp config (state@ State { type_env = tenv
     -- error "we managed to get here at least"
     let preproc_state = runPreprocessing swept
 
-
-    (_, mdl) <- checkModel con hhp preproc_state
-
-    let preproc_state_alpha = preproc_state { model = fromJust mdl}
+    let preproc_state_alpha = preproc_state
 
     let preproc_state' = preproc_state_alpha
+
 
     -- timedMsg "after preprocessing"
     -- putStrLn $ pprExecStateStr preproc_state'
