@@ -348,8 +348,11 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     return $ map (\(_, i, o, _) -> (i, o)) r
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
-checkLiquid proj fp entry stps i reqList = do
-    res <- findCounterExamples' proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) [] [] (mkConfigDef {steps = stps})
+checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigDef {steps = stps}) reqList
+
+checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs] -> IO TestTree
+checkLiquidWithConfig proj fp entry i config reqList = do
+    res <- findCounterExamples' proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) [] [] config
 
     let ch = case res of
                 Left _ -> False
