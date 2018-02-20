@@ -546,17 +546,35 @@ freshVar t ngen =
 -- Given the name n of a datacon, and some names for it's children,
 -- returns new names ns for the children
 -- Returns a new NameGen that will always return the same ns for that n
+-- If this is called with different length ns's, the shorter will be the prefix
+-- of the longer
 childrenNames :: Name -> [Name] -> NameGen -> ([Name], NameGen)
 childrenNames n ns ng@(NameGen { dc_children = chm }) =
-    let
-        ens = HM.lookup n chm
+    case HM.lookup n chm of
+        Just ens' -> childrenNamesExisting n ns ens' ng
+        Nothing -> childrenNamesNew n ns ng-- []
 
-        (fns, NameGen hm' chm') = freshSeededNames ns ng
-        chm'' = HM.insert n fns chm'
+childrenNamesExisting :: Name -> [Name] -> [Name] -> NameGen -> ([Name], NameGen)
+childrenNamesExisting n ns ens ng =
+    let
+        (fns, NameGen hm chm) = freshSeededNames (drop (length ens) ns) ng
+        ns' = ens ++ fns
+
+        chm' = HM.insert n ns' chm
     in
-    case ens of
-        Just ns' -> (ns', ng)
-        Nothing -> (fns, NameGen hm' chm'')
+    case length ns `compare` length ens of
+        LT -> (take (length ns) ens, ng)
+        EQ -> (ens, ng)
+        GT -> (ns', NameGen hm chm')
+
+childrenNamesNew :: Name -> [Name] -> NameGen -> ([Name], NameGen)
+childrenNamesNew n ns ng =
+    let
+        (fns, NameGen hm chm) = freshSeededNames ns ng
+        chm' = HM.insert n fns chm
+    in
+    (fns, NameGen hm chm')
+
 
 -- Allows mapping, while passing a NameGen along
 mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)

@@ -293,6 +293,8 @@ smtADTTests =
               checkExprWithConfig "tests/Samples/" "tests/Samples/Peano.hs" (Just "equalsFour") Nothing Nothing "add" 3 (mkConfigDef {steps = 600, smtADTs = True}) [RForAll peano_4_out, Exactly 5]
             , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNth.hs" Nothing Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True}) [AtLeast 10, RForAll getNthTest]
             , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNthPoly.hs" Nothing Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True}) [AtLeast 10]
+
+            , checkLiquidWithConfig "tests/Liquid" "tests/Liquid/Peano.hs" "add" 3 (mkConfigDef {steps = 400, smtADTs = True}) [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 1]
         ]
 
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree

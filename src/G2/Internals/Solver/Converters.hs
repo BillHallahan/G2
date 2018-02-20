@@ -72,7 +72,8 @@ addSetLogic xs =
         nra = isNRA xs
         nira = isNIRA xs
 
-        sl = if lia then SetLogic QF_LIA else
+        sl = if any isSortDecl xs then SetLogic ALL else
+             if lia then SetLogic QF_LIA else
              if lra then SetLogic QF_LRA else
              if lira then SetLogic QF_LIRA else
              if nia then SetLogic QF_NIA else
@@ -80,6 +81,10 @@ addSetLogic xs =
              if nira then SetLogic QF_NIRA else SetLogic ALL
     in
     sl:xs
+
+isSortDecl :: SMTHeader -> Bool
+isSortDecl (SortDecl _) = True
+isSortDecl _ = False
 
 isNIA :: (ASTContainer m SMTAST) => m -> Bool
 isNIA = getAll . evalASTs isNIA'
