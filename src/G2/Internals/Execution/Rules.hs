@@ -182,10 +182,10 @@ liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
 liftSymDefAltPCs mexpr lit@(LitAlt _) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ Default = Nothing
 
-isType :: Expr -> Bool
-isType (Type _) = True
-isType (Var (Id _ (TyVar _))) = True
-isType _ = False
+removeType :: Type -> [Expr] -> [Expr]
+removeType (TyForAll _ t) (e:es) = removeType t es
+removeType (TyFun _ t) (e:es) = e : removeType t es
+removeType _ es = es
 
 -- | Trace the type contained in an expression of type TYPE.
 traceTYPE :: Expr -> E.ExprEnv -> Type
@@ -500,8 +500,8 @@ reduceCase eenv mexpr bind alts ngen
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  -- , ar' <- filter (\e -> case e of { Type _ -> False; _ -> True }) ar
-  , ar' <- filter (not . isType) ar
+  , (DataCon _ dty _) <- dcon
+  , ar' <- removeType dty ar
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
       let
