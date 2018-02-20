@@ -56,8 +56,6 @@ translateLoadedV proj src libs simpl config = do
   --     (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
   --     translateLibs [base] e_nm e_tnm simpl
 
-  print $ base config
-
   ((base_prog, base_tys, base_cls), b_nm, b_tnm) <-
       (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
       translateLibs specialConstructors specialTypeNames simpl (base config)-- ["../base-4.9.1.0/Control/Exception/Base.hs", base]

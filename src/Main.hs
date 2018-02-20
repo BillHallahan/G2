@@ -24,8 +24,7 @@ import G2.Internals.Liquid.Interface
 main :: IO ()
 main = do
   as <- getArgs
-  let (proj:prims:_) = as
-
+  let (proj:_) = as
 
   let m_liquid_file = mkLiquid as
   let m_liquid_func = mkLiquidFunc as
@@ -64,7 +63,7 @@ runSingleLHFun proj lhfile lhfun libs lhlibs args = do
 
 runGHC :: [String] -> IO ()
 runGHC as = do
-  let (proj:src:base:entry:tail_args) = as
+  let (proj:src:entry:tail_args) = as
 
   --Get args
   let m_assume = mAssume tail_args

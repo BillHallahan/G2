@@ -3,8 +3,7 @@ import subprocess
 import sys
 
 proj = sys.argv[1]
-base = sys.argv[2]
-lhdir = sys.argv[3]
+lhdir = sys.argv[2]
 
 dumps = "lh-dumps"
 
@@ -18,7 +17,7 @@ if not os.path.exists(dumps):
   os.makedirs(dumps)
 
 for f in absoluteFilePaths(lhdir):
-  run = "time cabal run G2 -- {0} {1} --liquid-file-test {2}" \
+  run = "time cabal run G2 -- {0} --liquid-file-test {2}" \
         .format(proj, base, f)
 
   print run
