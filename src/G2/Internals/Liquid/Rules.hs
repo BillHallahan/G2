@@ -30,10 +30,10 @@ import Debug.Trace
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: State [(Name, [Expr], Expr)] -> (Rule, [ReduceResult [(Name, [Expr], Expr)]])
+lhReduce :: State [FuncCall] -> (Rule, [ReduceResult [FuncCall]])
 lhReduce = stdReduceBase lhReduce'
 
-lhReduce' :: State [(Name, [Expr], Expr)] -> Maybe (Rule, [ReduceResult [(Name, [Expr], Expr)]])
+lhReduce' :: State [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
 lhReduce' State { expr_env = eenv
                , curr_expr = CurrExpr Evaluate vv@(Let [(b, e)] a@(Assert _ _ _))
                , name_gen = ng
@@ -58,8 +58,8 @@ lhReduce' State { expr_env = eenv
         Just $ (r, states ++ maybeToList sb)
 lhReduce' _ = Nothing
 
-symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [(Name, [Expr], Expr)] -> Maybe (ReduceResult [(Name, [Expr], Expr)])
-symbState eenv cexpr@(Let [(b, _)] (Assert (Just (fn, ars, re)) e e')) ng at stck tr =
+symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [FuncCall] -> Maybe (ReduceResult [FuncCall])
+symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e e')) ng at stck tr =
     let
         cexprT = returnType cexpr
 
@@ -82,11 +82,11 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (fn, ars, re)) e e')) ng at stc
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (fn, map Var ars, Var i):tr)
+        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (FuncCall {funcName = fn, arguments = ars, returns = Var i}):tr)
         False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
 
-selectLH :: [([Int], State [(Name, [Expr], Expr)])] -> [(([Int], State [(Name, [Expr], Expr)]), Int)] -> [(([Int], State [(Name, [Expr], Expr)]), Int)]
+selectLH :: [([Int], State [FuncCall])] -> [(([Int], State [FuncCall]), Int)] -> [(([Int], State [FuncCall]), Int)]
 selectLH solved next =
     let
         mi = case solved of
@@ -96,6 +96,6 @@ selectLH solved next =
     in
     next'
 
-trackingGreater :: State [(Name, [Expr], Expr)] -> Maybe Int -> Bool
+trackingGreater :: State [FuncCall] -> Maybe Int -> Bool
 trackingGreater (State {track = tr}) (Just i) = length tr > i
 trackingGreater _ _ = False

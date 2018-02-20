@@ -214,7 +214,7 @@ lookupForPrim e _ = e
 -- semantics with heap memoization.
 
 -- | Result of a Evaluate reduction.
-type ReduceResult t = (E.ExprEnv, CurrExpr, [Constraint], [Assertion], Maybe (Name, [Id], Id), NameGen, S.Stack Frame, [Id], t)
+type ReduceResult t = (E.ExprEnv, CurrExpr, [Constraint], [Assertion], Maybe FuncCall, NameGen, S.Stack Frame, [Id], t)
 
 reduce :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO [State t]
 reduce red con hpp config s = do

@@ -280,6 +280,16 @@ instance ASTContainer Coercion Type where
     containedASTs (t :~ t') = [t, t']
     modifyContainedASTs f (t :~ t') = f t :~ f t'
 
+instance ASTContainer FuncCall Expr where
+    containedASTs (FuncCall { arguments = as, returns = r}) = as ++ [r]
+    modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) = 
+        fc {arguments = map f as, returns = f r}
+
+instance ASTContainer FuncCall Type where
+    containedASTs (FuncCall { arguments = as, returns = r}) = containedASTs as ++ containedASTs r
+    modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) = 
+        fc {arguments = modifyContainedASTs f as, returns = modifyContainedASTs f r}
+
 instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
     containedASTs = foldMap (containedASTs)
 

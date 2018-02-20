@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Internals.Liquid.TCGen (createLHTC) where
+module G2.Internals.Liquid.TCGen (createLHTC, genTC) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
@@ -119,9 +119,9 @@ createLHTC s@(State { expr_env = eenv
         ([lhTCN, lhEqN, lhNeN, lhLtN, lhLeN, lhGtN, lhGeN, lhPPN], ng2) = 
             freshSeededStrings ["LH", "LHEq", "LHNe", "LHlt", "LHle", "LHgt", "LHge", "LHpp"] ng
 
-        (eenv2, ng3, eq_w) = createFuncs eenv ng2 tenv' M.empty (lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts) eqFuncCall eenv tenv kv)
+        (eenv2, ng3, eq_w) = createFuncs eenv ng2 tenv' M.empty (lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts) eqLHFuncCall eenv tenv kv)
         (eenv3, ng4, neq_w) = createFuncs eenv2 ng3 tenv' M.empty (lhNeqName . fst) lhStore (lhNeqExpr eq_w eenv2)
-        (eenv4, ng5, lt_w) = createFuncs eenv3 ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN lhLtCase2Alts ltFuncCall eenv3 tenv kv)
+        (eenv4, ng5, lt_w) = createFuncs eenv3 ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN lhLtCase2Alts ltLHFuncCall eenv3 tenv kv)
         (eenv5, ng6, le_w) = createFuncs eenv4 ng5 tenv' M.empty (lhLeName . fst) lhStore (lhLeExpr lt_w eq_w eenv4)
         (eenv6, ng7, gt_w) = createFuncs eenv5 ng6 tenv' M.empty (lhGtName . fst) lhStore (lhGtExpr lt_w eenv5)
         (eenv7, ng8, ge_w) = createFuncs eenv6 ng7 tenv' M.empty (lhGeName . fst) lhStore (lhGeExpr le_w eenv6)
@@ -189,7 +189,7 @@ boundNameBindings lh adt ng =
 lhEqName :: Name -> Name
 lhEqName (Name n _ _) = Name ("lhEqName" `T.append` n) Nothing 0
 
-lhTEnvExpr :: Name -> Case2Alts -> FuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+lhTEnvExpr :: Name -> Case2Alts -> LHFuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhTEnvExpr lh ca fc eenv tenv kv w (n, adt) ng =
     let
         (adt', bni, wbni, ng'') = boundNameBindings lh adt ng
@@ -202,7 +202,7 @@ lhTEnvExpr lh ca fc eenv tenv kv w (n, adt) ng =
     in
     (foldr Lam e (bni ++ wbni), ng''')
 
-lhTEnvCase :: Case2Alts -> FuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Name -> [Name] -> AlgDataTy -> NameGen -> (Expr, NameGen)
+lhTEnvCase :: Case2Alts -> LHFuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Name -> [Name] -> AlgDataTy -> NameGen -> (Expr, NameGen)
 lhTEnvCase ca _ eenv tenv kv w ti n bn (DataTyCon {data_cons = dc}) ng =
     let
         t = TyConApp n $ map (TyVar . flip Id TYPE) bn
@@ -267,16 +267,16 @@ lhEqCase2Alts eenv tenv kv w ti _ _ binds1 dc@(DataCon _ _ ts) ng =
         pt = TyFun b (TyFun b b)
 
         e = foldr (\e' -> App (App (Prim And pt) e')) true
-          $ map (uncurry (eqFuncCall eenv tenv kv w ti)) zbinds
+          $ map (uncurry (eqLHFuncCall eenv tenv kv w ti)) zbinds
     in
      ([ Alt (DataAlt dc binds2) e
       , Alt Default false ]
      , ng2)
 
-type FuncCall = ExprEnv -> TypeEnv -> KnownValues ->  Walkers -> [(Name, Id)] -> Expr -> Expr -> Expr
+type LHFuncCall = ExprEnv -> TypeEnv -> KnownValues ->  Walkers -> [(Name, Id)] -> Expr -> Expr -> Expr
 
-eqFuncCall :: FuncCall
-eqFuncCall _ tenv kv w ti e e'
+eqLHFuncCall :: LHFuncCall
+eqLHFuncCall _ tenv kv w ti e e'
     | (TyConApp n ts) <- typeOf e
     , Just f <- M.lookup n w =
         let
@@ -299,7 +299,7 @@ eqFuncCall _ tenv kv w ti e e'
             pt = TyFun t (TyFun t b)
         in
         App (App (Prim Eq pt) e) e'
-    | otherwise = error $ "\nError in eqFuncCall" ++ show (typeOf e)
+    | otherwise = error $ "\nError in eqLHFuncCall" ++ show (typeOf e)
 
 eqFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
 eqFunc _ ti (TyVar (Id n _)) 
@@ -376,8 +376,8 @@ lhLtSameAlt eenv tenv kv w ti binds1 ng dc@(DataCon _ _ ts) =
 
         zbinds = zip (map Var binds1) (map Var binds2)
 
-        ltB = map (uncurry (ltFuncCall eenv tenv kv w ti)) zbinds
-        eqB = map (uncurry (eqFuncCall eenv tenv kv w ti)) zbinds
+        ltB = map (uncurry (ltLHFuncCall eenv tenv kv w ti)) zbinds
+        eqB = map (uncurry (eqLHFuncCall eenv tenv kv w ti)) zbinds
 
         zipB = zip ltB eqB
 
@@ -409,8 +409,8 @@ lhLtSameAltCases tenv kv ng ((lt, eq):xs) =
     in
     (c, ng3)
 
-ltFuncCall :: FuncCall
-ltFuncCall _ tenv kv w ti e e'
+ltLHFuncCall :: LHFuncCall
+ltLHFuncCall _ tenv kv w ti e e'
     | (TyConApp n ts) <- typeOf e
     , Just f <- M.lookup n w =
         let
@@ -433,7 +433,7 @@ ltFuncCall _ tenv kv w ti e e'
             pt = TyFun t (TyFun t b)
         in
         App (App (Prim Lt pt) e) e'
-    | otherwise = error $ "\nError in ltFuncCall" ++ show (typeOf e)
+    | otherwise = error $ "\nError in ltLHFuncCall" ++ show (typeOf e)
 
 ltFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
 ltFunc _ ti (TyVar (Id n _)) 
@@ -569,7 +569,7 @@ lhPolyPredCase _ tenv kv w n (NewTyCon { rep_type = t }) bn bnf ng =
 
         cast = Cast (Var i) (t' :~ t)
 
-        e = polyPredFuncCall (mkTrue kv tenv) w bnf caseB
+        e = polyPredLHFuncCall (mkTrue kv tenv) w bnf caseB
 
         alt = Alt Default e
 
@@ -602,7 +602,7 @@ lhPolyPredCaseExpr eenv tenv kv w bn bnf =
         an = mkAnd eenv
         true = mkTrue kv tenv
 
-        fs = map (polyPredFuncCall true w bnf) $ filter (not . isTyVar . typeOf) bn
+        fs = map (polyPredLHFuncCall true w bnf) $ filter (not . isTyVar . typeOf) bn
     in
     foldr (\e -> App (App an e)) true $ pc ++ fs
 
@@ -615,8 +615,8 @@ predCalls bnf i@(Id _ (TyVar tvi)) =
         Just fi' -> App (Var fi') (Var i)
         Nothing -> error $ "No function found in predCalls " ++ show i ++ "\n" ++ show bnf
 
-polyPredFuncCall :: Expr -> Walkers -> [(Name, Id)] -> Id -> Expr
-polyPredFuncCall true w bnf i
+polyPredLHFuncCall :: Expr -> Walkers -> [(Name, Id)] -> Id -> Expr
+polyPredLHFuncCall true w bnf i
     | TyConApp n ts <- typeOf i
     , Just f <- M.lookup n w =
         let

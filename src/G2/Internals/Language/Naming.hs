@@ -220,7 +220,7 @@ renameExpr' old new (Data d) = Data (renameExprDataCon old new d)
 renameExpr' old new (Lam i e) = Lam (renameExprId old new i) e
 renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
 renameExpr' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAlt old new) a
-renameExpr' old new (Assert is e e') = Assert (fmap (renameAssertTrackExpr old new) is) e e'
+renameExpr' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
 renameExpr' _ _ e = e
 
 
@@ -232,7 +232,7 @@ renameVars' old new (Var i) = Var (renameExprId old new i)
 renameVars' old new (Lam i e) = Lam (renameExprId old new i) e
 renameVars' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
 renameVars' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAltIds old new) a
-renameVars' old new (Assert is e e') = Assert (fmap (renameAssertTrackExpr old new) is) e e'
+renameVars' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
 renameVars' _ _ e = e
 
 
@@ -259,8 +259,6 @@ renameExprAltIds old new (Alt (DataAlt dc is) e) =
     Alt (DataAlt dc is') e
 renameExprAltIds _ _ a = a
 
-renameAssertTrackExpr :: Name -> Name -> (Name, [Id], Id) -> (Name, [Id], Id)
-renameAssertTrackExpr old new (n, is, i) = (rename old new n, map (renameExprId old new) is, renameExprId old new i)
 
 instance Named Type where
     names = eval go
@@ -351,6 +349,14 @@ instance Named Coercion where
     names (t1 :~ t2) = names t1 ++ names t2
     rename old new (t1 :~ t2) = rename old new t1 :~ rename old new t2
     renames hm (t1 :~ t2) = renames hm t1 :~ renames hm t2
+
+instance Named FuncCall where
+    names (FuncCall {funcName = n, arguments = as, returns = r}) = n:names as ++ names r
+    rename old new (FuncCall {funcName = n, arguments = as, returns = r}) = 
+        FuncCall {funcName = rename old new n, arguments = rename old new as, returns = rename old new r}
+    renames hm (FuncCall {funcName = n, arguments = as, returns = r} ) =
+        FuncCall {funcName = renames hm n, arguments = renames hm as, returns = renames hm r}
+
 
 instance Named AlgDataTy where
     names (DataTyCon ns dc) = ns ++ names dc

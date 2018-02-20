@@ -28,14 +28,14 @@ import Data.Maybe
 
 import Debug.Trace
 
-subModel :: State t -> ([Expr], Expr, Maybe (Name, [Expr], Expr))
+subModel :: State t -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
                 , input_ids = is
                 , symbolic_ids = sid
                 , assert_ids = ais
                 , model = m}) =
-    subVar m eenv (map Var is, cexpr, fmap (\(n, ais', sis) -> (n, map Var ais', Var sis)) ais)
+    subVar m eenv (map Var is, cexpr, ais)
 
 subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> m -> m
 subVar em eenv = modifyContainedVars (subVar' em eenv)

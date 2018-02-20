@@ -83,7 +83,7 @@ mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
 run :: (ASTContainer t Expr, ASTContainer t Type, Named t) => 
-    (State t -> (Rule, [ReduceResult t])) -> ([([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe (Name, [Expr], Expr))]
+    (State t -> (Rule, [ReduceResult t])) -> ([([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
 run red sel con hhp config (state@ State { type_env = tenv
                                  , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state

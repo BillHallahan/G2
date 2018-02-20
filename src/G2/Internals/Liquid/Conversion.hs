@@ -205,10 +205,14 @@ addAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
         (b', ng'') = freshId (returnType e) ng'
 
         st' = convertAssertSpecType tcv (s { expr_env = meenv }) st b' Nothing
+
         newE = 
             insertInLams 
-                (\is e' -> 
-                    Let [(b, e')] $ Lang.Assert (Just (n, is, b)) (mkApp $ st':map Var is ++ [Var b]) (Var b))
+                (\is e' ->
+                    let 
+                        fc = FuncCall {funcName = n, arguments = map Var is, returns = Var b}
+                    in
+                    Let [(b, e')] $ Lang.Assert (Just fc) (mkApp $ st':map Var is ++ [Var b]) (Var b))
                 e
     in
     s { expr_env = E.insert n newE eenv
@@ -224,11 +228,15 @@ addAssumeAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
 
         assumest' = convertAssumeSpecType tcv (s { expr_env = meenv }) st
         assertst' = convertAssertSpecType tcv (s { expr_env = meenv }) st b' Nothing
+
         newE =
             insertInLams 
                 (\is e' -> 
+                    let
+                        fc = FuncCall {funcName = n, arguments = map Var is, returns = Var b}
+                    in
                     Let [(b, e')] $ Lang.Assume (mkApp $ assumest':map Var is)
-                                  $ Lang.Assert (Just (n, is, b)) (mkApp $ assertst':map Var is ++ [Var b]) (Var b))
+                                  $ Lang.Assert (Just fc) (mkApp $ assertst':map Var is ++ [Var b]) (Var b))
                 e
     in
     s { expr_env = E.insert n newE eenv
@@ -250,8 +258,11 @@ addTrueAsserts' mn kv tenv tcn bn n@(Name nn _ _) e =
         b = Id bn t
     
         ee = insertInLams 
-                (\is e' -> 
-                    Let [(b, e')] $ Lang.Assert (Just (n, is, b)) (mkTrue kv tenv) (Var b))
+                (\is e' ->
+                    let
+                        fc = FuncCall {funcName = n, arguments = map Var is, returns = Var b}
+                    in
+                    Let [(b, e')] $ Lang.Assert (Just fc) (mkTrue kv tenv) (Var b))
                 e
     in
     if not (hasAssert e) && not (n `elem` tcn) && moduleName n `elem` mn then ee else e

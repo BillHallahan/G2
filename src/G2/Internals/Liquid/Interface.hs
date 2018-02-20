@@ -51,7 +51,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
 findCounterExamples proj fp entry libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_trans <- translateLoaded proj fp libs False config
@@ -60,7 +60,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
                     -> [GhcInfo]
                     -> Config
-          -> IO [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+          -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
 runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
@@ -140,7 +140,7 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))] -> IO ()
+printLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [LHReturn] -> IO ()
@@ -183,7 +183,7 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: T.Text -> [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+parseLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
            -> [LHReturn]
 parseLHOut entry [] = []
 parseLHOut entry ((s, inArg, ex, ais):xs) =
@@ -191,7 +191,6 @@ parseLHOut entry ((s, inArg, ex, ais):xs) =
       funcCall = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) 
                . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) $ ex
-
 
       called = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
       viFunc = fmap (parseLHFuncTuple s) ais
@@ -202,10 +201,10 @@ parseLHOut entry ((s, inArg, ex, ais):xs) =
            , violating = if Just called == viFunc then Nothing else viFunc
            , abstracted = abs} : tail
 
-parseLHFuncTuple :: State t -> (Name, [Expr], Expr) -> FuncInfo
-parseLHFuncTuple s (n@(Name n' _ _), ais, out) =
+parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
+parseLHFuncTuple s (FuncCall {funcName = n@(Name n' _ _), arguments = ars, returns = out}) =
     FuncInfo { func = n'
-             , funcArgs = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n TyBottom)) ais)
+             , funcArgs = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n TyBottom)) ars)
              , funcReturn = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) out }
 
 testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config

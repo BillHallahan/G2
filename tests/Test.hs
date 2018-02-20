@@ -364,7 +364,7 @@ checkLiquidWithConfig proj fp entry i config reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n") ch
 
-findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))])
+findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [FuncCall], [Expr], Expr, Maybe FuncCall)])
 findCounterExamples' proj fp entry libs lhlibs config = try (findCounterExamples proj fp entry libs lhlibs config)
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool

@@ -35,7 +35,7 @@ instance Hashable Id
 
 idName :: Id -> Name
 idName (Id name _) = name
-
+ 
 -- | Expressions are defined as:
 --   * Variables
 --   * Literals such as unwrapped Int# types
@@ -58,7 +58,7 @@ data Expr = Var Id
           | Cast Expr Coercion
           | Coercion Coercion
           | Assume Expr Expr
-          | Assert (Maybe (Name, [Id], Id)) Expr Expr
+          | Assert (Maybe FuncCall) Expr Expr
           deriving (Show, Eq, Read, Generic)
 
 instance Hashable Expr
@@ -169,3 +169,10 @@ data Type = TyVar Id
           deriving (Show, Eq, Read, Generic)
 
 instance Hashable Type
+
+-- | Represents a function call, with it's arguments and return value as Expr
+data FuncCall = FuncCall { funcName :: Name
+                         , arguments :: [Expr]
+                         , returns :: Expr } deriving (Show, Eq, Read, Generic)
+
+instance Hashable FuncCall

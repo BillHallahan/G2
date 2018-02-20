@@ -41,7 +41,7 @@ data State t = State { expr_env :: E.ExprEnv
                    , name_gen :: NameGen
                    , path_conds :: PathConds
                    , true_assert :: Bool
-                   , assert_ids :: Maybe (Name, [Id], Id)
+                   , assert_ids :: Maybe FuncCall
                    , type_classes :: TypeClasses
                    , sym_links :: SymLinks
                    , input_ids :: InputIds
@@ -131,7 +131,7 @@ data Frame = CaseFrame Id [Alt]
            | UpdateFrame Name
            | CastFrame Coercion
            | AssumeFrame Expr
-           | AssertFrame (Maybe (Name, [Id], Id)) Expr
+           | AssertFrame (Maybe FuncCall) Expr
            deriving (Show, Eq, Read)
 
 type Model = M.Map Name Expr
