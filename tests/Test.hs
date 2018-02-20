@@ -339,7 +339,7 @@ testFile proj src m_assume m_assert m_reaches entry config =
 
 testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO ([([Expr], Expr)])
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
-    (mb_modname, binds, tycons, cls, _) <- translateLoaded proj src "../base-4.9.1.0/Prelude.hs" [] True
+    (mb_modname, binds, tycons, cls, _) <- translateLoaded proj src [] True config
 
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname
 
@@ -354,7 +354,7 @@ checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i
 
 checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs] -> IO TestTree
 checkLiquidWithConfig proj fp entry i config reqList = do
-    res <- findCounterExamples' proj "../base-4.9.1.0/Prelude.hs" fp (T.pack entry) [] [] config
+    res <- findCounterExamples' proj fp (T.pack entry) [] [] config
 
     let ch = case res of
                 Left _ -> False
@@ -364,8 +364,8 @@ checkLiquidWithConfig proj fp entry i config reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n") ch
 
-findCounterExamples' :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))])
-findCounterExamples' proj primF fp entry libs lhlibs config = try (findCounterExamples proj primF fp entry libs lhlibs config)
+findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))])
+findCounterExamples' proj fp entry libs lhlibs config = try (findCounterExamples proj fp entry libs lhlibs config)
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False

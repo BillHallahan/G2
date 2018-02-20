@@ -51,10 +51,10 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))]
-findCounterExamples proj primF fp entry libs lhlibs config = do
+findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [(Name, [Expr], Expr)], [Expr], Expr, Maybe (Name, [Expr], Expr))]
+findCounterExamples proj fp entry libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
-    tgt_trans <- translateLoaded proj fp primF libs False
+    tgt_trans <- translateLoaded proj fp libs False config
     runLHCore entry tgt_trans ghcInfos config
 
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
@@ -208,11 +208,11 @@ parseLHFuncTuple s (n@(Name n' _ _), ais, out) =
              , funcArgs = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n TyBottom)) ais)
              , funcReturn = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) out }
 
-testLiquidFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
+testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
                -> IO [LHReturn]
-testLiquidFile proj primF fp libs lhlibs config = do
+testLiquidFile proj fp libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
-    tgt_transv <- translateLoadedV proj fp primF libs False
+    tgt_transv <- translateLoadedV proj fp libs False config
 
     let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns) = tgt_transv
     let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns)
@@ -227,14 +227,14 @@ testLiquidFile proj primF fp libs lhlibs config = do
     fmap concat $ mapM (\e -> runLHCore e tgt_trans ghcInfos config >>= (return . parseLHOut e))
                        cleaned_tgt_lhs
 
-testLiquidDir :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
+testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
               -> IO [(FilePath, [LHReturn])]
-testLiquidDir proj primF dir libs lhlibs config = do
+testLiquidDir proj dir libs lhlibs config = do
   raw_files <- listDirectory dir
   let hs_files = filter (\a -> (".hs" `isSuffixOf` a) || (".lhs" `isSuffixOf` a)) raw_files
   
   results <- mapM (\file -> do
-      res <- testLiquidFile proj primF file libs lhlibs config
+      res <- testLiquidFile proj file libs lhlibs config
       return (file, res)
     ) hs_files
 

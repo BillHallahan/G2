@@ -7,7 +7,8 @@ import qualified Data.Map as M
 data SMTSolver = Z3 | CVC4
 
 data Config = Config {
-      logStates :: Maybe String -- If Just, dumps all thes states into the given folder
+      base :: [FilePath] -- Filepath(s) to base libraries.  Get compiled in order from left to right
+    , logStates :: Maybe String -- If Just, dumps all thes states into the given folder
     , smt :: SMTSolver -- Sets the SMT solver to solve constraints with
     , smtADTs :: Bool -- If True, uses the SMT solver to solve ADT constraints, else uses a more efficient algorithm
     , steps :: Int -- How many steps to take when running States
@@ -18,7 +19,8 @@ mkConfigDef = mkConfig [] M.empty
 
 mkConfig :: [String] -> M.Map String [String] -> Config
 mkConfig as m = Config {
-      logStates = strArg "log-states" as m Just Nothing
+      base = strArgs "base" as m id ["../base-4.9.1.0/Control/Exception/Base.hs", "../base-4.9.1.0/Prelude.hs"]
+    , logStates = strArg "log-states" as m Just Nothing
     , smt = strArg "smt" as m smtSolverArg Z3
     , smtADTs = boolArg "smt-adts" as m False
     , steps = strArg "n" as m read 500
@@ -71,3 +73,16 @@ strArg s a m f d =
 strToArg :: [String] -> (String -> a) -> a -> a
 strToArg [s] f _ = f s
 strToArg _ _ d = d
+
+strArgs :: String -> [String] -> M.Map String [String] -> (String -> a) -> [a] -> [a]
+strArgs s a m f d = 
+    case elemIndex ("--" ++ s) a of
+        Just i -> if i >= length a
+                      then error ("Invalid use of " ++ s)
+                      else [f (a !! (i + 1))]
+        Nothing -> case M.lookup s m of 
+                      Just st -> strsToArgs st f
+                      Nothing -> d
+
+strsToArgs :: [String] -> (String -> a) -> [a]
+strsToArgs =  flip map

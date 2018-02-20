@@ -36,30 +36,30 @@ main = do
   let lhlibs = maybeToList $ mkLiquidLibs as
 
   case m_filetest of
-    Just lhfile -> runSingleLHFile proj prims lhfile libs lhlibs as
+    Just lhfile -> runSingleLHFile proj lhfile libs lhlibs as
     Nothing -> case m_dirtest of
-      Just dir -> runMultiLHFile proj prims dir libs lhlibs as
+      Just dir -> runMultiLHFile proj dir libs lhlibs as
       Nothing -> case (m_liquid_file, m_liquid_func) of
-        (Just lhfile, Just lhfun) -> runSingleLHFun proj prims lhfile lhfun libs lhlibs as
+        (Just lhfile, Just lhfun) -> runSingleLHFun proj lhfile lhfun libs lhlibs as
         _ -> runGHC as
 
-runMultiLHFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
-runMultiLHFile proj prim lhdir libs lhlibs args = do
+runMultiLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
+runMultiLHFile proj lhdir libs lhlibs args = do
   config <- getConfig args
-  in_out <- testLiquidDir proj prim lhdir libs lhlibs config
+  in_out <- testLiquidDir proj lhdir libs lhlibs config
 
   return ()
 
-runSingleLHFile :: FilePath -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
-runSingleLHFile proj prim lhfile libs lhlibs args = do
+runSingleLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
+runSingleLHFile proj lhfile libs lhlibs args = do
   config <- getConfig args
-  in_out <- testLiquidFile proj prim lhfile libs lhlibs config
+  in_out <- testLiquidFile proj lhfile libs lhlibs config
   printParsedLHOut in_out
 
-runSingleLHFun :: FilePath -> FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO()
-runSingleLHFun proj prim lhfile lhfun libs lhlibs args = do
+runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO()
+runSingleLHFun proj lhfile lhfun libs lhlibs args = do
   config <- getConfig args
-  in_out <- findCounterExamples proj prim lhfile (T.pack lhfun) libs lhlibs config
+  in_out <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
   printLHOut (T.pack lhfun) in_out
 
 runGHC :: [String] -> IO ()
@@ -77,14 +77,14 @@ runGHC as = do
 
   let libs = maybeToList m_mapsrc
 
-  (mb_modname, pre_binds, pre_tycons, pre_cls,_) <- translateLoaded proj src base libs True
+  config <- getConfig as
+
+  (mb_modname, pre_binds, pre_tycons, pre_cls,_) <- translateLoaded proj src libs True config
 
   let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
   let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry mb_modname
 
   -- error $ pprExecStateStr init_state
-
-  config <- getConfig as
 
   (con, hhp) <- getSMT config
 
