@@ -41,4 +41,6 @@ data KnownValues = KnownValues {
 
                  , andFunc :: Name
                  , orFunc :: Name
+
+                 , patErrorFunc :: Name
                  } deriving (Show, Eq, Read)

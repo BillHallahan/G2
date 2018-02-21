@@ -402,10 +402,12 @@ instance Named KnownValues where
 
             , andFunc = andF
             , orFunc = orF
+
+            , patErrorFunc = patE
             }) =
             [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF, tList, tCons, tEmp
             , eqT, numT, ordT, integralT, eqF, neqF, geF, gtF, ltF, leF
-            , andF, orF]
+            , andF, orF, patE]
 
     rename old new (KnownValues {
                      dcInt = dI
@@ -440,6 +442,8 @@ instance Named KnownValues where
 
                    , andFunc = andF
                    , orFunc = orF
+
+                   , patErrorFunc = patE
                    }) =
                     (KnownValues {
                           dcInt = rename old new dI
@@ -473,6 +477,8 @@ instance Named KnownValues where
 
                         , andFunc = rename old new andF
                         , orFunc = rename old new orF
+
+                        , patErrorFunc = rename old new patE
                         })
 
 instance (Foldable f, Functor f, Named a) => Named (f a) where

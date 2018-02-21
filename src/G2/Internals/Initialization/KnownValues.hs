@@ -47,6 +47,8 @@ initKnownValues eenv tenv =
 
     , andFunc = exprWithStrName eenv "&&"
     , orFunc = exprWithStrName eenv "||"
+
+    , patErrorFunc = exprWithStrName eenv "patError"
     }
 
 exprWithStrName :: E.ExprEnv -> T.Text -> Name

@@ -15,6 +15,7 @@ import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.Measures
 import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.SimplifyAsserts
+import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Solver
 
@@ -76,7 +77,9 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv merged_state
 
-    let final_state = beta_red_state {track = []}
+    let spec_assert_state = addSpecialAsserts beta_red_state
+
+    let final_state = spec_assert_state {track = []}
 
     (con, hhp) <- getSMT config
 
