@@ -31,6 +31,7 @@ import G2.Internals.Language.PathConds hiding (map)
 import G2.Internals.Execution.RuleTypes
 
 import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 -- | The State is something that is passed around in G2. It can be utilized to
@@ -208,6 +209,31 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
                , rules = rules s
                , track = rename old new (track s) }
 
+    renames hm s =
+        State { expr_env = renames hm (expr_env s)
+               , type_env =
+                    M.mapKeys (renames hm)
+                    $ renames hm (type_env s)
+               , curr_expr = renames hm (curr_expr s)
+               , name_gen = name_gen s
+               , path_conds = renames hm (path_conds s)
+               , true_assert = true_assert s
+               , assert_ids = renames hm (assert_ids s)
+               , type_classes = renames hm (type_classes s)
+               , input_ids = renames hm (input_ids s)
+               , symbolic_ids = renames hm (symbolic_ids s)
+               , sym_links = renames hm (sym_links s)
+               , func_table = renames hm (func_table s)
+               , apply_types = renames hm (apply_types s)
+               , deepseq_walkers = renames hm (deepseq_walkers s)
+               , exec_stack = renames hm (exec_stack s)
+               , model = renames hm (model s)
+               , arbValueGen = arbValueGen s
+               , known_values = renames hm (known_values s)
+               , cleaned_names = foldr (uncurry M.insert) (cleaned_names s) (HM.toList hm)
+               , rules = rules s
+               , track = renames hm (track s) }
+
 -- | TypeClass definitions
 instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++
@@ -295,14 +321,17 @@ instance ASTContainer Frame Type where
 
 instance Named CurrExpr where
     names (CurrExpr _ e) = names e
-
     rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
+    renames hm (CurrExpr er e) = CurrExpr er $ renames hm e
 
 instance Named FuncInterps where
     names (FuncInterps m) = M.keys m ++ (map fst $ M.elems m) 
 
     rename old new (FuncInterps m) =
         FuncInterps . M.mapKeys (rename old new) . M.map (\(n, i) -> (rename old new n, i)) $ m
+
+    renames hm (FuncInterps m) =
+        FuncInterps . M.mapKeys (renames hm) . M.map (\(n, i) -> (renames hm n, i)) $ m
 
 instance Named Frame where
     names (CaseFrame i a) = names i ++ names a
@@ -318,3 +347,10 @@ instance Named Frame where
     rename old new (CastFrame c) = CastFrame (rename old new c)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
+
+    renames hm (CaseFrame i a) = CaseFrame (renames hm i) (renames hm a)
+    renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
+    renames hm (UpdateFrame n) = UpdateFrame (renames hm n)
+    renames hm (CastFrame c) = CastFrame (renames hm c)
+    renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
+    renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)

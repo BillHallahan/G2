@@ -82,11 +82,15 @@ instance Named TypeClasses where
     names = names . (coerce :: TypeClasses -> TCType)
     rename old new (TypeClasses m) =
         coerce $ M.mapKeys (rename old new) $ rename old new m
+    renames hm (TypeClasses m) =
+        coerce $ M.mapKeys (renames hm) $ renames hm m
 
 instance Named Class where
     names = names . insts
     rename old new c = Class { insts = rename old new $ insts c
                              , typ_ids = rename old new $ typ_ids c }
+    renames hm c = Class { insts = renames hm $ insts c
+                         , typ_ids = renames hm $ typ_ids c }
 
 eqTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
 eqTCDict kv tc t = lookupTCDict tc (eqTC kv) t

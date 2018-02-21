@@ -193,13 +193,6 @@ vars' :: Expr -> [Expr]
 vars' v@(Var _) = [v]
 vars' _ = []
 
-varNames :: (ASTContainer m Expr) => m -> [Name]
-varNames = evalASTs varNames'
-
-varNames' :: Expr -> [Name]
-varNames' (Var (Id n _)) = [n]
-varNames' _ = []
-
 varId :: Expr -> Maybe Id
 varId (Var i) = Just i
 varId _ = Nothing

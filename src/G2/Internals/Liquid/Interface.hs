@@ -79,9 +79,15 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
 
     let spec_assert_state = addSpecialAsserts beta_red_state
 
-    let final_state = spec_assert_state {track = []}
+    let track_state = spec_assert_state {track = [] :: [FuncCall]}
 
     (con, hhp) <- getSMT config
+
+    let mark_and_sweep_state = track_state -- markAndSweep track_state
+
+    -- let (up_ng_state, ng) = renameAll mark_and_sweep_state (name_gen mark_and_sweep_state)
+    -- let final_state = up_ng_state {name_gen = ng}
+    let final_state = mark_and_sweep_state
 
     ret <- run lhReduce selectLH con hhp config final_state
 
@@ -226,7 +232,9 @@ testLiquidFile proj fp libs lhlibs config = do
 
     let cleaned_tgt_lhs = filter (\n -> T.all (`elem` whitelist) n) tgt_lhs
 
-    fmap concat $ mapM (\e -> runLHCore e tgt_trans ghcInfos config >>= (return . parseLHOut e))
+    fmap concat $ mapM (\e -> do
+        putStrLn $ show e
+        runLHCore e tgt_trans ghcInfos config >>= (return . parseLHOut e))
                        cleaned_tgt_lhs
 
 testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config

@@ -43,7 +43,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
 
-        ng = mkNameGen prog prog_typ
+        ng = mkNameGen (prog, prog_typ)
 
         (eenv', tenv', ng', ft, at, ds_walkers, kv) = runInitialization eenv tenv ng
 

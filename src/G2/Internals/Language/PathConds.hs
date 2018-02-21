@@ -161,13 +161,6 @@ varNamesInAltMatch :: AltMatch -> [Name]
 varNamesInAltMatch (DataAlt _ i) = names i
 varNamesInAltMatch _ = []
 
-varNames :: (ASTContainer m Expr) => m -> [Name]
-varNames = evalASTs varNames'
-
-varNames' :: Expr -> [Name]
-varNames' (Var (Id n _)) = [n]
-varNames' _ = []
-
 scc :: KV.KnownValues -> [Name] -> PathConds -> PathConds
 scc kv ns (PathConds pc) = PathConds $ scc' kv ns pc M.empty
 
@@ -236,6 +229,10 @@ instance Named PathConds where
         PathConds . M.mapKeys (\k -> if k == (Just old) then (Just new) else k)
                   $ rename old new pc
 
+    renames hm (PathConds pc) =
+        PathConds . M.mapKeys (renames hm)
+                  $ renames hm pc
+
 instance Named PathCond where
     names (AltCond am e _) = names am ++ names e
     names (ExtCond e _) = names e
@@ -246,6 +243,11 @@ instance Named PathCond where
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
     rename old new (ConsCond d e b) = ConsCond (rename old new d) (rename old new e) b
     rename old new (PCExists i) = PCExists (rename old new i)
+
+    renames hm (AltCond am e b) = AltCond (renames hm am) (renames hm e) b
+    renames hm (ExtCond e b) = ExtCond (renames hm e) b
+    renames hm (ConsCond d e b) = ConsCond (renames hm d) (renames hm e) b
+    renames hm (PCExists i) = PCExists (renames hm i)
 
 instance Ided PathConds where
     ids = ids . toMap

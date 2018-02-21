@@ -51,5 +51,5 @@ instance {-# OVERLAPPING #-} ASTContainer a Type => ASTContainer (Stack a) Type 
 
 instance {-# OVERLAPPING #-} Named a => Named (Stack a) where
     names (Stack s) = names s
-
     rename old new (Stack s) = Stack $ rename old new s
+    renames hm (Stack s) = Stack $ renames hm s

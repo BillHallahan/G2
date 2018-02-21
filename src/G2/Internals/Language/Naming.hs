@@ -12,6 +12,7 @@ module G2.Internals.Language.Naming
     , nameToStr
     , strToName
     , mkNameGen
+    , varNames
     , exprNames
     , typeNames
 
@@ -70,18 +71,26 @@ strToName str =
     in
     Name (T.pack n) (fmap T.pack m') (read i :: Int)
 
-mkNameGen :: Program -> [ProgramType] -> NameGen
-mkNameGen prog progTypes =
+mkNameGen :: Named n => n -> NameGen
+mkNameGen nmd =
     let
-        allNames = names prog ++ names progTypes
+        allNames = names nmd
     in
     NameGen {
           max_uniq = 
-            (foldr (\(Name n m i) hm -> HM.insertWith (max) (n, m) (i + 1) hm) 
+            (foldr (\(Name n m i) hm -> HM.insertWith max (n, m) (i + 1) hm) 
                 HM.empty allNames
             )
-        , dc_children = HM.empty
+            , dc_children = HM.empty
     }
+
+varNames :: (ASTContainer m Expr) => m -> [Name]
+varNames = evalASTs varNames'
+
+varNames' :: Expr -> [Name]
+varNames' (Var (Id n _)) = [n]
+varNames' _ = []
+
 
 exprNames :: (ASTContainer m Expr) => m -> [Name]
 exprNames = evalASTs exprTopNames

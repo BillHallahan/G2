@@ -39,3 +39,14 @@ concat3 _ = die "HERE"
 {-@ die :: {_:String | false} -> a @-}
 die :: String -> a
 die _ = undefined
+
+
+{-@ measure sizeXs1          :: List (List a) -> Int
+    sizeXs1 (Emp)            = 0
+    sizeXs1 ((:+:) xs xss)   = size xs
+  @-}
+
+{-@ concat4                  :: { xss : List (List a) | sizeXs1 xss > 0 } 
+                             -> List a @-}
+concat4 :: List (List a) -> List a
+concat4 (Emp :+: xss)         = Emp

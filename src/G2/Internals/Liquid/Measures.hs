@@ -21,13 +21,20 @@ import Debug.Trace
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
 createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State t -> State t
-createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv}) = 
+createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = ng}) = 
     let
         nt = M.fromList $ mapMaybe (measureTypeMappings tenv tcv) meas
 
         meas' = mapMaybe (convertMeasure s tcv nt) $ filter (allTypesKnown tenv) meas
+
+        eenvk = E.keys eenv
+        mvNames = filter (flip notElem eenvk) $ varNames meas'
+
+        eenv' = foldr (uncurry E.insert) eenv meas'
+        (eenv'', ng') = doRenames mvNames ng eenv'
+        -- (meas'', ng') = (meas', ng)
     in
-    s {expr_env = foldr (uncurry E.insert) eenv meas'}
+    s {expr_env = eenv'', name_gen = ng'}
 
 allTypesKnown :: TypeEnv -> Measure SpecType GHC.DataCon -> Bool
 allTypesKnown tenv (M {sort = srt}) = isJust $ specTypeToType tenv srt
@@ -52,7 +59,7 @@ addLHDictToType lh t =
 convertMeasure :: State t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
 convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
     let
-        nt = M.fromList $ convertSpecTypeDict tcv s srt
+        -- nt = M.fromList $ convertSpecTypeDict tcv s srt
 
         n' = symbolName $ val n
 
@@ -64,11 +71,13 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         as = map (\(d, t) -> Id d $ TyConApp (lhTC tcv) [t]) nbnds
         as' = as ++ bnds
 
+        as_t = map (\i -> (idName i, typeOf i)) as
+
         stArgs = nonTyForAllArgumentTypes $ fromJust st
 
         (lam_i, ng1) = freshId (head stArgs) ng
         (cb, _) = freshId (head stArgs) ng1
-        alts = fixAlts s tcv m $ mapMaybe (convertDefs s stArgs tcv (M.union (M.union m nt) (M.fromList nbnds)) bnds) eq
+        alts = fixAlts s tcv m $ mapMaybe (convertDefs s stArgs tcv (M.union {- (M.union m nt) -} m (M.fromList as_t)) bnds) eq
 
         e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
     in
