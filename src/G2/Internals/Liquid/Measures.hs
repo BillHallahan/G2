@@ -32,7 +32,7 @@ createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv}) =
 allTypesKnown :: TypeEnv -> Measure SpecType GHC.DataCon -> Bool
 allTypesKnown tenv (M {sort = srt}) = isJust $ specTypeToType tenv srt
 
-measureTypeMappings :: TypeEnv-> TCValues  -> Measure SpecType GHC.DataCon -> Maybe (Name, Type)
+measureTypeMappings :: TypeEnv -> TCValues  -> Measure SpecType GHC.DataCon -> Maybe (Name, Type)
 measureTypeMappings tenv tcv (M {name = n, sort = srt}) =
     let
         lh = lhTC tcv
@@ -68,7 +68,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
 
         (lam_i, ng1) = freshId (head stArgs) ng
         (cb, _) = freshId (head stArgs) ng1
-        alts = fixAlts s tcv m $ mapMaybe (convertDefs s tcv (M.union (M.union m nt) (M.fromList nbnds)) bnds) eq
+        alts = fixAlts s tcv m $ mapMaybe (convertDefs s stArgs tcv (M.union (M.union m nt) (M.fromList nbnds)) bnds) eq
 
         e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
     in
@@ -76,8 +76,8 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
-convertDefs :: State t -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
-convertDefs s@(State {type_env = tenv}) tcv m bnds (Def { ctor = dc, body = b, binds = bds}) =
+convertDefs :: State t -> [Type] -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
+convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] tcv m bnds def@(Def { ctor = dc, body = b, binds = bds}) =
     let
         (DataCon n t _) = mkData HM.empty HM.empty dc
         (TyConApp tn _) = returnType t
@@ -89,9 +89,9 @@ convertDefs s@(State {type_env = tenv}) tcv m bnds (Def { ctor = dc, body = b, b
         dctarg = nonTyForAllArgumentTypes dct
 
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
-        dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds') (map TyVar bnds)
+        dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds') st_t-- (map TyVar bnds)
 
-        nt = map (\((sym, t'), t'')-> (symbolName sym, maybe t'' (unsafeSpecTypeToType tenv) t')) $ zip bds dctarg'
+        nt = map (\((sym, t'), t'') -> (symbolName sym, maybe t'' (unsafeSpecTypeToType tenv) t')) $ zip bds dctarg'
 
         is = map (uncurry Id) nt
 
@@ -100,7 +100,6 @@ convertDefs s@(State {type_env = tenv}) tcv m bnds (Def { ctor = dc, body = b, b
     case dc' of
         Just _ -> Just $ Alt (DataAlt dc'' is) e -- [1]
         Nothing -> Nothing
-
 
 mkExprFromBody :: State t -> TCValues  -> M.Map Name Type -> Body -> Expr
 mkExprFromBody s tcv m (E e) = convertLHExpr e tcv s m

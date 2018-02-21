@@ -34,6 +34,8 @@ import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
 
+import Debug.Trace
+
 addLHTC :: State t -> TCValues -> State t
 addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, type_classes = tc}) tcv =
     let
@@ -499,7 +501,7 @@ rTyConType tenv rtc sts =
     in
     case (not . any isNothing $ ts) of
         True -> fmap (\n' -> TyConApp n' (catMaybes ts)) n
-        False ->  Nothing
+        False -> Nothing
 
 rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
@@ -556,7 +558,7 @@ convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, k
 
         t2 = favorNonTyInteger knv t t'
 
-        ndict = fromJustErr "No numDict for EBin" $ bopDict b eenv knv tc t2 m
+        ndict = fromJustErr ("No numDict for EBin\n" ++ show lhe ++ "\n" ++ show lhe' ++ "\n" ++ show t ++ "\n" ++ show t') $ bopDict b eenv knv tc t2 m
 
         lhdict = fromJustErr "No lhDict for EBin" $ lhTCDict eenv tcv tc t2 m
 
