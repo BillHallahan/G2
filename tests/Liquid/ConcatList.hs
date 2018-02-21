@@ -25,3 +25,7 @@ data List a = Emp
 concat ((x :+: Emp) :+: Emp) = x :+: Emp
 concat (Emp :+: xss)         = concat xss
 concat ((x :+: xs) :+: xss)  = x :+: concat (xs :+: xss)
+
+{-@ concat2                 :: xss : List (List a) 
+                            -> xs : List a @-}
+concat2 ((x :+: xs) :+: xss)  = x :+: concat2 xss

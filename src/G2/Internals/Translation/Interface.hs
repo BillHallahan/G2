@@ -9,16 +9,16 @@ import G2.Internals.Translation.Haskell
 import G2.Internals.Translation.InjectSpecials
 import G2.Internals.Translation.PrimInject
 
-translateLibs :: NameMap -> TypeNameMap -> Bool -> [FilePath] -> IO ([(Program, [ProgramType], [(Name, Id, [Id])])], NameMap, TypeNameMap)
-translateLibs nm tm simpl fs = translateLibs' nm tm simpl [] fs
+translateLibs :: NameMap -> TypeNameMap -> Bool -> [FilePath] -> IO ((Program, [ProgramType], [(Name, Id, [Id])]), NameMap, TypeNameMap)
+translateLibs nm tm simpl fs = translateLibs' nm tm simpl ([], [], []) fs
 
-translateLibs' :: NameMap -> TypeNameMap -> Bool -> [(Program, [ProgramType], [(Name, Id, [Id])])] -> [FilePath] -> IO ([(Program, [ProgramType], [(Name, Id, [Id])])], NameMap, TypeNameMap)
+translateLibs' :: NameMap -> TypeNameMap -> Bool -> (Program, [ProgramType], [(Name, Id, [Id])]) -> [FilePath] -> IO ((Program, [ProgramType], [(Name, Id, [Id])]), NameMap, TypeNameMap)
 translateLibs' nm tnm _ pptn [] = return (pptn, nm, tnm)
-translateLibs' nm tnm simpl pptn (f:fs) = do
+translateLibs' nm tnm simpl (prog, tys, cls) (f:fs) = do
   let guess_dir = dropWhileEnd (/= '/') f
-  (_, prog, tys, cls, new_nm, new_tnm, _) <- hskToG2 guess_dir f nm tnm simpl
+  (_, n_prog, n_tys, n_cls, new_nm, new_tnm, _) <- hskToG2 guess_dir f nm tnm simpl
   
-  translateLibs' new_nm new_tnm simpl ((prog, tys, cls):pptn) fs
+  translateLibs' new_nm new_tnm simpl (prog ++ n_prog, tys ++ n_tys, cls ++ n_cls) fs
   
 -- translateLibs nm tnm simpl pptn (f:fs) = do
 --   (others, others_nm, others_tnm) <- translateLibs nm tnm simpl fs
@@ -57,7 +57,7 @@ translateLoadedV proj src libs simpl config = do
   --     translateLibs [base] e_nm e_tnm simpl
 
   ((base_prog, base_tys, base_cls), b_nm, b_tnm) <-
-      (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
+      (\(bs, base_nm, base_tnm) -> return (bs, base_nm, base_tnm)) =<<
       translateLibs specialConstructors specialTypeNames simpl (base config)-- ["../base-4.9.1.0/Control/Exception/Base.hs", base]
 
   (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm simpl libs
@@ -66,7 +66,7 @@ translateLoadedV proj src libs simpl config = do
   let base_tys' = base_tys ++ specialTypes
   let base_trans' = (base_prog', base_tys', base_cls)
 
-  let merged_lib = mergeTranslates (base_trans' : lib_transs)
+  let merged_lib = mergeTranslates ([base_trans', lib_transs])
 
   -- Now the stuff with the actual target
   (mb_modname, tgt_prog, tgt_tys, tgt_cls, _, _, tgt_lhs) <- hskToG2 proj src lib_nm lib_tnm simpl
