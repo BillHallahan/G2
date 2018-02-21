@@ -49,8 +49,8 @@ import TyCoRep
 import Unique
 import Var as V
 
+import qualified Data.ByteString.Char8 as C
 import Data.Foldable
-
 import Data.List
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
@@ -240,7 +240,7 @@ switchModule m =
 
 mkLit :: Literal -> G2.Lit
 mkLit (MachChar chr) = G2.LitChar chr
-mkLit (MachStr bstr) = G2.LitString (show bstr)
+mkLit (MachStr bstr) = G2.LitString (C.unpack bstr)
 mkLit (MachInt i) = G2.LitInt (fromInteger i)
 mkLit (MachInt64 i) = G2.LitInt (fromInteger i)
 mkLit (MachWord i) = G2.LitInt (fromInteger i)

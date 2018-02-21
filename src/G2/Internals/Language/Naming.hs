@@ -384,6 +384,10 @@ instance Named KnownValues where
             , dcTrue = dcT
             , dcFalse = dcF
 
+            , tyList = tList
+            , dcCons = tCons
+            , dcEmpty = tEmp
+
             , eqTC = eqT
             , numTC = numT
             , ordTC = ordT
@@ -399,7 +403,7 @@ instance Named KnownValues where
             , andFunc = andF
             , orFunc = orF
             }) =
-            [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF
+            [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF, tList, tCons, tEmp
             , eqT, numT, ordT, integralT, eqF, neqF, geF, gtF, ltF, leF
             , andF, orF]
 
@@ -417,6 +421,10 @@ instance Named KnownValues where
                    , tyBool = tB
                    , dcTrue = dcT
                    , dcFalse = dcF
+
+                   , tyList = tList
+                   , dcCons = tCons
+                   , dcEmpty = tEmp
 
                    , eqTC = eqT
                    , numTC = numT
@@ -447,6 +455,10 @@ instance Named KnownValues where
                         , tyBool = rename old new tB
                         , dcTrue = rename old new dcT
                         , dcFalse = rename old new dcF
+                        , tyList = rename old new tList
+                        , dcCons = rename old new tCons
+                        , dcEmpty = rename old new tEmp
+
                         , eqTC = rename old new eqT
                         , numTC = rename old new numT
                         , ordTC = rename old new ordT

@@ -15,6 +15,8 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkDCInteger
                                   , mkDCFloat
                                   , mkDCDouble
+                                  , mkCons
+                                  , mkEmpty
                                   , mkIdentity
                                   , functionCalls
                                   , nonDataFunctionCalls
@@ -96,6 +98,12 @@ mkFalse kv tenv = Data . fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse k
 
 mkBool :: KnownValues -> TypeEnv -> Bool -> Expr
 mkBool kv tenv b = if b then mkTrue kv tenv else mkFalse kv tenv
+
+mkCons :: KnownValues -> TypeEnv -> Expr
+mkCons kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)
+
+mkEmpty :: KnownValues -> TypeEnv -> Expr
+mkEmpty kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)
 
 mkIdentity :: Type -> Expr
 mkIdentity t =

@@ -25,7 +25,17 @@ data List a = Emp
 concat ((x :+: Emp) :+: Emp) = x :+: Emp
 concat (Emp :+: xss)         = concat xss
 concat ((x :+: xs) :+: xss)  = x :+: concat (xs :+: xss)
+concat _ = die ""
 
 {-@ concat2                 :: xss : List (List a) 
                             -> xs : List a @-}
 concat2 ((x :+: xs) :+: xss)  = x :+: concat2 xss
+
+{-@ concat3                 :: xss : List (List a) 
+                            -> xs : List a @-}
+concat3 ((x :+: xs) :+: xss)  = x :+: concat3 xss
+concat3 _ = die "HERE"
+
+{-@ die :: {_:String | false} -> a @-}
+die :: String -> a
+die _ = undefined

@@ -23,6 +23,10 @@ data KnownValues = KnownValues {
                  , dcTrue :: Name
                  , dcFalse :: Name
 
+                 , tyList :: Name
+                 , dcCons :: Name
+                 , dcEmpty :: Name
+
                  , eqTC :: Name
                  , numTC :: Name
                  , ordTC :: Name

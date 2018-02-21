@@ -29,6 +29,10 @@ initKnownValues eenv tenv =
     , dcTrue = dcWithStrName tenv "Bool" "True"
     , dcFalse = dcWithStrName tenv "Bool" "False"
 
+    , tyList = typeWithStrName tenv "[]"
+    , dcCons = dcWithStrName tenv "[]" ":"
+    , dcEmpty = dcWithStrName tenv "[]" "[]"
+
     , eqTC = typeWithStrName tenv "Eq"
     , numTC = typeWithStrName tenv "Num"
     , ordTC = typeWithStrName tenv "Ord"
