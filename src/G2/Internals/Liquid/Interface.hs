@@ -52,7 +52,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
+findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
 findCounterExamples proj fp entry libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_trans <- translateLoaded proj fp libs False config
@@ -61,7 +61,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
                     -> [GhcInfo]
                     -> Config
-          -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
+          -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
 runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
@@ -83,13 +83,13 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
 
     (con, hhp) <- getSMT config
 
-    let mark_and_sweep_state = track_state -- markAndSweep track_state
-
     -- let (up_ng_state, ng) = renameAll mark_and_sweep_state (name_gen mark_and_sweep_state)
     -- let final_state = up_ng_state {name_gen = ng}
-    let final_state = mark_and_sweep_state
+    let halter_set_state = track_state {halter = steps config}
 
-    ret <- run lhReduce selectLH con hhp config final_state
+    let final_state = halter_set_state
+
+    ret <- run lhReduce halterIsZero halterSub1 selectLH con hhp config final_state
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -114,7 +114,7 @@ funcSpecs = concatMap (gsTySigs . spec)
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)
 
-reqNames :: State t -> [Name]
+reqNames :: State h t -> [Name]
 reqNames (State { expr_env = eenv
                 , type_classes = tc
                 , known_values = kv }) = 
@@ -149,7 +149,7 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
+printLHOut :: T.Text -> [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [LHReturn] -> IO ()
@@ -192,7 +192,7 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
+parseLHOut :: T.Text -> [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
            -> [LHReturn]
 parseLHOut entry [] = []
 parseLHOut entry ((s, inArg, ex, ais):xs) =
@@ -210,7 +210,7 @@ parseLHOut entry ((s, inArg, ex, ais):xs) =
            , violating = if Just called == viFunc then Nothing else viFunc
            , abstracted = abs} : tail
 
-parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
+parseLHFuncTuple :: State h t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n@(Name n' _ _), arguments = ars, returns = out}) =
     FuncInfo { func = n'
              , funcArgs = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n TyBottom)) ars)

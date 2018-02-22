@@ -525,6 +525,10 @@ instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d, Named e) => Na
     rename old new (a, b, c, d, e) = (rename old new a, rename old new b, rename old new c, rename old new d, rename old new e)
     renames hm (a, b, c, d, e) = (renames hm a, renames hm b, renames hm c, renames hm d, renames hm e)
 
+instance Named Int where
+    names _ = []
+    rename _ _ = id
+
 freshSeededString :: T.Text -> NameGen -> (Name, NameGen)
 freshSeededString t = freshSeededName (Name t Nothing 0)
 

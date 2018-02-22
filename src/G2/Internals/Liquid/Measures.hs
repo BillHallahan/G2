@@ -20,7 +20,7 @@ import Debug.Trace
 
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
-createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State t -> State t
+createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State h t -> State h t
 createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = ng}) = 
     let
         nt = M.fromList $ mapMaybe (measureTypeMappings tenv tcv) meas
@@ -56,7 +56,7 @@ addLHDictToType lh t =
     in
     foldr TyFun t lhD
 
-convertMeasure :: State t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
+convertMeasure :: State h t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
 convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
     let
         -- nt = M.fromList $ convertSpecTypeDict tcv s srt
@@ -85,7 +85,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
-convertDefs :: State t -> [Type] -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
+convertDefs :: State h t -> [Type] -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
 convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] tcv m bnds def@(Def { ctor = dc, body = b, binds = bds}) =
     let
         (DataCon n t _) = mkData HM.empty HM.empty dc
@@ -110,19 +110,19 @@ convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] tcv m bnds def@(Def { 
         Just _ -> Just $ Alt (DataAlt dc'' is) e -- [1]
         Nothing -> Nothing
 
-mkExprFromBody :: State t -> TCValues  -> M.Map Name Type -> Body -> Expr
+mkExprFromBody :: State h t -> TCValues  -> M.Map Name Type -> Body -> Expr
 mkExprFromBody s tcv m (E e) = convertLHExpr e tcv s m
 mkExprFromBody s tcv m (P e) = convertLHExpr e tcv s m
 
 --Adjusts the alts, to make sure they all return the same Type
-fixAlts :: State t -> TCValues -> M.Map Name Type -> [Alt] -> [Alt]
+fixAlts :: State h t -> TCValues -> M.Map Name Type -> [Alt] -> [Alt]
 fixAlts s@(State {known_values = kv}) tcv m alts =
     let
         anyInt = any (\(Alt _ e) -> typeOf e == tyInt kv) alts
     in
     if anyInt then map (convertInteger s tcv m) alts else alts
 
-convertInteger :: State t -> TCValues -> M.Map Name Type -> Alt -> Alt
+convertInteger :: State h t -> TCValues -> M.Map Name Type -> Alt -> Alt
 convertInteger s@(State {expr_env = eenv, known_values = kv, type_classes = tc}) tcv m a@(Alt am e) =
     let
         fIntgr = mkFromInteger eenv

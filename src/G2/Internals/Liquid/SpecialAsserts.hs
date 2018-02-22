@@ -4,7 +4,7 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.KnownValues as KV
 
-addSpecialAsserts :: State t -> State t
+addSpecialAsserts :: State h t -> State h t
 addSpecialAsserts s@(State { expr_env = eenv
 						   , type_env = tenv
 						   , known_values = kv}) =

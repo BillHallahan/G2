@@ -50,3 +50,11 @@ die _ = undefined
                              -> List a @-}
 concat4 :: List (List a) -> List a
 concat4 (Emp :+: xss)         = Emp
+
+{-@ concat5                  :: xss : { xss : List (List a) | sizeXs xss > 0 } 
+                            -> { xs : List a | size xs = sizeXs xss &&
+                                 sizeXs xss > 0 } @-}
+-- concat5 ((x :+: Emp) :+: Emp) = x :+: Emp
+-- concat5 (Emp :+: xss)         = concat5 xss
+concat5 ((x :+: xs) :+: xss)  = x :+: concat5 (xs :+: xss)
+concat5 _ = die ""

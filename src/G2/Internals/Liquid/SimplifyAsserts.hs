@@ -8,7 +8,7 @@ import G2.Internals.Language.KnownValues
 
 type ModifiedKnownValues = KnownValues
 
-simplifyAsserts :: ASTContainer t Expr => ModifiedKnownValues -> State t -> State t
+simplifyAsserts :: (ASTContainer h Expr, ASTContainer t Expr) => ModifiedKnownValues -> State h t -> State h t
 simplifyAsserts mkv s@(State {type_env = tenv, known_values = kv}) =
     modifyASTs (simplifyAsserts' tenv kv mkv) s
 

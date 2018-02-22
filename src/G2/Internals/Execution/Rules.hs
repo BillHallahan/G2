@@ -216,20 +216,20 @@ lookupForPrim e _ = e
 -- | Result of a Evaluate reduction.
 type ReduceResult t = (E.ExprEnv, CurrExpr, [Constraint], [Assertion], Maybe FuncCall, NameGen, S.Stack Frame, [Id], t)
 
-reduce :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO [State t]
+reduce :: (State h t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State h t -> IO [State h t]
 reduce red con hpp config s = do
     let (rule, res) = red s
     sts <- resultsToState con hpp config rule s res
     return sts
 
-reduceNoConstraintChecks :: (State t -> (Rule, [ReduceResult t])) -> Config -> State t -> [State t]
+reduceNoConstraintChecks :: (State h t -> (Rule, [ReduceResult t])) -> Config -> State h t -> [State h t]
 reduceNoConstraintChecks red config s =
     let
         (rule, res) = red s
     in
     map (resultToState config s rule) res
 
-resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State t -> [ReduceResult t] -> IO [State t]
+resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State h t -> [ReduceResult t] -> IO [State h t]
 resultsToState _ _ _ _ _ [] = return []
 resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _, _, _):xs)
     | not (null pc) = do
@@ -268,7 +268,7 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
         s' = resultToState config s rule red
 
 {-# INLINE selectCheckConstraints #-}
-selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State t -> IO Result)
+selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State h t -> IO Result)
 selectCheckConstraints (Config {smtADTs = False}) = checkConstraints
 selectCheckConstraints config = checkConstraintsWithSMTSorts config
 
@@ -283,7 +283,7 @@ pcRelevant (Config {smtADTs = False}) = PC.relevant
 pcRelevant _ = PC.relevantWithSMTADT
 
 {-# INLINE resultToState #-}
-resultToState :: Config -> State t -> Rule -> ReduceResult t -> State t
+resultToState :: Config -> State h t -> Rule -> ReduceResult t -> State h t
 resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, tv) =
     s {
         expr_env = eenv
@@ -297,10 +297,10 @@ resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, tv) =
 
 -- | stdReduce
 -- Interprets Haskell with no special semantics.
-stdReduce :: State t -> (Rule, [ReduceResult t])
+stdReduce :: State h t -> (Rule, [ReduceResult t])
 stdReduce = stdReduceBase (const Nothing)
 
-stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> State t -> (Rule, [ReduceResult t])
+stdReduceBase :: (State h t -> Maybe (Rule, [ReduceResult t])) -> State h t -> (Rule, [ReduceResult t])
 stdReduceBase redEx s@State { exec_stack = estk
                             , expr_env = eenv
                             , curr_expr = cexpr

@@ -11,10 +11,10 @@ import G2.Internals.Language.ExprEnv as E
 import qualified Data.Set as S
 import qualified Data.Map as M
 
-markAndSweep :: State t -> State t
+markAndSweep :: State h t -> State h t
 markAndSweep = markAndSweepPreserving []
 
-markAndSweepPreserving :: [Name] -> State t -> State t
+markAndSweepPreserving :: [Name] -> State h t -> State h t
 markAndSweepPreserving ns (state@State { expr_env = eenv
                                        , type_env = tenv
                                        , curr_expr = cexpr

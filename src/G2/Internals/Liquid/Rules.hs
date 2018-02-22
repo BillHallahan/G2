@@ -30,10 +30,10 @@ import Debug.Trace
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: State [FuncCall] -> (Rule, [ReduceResult [FuncCall]])
+lhReduce :: State h [FuncCall] -> (Rule, [ReduceResult [FuncCall]])
 lhReduce = stdReduceBase lhReduce'
 
-lhReduce' :: State [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
+lhReduce' :: State h [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
 lhReduce' State { expr_env = eenv
                , curr_expr = CurrExpr Evaluate vv@(Let [(b, e)] a@(Assert _ _ _))
                , name_gen = ng
@@ -86,16 +86,16 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
         False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
 
-selectLH :: [([Int], State [FuncCall])] -> [(([Int], State [FuncCall]), Int)] -> [(([Int], State [FuncCall]), Int)]
+selectLH :: [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])]
 selectLH solved next =
     let
         mi = case solved of
                 [] -> Nothing
                 _ -> Just $ minimum $ map (length . track . snd) solved
-        next' = dropWhile (\((_, s), _) -> trackingGreater s mi) next
+        next' = dropWhile (\(_, s) -> trackingGreater s mi) next
     in
     next'
 
-trackingGreater :: State [FuncCall] -> Maybe Int -> Bool
+trackingGreater :: State h [FuncCall] -> Maybe Int -> Bool
 trackingGreater (State {track = tr}) (Just i) = length tr > i
 trackingGreater _ _ = False

@@ -3,6 +3,8 @@
 module G2.Internals.Execution.Interface
     ( runNDepth
     , executeNext
+    , halterIsZero
+    , halterSub1
     , runNDepthNoConstraintChecks
     , stdReduce
     ) where
@@ -39,36 +41,49 @@ import System.Directory
 --     go (rules, state) = let (rule, states) = reduceNoConstraintChecks stdReduce undefined state
 --                         in map (\s -> (rules ++ [rule], s)) states
 
-runNDepth :: (State t -> (Rule, [ReduceResult t])) -> ([([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> SMTConverter ast out io -> io -> [State t] -> Config -> IO [([Int], State t)]
-runNDepth red sel con hpp states config = runNDepth' red sel [] $ map (\s -> (([], s), steps config)) states
+runNDepth :: (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> ([([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]) -> SMTConverter ast out io -> io -> [State h t] -> Config -> IO [([Int], State h t)]
+runNDepth red hal halR sel con hpp states config = runNDepth' red hal halR sel [] $ map (\s -> ([], s)) states
   where
-    runNDepth' :: (State t -> (Rule, [ReduceResult t])) -> ([([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> [([Int], State t)] -> [(([Int], State t), Int)] -> IO [([Int], State t)]
-    runNDepth' _ _ _ [] = return []
-    runNDepth' red' sel' fnsh ((rss, 0):xs) =
-        let
-            fnsh' = if true_assert (snd rss) && isExecValueForm (snd rss) then rss:fnsh else fnsh
-        in
-        return . (:) rss =<< runNDepth' red' sel' fnsh' (sel' fnsh' xs)
-    runNDepth' red' sel' fnsh (((is, s), n):xs) = do
-        case logStates config of
-            Just f -> outputState f is s
-            Nothing -> return ()
+    runNDepth' :: (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> ([([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]) -> [([Int], State h t)] -> [([Int], State h t)] -> IO [([Int], State h t)]
+    runNDepth' _ _ _ _ _ [] = return []
+    -- runNDepth' red' hal' sel' fnsh ((rss, 0):xs) =
+    --     let
+    --         fnsh' = if true_assert (snd rss) && isExecValueForm (snd rss) then rss:fnsh else fnsh
+    --     in
+    --     return . (:) rss =<< runNDepth' red' sel' fnsh' (sel' fnsh' xs)
+    runNDepth' red' hal' halR' sel' fnsh (rss@(is, s):xs)
+        | hal' s =
+            let
+                fnsh' = if true_assert s && isExecValueForm s then rss:fnsh else fnsh
+            in
+            return . (:) rss =<< runNDepth' red' hal' halR' sel' fnsh' (sel' fnsh' xs)
+        | otherwise = do
+            case logStates config of
+                Just f -> outputState f is s
+                Nothing -> return ()
 
-        reduceds <- reduce red' con hpp config s
+            reduceds <- reduce red' con hpp config s
 
-        let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
-        
-        let mod_info = map (\(i, s') -> ((is ++ maybe [] (\i' -> [i']) i, s'), n - 1)) isred
-        
-        runNDepth' red' sel' fnsh (mod_info ++ xs)
+            let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
+            
+            let mod_info = map (\(i, s') -> (is ++ maybe [] (\i' -> [i']) i, s' {halter = halR' s'})) isred
+            
+            runNDepth' red' hal' halR' sel' fnsh (mod_info ++ xs)
 
-executeNext :: [([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]
+executeNext :: [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
 executeNext _ xs = xs
 
-runNDepthNoConstraintChecks :: [State t] -> Int -> [State t]
+halterSub1 :: State Int t -> Int
+halterSub1 (State {halter = h}) = h - 1
+
+halterIsZero :: State Int t -> Bool
+halterIsZero (State {halter = 0}) = True
+halterIsZero _ = False
+
+runNDepthNoConstraintChecks :: [State h t] -> Int -> [State h t]
 runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (s, d)) states
   where
-    runNDepthNCC' :: [(State t, Int)] -> [State t]
+    runNDepthNCC' :: [(State h t, Int)] -> [State h t]
     runNDepthNCC' [] = []
     runNDepthNCC' ((rss, 0):xs) = rss : runNDepthNCC' xs
     runNDepthNCC' ((s, n):xs) =
@@ -76,7 +91,7 @@ runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (s, d)) states
             mod_info = map (\s' -> (s', n - 1)) reduceds
         in runNDepthNCC' (mod_info ++ xs)
 
-outputState :: String -> [Int] -> State t -> IO ()
+outputState :: String -> [Int] -> State h t -> IO ()
 outputState fdn is s = do
     let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
     createDirectoryIfMissing True dir

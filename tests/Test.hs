@@ -346,10 +346,11 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     (mb_modname, binds, tycons, cls, _) <- translateLoaded proj src [] True config
 
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname
-
+    let halter_set_state = init_state {halter = steps config}
+    
     (con, hhp) <- getSMT config
 
-    r <- run stdReduce executeNext con hhp config init_state
+    r <- run stdReduce halterIsZero halterSub1 executeNext con hhp config halter_set_state
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 
@@ -368,7 +369,7 @@ checkLiquidWithConfig proj fp entry i config reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n") ch
 
-findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [FuncCall], [Expr], Expr, Maybe FuncCall)])
+findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)])
 findCounterExamples' proj fp entry libs lhlibs config = try (findCounterExamples proj fp entry libs lhlibs config)
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool

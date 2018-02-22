@@ -82,12 +82,14 @@ runGHC as = do
 
   let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
   let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry mb_modname
+  let halter_set_state = init_state {halter = steps config}
+
 
   -- error $ pprExecStateStr init_state
 
   (con, hhp) <- getSMT config
 
-  in_out <- run stdReduce executeNext con hhp config init_state
+  in_out <- run stdReduce halterIsZero halterSub1 executeNext con hhp config halter_set_state
 
   -- putStrLn "----------------\n----------------"
 
@@ -95,7 +97,7 @@ runGHC as = do
 
 
 
-printFuncCalls :: T.Text -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO ()
+printFuncCalls :: T.Text -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 printFuncCalls entry =
     mapM_ (\(s, inArg, ex, ais) -> do
         let funcCall = mkCleanExprHaskell (known_values s) (type_classes s)

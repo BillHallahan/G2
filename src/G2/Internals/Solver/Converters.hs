@@ -39,10 +39,10 @@ import G2.Internals.Solver.Language
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: State t -> [SMTHeader]
+toSMTHeaders :: State h t -> [SMTHeader]
 toSMTHeaders = addSetLogic . toSMTHeaders'
 
-toSMTHeaders' :: State t -> [SMTHeader]
+toSMTHeaders' :: State h t -> [SMTHeader]
 toSMTHeaders' s  = 
     let
         pc = PC.toList $ path_conds s
@@ -51,10 +51,10 @@ toSMTHeaders' s  =
     ++
     (pathConsToSMTHeaders pc)
 
-toSMTHeadersWithSMTSorts :: State t -> [SMTHeader]
+toSMTHeadersWithSMTSorts :: State h t -> [SMTHeader]
 toSMTHeadersWithSMTSorts = addSetLogic . toSMTHeadersWithSMTSorts'
 
-toSMTHeadersWithSMTSorts' :: State t -> [SMTHeader]
+toSMTHeadersWithSMTSorts' :: State h t -> [SMTHeader]
 toSMTHeadersWithSMTSorts' s =
     (typesToSMTSorts $ type_env s)
     ++

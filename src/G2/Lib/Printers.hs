@@ -31,7 +31,7 @@ sp2 = "  "
 sp4 :: String
 sp4 = sp2 ++ sp2
 
-mkRawStateStr :: State t -> String
+mkRawStateStr :: State h t -> String
 mkRawStateStr state = intercalate "\n" li
   where tenv_str  = intercalate "\n" $ map show $ M.toList $ type_env state
         eenv_str  = intercalate "\n" $ map show $ E.toList $ expr_env state
@@ -50,7 +50,7 @@ mkRawStateStr state = intercalate "\n" li
              , "END STATE" ]
 
 
-mkStateStr :: State t -> String
+mkStateStr :: State h t -> String
 mkStateStr s = intercalate "\n\n" li
   where li = ["> Type Env:\n" ++ ts,  "> Expr Env:\n" ++ es
              ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps
@@ -63,7 +63,7 @@ mkStateStr s = intercalate "\n\n" li
         sl = mkSLTStr . sym_links $ s
         fl = mkFuncSLTStr . func_table $ s
 
-mkStatesStr :: [State t] -> String
+mkStatesStr :: [State h t] -> String
 mkStatesStr [] = ""
 mkStatesStr [s] = mkStateStr s
 mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
@@ -273,7 +273,7 @@ injTuple :: [String] -> String
 injTuple strs = "(" ++ (intercalate "," strs) ++ ")"
 
 -- | More raw version of state dumps.
-pprExecStateStr :: State t -> String
+pprExecStateStr :: State h t -> String
 pprExecStateStr ex_state = injNewLine acc_strs
   where
     eenv_str = pprExecEEnvStr (expr_env ex_state)
@@ -321,7 +321,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
                ]
 
 -- | More raw version of state dumps.
-pprExecStateStrSimple :: State t -> [Name] -> String
+pprExecStateStrSimple :: State h t -> [Name] -> String
 pprExecStateStrSimple ex_state includes = injNewLine acc_strs
   where
     include_occs = map nameOccStr includes
@@ -439,7 +439,7 @@ pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
     acc_strs = [d_str, expr_str, b_str]
 pprPathCondStr (PCExists p) = show p
 
-pprRunHistStr :: ([Rule], State t) -> String
+pprRunHistStr :: ([Rule], State h t) -> String
 pprRunHistStr (rules, ex_state) = injNewLine acc_strs
   where
     rules_str = show rules

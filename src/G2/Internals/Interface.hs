@@ -36,7 +36,7 @@ import qualified Data.Text as T
 
 import G2.Lib.Printers
 
-initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> State ()
+initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> State Int ()
 initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     let
         eenv = mkExprEnv prog
@@ -72,6 +72,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
     , known_values = kv
     , cleaned_names = M.empty
     , rules = []
+    , halter = 0
     , track = ()
  }
 
@@ -82,9 +83,9 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: (ASTContainer t Expr, ASTContainer t Type, Named t) => 
-    (State t -> (Rule, [ReduceResult t])) -> ([([Int], State t)] -> [(([Int], State t), Int)] -> [(([Int], State t), Int)]) -> SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
-run red sel con hhp config (state@ State { type_env = tenv
+run :: (ASTContainer h Expr, ASTContainer t Expr, ASTContainer h Type, ASTContainer t Type, Named h, Named t) => 
+    (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> ([([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]) -> SMTConverter ast out io -> io -> Config -> State h t -> IO [(State h t, [Expr], Expr, Maybe FuncCall)]
+run red hal halR sel con hhp config (state@ State { type_env = tenv
                                  , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
     -- let swept = state
@@ -139,7 +140,7 @@ run red sel con hhp config (state@ State { type_env = tenv
 
     -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
 
-    exec_states <- runNDepth red sel con hhp [preproc_state'] config
+    exec_states <- runNDepth red hal halR sel con hhp [preproc_state'] config
 
     let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
                -- , Name "walkInt" Nothing 0
@@ -213,6 +214,3 @@ run red sel con hhp config (state@ State { type_env = tenv
     let sm'' = map (\(s, es, e, ais) -> (s, es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
 
     return sm''
-
-thd :: (a, b, c) -> c
-thd (_, _, x) = x

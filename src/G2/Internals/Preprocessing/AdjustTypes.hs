@@ -6,7 +6,7 @@ module G2.Internals.Preprocessing.AdjustTypes (adjustTypes) where
 import G2.Internals.Language.AST
 import G2.Internals.Language
 
-adjustTypes :: ASTContainer t Expr => State t -> State t
+adjustTypes :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> State h t
 adjustTypes = wrapInteger . unpackString
 
 -- | wrapInteger
@@ -17,7 +17,7 @@ adjustTypes = wrapInteger . unpackString
 -- data Integer = Integer Int#
 -- and change ((fromInteger [Dict]) LitInteger) to:
 -- ((fromInteger [Dict]) (dcInteger LitInt))
-wrapInteger :: ASTContainer t Expr => State t -> State t
+wrapInteger :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> State h t
 wrapInteger s@(State {known_values = kv, type_env = tenv}) = modifyASTs (wrapInteger' (mkDCInteger kv tenv)) s
 
 wrapInteger' :: Expr -> Expr -> Expr
@@ -35,7 +35,7 @@ wrapInteger' _ e = e
 -- 		(Lit (LitString "\"HERE\""))
 -- )
 -- We remove $unpackCString, and convert the LitString to a list
-unpackString :: ASTContainer t Expr => State t -> State t
+unpackString :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> State h t
 unpackString s@(State {type_env = tenv, known_values = kv}) = modifyASTsFix (unpackString' tenv kv) s
 
 unpackString' :: TypeEnv -> KnownValues -> Expr -> Expr
