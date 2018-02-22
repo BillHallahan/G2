@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Liquid.Conversion ( addLHTC
+                                      , addLHTCExprEnv
                                       , mergeLHSpecState
                                       , convertSpecTypeDict
                                       , convertLHExpr
@@ -54,27 +55,28 @@ addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, type_classes = tc}) tcv =
 -- reference expressions in E'.  This prevents infinite chains of Assumes/Asserts.  
 -- Finally, the two expression environments are merged, before the whole state
 -- is returned.
-mergeLHSpecState :: [Maybe T.Text] -> [(Var, LocSpecType)] -> State h t -> TCValues -> (State h t, KnownValues)
-mergeLHSpecState ns xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr, known_values = knv }) tcv =
+mergeLHSpecState :: [Maybe T.Text] -> [(Var, LocSpecType)] -> State h t -> ExprEnv -> TCValues -> State h t
+mergeLHSpecState ns xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cexpr, known_values = knv }) meenv tcv =
     let
-        ((meenv, mkv), ng') = doRenames (E.keys eenv) ng (eenv, knv)
+        -- ((meenv, mkv), ng') = doRenames (E.keys eenv) ng (eenv, knv)
 
-        s' = addTrueAsserts ns $ mergeLHSpecState' (addAssertSpecType meenv tcv) xs (s { name_gen = ng' })
+        s' = addTrueAsserts ns $ mergeLHSpecState' (addAssertSpecType meenv tcv) xs s
 
         usedCexpr = filter (not . flip E.isSymbolic eenv) $ varNames cexpr
         eenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) eenv
-        (usedCexpr', ng'') = renameAll usedCexpr ng'
+        meenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) meenv
+        (usedCexpr', ng') = renameAll usedCexpr ng
 
         usedZ = zip usedCexpr usedCexpr'
 
         cexpr' = foldr (uncurry rename) cexpr usedZ
         eenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) eenvC
+        meenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) meenvC
 
-        s'' = mergeLHSpecState' (addAssumeAssertSpecType meenv tcv) xs (s { expr_env = eenvC', name_gen = ng'' })
+        s'' = mergeLHSpecState' (addAssumeAssertSpecType meenv tcv) xs (s { expr_env = eenvC', name_gen = ng' })
     in
-    (s'' { expr_env = E.union (E.union meenv (expr_env s')) $ expr_env s''
-         , curr_expr = cexpr' }
-    , mkv )
+    s'' { expr_env = E.union (E.union (E.union meenvC' meenv) (expr_env s')) $ expr_env s''
+        , curr_expr = cexpr' }
 
 -- | mergeLHSpecState'
 -- Merges a list of Vars and SpecTypes with a State, by finding

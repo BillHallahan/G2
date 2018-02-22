@@ -11,4 +11,4 @@ data TCValues = TCValues { lhTC :: Name
                          , lhGt :: Name
                          , lhGe :: Name
 
-                         , lhPP :: Name }
+                         , lhPP :: Name } deriving (Eq, Show, Read)

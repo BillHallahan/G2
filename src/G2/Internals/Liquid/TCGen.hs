@@ -107,33 +107,33 @@ accessFunction tcn dc@(DataCon _ _ ts) i ng =
     in
     (Lam lb (Lam tb c), ng5)
 
-createLHTC :: State h t -> (State h t, TCValues)
+createLHTC :: State h t -> ExprEnv -> (State h t, ExprEnv, TCValues)
 createLHTC s@(State { expr_env = eenv
                     , type_env = tenv
                     , name_gen = ng
                     , known_values = kv
-                    , type_classes = tc }) =
+                    , type_classes = tc }) meenv =
     let
         tenv' = M.toList tenv
 
         ([lhTCN, lhEqN, lhNeN, lhLtN, lhLeN, lhGtN, lhGeN, lhPPN], ng2) = 
             freshSeededStrings ["LH", "LHEq", "LHNe", "LHlt", "LHle", "LHgt", "LHge", "LHpp"] ng
 
-        (eenv2, ng3, eq_w) = createFuncs eenv ng2 tenv' M.empty (lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts) eqLHFuncCall eenv tenv kv)
-        (eenv3, ng4, neq_w) = createFuncs eenv2 ng3 tenv' M.empty (lhNeqName . fst) lhStore (lhNeqExpr eq_w eenv2)
-        (eenv4, ng5, lt_w) = createFuncs eenv3 ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN lhLtCase2Alts ltLHFuncCall eenv3 tenv kv)
-        (eenv5, ng6, le_w) = createFuncs eenv4 ng5 tenv' M.empty (lhLeName . fst) lhStore (lhLeExpr lt_w eq_w eenv4)
-        (eenv6, ng7, gt_w) = createFuncs eenv5 ng6 tenv' M.empty (lhGtName . fst) lhStore (lhGtExpr lt_w eenv5)
-        (eenv7, ng8, ge_w) = createFuncs eenv6 ng7 tenv' M.empty (lhGeName . fst) lhStore (lhGeExpr le_w eenv6)
+        (meenv2, ng3, eq_w) = createFuncs meenv ng2 tenv' M.empty (lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts) eqLHFuncCall meenv tenv kv)
+        (meenv3, ng4, neq_w) = createFuncs meenv2 ng3 tenv' M.empty (lhNeqName . fst) lhStore (lhNeqExpr eq_w meenv2)
+        (meenv4, ng5, lt_w) = createFuncs meenv3 ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN lhLtCase2Alts ltLHFuncCall meenv3 tenv kv)
+        (meenv5, ng6, le_w) = createFuncs meenv4 ng5 tenv' M.empty (lhLeName . fst) lhStore (lhLeExpr lt_w eq_w meenv4)
+        (meenv6, ng7, gt_w) = createFuncs meenv5 ng6 tenv' M.empty (lhGtName . fst) lhStore (lhGtExpr lt_w meenv5)
+        (meenv7, ng8, ge_w) = createFuncs meenv6 ng7 tenv' M.empty (lhGeName . fst) lhStore (lhGeExpr le_w meenv6)
 
-        (eenv8, ng9, pp_w) = createFuncs eenv7 ng8 tenv' M.empty (lhPolyPredName . fst) lhStore (lhPolyPred eenv7 tenv lhTCN kv)
+        (meenv8, ng9, pp_w) = createFuncs meenv7 ng8 tenv' M.empty (lhPolyPredName . fst) lhStore (lhPolyPred meenv7 tenv lhTCN kv)
 
         tb = tyBool kv
 
         (tvAN, ng10) = freshSeededString "a" ng9
         tvA = TyVar $ Id tvAN TYPE
 
-        (eenv9, tenv'', tc', ng11) = genTC eenv8 tenv tc lhTCN
+        (meenv9, tenv'', tc', ng11) = genTC meenv8 tenv tc lhTCN
                         [ (lhEqN, TyFun tvA (TyFun tvA tb), eq_w) 
                         , (lhNeN, TyFun tvA (TyFun tvA tb), neq_w)
                         , (lhLtN, TyFun tvA (TyFun tvA tb), lt_w)
@@ -144,7 +144,7 @@ createLHTC s@(State { expr_env = eenv
 
         tcv = TCValues {lhTC = lhTCN, lhEq = lhEqN, lhNe = lhNeN, lhLt = lhLtN, lhLe = lhLeN, lhGt = lhGtN, lhGe = lhGeN, lhPP = lhPPN}
     in
-    (s { expr_env = eenv9, name_gen = ng11, type_env = tenv'', type_classes = tc' }, tcv)
+    (s { name_gen = ng11, type_env = tenv'', type_classes = tc' }, meenv9, tcv)
 
 ---------------------------------------
 -- Gen Helper

@@ -69,11 +69,24 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
 
     let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
-    let no_part_state = elimPartialApp cleaned_state
-    let (lh_state, tcv) = createLHTC no_part_state
+    let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
+
+    let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
+    let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
+    let ng_state = no_part_state {name_gen = ng'}
+
+    let (lh_state, meenv', tcv) = createLHTC ng_state meenv
     let lhtc_state = addLHTC lh_state tcv
-    let measure_state = createMeasures lh_measures tcv lhtc_state
-    let (merged_state, mkv) = mergeLHSpecState (filter isJust$ nub $ map (\(Name _ m _) -> m) tgt_ns) specs measure_state tcv
+
+    let meenv'' = addLHTCExprEnv meenv' (type_classes lhtc_state) tcv
+    let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv''})
+
+    -- let ((meenv, mkv), ng') = doRenames (E.keys meas_eenv) meas_ng (meas_eenv, known_values lhtc_state)
+    -- let ng_state = lhtc_state {name_gen = ng'}
+
+    let ng2_state = lhtc_state {name_gen = meas_ng}
+
+    let merged_state = mergeLHSpecState (filter isJust$ nub $ map (\(Name _ m _) -> m) tgt_ns) specs ng2_state meas_eenv tcv
     -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv merged_state
 

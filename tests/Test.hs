@@ -157,7 +157,7 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat2" 500 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 500 2 [AtLeast 1]
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat4" 1500 2 [AtLeast 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1000 2 [AtLeast 2]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

@@ -20,7 +20,7 @@ import Debug.Trace
 
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
-createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State h t -> State h t
+createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State h t -> (ExprEnv, NameGen)
 createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = ng}) = 
     let
         nt = M.fromList $ mapMaybe (measureTypeMappings tenv tcv) meas
@@ -34,7 +34,7 @@ createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = n
         (eenv'', ng') = doRenames mvNames ng eenv'
         -- (meas'', ng') = (meas', ng)
     in
-    s {expr_env = eenv'', name_gen = ng'}
+    (eenv'', ng')
 
 allTypesKnown :: TypeEnv -> Measure SpecType GHC.DataCon -> Bool
 allTypesKnown tenv (M {sort = srt}) = isJust $ specTypeToType tenv srt
@@ -78,7 +78,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
 
         (lam_i, ng1) = freshId (head stArgs) ng
         (cb, _) = freshId (head stArgs) ng1
-        alts = fixAlts s tcv m $ mapMaybe (convertDefs s stArgs stRet tcv (M.union {- (M.union m nt) -} m (M.fromList as_t)) bnds) eq
+        alts = mapMaybe (convertDefs s stArgs stRet tcv (M.union m (M.fromList as_t)) bnds) eq
 
         e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
     in
@@ -99,7 +99,7 @@ convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m bnds def@(De
         dctarg = nonTyForAllArgumentTypes dct
 
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
-        dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds') st_t-- (map TyVar bnds)
+        dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds') st_t
 
         nt = map (\((sym, t'), t'') -> (symbolName sym, maybe t'' (unsafeSpecTypeToType tenv) t')) $ zip bds dctarg'
 

@@ -10,7 +10,7 @@ data List a = Emp
 
 {-@ measure size      :: List a -> Int
     size (Emp)        = 0
-    size ((:+:) x xs) = 1 + 2
+    size ((:+:) x xs) = 1 + size xs
   @-}
 
 {-@ measure sizeXs          :: List (List a) -> Int
@@ -40,10 +40,14 @@ concat3 _ = die "HERE"
 die :: String -> a
 die _ = undefined
 
+{-@ measure size1      :: List a -> Int
+    size1 (Emp)        = 0
+    size1 ((:+:) x xs) = 1 + 2
+  @-}
 
 {-@ measure sizeXs1          :: List (List a) -> Int
     sizeXs1 (Emp)            = 0
-    sizeXs1 ((:+:) xs xss)   = size xs
+    sizeXs1 ((:+:) xs xss)   = size1 xs
   @-}
 
 {-@ concat4                  :: { xss : List (List a) | sizeXs1 xss > 0 } 
@@ -55,3 +59,11 @@ concat4 (Emp :+: xss)         = Emp
                             -> List a  @-}
 concat5 :: List (List a) -> List a
 concat5 _ = die ""
+
+
+{-@ concat56                  :: xss : { xss : List (List a) | sizeXs xss > 0 } 
+                            -> List a @-}
+concat56 ((x :+: Emp) :+: Emp) = x :+: Emp
+concat56 (Emp :+: xss)         = concat56 xss
+concat56 ((x :+: xs) :+: xss)  = x :+: concat56 (xs :+: xss)
+concat56 _ = die ""
