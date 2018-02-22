@@ -1,6 +1,6 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
-module GetNthAbstract where
+module ConcatList where
 
 import Prelude hiding (concat)
 
@@ -10,7 +10,7 @@ data List a = Emp
 
 {-@ measure size      :: List a -> Int
     size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+    size ((:+:) x xs) = 1 + 2
   @-}
 
 {-@ measure sizeXs          :: List (List a) -> Int
@@ -51,10 +51,7 @@ die _ = undefined
 concat4 :: List (List a) -> List a
 concat4 (Emp :+: xss)         = Emp
 
-{-@ concat5                  :: xss : { xss : List (List a) | sizeXs xss > 0 } 
-                            -> { xs : List a | size xs = sizeXs xss &&
-                                 sizeXs xss > 0 } @-}
--- concat5 ((x :+: Emp) :+: Emp) = x :+: Emp
--- concat5 (Emp :+: xss)         = concat5 xss
-concat5 ((x :+: xs) :+: xss)  = x :+: concat5 (xs :+: xss)
+{-@ concat5                  :: { xss : List (List a) | 0 < sizeXs1 xss } 
+                            -> List a  @-}
+concat5 :: List (List a) -> List a
 concat5 _ = die ""

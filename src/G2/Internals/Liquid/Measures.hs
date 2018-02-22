@@ -74,10 +74,11 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         as_t = map (\i -> (idName i, typeOf i)) as
 
         stArgs = nonTyForAllArgumentTypes $ fromJust st
+        stRet = fmap returnType st
 
         (lam_i, ng1) = freshId (head stArgs) ng
         (cb, _) = freshId (head stArgs) ng1
-        alts = fixAlts s tcv m $ mapMaybe (convertDefs s stArgs tcv (M.union {- (M.union m nt) -} m (M.fromList as_t)) bnds) eq
+        alts = fixAlts s tcv m $ mapMaybe (convertDefs s stArgs stRet tcv (M.union {- (M.union m nt) -} m (M.fromList as_t)) bnds) eq
 
         e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
     in
@@ -85,8 +86,8 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
-convertDefs :: State h t -> [Type] -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
-convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] tcv m bnds def@(Def { ctor = dc, body = b, binds = bds}) =
+convertDefs :: State h t -> [Type] -> Maybe Type -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
+convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m bnds def@(Def { ctor = dc, body = b, binds = bds}) =
     let
         (DataCon n t _) = mkData HM.empty HM.empty dc
         (TyConApp tn _) = returnType t
@@ -104,15 +105,15 @@ convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] tcv m bnds def@(Def { 
 
         is = map (uncurry Id) nt
 
-        e = mkExprFromBody s tcv (M.union m $ M.fromList nt) b
+        e = mkExprFromBody s ret tcv (M.union m $ M.fromList nt) b
     in
     case dc' of
         Just _ -> Just $ Alt (DataAlt dc'' is) e -- [1]
         Nothing -> Nothing
 
-mkExprFromBody :: State h t -> TCValues  -> M.Map Name Type -> Body -> Expr
-mkExprFromBody s tcv m (E e) = convertLHExpr e tcv s m
-mkExprFromBody s tcv m (P e) = convertLHExpr e tcv s m
+mkExprFromBody :: State h t -> Maybe Type -> TCValues  -> M.Map Name Type -> Body -> Expr
+mkExprFromBody s ret tcv m (E e) = convertLHExpr e ret tcv s m
+mkExprFromBody s ret tcv m (P e) = convertLHExpr e ret tcv s m
 
 --Adjusts the alts, to make sure they all return the same Type
 fixAlts :: State h t -> TCValues -> M.Map Name Type -> [Alt] -> [Alt]

@@ -14,6 +14,7 @@ import G2.Internals.Translation
 import G2.Internals.Language as Lang
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.KnownValues
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Liquid.TCValues
 
 import Language.Haskell.Liquid.Types
@@ -389,7 +390,7 @@ specTypeApps' (RVar {rt_var = (RTV v), rt_reft = r}) tcv s m b =
 
         m' = M.insert (idName symbId) (TyVar i) m 
 
-        re =  convertLHExpr (reftExpr $ ur_reft r) tcv s m'
+        re =  convertLHExpr (reftExpr $ ur_reft r) Nothing tcv s m'
     in
     [App (Lam symbId re) (Var b)]
 specTypeApps' (RFun {rt_bind = rb, rt_in = fin, rt_out = fout }) tcv s@(State { type_env = tenv }) m b =
@@ -417,7 +418,7 @@ specTypeApps' (RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {exp
 
         m' = M.insert (idName i) ty m
 
-        re = convertLHExpr (reftExpr $ ur_reft r) tcv s m'
+        re = convertLHExpr (reftExpr $ ur_reft r) Nothing tcv s m'
 
         an = mkAnd eenv
     in
@@ -506,15 +507,16 @@ rTyConType tenv rtc sts =
 rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
 
-convertLHExpr :: Ref.Expr -> TCValues -> State h t -> M.Map Name Type -> Expr
-convertLHExpr (ESym (SL t)) _ _ _ = Var $ Id (Name t Nothing 0) TyBottom
-convertLHExpr (ECon c) _ (State {known_values = knv, type_env = tenv}) _ = convertCon knv tenv c
-convertLHExpr (EVar s) _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m
-convertLHExpr (EApp e e') tcv s@(State {type_classes = tc}) m =
+convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State h t -> M.Map Name Type -> Expr
+convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0) TyBottom
+convertLHExpr (ECon c)  t _ (State {known_values = knv, type_env = tenv}) _ = convertCon t knv tenv c
+convertLHExpr (EVar s) t _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m
+convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
     let
-        f = convertLHExpr e tcv s m
+        f = convertLHExpr e Nothing tcv s m
+        f_ar_t = typeOf $ last $ args f
     in
-    case convertLHExpr e' tcv s m of
+    case convertLHExpr e' (Just f_ar_t) tcv s m of
         v@(Var (Id _ (TyConApp _ ts))) -> 
             let
                 te = map Type ts
@@ -529,25 +531,25 @@ convertLHExpr (EApp e e') tcv s@(State {type_classes = tc}) m =
             in
             apps
         e'' -> App f e''
-convertLHExpr (ENeg e) tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
+convertLHExpr (ENeg e) t tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
     let
-        e' = convertLHExpr e tcv s m
+        e' = convertLHExpr e t tcv s m
 
-        t = typeOf e'
+        t' = typeOf e'
 
-        ndict = fromJustErr "No lnumDict for ENeg" $ numDict eenv knv tc t m
+        ndict = fromJustErr "No lnumDict for ENeg" $ numDict eenv knv tc t' m
 
-        lhdict = fromJustErr "No lhDict for ENeg" $ lhTCDict eenv tcv tc t m
+        lhdict = fromJustErr "No lhDict for ENeg" $ lhTCDict eenv tcv tc t' m
     in
     mkApp [ mkPrim Negate eenv
           , lhdict
-          , Type t
+          , Type t'
           , ndict
           , e']
-convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
+convertLHExpr (EBin b e e') pt tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
     let
-        lhe = convertLHExpr e tcv s m
-        lhe' = convertLHExpr e' tcv s m
+        lhe = convertLHExpr e pt tcv s m
+        lhe' = convertLHExpr e' pt tcv s m
 
         -- t = typeOf lhe
         t = typeOf lhe
@@ -561,13 +563,6 @@ convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, k
         ndict = fromJustErr ("No numDict for EBin\n" ++ show lhe ++ "\n" ++ show lhe' ++ "\n" ++ show t ++ "\n" ++ show t') $ bopDict b eenv knv tc t2 m
 
         lhdict = fromJustErr "No lhDict for EBin" $ lhTCDict eenv tcv tc t2 m
-
-        app = mkApp [ convertBop b eenv
-          , lhdict
-          , Type t2
-          , ndict
-          , lhe2
-          , lhe2']
     in
     mkApp [ convertBop b eenv
           , lhdict
@@ -575,7 +570,7 @@ convertLHExpr (EBin b e e') tcv s@(State { expr_env = eenv, type_classes = tc, k
           , ndict
           , lhe2
           , lhe2']
-convertLHExpr (EIte b e1 e2) tcv s@(State { type_env = tenv, name_gen = ng, known_values = knv }) m =
+convertLHExpr (EIte b e1 e2) t tcv s@(State { type_env = tenv, name_gen = ng, known_values = knv }) m =
     let
         tr = mkDCTrue knv tenv
         fs = mkDCFalse knv tenv
@@ -584,36 +579,36 @@ convertLHExpr (EIte b e1 e2) tcv s@(State { type_env = tenv, name_gen = ng, know
         (cb, ng2) = freshId boolT ng
         s' = s {name_gen = ng2}
 
-        bE = convertLHExpr b tcv s' m
-        e1' = convertLHExpr e1 tcv s' m
-        e2' = convertLHExpr e2 tcv s' m
+        bE = convertLHExpr b Nothing tcv s' m
+        e1' = convertLHExpr e1 t tcv s' m
+        e2' = convertLHExpr e2 t tcv s' m
 
         a1 = Lang.Alt (DataAlt tr []) e1'
         a2 = Lang.Alt (DataAlt fs []) e2'
     in
     Case bE cb [a1, a2]
-convertLHExpr (PAnd es) tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
-    case map (\e -> convertLHExpr e tcv s m) es of
+convertLHExpr (PAnd es) _ tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
+    case map (\e -> convertLHExpr e Nothing tcv s m) es of
         [] -> mkTrue knv tenv
         [e] -> e
         es' -> foldr (\e -> App (App (mkAnd eenv) e)) (mkTrue knv tenv) es'
-convertLHExpr (POr es) tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
-    case map (\e -> convertLHExpr e tcv s m) es of
+convertLHExpr (POr es) _ tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
+    case map (\e -> convertLHExpr e Nothing tcv s m) es of
         [] -> mkFalse knv tenv
         [e] -> e
         es' -> foldr (\e -> App (App (mkOr eenv) e)) (mkFalse knv tenv) es'
-convertLHExpr (PNot e) tcv s@(State {expr_env = eenv }) m =
-    App (mkNot eenv) $ convertLHExpr e tcv s m
-convertLHExpr (PImp e e') tcv s@(State { expr_env = eenv }) m =
-    mkApp [mkImplies eenv, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
-convertLHExpr (PIff e e') tcv s@(State { expr_env = eenv }) m =
-    mkApp [mkIff eenv, convertLHExpr e tcv s m, convertLHExpr e' tcv s m]
-convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, known_values = knv, type_classes = tc}) m =
+convertLHExpr (PNot e) _ tcv s@(State {expr_env = eenv }) m =
+    App (mkNot eenv) $ convertLHExpr e Nothing tcv s m
+convertLHExpr (PImp e e') _ tcv s@(State { expr_env = eenv }) m =
+    mkApp [mkImplies eenv, convertLHExpr e Nothing tcv s m, convertLHExpr e' Nothing tcv s m]
+convertLHExpr (PIff e e') _ tcv s@(State { expr_env = eenv }) m =
+    mkApp [mkIff eenv, convertLHExpr e Nothing tcv s m, convertLHExpr e' Nothing tcv s m]
+convertLHExpr (PAtom brel e e') pt tcv s@(State {expr_env = eenv, known_values = knv, type_classes = tc}) m =
     let
         brel' = convertBrel brel tcv
 
-        ec = convertLHExpr e tcv s m
-        ec' = convertLHExpr e' tcv s m
+        ec = convertLHExpr e pt tcv s m
+        ec' = convertLHExpr e' pt tcv s m
 
         t = returnType ec
         t' = returnType ec'
@@ -630,7 +625,7 @@ convertLHExpr (PAtom brel e e') tcv s@(State {expr_env = eenv, known_values = kn
         app = mkApp [brel', dict, Type t2, ec2, ec2']
     in
     mkApp [brel', dict, Type t2, ec2, ec2']
-convertLHExpr e _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
+convertLHExpr e _ _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
 convertSymbol :: Name -> ExprEnv -> M.Map Name Type -> Lang.Id
 convertSymbol nm@(Name n md _) eenv m =
@@ -673,9 +668,11 @@ symbolName s =
         (n', "") -> Name n' Nothing 0
         _ -> Name n (Just m') 0
 
-convertCon :: KnownValues -> TypeEnv -> Constant -> Expr
-convertCon knv tenv (Ref.I i) = App (mkDCInteger knv tenv) (Lit . LitInt $ fromIntegral i)
-convertCon knv tenv (Ref.R d) = App (mkDCDouble knv tenv) (Lit . LitDouble $ toRational d)
+convertCon :: Maybe Type -> KnownValues -> TypeEnv -> Constant -> Expr
+convertCon (Just (TyConApp n _)) knv tenv (Ref.I i)
+    | n == KV.tyInt knv = App (mkDCInt knv tenv) (Lit . LitInt $ fromIntegral i)
+convertCon _ knv tenv (Ref.I i) = App (mkDCInteger knv tenv) (Lit . LitInt $ fromIntegral i)
+convertCon _ knv tenv (Ref.R d) = App (mkDCDouble knv tenv) (Lit . LitDouble $ toRational d)
 
 convertBop :: Bop -> ExprEnv -> Expr
 convertBop Ref.Plus = mkPlus
