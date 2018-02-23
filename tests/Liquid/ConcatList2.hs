@@ -30,6 +30,7 @@ concat (xs :+: Emp) = xs
 concat (xs :+: (ys :+: xss)) = concat ((concat' xs ys) :+: xss)
 
 {-@ concat' :: List a -> List a -> List a @-}
+-- {-@ concat' :: x:List a -> y:List a -> {z:List a | size x + size y = size z} @-}
 concat' :: List a -> List a -> List a
 concat' Emp Emp = Emp
 concat' xs Emp = xs
