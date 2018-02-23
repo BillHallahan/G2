@@ -3,6 +3,7 @@
 module Main where
 
 import System.Environment
+import System.Timeout
 
 import Data.List as L
 import qualified Data.Map as M
@@ -21,6 +22,8 @@ import G2.Internals.Solver
 
 import G2.Internals.Liquid.Interface
 
+_DEFAULT_TIMEOUT = 120 * 1000 * 1000 -- microseconds = 10^-6 seconds
+
 main :: IO ()
 main = do
   as <- getArgs
@@ -35,12 +38,27 @@ main = do
   let lhlibs = maybeToList $ mkLiquidLibs as
 
   case m_filetest of
-    Just lhfile -> runSingleLHFile proj lhfile libs lhlibs as
+    Just lhfile -> do
+      doTimeout _DEFAULT_TIMEOUT $ runSingleLHFile proj lhfile libs lhlibs as
+      return ()
     Nothing -> case m_dirtest of
       Just dir -> runMultiLHFile proj dir libs lhlibs as
       Nothing -> case (m_liquid_file, m_liquid_func) of
-        (Just lhfile, Just lhfun) -> runSingleLHFun proj lhfile lhfun libs lhlibs as
-        _ -> runGHC as
+        (Just lhfile, Just lhfun) -> do
+          doTimeout _DEFAULT_TIMEOUT $ runSingleLHFun proj lhfile lhfun libs lhlibs as
+          return ()
+        _ -> do
+          doTimeout _DEFAULT_TIMEOUT $ runGHC as
+          return ()
+
+doTimeout :: Int -> IO a -> IO ()
+doTimeout micros action = do
+  res <- timeout micros action
+  case res of
+    Just _ -> return ()
+    Nothing -> do
+      putStrLn "Timeout!"
+      return ()
 
 runMultiLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
 runMultiLHFile proj lhdir libs lhlibs args = do
