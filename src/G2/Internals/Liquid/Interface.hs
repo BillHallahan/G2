@@ -243,7 +243,8 @@ testLiquidFile proj fp libs lhlibs config = do
     putStrLn $ "******** Liquid File Test: *********"
     putStrLn fp
 
-    let whitelist = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] 
+    let whitelist = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++
+                    ['_', '\'']
 
     let cleaned_tgt_lhs = filter (\n -> T.all (`elem` whitelist) n) tgt_lhs
 
