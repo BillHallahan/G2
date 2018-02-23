@@ -35,24 +35,28 @@ elimAnds tenv kv mkv = elimCalls2 (andFunc mkv) (mkTrue kv tenv)
 
 elimLHPP :: TypeEnv -> KnownValues -> TCValues -> Expr -> Expr
 elimLHPP tenv kv tcv a@(App e e') =
-    if isRedundantNestedLHPP kv tcv a then mkTrue kv tenv else App (modifyAppRHS (elimLHPP tenv kv tcv) e) (elimLHPP tenv kv tcv e')
+    case isNestedLPP tcv a of
+        True -> case isRedundantNestedArg kv tcv a of
+                    True -> mkTrue kv tenv
+                    False -> App (modifyAppRHS (elimLHPP tenv kv tcv) e) (elimLHPP tenv kv tcv e')
+        False -> modifyChildren (elimLHPP tenv kv tcv) a
 elimLHPP tenv kv tcv e = modifyChildren (elimLHPP tenv kv tcv) e
+
+isNestedLPP :: TCValues -> Expr -> Bool
+isNestedLPP tcv (Var (Id n _)) = n == lhPP tcv 
+isNestedLPP tcv a@(App e _) = isNestedLPP tcv e
+isNestedLPP _ _ = False
 
 -- We skip checking the outermost arg, which is always the type the lhPP
 -- function is walking over
-isRedundantNestedLHPP :: KnownValues -> TCValues -> Expr -> Bool
-isRedundantNestedLHPP kv tcv (App e _) = isRedundantNestedLHPP' kv tcv e
-isRedundantNestedLHPP _ _ e = False
+isRedundantNestedArg :: KnownValues -> TCValues -> Expr -> Bool
+isRedundantNestedArg kv tcv (App e _) = isRedundantNestedArg' kv tcv e
+isRedundantNestedArg _ _ e = False
 
-isRedundantNestedLHPP' :: KnownValues -> TCValues -> Expr -> Bool
-isRedundantNestedLHPP' _ tcv (Var (Id n _)) = n == lhPP tcv 
-isRedundantNestedLHPP' kv tcv a@(App e e') =
-    let
-        red1 = isRedundantNestedLHPP' kv tcv e
-        red2 = isRedundantArg kv tcv e'
-    in
-    red1 && red2
-isRedundantNestedLHPP' _ _ _ = False
+isRedundantNestedArg' :: KnownValues -> TCValues -> Expr -> Bool
+isRedundantNestedArg' _ tcv (Var (Id n _)) = n == lhPP tcv 
+isRedundantNestedArg' kv tcv a@(App e e') = isRedundantNestedArg' kv tcv e && isRedundantArg kv tcv e'
+isRedundantNestedArg' _ _ _ = False
 
 isRedundantArg :: KnownValues -> TCValues -> Expr -> Bool
 isRedundantArg _ tcv (Type _) = True

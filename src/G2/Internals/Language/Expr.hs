@@ -20,6 +20,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkIdentity
                                   , modifyAppLHS
                                   , modifyAppRHS
+                                  , modifyInLHS
                                   , functionCalls
                                   , nonDataFunctionCalls
                                   , mkLamBindings
@@ -124,6 +125,10 @@ modifyAppLHS _ e = e
 modifyAppRHS :: (Expr -> Expr) -> Expr -> Expr
 modifyAppRHS f (App e e') = App (modifyAppRHS f e) (f e')
 modifyAppRHS _ e = e
+
+modifyInLHS :: (Expr -> Expr) -> Expr -> Expr
+modifyInLHS f (App e _) = modifyInLHS f e
+modifyInLHS f e = f e
 
 -- | functionCalls
 -- Returns all function calls with all arguments
