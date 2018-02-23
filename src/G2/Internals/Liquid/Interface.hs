@@ -70,8 +70,8 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
 
     let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
-    let annot_state = annotateCases cleaned_state
-    let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp annot_state
+    -- let annot_state = annotateCases cleaned_state
+    let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
 
     let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
     let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
