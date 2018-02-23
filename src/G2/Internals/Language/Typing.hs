@@ -155,6 +155,7 @@ instance Typed Expr where
     typeOf' m (Coercion (_ :~ t')) = (t', m)
     typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
+    typeOf' m (Annotation _ e) = typeOf' m e
 
 instance Typed Type where
     typeOf' m v@(TyVar (Id n _)) =

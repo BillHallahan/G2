@@ -49,6 +49,7 @@ data Rule = RuleEvalVal
           | RuleIdentity
           | RulePrimError
 
+          | RuleAnnotation
           | RuleError
            deriving (Show, Eq, Read)
 

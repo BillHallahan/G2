@@ -18,6 +18,8 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkCons
                                   , mkEmpty
                                   , mkIdentity
+                                  , modifyAppLHS
+                                  , modifyAppRHS
                                   , functionCalls
                                   , nonDataFunctionCalls
                                   , mkLamBindings
@@ -34,6 +36,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , varId
                                   , symbVars
                                   , freeVars
+                                  , removeOuterAnnot
                                   , alphaReduction
                                   , varBetaReduction
                                   , mkStrict) where
@@ -111,6 +114,16 @@ mkIdentity t =
         x = Id (Name "x" Nothing 0) t
     in
     Lam x (Var x)
+
+-- | modifyAppLHS
+modifyAppLHS :: (Expr -> Expr) -> Expr -> Expr
+modifyAppLHS f (App e e') = App (f e) (modifyAppLHS f e')
+modifyAppLHS _ e = e
+
+-- | modifyAppRHS
+modifyAppRHS :: (Expr -> Expr) -> Expr -> Expr
+modifyAppRHS f (App e e') = App (modifyAppRHS f e) (f e')
+modifyAppRHS _ e = e
 
 -- | functionCalls
 -- Returns all function calls with all arguments
@@ -218,6 +231,10 @@ freeVars' eenv bound (Var i) =
     else
         ([], [i])
 freeVars' _ _ _ = ([], [])
+
+removeOuterAnnot :: Expr -> Expr
+removeOuterAnnot (Annotation _ e) = e
+removeOuterAnnot e = e
 
 alphaReduction :: ASTContainer m Expr => m -> m
 alphaReduction = modifyASTsM alphaReduction'

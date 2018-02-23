@@ -36,7 +36,7 @@ concat2 ((x :+: xs) :+: xss)  = x :+: concat2 xss
 concat3 ((x :+: xs) :+: xss)  = x :+: concat3 xss
 concat3 _ = die "HERE"
 
-{-@ die :: {_:String | false} -> a @-}
+{-@ die :: {v:String | false} -> a @-}
 die :: String -> a
 die _ = undefined
 
@@ -61,9 +61,9 @@ concat5 :: List (List a) -> List a
 concat5 _ = die ""
 
 
-{-@ concat56                  :: xss : { xss : List (List a) | sizeXs xss > 0 } 
+{-@ concat56                  :: { xss : List (List a) | sizeXs xss > 0 } 
                             -> List a @-}
 concat56 ((x :+: Emp) :+: Emp) = x :+: Emp
 concat56 (Emp :+: xss)         = concat56 xss
 concat56 ((x :+: xs) :+: xss)  = x :+: concat56 (xs :+: xss)
-concat56 _ = die ""
+concat56 _ = die "Die"
