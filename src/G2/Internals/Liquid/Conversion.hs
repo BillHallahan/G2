@@ -516,12 +516,14 @@ convertLHExpr (EVar s) t _ (State { expr_env = eenv, type_env = tenv }) m = conv
 convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
     let
         f = convertLHExpr e Nothing tcv s m
-        f_ar_t = typeOf $ last $ args f
+        f_ar_t@(~(TyConApp _ f_ar_ts)) = last $ argumentTypes f
     in
     case convertLHExpr e' (Just f_ar_t) tcv s m of
-        v@(Var (Id _ (TyConApp _ ts))) -> 
-            let
-                te = map Type ts
+        v@(Var (Id n (TyConApp tn ts))) -> 
+            let -- trace ("t args = " ++ show (argumentTypes f) ++ "\nts = " ++ show ts ++ "\n") 
+                -- te = map Type $ nub $ filter isTyVar $ argumentTypes f-- map Type ts-- nub $ map (Type) $ concatMap tyVars ts --TODO : Is this right?  Only 1 non-Type arg to a measure, and should have type args in order?
+                specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializesTo M.empty)) $ zip ts f_ar_ts
+                te = map Type specTo-- trace ("m = " ++ show specTo ++ "\nts = " ++ show ts ++ "\nf_ar_ts = " ++ show (f_ar_ts)) nub $ map (Type) $ concatMap tyVars ts
 
                 lh = lhTC tcv
                 ti = typeIdList tcv m

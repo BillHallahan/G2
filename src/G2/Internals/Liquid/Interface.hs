@@ -42,6 +42,8 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
+import Debug.Trace
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -220,7 +222,7 @@ parseLHOut entry ((s, inArg, ex, ais):xs) =
       viFunc = fmap (parseLHFuncTuple s) ais
 
       abs = map (parseLHFuncTuple s) $ track s
-  in 
+  in
   LHReturn { calledFunc = called
            , violating = if Just called == viFunc then Nothing else viFunc
            , abstracted = abs} : tail

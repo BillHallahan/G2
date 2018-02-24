@@ -26,6 +26,7 @@ import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
 
 import Control.Monad
+import Data.List
 import Data.Maybe
 
 import Debug.Trace

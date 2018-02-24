@@ -15,6 +15,7 @@ module G2.Internals.Language.Typing
     , mkTyFun
     , (.::)
     , (.::.)
+    , specializesTo
     , hasFuncType
     , appendType
     , higherOrderFuncs

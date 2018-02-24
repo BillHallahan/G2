@@ -64,7 +64,7 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
         cexprT = returnType cexpr
 
         (t, atf) = case AT.lookup cexprT at of
-                        Just (t', f) -> trace ("t' = " ++ show t') (TyConApp t' [], App (Var f))
+                        Just (t', f) -> (TyConApp t' [], App (Var f))
                         Nothing -> (cexprT, id)
 
         (i, ng') = freshId t ng

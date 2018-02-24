@@ -14,6 +14,7 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 import G2.Internals.Execution.RuleTypes
 
+import Data.Char
 import Data.Coerce
 import Data.List
 import qualified Data.Map as M
@@ -189,6 +190,7 @@ mkCleanExprHaskell' kv tc e
     , t <- typeOf e''
     , TyConApp n _ <- t
     , isTypeClassNamed n tc = e'
+    | App e' (Type _) <- e = e'
     | otherwise = e
 
 mkExprHaskell :: Expr -> String
@@ -199,7 +201,16 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
         mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
-        mkExprHaskell' (App e1 e2@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' e2 i ++ ")"
+        mkExprHaskell' (App ea@(App e1 e2) e3) i
+            | isInfixable e1 =
+                let
+                    e2P = if isApp e2 then "(" ++ mkExprHaskell' e2 i ++ ")" else mkExprHaskell' e2 i
+                    e3P = if isApp e3 then "(" ++ mkExprHaskell' e3 i ++ ")" else mkExprHaskell' e3 i
+                in
+                e2P ++ " " ++ mkExprHaskell' e1 i ++ " " ++ e3P
+            | App _ _ <- e3 = mkExprHaskell' ea i ++ " (" ++ mkExprHaskell' e3 i ++ ")"
+            | otherwise = mkExprHaskell' ea i ++ " " ++ mkExprHaskell' e3 i
+        mkExprHaskell' (App e1 ea@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' ea i ++ ")"
         mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
         mkExprHaskell' (Data d) _ = mkDataConHaskell d
         mkExprHaskell' (Case e _ ae) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
@@ -223,6 +234,14 @@ mkExprHaskell ex = mkExprHaskell' ex 0
 
         off :: Int -> String
         off i = duplicate "   " i
+
+isInfixable :: Expr -> Bool
+isInfixable (Data (DataCon (Name n _ _) _ _)) = not $ T.any isAlphaNum n
+isInfixable _ = False
+
+isApp :: Expr -> Bool
+isApp (App _ _) = True
+isApp _ = False
 
 mkLitHaskell :: Lit -> String
 mkLitHaskell (LitInt i) = show i
@@ -309,7 +328,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , "----- [Paths] ---------------------"
                , paths_str
                , "----- [True Assert] ---------------------"
-               , show (true_assert ex_state)
+               , "True Assert = " ++ show (true_assert ex_state)
                , "----- [Assert Ids] ---------------------"
                , show (assert_ids ex_state)
                , "----- [TypeClasses] ---------------------"

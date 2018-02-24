@@ -182,7 +182,7 @@ run red hal halR sel con hhp config (state@ State { type_env = tenv
     -- sm <- satModelOutputs con hhp exec_states
     -- let ident_states' = ident_states
 
-    -- mapM_ (\(rs, _, st) -> do
+    -- mapM_ (\(rs, st) -> do
     --     putStrLn $ pprExecStateStr st
     --     putStrLn $ intercalate "\n" $ map show $ zip ([1..] :: [Integer]) rs
     -- --     -- putStrLn $ pprExecStateStrSimple st
