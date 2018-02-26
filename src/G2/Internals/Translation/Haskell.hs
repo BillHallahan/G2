@@ -3,6 +3,7 @@
 -- | Haskell Translation
 module G2.Internals.Translation.Haskell
     ( CompileClosure
+    , loadProj
     , mkCompileClosure
     , hskToG2
     , mkIOString
@@ -15,6 +16,7 @@ module G2.Internals.Translation.Haskell
     , mkData
     , NameMap
     , TypeNameMap
+    , check
     ) where
 
 import qualified G2.Internals.Language as G2
@@ -56,6 +58,24 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
+import Unsafe.Coerce
+
+check :: IO ()
+check = do
+    v' <- runGhc (Just libdir) $ do
+        loadProj Nothing "./tests/Samples" "./tests/Samples/HigherOrderMath.hs" False
+        let prN = mkModuleName "Prelude"
+        let prImD = simpleImportDecl prN
+
+        let mdN = mkModuleName "HigherOrderMath"
+        let imD = simpleImportDecl mdN
+
+        setContext [IIDecl prImD, IIDecl imD]
+        v <- compileExpr "abs2 (-54) == 54.5"
+        return (unsafeCoerce v :: Bool)
+    print v'
+
+
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
@@ -88,10 +108,10 @@ equivMods = HM.fromList
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")]
 
-hskToG2 :: FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
+hskToG2 :: Maybe HscTarget -> FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
     IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String])
-hskToG2 proj src nm tm simpl = do
-    (mb_modname, sums_gutss, _, _, c) <- mkCompileClosure proj src simpl
+hskToG2 hsc proj src nm tm simpl = do
+    (mb_modname, sums_gutss, _, c) <- mkCompileClosure hsc proj src simpl
     
     let (nm2, binds) = mapAccumR (\nm' (_, _, b) -> mapAccumR (\v -> mkBinds v tm) nm' b) nm sums_gutss
     let binds' = concat binds
@@ -107,30 +127,33 @@ hskToG2 proj src nm tm simpl = do
 
     return (mb_modname, binds', tycons', classes, nm3, tm2, tgt_lhs)
 
-type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], DynFlags, HscEnv, [ClsInst])
+type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], HscEnv, [ClsInst])
 
-mkCompileClosure :: FilePath -> FilePath -> Bool -> IO CompileClosure
-mkCompileClosure proj src simpl = do
-    (mb_modname, mod_graph, mod_gutss, dflags, env) <- runGhc (Just libdir) $ do
-        beta_flags <- getSessionDynFlags
-        let gen_flags = []
-        -- let gen_flags = [ Opt_CmmSink
-        --                 , Opt_SimplPreInlining
-        --                 , Opt_DoEtaReduction
-        --                 , Opt_IgnoreInterfacePragmas]
-        let beta_flags' = foldl' gopt_unset beta_flags gen_flags
-        let dflags = beta_flags' { hscTarget = HscInterpreted -- Forcing compilation of unused, unexported top level bindings
-                                 , importPaths = [proj]
-                                 , ufCreationThreshold = if simpl then ufCreationThreshold beta_flags' else -1000
-                                 , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -1000
-                                 , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -1000
-                                 , ufDictDiscount = if simpl then ufDictDiscount beta_flags' else -1000
-                                 , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -1000}
-        _ <- setSessionDynFlags dflags
+loadProj :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> Ghc SuccessFlag
+loadProj hsc proj src simpl = do
+    beta_flags <- getSessionDynFlags
+    let gen_flags = []
+    let beta_flags' = foldl' gopt_unset beta_flags gen_flags
+    let dflags = beta_flags' { hscTarget = case hsc of
+                                                Just hsc' -> hsc'
+                                                _ -> hscTarget beta_flags'
+                             , importPaths = [proj]
+                             , ufCreationThreshold = if simpl then ufCreationThreshold beta_flags' else -1000
+                             , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -1000
+                             , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -1000
+                             , ufDictDiscount = if simpl then ufDictDiscount beta_flags' else -1000
+                             , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -1000}
+
+    _ <- setSessionDynFlags dflags
+    target <- guessTarget src Nothing
+    _ <- setTargets [target]
+    load LoadAllTargets
+
+mkCompileClosure :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO CompileClosure
+mkCompileClosure hsc proj src simpl = do
+    (mb_modname, mod_graph, mod_gutss, env) <- runGhc (Just libdir) $ do
+        loadProj hsc proj src simpl
         env <- getSession
-        target <- guessTarget src Nothing
-        _ <- setTargets [target]
-        _ <- load LoadAllTargets
         -- Now that things are loaded, make the compilation closure.
         mod_graph <- getModuleGraph
         pmods <- mapM parseModule mod_graph
@@ -142,7 +165,7 @@ mkCompileClosure proj src simpl = do
                                      $ filter ((== Just src) . ml_hs_file . ms_location)
                                      $ map (pm_mod_summary) pmods
 
-        return (mb_modname, mod_graph, mod_gutss, dflags, env)
+        return (mb_modname, mod_graph, mod_gutss, env)
 
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
@@ -155,7 +178,7 @@ mkCompileClosure proj src simpl = do
     -- Get TypeClasses
     let cls_insts = concatMap mg_insts mod_gutss
 
-    return (mb_modname, zip3 mod_graph tcss bindss, dflags, env, cls_insts)
+    return (mb_modname, zip3 mod_graph tcss bindss, env, cls_insts)
 
 mkBinds :: NameMap -> TypeNameMap -> CoreBind -> (NameMap, [(G2.Id, G2.Expr)])
 mkBinds nm tm (NonRec var expr) = 
