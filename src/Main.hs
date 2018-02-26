@@ -109,9 +109,6 @@ runGHC as = do
 
   in_out <- run stdReduce halterIsZero halterSub1 executeNext con hhp config halter_set_state
 
-  v <- validate proj src "ListTests" entry in_out
-  print v
-
   -- putStrLn "----------------\n----------------"
 
   printFuncCalls tentry in_out

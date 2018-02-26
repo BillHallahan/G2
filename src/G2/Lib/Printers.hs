@@ -203,6 +203,8 @@ mkExprHaskell kv ex = mkExprHaskell' ex 0
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
         mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
+            | Data (DataCon n _ _) <- appCenter a
+            , isTuple n = printTuple kv a
             | Data (DataCon n1 _ _) <- e1
             , nameOccStr n1 == ":" =
                 case typeOf e2 of
@@ -255,10 +257,21 @@ printString' :: Expr -> String
 printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
 printString' _ = []
 
-
 isConsOrEmpty :: KnownValues -> Expr -> Bool
 isConsOrEmpty kv (Data (DataCon n _ _)) = n == dcCons kv || n == dcEmpty kv
 isConsOrEmpty _ _ = False
+
+isTuple :: Name -> Bool
+isTuple (Name n _ _) = T.head n == '(' && T.last n == ')'
+                     && T.all (\c -> c == '(' || c == ')' || c == ',') n
+
+printTuple :: KnownValues -> Expr -> String
+printTuple kv a = "(" ++ intercalate ", " (reverse $ printTuple' kv a) ++ ")"
+
+printTuple' :: KnownValues -> Expr -> [String]
+printTuple' kv (App e e') = mkExprHaskell kv e':printTuple' kv e
+printTuple' _ _ = []
+
 
 isInfixable :: Expr -> Bool
 isInfixable (Data (DataCon (Name n _ _) _ _)) = not $ T.any isAlphaNum n
@@ -271,8 +284,8 @@ isApp _ = False
 mkLitHaskell :: Lit -> String
 mkLitHaskell (LitInt i) = show i
 mkLitHaskell (LitInteger i) = show i
-mkLitHaskell (LitFloat r) = "(" ++ show r ++ ")"
-mkLitHaskell (LitDouble r) = "(" ++ show r ++ ")"
+mkLitHaskell (LitFloat r) = "(" ++ show ((fromRational r) :: Float) ++ ")"
+mkLitHaskell (LitDouble r) = "(" ++ show ((fromRational r) :: Double) ++ ")"
 mkLitHaskell (LitChar c) = ['\'', c, '\'']
 mkLitHaskell (LitString s) = s
 
