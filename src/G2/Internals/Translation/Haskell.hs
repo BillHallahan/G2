@@ -16,7 +16,6 @@ module G2.Internals.Translation.Haskell
     , mkData
     , NameMap
     , TypeNameMap
-    , check
     ) where
 
 import qualified G2.Internals.Language as G2
@@ -59,22 +58,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 import Unsafe.Coerce
-
-check :: IO ()
-check = do
-    v' <- runGhc (Just libdir) $ do
-        loadProj Nothing "./tests/Samples" "./tests/Samples/HigherOrderMath.hs" False
-        let prN = mkModuleName "Prelude"
-        let prImD = simpleImportDecl prN
-
-        let mdN = mkModuleName "HigherOrderMath"
-        let imD = simpleImportDecl mdN
-
-        setContext [IIDecl prImD, IIDecl imD]
-        v <- compileExpr "abs2 (-54) == 54.5"
-        return (unsafeCoerce v :: Bool)
-    print v'
-
 
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do

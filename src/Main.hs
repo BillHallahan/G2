@@ -26,8 +26,6 @@ _DEFAULT_TIMEOUT = 120 * 1000 * 1000 -- microseconds = 10^-6 seconds
 
 main :: IO ()
 main = do
-  check
-
   as <- getArgs
   let (proj:_) = as
 

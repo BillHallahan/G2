@@ -24,6 +24,8 @@ import HigherOrderMathTest
 import GetNthTest
 import DefuncTest
 import CaseTest
+
+import InputOutputTest
 import TestUtils
 
 
@@ -104,6 +106,8 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchInt" 2 [AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "getInInt" 2 [AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchP" 2 [AtLeast 1]
+
+                , checkInputOutput "tests/Samples/" "tests/Samples/Peano.hs" "Peano" "add"
         ]
 
 liquidTests :: IO TestTree
