@@ -2,6 +2,7 @@
 
 module G2.Lib.Printers where
 
+import G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as Sym
 import G2.Internals.Language.KnownValues
@@ -20,6 +21,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Time
 import qualified Data.Text as T
+
+import Debug.Trace
 
 timedMsg :: String -> IO ()
 timedMsg msg = do
@@ -176,7 +179,7 @@ mkNameHaskell :: Name -> String
 mkNameHaskell (Name n _ _) = T.unpack n
 
 mkCleanExprHaskell :: KnownValues -> TypeClasses -> Expr -> String
-mkCleanExprHaskell kv tc = mkExprHaskell . modifyFix (mkCleanExprHaskell' kv tc)
+mkCleanExprHaskell kv tc = mkExprHaskell kv . modifyFix (mkCleanExprHaskell' kv tc)
 
 mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Expr
 mkCleanExprHaskell' kv tc e
@@ -193,15 +196,20 @@ mkCleanExprHaskell' kv tc e
     | App e' (Type _) <- e = e'
     | otherwise = e
 
-mkExprHaskell :: Expr -> String
-mkExprHaskell ex = mkExprHaskell' ex 0
+mkExprHaskell :: KnownValues -> Expr -> String
+mkExprHaskell kv ex = mkExprHaskell' ex 0
     where
         mkExprHaskell' :: Expr -> Int -> String
         mkExprHaskell' (Var ids) _ = mkIdHaskell ids
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
         mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
-        mkExprHaskell' (App ea@(App e1 e2) e3) i
+        mkExprHaskell' a@(App ea@(App e1 e2) e3) i
+            | Data (DataCon n1 _ _) <- e1
+            , nameOccStr n1 == ":" =
+                case typeOf e2 of
+                    TyLitChar -> printString a
+                    _ -> trace (show $ typeOf e2) printList kv a
             | isInfixable e1 =
                 let
                     e2P = if isApp e2 then "(" ++ mkExprHaskell' e2 i ++ ")" else mkExprHaskell' e2 i
@@ -235,6 +243,25 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         off :: Int -> String
         off i = duplicate "   " i
 
+printList :: KnownValues -> Expr -> String
+printList kv a = "[" ++ intercalate ", " (printList' kv a) ++ "]"
+
+printList' :: KnownValues -> Expr -> [String]
+printList' kv (App (App _ e) e') = mkExprHaskell kv e:printList' kv e'
+printList' _ _ = []
+
+printString :: Expr -> String
+printString a = "\"" ++ printString' a ++ "\""
+
+printString' :: Expr -> String
+printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
+printString' _ = []
+
+
+isConsOrEmpty :: KnownValues -> Expr -> Bool
+isConsOrEmpty kv (Data (DataCon n _ _)) = n == dcCons kv || n == dcEmpty kv
+isConsOrEmpty _ _ = False
+
 isInfixable :: Expr -> Bool
 isInfixable (Data (DataCon (Name n _ _) _ _)) = not $ T.any isAlphaNum n
 isInfixable _ = False
@@ -248,7 +275,7 @@ mkLitHaskell (LitInt i) = show i
 mkLitHaskell (LitInteger i) = show i
 mkLitHaskell (LitFloat r) = "(" ++ show r ++ ")"
 mkLitHaskell (LitDouble r) = "(" ++ show r ++ ")"
-mkLitHaskell (LitChar c) = [c]
+mkLitHaskell (LitChar c) = ['\'', c, '\'']
 mkLitHaskell (LitString s) = s
 
 mkPrimHaskell :: Primitive -> String

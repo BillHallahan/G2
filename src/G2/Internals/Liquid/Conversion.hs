@@ -167,16 +167,12 @@ addTCPasses tc ti lh e =
 
         lht = map (typeToLHTypeClass tc ti lh) tva
 
-        e' = appCenter e
+        e' = Lang.appCenter e
 
         -- Update the type of e
         e'' = addToType (map typeOf lht) e'
     in
     (e', foldl' App e'' lht)
-
-appCenter :: Expr -> Expr
-appCenter (App e _) = appCenter e
-appCenter e = e
 
 typeExprType :: Expr -> Maybe Type
 typeExprType (Type t) = Just t

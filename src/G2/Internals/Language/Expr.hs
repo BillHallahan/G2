@@ -23,6 +23,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , modifyInLHS
                                   , functionCalls
                                   , nonDataFunctionCalls
+                                  , appCenter
                                   , mkLamBindings
                                   , mkMappedLamBindings
                                   , leadingLamIds
@@ -152,6 +153,10 @@ centerIsData :: Expr -> Bool
 centerIsData (App e _) = centerIsData e
 centerIsData (Data _) = True
 centerIsData _ = False
+
+appCenter :: Expr -> Expr
+appCenter (App a _) = appCenter a
+appCenter e = e
 
 -- Generates a lambda binding for each a in the provided list
 -- Takes a function to generate the inner expression

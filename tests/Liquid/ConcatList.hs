@@ -58,7 +58,7 @@ concat4 (Emp :+: xss)         = Emp
 {-@ concat5                  :: { xss : List (List a) | 0 < sizeXs1 xss } 
                             -> List a  @-}
 concat5 :: List (List a) -> List a
-concat5 _ = die ""
+concat5 _ = die "concat 5 has no definition!"
 
 
 {-@ concat56                  :: { xss : List (List a) | sizeXs xss > 0 } 
