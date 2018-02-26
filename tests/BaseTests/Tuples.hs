@@ -7,4 +7,3 @@ addTupleElems (a, b, c, d, e) = case a + e of
 
 oneTwo :: (Int, Int)
 oneTwo = (1, 2)
-

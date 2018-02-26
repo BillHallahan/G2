@@ -81,6 +81,7 @@ runSingleLHFun proj lhfile lhfun libs lhlibs args = do
 
 runGHC :: [String] -> IO ()
 runGHC as = do
+
   let (proj:src:entry:tail_args) = as
 
   --Get args
@@ -102,12 +103,14 @@ runGHC as = do
   let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry mb_modname
   let halter_set_state = init_state {halter = steps config}
 
-
   -- error $ pprExecStateStr init_state
 
   (con, hhp) <- getSMT config
 
   in_out <- run stdReduce halterIsZero halterSub1 executeNext con hhp config halter_set_state
+
+  v <- validate proj src "ListTests" entry in_out
+  print v
 
   -- putStrLn "----------------\n----------------"
 

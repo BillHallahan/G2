@@ -22,8 +22,6 @@ import qualified Data.Map as M
 import Data.Time
 import qualified Data.Text as T
 
-import Debug.Trace
-
 timedMsg :: String -> IO ()
 timedMsg msg = do
   time <- getCurrentTime
@@ -209,7 +207,7 @@ mkExprHaskell kv ex = mkExprHaskell' ex 0
             , nameOccStr n1 == ":" =
                 case typeOf e2 of
                     TyLitChar -> printString a
-                    _ -> trace (show $ typeOf e2) printList kv a
+                    _ -> printList kv a
             | isInfixable e1 =
                 let
                     e2P = if isApp e2 then "(" ++ mkExprHaskell' e2 i ++ ")" else mkExprHaskell' e2 i

@@ -26,21 +26,8 @@ import DefuncTest
 import CaseTest
 
 import InputOutputTest
+import Reqs
 import TestUtils
-
-
--- | Requirements
--- We use these to define checks on tests returning function inputs
---     RForall f -- All the returned inputs satisfy the function f
---     RExists f -- At least one of the returned inputs satisfies the function f
---     AtLeast x -- At least x inputs are returned
---     AtMost  x -- At most x inputs are returned
---     Exactly x -- Exactly x inputs are returned
-data Reqs = RForAll ([Expr] -> Bool) 
-          | RExists ([Expr] -> Bool)
-          | AtLeast Int
-          | AtMost Int
-          | Exactly Int
 
 main :: IO ()
 main = defaultMain
@@ -53,6 +40,7 @@ tests = return . testGroup "Tests"
         , liquidTests
         , testFileTests
         , smtADTTests
+        , baseTests
         ]
 
 timeout :: Timeout
@@ -106,8 +94,6 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchInt" 2 [AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "getInInt" 2 [AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchP" 2 [AtLeast 1]
-
-                , checkInputOutput "tests/Samples/" "tests/Samples/Peano.hs" "Peano" "add"
         ]
 
 liquidTests :: IO TestTree
@@ -304,6 +290,18 @@ smtADTTests =
             , checkLiquidWithConfig "tests/Liquid" "tests/Liquid/Peano.hs" "add" 3 (mkConfigDef {steps = 400, smtADTs = True}) [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 1]
         ]
 
+baseTests :: IO TestTree
+baseTests =
+    return . testGroup "Base"
+        =<< sequence [
+              checkInputOutput "tests/Samples/" "tests/Samples/Peano.hs" "Peano" "add" 400 3 [AtLeast 4]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/ListTests.hs" "ListTests" "test" 1000 2 [AtLeast 1]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/ListTests.hs" "ListTests" "maxMap" 1000 2 [AtLeast 4]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/ListTests.hs" "ListTests" "minTest" 1000 2 [AtLeast 2]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/ListTests.hs" "ListTests" "foldrTest2" 1000 2 [AtLeast 1]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/Tuples.hs" "Tuples" "addTupleElems" 1000 2 [AtLeast 2]
+        ]
+
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
 checkExpr proj src stps m_assume m_assert entry i reqList =
     checkExprReaches proj src stps m_assume m_assert Nothing entry i reqList
@@ -325,20 +323,6 @@ checkExprWithConfig proj src m_assume m_assert m_reaches entry i config reqList 
                       " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
                                       "[" ++ (fromMaybe "" m_assert) ++ "] " ++
                                               entry ++ " failed.\n") ch
-
--- | Checks conditions on given expressions
-checkExprGen :: [[Expr]] -> Int -> [Reqs] -> Bool
-checkExprGen exprs i reqList =
-    let
-        argChecksAll = and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
-        argChecksEx = and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
-        checkAtLeast = and . map ((>=) (length exprs)) $ [x | AtLeast x <- reqList]
-        checkAtMost = and . map ((<=) (length exprs)) $ [x | AtMost x <- reqList]
-        checkExactly = and . map ((==) (length exprs)) $ [x | Exactly x <- reqList]
-
-        checkArgCount = and . map ((==) i . length) $ exprs
-    in
-    argChecksAll && argChecksEx && checkAtLeast && checkAtMost && checkExactly && checkArgCount
  
 testFile :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO (Either SomeException [([Expr], Expr)])
 testFile proj src m_assume m_assert m_reaches entry config =
@@ -374,9 +358,6 @@ checkLiquidWithConfig proj fp entry i config reqList = do
 
 findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)])
 findCounterExamples' proj fp entry libs lhlibs config = try (findCounterExamples proj fp entry libs lhlibs config)
-
-givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
-givenLengthCheck i f e = if length e == i then f e else False
 
 errors :: [Expr] -> Bool
 errors e =

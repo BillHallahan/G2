@@ -1,7 +1,10 @@
 module ListTests where
 
 -- import qualified Data.Map as M
-import qualified Data.List
+import Data.List
+
+test :: Int -> Int
+test x = x
 
 maxMap :: Int -> Int
 maxMap a = maximum (map (+1) [1, 2, a, 4, 5])
