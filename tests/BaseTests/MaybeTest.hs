@@ -1,8 +1,10 @@
+module MaybeTest where
+
 import Data.List
 import Data.Maybe
 
-averageF :: [Float] -> Float
-averageF xs = sumN xs / lengthF xs
+-- averageF :: [Float] -> Float
+-- averageF xs = sumN xs / lengthF xs
 
 sumN :: Num a => [a] -> a
 sumN xss =
@@ -16,7 +18,7 @@ lengthN xss =
         _:xs -> 1 + lengthN xs
         _ -> 0
 
-average :: (Real a, Fractional b) => [a] -> b
+average :: (Real a, Fractional a) => [a] -> a
 average xs = sum xs / genericLength xs
 
 averageF :: [Float] -> Float

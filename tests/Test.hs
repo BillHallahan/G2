@@ -300,6 +300,12 @@ baseTests =
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/ListTests.hs" "ListTests" "minTest" 1000 2 [AtLeast 2]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/ListTests.hs" "ListTests" "foldrTest2" 1000 2 [AtLeast 1]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/Tuples.hs" "Tuples" "addTupleElems" 1000 2 [AtLeast 2]
+
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "sumN" 1000 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "lengthN" 1000 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 1000 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "averageF" 1000 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 1000 2 [AtLeast 6]
         ]
 
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
