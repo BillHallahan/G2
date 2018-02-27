@@ -308,15 +308,15 @@ baseTests =
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 1000 2 [AtLeast 6]
         ]
 
-checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkExpr proj src stps m_assume m_assert entry i reqList =
     checkExprReaches proj src stps m_assume m_assert Nothing entry i reqList
 
-checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs] -> IO TestTree
+checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkExprReaches proj src stps m_assume m_assert m_reaches entry i reqList = do
     checkExprWithConfig proj src m_assume m_assert m_reaches entry i (mkConfigDef {steps = stps}) reqList
 
-checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs] -> IO TestTree
+checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkExprWithConfig proj src m_assume m_assert m_reaches entry i config reqList = do
     res <- testFile proj src m_assume m_assert m_reaches entry config
     
@@ -347,10 +347,10 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 
-checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs] -> IO TestTree
+checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigDef {steps = stps}) reqList
 
-checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs] -> IO TestTree
+checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkLiquidWithConfig proj fp entry i config reqList = do
     res <- findCounterExamples' proj fp (T.pack entry) [] [] config
 

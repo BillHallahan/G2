@@ -9,14 +9,15 @@ import G2.Internals.Language
 --     AtLeast x -- At least x inputs are returned
 --     AtMost  x -- At most x inputs are returned
 --     Exactly x -- Exactly x inputs are returned
-data Reqs = RForAll ([Expr] -> Bool) 
-          | RExists ([Expr] -> Bool)
-          | AtLeast Int
-          | AtMost Int
-          | Exactly Int
+data Reqs c t = RForAll c
+              | RExists c
+              | RForAllTracker t
+              | AtLeast Int
+              | AtMost Int
+              | Exactly Int
 
 -- | Checks conditions on given expressions
-checkExprGen :: [[Expr]] -> Int -> [Reqs] -> Bool
+checkExprGen :: [[Expr]] -> Int -> [Reqs ([Expr] -> Bool) ()] -> Bool
 checkExprGen exprs i reqList =
     let
         argChecksAll = and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
