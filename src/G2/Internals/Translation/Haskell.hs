@@ -105,8 +105,9 @@ hskToG2 hsc proj src nm tm simpl = do
     let classes = map (mkClass tm2) c
 
     let tgt_lhs = map (occNameString . nameOccName . V.varName) $
-                  concatMap bindersOf $ 
-                  concatMap (\(_, _, bs) -> bs) sums_gutss
+          filter ((== mb_modname) . fmap (moduleNameString . moduleName) . nameModule_maybe . V.varName) $
+          concatMap bindersOf $
+          concatMap (\(_, _, bs) -> bs) sums_gutss
 
     return (mb_modname, binds', tycons', classes, nm3, tm2, tgt_lhs)
 
