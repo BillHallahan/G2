@@ -6,6 +6,7 @@
 --   Provides type checking capabilities over G2 Language.
 module G2.Internals.Language.Typing
     ( Typed (..)
+    , PresType (..)
     , tyInt
     , tyInteger
     , tyDouble
@@ -191,6 +192,11 @@ instance Typed Type where
         in
         (TyForAll b t', m')
     typeOf' m t = (t, m)
+
+newtype PresType = PresType Type
+
+instance Typed PresType where
+    typeOf' m (PresType t) = (t, m)
 
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a

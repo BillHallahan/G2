@@ -569,7 +569,7 @@ lhPolyPredCase _ tenv kv w n (NewTyCon { rep_type = t }) bn bnf ng =
 
         cast = Cast (Var i) (t' :~ t)
 
-        e = polyPredLHFuncCall (mkTrue kv tenv) w bnf caseB
+        e = polyPredLHFuncCall (mkTrue kv tenv) w bnf (Var caseB)
 
         alt = Alt Default e
 
@@ -602,7 +602,7 @@ lhPolyPredCaseExpr eenv tenv kv w bn bnf =
         an = mkAnd eenv
         true = mkTrue kv tenv
 
-        fs = map (polyPredLHFuncCall true w bnf) $ filter (not . isTyVar . typeOf) bn
+        fs = map (polyPredLHFuncCall true w bnf . Var) $ filter (not . isTyVar . typeOf) bn
     in
     foldr (\e -> App (App an e)) true $ pc ++ fs
 
@@ -615,27 +615,49 @@ predCalls bnf i@(Id _ (TyVar tvi)) =
         Just fi' -> App (Var fi') (Var i)
         Nothing -> error $ "No function found in predCalls " ++ show i ++ "\n" ++ show bnf
 
-polyPredLHFuncCall :: Expr -> Walkers -> [(Name, Id)] -> Id -> Expr
-polyPredLHFuncCall true w bnf i
+polyPredLHFuncCall :: Expr -> Walkers -> [(Name, Id)] -> Expr -> Expr
+polyPredLHFuncCall true w bnf i = App (polyPredLHFunc' true w bnf i) i
+    -- | TyConApp n ts <- typeOf i
+    -- , Just f <- M.lookup n w =
+    --     let
+    --         as = map Type ts
+    --         as' = map (polyPredFunc' w bnf) ts
+    --     in
+    --     foldl' App (Var f) (as ++ as' ++ [i])
+    -- | TyFun _ _ <- typeOf i = true
+    -- | t <- typeOf i
+    -- ,  t == TyLitInt
+    -- || t == TyLitDouble
+    -- || t == TyLitFloat
+    -- || t == TyLitChar = true
+    -- | otherwise = error $ "Unhandled type " ++ show (typeOf i)
+
+polyPredLHFunc' :: Typed t => Expr -> Walkers -> [(Name, Id)] -> t -> Expr
+polyPredLHFunc' true w bnf i
     | TyConApp n ts <- typeOf i
     , Just f <- M.lookup n w =
         let
             as = map Type ts
-            as' = map (polyPredFunc w bnf) ts
+            as' = map (polyPredFunc' true w bnf) ts
         in
-        foldl' App (Var f) (as ++ as' ++ [Var i])
-    | TyFun _ _ <- typeOf i = true
+        foldl' App (Var f) (as ++ as')
+    | TyFun _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0) (typeOf i)) true
     | t <- typeOf i
     ,  t == TyLitInt
     || t == TyLitDouble
     || t == TyLitFloat
-    || t == TyLitChar = true
+    || t == TyLitChar = Lam (Id (Name "nonused_id" Nothing 0) (typeOf i)) true
+    | TyVar _ <- typeOf i = polyPredFunc' true w bnf (typeOf i)
     | otherwise = error $ "Unhandled type " ++ show (typeOf i)
 
-polyPredFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
-polyPredFunc _ bnf (TyVar (Id n _)) 
+polyPredFunc' :: Expr ->  Walkers -> [(Name, Id)] -> Type -> Expr
+polyPredFunc' _ _ bnf (TyVar (Id n _)) 
     | Just tyF <- lookup n bnf = 
         Var tyF
-polyPredFunc w _ (TyConApp n _)
+polyPredFunc' true w bnf (TyConApp n ts)
     | Just f <- M.lookup n w =
-        Var f
+        let
+            as = map Type ts
+            ft = map (polyPredLHFunc' true w bnf . PresType) ts
+        in
+        foldl' App (Var f) (as ++ ft)

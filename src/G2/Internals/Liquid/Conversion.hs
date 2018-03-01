@@ -167,7 +167,7 @@ addTCPasses tc ti lh e =
 
         lht = map (typeToLHTypeClass tc ti lh) tva
 
-        e' = Lang.appCenter e
+        e' = appCenter e
 
         -- Update the type of e
         e'' = addToType (map typeOf lht) e'

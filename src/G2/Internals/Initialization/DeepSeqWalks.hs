@@ -9,7 +9,10 @@ import G2.Internals.Language
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
+import Data.Maybe
 import qualified Data.Text as T
+
+import Debug.Trace
 
 type BoundName = Name
 
@@ -142,23 +145,46 @@ createDeepSeqDataConCase2 tenv w ti (i:is) ng e
 
 -- Calling a higher order function
 deepSeqFuncCall :: Walkers -> [(Name, Id)] -> Expr -> Expr
-deepSeqFuncCall w ti e
+deepSeqFuncCall w ti e =
+    case deepSeqFunc w ti e of
+        Just e' -> App e' e
+        Nothing -> e
+-- deepSeqFuncCall :: Walkers -> [(Name, Id)] -> Expr -> Expr
+-- deepSeqFuncCall w ti e
+--     | (TyConApp n ts) <- typeOf e
+--     , Just f <- M.lookup n w =
+--         let
+--             as = map Type ts
+--             as' = map (walkerFunc w ti) ts
+--         in
+--         trace ("f = " ++ show f) foldl' App (Var f) (as ++ as' ++ [e])
+--     | (TyVar (Id n _)) <- typeOf e
+--     , Just f <- lookup n ti =
+--         App (Var f) e
+--     | otherwise = e
+
+deepSeqFunc :: Typed t => Walkers -> [(Name, Id)] -> t -> Maybe Expr
+deepSeqFunc w ti e
     | (TyConApp n ts) <- typeOf e
     , Just f <- M.lookup n w =
         let
             as = map Type ts
             as' = map (walkerFunc w ti) ts
         in
-        foldl' App (Var f) (as ++ as' ++ [e])
+        Just $ foldl' App (Var f) (as ++ as')
     | (TyVar (Id n _)) <- typeOf e
     , Just f <- lookup n ti =
-        App (Var f) e
-    | otherwise = e
+       Just $  Var f
+    | otherwise = Nothing
 
 walkerFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
 walkerFunc _ ti (TyVar (Id n _)) 
     | Just tyF <- lookup n ti = 
         Var tyF
-walkerFunc w _ (TyConApp n _)
+walkerFunc w ti (TyConApp n ts)
     | Just f <- M.lookup n w =
-       Var f
+        let
+            as = map Type ts
+            ft = mapMaybe (deepSeqFunc w ti . PresType) ts
+        in
+        foldl' App (Var f) (as ++ ft)

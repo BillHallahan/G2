@@ -612,30 +612,29 @@ reduceEReturn eenv e ngen (CastFrame (t1 :~ t2)) =
 
 -- In the event that our Lam parameter is a type variable, we have to handle
 -- it by retyping.
-reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr) =
-  case hasTYPE t of
-      True ->
-          let aty = traceTYPE aexpr eenv
-              binds = [(Id n aty, aexpr)]
-              lexpr' = retype b aty lexpr
-              (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
-          in ( RuleReturnEApplyLamType news
-             , ( eenv'
-               , CurrExpr Evaluate lexpr''
-               , ngen'))
+reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
+  | hasTYPE t =
+      let aty = traceTYPE aexpr eenv
+          binds = [(Id n aty, aexpr)]
+          lexpr' = retype b aty lexpr
+          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
+      in ( RuleReturnEApplyLamType news
+         , ( eenv'
+           , CurrExpr Evaluate lexpr''
+           , ngen'))
 
 -- When we have an `ApplyFrame` on the top of the stack, things might get a
 -- bit tricky, since we need to make sure that the thing we end up returning
 -- is appropriately a value. In the case of `Lam`, we need to perform
 -- application, and then go into the expression body.
 -- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
-      _ ->
-          let binds = [(b, aexpr)]
-              (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
-          in ( RuleReturnEApplyLamExpr news
-             , ( eenv'
-               , CurrExpr Evaluate lexpr'
-               , ngen'))
+  | otherwise =
+        let binds = [(b, aexpr)]
+            (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
+        in ( RuleReturnEApplyLamExpr news
+           , ( eenv'
+             , CurrExpr Evaluate lexpr'
+             , ngen'))
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.
