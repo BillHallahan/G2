@@ -2,6 +2,7 @@ module G2.Internals.Language.ArbValueGen ( ArbValueGen
                                          , arbValueInit
                                          , arbValue) where
 
+import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeEnv
 
@@ -32,9 +33,9 @@ arbValueInit = ArbValueGen { intGen = 0
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue (TyConApp n _) tenv av =
+arbValue (TyConApp n ts) tenv av =
     maybe (Prim Undefined TyBottom, av) 
-          (\adt -> getADT tenv adt av)
+          (\adt -> getADT tenv adt ts av)
           (M.lookup n tenv)
 arbValue TyLitInt _ av =
     let
@@ -51,7 +52,7 @@ arbValue TyLitDouble _ av =
         d = doubleGen av
     in
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
-arbValue _ _ av = (Prim Undefined TyBottom, av)-- error $ "Bad type in arbValue: " ++ show t
+arbValue t _ av = (Prim Undefined TyBottom, av)-- error $ "Bad type in arbValue: " ++ show t
 
 -- | numArgs
 numArgs :: DataCon -> Int
@@ -86,11 +87,11 @@ tyConAppName :: Type -> Maybe Name
 tyConAppName (TyConApp n _) = Just n
 tyConAppName _ = Nothing
 
-getADT :: TypeEnv -> AlgDataTy -> ArbValueGen -> (Expr, ArbValueGen)
+getADT :: TypeEnv -> AlgDataTy -> [Type] -> ArbValueGen -> (Expr, ArbValueGen)
 getADT = getADT' []
 
-getADT' :: [Name] -> TypeEnv -> AlgDataTy -> ArbValueGen -> (Expr, ArbValueGen)
-getADT' ns tenv adt av
+getADT' :: [Name] -> TypeEnv -> AlgDataTy -> [Type] -> ArbValueGen -> (Expr, ArbValueGen)
+getADT' ns tenv adt ts av
     | dc <- minArgLenADT adt
     , numArgs dc == 0
         = (Data dc, av)
@@ -98,8 +99,9 @@ getADT' ns tenv adt av
     , Just dc <- minimumByMaybe (\x y -> snd x ` compare` snd y) $ map (scoreTuple tenv) dcs
         =
         let
-            (av', es) = mapAccumR (\av'' t -> swap $ arbValue t tenv av'') av $ dataConArgs $ fst dc
-            -- es = map (\t -> fst $ arbValue t tenv av) . dataConArgs $ fst dc
+            tv = map (TyVar . flip Id TYPE) $ bound_names adt
+            dca = dataConArgs $ fst dc
+            (av', es) = mapAccumR (\av'' t -> swap $ arbValue t tenv av'') av $ foldr (uncurry replaceASTs) dca $ zip tv ts
             e = foldl' App (Data $ fst dc) es
         in
         (e, av')

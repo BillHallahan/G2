@@ -23,15 +23,21 @@ foldr op b (x :+: xs) = x `op` (foldr op b xs)
 
 \begin{code}
 
-group    :: (Ord k) => List (k, v) -> M.Map k (List v)
+data X = X
 
-\end{code}
+{-@ measure size2      :: X -> Int
+    size2 X        = 0
+  @-}
 
-\begin{code}
-{-@ group :: (Ord k) => {l:List (k, v) | size l>0} -> M.Map k ({l:List v |size l>0}) @-}
-group     = foldr addKV  M.empty
+group    :: (Int, Int) -> M.Map Int X
+{-@ group :: (Int, Int) -> M.Map Int ({l:X |size2 l > 0}) @-}
+group kv    = addKV
 
-addKV (k,v) m = M.insert k vs' m
-  where
-    vs'       = (M.findWithDefault Emp k m)
+addKV :: M.Map Int X
+addKV = M.insert 0 X M.empty
+
+group2    :: (Int, Int) -> Int
+{-@ group2 :: (Int, Int) -> {l:Int | l == 2} @-}
+group2 kv    = 1
+
 \end{code}
