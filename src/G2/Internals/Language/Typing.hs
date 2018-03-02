@@ -38,6 +38,7 @@ module G2.Internals.Language.Typing
     , retype
     , nestTyForAlls
     , inTyForAlls
+    , collapseTyConApp
     ) where
 
 import G2.Internals.Language.AST
@@ -266,16 +267,16 @@ specializesTo m app@(TyApp _ _) (TyConApp n ts) =
         _ -> (False, m)
 
 
-specializesTo m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
-  let
-      (b1, m') = specializesTo m t1 t1'
-      (b2, m'') = specializesTo m' t2 t2'
-  in (b1 && b2, m'')
-specializesTo m (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
-  let
-      (b1, m') = specializesTo (M.insert n t1 m) t1 t1'
-      (b2, m'') = specializesTo m' t2 t2'
-  in (b1 && b2, m'')
+-- specializesTo m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
+--   let
+--       (b1, m') = specializesTo m t1 t1'
+--       (b2, m'') = specializesTo m' t2 t2'
+--   in (b1 && b2, m'')
+-- specializesTo m (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+--   let
+--       (b1, m') = specializesTo (M.insert n t1 m) t1 t1'
+--       (b2, m'') = specializesTo m' t2 t2'
+--   in (b1 && b2, m'')
 specializesTo m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
   let
       (b1, m') = specializesTo m t1 t1'
@@ -460,3 +461,28 @@ nestTyForAlls _ = id
 inTyForAlls :: Type -> Type
 inTyForAlls (TyForAll _ t) = inTyForAlls t
 inTyForAlls t = t
+
+-- TODO: Seems not ideal?  Why do we have 2 ways to represent this?  What is:
+collapseTyConApp :: Type -> Type
+collapseTyConApp = modifyFix collapseTyConApp'
+
+collapseTyConApp' :: Type -> Type
+collapseTyConApp' tyf@(TyFun (TyConApp n ts) t)
+    | getAny $ evalASTs (Any . isTyVar) ts = TyConApp n $ replaceFstTyVar ts t
+    | otherwise = tyf
+collapseTyConApp' t = t
+
+replaceFstTyVar :: [Type] -> Type -> [Type]
+replaceFstTyVar (TyVar _:ts) t' = t':ts
+replaceFstTyVar (tca@(TyConApp n ts):ts') t' =
+    let
+        rtca = replaceFstTyVar ts t'
+    in
+    if ts == rtca 
+        then tca:replaceFstTyVar ts' t'
+        else TyConApp n rtca:ts'
+replaceFstTyVar (t:ts) t' = t:replaceFstTyVar ts t'
+replaceFstTyVar [] _ = []
+    -- case break isTyVar ts of
+    --     (b, a:as) -> b ++ t:as
+    --     _ -> ts

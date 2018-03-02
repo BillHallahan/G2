@@ -11,6 +11,8 @@ import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
 
+import Debug.Trace
+
 -- | checkConsistency
 -- Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
@@ -103,4 +105,3 @@ replaceReturnType (TyForAll _ t) r = replaceReturnType t r
 replaceReturnType (TyFun t1 t2@(TyFun _ _)) r = TyFun t1 $ replaceReturnType t2 r
 replaceReturnType (TyFun t _) r = TyFun t r
 replaceReturnType _ r = r
-
