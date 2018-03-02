@@ -42,7 +42,7 @@ addLHTC :: State h t -> TCValues -> State h t
 addLHTC s@(State {expr_env = eenv, curr_expr = cexpr, type_classes = tc}) tcv =
     let
         eenv' = addLHTCExprEnv eenv tc tcv
-        cexpr' = addLHTCCurrExpr cexpr tc tcv
+        cexpr' = addLHTCCurrExpr eenv cexpr tc tcv
     in
     s { expr_env = eenv', curr_expr = cexpr' }
 
@@ -106,16 +106,16 @@ addLHTCExprEnv eenv tc tcv =
         lh = lhTC tcv
 
         eenv' = modifyContainedASTs (addLHTCLams lh) eenv
-        eenv'' = modifyContainedASTs (addLHTCCalls tc lh) eenv'
+        eenv'' = modifyContainedASTs (addLHTCCalls eenv tc lh) eenv'
     in
     eenv''
 
-addLHTCCurrExpr :: CurrExpr -> TypeClasses -> TCValues -> CurrExpr
-addLHTCCurrExpr cexpr tc tcv = 
+addLHTCCurrExpr :: ExprEnv -> CurrExpr -> TypeClasses -> TCValues -> CurrExpr
+addLHTCCurrExpr eenv cexpr tc tcv = 
     let
         lh = lhTC tcv
 
-        cexpr' = modifyContainedASTs (addLHTCCalls tc lh) cexpr
+        cexpr' = modifyContainedASTs (addLHTCCalls eenv tc lh) cexpr
     in
     cexpr'
 
@@ -145,13 +145,13 @@ hasLHTC _ _ = False
 
 -- | addLHTCCalls
 -- Adds App's to function calls to pass the LH TC
-addLHTCCalls :: TypeClasses -> Name -> Expr -> Expr
-addLHTCCalls tc lh e =
+addLHTCCalls :: ExprEnv -> TypeClasses -> Name -> Expr -> Expr
+addLHTCCalls eenv tc lh e =
     let
         fc = nonDataFunctionCalls e
         lh_dicts = lhDicts lh e
 
-        fc' = nubBy (\x y -> fst x == fst y) $ map (addTCPasses tc lh_dicts lh) fc
+        fc' = nubBy (\x y -> fst x == fst y) $ mapMaybe (addTCPasses (E.keys eenv) tc lh_dicts lh) fc
     in
     foldr (uncurry replaceASTs) e fc'
 
@@ -160,8 +160,8 @@ lhDicts lh (Lam i@(Lang.Id _ (TyConApp n [t])) e) =
     if lh == n then (t, i):lhDicts lh e else lhDicts lh e
 lhDicts _ _ = []
 
-addTCPasses :: TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> (Expr, Expr)
-addTCPasses tc ti lh e =
+addTCPasses :: [Name] -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> Maybe (Expr, Expr)
+addTCPasses ens tc ti lh e =
     let
         tva = mapMaybe typeExprType $ passedArgs e
 
@@ -172,7 +172,11 @@ addTCPasses tc ti lh e =
         -- Update the type of e
         e'' = addToType (map typeOf lht) e'
     in
-    (e', foldl' App e'' lht)
+    if varInNames ens e' then Just (e', foldl' App e'' lht) else Nothing
+
+varInNames :: [Name] -> Expr -> Bool
+varInNames ns (Var (Id n _)) = n `elem` ns
+varInNames _ _ = False
 
 typeExprType :: Expr -> Maybe Type
 typeExprType (Type t) = Just t
