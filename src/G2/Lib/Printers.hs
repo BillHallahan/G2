@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Lib.Printers where
+module G2.Lib.Printers (mkCleanExprHaskell, pprExecStateStr) where
 
 import G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
@@ -174,7 +174,7 @@ mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 
 mkNameHaskell :: Name -> String
-mkNameHaskell (Name n _ _) = T.unpack n
+mkNameHaskell (Name n m i) = T.unpack n -- ++ "\" " ++ show m ++ " " ++ show i
 
 mkCleanExprHaskell :: KnownValues -> TypeClasses -> Expr -> String
 mkCleanExprHaskell kv tc = mkExprHaskell kv . modifyFix (mkCleanExprHaskell' kv tc)

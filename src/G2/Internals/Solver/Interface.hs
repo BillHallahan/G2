@@ -4,6 +4,7 @@
 module G2.Internals.Solver.Interface
     ( subModel
     , subVar
+    , subVarFuncCall
     , checkConstraints
     , checkConstraintsWithSMTSorts
     , checkModel
@@ -34,24 +35,40 @@ subModel (State { expr_env = eenv
                 , input_ids = is
                 , symbolic_ids = sid
                 , assert_ids = ais
+                , type_classes = tc
                 , model = m}) =
-    subVar m eenv (map Var is, cexpr, ais)
+    let
+        ais' = fmap (subVarFuncCall m eenv tc) ais
+    in
+    filterTC tc $ subVar m eenv tc (map Var is, cexpr, ais')
 
-subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> m -> m
-subVar em eenv = modifyContainedVars (subVar' em eenv)
+subVarFuncCall :: ExprModel -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
+subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
+    subVar em eenv tc $ fc {arguments = filter (not . isTC tc) $ arguments fc}
 
-subVar' :: ExprModel -> ExprEnv -> Expr -> Expr
-subVar' em eenv v@(Var (Id n _)) =
+subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> TypeClasses -> m -> m
+subVar em eenv tc = modifyContainedVars (subVar' em eenv tc) . filterTC tc
+
+subVar' :: ExprModel -> ExprEnv -> TypeClasses -> Expr -> Expr
+subVar' em eenv tc v@(Var (Id n t)) =
     case M.lookup n em of
-        Just e -> e
+        Just e -> filterTC tc e
         Nothing -> case E.lookup n eenv of
-            Just e -> if isExprValueForm e eenv && notLam e then e else v
+            Just e -> if (isExprValueForm e eenv && notLam e) || isApp e || isVar e then subVar' em eenv tc $ filterTC tc e else v
             Nothing -> v
-subVar' _ _ e = e
+subVar' _ _ _ e = e
 
 notLam :: Expr -> Bool
 notLam (Lam _ _) = False
 notLam _ = True
+
+isApp :: Expr -> Bool
+isApp (App _ _) = True
+isApp _ = False
+
+isVar :: Expr -> Bool
+isVar (Var _) = True
+isVar _ = False
 
 modifyContainedVars :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
 modifyContainedVars f = modifyContainedASTs (modifyVars' f [])
@@ -59,6 +76,25 @@ modifyContainedVars f = modifyContainedASTs (modifyVars' f [])
 modifyVars' :: (Expr -> Expr) -> [Id] -> Expr -> Expr
 modifyVars' f is v@(Var i) = if i `elem` is then v else modifyVars' f (i:is) (f v)
 modifyVars' f is e = modifyChildren (modifyVars' f is) e
+
+filterTC :: ASTContainer m Expr => TypeClasses -> m -> m
+filterTC tc = modifyASTsFix (filterTC' tc)
+
+filterTC' :: TypeClasses -> Expr -> Expr
+filterTC' tc a@(App e e') =
+    case tcCenter tc $ typeOf e' of
+        True -> e 
+        False -> a
+filterTC' _ e = e
+
+tcCenter :: TypeClasses -> Type -> Bool
+tcCenter tc (TyConApp n _) = isTypeClassNamed n tc
+tcCenter tc (TyFun t _) = tcCenter tc t
+tcCenter _ _ = False
+
+isTC :: TypeClasses -> Expr -> Bool
+isTC tc (Var (Id _ (TyConApp n _))) = isTypeClassNamed n tc
+isTC _ _ = False
 
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable

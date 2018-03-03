@@ -114,7 +114,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
                   _ -> minimum $ map (\(s, _, _, _) -> length $ track s) ret
     let ret' = filter (\(s, _, _, _) -> mi == (length $ track s)) ret
 
-    return $ map (\(s, es, e, ais) -> (s {track = subVar (model s) (expr_env s) $ track s}, es, e, ais)) ret'
+    return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ track s}, es, e, ais)) ret'
 
 getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
 getGHCInfos proj fp lhlibs = do
