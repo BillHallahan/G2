@@ -224,8 +224,12 @@ parseLHOut entry ((s, inArg, ex, ais):xs) =
       abs = map (parseLHFuncTuple s) $ track s
   in
   LHReturn { calledFunc = called
-           , violating = if Just called == viFunc then Nothing else viFunc
+           , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc
            , abstracted = abs} : tail
+
+sameFuncNameArgs :: FuncInfo -> Maybe FuncInfo -> Bool
+sameFuncNameArgs _ Nothing = False
+sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = f2, funcArgs = fa2})) = f1 == f2 && fa1 == fa2
 
 parseLHFuncTuple :: State h t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n@(Name n' _ _), arguments = ars, returns = out}) =
