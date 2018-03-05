@@ -148,6 +148,8 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat2" 500 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 500 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1000 2 [AtLeast 1]
+
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -354,13 +356,13 @@ checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Req
 checkLiquidWithConfig proj fp entry i config reqList = do
     res <- findCounterExamples' proj fp (T.pack entry) [] [] config
 
-    let ch = case res of
-                Left _ -> False
-                Right exprs -> checkExprGen (map (\(_, inp, out, _) -> inp ++ [out]) exprs) i reqList
+    let (ch, r) = case res of
+                Left e -> (False, Left e)
+                Right exprs -> (checkExprGen (map (\(_, inp, out, _) -> inp ++ [out]) exprs) i reqList, Right ())
 
     return . testCase fp
         $ assertBool ("Liquid test for file " ++ fp ++ 
-                      " with function " ++ entry ++ " failed.\n") ch
+                      " with function " ++ entry ++ " failed.\n" ++ show r) ch
 
 findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)])
 findCounterExamples' proj fp entry libs lhlibs config = try (findCounterExamples proj fp entry libs lhlibs config)
