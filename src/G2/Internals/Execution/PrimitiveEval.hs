@@ -52,7 +52,9 @@ evalPrim1 :: Primitive -> Lit -> Expr
 evalPrim1 Negate (LitInt x) = Lit $ LitInt (-x)
 evalPrim1 Negate (LitFloat x) = Lit $ LitFloat (-x)
 evalPrim1 Negate (LitDouble x) = Lit $ LitDouble (-x)
-evalPrim1 p _ = error $ "Primitive given wrong number of arguments " ++ show p
+evalPrim1 IntToFloat (LitInt x) = Lit $ LitFloat (fromIntegral x)
+evalPrim1 IntToDouble (LitInt x) = Lit $ LitDouble (fromIntegral x)
+evalPrim1 p _ = error $ "Primitive given wrong number of arguments (1) " ++ show p
 
 evalPrim2 :: KnownValues -> TypeEnv -> Primitive -> Lit -> Lit -> Expr
 evalPrim2 kv tenv Ge x y = evalPrim2NumBool (>=) kv tenv x y
@@ -65,7 +67,7 @@ evalPrim2 _ _ Minus x y = evalPrim2Num (-) x y
 evalPrim2 _ _ Mult x y = evalPrim2Num (*) x y
 evalPrim2 _ _ Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
 evalPrim2 _ _ Mod x y = evalPrim2Integral (mod) x y
-evalPrim2 _ _ p _ _ = error $ "Primitive given wrong number of arguments " ++ show p
+evalPrim2 _ _ p _ _ = error $ "Primitive given wrong number of arguments (2) " ++ show p
 
 isZero :: Lit -> Bool
 isZero (LitInt 0) = True

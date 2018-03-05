@@ -31,7 +31,9 @@ runCheck proj src modN entry chAll kv tc ars out = do
 
         let arsStr = mkCleanExprHaskell kv tc $ mkApp ((simpVar $ T.pack entry):ars)
         let outStr = mkCleanExprHaskell kv tc out
-        let chck = arsStr ++ " == " ++ outStr
+        let chck = case outStr == "error" of
+                        False -> arsStr ++ " == " ++ outStr
+                        True -> "True"
 
         v <- compileExpr chck
         let v' = unsafeCoerce v :: Bool

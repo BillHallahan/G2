@@ -271,7 +271,8 @@ funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ "
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
-funcToSMT1Prim IntToReal e = ItoR (exprToSMT e)
+funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
+funcToSMT1Prim IntToDouble e = ItoR (exprToSMT e)
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST

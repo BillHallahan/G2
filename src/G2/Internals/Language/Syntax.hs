@@ -85,7 +85,8 @@ data Primitive = Ge
                | Div
                | Mod
                | Negate
-               | IntToReal
+               | IntToFloat
+               | IntToDouble
                | FromInteger
                | ToInteger
                | Error
