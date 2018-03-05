@@ -22,7 +22,7 @@ import G2.Internals.Solver
 
 import G2.Internals.Liquid.Interface
 
-_DEFAULT_TIMEOUT = 120 * 1000 * 1000 * 90000 -- microseconds = 10^-6 seconds
+_DEFAULT_TIMEOUT = 120 * 1000 * 1000 -- microseconds = 10^-6 seconds
 
 main :: IO ()
 main = do
