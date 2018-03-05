@@ -82,7 +82,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     let (lh_state, meenv', tcv) = createLHTC ng_state meenv
     let lhtc_state = addLHTC lh_state tcv
 
-    let meenv'' = addLHTCExprEnv meenv' (type_classes lhtc_state) tcv
+    let meenv'' = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
     let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv''})
 
     -- let ((meenv, mkv), ng') = doRenames (E.keys meas_eenv) meas_ng (meas_eenv, known_values lhtc_state)
@@ -113,6 +113,8 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
                   0 -> 0
                   _ -> minimum $ map (\(s, _, _, _) -> length $ track s) ret
     let ret' = filter (\(s, _, _, _) -> mi == (length $ track s)) ret
+
+    mapM_ (\(s, _, _, _)-> putStrLn $ show $ assert_ids s) ret'
 
     return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ track s}, es, e, ais)) ret'
 

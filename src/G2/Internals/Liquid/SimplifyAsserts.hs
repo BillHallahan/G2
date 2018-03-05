@@ -63,7 +63,7 @@ isRedundantArg _ tcv (Type _) = True
 isRedundantArg _ tcv e@(Var (Id _ (TyConApp n _))) = n == lhTC tcv
 isRedundantArg kv _ l@(Lam _ _) = isIdentity kv l
 -- isRedundantArg kv tcv a@(App _ _) = isRedundantNestedLHPP kv tcv a
-isRedundantArg _ _ e = trace (show e) False
+isRedundantArg _ _ e = False
 
 isIdentity :: KnownValues -> Expr -> Bool
 isIdentity kv (Lam _ (Data (DataCon n _ _))) = n == dcTrue kv

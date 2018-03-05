@@ -28,7 +28,9 @@ module G2.Internals.Language.Typing
     , tyVars
     , isPolyFunc
     , numArgs
+    , ArgType (..)
     , argumentTypes
+    , spArgumentTypes
     , tyForAllBindings
     , nonTyForAllArgumentTypes
     , returnType
@@ -47,6 +49,8 @@ import G2.Internals.Language.Syntax
 
 import qualified Data.Map as M
 import Data.Monoid hiding (Alt)
+
+import Debug.Trace
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) []
@@ -102,6 +106,7 @@ instance Typed Lit where
     typeOf (LitDouble _) = TyLitDouble
     typeOf (LitChar _)   = TyLitChar
     typeOf (LitString _) = TyLitString
+    typeOf (LitInteger _) = TyLitInt
 
     typeOf' m t = (typeOf t, m)
 
@@ -127,9 +132,10 @@ instance Typed Expr where
         case (tfxpr, taxpr) of
             (TyForAll (NamedTyBndr i) t2, _) -> 
                 let
+                    t2' = replaceASTs (TyVar i) taxpr t2--M.insert (idName i) taxpr m''
                     m''' = M.insert (idName i) taxpr m''
                 in
-                typeOf' m''' t2
+                typeOf' m''' t2'
             (TyFun (TyVar (Id n _)) t2, tca@(TyConApp _ _)) ->
                 let
                     m''' = M.insert n tca m''
@@ -165,18 +171,18 @@ instance Typed Type where
         case M.lookup n m of
             Just t -> (t, m)
             Nothing -> (v, m)
-    typeOf' m (TyFun (TyForAll (NamedTyBndr i) t') t'') =
-        let
-            m' = M.insert (idName i) t'' m
-        in
-        typeOf' m' t'
+    -- typeOf' m (TyFun (TyForAll (NamedTyBndr i) t') t'') =
+    --     let
+    --         m' = M.insert (idName i) t'' m
+    --     in
+    --     typeOf' m' t'
     typeOf' m (TyFun t1 t2) =
         let
             (t1', m') = typeOf' m t1
             (t2', m'') = typeOf' m' t2
         in
         (TyFun t1' t2', m'')
-    typeOf' m (TyApp t1 t2) =
+    typeOf' m t@(TyApp t1 t2) =
         let
             (t1', m') = typeOf' m t1
             (t2', m'') = typeOf' m' t2
@@ -394,15 +400,26 @@ numArgs :: Typed t => t -> Int
 numArgs = length . argumentTypes
 
 -- | argumentTypes
--- Gives the types of the arguments of the functions 
+-- Gives the types of the arguments of the functions
+data ArgType = JustType Type | BindType Id
+
 argumentTypes :: Typed t => t -> [Type]
 argumentTypes = argumentTypes' . typeOf
 
 argumentTypes' :: Type -> [Type]
 argumentTypes' (TyForAll (AnonTyBndr t1) t2) = t1:argumentTypes' t2
-argumentTypes' (TyForAll (NamedTyBndr i) t2) = TyVar i:argumentTypes' t2
+argumentTypes' (TyForAll (NamedTyBndr i) t2) = TYPE:argumentTypes' t2
 argumentTypes' (TyFun t1 t2) = t1:argumentTypes' t2
 argumentTypes' _ = []
+
+spArgumentTypes :: Typed t => t -> [ArgType]
+spArgumentTypes = spArgumentTypes' . typeOf
+
+spArgumentTypes' :: Type -> [ArgType]
+spArgumentTypes' (TyForAll (AnonTyBndr t1) t2) = JustType t1:spArgumentTypes' t2
+spArgumentTypes' (TyForAll (NamedTyBndr i) t2) = BindType i:spArgumentTypes' t2
+spArgumentTypes' (TyFun t1 t2) = JustType t1:spArgumentTypes' t2
+spArgumentTypes' _ = []
 
 tyForAllBindings :: Typed t => t -> [Id]
 tyForAllBindings = tyForAllBindings' . typeOf

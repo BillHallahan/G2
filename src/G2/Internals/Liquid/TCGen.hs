@@ -69,11 +69,17 @@ genTCFuncs lh eenv tenv ti ng dc (n:ns) ws =
             Just bn' -> bn'
             Nothing -> error "Bound names not found in genTCFuncs"
 
-        bnv = map (TyVar . flip Id TYPE) bn
+        bni = map (flip Id TYPE) bn
+
+        bnv = map TyVar bni
+        tbnv = map Type bnv
+        -- lhbnv = map (\bt -> Var $ Id (Name "DICT" Nothing 0) (TyConApp lh [bt])) bnv
 
         fs = mapMaybe (M.lookup n) ws
+        vs = map Var fs
+        vs' = map (\v -> mkApp $ v:tbnv) vs
 
-        e = mkApp $ Data dc:map Var fs
+        e = mkLams bni $ mkApp $ Data dc:vs'
 
         eenv' = E.insert fn e eenv
 
@@ -200,7 +206,7 @@ lhTEnvExpr lh ca fc eenv tenv kv w (n, adt) ng =
 
         (e, ng''') = lhTEnvCase ca fc eenv tenv kv w bfuncs n bn' adt' ng''
     in
-    (foldr Lam e (bni ++ wbni), ng''')
+    (foldr Lam e (wbni ++ bni), ng''')
 
 lhTEnvCase :: Case2Alts -> LHFuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Name -> [Name] -> AlgDataTy -> NameGen -> (Expr, NameGen)
 lhTEnvCase ca _ eenv tenv kv w ti n bn (DataTyCon {data_cons = dc}) ng =
@@ -596,6 +602,9 @@ lhPolyPredCaseExpr :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [Id] -> [(
 lhPolyPredCaseExpr eenv tenv kv w bn bnf =
     let
         tyvs = filter (isTyVar . typeOf) bn
+        ety = map (Type . typeOf) tyvs
+
+        fns = [] -- map Var $ mapMaybe (flip lookup bnf) $ mapMaybe (tyVName . typeOf) tyvs
 
         pc = map (predCalls bnf) tyvs 
     
@@ -604,7 +613,11 @@ lhPolyPredCaseExpr eenv tenv kv w bn bnf =
 
         fs = map (polyPredLHFuncCall true w bnf . Var) $ filter (not . isTyVar . typeOf) bn
     in
-    foldr (\e -> App (App an e)) true $ pc ++ fs
+    foldr (\e -> App (App an e)) true $ pc ++ fns ++ fs
+
+tyVName :: Type -> Maybe Name
+tyVName (TyVar (Id n _)) = Just n
+tyVName _ = Nothing
 
 predCalls :: [(Name, Id)] -> Id -> Expr
 predCalls bnf i@(Id _ (TyVar tvi)) =

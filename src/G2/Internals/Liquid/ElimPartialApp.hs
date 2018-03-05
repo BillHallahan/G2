@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Liquid.ElimPartialApp (elimPartialApp) where
 
 -- We eliminate partial function definitions, so that we can access all
@@ -13,7 +15,7 @@ elimPartialApp s@(State {expr_env = eenv, name_gen = ng }) =
     let
         mr = maximum $ E.map' req eenv
 
-        (ns, ng') = freshNames mr ng
+        (ns, ng') = freshSeededStrings (replicate mr "epa") ng
 
         eenv' = modifyContainedASTs (elimPartialApp' ns) eenv
     in
@@ -32,9 +34,9 @@ elimPartialApp' ns e =
     let        
         diff = req e
 
-        as = argumentTypes e
+        as = spArgumentTypes e
 
-        ad = map (uncurry Id) $ zip ns (takeEnd diff as)
+        ad = map (uncurry argTypeToId) $ zip ns (takeEnd diff as)
 
         e' = insertInLams (\_ _e -> foldr Lam _e ad) e
     in
@@ -46,3 +48,7 @@ lamsCount _ = 0
 
 takeEnd :: Int -> [a] -> [a]
 takeEnd n = reverse . take n . reverse
+
+argTypeToId :: Name -> ArgType -> Id
+argTypeToId n (JustType t) = Id n t
+argTypeToId _ (BindType i) = i

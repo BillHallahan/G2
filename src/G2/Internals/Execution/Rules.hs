@@ -29,7 +29,6 @@ import Control.Monad
 import Data.List
 import Data.Maybe
 
-import Debug.Trace
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
 

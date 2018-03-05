@@ -24,6 +24,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , functionCalls
                                   , nonDataFunctionCalls
                                   , appCenter
+                                  , mkLams
                                   , mkLamBindings
                                   , mkMappedLamBindings
                                   , leadingLamIds
@@ -157,6 +158,9 @@ centerIsData _ = False
 appCenter :: Expr -> Expr
 appCenter (App a _) = appCenter a
 appCenter e = e
+
+mkLams :: [Id] ->  Expr -> Expr
+mkLams = flip (foldr Lam)
 
 -- Generates a lambda binding for each a in the provided list
 -- Takes a function to generate the inner expression
