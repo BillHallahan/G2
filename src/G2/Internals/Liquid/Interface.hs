@@ -82,8 +82,9 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     let (lh_state, meenv', tcv) = createLHTC ng_state meenv
     let lhtc_state = addLHTC lh_state tcv
 
-    let meenv'' = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
-    let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv''})
+    let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
+    let meenv''' = replaceVarTy meenvT meenv''
+    let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
 
     -- let ((meenv, mkv), ng') = doRenames (E.keys meas_eenv) meas_ng (meas_eenv, known_values lhtc_state)
     -- let ng_state = lhtc_state {name_gen = ng'}

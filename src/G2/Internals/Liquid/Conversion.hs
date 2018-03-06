@@ -3,6 +3,7 @@
 
 module G2.Internals.Liquid.Conversion ( addLHTC
                                       , addLHTCExprEnv
+                                      , replaceVarTy
                                       , mergeLHSpecState
                                       , convertSpecTypeDict
                                       , convertLHExpr
@@ -39,13 +40,22 @@ import qualified Data.Text as T
 
 import Debug.Trace
 
-addLHTC :: State h t -> TCValues -> State h t
+addLHTC :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> TCValues -> State h t
 addLHTC s@(State {expr_env = eenv, type_env = tenv, curr_expr = cexpr, type_classes = tc}) tcv =
     let
-        eenv' = addLHTCExprEnv eenv tenv tc tcv
+        (eenv', eenvT) = addLHTCExprEnv eenv tenv tc tcv
         cexpr' = addLHTCCurrExpr eenv tenv cexpr tc tcv
     in
-    s { expr_env = eenv', curr_expr = cexpr' }
+    replaceVarTy eenvT $ s { expr_env = eenv', curr_expr = cexpr' }
+
+replaceVarTy :: ASTContainer m Expr => M.Map Name Type -> m -> m
+replaceVarTy eenvT = modifyASTs (replaceVarTy' eenvT)
+
+replaceVarTy' :: M.Map Name Type -> Expr -> Expr
+replaceVarTy' eenvT v@(Var (Id n _))
+    | Just t <- M.lookup n eenvT = Var (Id n t)
+    | otherwise = v
+replaceVarTy' _ e = e
 
 -- | mergeLHSpecState
 -- From the existing expression environement E, we  generate a new expression
@@ -103,15 +113,16 @@ mergeLHSpecState' f ((v,lst):xs) s =
 -- addLHTCExprEnv
 -- We add a LH type class dict for all polymorphic variables in all function
 -- definitions.
-addLHTCExprEnv :: ExprEnv -> TypeEnv -> TypeClasses -> TCValues -> ExprEnv
+addLHTCExprEnv :: ExprEnv -> TypeEnv -> TypeClasses -> TCValues -> (ExprEnv, M.Map Name Type)
 addLHTCExprEnv eenv tenv tc tcv = 
     let
         lh = lhTC tcv
 
         eenv' = modifyLamTops (addLHTCLams lh) eenv
+        eenvT = E.map' typeOf eenv'
         eenv'' = modifyContainedASTs (addLHTCCalls eenv tenv tc lh) eenv'
     in
-    eenv''
+    (eenv'', eenvT)
 
 addLHTCCurrExpr :: ExprEnv -> TypeEnv -> CurrExpr -> TypeClasses -> TCValues -> CurrExpr
 addLHTCCurrExpr eenv tenv cexpr tc tcv = 
