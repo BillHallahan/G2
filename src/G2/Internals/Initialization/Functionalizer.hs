@@ -35,15 +35,16 @@ module G2.Internals.Initialization.Functionalizer (functionalize) where
 import G2.Internals.Language
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.Typing
 
 import Data.List
 import qualified Data.Map as M
 
-functionalize :: TypeEnv -> ExprEnv -> NameGen -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
-functionalize tenv eenv ng =
+functionalize :: TypeEnv -> ExprEnv -> NameGen -> [Type] -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
+functionalize tenv eenv ng ts =
     let
         -- Get names for all need apply type
-        types = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs eenv
+        types = (filter isTyFun ts) ++ (nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs eenv)
         (appT, ng2) = applyTypeNames ng types
 
         -- Update the expression and  type environments with apply types

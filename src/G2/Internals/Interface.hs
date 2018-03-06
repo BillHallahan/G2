@@ -10,6 +10,7 @@ import G2.Internals.Config.Config
 import G2.Internals.Language
 
 import G2.Internals.Initialization.Interface
+import G2.Internals.Initialization.KnownValues
 import G2.Internals.Initialization.MkCurrExpr
 
 import G2.Internals.Preprocessing.Interface
@@ -42,10 +43,16 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod =
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
+        kv = initKnownValues eenv tenv
+
+        fe = case findFunc f m_mod eenv of
+              Left (_, e) -> e
+              Right s -> error s
+        (_, ts) = instantiateArgTypes tc kv fe
 
         ng = mkNameGen (prog, prog_typ)
 
-        (eenv', tenv', ng', ft, at, ds_walkers, kv) = runInitialization eenv tenv ng
+        (eenv', tenv', ng', ft, at, ds_walkers) = runInitialization eenv tenv ng ts
 
         (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc at ng' eenv' ds_walkers kv
 

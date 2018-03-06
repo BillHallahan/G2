@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Initialization.MkCurrExpr ( mkCurrExpr
-                                              , checkReaches ) where
+                                              , checkReaches
+                                              , findFunc
+                                              , instantiateArgTypes ) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
@@ -88,6 +90,13 @@ findFunc s m_mod eenv =
 
 -- distinguish between where a Type is being bound and where it is just the type (see argTys)
 data TypeBT = B Id | T Type deriving (Show, Eq)
+
+instantiateArgTypes :: TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
+instantiateArgTypes tc kv e =
+    let
+        typs = argTys $ typeOf e
+    in
+    instantitateTypes tc kv typs
 
 instantitateTypes :: TypeClasses -> KnownValues -> [TypeBT] -> ([Expr], [Type])
 instantitateTypes tc kv ts = 

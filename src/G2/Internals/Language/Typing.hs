@@ -22,6 +22,7 @@ module G2.Internals.Language.Typing
     , higherOrderFuncs
     , isAlgDataTy
     , isTYPE
+    , isTyFun
     , hasTYPE
     , isTyVar
     , hasTyBottom
@@ -367,6 +368,10 @@ hasTYPE _ = False
 isTyVar :: Type -> Bool
 isTyVar (TyVar _) = True
 isTyVar _ = False
+
+isTyFun :: Type -> Bool
+isTyFun (TyFun _ _) = True
+isTyFun _ = False
 
 -- | isPolyFunc
 -- Checks if the given function is a polymorphic function
