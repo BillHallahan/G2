@@ -6,8 +6,6 @@ import G2.Internals.Language
 import G2.Internals.Language.KnownValues
 import G2.Internals.Liquid.TCValues
 
-import Debug.Trace
-
 type ModifiedKnownValues = KnownValues
 
 simplifyAsserts :: (ASTContainer h Expr, ASTContainer t Expr) => ModifiedKnownValues -> TCValues -> State h t -> State h t
@@ -47,6 +45,11 @@ isNestedLPP tcv (Var (Id n _)) = n == lhPP tcv
 isNestedLPP tcv a@(App e _) = isNestedLPP tcv e
 isNestedLPP _ _ = False
 
+isNestedLHTC :: TCValues -> Expr -> Bool
+isNestedLHTC tcv (Var (Id _ (TyConApp n _))) = n == lhTC tcv 
+isNestedLHTC tcv a@(App e _) = isNestedLHTC tcv e
+isNestedLHTC _ _ = False
+
 -- We skip checking the outermost arg, which is always the type the lhPP
 -- function is walking over
 isRedundantNestedArg :: KnownValues -> TCValues -> Expr -> Bool
@@ -62,7 +65,7 @@ isRedundantArg :: KnownValues -> TCValues -> Expr -> Bool
 isRedundantArg _ tcv (Type _) = True
 isRedundantArg _ tcv e@(Var (Id _ (TyConApp n _))) = n == lhTC tcv
 isRedundantArg kv _ l@(Lam _ _) = isIdentity kv l
--- isRedundantArg kv tcv a@(App _ _) = isRedundantNestedLHPP kv tcv a
+isRedundantArg kv tcv a@(App _ _) = isNestedLHTC tcv a-- isRedundantNestedLHPP kv tcv a
 isRedundantArg _ _ e = False
 
 isIdentity :: KnownValues -> Expr -> Bool

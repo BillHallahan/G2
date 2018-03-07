@@ -10,8 +10,6 @@ import qualified G2.Internals.Language.Stack as S
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
 -- Var f can potentially split into two states.
