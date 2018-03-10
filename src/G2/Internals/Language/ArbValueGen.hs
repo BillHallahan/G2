@@ -59,7 +59,8 @@ numArgs :: DataCon -> Int
 numArgs = length . dataConArgs
 
 minArgLen :: [DataCon] -> DataCon
-minArgLen = minimumBy (\dc dc' -> numArgs dc `compare` numArgs dc')
+minArgLen [] = error "Empty list in minArgLen"
+minArgLen xs = minimumBy (\dc dc' -> numArgs dc `compare` numArgs dc') xs
 
 minArgLenADT :: AlgDataTy -> DataCon
 minArgLenADT = minArgLen . dataCon
