@@ -182,19 +182,26 @@ liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
 liftSymDefAltPCs mexpr lit@(LitAlt _) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ Default = Nothing
 
-removeType :: Type -> [Expr] -> [Expr]
-removeType (TyForAll _ t) (e:es) = removeType t es
-removeType (TyFun _ t) (e:es) = e : removeType t es
-removeType _ es = es
-
 -- | Trace the type contained in an expression of type TYPE.
-traceTYPE :: Expr -> E.ExprEnv -> Type
-traceTYPE (Var (Id n _)) eenv = case E.lookup n eenv of
-    Just (Type res) -> res
-    Just expr -> traceTYPE expr eenv
-    Nothing -> error "Var of type TYPE not in expression environment."
-traceTYPE expr _ = typeOf expr
+traceIdType :: Id -> E.ExprEnv -> Maybe Type
+traceIdType (Id n ty) eenv =
+  if (not . hasTYPE) ty then
+    Just ty
+  else
+    case E.lookup n eenv of
+      Nothing -> Nothing
+      Just (Type res) -> Just res
+      Just expr -> traceIdType (Id n ty) eenv
 
+-- | Remove everything from an [Expr] that are actually Types.
+removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
+removeTypes ((Type _):es) eenv = removeTypes es eenv
+removeTypes ((Var (Id n ty)):es) eenv = case E.lookup n eenv of
+    Just (Type _) -> removeTypes es eenv
+    _ -> (Var (Id n ty)) : removeTypes es eenv
+removeTypes (e:es) eenv = e : removeTypes es eenv
+removeTypes [] eenv = []
+  
 repeatedLookup :: Expr -> ExprEnv -> Expr
 repeatedLookup v@(Var (Id n _)) eenv
     | E.isSymbolic n eenv = v
@@ -504,7 +511,7 @@ reduceCase eenv mexpr bind alts ngen
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
   , (DataCon _ dty _) <- dcon
-  , ar' <- removeType dty ar
+  , ar' <- removeTypes ar eenv
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
       let
@@ -611,9 +618,22 @@ reduceEReturn eenv e ngen (CastFrame (t1 :~ t2)) =
 
 -- In the event that our Lam parameter is a type variable, we have to handle
 -- it by retyping.
+reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
+  | hasTYPE t =
+      let aty = case traceIdType i eenv of
+                      Just ty -> ty
+                      Nothing -> error $ "unable to trace: " ++ show n'
+          binds = [(Id n aty, Type aty)]
+          lexpr' = retype b aty lexpr
+          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
+      in ( RuleReturnEApplyLamType news
+         , ( eenv'
+           , CurrExpr Evaluate lexpr''
+           , ngen'))
+
 reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
   | hasTYPE t =
-      let aty = traceTYPE aexpr eenv
+      let aty = typeOf aexpr
           binds = [(Id n aty, aexpr)]
           lexpr' = retype b aty lexpr
           (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
