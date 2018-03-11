@@ -38,6 +38,7 @@ module G2.Internals.Language.ExprEnv
     , fromExprList
     , isRedirect
     , isRoot
+    , EnvObj(..)
     ) where
 
 import G2.Internals.Language.AST

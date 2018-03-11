@@ -162,12 +162,13 @@ instance Hashable Coercion
 data Type = TyVar Id
           -- | TyInt | TyFloat | TyDouble | TyChar | TyString | TyBool
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
-          | TYPE
           | TyFun Type Type
           | TyApp Type Type
           | TyConApp Name [Type]
           | TyForAll TyBinder Type
           | TyBottom
+          | TYPE
+          | TyUnknown
           deriving (Show, Eq, Read, Generic)
 
 instance Hashable Type

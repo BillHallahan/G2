@@ -216,7 +216,7 @@ parseLHOut entry [] = []
 parseLHOut entry ((s, inArg, ex, ais):xs) =
   let tail = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) 
-               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
+               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyUnknown) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) $ ex
 
       called = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
@@ -235,7 +235,7 @@ sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = 
 parseLHFuncTuple :: State h t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n@(Name n' _ _), arguments = ars, returns = out}) =
     FuncInfo { func = n'
-             , funcArgs = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n TyBottom)) ars)
+             , funcArgs = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) (foldl' App (Var (Id n TyUnknown)) ars)
              , funcReturn = T.pack $ mkCleanExprHaskell (known_values s) (type_classes s) out }
 
 testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config

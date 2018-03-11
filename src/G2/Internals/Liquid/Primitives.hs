@@ -28,22 +28,22 @@ boolBoolBool kv =
     TyFun tyB $ TyFun tyB tyB
 
 mkLHGe :: Expr -> Expr -> Expr
-mkLHGe = mkLHPrim Ge TyBottom
+mkLHGe = mkLHPrim Ge TyUnknown
 
 mkLHGt :: Expr -> Expr -> Expr
-mkLHGt = mkLHPrim Gt TyBottom
+mkLHGt = mkLHPrim Gt TyUnknown
 
 mkLHEq :: Expr -> Expr -> Expr
-mkLHEq = mkLHPrim Eq TyBottom
+mkLHEq = mkLHPrim Eq TyUnknown
 
 mkLHNeq :: Expr -> Expr -> Expr
-mkLHNeq = mkLHPrim Neq TyBottom
+mkLHNeq = mkLHPrim Neq TyUnknown
 
 mkLHLt :: Expr -> Expr -> Expr
-mkLHLt = mkLHPrim Lt TyBottom
+mkLHLt = mkLHPrim Lt TyUnknown
 
 mkLHLe :: Expr -> Expr -> Expr
-mkLHLe = mkLHPrim Le TyBottom
+mkLHLe = mkLHPrim Le TyUnknown
 
 mkLHAnd :: KV.KnownValues -> Expr -> Expr -> Expr
 mkLHAnd kv = mkLHPrim And (boolBoolBool kv)

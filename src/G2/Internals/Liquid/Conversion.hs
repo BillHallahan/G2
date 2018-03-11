@@ -315,7 +315,7 @@ typeToLHTypeClass tc ti lh t =
                 _ -> Var lhD
         Nothing -> case lookup t ti of
             Just lhD -> Var lhD
-            Nothing -> Var (Lang.Id (Name "BAD" Nothing 0) TyBottom)-- TODO : Can hit this when have TyFun... -- error $ "Typeclass not found in typeToLHTypeClass" ++ show t
+            Nothing -> Var (Lang.Id (Name "BAD" Nothing 0) TyUnknown)-- TODO : Can hit this when have TyFun... -- error $ "Typeclass not found in typeToLHTypeClass" ++ show t
 
 type SpecTypeFunc h t = Name -> Expr -> SpecType -> State h t -> State h t
 
@@ -493,7 +493,7 @@ specTypeApps st tcv s@(State {expr_env = eenv}) m b =
 assumeSpecTypeApps :: SpecType -> TCValues -> State h t -> M.Map Name Type -> Expr
 assumeSpecTypeApps st tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = knv}) m =
     let
-        (i, _) = freshId TyBottom ng
+        (i, _) = freshId TyUnknown ng
     in
     case init $ specTypeApps' st tcv s m i of
         xs@(_:_) -> foldl1' (\e -> App (App (mkAnd eenv) e)) xs
@@ -550,7 +550,7 @@ polyPredFunc as eenv tenv tc ty tcv s m b =
         dict = fromJustErr "No lhDict for polyPredFunc" $ lhTCDict eenv tcv tc ty m
         as' = map (\a -> polyPredLam a tcv s m) as
     in
-    mkApp $ [Var $ Id (lhPP tcv) TyBottom, dict, Type (typeOf b)] ++ as' ++ [Var b]
+    mkApp $ [Var $ Id (lhPP tcv) TyUnknown, dict, Type (typeOf b)] ++ as' ++ [Var b]
     -- let
     --     ts = map (unsafeSpecTypeToType tenv) as
     --     ts' = map Type ts
@@ -562,7 +562,7 @@ polyPredFunc as eenv tenv tc ty tcv s m b =
 
     --     lhDs = map (\t' -> fromJustErr "No lhDict for polyPredFuncArg" $ lhTCDictNoArgs eenv tcv tc t' m) ts
     -- in
-    -- mkApp $ [Var $ Id (lhPP tcv) TyBottom, lhD, typE] ++ lhDs ++ ts' ++ as' ++ [Var b]
+    -- mkApp $ [Var $ Id (lhPP tcv) TyUnknown, lhD, typE] ++ lhDs ++ ts' ++ as' ++ [Var b]
 
 
 polyPredLam :: SpecType -> TCValues -> State h t -> M.Map Name Type -> Expr
@@ -633,7 +633,7 @@ rtvInfoSymbol :: RTVInfo a -> Symbol
 rtvInfoSymbol (RTVInfo {rtv_name = s}) = s
 
 convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State h t -> M.Map Name Type -> Expr
-convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0) TyBottom
+convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0) TyUnknown
 convertLHExpr (ECon c)  t _ (State {known_values = knv, type_env = tenv}) _ = convertCon t knv tenv c
 convertLHExpr (EVar s) t _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m
 convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
@@ -645,7 +645,7 @@ convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
         v@(Var (Id n (TyConApp tn ts))) -> 
             let -- trace ("t args = " ++ show (argumentTypes f) ++ "\nts = " ++ show ts ++ "\n") 
                 -- te = map Type $ nub $ filter isTyVar $ argumentTypes f-- map Type ts-- nub $ map (Type) $ concatMap tyVars ts --TODO : Is this right?  Only 1 non-Type arg to a measure, and should have type args in order?
-                specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializesTo M.empty)) $ zip ts f_ar_ts
+                specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts
                 te = map Type specTo-- trace ("m = " ++ show specTo ++ "\nts = " ++ show ts ++ "\nf_ar_ts = " ++ show (f_ar_ts)) nub $ map (Type) $ concatMap tyVars ts
 
                 lh = lhTC tcv
@@ -757,7 +757,7 @@ convertLHExpr e _ _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 convertSymbol :: Name -> ExprEnv -> M.Map Name Type -> Lang.Id
 convertSymbol nm@(Name n md _) eenv m =
     let
-        t = maybe TyBottom id $ M.lookup nm m
+        t = maybe TyUnknown id $ M.lookup nm m
     in
     case E.lookupNameMod n md eenv of
         Just (n', e) -> Id n' (typeOf e)
@@ -766,7 +766,7 @@ convertSymbol nm@(Name n md _) eenv m =
 convertEVar :: Name -> ExprEnv -> TypeEnv -> M.Map Name Type -> Lang.Expr
 convertEVar nm@(Name n md _) eenv tenv m =
     let
-        t = maybe TyBottom id $ M.lookup nm m
+        t = maybe TyUnknown id $ M.lookup nm m
     in
     case (E.lookupNameMod n md eenv, getDataConNameMod' tenv nm) of
         (Just (n', e), _) -> Var $ Id n' (typeOf e)
@@ -888,12 +888,12 @@ fromJustErr s _ = error s
 -- lhTCDict tcv tc = fmap Var . lookupTCDict tc (lhTC tcv)
 
 convertBrel :: Brel -> TCValues -> Expr
-convertBrel Ref.Eq tcv = Var $ Id (lhEq tcv) TyBottom
-convertBrel Ref.Ne tcv = Var $ Id (lhNe tcv) TyBottom
-convertBrel Ref.Gt tcv = Var $ Id (lhGt tcv) TyBottom
-convertBrel Ref.Ge tcv = Var $ Id (lhGe tcv) TyBottom
-convertBrel Ref.Lt tcv = Var $ Id (lhLt tcv) TyBottom
-convertBrel Ref.Le tcv = Var $ Id (lhLe tcv) TyBottom
+convertBrel Ref.Eq tcv = Var $ Id (lhEq tcv) TyUnknown
+convertBrel Ref.Ne tcv = Var $ Id (lhNe tcv) TyUnknown
+convertBrel Ref.Gt tcv = Var $ Id (lhGt tcv) TyUnknown
+convertBrel Ref.Ge tcv = Var $ Id (lhGe tcv) TyUnknown
+convertBrel Ref.Lt tcv = Var $ Id (lhLt tcv) TyUnknown
+convertBrel Ref.Le tcv = Var $ Id (lhLe tcv) TyUnknown
 
 
 tyVarInTyAppHasName :: Name -> Type -> Bool

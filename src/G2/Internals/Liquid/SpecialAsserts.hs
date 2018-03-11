@@ -12,9 +12,9 @@ addSpecialAsserts s@(State { expr_env = eenv
 		pe = KV.patErrorFunc kv
 		e = case E.lookup pe eenv of
 			Just e2 -> e2
-			Nothing -> Prim Undefined TyBottom
+			Nothing -> Prim Undefined TyUnknown
 
-		fc = FuncCall {funcName = pe, arguments = [], returns = Prim Undefined TyBottom}
+		fc = FuncCall {funcName = pe, arguments = [], returns = Prim Undefined TyUnknown}
 		false = mkFalse kv tenv
 		e' = Assert (Just fc) false e
 	in

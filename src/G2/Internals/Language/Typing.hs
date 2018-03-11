@@ -16,7 +16,7 @@ module G2.Internals.Language.Typing
     , mkTyFun
     , (.::)
     , (.::.)
-    , specializesTo
+    , specializes
     , hasFuncType
     , appendType
     , higherOrderFuncs
@@ -224,101 +224,218 @@ retype' key new ty = modifyChildren (retype' key new) ty
 -- Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> Type -> Bool
-t1 .:: t2 = fst $ specializesTo M.empty (typeOf t1) t2
+t1 .:: t2 = fst $ specializes M.empty (typeOf t1) t2
 
 (.::.) :: Type -> Type -> Bool
-t1 .::. t2 = fst (specializesTo M.empty t1 t2) && fst (specializesTo M.empty t2 t1)
+t1 .::. t2 = fst (specializes M.empty t1 t2) && fst (specializes M.empty t2 t1)
 
-specializesTo :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
-specializesTo m _ TYPE = (True, m)
-specializesTo m t (TyVar (Id n _)) =
+{-
+specializes :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
+specializes m _ TYPE = (True, m)
+specializes m t (TyVar (Id n _)) =
     case M.lookup n m of
         Just (TyVar _) -> (True, m)
-        Just t' -> specializesTo m t t'
+        Just t' -> specializes m t t'
         Nothing -> (True, M.insert n t m)
-specializesTo m (TyFun t1 t2) (TyFun t1' t2') =
+specializes m (TyFun t1 t2) (TyFun t1' t2') =
     let
-        (b1, m') = specializesTo m t1 t1'
-        (b2, m'') = specializesTo m' t2 t2'
+        (b1, m') = specializes m t1 t1'
+        (b2, m'') = specializes m' t2 t2'
     in
     (b1 && b2, m'')
-specializesTo m (TyApp t1 t2) (TyApp t1' t2') =
+specializes m (TyApp t1 t2) (TyApp t1' t2') =
     let
-        (b1, m') = specializesTo m t1 t1'
-        (b2, m'') = specializesTo m' t2 t2'
+        (b1, m') = specializes m t1 t1'
+        (b2, m'') = specializes m' t2 t2'
     in
     (b1 && b2, m'')
-specializesTo m (TyConApp n ts) (TyConApp n' ts') =
+specializes m (TyConApp n ts) (TyConApp n' ts') =
     foldr 
         (\(t, t') (b, m') ->
             let 
-                (b', m'') = specializesTo m' t t'
+                (b', m'') = specializes m' t t'
             in
             (b && b', m'')
         )
         (n == n' && length ts == length ts', m) 
         (zip ts ts')
-specializesTo m (TyConApp n ts) app@(TyApp _ _) =
+specializes m (TyConApp n ts) app@(TyApp _ _) =
     let
         appts = unTyApp app
     in
     case appts of
-        TyConApp n' ts':ts'' -> specializesTo m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
+        TyConApp n' ts':ts'' -> specializes m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
         _ -> (False, m)
-specializesTo m app@(TyApp _ _) (TyConApp n ts) =
+specializes m app@(TyApp _ _) (TyConApp n ts) =
     let
         appts = unTyApp app
     in
     case appts of
-        TyConApp n' ts':ts'' -> specializesTo m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
+        TyConApp n' ts':ts'' -> specializes m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
         _ -> (False, m)
 
 
--- specializesTo m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
+-- specializes m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
 --   let
---       (b1, m') = specializesTo m t1 t1'
---       (b2, m'') = specializesTo m' t2 t2'
+--       (b1, m') = specializes m t1 t1'
+--       (b2, m'') = specializes m' t2 t2'
 --   in (b1 && b2, m'')
--- specializesTo m (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+-- specializes m (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
 --   let
---       (b1, m') = specializesTo (M.insert n t1 m) t1 t1'
---       (b2, m'') = specializesTo m' t2 t2'
+--       (b1, m') = specializes (M.insert n t1 m) t1 t1'
+--       (b2, m'') = specializes m' t2 t2'
 --   in (b1 && b2, m'')
-specializesTo m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
+specializes m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
   let
-      (b1, m') = specializesTo m t1 t1'
-      (b2, m'') = specializesTo m' t2 t2'
+      (b1, m') = specializes m t1 t1'
+      (b2, m'') = specializes m' t2 t2'
   in (b1 && b2, m'')
-specializesTo m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyFun t1' t2') =
+specializes m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyFun t1' t2') =
   let
-      (b1, m') = specializesTo (M.insert n t1' m) t1 t1'
-      (b2, m'') = specializesTo m' t2 t2'
+      (b1, m') = specializes (M.insert n t1' m) t1 t1'
+      (b2, m'') = specializes m' t2 t2'
   in (b1 && b2, m'')
-specializesTo m t (TyFun _ t2') = specializesTo m t t2'
-specializesTo m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
+specializes m t (TyFun _ t2') = specializes m t t2'
+specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
   let
-      (b1, m') = specializesTo m t1 t1'
-      (b2, m'') = specializesTo m' t2 t2'
+      (b1, m') = specializes m t1 t1'
+      (b2, m'') = specializes m' t2 t2'
   in (b1 && b2, m'')
-specializesTo m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
   let
-      (b1, m') = specializesTo (M.insert n t1 m) t1 t1'
-      (b2, m'') = specializesTo m' t2 t2'
+      (b1, m') = specializes (M.insert n t1 m) t1 t1'
+      (b2, m'') = specializes m' t2 t2'
   in (b1 && b2, m'')
-specializesTo m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyForAll (AnonTyBndr t1') t2') =
+specializes m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyForAll (AnonTyBndr t1') t2') =
   let
-      (b1, m') = specializesTo (M.insert n t1' m) t1 t1'
-      (b2, m'') = specializesTo m' t2 t2'
+      (b1, m') = specializes (M.insert n t1' m) t1 t1'
+      (b2, m'') = specializes m' t2 t2'
   in (b1 && b2, m'')
-specializesTo m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') =
+specializes m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') =
   let
-      (b1, m') = specializesTo m t1 t1'
-      (b2, m'') = specializesTo m' t2 t2'
+      (b1, m') = specializes m t1 t1'
+      (b2, m'') = specializes m' t2 t2'
   in (b1 && b2, m'')
-specializesTo m t (TyForAll _ t') = specializesTo m t t'
-specializesTo m _ TyBottom = (True, m)
-specializesTo m TyBottom _ = (True, m)
-specializesTo m t1 t2 = (t1 == t2, m)
+specializes m t (TyForAll _ t') = specializes m t t'
+specializes m _ TyBottom = (True, m)
+specializes m TyBottom _ = (True, m)
+specializes m t1 t2 = (t1 == t2, m)
+-}
+
+--------------------------
+
+specializes :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
+specializes m _ TYPE = (True, m)
+specializes m t (TyVar (Id n t')) =
+    -- trace "FOUR" $
+    case specializes m t t' of
+      (True, m') -> -- trace ("FOUR-A: " ++ show (t, (Id n t')))
+                    (True, M.insert n t m)
+      -- (False, m'') -> else case M.lookup n m of
+      (False, m') -> case M.lookup n m' of
+        Just t'' -> -- trace "FOUR-B"
+                    specializes m' t t''
+        Nothing -> -- trace "FOUR-C"
+                   (False, m')
+        -- Just (TyVar v) -> trace (show (t, v)) $ (True, m)
+        -- Just t' -> specializes m t t'
+        -- Nothing -> trace "SIX" $ (True, M.insert n t m)
+specializes m (TyFun t1 t2) (TyFun t1' t2') =
+    -- trace "TyFun-TyFun" $
+    let
+        (b1, m') = specializes m t1 t1'
+        (b2, m'') = specializes m' t2 t2'
+    in
+    (b1 && b2, m'')
+specializes m (TyApp t1 t2) (TyApp t1' t2') =
+    let
+        (b1, m') = specializes m t1 t1'
+        (b2, m'') = specializes m' t2 t2'
+    in
+    (b1 && b2, m'')
+specializes m (TyConApp n ts) (TyConApp n' ts') =
+    -- trace "ONE" $
+    foldr 
+        (\(t, t') (b, m') ->
+            let 
+                (b', m'') = specializes m' t t'
+            in
+            (b && b', m'')
+        )
+        (n == n' && length ts == length ts', m) 
+        (zip ts ts')
+specializes m (TyConApp n ts) app@(TyApp _ _) =
+    -- trace "TWO" $
+    let
+        appts = unTyApp app
+    in
+    case appts of
+        TyConApp n' ts':ts'' -> specializes m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
+        _ -> (False, m)
+specializes m app@(TyApp _ _) (TyConApp n ts) =
+    let
+        appts = unTyApp app
+    in
+    case appts of
+        TyConApp n' ts':ts'' -> specializes m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
+        _ -> (False, m)
+
+specializes m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
+  let
+      (b1, m') = specializes m t1 t1'
+      (b2, m'') = specializes m' t2 t2'
+  in (b1 && b2, m'')
+specializes m (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+  -- trace "THREE" $
+  specializes m (TyFun t1 t2) t2'
+  -- let
+  --     (b1, m') = specializes (M.insert n t1 m) t1 t1'
+  --     (b2, m'') = specializes m' t2 t2'
+  -- in (b1 && b2, m'')
+
+specializes m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
+  let
+      (b1, m') = specializes m t1 t1'
+      (b2, m'') = specializes m' t2 t2'
+  in (b1 && b2, m'')
+
+-- specializes m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyFun t1' t2') =
+--   let
+--       (b1, m') = specializes (M.insert n t1' m) t1 t1'
+--       (b2, m'') = specializes m' t2 t2'
+--   in (b1 && b2, m'')
+-- specializes m t (TyFun _ t2') = trace "The stupid one" specializes m t t2' -- HO Math fails without this
+specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
+  let
+      (b1, m') = specializes m t1 t1'
+      (b2, m'') = specializes m' t2 t2'
+  in (b1 && b2, m'')
+specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+  specializes m (TyForAll (AnonTyBndr t1) t2) t2'
+--   let
+--       (b1, m') = specializes (M.insert n t1 m) t1 t1'
+--       (b2, m'') = specializes m' t2 t2'
+--   in (b1 && b2, m'')
+-- specializes m (TyForAll (NamedTyBndr (Id n t1)) t2) (TyForAll (AnonTyBndr t1') t2') =
+--   let
+--       (b1, m') = specializes (M.insert n t1' m) t1 t1'
+--       (b2, m'') = specializes m' t2 t2'
+--   in (b1 && b2, m'')
+specializes m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') =
+  let
+      (b1, m') = specializes m t1 t1'
+      (b2, m'') = specializes m' t2 t2'
+  in (b1 && b2, m'')
+specializes m t (TyForAll _ t') = -- trace "SEVEN"
+  specializes m t t'
+specializes m TyUnknown _ = (True, m)
+specializes m _ TyUnknown = (True, m)
+specializes m TyBottom _ = (True, m)
+specializes m _ TyBottom = (False, m)
+specializes m t1 t2 = (t1 == t2, m)
+
+--------------------------
+
 
 hasFuncType :: (Typed t) => t -> Bool
 hasFuncType t =
@@ -468,7 +585,7 @@ splitTyForAlls (TyForAll (NamedTyBndr i) t) =
     (i:i', t')
 splitTyForAlls t = ([], t)
 
--- | splitTyFuns
+
 -- Turns TyFun types into a list of types
 splitTyFuns :: Type -> [Type]
 splitTyFuns (TyFun t t') = t:splitTyFuns t'

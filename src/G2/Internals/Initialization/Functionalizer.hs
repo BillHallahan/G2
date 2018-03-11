@@ -30,6 +30,8 @@
 -- arise with full defunctionalization, but we still can vary any symbolic
 -- higher order functions over all options in the expression environment.
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Internals.Initialization.Functionalizer (functionalize) where
 
 import G2.Internals.Language
@@ -39,6 +41,23 @@ import G2.Internals.Language.Typing
 
 import Data.List
 import qualified Data.Map as M
+
+import Debug.Trace
+
+
+tyMonad = (
+  (TyForAll (NamedTyBndr (Id (Name "r" Nothing 6989586621679019861) TYPE))
+  (TyForAll (NamedTyBndr (Id (Name "a" Nothing 6989586621679019869) TYPE))
+  (TyForAll (NamedTyBndr (Id (Name "b" Nothing 6989586621679019870) TYPE))
+    (TyFun (TyFun (TyVar (Id (Name "r" Nothing 6989586621679019861) TYPE))
+                  (TyVar (Id (Name "a" Nothing 6989586621679019869) TYPE)))
+    (TyFun (TyFun (TyVar (Id (Name "a" Nothing 6989586621679019869) TYPE))
+           (TyFun (TyVar (Id (Name "r" Nothing 6989586621679019861) TYPE))
+                  (TyVar (Id (Name "b" Nothing 6989586621679019870) TYPE))))
+    (TyFun (TyVar (Id (Name "r" Nothing 6989586621679019861) TYPE))
+           (TyVar (Id (Name "b" Nothing 6989586621679019870) TYPE)))))))))
+
+
 
 functionalize :: TypeEnv -> ExprEnv -> NameGen -> [Type] -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
 functionalize tenv eenv ng ts =
@@ -87,6 +106,17 @@ mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
     let
         -- Functions of type t
         funcs = map fst $ filter ((==) t . snd) funcT
+        -- funcs = map fst $ filter ((.::) t . snd) funcT
+        {-
+        funcs = map fst $ filter
+                  ((\t' ->
+                        if t .:: t' then
+                            -- trace ("------\nt1: " ++ show t ++ "\nt2: " ++ show t')
+                            True
+                        else
+                          False
+                  ) . snd) funcT
+        -}
 
         -- Update type environment
         (applyCons, ng2) = freshSeededNames funcs ng

@@ -101,6 +101,54 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("patError", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
 
+{-
+primDefs = [ ("==#", Prim Eq TyBottom)
+           , ("/=#", Prim Neq TyBottom)
+           , ("+#", Prim Plus TyBottom)
+           , ("*#", Prim Mult TyBottom)
+           , ("-#", Prim Minus TyBottom)
+           , ("negateInt#", Prim Negate TyBottom)
+           , ("<=#", Prim Le TyBottom)
+           , ("<#", Prim Lt TyBottom)
+           , (">#", Prim Gt TyBottom)
+           , (">=#", Prim Ge TyBottom)
+           , ("modInt#", Prim Mod TyBottom)
+           , ("quotInt#", Prim Div TyBottom)
+           , ("remInt#", Prim Mod TyBottom)
+
+           , ("==##", Prim Eq TyBottom)
+           , ("/=##", Prim Neq TyBottom)
+           , ("+##", Prim Plus TyBottom)
+           , ("*##", Prim Mult TyBottom)
+           , ("-##", Prim Minus TyBottom)
+           , ("negateDouble#", Prim Negate TyBottom)
+           , ("<=##", Prim Le TyBottom)
+           , ("<##", Prim Lt TyBottom)
+           , (">##", Prim Gt TyBottom)
+           , (">=##", Prim Ge TyBottom)
+
+           , ("plusFloat#", Prim Plus TyBottom)
+           , ("timesFloat#", Prim Mult TyBottom)
+           , ("minusFloat#", Prim Minus TyBottom)
+           , ("negateFloat#", Prim Negate TyBottom)
+           , ("/##", Prim Div TyBottom)
+           , ("divideFloat#", Prim Div TyBottom)
+           , ("eqFloat#", Prim Eq TyBottom)
+           , ("neqFloat#", Prim Neq TyBottom)
+           , ("leFloat#", Prim Le TyBottom)
+           , ("ltFloat#", Prim Lt TyBottom)
+           , ("gtFloat#", Prim Gt TyBottom)
+           , ("geFloat#", Prim Ge TyBottom)
+
+           , ("fromIntToFloat", Prim IntToFloat TyBottom)
+           , ("fromIntToDouble", Prim IntToDouble TyBottom)
+           , ("error", Prim Error TyBottom)
+           , ("errorWithoutStackTrace", Prim Error TyBottom)
+           , ("divZeroError", Prim Error TyBottom)
+           , ("patError", Prim Error TyBottom)
+           , ("undefined", Prim Error TyBottom)]
+-}
+
 
 replaceFromPD :: Id -> Expr -> (Id, Expr)
 replaceFromPD i@(Id n _) e =
