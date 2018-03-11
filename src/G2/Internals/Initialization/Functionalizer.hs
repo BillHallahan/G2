@@ -119,7 +119,6 @@ mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
         at2 = AT.insert t n applyFunc at
 
         -- Update expression enviroment
-        -- (expr, ng4) = mkApplyTypeMap ng3 (zip applyCons funcs) (TyConApp n []) t
         (expr, ng4) = mkApplyTypeMap ng3 (zip applyCons funcFolds) (TyConApp n []) t
         eenv2 = E.insert applyFuncN expr eenv
     in

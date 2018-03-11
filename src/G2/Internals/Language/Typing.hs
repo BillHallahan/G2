@@ -304,9 +304,6 @@ specializes m TyBottom _ = (True, m)
 specializes m _ TyBottom = (False, m)
 specializes m t1 t2 = (t1 == t2, m)
 
---------------------------
-
-
 hasFuncType :: (Typed t) => t -> Bool
 hasFuncType t =
     case typeOf t of
