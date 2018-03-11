@@ -25,34 +25,8 @@ import G2.Internals.Liquid.Interface
 
 _DEFAULT_TIMEOUT = 120 * 1000 * 1000 -- microseconds = 10^-6 seconds
 
--- ty1 = TyFun (TyVar (Id (Name "b" Nothing 6989586621679016828) TYPE))
---       (TyConApp (Name "Maybe" (Just "GHC.Base") 8214565720323786683)
---                       [TyConApp (Name "(,)" (Just "GHC.Tuple") 0) [TyVar (Id (Name "a" Nothing 6989586621679016829) TYPE)
---                                       ,TyVar (Id (Name "b" Nothing 6989586621679016828) TYPE)]])
-
--- ty2 = TyForAll (NamedTyBndr (Id (Name "a" Nothing 6989586621679042824) TYPE))
---   (TyForAll (NamedTyBndr (Id (Name "b" Nothing 6989586621679042825) TYPE))
---   (TyForAll (NamedTyBndr (Id (Name "k" Nothing 6989586621679042826) TYPE))
---   (TyFun (TyFun (TyVar (Id (Name "a" Nothing 6989586621679042824) TYPE))
---   (TyFun (TyVar (Id (Name "b" Nothing 6989586621679042825) TYPE)) (TyVar (Id (Name "b" Nothing 6989586621679042825) TYPE))))
---   (TyFun (TyVar (Id (Name "b" Nothing 6989586621679042825) TYPE)) (TyFun (TyConApp (Name "Map" (Just "Data.Map") 8214565720323809918) [TyVar (Id (Name "k" Nothing 6989586621679042826) TYPE),TyVar (Id (Name "a" Nothing 6989586621679042824) TYPE)]) (TyVar (Id (Name "b" Nothing 6989586621679042825) TYPE)))))))
-
--- ty1 = TyFun TyLitInt (TyConApp (Name "b" Nothing 0) [TyLitInt])
-
--- ty2 = TyForAll (NamedTyBndr (Id (Name "a" Nothing 0) TYPE)) 
---                (TyFun (TyVar (Id (Name "a" Nothing 0) TYPE))
---                       (TyConApp (Name "b" Nothing 0) [TyVar (Id (Name "a" Nothing 0) TYPE)])
---                )
-
 main :: IO ()
 main = do
-
-  -- putStrLn $ show $ (\(ExprObj o) -> typeOf o) $ snd pair1
-
-  -- putStrLn $ show (ty1 .:: ty2)
-
-  -- error "STOP"
-  
   as <- getArgs
   let (proj:_) = as
 

@@ -256,8 +256,9 @@ testFileTests =
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2
-                                                                                                                                          , RForAll (\[_, x, _] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")
-                                                                                                                                                                && inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")) ]
+                                                                                                                                          , RForAll (\[_, x, y] -> isError y
+                                                                                                                                                                || (inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W") &&
+                                                                                                                                                                    inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W"))) ]
 
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
                                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "L" y' 3) (const True))

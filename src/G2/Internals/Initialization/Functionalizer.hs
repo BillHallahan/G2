@@ -93,15 +93,6 @@ mkApplyFuncAndTypes' :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)]
 mkApplyFuncAndTypes' tenv eenv ng [] _ fi at = (tenv, eenv, fi, at, ng)
 mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
     let
-        -- Functions of type t
-        -- funcs = map fst $ filter ((t .::)  . snd) funcT
-
-        -- (tymaps, funcs) = foldr (\(n, t') (m, accs) ->
-        --                      case specializes m t t' of
-        --                       (True, m') -> (m', n : accs)
-        --                       (False, _) -> (m, accs))
-        --                  (M.empty, []) funcT
-
         funcFolds = foldr (\(n, t') accs ->
                             case specializes M.empty t t' of
                               (True, m) -> (n, t', m) : accs
@@ -109,17 +100,6 @@ mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
                           [] funcT
 
         funcs = map (\(n, _, _) -> n) funcFolds
-
-        {-
-        funcs = map fst $ filter
-                  ((\t' ->
-                        if t .:: t' then
-                            -- trace ("------\nt1: " ++ show t ++ "\nt2: " ++ show t')
-                            True
-                        else
-                          False
-                  ) . snd) funcT
-        -}
 
         -- Update type environment
         (applyCons, ng2) = freshSeededNames funcs ng
