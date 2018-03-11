@@ -327,19 +327,23 @@ specializes m t1 t2 = (t1 == t2, m)
 specializes :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
 specializes m _ TYPE = (True, m)
 specializes m t (TyVar (Id n t')) =
+    case M.lookup n m of
+        Just (TyVar _) -> (True, m)
+        Just t' -> specializes m t t'
+        Nothing -> (True, M.insert n t m)
     -- trace "FOUR" $
-    case specializes m t t' of
-      (True, m') -> -- trace ("FOUR-A: " ++ show (t, (Id n t')))
-                    (True, M.insert n t m)
-      -- (False, m'') -> else case M.lookup n m of
-      (False, m') -> case M.lookup n m' of
-        Just t'' -> -- trace "FOUR-B"
-                    specializes m' t t''
-        Nothing -> -- trace "FOUR-C"
-                   (False, m')
-        -- Just (TyVar v) -> trace (show (t, v)) $ (True, m)
-        -- Just t' -> specializes m t t'
-        -- Nothing -> trace "SIX" $ (True, M.insert n t m)
+    -- case specializes m t t' of
+    --   (True, m') -> -- trace ("FOUR-A: " ++ show (t, (Id n t')))
+    --                 (True, M.insert n t m)
+    --   -- (False, m'') -> else case M.lookup n m of
+    --   (False, m') -> case M.lookup n m' of
+    --     Just t'' -> -- trace "FOUR-B"
+    --                 specializes m' t t''
+    --     Nothing -> -- trace "FOUR-C"
+    --                (False, m')
+    --     -- Just (TyVar v) -> trace (show (t, v)) $ (True, m)
+    --     -- Just t' -> specializes m t t'
+    --     -- Nothing -> trace "SIX" $ (True, M.insert n t m)
 specializes m (TyFun t1 t2) (TyFun t1' t2') =
     -- trace "TyFun-TyFun" $
     let
