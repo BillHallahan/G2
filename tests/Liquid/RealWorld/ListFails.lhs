@@ -22,6 +22,7 @@ Lists
 module List ( List
             , empty
             , concat
+            , singleton
             , fuu
             ) where
 
@@ -50,6 +51,9 @@ data List a = Emp
 
 {-@ empty :: List a @-}
 empty = Emp    
+
+singleton :: a -> List a
+singleton x = x :+: Emp
 
 {-@ concat                  :: xss :  List (List a)  -> List a  @-}
 concat (Emp :+: xss)         = Emp

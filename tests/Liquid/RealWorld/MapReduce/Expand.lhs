@@ -42,7 +42,14 @@ data List a = Emp
 {-@ expand  :: (a -> List a) -> List a -> List a @-}
 expand f xs = concat Emp
 
+
+{-@ expand2  :: (a -> List a) -> List a -> List a @-}
+expand2  :: (a -> List a) -> List a -> List a
+expand2 f Emp = Emp
     
+
+singleton :: a -> List a
+singleton x = x :+: Emp
 
 {-@ concat                  :: xss :  List (List a) 
                             -> List a @-}

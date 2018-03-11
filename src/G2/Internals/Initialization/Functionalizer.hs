@@ -105,7 +105,7 @@ mkApplyFuncAndTypes' tenv eenv ng [] _ fi at = (tenv, eenv, fi, at, ng)
 mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
     let
         -- Functions of type t
-        funcs = map fst $ filter ((==) t . snd) funcT
+        funcs = map fst $ filter ((t .::)  . snd) funcT
         -- funcs = map fst $ filter ((.::) t . snd) funcT
         {-
         funcs = map fst $ filter

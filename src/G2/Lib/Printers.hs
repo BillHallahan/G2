@@ -344,6 +344,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     walkers_str = show (deepseq_walkers ex_state)
+    appty_str = show (apply_types ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
@@ -371,6 +372,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , show (assert_ids ex_state)
                , "----- [TypeClasses] ---------------------"
                , tc_str
+               , "----- [Apply Types] ---------------------"
+               , appty_str
                , "----- [Cleaned] -------------------"
                , cleaned_str
                , "----- [Rules] -------------------"
