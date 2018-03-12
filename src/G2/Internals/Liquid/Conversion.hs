@@ -244,7 +244,11 @@ addTCPasses eenv tenv tc ti lh e =
     case e' of
         Var _ -> e''
         Data _ -> e
-        _ -> mkApp (addLHTCCalls eenv tenv tc lh e':as) -- Just (e', foldl' App e'' lht) else Nothing
+        _ -> inAppCenter (addLHTCCalls eenv tenv tc lh) e'' --mkApp (addLHTCCalls eenv tenv tc lh e':as) -- Just (e', foldl' App e'' lht) else Nothing
+
+inAppCenter :: (Expr -> Expr) -> Expr -> Expr
+inAppCenter f (App e e') = App (inAppCenter f e) e'
+inAppCenter f e = f e
 
 addArgs :: TypeEnv -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> [Expr] -> Expr
 addArgs _ _ _ _ e [] = e
