@@ -40,15 +40,17 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Typing
 
 import Data.List
+import Data.Maybe
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Debug.Trace
 
 
 
-functionalize :: TypeEnv -> ExprEnv -> NameGen -> [Type]
+functionalize :: TypeEnv -> ExprEnv -> NameGen -> [Type] -> [Name]
               -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
-functionalize tenv eenv ng ts =
+functionalize tenv eenv ng ts tgtNames =
     let
         -- Get names for all need apply type
         types = (filter isTyFun ts) ++ (nubBy (.::.) $
@@ -56,7 +58,7 @@ functionalize tenv eenv ng ts =
         (appT, ng2) = applyTypeNames ng types
 
         -- Update the expression and  type environments with apply types
-        (tenv2, eenv2, fi, at, ng3) = mkApplyFuncAndTypes tenv eenv ng2 appT
+        (tenv2, eenv2, fi, at, ng3) = mkApplyFuncAndTypes tenv eenv ng2 appT tgtNames
 
         -- Get all adts that are functionalizable
         funcADTs = functionalizableADTs tenv
@@ -77,13 +79,18 @@ applyTypeNames ng ts =
 
 -- Updates the ExprEnv and TypeEnv with ApplyTypes and Apply Functions
 -- creates FuncInterps and ApplyTypes tables
-mkApplyFuncAndTypes :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)] -> 
+mkApplyFuncAndTypes :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)] -> [Name] ->
                        (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
-mkApplyFuncAndTypes tenv eenv ng tyn = 
+mkApplyFuncAndTypes tenv eenv ng tyn tgtNames = 
     let
+        mods = S.fromList $ concatMap (maybeToList . nameModuleMaybeStr) tgtNames
+        eenv' = E.filterWithKey (\n _ -> case nameModuleMaybeStr n of
+                                  Nothing -> False
+                                  Just m -> S.member m mods)
+                                eenv
         -- This just gets passed around unmodified in mkApplyFuncTypes'
         -- but precomputing is faster
-        funcT = M.toList $ E.map' typeOf eenv
+        funcT = M.toList $ E.map' typeOf eenv'
     in
     mkApplyFuncAndTypes' tenv eenv ng tyn funcT (FuncInterps M.empty) (AT.empty)
 

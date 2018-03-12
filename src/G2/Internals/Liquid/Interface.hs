@@ -70,7 +70,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
     let lh_measures = measureSpecs ghcInfos
     -- let lh_measure_names = map (symbolName . val .name) lh_measures
 
-    let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname
+    let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname tgt_ns
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
     -- let annot_state = annotateCases cleaned_state
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
@@ -253,7 +253,14 @@ testLiquidFile proj fp libs lhlibs config = do
     let whitelist = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++
                     ['_', '\'']
 
-    let cleaned_tgt_lhs = filter (\n -> T.all (`elem` whitelist) n) tgt_lhs
+    let blacklist = [
+                      "group",
+                      "toList",
+                      "expand"
+                    ]
+
+    let cleaned_tgt_lhs = filter (\n -> not $ elem n blacklist) $ 
+                          filter (\n -> T.all (`elem` whitelist) n) tgt_lhs
 
     fmap concat $ mapM (\e -> do
         putStrLn $ show e

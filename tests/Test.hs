@@ -80,7 +80,7 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest2]
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "getNth" 3 [AtLeast 10]
 
-                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1400 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
 
@@ -339,9 +339,9 @@ testFile proj src m_assume m_assert m_reaches entry config =
 
 testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO ([([Expr], Expr)])
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
-    (mb_modname, binds, tycons, cls, _) <- translateLoaded proj src [] True config
+    (mb_modname, binds, tycons, cls, tgtNames) <- translateLoaded proj src [] True config
 
-    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname
+    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname tgtNames
     let halter_set_state = init_state {halter = steps config}
     
     (con, hhp) <- getSMT config

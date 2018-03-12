@@ -7,9 +7,9 @@ import G2.Internals.Initialization.DeepSeqWalks
 import G2.Internals.Initialization.Functionalizer
 import G2.Internals.Initialization.KnownValues
 
-runInitialization :: ExprEnv -> TypeEnv -> NameGen -> [Type] ->
+runInitialization :: ExprEnv -> TypeEnv -> NameGen -> [Type] -> [Name] ->
     (ExprEnv, TypeEnv, NameGen, FuncInterps, ApplyTypes, Walkers)
-runInitialization eenv tenv ng ts =
+runInitialization eenv tenv ng ts tgtNames =
     let
         -- tenv2 = injectSpecials tenv eenv
         
@@ -17,6 +17,6 @@ runInitialization eenv tenv ng ts =
         -- (eenv3, ng3, pt_walkers) = createPolyPredWalks eenv2 tenv ng2 kv
         -- (eenv4, ng4, wrap) = createHigherOrderWrappers eenv3 tenv ng3 kv
         (eenv4, ng4) = (eenv2, ng2)
-        (tenv2, eenv5, ft, at, ng5) = functionalize tenv eenv4 ng4 ts
+        (tenv2, eenv5, ft, at, ng5) = functionalize tenv eenv4 ng4 ts tgtNames
     in
     (eenv5, tenv2, ng5, ft, at, ds_walkers)
