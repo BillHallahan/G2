@@ -219,7 +219,7 @@ addLHTCCalls eenv tenv tc lh e =
     let
         lh_dicts = lhDicts lh e
     in
-    modifyAppTops (addTCPasses (E.keys eenv) tenv tc lh_dicts lh) e
+    modifyAppTops (addTCPasses eenv tenv tc lh_dicts lh) e
     -- let
     --     fc = nonDataFunctionCalls e
     --     lh_dicts = lhDicts lh e
@@ -233,15 +233,18 @@ lhDicts lh (Lam i@(Lang.Id _ (TyConApp n [t])) e) =
     if lh == n then (t, i):lhDicts lh e else lhDicts lh e
 lhDicts _ _ = []
 
-addTCPasses :: [Name] -> TypeEnv -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> Expr
-addTCPasses ens tenv tc ti lh e =
+addTCPasses :: ExprEnv -> TypeEnv -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> Expr
+addTCPasses eenv tenv tc ti lh e =
     let
         as = reverse $ passedArgs e
         e' = appCenter e
 
         e'' = addArgs tenv tc ti lh e' as 
     in
-    if varInNames ens e' then e'' else e-- Just (e', foldl' App e'' lht) else Nothing
+    case e' of
+        Var _ -> e''
+        Data _ -> e
+        _ -> mkApp (addLHTCCalls eenv tenv tc lh e':as) -- Just (e', foldl' App e'' lht) else Nothing
 
 addArgs :: TypeEnv -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> [Expr] -> Expr
 addArgs _ _ _ _ e [] = e
@@ -281,9 +284,9 @@ addLHDictArgs _ _ _ _ e _ = e
 --     in
 --     if varInNames ens e' then Just (e', foldl' App e'' lht) else Nothing
 
-varInNames :: [Name] -> Expr -> Bool
-varInNames _ (Data _) = False
-varInNames _ _ = True
+varInNames :: Expr -> Bool
+varInNames (Data _) = False
+varInNames _ = True
 -- varInNames ns (Var (Id n _)) = n `elem` ns
 -- varInNames _ _ = False
 
