@@ -86,6 +86,7 @@ data Primitive = Ge
                | Quot
                | Mod
                | Negate
+               | SqRt
                | IntToFloat
                | IntToDouble
                | FromInteger

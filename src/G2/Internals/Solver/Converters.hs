@@ -284,6 +284,7 @@ funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
 funcToSMT2Prim Gt a1 a2 = exprToSMT a1 :> exprToSMT a2
 funcToSMT2Prim Eq a1 a2 = exprToSMT a1 := exprToSMT a2
 funcToSMT2Prim Neq a1 a2 = exprToSMT a1 :/= exprToSMT a2
+funcToSMT2Prim SqRt a1 a2 = exprToSMT a1 `SqrtSMT` exprToSMT a2
 funcToSMT2Prim Lt a1 a2 = exprToSMT a1 :< exprToSMT a2
 funcToSMT2Prim Le a1 a2 = exprToSMT a1 :<= exprToSMT a2
 funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
