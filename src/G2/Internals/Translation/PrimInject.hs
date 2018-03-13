@@ -66,7 +66,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , (">#", Prim Gt TyBottom)
            , (">=#", Prim Ge TyBottom)
            , ("modInt#", Prim Mod TyBottom)
-           , ("quotInt#", Prim Div TyBottom)
+           , ("quotInt#", Prim Quot TyBottom)
            , ("remInt#", Prim Mod TyBottom)
 
            , ("==##", Prim Eq TyBottom)
@@ -92,6 +92,8 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("ltFloat#", Prim Lt TyBottom)
            , ("gtFloat#", Prim Gt TyBottom)
            , ("geFloat#", Prim Ge TyBottom)
+
+           , ("quotInteger#", Prim Quot TyBottom)
 
            , ("fromIntToFloat", Prim IntToFloat TyBottom)
            , ("fromIntToDouble", Prim IntToDouble TyBottom)

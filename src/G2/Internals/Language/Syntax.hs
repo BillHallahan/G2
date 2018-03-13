@@ -83,6 +83,7 @@ data Primitive = Ge
                | Minus
                | Mult
                | Div
+               | Quot
                | Mod
                | Negate
                | IntToFloat

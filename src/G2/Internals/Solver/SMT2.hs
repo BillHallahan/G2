@@ -139,6 +139,7 @@ smt2 setup getmdl = SMTConverter {
         , (.-) = function2 "-"
         , (.*) = function2 "*"
         , (./) = function2 "/"
+        , smtQuot = function2 "div"
         , smtModulo = function2 "mod"
         , neg = function1 "-"
 

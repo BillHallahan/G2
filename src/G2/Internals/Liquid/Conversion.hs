@@ -690,8 +690,11 @@ convertLHExpr (EBin b e e') pt tcv s@(State { expr_env = eenv, type_classes = tc
         t = typeOf lhe
         t' = typeOf lhe'
 
-        (lhe2, lhe2') = if t == t' then (lhe, lhe') 
+        (lhe2, lhe2') = if t == t' then (Just lhe, Just lhe') 
                           else (callFromInteger eenv knv tcv tc lhe t' m, callFromInteger eenv knv tcv tc lhe' t m)
+
+        lhe3 = maybe lhe id lhe2
+        lhe3' = maybe lhe' id lhe2'
 
         t2 = favorNonTyInteger knv t t'
 
@@ -703,8 +706,8 @@ convertLHExpr (EBin b e e') pt tcv s@(State { expr_env = eenv, type_classes = tc
           , lhdict
           , Type t2
           , ndict
-          , lhe2
-          , lhe2']
+          , lhe3
+          , lhe3']
 convertLHExpr (EIte b e1 e2) t tcv s@(State { type_env = tenv, name_gen = ng, known_values = knv }) m =
     let
         tr = mkDCTrue knv tenv
@@ -749,17 +752,20 @@ convertLHExpr (PAtom brel e e') pt tcv s@(State {expr_env = eenv, known_values =
         t' = returnType ec'
 
         -- (ec2, ec2', t2) = (ec, ec', t)
-        (ec2, ec2') = if t == t' then (ec, ec') 
+        (ec2, ec2') = if t == t' then (Just ec, Just ec') 
                           else (callFromInteger eenv knv tcv tc ec t' m, callFromInteger eenv knv tcv tc ec' t m)
+
+        ec3 = maybe ec id ec2
+        ec3' = maybe ec' id ec2'
 
         t2 = favorNonTyInteger knv t t'
 
         dict = fromJustErr ("No lhDict for PAtom ec = " ++ show ec ++ "\nec' = " 
                             ++ show ec' ++ "\nt2 = " ++ show t2 ++ "\nm = " ++ show m) $ lhTCDict eenv tcv tc t2 m
 
-        app = mkApp [brel', dict, Type t2, ec2, ec2']
+        app = mkApp [brel', dict, Type t2, ec3, ec3']
     in
-    mkApp [brel', dict, Type t2, ec2, ec2']
+    mkApp [brel', dict, Type t2, ec3, ec3']
 convertLHExpr e _ _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
 convertSymbol :: Name -> ExprEnv -> M.Map Name Type -> Lang.Id
@@ -820,6 +826,7 @@ convertBop Ref.RDiv = mkDiv
 
 bopDict :: Bop -> ExprEnv -> KnownValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
 bopDict Ref.Mod = integralDict
+bopDict Ref.Mod = integralDict
 bopDict _ = numDict
 
 lhTCDict :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
@@ -862,24 +869,27 @@ integralDict eenv knv tc t m =
                 Just (s, _) -> Just . Var $ convertSymbol s eenv m
                 Nothing -> Nothing
 
-callFromInteger :: ExprEnv -> KnownValues -> TCValues -> TypeClasses ->  Expr -> Type -> M.Map Name Type -> Expr
+callFromInteger :: ExprEnv -> KnownValues -> TCValues -> TypeClasses ->  Expr -> Type -> M.Map Name Type -> Maybe Expr
 callFromInteger eenv knv tcv tc e t m =
     let
         retT = returnType e
 
-        lhdict = fromJustErr "No lhDict for callFromInteger" $ lhTCDict eenv tcv tc t m
-        ndict = fromJustErr "No numDict for callFromInteger" $ numDict eenv knv tc t m
+        lhdict = lhTCDict eenv tcv tc t m
+        ndict = numDict eenv knv tc t m
 
         fIntgr = mkFromInteger eenv
     in
     if retT /= Lang.tyInteger knv then
-        e
+        Just e
     else
-        mkApp [ fIntgr
-              , lhdict
-              , Type t
-              , ndict
-              , e]
+        case (lhdict, ndict) of
+            (Just lhdict', Just ndict') -> 
+                Just $ mkApp [ fIntgr
+                             , lhdict'
+                             , Type t
+                             , ndict'
+                             , e]
+            _ -> Nothing
 
 favorNonTyInteger :: KnownValues -> Type -> Type -> Type
 favorNonTyInteger knv t t' =

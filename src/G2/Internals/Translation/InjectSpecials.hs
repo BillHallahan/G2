@@ -78,18 +78,19 @@ specials = [ (( "[]"
            --                                    , ("GT", Just "GHC.Types", [])])
            ]
            ++
-           mkTuples _MAX_TUPLE
+           mkTuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
+           ++
+           mkTuples "(#" "#)" (Just "GHC.Prim") _MAX_TUPLE
 
 
-mkTuples :: Int -> [((T.Text, Maybe  T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
-mkTuples n | n < 0    = []
-           | otherwise =
-                let
-                    s = "(" `T.append` T.pack (replicate n ',') `T.append` ")"
-                    m = Just "GHC.Tuple"
+mkTuples :: T.Text -> T.Text -> Maybe T.Text -> Int -> [((T.Text, Maybe  T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
+mkTuples ls rs m n | n < 0 = []
+                   | otherwise =
+                        let
+                            s = ls `T.append` T.pack (replicate n ',') `T.append` rs
 
-                    ns = if n == 0 then [] else map (Name "a" m) [0..n]
-                    tv = map (TyVar . flip Id TYPE) ns
-                in
-                -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
-                ((s, m, ns), [(s, m, tv)]) : mkTuples (n - 1)
+                            ns = if n == 0 then [] else map (Name "a" m) [0..n]
+                            tv = map (TyVar . flip Id TYPE) ns
+                        in
+                        -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
+                        ((s, m, ns), [(s, m, tv)]) : mkTuples ls rs m (n - 1)
