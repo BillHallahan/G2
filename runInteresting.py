@@ -28,6 +28,7 @@ antonMapRedSrcDir = "../liquidhaskell-study/wi15/custom/custom-mapreduce/"
 #antonMapRedSrcDir = "/home/celery/Desktop/mapreduce-test/custom-mapreduce/"
 mapreds = [
     ("flycheck_MapReduce.lhs-2015-03-16T03.34.44.lhs", "group")
+  , ("flycheck_MapReduce.lhs-2015-03-20T06.45.53.lhs", "expand")
   , ("flycheck_MapReduce.lhs-2015-03-20T06.45.53.lhs", "collapse")
   , ("flycheck_MapReduce.lhs-2015-03-20T06.45.53.lhs", "mapReduce")
   ]
