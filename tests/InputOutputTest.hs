@@ -37,9 +37,9 @@ checkInputOutput' proj src md entry i req config = try (checkInputOutput'' proj 
 
 checkInputOutput'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO Bool
 checkInputOutput'' proj src md entry i req config = do
-    (mb_modname, binds, tycons, cls, tgtNames) <- translateLoaded proj src [] False config
+    (mb_modname, binds, tycons, cls, tgtNames, exp) <- translateLoaded proj src [] False config
 
-    let init_state = initState binds tycons cls Nothing Nothing Nothing False (T.pack entry) mb_modname tgtNames
+    let init_state = initState binds tycons cls Nothing Nothing Nothing False (T.pack entry) mb_modname exp
     let halter_set_state = init_state {halter = steps config}
     
     (con, hhp) <- getSMT config

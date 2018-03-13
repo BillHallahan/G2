@@ -20,6 +20,7 @@ module G2.Internals.Translation.Haskell
 
 import qualified G2.Internals.Language as G2
 
+import Avail
 import qualified Class as C
 import Coercion
 import CoreSyn
@@ -92,9 +93,9 @@ equivMods = HM.fromList
             , ("Data.Map.Base", "Data.Map")]
 
 hskToG2 :: Maybe HscTarget -> FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
-    IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String])
+    IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String], [ExportedName])
 hskToG2 hsc proj src nm tm simpl = do
-    (mb_modname, sums_gutss, _, c) <- mkCompileClosure hsc proj src simpl
+    (mb_modname, sums_gutss, _, c, exp) <- mkCompileClosure hsc proj src simpl
     
     let (nm2, binds) = mapAccumR (\nm' (_, _, b) -> mapAccumR (\v -> mkBinds v tm) nm' b) nm sums_gutss
     let binds' = concat binds
@@ -109,9 +110,10 @@ hskToG2 hsc proj src nm tm simpl = do
           concatMap bindersOf $
           concatMap (\(_, _, bs) -> bs) sums_gutss
 
-    return (mb_modname, binds', tycons', classes, nm3, tm2, tgt_lhs)
+    return (mb_modname, binds', tycons', classes, nm3, tm2, tgt_lhs, exp)
 
-type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], HscEnv, [ClsInst])
+type ExportedName = G2.Name
+type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], HscEnv, [ClsInst], [ExportedName])
 
 loadProj :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> Ghc SuccessFlag
 loadProj hsc proj src simpl = do
@@ -162,7 +164,9 @@ mkCompileClosure hsc proj src simpl = do
     -- Get TypeClasses
     let cls_insts = concatMap mg_insts mod_gutss
 
-    return (mb_modname, zip3 mod_graph tcss bindss, env, cls_insts)
+    let exported = concatMap exportedNames mod_gutss
+
+    return (mb_modname, zip3 mod_graph tcss bindss, env, cls_insts, exported)
 
 mkBinds :: NameMap -> TypeNameMap -> CoreBind -> (NameMap, [(G2.Id, G2.Expr)])
 mkBinds nm tm (NonRec var expr) = 
@@ -350,3 +354,11 @@ mkCoercion tm c =
 mkClass :: TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id])
 mkClass tm (ClsInst { is_cls = c, is_dfun = dfun }) = 
     (flip mkNameLookup tm . C.className $ c, mkId tm dfun, map (mkId tm) $ C.classTyVars c)
+
+
+exportedNames :: ModGuts -> [ExportedName]
+exportedNames = concatMap availInfoNames . mg_exports
+
+availInfoNames :: AvailInfo -> [ExportedName]
+availInfoNames (Avail _ n) = [mkName n]
+availInfoNames (AvailTC n ns _) = mkName n:map mkName ns

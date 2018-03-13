@@ -61,16 +61,16 @@ findCounterExamples proj fp entry libs lhlibs config = do
     tgt_trans <- translateLoaded proj fp libs False config
     runLHCore entry tgt_trans ghcInfos config
 
-runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
+runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
                     -> [GhcInfo]
                     -> Config
           -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
-runLHCore entry (mb_modname, prog, tys, cls, tgt_ns) ghcInfos config = do
+runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, exp) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
     -- let lh_measure_names = map (symbolName . val .name) lh_measures
 
-    let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname tgt_ns
+    let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname exp
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
     -- let annot_state = annotateCases cleaned_state
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
@@ -244,8 +244,8 @@ testLiquidFile proj fp libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_transv <- translateLoadedV proj fp libs False config
 
-    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns) = tgt_transv
-    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns)
+    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns, exp) = tgt_transv
+    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns, exp)
 
     putStrLn $ "******** Liquid File Test: *********"
     putStrLn fp

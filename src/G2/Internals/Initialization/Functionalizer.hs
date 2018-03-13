@@ -84,10 +84,7 @@ mkApplyFuncAndTypes :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)] -> [Name]
 mkApplyFuncAndTypes tenv eenv ng tyn tgtNames = 
     let
         mods = S.fromList $ concatMap (maybeToList . nameModuleMaybeStr) tgtNames
-        eenv' = E.filterWithKey (\n _ -> case nameModuleMaybeStr n of
-                                  Nothing -> False
-                                  Just m -> S.member m mods)
-                                eenv
+        eenv' = E.filterWithKey (\n _ -> n `elem` tgtNames) eenv
         -- This just gets passed around unmodified in mkApplyFuncTypes'
         -- but precomputing is faster
         funcT = M.toList $ E.map' typeOf eenv'
