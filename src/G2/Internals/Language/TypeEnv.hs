@@ -45,7 +45,9 @@ data AlgDataTy = DataTyCon { bound_names :: [Name]
                            , data_cons :: [DataCon] }
                | NewTyCon { bound_names :: [Name]
                           , data_con :: DataCon
-                          , rep_type :: Type } deriving (Show, Eq, Read)
+                          , rep_type :: Type }
+               | TypeSynonym { synonym_of :: Type
+                             } deriving (Show, Eq, Read)
 
 nameModMatch :: Name -> TypeEnv -> Maybe Name
 nameModMatch (Name n m _) = find (\(Name n' m' _) -> n == n' && m == m' ) . M.keys
@@ -61,6 +63,7 @@ argTypesTEnv' _ = []
 dataCon :: AlgDataTy -> [DataCon]
 dataCon (DataTyCon {data_cons = dc}) = dc
 dataCon (NewTyCon {data_con = dc}) = [dc]
+dataCon (TypeSynonym _) = []
 
 dcName :: DataCon -> Name
 dcName (DataCon n _ _) = n
@@ -192,9 +195,11 @@ instance ASTContainer AlgDataTy Expr where
 instance ASTContainer AlgDataTy Type where
     containedASTs (DataTyCon _ dcs) = containedASTs dcs
     containedASTs (NewTyCon _ dcs r) = containedASTs dcs ++ containedASTs r
+    containedASTs (TypeSynonym st) = containedASTs st
 
     modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon ns (modifyContainedASTs f dcs)
     modifyContainedASTs f (NewTyCon ns dcs rt) = NewTyCon ns (modifyContainedASTs f dcs) (modifyContainedASTs f rt)
+    modifyContainedASTs f (TypeSynonym st) = TypeSynonym (modifyContainedASTs f st)
 
 instance ASTContainer AlgDataTy DataCon where
     containedASTs (DataTyCon _ dcs) = dcs

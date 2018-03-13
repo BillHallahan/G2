@@ -245,6 +245,8 @@ mkExprHaskell kv ex = mkExprHaskell' ex 0
         mkAltMatchHaskell Default = "_"
 
         mkDataConHaskell :: DataCon -> String
+        -- Special casing for Data.Map in the modified base
+        mkDataConHaskell (DataCon (Name "Assocs" _ _) _ _) = "fromList"
         mkDataConHaskell (DataCon n _ _) = mkNameHaskell n
 
         off :: Int -> String

@@ -95,13 +95,15 @@ equivMods = HM.fromList
 hskToG2 :: Maybe HscTarget -> FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
     IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String], [ExportedName])
 hskToG2 hsc proj src nm tm simpl = do
-    (mb_modname, sums_gutss, _, c, exp) <- mkCompileClosure hsc proj src simpl
+    (mb_modname, sums_gutss, _, c, m_dets, exp) <- mkCompileClosure hsc proj src simpl
     
     let (nm2, binds) = mapAccumR (\nm' (_, _, b) -> mapAccumR (\v -> mkBinds v tm) nm' b) nm sums_gutss
     let binds' = concat binds
 
+    let m_dets_tycon = map (typeEnvTyCons . md_types) m_dets
     let ((nm3, tm2), tycons) = mapAccumR (\(nm', tm') (_, t, _) -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm2, tm) sums_gutss
-    let tycons' = concat tycons
+    let ((nm4, tm3), tycons') = mapAccumR (\(nm', tm') t -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm3, tm2) m_dets_tycon
+    let tycons'' = catMaybes $ concat tycons ++ concat tycons'
 
     let classes = map (mkClass tm2) c
 
@@ -110,10 +112,10 @@ hskToG2 hsc proj src nm tm simpl = do
           concatMap bindersOf $
           concatMap (\(_, _, bs) -> bs) sums_gutss
 
-    return (mb_modname, binds', tycons', classes, nm3, tm2, tgt_lhs, exp)
+    return (mb_modname, binds', tycons'', classes, nm4, tm3, tgt_lhs, exp)
 
 type ExportedName = G2.Name
-type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], HscEnv, [ClsInst], [ExportedName])
+type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], HscEnv, [ClsInst], [ModDetails], [ExportedName])
 
 loadProj :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> Ghc SuccessFlag
 loadProj hsc proj src simpl = do
@@ -161,12 +163,14 @@ mkCompileClosure hsc proj src simpl = do
     let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
     let (tcss, bindss) = unzip tcss_pgms
 
+    let mod_dets = map snd tidy_pgms
+
     -- Get TypeClasses
     let cls_insts = concatMap mg_insts mod_gutss
 
     let exported = concatMap exportedNames mod_gutss
 
-    return (mb_modname, zip3 mod_graph tcss bindss, env, cls_insts, exported)
+    return (mb_modname, zip3 mod_graph tcss bindss, env, cls_insts, mod_dets, exported)
 
 mkBinds :: NameMap -> TypeNameMap -> CoreBind -> (NameMap, [(G2.Id, G2.Expr)])
 mkBinds nm tm (NonRec var expr) = 
@@ -292,8 +296,10 @@ mkType tm (TyConApp tc ts) = if not (isFunTyCon tc) || (length ts /= 2)
         (t1:t2:[]) -> G2.TyFun (mkType tm t1) (mkType tm t2)
         _ -> error "mkType: non-arity 2 FunTyCon from GHC"
 
-mkTyCon :: NameMap -> TypeNameMap -> TyCon -> ((NameMap, TypeNameMap), G2.ProgramType)
-mkTyCon nm tm t = ((nm', tm'), (n, dcs))
+mkTyCon :: NameMap -> TypeNameMap -> TyCon -> ((NameMap, TypeNameMap), Maybe G2.ProgramType)
+mkTyCon nm tm t = case dcs of
+                        Just dcs' -> ((nm'', tm''), Just (n, dcs'))
+                        Nothing -> ((nm'', tm''), Nothing)
   where
     n@(G2.Name n' m _) = mkName . tyConName $ t
     tm' = HM.insert (n', m) n tm
@@ -304,15 +310,23 @@ mkTyCon nm tm t = ((nm', tm'), (n, dcs))
 
     bv = map (mkName . V.varName) $ tyConTyVars t
 
-    dcs = 
-        case algTyConRhs t of
-            DataTyCon { data_cons = dc } -> G2.DataTyCon bv $ map (mkData nm' tm) dc
-            NewTyCon { data_con = dc
-                     , nt_rhs = rhst} -> G2.NewTyCon { G2.bound_names = bv
-                                                     , G2.data_con = mkData nm' tm dc
-                                                     , G2.rep_type = mkType tm rhst}
-            AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
-            TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
+    (nm'', tm'', dcs) = case isAlgTyCon t of 
+                            True -> case algTyConRhs t of
+                                            DataTyCon { data_cons = dc } -> (nm', tm', Just $ G2.DataTyCon bv $ map (mkData nm' tm) dc)
+                                            NewTyCon { data_con = dc
+                                                     , nt_rhs = rhst} -> (nm', tm', Just $ G2.NewTyCon { G2.bound_names = bv
+                                                                                                     , G2.data_con = mkData nm' tm dc
+                                                                                                     , G2.rep_type = mkType tm rhst})
+                                            AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
+                                            TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
+                            False -> case isTypeSynonymTyCon t of
+                                    True -> 
+                                        let
+                                            st = fromJust $ synTyConRhs_maybe t
+                                            st' = mkType tm st
+                                        in
+                                        (nm, tm, Just $ G2.TypeSynonym {G2.synonym_of = st'})
+                                    False -> (nm, tm, Nothing)
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
 mkTyConName :: TypeNameMap -> TyCon -> G2.Name
