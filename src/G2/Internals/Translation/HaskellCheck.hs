@@ -13,11 +13,11 @@ import G2.Lib.Printers
 
 validate :: FilePath -> FilePath -> String -> String -> [String] -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
 validate proj src modN entry chAll in_out = do
-	return . all id =<< mapM (\(s, i, o, _) -> runCheck proj src modN entry chAll (known_values s) (type_classes s) i o) in_out
+	return . all id =<< mapM (\(s, i, o, _) -> runCheck proj src modN entry chAll s i o) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: FilePath -> FilePath -> String -> String -> [String] -> KnownValues -> TypeClasses -> [Expr] -> Expr -> IO Bool
-runCheck proj src modN entry chAll kv tc ars out = do
+runCheck :: FilePath -> FilePath -> String -> String -> [String] -> State h t -> [Expr] -> Expr -> IO Bool
+runCheck proj src modN entry chAll s ars out = do
     runGhc (Just libdir) $ do
         loadProj Nothing proj src False
 
@@ -29,8 +29,8 @@ runCheck proj src modN entry chAll kv tc ars out = do
 
         setContext [IIDecl prImD, IIDecl imD]
 
-        let arsStr = mkCleanExprHaskell kv tc $ mkApp ((simpVar $ T.pack entry):ars)
-        let outStr = mkCleanExprHaskell kv tc out
+        let arsStr = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
+        let outStr = mkCleanExprHaskell s out
         let chck = case outStr == "error" of
                         False -> arsStr ++ " == " ++ outStr
                         True -> "True"
@@ -39,7 +39,7 @@ runCheck proj src modN entry chAll kv tc ars out = do
         let v' = unsafeCoerce v :: Bool
 
         let chArgs = ars ++ [out]
-        let chAllStr = map (\f -> mkCleanExprHaskell kv tc $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
+        let chAllStr = map (\f -> mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
 
         chAllR <- mapM compileExpr chAllStr
         let chAllR' = unsafeCoerce chAllR :: [Bool]

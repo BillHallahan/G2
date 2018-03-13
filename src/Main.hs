@@ -119,10 +119,10 @@ runGHC as = do
 printFuncCalls :: T.Text -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 printFuncCalls entry =
     mapM_ (\(s, inArg, ex, ais) -> do
-        let funcCall = mkCleanExprHaskell (known_values s) (type_classes s)
+        let funcCall = mkCleanExprHaskell s
                      . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
-        let funcOut = mkCleanExprHaskell (known_values s) (type_classes s) $ ex
+        let funcOut = mkCleanExprHaskell s $ ex
 
         -- print $ model s
         -- print inArg

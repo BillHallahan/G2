@@ -2,6 +2,7 @@ module G2.Internals.Language.ApplyTypes ( ApplyTypes
                                         , lookup
                                         , applyTypeName
                                         , applyTypeFunc
+                                        , applyFuncs
                                         , empty
                                         , insert
                                         , toList) where
@@ -27,6 +28,9 @@ applyTypeName t = fmap fst . lookup t
 
 applyTypeFunc :: Type -> ApplyTypes -> Maybe Id
 applyTypeFunc t = fmap snd . lookup t
+
+applyFuncs :: ApplyTypes -> [Id]
+applyFuncs = map snd . HM.elems . applyTypesMap
 
 empty :: ApplyTypes
 empty = ApplyTypes HM.empty

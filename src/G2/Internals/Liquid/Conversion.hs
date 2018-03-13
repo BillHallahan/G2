@@ -78,7 +78,7 @@ mergeLHSpecState ns xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cex
         usedCexpr = filter (not . flip E.isSymbolic eenv) $ varNames cexpr
         eenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) eenv
         meenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) meenv
-        (usedCexpr', ng'') = renameAll usedCexpr ng'
+        ((usedCexpr', app_tys), ng'') = renameAll (usedCexpr, apply_types s') ng'
 
         usedZ = zip usedCexpr usedCexpr'
 
@@ -89,7 +89,8 @@ mergeLHSpecState ns xs s@(State {expr_env = eenv, name_gen = ng, curr_expr = cex
         s'' = mergeLHSpecState' (addAssumeAssertSpecType meenv tcv) xs (s { expr_env = eenvC', name_gen = ng'' })
     in
     s'' { expr_env = E.union (E.union (E.union meenvC' meenv) (expr_env s')) $ expr_env s''
-        , curr_expr = cexpr' }
+        , curr_expr = cexpr'
+        , apply_types = app_tys }
 
 -- | mergeLHSpecState'
 -- Merges a list of Vars and SpecTypes with a State, by finding

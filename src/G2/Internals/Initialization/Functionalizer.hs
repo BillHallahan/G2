@@ -73,7 +73,7 @@ functionalize tenv eenv ng ts tgtNames =
 applyTypeNames :: NameGen -> [Type] -> ([(Type, Name)], NameGen)
 applyTypeNames ng ts = 
     let
-        (applyNames, ng') = freshNames (length ts) ng
+        (applyNames, ng') = freshSeededStrings (replicate (length ts) "applyTy") ng
     in
     (zip ts applyNames, ng')
 
@@ -119,7 +119,7 @@ mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
         fi' = foldr (uncurry M.insert) fi applyToFunc
 
         -- ApplyFunc Name
-        (applyFuncN, ng3) = freshName ng2
+        (applyFuncN, ng3) = freshSeededString "applyFunc" ng2
 
         -- Update Apply Types
         applyFunc = Id applyFuncN (TyFun (TyConApp n []) t)

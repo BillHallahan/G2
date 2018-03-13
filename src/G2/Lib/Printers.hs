@@ -2,6 +2,7 @@
 
 module G2.Lib.Printers (mkCleanExprHaskell, pprExecStateStr) where
 
+import qualified G2.Internals.Language.ApplyTypes as AT
 import G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.SymLinks as Sym
@@ -21,6 +22,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Time
 import qualified Data.Text as T
+
+import Debug.Trace
 
 timedMsg :: String -> IO ()
 timedMsg msg = do
@@ -176,11 +179,12 @@ mkIdHaskell (Id n _) = mkNameHaskell n
 mkNameHaskell :: Name -> String
 mkNameHaskell (Name n m i) = T.unpack n -- ++ "\" " ++ show m ++ " " ++ show i
 
-mkCleanExprHaskell :: KnownValues -> TypeClasses -> Expr -> String
-mkCleanExprHaskell kv tc = mkExprHaskell kv . modifyFix (mkCleanExprHaskell' kv tc)
+mkCleanExprHaskell :: State h t -> Expr -> String
+mkCleanExprHaskell (State {apply_types = af, known_values = kv, type_classes = tc}) =
+    mkExprHaskell kv . modifyFix (mkCleanExprHaskell' af kv tc)
 
-mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Expr
-mkCleanExprHaskell' kv tc e
+mkCleanExprHaskell' :: AT.ApplyTypes -> KnownValues -> TypeClasses -> Expr -> Expr
+mkCleanExprHaskell' at kv tc e
     | (App (Data (DataCon n _ _)) e') <- e
     , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv = e'
     | (App e' e'') <- e
@@ -192,6 +196,9 @@ mkCleanExprHaskell' kv tc e
     , TyConApp n _ <- t
     , isTypeClassNamed n tc = e'
     | App e' (Type _) <- e = e'
+    | App e' e'' <- e
+    , (Var (Id n _)) <- appCenter e
+    , n `elem` map idName (AT.applyFuncs at) = e''
     | otherwise = e
 
 mkExprHaskell :: KnownValues -> Expr -> String

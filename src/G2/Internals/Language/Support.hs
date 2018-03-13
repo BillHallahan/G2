@@ -39,6 +39,9 @@ import qualified Data.Text as T
 -- track can be used to collect some extra information for the end of execution.
 -- drop is used to help determine if a state that has not reached RuleIndentity
 -- should continue execution anyway.
+-- The h parameter is used to help track whether reduce should continue executing
+-- a state or not
+-- The t parameter can be used to track extra information during the execution.
 data State h t = State { expr_env :: E.ExprEnv
                        , type_env :: TypeEnv
                        , curr_expr :: CurrExpr
