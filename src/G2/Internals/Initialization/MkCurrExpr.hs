@@ -12,7 +12,9 @@ import qualified G2.Internals.Language.ApplyTypes as AT
 import Data.List
 import qualified Data.Text as T
 
-mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers -> KnownValues -> (Expr, [Id], NameGen)
+mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text
+           -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers
+           -> KnownValues -> (Expr, [Id], NameGen)
 mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv =
     case findFunc s m_mod eenv of
         Left (f, ex) -> 
@@ -26,8 +28,8 @@ mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv =
                 var_ex = Var f
                 app_ex = foldl' App var_ex $ typsE ++ var_ids
 
-                -- strict_app_ex = app_ex
-                strict_app_ex = mkStrict walkers app_ex
+                strict_app_ex = app_ex
+                -- strict_app_ex = mkStrict walkers app_ex
 
                 (name, ng'') = freshName ng'
                 id_name = Id name (typeOf strict_app_ex)
@@ -59,7 +61,8 @@ mkInputs at ng (t:ts) =
     in
     (var_id:ev, i:ei, ng'')
 
-mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe T.Text -> Maybe T.Text -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
+mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe T.Text -> Maybe T.Text
+               -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
 mkAssumeAssert p (Just f) m_mod var_ids inter pre_ex eenv =
     case findFunc f m_mod eenv of
         Left (f', _) -> 

@@ -185,8 +185,9 @@ def runEval(evalDir, evalList, runStats):
       p_status = p.wait()
       deltaTime = time.time() - startTime
 
-      if re.search('violating (?!fixme)', output) is not None:
-        hasConcrete = "Concrete" in output
+      if re.search("violating ([^f]*[^i]*[^x]*[^m]*[^e])\'s refinement type", output) is not None:
+        hasConcrete = re.search("violating ([^f]*[^i]*[^x]*[^m]*[^e])\'s refinement type\nConcrete",
+                                output) is not None
         hasAbstract = "Abstract" in output
         runStats.append((file, f, hasConcrete, hasAbstract, deltaTime))
         print((file, f, hasConcrete, hasAbstract, deltaTime))
