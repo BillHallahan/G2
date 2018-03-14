@@ -3,7 +3,7 @@ import os
 import re
 import subprocess
 import sys
-import time 
+import time
 NVALUE = 1000
 TIMEOUT = 300 # seconds
 
@@ -209,7 +209,6 @@ for x in rhs:
 
 # Maybe print it :)
 # print(sourceStats)
-
 
 
 runStats = []
