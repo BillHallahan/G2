@@ -38,18 +38,18 @@ main = do
 
   case m_filetest of
     Just lhfile -> do
-      return ()
+      runSingleLHFile proj lhfile libs lhlibs as
     Nothing -> case m_dirtest of
       Just dir -> runMultiLHFile proj dir libs lhlibs as
       Nothing -> case (m_liquid_file, m_liquid_func) of
         (Just lhfile, Just lhfun) -> do
-          return ()
+          runSingleLHFun proj lhfile lhfun libs lhlibs as
         _ -> do
-          return ()
+          runGHC as
 
 doTimeout :: Int -> IO a -> IO ()
-doTimeout micros action = do
-  res <- timeout micros action
+doTimeout secs action = do
+  res <- timeout (secs * 1000 * 1000) action -- timeout takes micros.
   case res of
     Just _ -> return ()
     Nothing -> do
@@ -63,15 +63,12 @@ runMultiLHFile proj lhdir libs lhlibs args = do
     in_out <- testLiquidDir proj lhdir libs lhlibs config
     return ()
 
-  return ()
-
 runSingleLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
 runSingleLHFile proj lhfile libs lhlibs args = do
   config <- getConfig args
   doTimeout (timeLimit config) $ do
     in_out <- testLiquidFile proj lhfile libs lhlibs config
     printParsedLHOut in_out
-  return ()
 
 runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO()
 runSingleLHFun proj lhfile lhfun libs lhlibs args = do
@@ -79,7 +76,6 @@ runSingleLHFun proj lhfile lhfun libs lhlibs args = do
   doTimeout (timeLimit config) $ do
     in_out <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
     printLHOut (T.pack lhfun) in_out
-  return ()
 
 runGHC :: [String] -> IO ()
 runGHC as = do
@@ -114,8 +110,6 @@ runGHC as = do
     -- putStrLn "----------------\n----------------"
 
     printFuncCalls tentry in_out
-
-  return ()
 
 
 
