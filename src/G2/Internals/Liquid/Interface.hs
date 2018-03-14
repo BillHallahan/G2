@@ -187,7 +187,7 @@ printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, f
                            , abstracted = abs} : xs) = do
     putStrLn "The call"
     TI.putStrLn $ call `T.append` " = " `T.append` output
-    TI.putStrLn $ "violates " `T.append` f `T.append` "'s refinement type"
+    TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
     printAbs abs
     putStrLn ""
     printParsedLHOut xs
@@ -209,12 +209,16 @@ printAbs fi = do
     if length fi > 0 then do
         putStrLn "when"
         mapM_ printFuncInfo fi
-        if length fi > 1 then
-            TI.putStrLn $ "Strengthen the refinement types of " `T.append` fn `T.append` " to eliminate these possibilities"
-        else
-            TI.putStrLn $ "Strengthen the refinement type of " `T.append` fn `T.append` " to eliminate this possibility"
+        if length fi > 1 then do
+            TI.putStrLn $ "Strengthen the refinement types of " `T.append`
+                          fn `T.append` " to eliminate these possibilities"
+            putStrLn "Abstract"
+        else do
+            TI.putStrLn $ "Strengthen the refinement type of " `T.append`
+                          fn `T.append` " to eliminate this possibility"
+            putStrLn "Abstract"
     else
-        return () 
+        putStrLn "Concrete"
 
 printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
@@ -267,8 +271,8 @@ testLiquidFile proj fp libs lhlibs config = do
                       -- "group"
                       -- "toList",
                       -- "expand"
-                      "minKeyList",
-                      "minKeyMap"
+                      -- "minKeyList",
+                      -- "minKeyMap"
                     ]
 
     let cleaned_tgt_lhs = filter (\n -> not $ elem n blacklist) $ 
