@@ -177,7 +177,7 @@ printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, f
                            , abstracted = abs} : xs) = do
     putStrLn "The call"
     TI.putStrLn $ call `T.append` " = " `T.append` output
-    TI.putStrLn $ "violates " `T.append` f `T.append` "'s refinement type"
+    TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
     printAbs abs
     putStrLn ""
     printParsedLHOut xs
@@ -261,8 +261,8 @@ testLiquidFile proj fp libs lhlibs config = do
                       -- "group"
                       -- "toList",
                       -- "expand"
-                      "minKeyList",
-                      "minKeyMap"
+                      -- "minKeyList",
+                      -- "minKeyMap"
                     ]
 
     let cleaned_tgt_lhs = filter (\n -> not $ elem n blacklist) $ 
