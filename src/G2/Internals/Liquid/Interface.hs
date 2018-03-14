@@ -199,12 +199,16 @@ printAbs fi = do
     if length fi > 0 then do
         putStrLn "when"
         mapM_ printFuncInfo fi
-        if length fi > 1 then
-            TI.putStrLn $ "Strengthen the refinement types of " `T.append` fn `T.append` " to eliminate these possibilities"
-        else
-            TI.putStrLn $ "Strengthen the refinement type of " `T.append` fn `T.append` " to eliminate this possibility"
+        if length fi > 1 then do
+            TI.putStrLn $ "Strengthen the refinement types of " `T.append`
+                          fn `T.append` " to eliminate these possibilities"
+            putStrLn "Abstract"
+        else do
+            TI.putStrLn $ "Strengthen the refinement type of " `T.append`
+                          fn `T.append` " to eliminate this possibility"
+            putStrLn "Abstract"
     else
-        return () 
+        putStrLn "Concrete"
 
 printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
