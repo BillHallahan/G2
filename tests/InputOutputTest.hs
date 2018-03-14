@@ -46,8 +46,8 @@ checkInputOutput'' proj src md entry i req config = do
 
     let chAll = checkExprAll req
 
-    r <- run stdReduce halterIsZero halterSub1 executeNext con hhp config halter_set_state
-    mr <- validate proj src md entry chAll r
+    r <- run stdReduce halterIsZero halterSub1 executeNext con hhp config () halter_set_state
+    mr <- validateStates proj src md entry chAll [] r
     let io = map (\(_, i, o, _) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
@@ -77,7 +77,7 @@ checkInputOutputLH'' proj src md entry i req config = do
 
     let chAll = checkExprAll req
 
-    mr <- validate proj src md entry chAll r
+    mr <- validateStates proj src md entry chAll [] r
     let io = map (\(_, i, o, _) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io i req

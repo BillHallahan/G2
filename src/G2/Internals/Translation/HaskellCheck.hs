@@ -1,5 +1,6 @@
-module G2.Internals.Translation.HaskellCheck (validate) where
+module G2.Internals.Translation.HaskellCheck (validateStates) where
 
+import DynFlags
 import GHC hiding (Name)
 import GHC.Paths
 
@@ -11,15 +12,15 @@ import G2.Internals.Language
 import G2.Internals.Translation.Haskell
 import G2.Lib.Printers
 
-validate :: FilePath -> FilePath -> String -> String -> [String] -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
-validate proj src modN entry chAll in_out = do
-	return . all id =<< mapM (\(s, i, o, _) -> runCheck proj src modN entry chAll s i o) in_out
+validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
+validateStates proj src modN entry chAll ghflags in_out = do
+	return . all id =<< mapM (\(s, i, o, _) -> runCheck proj src modN entry chAll ghflags s i o) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: FilePath -> FilePath -> String -> String -> [String] -> State h t -> [Expr] -> Expr -> IO Bool
-runCheck proj src modN entry chAll s ars out = do
+runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State h t -> [Expr] -> Expr -> IO Bool
+runCheck proj src modN entry chAll gflags s ars out = do
     runGhc (Just libdir) $ do
-        loadProj Nothing proj src [] False
+        loadProj Nothing proj src gflags False
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN

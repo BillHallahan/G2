@@ -41,22 +41,22 @@ import System.Directory
 --     go (rules, state) = let (rule, states) = reduceNoConstraintChecks stdReduce undefined state
 --                         in map (\s -> (rules ++ [rule], s)) states
 
-runNDepth :: (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> ([([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]) -> SMTConverter ast out io -> io -> [State h t] -> Config -> IO [([Int], State h t)]
-runNDepth red hal halR sel con hpp states config = runNDepth' red hal halR sel [] $ map (\s -> ([], s)) states
+runNDepth :: (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> (p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)])  -> SMTConverter ast out io -> io -> p -> [State h t] -> Config -> IO [([Int], State h t)]
+runNDepth red hal halR sel con hpp p states config = runNDepth' red hal halR sel p [] $ map (\s -> ([], s)) states
   where
-    runNDepth' :: (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> ([([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]) -> [([Int], State h t)] -> [([Int], State h t)] -> IO [([Int], State h t)]
-    runNDepth' _ _ _ _ _ [] = return []
+    runNDepth' :: (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> (p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]) -> p -> [([Int], State h t)] -> [([Int], State h t)] -> IO [([Int], State h t)]
+    runNDepth' _ _ _ _ _ _ [] = return []
     -- runNDepth' red' hal' sel' fnsh ((rss, 0):xs) =
     --     let
     --         fnsh' = if true_assert (snd rss) && isExecValueForm (snd rss) then rss:fnsh else fnsh
     --     in
     --     return . (:) rss =<< runNDepth' red' sel' fnsh' (sel' fnsh' xs)
-    runNDepth' red' hal' halR' sel' fnsh (rss@(is, s):xs)
+    runNDepth' red' hal' halR' sel' p' fnsh (rss@(is, s):xs)
         | hal' s =
             let
                 fnsh' = if true_assert s && isExecValueForm s then rss:fnsh else fnsh
             in
-            return . (:) rss =<< runNDepth' red' hal' halR' sel' fnsh' (sel' fnsh' xs)
+            return . (:) rss =<< runNDepth' red' hal' halR' sel' p' fnsh' (sel' p' fnsh' xs)
         | otherwise = do
             case logStates config of
                 Just f -> outputState f is s
@@ -68,10 +68,10 @@ runNDepth red hal halR sel con hpp states config = runNDepth' red hal halR sel [
             
             let mod_info = map (\(i, s') -> (is ++ maybe [] (\i' -> [i']) i, s' {halter = halR' s'})) isred
             
-            runNDepth' red' hal' halR' sel' fnsh (mod_info ++ xs)
+            runNDepth' red' hal' halR' sel' p' fnsh (mod_info ++ xs)
 
-executeNext :: [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
-executeNext _ xs = xs
+executeNext :: p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
+executeNext _ _ xs = xs
 
 halterSub1 :: State Int t -> Int
 halterSub1 (State {halter = h}) = h - 1

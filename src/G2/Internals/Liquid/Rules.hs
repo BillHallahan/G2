@@ -1,4 +1,4 @@
-module G2.Internals.Liquid.Rules (lhReduce, selectLH) where
+module G2.Internals.Liquid.Rules (lhReduce, selectLH, initialTrack) where
 
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Execution.Rules
@@ -9,6 +9,10 @@ import qualified G2.Internals.Language.Stack as S
 
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid
+import Data.Semigroup
+
+import Debug.Trace
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -84,16 +88,31 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
         False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
 
-selectLH :: [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])]
-selectLH solved next =
+selectLH :: Int -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])]
+selectLH ii solved next =
     let
         mi = case solved of
-                [] -> Nothing
-                _ -> Just $ minimum $ map (length . track . snd) solved
+                [] -> ii
+                _ -> minimum $ map (length . track . snd) solved
         next' = dropWhile (\(_, s) -> trackingGreater s mi) next
     in
     next'
 
-trackingGreater :: State h [FuncCall] -> Maybe Int -> Bool
-trackingGreater (State {track = tr}) (Just i) = length tr > i
-trackingGreater _ _ = False
+trackingGreater :: State h [FuncCall] -> Int -> Bool
+trackingGreater (State {track = tr}) i = length tr > i
+
+-- Counts the maximal number of Vars with names in the ExprEnv
+-- that could be evaluated along any one path in the function
+initialTrack :: ExprEnv -> Expr -> Int
+initialTrack eenv (Var (Id n _)) =
+    case E.lookup n eenv of
+        Just _ -> trace (show n) 1
+        Nothing -> 0
+initialTrack eenv (App e e') = initialTrack eenv e + initialTrack eenv e'
+initialTrack eenv (Lam _ e) = initialTrack eenv e
+initialTrack eenv (Let b e) = initialTrack eenv e + (getSum $ evalContainedASTs (Sum . initialTrack eenv) b)
+initialTrack eenv (Case e _ a) = initialTrack eenv e + (getMax $ evalContainedASTs (Max . initialTrack eenv) a)
+initialTrack eenv (Cast e _) = initialTrack eenv e
+initialTrack eenv (Assume _ e) = initialTrack eenv e
+initialTrack eenv (Assert _ _ e) = initialTrack eenv e
+initialTrack _ _ = 0

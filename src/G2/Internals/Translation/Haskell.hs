@@ -60,6 +60,8 @@ import qualified Data.Text as T
 
 import Unsafe.Coerce
 
+import Debug.Trace
+
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
@@ -121,7 +123,7 @@ loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool ->
 loadProj hsc proj src gflags simpl = do
     beta_flags <- getSessionDynFlags
     let gen_flags = gflags
-    let beta_flags' = foldl' gopt_unset beta_flags gen_flags
+    let beta_flags' = foldl' gopt_set beta_flags gen_flags
     let dflags = beta_flags' { hscTarget = case hsc of
                                                 Just hsc' -> hsc'
                                                 _ -> hscTarget beta_flags'
@@ -130,7 +132,10 @@ loadProj hsc proj src gflags simpl = do
                              , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -5000
                              , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -5000
                              , ufDictDiscount = if simpl then ufDictDiscount beta_flags' else -5000
-                             , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -5000}
+                             , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -5000
+                             , hpcDir = proj}
+
+    
 
     _ <- setSessionDynFlags dflags
     target <- guessTarget src Nothing

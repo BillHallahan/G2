@@ -126,7 +126,7 @@ createLHTC s@(State { expr_env = eenv
             freshSeededStrings ["LH", "LHEq", "LHNe", "LHlt", "LHle", "LHgt", "LHge", "LHpp"] ng
 
         (meenv2, ng3, eq_w) = createFuncs meenv ng2 tenv' M.empty (lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts lhEqN) (eqLHFuncCall lhEqN) meenv tenv kv)
-        (meenv3, ng4, neq_w) = createFuncs meenv2 ng3 tenv' M.empty (lhNeqName . fst) lhStore (lhNeqExpr eq_w meenv2)
+        (meenv3, ng4, neq_w) = createFuncs meenv2 ng3 tenv' M.empty (lhNeqName . fst) lhStore (lhNeqExpr lhTCN eq_w meenv2)
         (meenv4, ng5, lt_w) = createFuncs meenv3 ng4 tenv' M.empty (lhLtName . fst) lhStore (lhTEnvExpr lhTCN (lhLtCase2Alts lhLtN) (ltLHFuncCall lhLtN) meenv3 tenv kv)
         (meenv5, ng6, le_w) = createFuncs meenv4 ng5 tenv' M.empty (lhLeName . fst) lhStore (lhLeExpr lt_w eq_w meenv4)
         (meenv6, ng7, gt_w) = createFuncs meenv5 ng6 tenv' M.empty (lhGtName . fst) lhStore (lhGtExpr lt_w meenv5)
@@ -320,8 +320,8 @@ eqFunc w _ (TyConApp n _)
 lhNeqName :: Name -> Name
 lhNeqName (Name n _ _) = Name ("lhNeName" `T.append` n) Nothing 0
 
-lhNeqExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
-lhNeqExpr eqW eenv _ (n, _) ng = 
+lhNeqExpr :: Name -> Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+lhNeqExpr lh eqW eenv _ (n, _) ng = 
     let
         f = case M.lookup n eqW of
             Just f' -> f'
@@ -333,13 +333,18 @@ lhNeqExpr eqW eenv _ (n, _) ng =
 
         no = mkNot eenv
 
-        (li', ng') = freshIds (map typeOf li) ng
+        nli = map idName li
+        (li', ng') = doRenames nli ng li
 
-        fApp = foldl' App (Var f) $ map Var li'
+        fApp = foldl' App (Var f) $ map Var $ filter (not . isTC lh) li'
 
         e = foldr Lam (App no fApp) li'
     in
     (e, ng')
+
+isTC :: Name -> Id -> Bool
+isTC n (Id _ (TyConApp n' _)) = n == n'
+isTC _ _ = False
 
 lhLtName :: Name -> Name
 lhLtName (Name n _ _) = Name ("lhLtName" `T.append` n) Nothing 0

@@ -13,6 +13,7 @@ data Config = Config {
     , smtADTs :: Bool -- If True, uses the SMT solver to solve ADT constraints, else uses a more efficient algorithm
     , steps :: Int -- How many steps to take when running States
     , timeLimit :: Int -- Seconds
+    , validate :: Bool -- If True, HPC is run on G2's output, to measure code coverage.  Currently doesn't work with LiquidHaskell
 }
 
 mkConfigDef :: Config
@@ -26,6 +27,8 @@ mkConfig as m = Config {
     , smtADTs = boolArg "smt-adts" as m False
     , steps = strArg "n" as m read 500
     , timeLimit = strArg "time" as m read 300
+    , validate  = boolArg "validate" as m False
+
 }
 
 smtSolverArg :: String -> SMTSolver

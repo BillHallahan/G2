@@ -2,6 +2,8 @@
 
 module Main where
 
+import DynFlags
+
 import System.Environment
 import System.Timeout
 
@@ -105,7 +107,14 @@ runGHC as = do
 
     (con, hhp) <- getSMT config
 
-    in_out <- run stdReduce halterIsZero halterSub1 executeNext con hhp config halter_set_state
+    in_out <- run stdReduce halterIsZero halterSub1 executeNext con hhp config () halter_set_state
+
+    case validate config of
+        True -> do
+            putStrLn "HERE"
+            r <- validateStates proj src "MaybeTest" entry [] [Opt_Hpc] in_out
+            putStrLn $ show r
+        False -> return ()
 
     -- putStrLn "----------------\n----------------"
 
@@ -154,6 +163,3 @@ mkLiquidFileTest a = strArg "liquid-file-test" a M.empty Just Nothing
 
 mkLiquidDirTest :: [String] -> Maybe String
 mkLiquidDirTest a = strArg "liquid-dir-test" a M.empty Just Nothing
-
-mValidate :: [String] -> Bool
-mValidate as = boolArg "validate" as M.empty False
