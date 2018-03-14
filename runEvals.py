@@ -2,6 +2,7 @@ import collections
 import os
 import subprocess
 import sys
+import time
 
 NVALUE = 1000
 TIMEOUT = 300 # seconds
@@ -60,7 +61,7 @@ listTargets = [
   ("flycheck_List.lhs-2015-03-21T03.50.06.lhs", ["zipWith"]),
   ("flycheck_List.lhs-2015-03-20T07.43.51.lhs", ["zipWith"]),
   ("flycheck_List.lhs-2015-03-20T22.41.16.lhs", ["length"]),
-] 
+]
 
 mapreduceDir = "eval-mapreduce/"
 mapreduceTargets = [
@@ -170,36 +171,48 @@ kmeansTargets = [
   ("flycheck_KMeans.lhs-2015-03-20T01.29.54.lhs", ["normalize", "kmeans1"]),
 ]
 
-def runEval(evalDir, evalList):
+
+# Evaluation runner.
+def runEval(evalDir, evalList, runStats):
   for (file, funs) in evalList:
     for f in funs:
-      command = "G2 -- {0} --liquid {1} --liquid-func {2} --n {3}"\
-                .format(projDir, evalDir + file, f, NVALUE)
+      command = "cabal run G2 -- {0} --liquid {1} --liquid-func {2} --n {3} --time {4}"\
+                .format(projDir + evalDir, projDir + evalDir + file, f, NVALUE, TIMEOUT)
       print(command)
+      startTime = time.time()
       p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
       (output, err) = p.communicate()
       p_status = p.wait()
-      print("output: " + output)
-      
-def flatten(l):
-    for el in l:
-        if isinstance(el, collections.Iterable) and not isinstance(el, basestring):
-            for sub in flatten(el):
-                yield sub
-        else:
-            yield el
 
-rhs = flatten(map(lambda p: p[1], listTargets + mapreduceTargets + kmeansTargets))
-stats = {}
+      if (f + " " in output) and ("violates" in output):
+        runStats.append((file, f, True, time.time() - startTime))
+      else:
+        runStats.append((file, f, False, time.time() - startTime))
+
+# Get all the RHS of the file-functions pairs.
+rhs = [x for xs in (map(lambda p: p[1], listTargets + mapreduceTargets + kmeansTargets))
+         for x in xs]
+
+# Generate a statistics over the source -- used for the LHS of the eval table.
+sourceStats = {}
 for x in rhs:
-  if x in stats:
-    stats[x] = stats[x] + 1
+  if x in sourceStats:
+    sourceStats[x] = sourceStats[x] + 1
   else:
-    stats[x] = 1
-# print(stats)
+    sourceStats[x] = 1
 
-runEval(listDir, listTargets)
+# Maybe print it :)
+# print(sourceStats)
 
-# print(listTargets)
-# print(mapreduceTargets)
-# print(kmeansTargets)
+runStats = []
+runEval(listDir, listTargets, runStats)
+runEval(mapreduceDir, mapreduceTargets, runStats)
+runEval(kmeansDir, kmeansTargets, runStats)
+
+# Some formatted printing -- pretty dull at the moment
+for (file, fun, result, time) in runStats:
+  if result:
+    print("PASS: {0}:{1}  -- {2}".format(file, fun, time)
+  else:
+    print("FAIL: {0}:{1}  -- {2}".format(file, fun, time)
+
