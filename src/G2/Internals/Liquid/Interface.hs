@@ -254,9 +254,11 @@ testLiquidFile proj fp libs lhlibs config = do
                     ['_', '\'']
 
     let blacklist = [
-                      "group"
+                      -- "group"
                       -- "toList",
                       -- "expand"
+                      "minKeyList",
+                      "minKeyMap"
                     ]
 
     let cleaned_tgt_lhs = filter (\n -> not $ elem n blacklist) $ 
