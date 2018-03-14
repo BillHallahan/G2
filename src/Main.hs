@@ -23,8 +23,6 @@ import G2.Internals.Solver
 
 import G2.Internals.Liquid.Interface
 
-_DEFAULT_TIMEOUT = 120 * 1000 * 1000 -- microseconds = 10^-6 seconds
-
 main :: IO ()
 main = do
   as <- getArgs
@@ -40,21 +38,18 @@ main = do
 
   case m_filetest of
     Just lhfile -> do
-      doTimeout _DEFAULT_TIMEOUT $ runSingleLHFile proj lhfile libs lhlibs as
-      return ()
+      runSingleLHFile proj lhfile libs lhlibs as
     Nothing -> case m_dirtest of
       Just dir -> runMultiLHFile proj dir libs lhlibs as
       Nothing -> case (m_liquid_file, m_liquid_func) of
         (Just lhfile, Just lhfun) -> do
-          doTimeout _DEFAULT_TIMEOUT $ runSingleLHFun proj lhfile lhfun libs lhlibs as
-          return ()
+          runSingleLHFun proj lhfile lhfun libs lhlibs as
         _ -> do
-          doTimeout _DEFAULT_TIMEOUT $ runGHC as
-          return ()
+          runGHC as
 
 doTimeout :: Int -> IO a -> IO ()
-doTimeout micros action = do
-  res <- timeout micros action
+doTimeout secs action = do
+  res <- timeout (secs * 1000 * 1000) action -- timeout takes micros.
   case res of
     Just _ -> return ()
     Nothing -> do
@@ -64,21 +59,23 @@ doTimeout micros action = do
 runMultiLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
 runMultiLHFile proj lhdir libs lhlibs args = do
   config <- getConfig args
-  in_out <- testLiquidDir proj lhdir libs lhlibs config
-
-  return ()
+  doTimeout (timeLimit config) $ do
+    in_out <- testLiquidDir proj lhdir libs lhlibs config
+    return ()
 
 runSingleLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
 runSingleLHFile proj lhfile libs lhlibs args = do
   config <- getConfig args
-  in_out <- testLiquidFile proj lhfile libs lhlibs config
-  printParsedLHOut in_out
+  doTimeout (timeLimit config) $ do
+    in_out <- testLiquidFile proj lhfile libs lhlibs config
+    printParsedLHOut in_out
 
 runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO()
 runSingleLHFun proj lhfile lhfun libs lhlibs args = do
   config <- getConfig args
-  in_out <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
-  printLHOut (T.pack lhfun) in_out
+  doTimeout (timeLimit config) $ do
+    in_out <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
+    printLHOut (T.pack lhfun) in_out
 
 runGHC :: [String] -> IO ()
 runGHC as = do
@@ -97,22 +94,22 @@ runGHC as = do
   let libs = maybeToList m_mapsrc
 
   config <- getConfig as
+  doTimeout (timeLimit config) $ do
+    (mb_modname, pre_binds, pre_tycons, pre_cls, tgtNames, exp) <- translateLoaded proj src libs True config
 
-  (mb_modname, pre_binds, pre_tycons, pre_cls, tgtNames, exp) <- translateLoaded proj src libs True config
+    let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
+    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry mb_modname exp
+    let halter_set_state = init_state {halter = steps config}
 
-  let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
-  let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) tentry mb_modname exp
-  let halter_set_state = init_state {halter = steps config}
+    -- error $ pprExecStateStr init_state
 
-  -- error $ pprExecStateStr init_state
+    (con, hhp) <- getSMT config
 
-  (con, hhp) <- getSMT config
+    in_out <- run stdReduce halterIsZero halterSub1 executeNext con hhp config halter_set_state
 
-  in_out <- run stdReduce halterIsZero halterSub1 executeNext con hhp config halter_set_state
+    -- putStrLn "----------------\n----------------"
 
-  -- putStrLn "----------------\n----------------"
-
-  printFuncCalls tentry in_out
+    printFuncCalls tentry in_out
 
 
 

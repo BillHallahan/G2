@@ -12,6 +12,7 @@ data Config = Config {
     , smt :: SMTSolver -- Sets the SMT solver to solve constraints with
     , smtADTs :: Bool -- If True, uses the SMT solver to solve ADT constraints, else uses a more efficient algorithm
     , steps :: Int -- How many steps to take when running States
+    , timeLimit :: Int -- Seconds
 }
 
 mkConfigDef :: Config
@@ -24,6 +25,7 @@ mkConfig as m = Config {
     , smt = strArg "smt" as m smtSolverArg Z3
     , smtADTs = boolArg "smt-adts" as m False
     , steps = strArg "n" as m read 500
+    , timeLimit = strArg "time" as m read 300
 }
 
 smtSolverArg :: String -> SMTSolver
