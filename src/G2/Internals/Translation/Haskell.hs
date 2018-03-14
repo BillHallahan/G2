@@ -117,10 +117,10 @@ hskToG2 hsc proj src nm tm simpl = do
 type ExportedName = G2.Name
 type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], HscEnv, [ClsInst], [ModDetails], [ExportedName])
 
-loadProj :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> Ghc SuccessFlag
-loadProj hsc proj src simpl = do
+loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool -> Ghc SuccessFlag
+loadProj hsc proj src gflags simpl = do
     beta_flags <- getSessionDynFlags
-    let gen_flags = []
+    let gen_flags = gflags
     let beta_flags' = foldl' gopt_unset beta_flags gen_flags
     let dflags = beta_flags' { hscTarget = case hsc of
                                                 Just hsc' -> hsc'
@@ -140,7 +140,7 @@ loadProj hsc proj src simpl = do
 mkCompileClosure :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO CompileClosure
 mkCompileClosure hsc proj src simpl = do
     (mb_modname, mod_graph, mod_gutss, env) <- runGhc (Just libdir) $ do
-        loadProj hsc proj src simpl
+        loadProj hsc proj src [] simpl
         env <- getSession
         -- Now that things are loaded, make the compilation closure.
         mod_graph <- getModuleGraph

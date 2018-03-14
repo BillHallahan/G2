@@ -1,5 +1,7 @@
 module Distance where
 
+import qualified Data.Map as M
+
 import Prelude hiding (zipWith, foldr)
 
 data List a = Emp
@@ -26,7 +28,20 @@ foldr _  b Emp        = b
 foldr op b (x :+: xs) = x `op` (foldr op b xs)
 
 
+type Center  = Int
+{-@ type CenterK K = {v:Int | 0 <= v && v < K} @-}
+
+type Centering = M.Map Center Point
+{-@ type CenteringKN K N = M.Map (CenterK K) (PointN N) @-}
+
 type Point = List Double
+{-@ type PointN N = ListN Double N @-}
+
+{-@ nearest :: k:Nat -> n:Nat -> CenteringKN k n -> PointN n -> {x:CenterK k | x < k} @-}
+nearest   :: Int -> Int -> Centering -> Point -> Center
+nearest k n centers p = x
+        where (x,y) = head $ M.toList t
+              t = M.map (\a -> distance n a p) centers
 
 {-@ distance :: n:Nat -> x:Point -> {y:Point | size x = size y} -> Double @-}
 distance :: Int -> Point -> Point -> Double

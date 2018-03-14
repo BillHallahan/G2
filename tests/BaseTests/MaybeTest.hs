@@ -26,3 +26,8 @@ averageF xs = sum xs / genericLength xs
 
 maybeAvg :: Fractional a => [Maybe a] -> a
 maybeAvg xs = sum (catMaybes xs) / genericLength xs
+
+
+
+average' :: (Real a, Fractional a) => [a] -> a
+average' xs = sumN xs / lengthN xs

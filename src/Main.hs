@@ -158,3 +158,5 @@ mkLiquidFileTest a = strArg "liquid-file-test" a M.empty Just Nothing
 mkLiquidDirTest :: [String] -> Maybe String
 mkLiquidDirTest a = strArg "liquid-dir-test" a M.empty Just Nothing
 
+mValidate :: [String] -> Bool
+mValidate as = boolArg "validate" as M.empty False

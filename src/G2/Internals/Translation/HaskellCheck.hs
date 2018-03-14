@@ -19,7 +19,7 @@ validate proj src modN entry chAll in_out = do
 runCheck :: FilePath -> FilePath -> String -> String -> [String] -> State h t -> [Expr] -> Expr -> IO Bool
 runCheck proj src modN entry chAll s ars out = do
     runGhc (Just libdir) $ do
-        loadProj Nothing proj src False
+        loadProj Nothing proj src [] False
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN
