@@ -111,9 +111,8 @@ runGHC as = do
 
     case validate config of
         True -> do
-            putStrLn "HERE"
             r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
-            putStrLn $ show r
+            if r then putStrLn "Validated" else putStrLn "There was an error during validation."
         False -> return ()
 
     -- putStrLn "----------------\n----------------"
