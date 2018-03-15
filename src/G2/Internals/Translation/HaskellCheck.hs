@@ -7,6 +7,7 @@ import GHC.Paths
 
 import Data.Foldable
 import qualified Data.Text as T
+import Text.Regex
 import Unsafe.Coerce
 
 import G2.Internals.Language
@@ -63,18 +64,28 @@ runHPC proj src modN entry in_out = do
 -- Compile with GHC, and check that the output we got is correct for the input
 runHPC' :: FilePath -> FilePath -> String -> [String] -> IO ()
 runHPC' proj src modN ars = do
+    srcCode <- readFile src
+    let srcCode' = removeModule modN srcCode
+
     let chck = foldr (\n s -> "seq (" ++ n ++ ") (" ++ s ++ ")") "" ars
 
-    let mainFunc = "import " ++ modN ++ "\nmain :: IO ()\nmain = seq (" ++ chck ++ ") (return ())"
+    let mainFunc = "\n\nmain :: IO ()\nmain = seq (" ++ chck ++ ") (return ())"
 
-    writeFile "Main2.hs" mainFunc
+    writeFile "Main2.hs" (srcCode' ++ mainFunc)
 
-    callProcess "ghc" ["-fhpc", "Main2.hs", "-idirs", src]
+    callProcess "ghc" ["-fhpc", "Main2.hs"]
     callProcess "./Main2" []
 
-    callProcess "hpc" ["report", "Main2", "srcdirs=" ++ proj]
+    callProcess "hpc" ["report", "Main2"]
 
     putStrLn mainFunc
 
 toCall :: String -> State h t -> [Expr] -> Expr -> String
 toCall entry s ars _ = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
+
+removeModule :: String -> String -> String
+removeModule modN s =
+    let
+        r = mkRegex $ "module " ++ modN ++ " where"
+    in
+    subRegex r s ""
