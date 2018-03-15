@@ -24,4 +24,5 @@ cabal.project.local
 *.swp
 .DS_Store
 .liquid/
+.mix
 dumps
