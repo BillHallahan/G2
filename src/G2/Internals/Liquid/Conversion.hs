@@ -232,7 +232,7 @@ addLHTCCalls eenv tenv tc lh e =
 lhDicts :: Name -> Expr -> [(Type, Lang.Id)]
 lhDicts lh (Lam i@(Lang.Id _ (TyConApp n [t])) e) =
     if lh == n then (t, i):lhDicts lh e else lhDicts lh e
-lhDicts _ _ = []
+lhDicts lh e = evalChildren (lhDicts lh) e
 
 addTCPasses :: ExprEnv -> TypeEnv -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> Expr
 addTCPasses eenv tenv tc ti lh e =
