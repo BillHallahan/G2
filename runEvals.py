@@ -4,7 +4,7 @@ import re
 import subprocess
 import sys
 import time
-NVALUE = 1000
+NVALUE = 1200
 TIMEOUT = 300 # seconds
 
 projDir = "../liquidhaskell-study/wi15/eval/"
@@ -12,15 +12,12 @@ projDir = "../liquidhaskell-study/wi15/eval/"
 listDir = "eval-list/"
 listTargets = [
   ("flycheck_List.lhs-2015-03-16T04.40.42.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-14T20.14.02.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-20T17.52.22.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-14T07.10.40.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-20T06.39.29.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T23.17.36.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-14T08.22.35.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T08.39.11.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-20T15.21.34.lhs", ["zipWith"]),
-  ("flycheck_List.lhs-2015-03-14T20.10.53.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T02.57.17.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T02.52.40.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T05.21.08.lhs", ["concat"]),
@@ -29,27 +26,14 @@ listTargets = [
   ("flycheck_List.lhs-2015-03-20T22.40.44.lhs", ["length"]),
   ("flycheck_List.lhs-2015-03-16T03.39.54.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-20T18.26.34.lhs", ["zipWith"]),
-  ("flycheck_List.lhs-2015-03-16T05.26.17.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-13T00.46.41.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T04.33.09.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T23.46.07.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T04.12.16.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-14T20.16.11.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-16T04.31.21.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-21T04.29.05.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-21T04.44.45.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-21T04.23.00.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-20T18.51.17.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-20T18.17.36.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-21T04.16.43.lhs", ["concat"]),
   ("flycheck_List.lhs-2015-03-20T15.45.38.lhs", ["zipWith"]),
   ("flycheck_List.lhs-2015-03-20T18.25.30.lhs", ["zipWith"]),
-  ("flycheck_List.lhs-2015-03-16T04.10.39.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-14T08.13.12.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-12T21.35.30.lhs", ["concat"]),
-  ("flycheck_List.lhs-2015-03-15T03.14.02.lhs", ["replicate"]),
-  ("flycheck_List.lhs-2015-03-19T16.57.18.lhs", ["replicate"]),
-  ("flycheck_List.lhs-2015-03-15T03.12.59.lhs", ["replicate"]),
   ("flycheck_List.lhs-2015-03-20T06.47.16.lhs", ["foldr", "foldr1"]),
   ("flycheck_List.lhs-2015-03-20T06.47.19.lhs", ["foldr", "foldr1"]),
   ("flycheck_List.lhs-2015-03-16T02.57.08.lhs", ["foldr1"]),
@@ -61,6 +45,22 @@ listTargets = [
   ("flycheck_List.lhs-2015-03-21T03.50.06.lhs", ["zipWith"]),
   ("flycheck_List.lhs-2015-03-20T07.43.51.lhs", ["zipWith"]),
   ("flycheck_List.lhs-2015-03-20T22.41.16.lhs", ["length"]),
+  ("flycheck_List.lhs-2015-03-16T05.15.41.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-16T04.35.08.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-16T05.14.59.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-20T06.19.17.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-16T23.22.03.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-20T17.54.27.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-20T15.29.53.lhs", ["concat", "zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T18.27.32.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-16T02.50.44.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-16T02.20.21.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-16T04.41.31.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-16T23.47.50.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-20T15.40.33.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T18.01.30.lhs", ["concat"]),
+  ("flycheck_List.lhs-2015-03-20T15.43.32.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-16T04.50.23.lhs", ["concat"]),
 ]
 
 mapreduceDir = "eval-mapreduce/"
@@ -218,12 +218,13 @@ runEval(listDir, listTargets, runStats)
 # runEval(kmeansDir, kmeansTargets, runStats)
 
 # Some formatted printing -- pretty dull at the moment
-for (file, fun, hasConcrete, hasAbstract, time) in runStats:
+for (file, fun, hasConcrete, hasAbstract, elapsed) in runStats:
   if hasAbstract or hasConcrete:
-    print("PASS: {0}:{1}  -- {2} -- C: {3}, A: {4}"\
-          .format(file, fun, time, int(hasConcrete), int(hasAbstract)))
+    print("PASS: {0}:{1}  -- C: {3}, A: {4} -- {2}"\
+          .format(file, fun, elapsed, int(hasConcrete), int(hasAbstract)))
   else:
-    print("FAIL: {0}:{1}  -- {2}".format(file, fun, time))
+    print("FAIL: {0}:{1}  --                -- {2}"\
+          .format(file, fun, elapsed))
 
-print("Elapsed time: "  + (time.time() - startTime))
+print("Elapsed time: "  + str(time.time() - startTime))
 
