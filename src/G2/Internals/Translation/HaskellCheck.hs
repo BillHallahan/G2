@@ -6,29 +6,21 @@ import GHC.Paths
 
 import Data.Foldable
 import qualified Data.Text as T
-import Data.Time.Clock
 import Unsafe.Coerce
 
 import G2.Internals.Language
 import G2.Internals.Translation.Haskell
 import G2.Lib.Printers
 
-import Trace.Hpc.Mix
-import Trace.Hpc.Util
-
 validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
 validateStates proj src modN entry chAll ghflags in_out = do
-    time <- getCurrentTime
-
-    mixCreate proj modN (Mix modN time (toHash "A") 1 [])
-
     return . all id =<< mapM (\(s, i, o, _) -> runCheck proj src modN entry chAll ghflags s i o) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
 runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State h t -> [Expr] -> Expr -> IO Bool
 runCheck proj src modN entry chAll gflags s ars out = do
     runGhc (Just libdir) $ do
-        loadProj (Just HscLlvm) proj src gflags False
+        loadProj Nothing proj src gflags False
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN
