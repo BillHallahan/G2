@@ -27,6 +27,7 @@ executable G2
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc
                        , hashable
+                       , hpc
                        , HTTP
                        , liquidhaskell == 0.8.0.5
                        , liquid-fixpoint == 0.7.0.5
@@ -54,6 +55,7 @@ test-suite test
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc
                        , hashable
+                       , hpc
                        , HTTP
                        , liquidhaskell
                        , liquid-fixpoint

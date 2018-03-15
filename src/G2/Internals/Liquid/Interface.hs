@@ -117,7 +117,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, exp) ghcInfos config = do
               Right s -> error s
     let max_abstr = initialTrack (expr_env init_state) fe
 
-    ret <- run lhReduce halterIsZero halterSub1 selectLH con hhp config max_abstr final_state
+    ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of

@@ -88,15 +88,15 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
         False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
 
-selectLH :: Int -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])]
-selectLH ii solved next =
+selectLH :: Maybe Int -> Int -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])]
+selectLH maxOut ii solved next =
     let
         mi = case solved of
                 [] -> ii
                 _ -> minimum $ map (length . track . snd) solved
         next' = dropWhile (\(_, s) -> trackingGreater s mi) next
     in
-    next'
+    if isJust maxOut && length solved >= fromJust maxOut then [] else next'
 
 trackingGreater :: State h [FuncCall] -> Int -> Bool
 trackingGreater (State {track = tr}) i = length tr > i
@@ -106,7 +106,7 @@ trackingGreater (State {track = tr}) i = length tr > i
 initialTrack :: ExprEnv -> Expr -> Int
 initialTrack eenv (Var (Id n _)) =
     case E.lookup n eenv of
-        Just _ -> trace (show n) 1
+        Just _ -> 1
         Nothing -> 0
 initialTrack eenv (App e e') = initialTrack eenv e + initialTrack eenv e'
 initialTrack eenv (Lam _ e) = initialTrack eenv e

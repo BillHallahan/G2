@@ -13,7 +13,9 @@ data Config = Config {
     , smtADTs :: Bool -- If True, uses the SMT solver to solve ADT constraints, else uses a more efficient algorithm
     , steps :: Int -- How many steps to take when running States
     , timeLimit :: Int -- Seconds
-    , validate :: Bool -- If True, HPC is run on G2's output, to measure code coverage.  Currently doesn't work with LiquidHaskell
+    , validate :: Bool -- If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
+
+    , maxOutputs :: Maybe Int -- Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
 }
 
 mkConfigDef :: Config
@@ -28,6 +30,7 @@ mkConfig as m = Config {
     , steps = strArg "n" as m read 500
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m False
+    , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
 
 }
 

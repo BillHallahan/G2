@@ -112,7 +112,7 @@ runGHC as = do
     case validate config of
         True -> do
             putStrLn "HERE"
-            r <- validateStates proj src "MaybeTest" entry [] [Opt_Hpc] in_out
+            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
             putStrLn $ show r
         False -> return ()
 
