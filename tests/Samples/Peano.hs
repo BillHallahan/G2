@@ -1,6 +1,6 @@
 module Peano where
 
-data Peano = Succ Peano | Zero deriving Eq
+data Peano = Succ Peano | Zero deriving (Show, Eq)
 
 add :: Peano -> Peano -> Peano
 add Zero p = p
