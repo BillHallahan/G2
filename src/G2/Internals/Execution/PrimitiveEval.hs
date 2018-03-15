@@ -67,6 +67,7 @@ evalPrim2 _ _ Plus x y = evalPrim2Num (+) x y
 evalPrim2 _ _ Minus x y = evalPrim2Num (-) x y
 evalPrim2 _ _ Mult x y = evalPrim2Num (*) x y
 evalPrim2 _ _ Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
+evalPrim2 _ _ Quot x y = if isZero y then error "Have Quot _ 0" else evalPrim2Integral quot x y
 evalPrim2 _ _ Mod x y = evalPrim2Integral (mod) x y
 evalPrim2 _ _ p _ _ = error $ "Primitive given wrong number of arguments (2) " ++ show p
 
