@@ -14,12 +14,12 @@ listTargets = [
     ("Catch.hs", "prop"),
     ("Mux.hs", "prop_encDec"),
     ("Mux.hs", "prop_mux"),
-    ("Mux.hs", "prop_binSad"),
+    ("MuxSad.hs", "prop_binSad"),
     ("Countdown.hs", "prop_lemma3"),
     ("Countdown.hs", "prop_solutions"),
     ("Huffman.hs", "prop_decEnc"),
     ("Huffman.hs", "prop_optimal"),
-    ("ListSet.hs", "prop_insertSet"),
+    #("ListSet.hs", "prop_insertSet"),
     ("Mate.hs", "prop_checkmate"),
     ("Mux.hs", "prop_encode"),
     ("RedBlack.hs", "prop_insertRB"),
@@ -43,8 +43,8 @@ def runEval(evalDir, evalList, runStats):
       deltaTime = time.time() - startTime
 
       runStats.append((file, f, deltaTime))
-      print(output)
       print((file, f, deltaTime))
+      print(output)
       # if re.search("violating ([^f]*[^i]*[^x]*[^m]*[^e])\'s refinement type", output) is not None:
       #   hasConcrete = re.search("violating ([^f]*[^i]*[^x]*[^m]*[^e])\'s refinement type\nConcrete",
       #                           output) is not None
