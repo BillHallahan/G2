@@ -39,6 +39,8 @@ enc as               =  zipWith (||) (enc ls) (enc rs) ++ [tree (||) rs]
 oneHot []            =  False
 oneHot (a:as)        =  if a then not (or as) else oneHot as
 
+
+log2 :: Int -> Int
 log2 n               =  if n == 1 then 0 else 1 + log2 (n `div` 2)
 
 ulog2 n              =  log2 (2*n - 1)
@@ -62,21 +64,3 @@ prop_mux (sel, xs) =
     n = length (takeWhile not sel)
 
 prop_encDec as = encode (decode as) == as
-
-
-encode2 as            =  enc2 (as ++ replicate n False)
-  where
-    n                =  2 ^ ulog22 (length as) - length as
-
-enc2 [_]              =  []
-enc2 as               =  zipWith (||) (enc2 ls) (enc2 rs) ++ [tree2 (||) rs]
-  where
-    (ls, rs)         =  splitAt (length as `div` 2) as
-
-log22 n               =  if n == 1 then 0 else 1 + log22 (n `div` 2)
-
-ulog22 n              =  log22 (2*n - 1)
-
-tree2                 :: (a -> a -> a) -> [a] -> a
-tree2 f [x]           =  x
-tree2 f (x:y:ys)      =  tree2 f (ys ++ [f x y])

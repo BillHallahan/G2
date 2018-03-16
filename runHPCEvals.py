@@ -12,13 +12,13 @@ projDir = "../liquidhaskell-study/wi15/smallcheck/benchmarks/"
 listDir = "" #"eval-list/"
 listTargets = [
     ("Catch.hs", "prop", 1000),
-    ("Mux.hs", "prop_encDec", 1000),
+    ("Mux.hs", "prop_encDec", 11000),
     ("Mux.hs", "prop_mux", 1000),
-    ("MuxSad.hs", "prop_binSad", 1000),
+    ("MuxSad.hs", "prop_binSad", 1000), #?
     ("Countdown.hs", "prop_lemma3", 1000),
-    ("Countdown.hs", "prop_solutions", 1000),
-    ("Huffman.hs", "prop_decEnc", 1000),
-    ("Huffman.hs", "prop_optimal", 1000),
+    ("Countdown.hs", "prop_solutions", 1000), #?
+    ("Huffman.hs", "prop_decEnc", 1000), #?
+    ("Huffman.hs", "prop_optimal", 1000), #?
     #("ListSet.hs", "prop_insertSet"),
     ("Mate.hs", "prop_checkmate", 1000),
     ("Mux.hs", "prop_encode", 1000),
