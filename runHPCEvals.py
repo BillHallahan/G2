@@ -43,6 +43,7 @@ def runEval(evalDir, evalList, runStats):
       deltaTime = time.time() - startTime
 
       runStats.append((file, f, deltaTime))
+      print(output)
       print((file, f, deltaTime))
       # if re.search("violating ([^f]*[^i]*[^x]*[^m]*[^e])\'s refinement type", output) is not None:
       #   hasConcrete = re.search("violating ([^f]*[^i]*[^x]*[^m]*[^e])\'s refinement type\nConcrete",

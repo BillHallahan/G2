@@ -117,13 +117,15 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, exp) ghcInfos config = do
               Right s -> error s
     let max_abstr = initialTrack (expr_env init_state) fe
 
-    ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
-
+    -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
+    ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
+    
     -- We filter the returned states to only those with the minimal number of abstracted functions
-    let mi = case length ret of
-                  0 -> 0
-                  _ -> minimum $ map (\(s, _, _, _) -> length $ track s) ret
-    let ret' = filter (\(s, _, _, _) -> mi == (length $ track s)) ret
+    -- let mi = case length ret of
+    --               0 -> 0
+    --               _ -> minimum $ map (\(s, _, _, _) -> length $ track s) ret
+    -- let ret' = filter (\(s, _, _, _) -> mi == (length $ track s)) ret
+    let ret' = ret
 
     return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ track s}, es, e, ais)) ret'
 

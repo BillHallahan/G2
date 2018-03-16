@@ -70,8 +70,11 @@ runNDepth red hal halR sel con hpp p states config = runNDepth' red hal halR sel
             
             runNDepth' red' hal' halR' sel' p' fnsh (mod_info ++ xs)
 
-executeNext :: p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
-executeNext _ _ xs = xs
+executeNext :: Maybe Int -> p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
+executeNext mi _ solved xs =
+    case mi of
+        Just i -> if length solved >= i then [] else xs
+        Nothing -> xs
 
 halterSub1 :: State Int t -> Int
 halterSub1 (State {halter = h}) = h - 1
