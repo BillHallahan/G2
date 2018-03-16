@@ -6,6 +6,7 @@ import GHC hiding (Name)
 import GHC.Paths
 
 import Data.Foldable
+import Data.List
 import qualified Data.Text as T
 import Text.Regex
 import Unsafe.Coerce
@@ -67,18 +68,22 @@ runHPC' proj src modN ars = do
     srcCode <- readFile src
     let srcCode' = removeModule modN srcCode
 
-    let chck = foldr (\n s -> "seq (" ++ n ++ ") (" ++ s ++ ")") "" ars
+    let spces = "  "
 
-    let mainFunc = "\n\nmain :: IO ()\nmain = seq (" ++ chck ++ ") (return ())"
+    let chck = intercalate ("\n" ++ spces) $ map (\s -> "print (" ++ s ++ ")") ars
 
-    writeFile "Main2.hs" (srcCode' ++ mainFunc)
+    let mainFunc = "\n\nmain :: IO ()\nmain =do\n" ++ spces ++ chck ++ "\n" ++ spces
 
-    callProcess "ghc" ["-fhpc", "Main2.hs"]
-    callProcess "./Main2" []
+    let mainN = "Main_" ++ modN
 
-    callProcess "hpc" ["report", "Main2"]
+    writeFile (mainN ++ ".hs") (srcCode' ++ mainFunc)
 
-    putStrLn mainFunc
+    callProcess "ghc" ["-fhpc", mainN ++ ".hs"]
+    callProcess ("./" ++ mainN) []
+
+    callProcess "hpc" ["report", mainN]
+
+    -- putStrLn mainFunc
 
 toCall :: String -> State h t -> [Expr] -> Expr -> String
 toCall entry s ars _ = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
