@@ -46,6 +46,25 @@ splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
                 )
     in
     (e', ng')
+splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr ni') t2'))) =
+    let
+        t1 = typeOf ni
+        t1' = typeOf ni'
+
+        (i, ng') = freshId t1 ng
+
+        e' = Lam i $ 
+                (Cast 
+                    (App 
+                        e
+                        (Cast (Var i) (t1 :~ t1'))
+                    )
+                    (t2 :~ t2')
+                )
+    in
+    (e', ng')
+splitCast ng c@(Cast e (t1 :~ t2)) =
+    if hasFuncType t1 || hasFuncType t2 then (e, ng) else (c, ng)
 splitCast ng e = (e, ng)
 
 -- | simplfyCasts
