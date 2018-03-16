@@ -11,30 +11,30 @@ projDir = "../liquidhaskell-study/wi15/smallcheck/benchmarks/"
 
 listDir = "" #"eval-list/"
 listTargets = [
-    ("Catch.hs", "prop"),
-    ("Mux.hs", "prop_encDec"),
-    ("Mux.hs", "prop_mux"),
-    ("MuxSad.hs", "prop_binSad"),
-    ("Countdown.hs", "prop_lemma3"),
-    ("Countdown.hs", "prop_solutions"),
-    ("Huffman.hs", "prop_decEnc"),
-    ("Huffman.hs", "prop_optimal"),
+    ("Catch.hs", "prop", 1000),
+    ("Mux.hs", "prop_encDec", 1000),
+    ("Mux.hs", "prop_mux", 1000),
+    ("MuxSad.hs", "prop_binSad", 1000),
+    ("Countdown.hs", "prop_lemma3", 1000),
+    ("Countdown.hs", "prop_solutions", 1000),
+    ("Huffman.hs", "prop_decEnc", 1000),
+    ("Huffman.hs", "prop_optimal", 1000),
     #("ListSet.hs", "prop_insertSet"),
-    ("Mate.hs", "prop_checkmate"),
-    ("Mux.hs", "prop_encode"),
-    ("RedBlack.hs", "prop_insertRB"),
-    ("RegExp.hs", "prop_regex"),
-    ("SumPuz.hs", "prop_Sound"),
-    ("Turner.hs", "prop_abstr"),
+    ("Mate.hs", "prop_checkmate", 1000),
+    ("Mux.hs", "prop_encode", 1000),
+    ("RedBlack.hs", "prop_insertRB", 1000),
+    ("RegExp.hs", "prop_regex", 1000),
+    ("SumPuz.hs", "prop_Sound", 1000),
+    ("Turner.hs", "prop_abstr", 1000),
 ]
 
 
 
 # Evaluation runner.
 def runEval(evalDir, evalList, runStats):
-  for (file, f) in evalList:
+  for (file, f, nv) in evalList:
       command = "cabal run G2 -- {0}  {1}  {2} --n {3} --time {4}"\
-                .format(projDir + evalDir, projDir + evalDir + file, f, NVALUE, TIMEOUT)
+                .format(projDir + evalDir, projDir + evalDir + file, f, nv, TIMEOUT)
       # print(command)
       startTime = time.time()
       p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
