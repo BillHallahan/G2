@@ -38,9 +38,9 @@ import qualified Data.Text as T
 import G2.Lib.Printers
 
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text
-          -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> [Name]
+          -> Maybe T.Text -> Maybe T.Text -> Bool -> Bool -> T.Text -> Maybe T.Text -> [Name]
           -> State Int ()
-initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNames =
+initState prog prog_typ cls m_assume m_assert m_reaches retsTrue useAssert f m_mod tgtNames =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
@@ -56,7 +56,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
 
         (eenv', tenv', ng', ft, at, ds_walkers) = runInitialization eenv tenv ng ts tgtNames
 
-        (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc at ng' eenv' ds_walkers kv
+        (ce, is, ng'') = mkCurrExpr m_assume m_assert retsTrue f m_mod tc at ng' eenv' ds_walkers kv
 
         eenv'' = checkReaches eenv' tenv' kv m_reaches m_mod
     in

@@ -12,10 +12,10 @@ import qualified G2.Internals.Language.ApplyTypes as AT
 import Data.List
 import qualified Data.Text as T
 
-mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text
+mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text
            -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers
            -> KnownValues -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv =
+mkCurrExpr m_assume m_assert rsTrue s m_mod tc at ng eenv walkers kv =
     case findFunc s m_mod eenv of
         Left (f, ex) -> 
             let
@@ -37,8 +37,10 @@ mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv =
 
                 assume_ex = mkAssumeAssert Assume m_assume m_mod var_ids var_name var_name eenv
                 assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod var_ids assume_ex var_name eenv
+
+                retsTrue_ex = if rsTrue then retsTrue assert_ex else assert_ex
                 
-                let_ex = Let [(id_name, strict_app_ex)] assert_ex
+                let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
             (let_ex, is, ng'')
         Right s' -> error s'
@@ -72,6 +74,9 @@ mkAssumeAssert p (Just f) m_mod var_ids inter pre_ex eenv =
             p app_ex inter
         Right s -> error s
 mkAssumeAssert _ Nothing _ _ e _ _ = e
+
+retsTrue :: Expr -> Expr
+retsTrue e = Assert Nothing e e
 
 findFunc :: T.Text -> Maybe T.Text -> ExprEnv -> Either (Id, Expr) String
 findFunc s m_mod eenv =
