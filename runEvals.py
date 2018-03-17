@@ -4,8 +4,12 @@ import re
 import subprocess
 import sys
 import time
-NVALUE = 1200
+
+NVALUE = 1000
 TIMEOUT = 300 # seconds
+MAXOUTPUTS = 3
+# SMTADTS = "--smt-adts"
+SMTADTS = ""
 
 projDir = "../liquidhaskell-study/wi15/eval/"
 
@@ -119,56 +123,40 @@ mapreduceTargets = [
 
 kmeansDir = "eval-kmeans/"
 kmeansTargets = [
-  ("flycheck_KMeans.lhs-2015-03-20T22.21.08.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-14T23.22.51.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T23.40.29.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T00.44.30.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T01.10.59.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-17T01.18.29.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-13T04.16.30.lhs", ["nearest", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T16.35.45.lhs", ["kmeans1"]),
   ("flycheck_KMeans.lhs-2015-03-13T03.28.38.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-17T00.01.12.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T22.28.13.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-13T04.18.23.lhs", ["nearest", "centroid", "kmeans", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T00.25.34.lhs", ["centroid"]),
-  ("flycheck_KMeans.lhs-2015-03-21T01.22.06.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.19.03.lhs", ["kmeans1", "normalize"]),
-  ("flycheck_KMeans.lhs-2015-03-20T07.00.37.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T09.12.47.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T23.58.45.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T05.03.59.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T00.51.07.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T11.06.49.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-14T23.26.59.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T10.46.55.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T23.58.54.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-19T23.25.22.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-13T04.32.28.lhs", ["nearest", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.00.12.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-13T04.02.21.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
   ("flycheck_KMeans.lhs-2015-03-13T03.56.38.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T07.07.32.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T00.02.26.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs", ["centroid"]),
-  ("flycheck_KMeans.lhs-2015-03-20T23.59.23.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-14T23.01.59.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T04.59.15.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T10.06.45.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.04.09.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-19T07.35.57.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-13T04.21.39.lhs", ["nearest", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T05.14.17.lhs", ["centroid", "kmeans1"]),
   ("flycheck_KMeans.lhs-2015-03-13T04.00.43.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-14T23.01.59.lhs", ["centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-16T01.10.59.lhs", ["kmeans1"]),
   ("flycheck_KMeans.lhs-2015-03-16T04.40.25.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T22.00.55.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T06.05.53.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-16T11.06.49.lhs", ["mergeCluster", "centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-16T23.40.29.lhs", ["mergeCluster", "centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-17T00.01.12.lhs", ["centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-17T01.18.29.lhs", ["centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-19T07.35.57.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-19T23.25.22.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-20T00.02.26.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-20T01.00.12.lhs", ["centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-20T07.00.37.lhs", ["mergeCluster", "centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-20T07.07.32.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-20T09.12.47.lhs", ["mergeCluster", "centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-20T16.35.45.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-20T23.58.45.lhs", ["centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs", ["centroid"]),
+  ("flycheck_KMeans.lhs-2015-03-21T00.25.34.lhs", ["centroid"]),
   ("flycheck_KMeans.lhs-2015-03-21T01.15.54.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T23.49.23.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.33.52.lhs", ["normalize", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.13.35.lhs", ["normalize", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.43.08.lhs", ["normalize", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.29.54.lhs", ["normalize", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-21T04.59.15.lhs", ["centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-21T06.05.53.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-15T04.10.05.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-18T06.45.46.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-18T02.54.03.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-20T01.31.45.lhs", ["kmeans1", "centroid"]),
+  ("flycheck_KMeans.lhs-2015-03-17T00.14.50.lhs", ["mergeCluster"]),
+  ("flycheck_KMeans.lhs-2015-03-17T00.01.10.lhs", ["centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-17T01.21.52.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-17T00.04.26.lhs", ["centroid", "kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-14T23.05.47.lhs", ["kmeans1", "centroid"]),
+  ("flycheck_KMeans.lhs-2015-03-14T23.32.02.lhs", ["kmeans1"]),
 ]
 
 
@@ -176,12 +164,13 @@ kmeansTargets = [
 def runEval(evalDir, evalList, runStats):
   for (file, funs) in evalList:
     for f in funs:
-      command = "cabal run G2 -- {0} --liquid {1} --liquid-func {2} --n {3} --time {4}"\
-                .format(projDir + evalDir, projDir + evalDir + file, f, NVALUE, TIMEOUT)
-      # print(command)
+      command = "cabal run G2 -- {0} --liquid {1} --liquid-func {2} --n {3} --time {4} --max-outputs {5} {6}"\
+                .format(projDir + evalDir, projDir + evalDir + file, f, NVALUE, TIMEOUT, MAXOUTPUTS, SMTADTS)
+      print(command)
       startTime = time.time()
       p = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
       (output, err) = p.communicate()
+      print(output)
       p_status = p.wait()
       deltaTime = time.time() - startTime
 
@@ -189,11 +178,15 @@ def runEval(evalDir, evalList, runStats):
         hasConcrete = re.search("violating ([^f]*[^i]*[^x]*[^m]*[^e])\'s refinement type\nConcrete",
                                 output) is not None
         hasAbstract = "Abstract" in output
-        runStats.append((file, f, hasConcrete, hasAbstract, deltaTime))
+        runStats[f]['C'] = runStats[f]['C'] + 1 if hasConcrete else runStats[f]['C']
+        runStats[f]['A'] = runStats[f]['A'] + 1 if hasAbstract else runStats[f]['A']
+        runStats['hist'].append((file, f, hasConcrete, hasAbstract, deltaTime))
         print((file, f, hasConcrete, hasAbstract, deltaTime))
       else:
-        runStats.append((file, f, False, False, deltaTime))
+        runStats['hist'].append((file, f, False, False, deltaTime))
         print((file, f, False, False, deltaTime))
+
+      sys.stdout.flush()
 
 # Get all the RHS of the file-functions pairs.
 rhs = [x for xs in (map(lambda p: p[1], listTargets + mapreduceTargets + kmeansTargets))
@@ -208,17 +201,26 @@ for x in rhs:
     sourceStats[x] = 1
 
 # Maybe print it :)
-# print(sourceStats)
+print(sourceStats)
 
+runStats = { 'hist': [] }
+for k in sourceStats.keys():
+  runStats[k] = { 'A': 0, 'C': 0 }
 
-runStats = []
 startTime = time.time()
-runEval(listDir, listTargets, runStats)
-# runEval(mapreduceDir, mapreduceTargets, runStats)
-# runEval(kmeansDir, kmeansTargets, runStats)
+
+arg = sys.argv[1].lower()
+if arg == "list":
+  runEval(listDir, listTargets, runStats)
+elif arg == "mapreduce":
+  runEval(mapreduceDir, mapreduceTargets, runStats)
+elif arg == "kmeans":
+  runEval(kmeansDir, kmeansTargets, runStats)
+else:
+  exit("what?")
 
 # Some formatted printing -- pretty dull at the moment
-for (file, fun, hasConcrete, hasAbstract, elapsed) in runStats:
+for (file, fun, hasConcrete, hasAbstract, elapsed) in runStats['hist']:
   if hasAbstract or hasConcrete:
     print("PASS: {0}:{1}  -- C: {3}, A: {4} -- {2}"\
           .format(file, fun, elapsed, int(hasConcrete), int(hasAbstract)))
@@ -226,5 +228,12 @@ for (file, fun, hasConcrete, hasAbstract, elapsed) in runStats:
     print("FAIL: {0}:{1}  --                -- {2}"\
           .format(file, fun, elapsed))
 
-print("Elapsed time: "  + str(time.time() - startTime))
+for k in runStats:
+  if k != 'hist':
+    print(k + " : " + str(runStats[k]))
+
+print("Script elapsed time: "  + str(time.time() - startTime))
+
+totalTime = sum(map(lambda n: n[4], runStats['hist']))
+print("G2 time: " + str(totalTime))
 
