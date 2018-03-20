@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 
-NVALUE = 1000
+NVALUE = 2000
 TIMEOUT = 300 # seconds
 MAXOUTPUTS = 10
 # SMTADTS = "--smt-adts --smt cvc4"
@@ -123,40 +123,21 @@ mapreduceTargets = [
 
 kmeansDir = "eval-kmeans/"
 kmeansTargets = [
-  ("flycheck_KMeans.lhs-2015-03-13T03.28.38.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-13T03.56.38.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-13T04.00.43.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-14T23.01.59.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T01.10.59.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T04.40.25.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T11.06.49.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-16T23.40.29.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-17T00.01.12.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-17T01.18.29.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-19T07.35.57.lhs", ["nearest", "mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-19T23.25.22.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T00.02.26.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.00.12.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T07.00.37.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T07.07.32.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T09.12.47.lhs", ["mergeCluster", "centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T16.35.45.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T23.58.45.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs", ["centroid"]),
-  ("flycheck_KMeans.lhs-2015-03-21T00.25.34.lhs", ["centroid"]),
-  ("flycheck_KMeans.lhs-2015-03-21T01.15.54.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T04.59.15.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-21T06.05.53.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-15T04.10.05.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-18T06.45.46.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-18T02.54.03.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-20T01.31.45.lhs", ["kmeans1", "centroid"]),
-  ("flycheck_KMeans.lhs-2015-03-17T00.14.50.lhs", ["mergeCluster"]),
-  ("flycheck_KMeans.lhs-2015-03-17T00.01.10.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-17T01.21.52.lhs", ["kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-17T00.04.26.lhs", ["centroid", "kmeans1"]),
-  ("flycheck_KMeans.lhs-2015-03-14T23.05.47.lhs", ["kmeans1", "centroid"]),
-  ("flycheck_KMeans.lhs-2015-03-14T23.32.02.lhs", ["kmeans1"]),
+  ("flycheck_KMeans.lhs-2015-03-13T03.30.19.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-13T04.13.21.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-20T18.26.19.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-13T04.13.54.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-13T04.24.16.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-13T04.33.26.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-13T04.38.29.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-13T03.38.56.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-13T04.14.52.lhs", ["nearest"]),
+  ("flycheck_KMeans.lhs-2015-03-20T23.58.19.lhs", ["distance"]),
+  ("flycheck_KMeans.lhs-2015-03-20T22.23.04.lhs", ["distance"]),
+  ("flycheck_KMeans.lhs-2015-03-20T18.11.32.lhs", ["distance"]),
+  ("flycheck_KMeans.lhs-2015-03-21T01.40.45.lhs", ["distance"]),
+  ("flycheck_KMeans.lhs-2015-03-14T21.31.54.lhs", ["distance"]),
+  ("flycheck_KMeans.lhs-2015-03-14T21.39.49.lhs", ["distance"]),
 ]
 
 smtDir = "eval-list/"
