@@ -157,7 +157,7 @@ genNewAlgDataTy tenv ntenv (t@(TyConApp n []):xs) nm tm ng =
     let
         adt = case M.lookup n tenv of
                     Just a -> a
-                    Nothing -> error "ADT not found in genNewAlgDataTy"
+                    Nothing -> error $ "ADT not found in genNewAlgDataTy" ++ show n
 
         ntenv' = M.insert n adt ntenv
     in
@@ -166,7 +166,7 @@ genNewAlgDataTy tenv ntenv (t@(TyConApp n ts):xs) nm tm ng =
     let
         adt = case M.lookup n tenv of
                     Just a -> a
-                    Nothing -> error "ADT not found in genNewAlgDataTy"
+                    Nothing -> error $ "ADT not found in genNewAlgDataTy" ++ show n
         tyVars = map (TyVar . flip Id TYPE) $ bound_names adt
         tyRep = (t, TyConApp n []):zip tyVars ts
 

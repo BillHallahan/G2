@@ -17,7 +17,7 @@ elimTypeSyms' tenv t@(TyConApp n _) =
 elimTypeSyms' _ t = t
 
 elimTypeSymsTEnv :: TypeEnv -> TypeEnv
-elimTypeSymsTEnv = M.filter (not . typeSym)
+elimTypeSymsTEnv tenv = elimTypeSyms tenv . M.filter (not . typeSym) $ tenv
 
 typeSym :: AlgDataTy -> Bool
 typeSym (TypeSynonym _) = True

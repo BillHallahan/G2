@@ -7,8 +7,8 @@ import time
 
 NVALUE = 1000
 TIMEOUT = 300 # seconds
-MAXOUTPUTS = 3
-# SMTADTS = "--smt-adts"
+MAXOUTPUTS = 10
+# SMTADTS = "--smt-adts --smt cvc4"
 SMTADTS = ""
 
 projDir = "../liquidhaskell-study/wi15/eval/"
@@ -159,6 +159,26 @@ kmeansTargets = [
   ("flycheck_KMeans.lhs-2015-03-14T23.32.02.lhs", ["kmeans1"]),
 ]
 
+smtDir = "eval-list/"
+smtTargets = [
+  ("flycheck_List.lhs-2015-03-20T15.21.34.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-21T03.57.37.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T22.40.44.lhs", ["length"]),
+  ("flycheck_List.lhs-2015-03-20T18.26.34.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T15.45.38.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T18.25.30.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T06.47.16.lhs", ["foldr", "foldr1"]),
+  ("flycheck_List.lhs-2015-03-20T06.47.19.lhs", ["foldr", "foldr1"]),
+  ("flycheck_List.lhs-2015-03-16T02.57.08.lhs", ["foldr1"]),
+  ("flycheck_List.lhs-2015-03-19T22.22.08.lhs", ["replicate"]),
+  ("flycheck_List.lhs-2015-03-21T03.50.06.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T07.43.51.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T22.41.16.lhs", ["length"]),
+  ("flycheck_List.lhs-2015-03-20T15.29.53.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T18.27.32.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T15.40.33.lhs", ["zipWith"]),
+  ("flycheck_List.lhs-2015-03-20T15.43.32.lhs", ["zipWith"]),
+]
 
 # Evaluation runner.
 def runEval(evalDir, evalList, runStats):
@@ -216,6 +236,8 @@ elif arg == "mapreduce":
   runEval(mapreduceDir, mapreduceTargets, runStats)
 elif arg == "kmeans":
   runEval(kmeansDir, kmeansTargets, runStats)
+if arg == "smt":
+  runEval(smtDir, smtTargets, runStats)
 else:
   exit("what?")
 

@@ -7,16 +7,12 @@ import Data.Maybe
 -- averageF xs = sumN xs / lengthF xs
 
 sumN :: Num a => [a] -> a
-sumN xss =
-    case xss of
-        x:xs -> x + sumN xs
-        _ -> 0
+sumN (x:xs) = x + sumN xs
+sumN _ = 0
 
 lengthN :: Num b => [a] -> b
-lengthN xss =
-    case xss of
-        _:xs -> 1 + lengthN xs
-        _ -> 0
+lengthN (_:xs) = 1 + lengthN xs
+lengthN _ = 0
 
 average :: (Real a, Fractional a) => [a] -> a
 average xs = sum xs / genericLength xs
