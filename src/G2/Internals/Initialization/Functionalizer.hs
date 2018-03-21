@@ -37,16 +37,9 @@ module G2.Internals.Initialization.Functionalizer (functionalize) where
 import G2.Internals.Language
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
-import G2.Internals.Language.Typing
 
 import Data.List
-import Data.Maybe
 import qualified Data.Map as M
-import qualified Data.Set as S
-
-import Debug.Trace
-
-
 
 functionalize :: TypeEnv -> ExprEnv -> NameGen -> [Type] -> [Name]
               -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
@@ -83,7 +76,6 @@ mkApplyFuncAndTypes :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)] -> [Name]
                        (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
 mkApplyFuncAndTypes tenv eenv ng tyn tgtNames = 
     let
-        mods = S.fromList $ concatMap (maybeToList . nameModuleMaybeStr) tgtNames
         eenv' = E.filterWithKey (\n _ -> n `elem` tgtNames) eenv
         -- This just gets passed around unmodified in mkApplyFuncTypes'
         -- but precomputing is faster
@@ -97,13 +89,13 @@ mkApplyFuncAndTypes' :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)]
 mkApplyFuncAndTypes' tenv eenv ng [] _ fi at = (tenv, eenv, fi, at, ng)
 mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
     let
-        funcFolds = foldr (\(n, t') accs ->
+        funcFolds = foldr (\(n', t') accs ->
                             case specializes M.empty t t' of
-                              (True, m) -> (n, t', m) : accs
+                              (True, m) -> (n', t', m) : accs
                               (False, _) -> accs)
                           [] funcT
 
-        funcs = map (\(n, _, _) -> n) funcFolds
+        funcs = map (\(n', _, _) -> n') funcFolds
 
         -- Update type environment
         (applyCons, ng2) = freshSeededNames funcs ng
@@ -145,7 +137,7 @@ mkApplyTypeMap ng appToFunc appT funcT =
 
 unrollNamedTyForAll :: Type -> ([Id], Type)
 unrollNamedTyForAll (TyForAll (NamedTyBndr i) ty) =
-  let (ids, ty') = unrollNamedTyForAll ty in (i:ids, ty')
+  let (is, ty') = unrollNamedTyForAll ty in (i:is, ty')
 unrollNamedTyForAll ty = ([], ty)
 
 traceTyMap :: Name -> M.Map Name Type -> Maybe Type
@@ -162,9 +154,9 @@ mkApplyTypeMap' appT funcT (app, (func, fty, tymap)) =
         am = DataAlt (DataCon app appT []) []
         e = Var $ Id func funcT
         tyForAllIds = fst $ unrollNamedTyForAll fty
-        e' = foldr (\i exp -> case traceTyMap (idName i) tymap of
+        e' = foldr (\i ex -> case traceTyMap (idName i) tymap of
                 Nothing -> error "mkApplyTypeMap': could not find binding"
-                Just ty -> App exp (Type ty))
+                Just ty -> App ex (Type ty))
               e tyForAllIds
     in Alt am e'
 

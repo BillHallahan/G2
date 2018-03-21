@@ -8,7 +8,6 @@ module G2.Internals.Translation.PrimInject
     , addPrimsToBase
     , mergeProgs
     , mergeProgTys
-    , mergeTCs
     ) where
 
 import G2.Internals.Language.AST
@@ -47,12 +46,6 @@ dataInject' _ e = e
 
 conName :: DataCon -> (Name, [Type])
 conName (DataCon n _ ts) = (n, ts)
-
-occFind :: Name -> [Name] -> Maybe Name
-occFind _ [] = Nothing
-occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
-                         then Just n
-                         else occFind key ns
 
 primDefs :: [(T.Text, Expr)]
 primDefs = [ ("==#", Prim Eq TyBottom)
@@ -121,9 +114,6 @@ mergeProgs :: Program -> Program -> Program
 mergeProgs prog prims = prog ++ prims
 
 -- The prog is used to change the names of types in the prog' and primTys
-mergeProgTys :: Program -> Program -> [ProgramType] -> [ProgramType] -> (Program, [ProgramType])
-mergeProgTys prog prog' progTys primTys =
-    (prog', progTys ++ primTys)
-
-mergeTCs :: [(Name, Id, [Id])] -> Program -> ([(Name, Id, [Id])])
-mergeTCs tc prog = tc
+mergeProgTys :: [ProgramType] -> [ProgramType] -> [ProgramType]
+mergeProgTys progTys primTys =
+    progTys ++ primTys

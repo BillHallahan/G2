@@ -141,7 +141,6 @@ instance AST Expr where
     children (Type _) = []
     children (Assume e e') = [e, e']
     children (Assert _ e e') = [e, e']
-    children (Annotation _ e) = [e]
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
     modifyChildren f (Lam b e) = Lam b (f e)
@@ -153,7 +152,6 @@ instance AST Expr where
     modifyChildren f (Cast e c) = Cast (f e) c
     modifyChildren f (Assume e e') = Assume (f e) (f e')
     modifyChildren f (Assert is e e') = Assert is (f e) (f e')
-    modifyChildren f (Annotation n e) = Annotation n (f e)
     modifyChildren _ e = e
 
 instance AST Type where
@@ -210,7 +208,6 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs f (Assert is e e') = 
         Assert (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
-    modifyContainedASTs f (Annotation n e) = Annotation n (modifyContainedASTs f e)
     modifyContainedASTs _ e = e
 
 instance ASTContainer Id Expr where

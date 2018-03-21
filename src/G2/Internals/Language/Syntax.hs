@@ -59,7 +59,6 @@ data Expr = Var Id
           | Coercion Coercion
           | Assume Expr Expr
           | Assert (Maybe FuncCall) Expr Expr
-          | Annotation Name Expr
           deriving (Show, Eq, Read, Generic)
 
 instance Hashable Expr

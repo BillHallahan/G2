@@ -20,20 +20,15 @@ import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Converters
 import G2.Internals.Solver.Language
 
-import G2.Lib.Printers
-
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 subModel :: State h t -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
                 , input_ids = is
-                , symbolic_ids = sid
                 , assert_ids = ais
                 , type_classes = tc
                 , model = m}) =
@@ -44,13 +39,13 @@ subModel (State { expr_env = eenv
 
 subVarFuncCall :: ExprModel -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
-    subVar em eenv tc $ fc {arguments = filter (not . isTC tc) $ arguments fc}
+    subVar em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
 subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> TypeClasses -> m -> m
 subVar em eenv tc = modifyContainedVars (subVar' em eenv tc) . filterTC tc
 
 subVar' :: ExprModel -> ExprEnv -> TypeClasses -> Expr -> Expr
-subVar' em eenv tc v@(Var (Id n t)) =
+subVar' em eenv tc v@(Var (Id n _)) =
     case M.lookup n em of
         Just e -> filterTC tc e
         Nothing -> case E.lookup n eenv of
@@ -182,8 +177,6 @@ genNewAlgDataTy tenv ntenv (t@(TyConApp n ts):xs) nm tm ng =
         adt''' = elimTyForAll adt''
 
         ntenv' = M.insert n' adt''' ntenv
-
-        dcs = zip (data_cons adt) (data_cons adt''')
     in
     genNewAlgDataTy tenv ntenv' xs (HM.union nns nm) (tm ++ tyRep) ng'
 genNewAlgDataTy _ _ _ _ _ _ = error "Unhandled type in genNewAlgDataTy"

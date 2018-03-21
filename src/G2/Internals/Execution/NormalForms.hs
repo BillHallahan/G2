@@ -26,7 +26,6 @@ isExprValueForm (Case _ _ _) _ = False
 isExprValueForm (Cast e (t :~ _)) eenv = not (hasFuncType t) && isExprValueForm e eenv
 isExprValueForm (Assume _ _) _ = False
 isExprValueForm (Assert _ _ _) _ = False
-isExprValueForm (Annotation _ _) _ = False
 isExprValueForm _ _ = True
 
 -- | Is the execution state in a value form of some sort? This would entail:

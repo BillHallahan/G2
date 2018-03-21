@@ -10,7 +10,6 @@ import G2.Internals.Interface
 import G2.Internals.Language as Lang
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Execution
-import G2.Internals.Liquid.Annotate
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.Measures
@@ -26,7 +25,7 @@ import G2.Internals.Initialization.MkCurrExpr
 import G2.Lib.Printers
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
-import Language.Haskell.Liquid.Types hiding (Config)
+import Language.Haskell.Liquid.Types hiding (Config, cls)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
 import Language.Fixpoint.Types.PrettyPrint as FPP
@@ -44,8 +43,6 @@ import qualified GHC as GHC
 import Var
 
 import G2.Internals.Language.KnownValues
-
-import Debug.Trace
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -68,12 +65,12 @@ runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [
                     -> [GhcInfo]
                     -> Config
           -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
-runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, exp) ghcInfos config = do
+runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos config = do
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
     -- let lh_measure_names = map (symbolName . val .name) lh_measures
 
-    let init_state = initState prog tys cls Nothing Nothing Nothing False True entry mb_modname exp
+    let init_state = initState prog tys cls Nothing Nothing Nothing False True entry mb_modname ex
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
     -- let annot_state = annotateCases cleaned_state
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
@@ -186,21 +183,21 @@ printParsedLHOut :: [LHReturn] -> IO ()
 printParsedLHOut [] = return ()
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
                            , violating = Nothing
-                           , abstracted = abs} : xs) = do
+                           , abstracted = abstr} : xs) = do
     putStrLn "The call"
     TI.putStrLn $ call `T.append` " = " `T.append` output
     TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
-    printAbs abs
+    printAbs abstr
     putStrLn ""
     printParsedLHOut xs
-printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
-                           , violating = Just (FuncInfo {func = f', funcArgs = call', funcReturn = output'})
-                           , abstracted = abs } : xs) = do
+printParsedLHOut (LHReturn { calledFunc = FuncInfo {funcArgs = call, funcReturn = output}
+                           , violating = Just (FuncInfo {func = f, funcArgs = call', funcReturn = output'})
+                           , abstracted = abstr } : xs) = do
     TI.putStrLn $ call `T.append` " = " `T.append` output
     putStrLn "makes a call to"
     TI.putStrLn $ call' `T.append` " = " `T.append` output'
-    TI.putStrLn $ "violating " `T.append` f' `T.append` "'s refinement type"
-    printAbs abs
+    TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
+    printAbs abstr
     putStrLn ""
     printParsedLHOut xs
 
@@ -228,9 +225,10 @@ printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
 
 parseLHOut :: T.Text -> [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
            -> [LHReturn]
-parseLHOut entry [] = []
+parseLHOut _ [] = []
 parseLHOut entry ((s, inArg, ex, ais):xs) =
-  let tail = parseLHOut entry xs
+  let 
+      tl = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell s 
                . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyUnknown) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell s $ ex
@@ -238,11 +236,11 @@ parseLHOut entry ((s, inArg, ex, ais):xs) =
       called = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
       viFunc = fmap (parseLHFuncTuple s) ais
 
-      abs = map (parseLHFuncTuple s) $ track s
+      abstr = map (parseLHFuncTuple s) $ track s
   in
   LHReturn { calledFunc = called
            , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc
-           , abstracted = abs} : tail
+           , abstracted = abstr} : tl
 
 sameFuncNameArgs :: FuncInfo -> Maybe FuncInfo -> Bool
 sameFuncNameArgs _ Nothing = False
@@ -260,8 +258,8 @@ testLiquidFile proj fp libs lhlibs config = do
     ghcInfos <- getGHCInfos proj [fp] lhlibs
     tgt_transv <- translateLoadedV proj fp libs False config
 
-    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns, exp) = tgt_transv
-    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns, exp)
+    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns, ex) = tgt_transv
+    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns, ex)
 
     putStrLn $ "******** Liquid File Test: *********"
     putStrLn fp

@@ -316,8 +316,6 @@ stdReduceBase redEx s@State { exec_stack = estk
                             , name_gen = ngen
                             , track = tr
                             }
-  | CurrExpr r (Annotation _ e) <- cexpr
-  , Just red <- redEx s = red
   | isExecValueForm s =
       (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk, [], tr)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
@@ -340,9 +338,6 @@ stdReduceBase redEx s@State { exec_stack = estk
   , isExprValueForm expr eenv =
       -- Our current thing is a value form, which means we can return it.
       (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], Nothing, ngen, estk, [], tr) ])
-
-  | Just red <- redEx s = red
-  | CurrExpr r (Annotation _ e) <- cexpr = (RuleAnnotation, [(eenv, CurrExpr r e, [], [], Nothing, ngen, estk, [], tr)])
 
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = stdReduceEvaluate eenv expr ngen

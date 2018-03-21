@@ -39,7 +39,6 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , varId
                                   , symbVars
                                   , freeVars
-                                  , removeOuterAnnot
                                   , alphaReduction
                                   , varBetaReduction
                                   , mkStrict) where
@@ -245,10 +244,6 @@ freeVars' eenv bound (Var i) =
     else
         ([], [i])
 freeVars' _ _ _ = ([], [])
-
-removeOuterAnnot :: Expr -> Expr
-removeOuterAnnot (Annotation _ e) = e
-removeOuterAnnot e = e
 
 alphaReduction :: ASTContainer m Expr => m -> m
 alphaReduction = modifyASTsM alphaReduction'

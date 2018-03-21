@@ -33,10 +33,10 @@ mergeTranslates [] = error "mergeTranslates: nothing to merge!"
 mergeTranslates (t:[]) = t
 mergeTranslates ((prog, tys, cls):ts) =
   let (m_prog, m_tys, m_cls) = mergeTranslates ts
-      prog0 = mergeProgs m_prog prog
-      (prog1, tys1) = mergeProgTys prog0 prog0 m_tys tys
+      prog' = mergeProgs m_prog prog
+      tys1 = mergeProgTys m_tys tys
       cls1 = cls ++ m_cls
-  in (prog1, tys1, cls1)
+  in (prog', tys1, cls1)
 
 translateLoaded :: FilePath -> FilePath -> [FilePath] -> Bool -> Config
                 -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name], [Name])
@@ -77,7 +77,6 @@ translateLoadedV proj src libs simpl config = do
 
   -- final injection phase
   let (final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys
-  let final_cls = mergeTCs merged_cls merged_prog
 
-  return (fmap T.pack mb_modname, final_prog, final_tys, final_cls, map T.pack tgt_lhs, ns, b_exp ++ lib_exp ++ h_exp)
+  return (fmap T.pack mb_modname, final_prog, final_tys, merged_cls, map T.pack tgt_lhs, ns, b_exp ++ lib_exp ++ h_exp)
 

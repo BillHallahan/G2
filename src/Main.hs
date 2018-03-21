@@ -7,7 +7,6 @@ import DynFlags
 import System.Environment
 import System.Timeout
 
-import Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -19,7 +18,6 @@ import G2.Internals.Config.Interface
 import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
-import G2.Internals.Language.ExprEnv (EnvObj(..))
 import G2.Internals.Translation
 import G2.Internals.Solver
 
@@ -59,22 +57,22 @@ doTimeout secs action = do
       return ()
 
 runMultiLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
-runMultiLHFile proj lhdir libs lhlibs args = do
-  config <- getConfig args
+runMultiLHFile proj lhdir libs lhlibs ars = do
+  config <- getConfig ars
   doTimeout (timeLimit config) $ do
-    in_out <- testLiquidDir proj lhdir libs lhlibs config
+    _ <- testLiquidDir proj lhdir libs lhlibs config
     return ()
 
 runSingleLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
-runSingleLHFile proj lhfile libs lhlibs args = do
-  config <- getConfig args
+runSingleLHFile proj lhfile libs lhlibs ars = do
+  config <- getConfig ars
   doTimeout (timeLimit config) $ do
     in_out <- testLiquidFile proj lhfile libs lhlibs config
     printParsedLHOut in_out
 
 runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO()
-runSingleLHFun proj lhfile lhfun libs lhlibs args = do
-  config <- getConfig args
+runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
+  config <- getConfig ars
   doTimeout (timeLimit config) $ do
     in_out <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
     printLHOut (T.pack lhfun) in_out
@@ -98,10 +96,11 @@ runGHC as = do
 
   config <- getConfig as
   doTimeout (timeLimit config) $ do
-    (mb_modname, pre_binds, pre_tycons, pre_cls, tgtNames, exp) <- translateLoaded proj src libs True config
+    (mb_modname, pre_binds, pre_tycons, pre_cls, _, ex) <- translateLoaded proj src libs True config
 
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
-    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) m_retsTrue (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname exp
+    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) m_retsTrue 
+                               (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex
     let halter_set_state = init_state {halter = steps config}
 
     -- error $ pprExecStateStr init_state
@@ -126,7 +125,7 @@ runGHC as = do
 
 printFuncCalls :: T.Text -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 printFuncCalls entry =
-    mapM_ (\(s, inArg, ex, ais) -> do
+    mapM_ (\(s, inArg, ex, _) -> do
         let funcCall = mkCleanExprHaskell s
                      . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
@@ -135,7 +134,6 @@ printFuncCalls entry =
         -- print $ model s
         -- print inArg
         -- print ex
-        -- print ais
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 

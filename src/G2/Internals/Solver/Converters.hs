@@ -17,7 +17,6 @@ module G2.Internals.Solver.Converters
     , smtastToExpr
     , modelAsExpr ) where
 
-import Control.Monad
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -185,7 +184,7 @@ isCore' (_ :=> _) = All True
 isCore' (_ :<=> _) = All True
 isCore' (VBool _) = All True
 isCore' (V _ s) = All $ isCoreSort s
-isCore' s = All False
+isCore' _ = All False
 
 isCoreSort :: Sort -> Bool
 isCoreSort SortBool = True
@@ -307,7 +306,7 @@ altToSMT (DataAlt (DataCon n t ts) ns) e =
 
         ta = typeArgs e
         t' = case (null ta, returnType t) of
-            (False, TyConApp n _) -> Just $ TyConApp n ta
+            (False, TyConApp n' _) -> Just $ TyConApp n' ta
             _ -> Nothing
     in
     case t' of
@@ -365,7 +364,7 @@ typeToSMT TyLitFloat = SortFloat
 typeToSMT (TyConApp (Name "Bool" _ _) _) = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
-typeToSMT (TyForAll (NamedTyBndr _) t) = Sort "TyForAll" []
+typeToSMT (TyForAll (NamedTyBndr _) _) = Sort "TyForAll" []
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]
@@ -374,6 +373,7 @@ typesToSMTSorts tenv =
         where
             typeToSortDecl :: (Name, AlgDataTy) -> (SMTName, [SMTName], [DC])
             typeToSortDecl (n, DataTyCon ns dcs) = (nameToStr n, map nameToStr ns, map dataConToDC dcs)
+            typeToSortDecl (n, _) =error "typeToSortDecl: Bad DataCon passed"
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =

@@ -11,9 +11,9 @@ elimTypeSyms tenv = modifyASTs (elimTypeSyms' tenv)
 
 elimTypeSyms' :: TypeEnv -> Type -> Type
 elimTypeSyms' tenv t@(TyConApp n _) =
-	case M.lookup n tenv of
-		Just (TypeSynonym {synonym_of = st}) -> st
-		_ -> t
+    case M.lookup n tenv of
+        Just (TypeSynonym {synonym_of = st}) -> st
+        _ -> t
 elimTypeSyms' _ t = t
 
 elimTypeSymsTEnv :: TypeEnv -> TypeEnv

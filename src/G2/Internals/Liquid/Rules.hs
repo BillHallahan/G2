@@ -7,12 +7,9 @@ import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as S
 
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
 import Data.Semigroup
-
-import Debug.Trace
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -37,7 +34,7 @@ lhReduce = stdReduceBase lhReduce'
 
 lhReduce' :: State h [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
 lhReduce' State { expr_env = eenv
-               , curr_expr = CurrExpr Evaluate vv@(Let [(b, e)] a@(Assert _ _ _))
+               , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
                , name_gen = ng
                , apply_types = at
                , exec_stack = stck
@@ -61,7 +58,7 @@ lhReduce' State { expr_env = eenv
 lhReduce' _ = Nothing
 
 symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [FuncCall] -> Maybe (ReduceResult [FuncCall])
-symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e e')) ng at stck tr =
+symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e _)) ng at stck tr =
     let
         cexprT = returnType cexpr
 

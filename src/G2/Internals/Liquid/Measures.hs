@@ -16,8 +16,6 @@ import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
 
-import Debug.Trace
-
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
 createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State h t -> (ExprEnv, NameGen)
@@ -78,7 +76,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
 
         (lam_i, ng1) = freshId (head stArgs) ng
         (cb, _) = freshId (head stArgs) ng1
-        alts = mapMaybe (convertDefs s stArgs stRet tcv (M.union m (M.fromList as_t)) bnds) eq
+        alts = mapMaybe (convertDefs s stArgs stRet tcv (M.union m (M.fromList as_t))) eq
 
         e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
     in
@@ -86,8 +84,8 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
-convertDefs :: State h t -> [Type] -> Maybe Type -> TCValues -> M.Map Name Type -> [Id] -> Def SpecType GHC.DataCon -> Maybe Alt
-convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m bnds def@(Def { ctor = dc, body = b, binds = bds}) =
+convertDefs :: State h t -> [Type] -> Maybe Type -> TCValues -> M.Map Name Type -> Def SpecType GHC.DataCon -> Maybe Alt
+convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m (Def { ctor = dc, body = b, binds = bds}) =
     let
         (DataCon n t _) = mkData HM.empty HM.empty dc
         (TyConApp tn _) = returnType t
@@ -95,11 +93,11 @@ convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m bnds def@(De
         
         -- See [1] below, we only evaluate this if Just
         dc''@(DataCon _ dct _) = fromJust dc'
-        bnds' = tyForAllBindings dct
+        bnds = tyForAllBindings dct
         dctarg = nonTyForAllArgumentTypes dct
 
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
-        dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds') st_t
+        dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds) st_t
 
         nt = map (\((sym, t'), t'') -> (symbolName sym, maybe t'' (unsafeSpecTypeToType tenv) t')) $ zip bds dctarg'
 
@@ -114,28 +112,3 @@ convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m bnds def@(De
 mkExprFromBody :: State h t -> Maybe Type -> TCValues  -> M.Map Name Type -> Body -> Expr
 mkExprFromBody s ret tcv m (E e) = convertLHExpr e ret tcv s m
 mkExprFromBody s ret tcv m (P e) = convertLHExpr e ret tcv s m
-
---Adjusts the alts, to make sure they all return the same Type
-fixAlts :: State h t -> TCValues -> M.Map Name Type -> [Alt] -> [Alt]
-fixAlts s@(State {known_values = kv}) tcv m alts =
-    let
-        anyInt = any (\(Alt _ e) -> typeOf e == tyInt kv) alts
-    in
-    if anyInt then map (convertInteger s tcv m) alts else alts
-
-convertInteger :: State h t -> TCValues -> M.Map Name Type -> Alt -> Alt
-convertInteger s@(State {expr_env = eenv, known_values = kv, type_classes = tc}) tcv m a@(Alt am e) =
-    let
-        fIntgr = mkFromInteger eenv
-        t = tyInt kv
-        lhdict = fromJustErr "No lhDict for callFromInteger" $ lhTCDict eenv tcv tc t m
-        ndict = fromJustErr "No numDict for callFromInteger" $ numDict eenv kv tc t m
-
-        e' = mkApp [fIntgr, lhdict, Type t, ndict, e]
-        a' = Alt am e'
-    in
-    if typeOf e == tyInteger kv then a' else a
-
-fromJustErr :: String -> Maybe a -> a
-fromJustErr _ (Just x) = x
-fromJustErr s _ = error s

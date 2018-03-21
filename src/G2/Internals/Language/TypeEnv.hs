@@ -88,7 +88,8 @@ getDataCons n tenv =
     case M.lookup n tenv of
         Just (DataTyCon _ dc) -> Just dc
         Just (NewTyCon _ dc _) -> Just [dc]
-        Nothing -> Nothing
+        Just (TypeSynonym (TyConApp n' _)) -> getDataCons n' tenv
+        _ -> Nothing
 
 baseDataCons :: [DataCon] -> [DataCon]
 baseDataCons = filter baseDataCon
@@ -204,6 +205,8 @@ instance ASTContainer AlgDataTy Type where
 instance ASTContainer AlgDataTy DataCon where
     containedASTs (DataTyCon _ dcs) = dcs
     containedASTs (NewTyCon _ dcs _) = [dcs]
+    containedASTs (TypeSynonym _) = []
 
     modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon ns (modifyContainedASTs f dcs)
     modifyContainedASTs f (NewTyCon ns dc rt) = NewTyCon ns (modifyContainedASTs f dc) rt
+    modifyContainedASTs _ st@(TypeSynonym _) = st

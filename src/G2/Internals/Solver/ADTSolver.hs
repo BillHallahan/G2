@@ -11,8 +11,6 @@ import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
 
-import Debug.Trace
-
 -- | checkConsistency
 -- Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
