@@ -179,6 +179,7 @@ addLams _ e _ = e
 pastTYPE :: (Expr -> Expr) -> Expr -> Expr
 pastTYPE f le@(Lam i@(Id _ t) e) =
     if isTYPE t then Lam i $ pastTYPE f e else f le
+pastTYPE _ _ = error "pastTYPE: Applied to non-Lam Expr"
 
 getTypeNames :: Expr -> [Name]
 getTypeNames (Lam (Id n t) e) = if isTYPE t then n:getTypeNames e else []
@@ -518,6 +519,7 @@ specTypeApps' (RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {exp
         an = mkAnd eenv
     in
     [App (App an (App (Lam i re) (Var b))) argsPred]
+specTypeApps' _ _ _ _ _ = error "specTypeApps': Unhandled case"
 
 polyPredFunc :: [SpecType] -> ExprEnv -> TypeClasses -> Type -> TCValues -> State h t -> M.Map Name Type -> Lang.Id -> Expr
 polyPredFunc as eenv tc ty tcv s m b =
@@ -755,6 +757,7 @@ convertCon (Just (TyConApp n _)) knv tenv (Ref.I i)
     | n == KV.tyInt knv = App (mkDCInt knv tenv) (Lit . LitInt $ fromIntegral i)
 convertCon _ knv tenv (Ref.I i) = App (mkDCInteger knv tenv) (Lit . LitInt $ fromIntegral i)
 convertCon _ knv tenv (Ref.R d) = App (mkDCDouble knv tenv) (Lit . LitDouble $ toRational d)
+convertCon _ _ _ _ = error "convertCon: Unhandled case"
 
 convertBop :: Bop -> ExprEnv -> Expr
 convertBop Ref.Plus = mkPlus
@@ -841,7 +844,7 @@ convertBrel Ref.Gt tcv = Var $ Id (lhGt tcv) TyUnknown
 convertBrel Ref.Ge tcv = Var $ Id (lhGe tcv) TyUnknown
 convertBrel Ref.Lt tcv = Var $ Id (lhLt tcv) TyUnknown
 convertBrel Ref.Le tcv = Var $ Id (lhLe tcv) TyUnknown
-
+convertBrel _ _ = error "convertBrel: Unhandled case"
 
 tyVarInTyAppHasName :: Name -> Type -> Bool
 tyVarInTyAppHasName n (TyConApp n' (TyVar (Id _ _):_)) = n == n'

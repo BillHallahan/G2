@@ -14,7 +14,6 @@ import G2.Internals.Language.Typing
 import G2.Internals.Language.Stack
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
-import G2.Internals.Execution.RuleTypes
 
 import Data.Char
 import Data.Coerce
@@ -237,61 +236,6 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
                ]
 
--- | More raw version of state dumps.
-pprExecStateStrSimple :: State h t -> [Name] -> String
-pprExecStateStrSimple ex_state includes = injNewLine acc_strs
-  where
-    include_occs = map nameOccStr includes
-
-    eenv_str = eenv_str1 ++ "\n" ++ eenv_str2
-    eenv_str1 = intercalate "\n[E] " $ map show
-                                     $ filter (not . (flip elem) include_occs . nameOccStr)
-                                     $ E.keys
-                                     $ expr_env ex_state
-    eenv_str2 = intercalate "\n[E] " $ map show
-                                     $ filter ((flip elem) include_occs . nameOccStr . fst)
-                                     $ E.toList
-                                     $ expr_env ex_state
-    tenv_str = tenv_str1 ++ "\n" ++ tenv_str2
-    tenv_str1 = intercalate "\n[T] " $ map show
-                                     $ filter (not . (flip elem) include_occs . nameOccStr)
-                                     $ M.keys
-                                     $ type_env ex_state
-    tenv_str2 = intercalate "\n[T] " $ map show
-                                     $ filter ((flip elem) include_occs . nameOccStr . fst)
-                                     $ M.toList
-                                     $ type_env ex_state
-    estk_str = pprExecStackStr (exec_stack ex_state)
-    code_str = pprExecCodeStr (curr_expr ex_state)
-    names_str = pprExecNamesStr (name_gen ex_state)
-    input_str = pprInputIdsStr (symbolic_ids ex_state)
-    funcs_str = pprFuncTableStr (func_table ex_state)
-    paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
-    walkers_str = show (deepseq_walkers ex_state)
-    cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
-    acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
-               , "----- [Env] -----------------------"
-               , eenv_str
-               , "----- [TEnv] -----------------------"
-               , tenv_str
-               , "----- [Exec Stack] ----------------"
-               , estk_str
-               , "----- [Code] ----------------------"
-               , code_str
-               , "----- [Names] ---------------------"
-               , names_str
-               , "----- [Input Ids] -----------------"
-               , input_str
-               , "----- [Func Table] ----------------"
-               , funcs_str
-               , "----- [Walkers] -------------------"
-               , walkers_str
-               , "----- [Paths] ---------------------"
-               , paths_str
-               , "----- [Cleaned] -------------------"
-               , cleaned_str
-               , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
-
 pprExecEEnvStr :: E.ExprEnv -> String
 pprExecEEnvStr eenv = injNewLine kv_strs
   where
@@ -355,13 +299,6 @@ pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
     b_str = show b
     acc_strs = [d_str, expr_str, b_str]
 pprPathCondStr (PCExists p) = show p
-
-pprRunHistStr :: ([Rule], State h t) -> String
-pprRunHistStr (rls, ex_state) = injNewLine acc_strs
-  where
-    rules_str = show rls
-    state_str = pprExecStateStr ex_state
-    acc_strs = [rules_str, state_str]
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . M.toList
