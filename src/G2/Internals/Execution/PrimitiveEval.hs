@@ -99,5 +99,6 @@ evalPrim2Integral f (LitInt x) (LitInt y) = Lit . LitInt $ f x y
 evalPrim2Integral _ _ _ = error "Integral: Primitive given wrong type of arguments"
 
 evalPrim1Floating :: (forall a . Floating a => a -> a) -> Lit -> Expr
-evalPrim1Floating f (LitFloat x) = Lit . LitFloat . toRational . f $ fromRational x
-evalPrim1Floating f (LitDouble x)  = Lit . LitDouble . toRational . f $ fromRational x
+evalPrim1Floating f (LitFloat x) = Lit . LitFloat . toRational $ f (fromRational x :: Double)
+evalPrim1Floating f (LitDouble x)  = Lit . LitDouble . toRational $ f (fromRational x :: Double)
+evalPrim1Floating _ _ = error "Floating: Primitive given wrong type of arguments"

@@ -148,7 +148,7 @@ nonTyVarTyConApp _ = []
 
 genNewAlgDataTy :: TypeEnv -> TypeEnv -> [Type] -> HM.HashMap Name Name -> [(Type, Type)] -> NameGen -> (TypeEnv, HM.HashMap Name Name, [(Type, Type)])
 genNewAlgDataTy _ tenv [] nm tm _ = (tenv, nm, tm)
-genNewAlgDataTy tenv ntenv (t@(TyConApp n []):xs) nm tm ng =
+genNewAlgDataTy tenv ntenv ((TyConApp n []):xs) nm tm ng =
     let
         adt = case M.lookup n tenv of
                     Just a -> a
@@ -162,8 +162,8 @@ genNewAlgDataTy tenv ntenv (t@(TyConApp n ts):xs) nm tm ng =
         adt = case M.lookup n tenv of
                     Just a -> a
                     Nothing -> error $ "ADT not found in genNewAlgDataTy" ++ show n
-        tyVars = map (TyVar . flip Id TYPE) $ bound_names adt
-        tyRep = (t, TyConApp n []):zip tyVars ts
+        tyv = map (TyVar . flip Id TYPE) $ bound_names adt
+        tyRep = (t, TyConApp n []):zip tyv ts
 
         adt' = adt {bound_names = []}
 
@@ -292,9 +292,9 @@ addADTs n tn ts s =
 
         m = M.insert n dc (model s)
 
-        (base, av) = arbValue (TyConApp tn ts) (type_env s) (arbValueGen s)
+        (bse, av) = arbValue (TyConApp tn ts) (type_env s) (arbValueGen s)
 
-        m' = M.insert n base m
+        m' = M.insert n bse m
     in
     case PC.null pc of
         True -> (SAT, [], s {model = M.union m' (model s), arbValueGen = av})

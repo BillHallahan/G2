@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Lib.Printers (mkCleanExprHaskell, pprExecStateStr) where
+module G2.Lib.Printers ( mkCleanExprHaskell
+                       , pprExecStateStr) where
 
 import qualified G2.Internals.Language.ApplyTypes as AT
 import G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
-import qualified G2.Internals.Language.SymLinks as Sym
 import G2.Internals.Language.KnownValues
 import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.PathConds as PC
@@ -20,164 +20,13 @@ import Data.Char
 import Data.Coerce
 import Data.List
 import qualified Data.Map as M
-import Data.Time
 import qualified Data.Text as T
-
-import Debug.Trace
-
-timedMsg :: String -> IO ()
-timedMsg msg = do
-  time <- getCurrentTime
-  putStrLn $ "[" ++ (show $ utctDayTime time) ++ "] " ++ msg
-
-sp2 :: String
-sp2 = "  "
-
-sp4 :: String
-sp4 = sp2 ++ sp2
-
-mkRawStateStr :: State h t -> String
-mkRawStateStr state = intercalate "\n" li
-  where tenv_str  = intercalate "\n" $ map show $ M.toList $ type_env state
-        eenv_str  = intercalate "\n" $ map show $ E.toList $ expr_env state
-        cexpr_str = show $ curr_expr state
-        pc_str    = intercalate "\n" $ map show $ PC.toList $ path_conds state
-        slt_str   = show $ sym_links state
-        fintp_str = show $ func_table state
-        dashes = "------"
-        li = [ "BEGIN STATE"
-             , "[type_env]", tenv_str, dashes
-             , "[expr_env]", eenv_str, dashes
-             , "[curr_expr]", cexpr_str, dashes
-             , "[path_conds]", pc_str, dashes
-             , "[sym_links]", slt_str, dashes
-             , "[func_table]", fintp_str
-             , "END STATE" ]
-
-
-mkStateStr :: State h t -> String
-mkStateStr s = intercalate "\n\n" li
-  where li = ["> Type Env:\n" ++ ts,  "> Expr Env:\n" ++ es
-             ,"> Curr Expr:\n" ++ xs, "> Path Constraints:\n" ++ ps
-             ,"> Sym Link Table:\n" ++ sl
-             ,"> Func Sym Link Table:\n" ++ fl]
-        ts = mkTypeEnvStr . type_env $ s
-        es = mkExprEnvStr . expr_env $ s
-        xs = mkExprStr . (\(CurrExpr _ e) -> e) . curr_expr $ s
-        ps = mkPCStr . PC.toList . path_conds $ s
-        sl = mkSLTStr . sym_links $ s
-        fl = mkFuncSLTStr . func_table $ s
-
-mkStatesStr :: [State h t] -> String
-mkStatesStr [] = ""
-mkStatesStr [s] = mkStateStr s
-mkStatesStr (s:ss) = mkStateStr s ++ divLn ++ mkStatesStr ss
-  where divLn = "\n--------------\n"
-
-mkTypeEnvStr :: TypeEnv -> String
-mkTypeEnvStr tenv = intercalate "\n" (map ntStr (M.toList tenv))
-  where
-        ntStr :: (Name, AlgDataTy) -> String
-        ntStr (n, t) = show n ++ "\n" ++ sp4 ++ show t
-
-mkExprEnvStr :: E.ExprEnv -> String
-mkExprEnvStr eenv = intercalate "\n" (map neStr (E.toExprList eenv))
-  where
-        neStr :: (Name, Expr) -> String
-        neStr (n, e) = show n ++ "\n" ++ sp4 ++ mkExprStr e
-
-
-mkExprStr :: Expr -> String
-mkExprStr ex = mkExprStr' ex 0
-    where
-        mkExprStr' :: Expr -> Int -> String
-        mkExprStr' (Var ids) i = off i ++ "Var " ++ mkIdStr ids
-        mkExprStr' (Lam ids e) i = 
-            let
-                e' = mkExprStr' e (i + 1)
-            in
-            off i ++  "Lam (" ++ mkIdStr ids ++ "\n" ++ e' ++ ")"
-        mkExprStr' (Let ne e) i =
-            let
-                ne' = concatMap (\(ids, e') -> mkIdStr ids ++ " =\n" ++ mkExprStr' e' (i + 1)) ne
-            in
-            off i ++ "Let (\n" ++ off (i + 1) ++ ne' ++ ")" ++ mkExprStr' e (i + 1)
-        mkExprStr' (App e1 e2) i = 
-            let
-                e1' = mkExprStr' e1 (i + 1)
-                e2' = mkExprStr' e2 (i + 1)
-            in
-            off i ++ "App (\n" ++ e1' ++ "\n" ++ e2' ++ "\n" ++ off i ++ ")"
-        mkExprStr' (Case e1 ids ae) i = 
-            let
-                e1' = mkExprStr' e1 (i + 1)
-                ae' = intercalate "\n" $ map (\a -> mkAltStr a  (i + 1)) ae
-            in
-            off i ++ "Case (\n" ++ e1'  ++ " " ++ (mkIdStr ids) ++ "\n" ++ ae' ++ " )"
-        mkExprStr' (Type t) i = off i ++ "Type (" ++ mkTypeStr t (i + 1) ++ ")"
-        mkExprStr' x i = off i ++ show x
-
-
-        mkAltStr :: Alt -> Int -> String
-        mkAltStr (Alt am e) i = off i ++ "(" ++ show am ++ "\n" ++ off i ++ mkExprStr e ++ ")\n"
-
-        off :: Int -> String
-        off i = duplicate "   " i
-
-
-mkTypeStr :: Type -> Int -> String
-mkTypeStr ty ind = mkTypeStr' ty ind False
-    where
-        mkTypeStr' :: Type -> Int -> Bool -> String
-        mkTypeStr' (TyFun t1 t2) i b = tPat t1 t2 "TyFun" i b 
-        mkTypeStr' (TyApp t1 t2) i b = tPat t1 t2 "TyApp" i b 
-        mkTypeStr' (TyConApp n tx) i b = 
-            let li = intercalate ", " . map (\t' -> mkTypeStr' t' (i + 1) b) $ tx in
-                off i b ++ "TyConApp " ++ show n ++ " [" ++ li ++ "]"
-        mkTypeStr' (TyForAll n t) i b = off i b ++ "TyForAll " ++ show n ++
-                                        "(" ++ mkTypeStr' t (i + 1) b ++ ")"
-        mkTypeStr' t _ b = (if b then " " else "") ++ show t
-
-        tPat :: Type -> Type -> String -> Int -> Bool -> String
-        tPat t1 t2 s i b = off i b ++ s ++ " (" 
-                            ++ mkTypeStr' t1 (i + 1) True 
-                            ++ mkTypeStr' t2 (i + 1) True ++ off i True ++  ")"
-
-        off :: Int -> Bool -> String
-        off i b = if b then "\n" ++ duplicate "   " i else ""
-
-
-mkIdStr :: Id -> String
-mkIdStr (Id n t) = show n ++ " (" ++ show t ++ ")"
-
--- Primitive for now because I'm low on battery.
-mkPCStr :: [PathCond] -> String
-mkPCStr = intercalate "\n" . map mkPCStr'
-    where
-        mkPCStr' :: PathCond -> String
-        mkPCStr' (AltCond a e b) =
-            "PC: (" ++ mkExprStr e ++ (if b then " = " else "/=") ++ show a
-        mkPCStr' (ExtCond e b) =
-            "PC: " ++ (if b then "" else "not ") ++ "(" ++ mkExprStr e ++ ")"
-        mkPCStr' x = show x
-
-{-
-mkPCStr [] = ""
-mkPCStr [(e, a, b)] = mkExprStr e ++ (if b then " = " else " != ") ++ show a
-mkPCStr ((e, a, b):ps) = mkExprStr e ++ (if b then " = " else " != ") ++ show a++ "\n--AND--\n" ++ mkPCStr ps
--}
-
-mkSLTStr :: SymLinks -> String
-mkSLTStr = intercalate "\n" . map (\(k, n) -> show k ++ " <- " ++ show n) . M.toList . Sym.map' id
-
-mkFuncSLTStr :: FuncInterps -> String
-mkFuncSLTStr = show
 
 mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 
 mkNameHaskell :: Name -> String
-mkNameHaskell (Name n m i) = T.unpack n -- ++ "\" " ++ show m ++ " " ++ show i
+mkNameHaskell (Name n _ _) = T.unpack n
 
 mkCleanExprHaskell :: State h t -> Expr -> String
 mkCleanExprHaskell (State {apply_types = af, known_values = kv, type_classes = tc}) =
@@ -196,7 +45,7 @@ mkCleanExprHaskell' at kv tc e
     , TyConApp n _ <- t
     , isTypeClassNamed n tc = e'
     | App e' (Type _) <- e = e'
-    | App e' e'' <- e
+    | App _ e'' <- e
     , (Var (Id n _)) <- appCenter e
     , n `elem` map idName (AT.applyFuncs at) = e''
     | otherwise = e
@@ -265,10 +114,6 @@ printString' :: Expr -> String
 printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
 printString' _ = []
 
-isConsOrEmpty :: KnownValues -> Expr -> Bool
-isConsOrEmpty kv (Data (DataCon n _ _)) = n == dcCons kv || n == dcEmpty kv
-isConsOrEmpty _ _ = False
-
 isTuple :: Name -> Bool
 isTuple (Name n _ _) = T.head n == '(' && T.last n == ')'
                      && T.all (\c -> c == '(' || c == ')' || c == ',') n
@@ -311,8 +156,11 @@ mkPrimHaskell Plus = "+"
 mkPrimHaskell Minus = "-"
 mkPrimHaskell Mult = "*"
 mkPrimHaskell Div = "/"
+mkPrimHaskell DivInt = "/"
+mkPrimHaskell Quot = "quot"
 mkPrimHaskell Mod = "mod"
 mkPrimHaskell Negate = "-"
+mkPrimHaskell SqRt = "sqrt"
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
 mkPrimHaskell FromInteger = "fromInteger"
@@ -429,17 +277,17 @@ pprExecStateStrSimple ex_state includes = injNewLine acc_strs
                , "----- [Exec Stack] ----------------"
                , estk_str
                , "----- [Code] ----------------------"
-               -- , code_str
+               , code_str
                , "----- [Names] ---------------------"
-               -- , names_str
+               , names_str
                , "----- [Input Ids] -----------------"
-               -- , input_str
+               , input_str
                , "----- [Func Table] ----------------"
-               -- , funcs_str
+               , funcs_str
                , "----- [Walkers] -------------------"
-               -- , walkers_str
+               , walkers_str
                , "----- [Paths] ---------------------"
-               -- , paths_str
+               , paths_str
                , "----- [Cleaned] -------------------"
                , cleaned_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" ]
@@ -509,9 +357,9 @@ pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
 pprPathCondStr (PCExists p) = show p
 
 pprRunHistStr :: ([Rule], State h t) -> String
-pprRunHistStr (rules, ex_state) = injNewLine acc_strs
+pprRunHistStr (rls, ex_state) = injNewLine acc_strs
   where
-    rules_str = show rules
+    rules_str = show rls
     state_str = pprExecStateStr ex_state
     acc_strs = [rules_str, state_str]
 

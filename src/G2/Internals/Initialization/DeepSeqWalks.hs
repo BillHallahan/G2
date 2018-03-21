@@ -12,8 +12,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import Debug.Trace
-
 type BoundName = Name
 
 createDeepSeqWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
@@ -88,6 +86,7 @@ createDeepSeqCase1 _ w ti n bn (NewTyCon {rep_type = t}) ng =
         c = Case cast caseB [alt]
     in
     (Lam i c, ng'')
+createDeepSeqCase1 _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passed"
 
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 createDeepSeqDataConCase1Alts _ _ _ _ _ _ ng [] = ([], ng)
@@ -149,19 +148,6 @@ deepSeqFuncCall w ti e =
     case deepSeqFunc w ti e of
         Just e' -> App e' e
         Nothing -> e
--- deepSeqFuncCall :: Walkers -> [(Name, Id)] -> Expr -> Expr
--- deepSeqFuncCall w ti e
---     | (TyConApp n ts) <- typeOf e
---     , Just f <- M.lookup n w =
---         let
---             as = map Type ts
---             as' = map (walkerFunc w ti) ts
---         in
---         trace ("f = " ++ show f) foldl' App (Var f) (as ++ as' ++ [e])
---     | (TyVar (Id n _)) <- typeOf e
---     , Just f <- lookup n ti =
---         App (Var f) e
---     | otherwise = e
 
 deepSeqFunc :: Typed t => Walkers -> [(Name, Id)] -> t -> Maybe Expr
 deepSeqFunc w ti e
@@ -188,3 +174,4 @@ walkerFunc w ti (TyConApp n ts)
             ft = mapMaybe (deepSeqFunc w ti . PresType) ts
         in
         foldl' App (Var f) (as ++ ft)
+walkerFunc _ _ _ = error "walkerFunc: bad argument passed"

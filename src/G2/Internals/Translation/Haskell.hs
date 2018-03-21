@@ -25,26 +25,16 @@ import qualified Class as C
 import Coercion
 import CoreSyn
 import DataCon
-import DriverPhases
-import DriverPipeline
 import DynFlags
-import FastString
 import GHC
 import GHC.Paths
 import HscMain
 import HscTypes
 import InstEnv
-import Lexer
 import Literal
 import Name
 import Outputable
 import Pair
-import qualified Parser as P
-import RdrName
-import SrcLoc
-import StaticFlags
-import StringBuffer
-import SysTools
 import TidyPgm
 import TyCon
 import TyCoRep
@@ -57,10 +47,6 @@ import Data.List
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
-
-import Unsafe.Coerce
-
-import Debug.Trace
 
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
@@ -97,7 +83,7 @@ equivMods = HM.fromList
 hskToG2 :: Maybe HscTarget -> FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
     IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String], [ExportedName])
 hskToG2 hsc proj src nm tm simpl = do
-    (mb_modname, sums_gutss, _, c, m_dets, exp) <- mkCompileClosure hsc proj src simpl
+    (mb_modname, sums_gutss, _, c, m_dets, ex) <- mkCompileClosure hsc proj src simpl
     
     let (nm2, binds) = mapAccumR (\nm' (_, _, b) -> mapAccumR (\v -> mkBinds v tm) nm' b) nm sums_gutss
     let binds' = concat binds
@@ -114,7 +100,7 @@ hskToG2 hsc proj src nm tm simpl = do
           concatMap bindersOf $
           concatMap (\(_, _, bs) -> bs) sums_gutss
 
-    return (mb_modname, binds', tycons'', classes, nm4, tm3, tgt_lhs, exp)
+    return (mb_modname, binds', tycons'', classes, nm4, tm3, tgt_lhs, ex)
 
 type ExportedName = G2.Name
 type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], HscEnv, [ClsInst], [ModDetails], [ExportedName])
@@ -145,7 +131,7 @@ loadProj hsc proj src gflags simpl = do
 mkCompileClosure :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO CompileClosure
 mkCompileClosure hsc proj src simpl = do
     (mb_modname, mod_graph, mod_gutss, env) <- runGhc (Just libdir) $ do
-        loadProj hsc proj src [] simpl
+        _ <- loadProj hsc proj src [] simpl
         env <- getSession
         -- Now that things are loaded, make the compilation closure.
         mod_graph <- getModuleGraph

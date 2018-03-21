@@ -5,7 +5,6 @@ import DynFlags
 import GHC hiding (Name)
 import GHC.Paths
 
-import Data.Foldable
 import Data.List
 import qualified Data.Text as T
 import Text.Regex
@@ -15,7 +14,6 @@ import G2.Internals.Language
 import G2.Internals.Translation.Haskell
 import G2.Lib.Printers
 
-import System.Directory
 import System.Process
 
 validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
@@ -26,7 +24,7 @@ validateStates proj src modN entry chAll ghflags in_out = do
 runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State h t -> [Expr] -> Expr -> IO Bool
 runCheck proj src modN entry chAll gflags s ars out = do
     runGhc (Just libdir) $ do
-        loadProj Nothing proj src gflags False
+        _ <- loadProj Nothing proj src gflags False
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN
@@ -56,15 +54,15 @@ runCheck proj src modN entry chAll gflags s ars out = do
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0) TyBottom)
 
-runHPC :: FilePath -> FilePath -> String -> String -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
-runHPC proj src modN entry in_out = do
+runHPC :: FilePath -> String -> String -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
+runHPC src modN entry in_out = do
     let calls = map (\(s, i, o, _) -> toCall entry s i o) in_out
 
-    runHPC' proj src modN calls
+    runHPC' src modN calls
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runHPC' :: FilePath -> FilePath -> String -> [String] -> IO ()
-runHPC' proj src modN ars = do
+runHPC' :: FilePath -> String -> [String] -> IO ()
+runHPC' src modN ars = do
     srcCode <- readFile src
     let srcCode' = removeModule modN srcCode
 

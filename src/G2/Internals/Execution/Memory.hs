@@ -19,12 +19,10 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
                                        , type_env = tenv
                                        , curr_expr = cexpr
                                        , path_conds = pc
-                                       , type_classes = tc
                                        , symbolic_ids = iids
                                        , deepseq_walkers = dsw
                                        , exec_stack = es
                                        , known_values = kv
-                                       , cleaned_names = cn
                                        }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
                                state'
   where

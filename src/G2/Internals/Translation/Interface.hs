@@ -15,19 +15,13 @@ translateLibs :: NameMap -> TypeNameMap -> Bool -> Maybe HscTarget -> [FilePath]
 translateLibs nm tm simpl hsc fs = translateLibs' nm tm simpl ([], [], []) hsc fs []
 
 translateLibs' :: NameMap -> TypeNameMap -> Bool -> (Program, [ProgramType], [(Name, Id, [Id])]) -> Maybe HscTarget -> [FilePath] -> [Name] -> IO ((Program, [ProgramType], [(Name, Id, [Id])]), NameMap, TypeNameMap, [Name])
-translateLibs' nm tnm _ pptn _ [] exp = return (pptn, nm, tnm, exp)
-translateLibs' nm tnm simpl (prog, tys, cls) hsc (f:fs) exp = do
+translateLibs' nm tnm _ pptn _ [] ex = return (pptn, nm, tnm, ex)
+translateLibs' nm tnm simpl (prog, tys, cls) hsc (f:fs) ex = do
   let guess_dir = dropWhileEnd (/= '/') f
-  (_, n_prog, n_tys, n_cls, new_nm, new_tnm, _, exp') <- hskToG2 hsc guess_dir f nm tnm simpl
+  (_, n_prog, n_tys, n_cls, new_nm, new_tnm, _, ex') <- hskToG2 hsc guess_dir f nm tnm simpl
   
-  translateLibs' new_nm new_tnm simpl (prog ++ n_prog, tys ++ n_tys, cls ++ n_cls) hsc fs (exp ++ exp')
+  translateLibs' new_nm new_tnm simpl (prog ++ n_prog, tys ++ n_tys, cls ++ n_cls) hsc fs (ex ++ ex')
   
--- translateLibs nm tnm simpl pptn (f:fs) = do
---   (others, others_nm, others_tnm) <- translateLibs nm tnm simpl fs
---   let guess_dir = dropWhileEnd (/= '/') f
---   (_, prog, tys, cls, new_nm, new_tnm, _) <- hskToG2 guess_dir f others_nm others_tnm simpl
---   return $ ((prog, tys, cls) : others, new_nm, new_tnm)
-
 mergeTranslates :: [(Program, [ProgramType], [(Name, Id, [Id])])] -> (Program, [ProgramType], [(Name, Id, [Id])])
 mergeTranslates [] = error "mergeTranslates: nothing to merge!"
 mergeTranslates (t:[]) = t
@@ -41,23 +35,12 @@ mergeTranslates ((prog, tys, cls):ts) =
 translateLoaded :: FilePath -> FilePath -> [FilePath] -> Bool -> Config
                 -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name], [Name])
 translateLoaded proj src libs simpl config = do
-  (mb_modname, final_prog, final_tys, classes, _, target_nm, exp) <- translateLoadedV proj src libs simpl config
-  return (mb_modname, final_prog, final_tys, classes, target_nm, exp)
+  (mb_modname, final_prog, final_tys, classes, _, target_nm, ex) <- translateLoadedV proj src libs simpl config
+  return (mb_modname, final_prog, final_tys, classes, target_nm, ex)
 
 translateLoadedV :: FilePath -> FilePath -> [FilePath] -> Bool -> Config
                  -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [T.Text], [Name], [Name])
 translateLoadedV proj src libs simpl config = do
-  -- (err@(err_prog, err_tys, err_cls), e_nm, e_tnm) <-
-  --     (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
-  --     translateLibs ["../base-4.9.1.0/Control/Exception/Base.hs"] specialConstructors specialTypeNames simpl
-
-  -- let err_prog' = addPrimsToBase err_prog
-  -- let err' = (err_prog', err_tys, err_cls)
-
-  -- ((base_prog, base_tys, base_cls), b_nm, b_tnm) <-
-  --     (\(bs, base_nm, base_tnm) -> return (head bs, base_nm, base_tnm)) =<<
-  --     translateLibs [base] e_nm e_tnm simpl
-
   ((base_prog, base_tys, base_cls), b_nm, b_tnm, b_exp) <- translateLibs specialConstructors specialTypeNames simpl Nothing (base config)-- ["../base-4.9.1.0/Control/Exception/Base.hs", base]
 
   (lib_transs, lib_nm, lib_tnm, lib_exp) <- translateLibs b_nm b_tnm simpl (Just HscInterpreted) libs

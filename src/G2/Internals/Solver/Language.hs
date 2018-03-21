@@ -125,7 +125,6 @@ data SMTConverter ast out io =
         , (.-) :: ast -> ast -> ast
         , (.*) :: ast -> ast -> ast
         , (./) :: ast -> ast -> ast
-        , smtSqRt :: ast -> ast -> ast
         , smtQuot :: ast -> ast -> ast
         , smtModulo :: ast -> ast -> ast
         , neg :: ast -> ast

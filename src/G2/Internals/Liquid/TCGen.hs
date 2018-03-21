@@ -12,8 +12,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import Debug.Trace
-
 ---------------------------------------
 -- LH TypeClass Gen
 ---------------------------------------
@@ -114,8 +112,7 @@ accessFunction tcn dc@(DataCon _ _ ts) i ng =
     (Lam lb (Lam tb c), ng5)
 
 createLHTC :: State h t -> ExprEnv -> (State h t, ExprEnv, TCValues)
-createLHTC s@(State { expr_env = eenv
-                    , type_env = tenv
+createLHTC s@(State { type_env = tenv
                     , name_gen = ng
                     , known_values = kv
                     , type_classes = tc }) meenv =
@@ -269,9 +266,6 @@ lhEqCase2Alts lhExN eenv tenv kv w ti _ _ binds1 dc@(DataCon _ _ ts) ng =
         -- Check that the two DataCons args are equal
         zbinds = zip (map Var binds1) (map Var binds2)
 
-        b = tyBool kv
-        pt = TyFun b (TyFun b b)
-
         e = foldr (\e' -> App (App (mkAnd eenv) e')) true
           $ map (uncurry (eqLHFuncCall lhExN eenv tenv kv w ti)) zbinds
     in
@@ -282,15 +276,14 @@ lhEqCase2Alts lhExN eenv tenv kv w ti _ _ binds1 dc@(DataCon _ _ ts) ng =
 type LHFuncCall = ExprEnv -> TypeEnv -> KnownValues ->  Walkers -> [(Name, Id)] -> Expr -> Expr -> Expr
 
 eqLHFuncCall :: Name -> LHFuncCall
-eqLHFuncCall lhExN _ tenv kv w ti e e'
+eqLHFuncCall lhExN _ tenv kv w _ e e'
     | (TyConApp n ts) <- typeOf e
     , Just f <- M.lookup n w =
         let
             as = map Type ts
         in
         foldl' App (Var f) (as ++ [e, e'])
-    | t@(TyVar (Id n _)) <- typeOf e
-    , Just f <- lookup n ti =
+    | t@(TyVar _) <- typeOf e =
         let
             c = App (Var (Id lhExN TyUnknown)) (Type t)
         in
@@ -308,14 +301,6 @@ eqLHFuncCall lhExN _ tenv kv w ti e e'
         in
         App (App (Prim Eq pt) e) e'
     | otherwise = error $ "\nError in eqLHFuncCall" ++ show (typeOf e)
-
-eqFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
-eqFunc _ ti (TyVar (Id n _)) 
-    | Just tyF <- lookup n ti = 
-        Var tyF
-eqFunc w _ (TyConApp n _)
-    | Just f <- M.lookup n w =
-       Var f
 
 lhNeqName :: Name -> Name
 lhNeqName (Name n _ _) = Name ("lhNeName" `T.append` n) Nothing 0
@@ -423,15 +408,14 @@ lhLtSameAltCases tenv kv ng ((lt, eq):xs) =
     (c, ng3)
 
 ltLHFuncCall :: Name -> LHFuncCall
-ltLHFuncCall lhExN _ tenv kv w ti e e'
+ltLHFuncCall lhExN _ tenv kv w _ e e'
     | (TyConApp n ts) <- typeOf e
     , Just f <- M.lookup n w =
         let
             as = map Type ts
         in
         foldl' App (Var f) (as ++ [e, e'])
-    | t@(TyVar (Id n _)) <- typeOf e
-    , Just f <- lookup n ti =
+    | t@(TyVar _) <- typeOf e =
         let
             c = App (Var (Id lhExN TyUnknown)) (Type t)
         in
@@ -449,14 +433,6 @@ ltLHFuncCall lhExN _ tenv kv w ti e e'
         in
         App (App (Prim Lt pt) e) e'
     | otherwise = error $ "\nError in ltLHFuncCall" ++ show (typeOf e)
-
-ltFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
-ltFunc _ ti (TyVar (Id n _)) 
-    | Just tyF <- lookup n ti = 
-        Var tyF
-ltFunc w _ (TyConApp n _)
-    | Just f <- M.lookup n w =
-       Var f
 
 dataConName :: DataCon -> Name
 dataConName (DataCon n _ _) = n
@@ -591,7 +567,7 @@ lhPolyPredCase _ tenv kv w n (NewTyCon { rep_type = t }) bn bnf ng =
         c = Case cast caseB [alt]
     in
     (Lam i c, ng3)
-
+lhPolyPredCase _ _ _ _ _ _ _ _ _ = error "lhPolyPredCase: Unhandled AlgDataTy"
 
 lhPolyPredAlts :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [DataCon] -> [(Name, Id)] -> NameGen -> ([Alt], NameGen)
 lhPolyPredAlts _ _ _ _ [] _ ng = ([], ng)
@@ -611,9 +587,6 @@ lhPolyPredCaseExpr :: ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [Id] -> [(
 lhPolyPredCaseExpr eenv tenv kv w bn bnf =
     let
         tyvs = filter (isTyVar . typeOf) bn
-        ety = map (Type . typeOf) tyvs
-
-        fns = [] -- map Var $ mapMaybe (flip lookup bnf) $ mapMaybe (tyVName . typeOf) tyvs
 
         pc = map (predCalls bnf) tyvs 
     
@@ -622,11 +595,7 @@ lhPolyPredCaseExpr eenv tenv kv w bn bnf =
 
         fs = map (polyPredLHFuncCall true w bnf . Var) $ filter (not . isTyVar . typeOf) bn
     in
-    foldr (\e -> App (App an e)) true $ pc ++ fns ++ fs
-
-tyVName :: Type -> Maybe Name
-tyVName (TyVar (Id n _)) = Just n
-tyVName _ = Nothing
+    foldr (\e -> App (App an e)) true $ pc ++ fs
 
 predCalls :: [(Name, Id)] -> Id -> Expr
 predCalls bnf i@(Id _ (TyVar tvi)) =
@@ -636,23 +605,10 @@ predCalls bnf i@(Id _ (TyVar tvi)) =
     case fi of
         Just fi' -> App (Var fi') (Var i)
         Nothing -> error $ "No function found in predCalls " ++ show i ++ "\n" ++ show bnf
+predCalls _ _ = error "predCalls: Unhandled Type"
 
 polyPredLHFuncCall :: Expr -> Walkers -> [(Name, Id)] -> Expr -> Expr
 polyPredLHFuncCall true w bnf i = App (polyPredLHFunc' true w bnf i) i
-    -- | TyConApp n ts <- typeOf i
-    -- , Just f <- M.lookup n w =
-    --     let
-    --         as = map Type ts
-    --         as' = map (polyPredFunc' w bnf) ts
-    --     in
-    --     foldl' App (Var f) (as ++ as' ++ [i])
-    -- | TyFun _ _ <- typeOf i = true
-    -- | t <- typeOf i
-    -- ,  t == TyLitInt
-    -- || t == TyLitDouble
-    -- || t == TyLitFloat
-    -- || t == TyLitChar = true
-    -- | otherwise = error $ "Unhandled type " ++ show (typeOf i)
 
 polyPredLHFunc' :: Typed t => Expr -> Walkers -> [(Name, Id)] -> t -> Expr
 polyPredLHFunc' true w bnf i
@@ -683,3 +639,4 @@ polyPredFunc' true w bnf (TyConApp n ts)
             ft = map (polyPredLHFunc' true w bnf . PresType) ts
         in
         foldl' App (Var f) (as ++ ft)
+polyPredFunc' _ _ _ _ = error "polyPredFunc': Unhandled type'"

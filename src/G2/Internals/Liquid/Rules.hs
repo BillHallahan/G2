@@ -1,6 +1,5 @@
 module G2.Internals.Liquid.Rules (lhReduce, selectLH, initialTrack) where
 
-import G2.Internals.Execution.NormalForms
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
 import qualified G2.Internals.Language.ApplyTypes as AT

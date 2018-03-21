@@ -172,9 +172,6 @@ isNIRA' :: SMTAST -> All
 isNIRA' (ItoR _) = All True
 isNIRA' s = All $ getAll (isNIA' s) || getAll (isNRA' s)
 
-isCore :: (ASTContainer m SMTAST) => m -> Bool
-isCore = getAll . evalASTs isCore'
-
 isCore' :: SMTAST -> All
 isCore' (_ := _) = All True
 isCore' (_ :&& _) = All True
@@ -373,7 +370,7 @@ typesToSMTSorts tenv =
         where
             typeToSortDecl :: (Name, AlgDataTy) -> (SMTName, [SMTName], [DC])
             typeToSortDecl (n, DataTyCon ns dcs) = (nameToStr n, map nameToStr ns, map dataConToDC dcs)
-            typeToSortDecl (n, _) =error "typeToSortDecl: Bad DataCon passed"
+            typeToSortDecl _ = error "typeToSortDecl: Bad DataCon passed"
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =

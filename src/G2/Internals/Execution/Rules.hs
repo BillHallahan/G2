@@ -26,10 +26,8 @@ import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
 
 import Control.Monad
-import Data.List
 import Data.Maybe
 
-import Debug.Trace
 
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
@@ -193,7 +191,7 @@ traceIdType (Id n ty) eenv =
     case E.lookup n eenv of
       Nothing -> Nothing
       Just (Type res) -> Just res
-      Just expr -> traceIdType (Id n ty) eenv
+      Just _ -> traceIdType (Id n ty) eenv
 
 -- | Remove everything from an [Expr] that are actually Types.
 removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
@@ -202,7 +200,7 @@ removeTypes ((Var (Id n ty)):es) eenv = case E.lookup n eenv of
     Just (Type _) -> removeTypes es eenv
     _ -> (Var (Id n ty)) : removeTypes es eenv
 removeTypes (e:es) eenv = e : removeTypes es eenv
-removeTypes [] eenv = []
+removeTypes [] _ = []
   
 repeatedLookup :: Expr -> ExprEnv -> Expr
 repeatedLookup v@(Var (Id n _)) eenv
@@ -338,6 +336,8 @@ stdReduceBase redEx s@State { exec_stack = estk
   , isExprValueForm expr eenv =
       -- Our current thing is a value form, which means we can return it.
       (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], Nothing, ngen, estk, [], tr) ])
+
+  | Just red <- redEx s = red
 
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = stdReduceEvaluate eenv expr ngen
@@ -507,7 +507,7 @@ reduceCase eenv mexpr bind alts ngen
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  , (DataCon _ dty _) <- dcon
+  , (DataCon _ _ _) <- dcon
   , ar' <- removeTypes ar eenv
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =

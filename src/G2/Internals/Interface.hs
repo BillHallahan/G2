@@ -30,7 +30,6 @@ import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T

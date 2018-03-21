@@ -114,12 +114,13 @@ data DataCon = DataCon Name Type [Type] deriving (Show, Eq, Read, Generic)
 
 instance Hashable DataCon
 
--- | Alternative case constructors, which are done by structural matching,
--- which is a phrase I invented to describe this. In essence, consider the
+-- | Alternative case constructors, which are done by structural matching.
+-- In essence, consider the
 -- following scenario:
 --    case expr of
---       Con1 -> ...
---       Con2 -> ...
+--       Con1 k_1 ... k_m -> ...
+--       Con2 k'_1 ... k'_n-> ...
+--       ...
 -- We define structural matching as when the expr matches to either Con1 or
 -- Con2. Unlike traditional true / false matching in imperative languages,
 -- structural matching is more general and is data constructor matching.

@@ -4,11 +4,9 @@ import Text.ParserCombinators.Parsec.Language
 
 import Text.Parsec (Parsec)
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
 import qualified Data.Map as M
-import Data.Maybe
 
 configDef :: LanguageDef st
 configDef =
@@ -20,27 +18,16 @@ configDef =
              , Token.identLetter = noneOf [' ', '\t', '=', ',', '\n', '\r']
              , Token.reservedNames = ["="]}
 
-ident :: [Char]
-ident = ['/', '.', '-', '_']
-
 configLexer :: Token.TokenParser st
 configLexer = Token.makeTokenParser configDef
 
 identifier :: Parsec String st String
 identifier = Token.identifier configLexer
 
-reserved :: String -> Parsec String st ()
-reserved = Token.reserved configLexer
-
-eol :: Parser ()
-eol = do
-    oneOf "\n\r"
-    return ()
-
 spacedComma :: Parser ()
 spacedComma = do
     spaces
-    char ','
+    _ <- char ','
     spaces
     return ()
 
@@ -48,7 +35,7 @@ parseSetting :: Parser (String, [String])
 parseSetting = do
     key <- identifier
     spaces
-    char '='
+    _ <- char '='
     spaces
     val <- sepBy identifier spacedComma
     return (key, val)

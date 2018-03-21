@@ -26,13 +26,13 @@ wrapInteger' _ e = e
 
 -- | GHC may represent strings as:
 -- (App 
--- 		(Var 
---			(Id 
---				(Name "$unpackCString" (Just "GHC.CString") 0) 
--- 				(TyFun (TyConApp (Name "Addr#" (Just "GHC.Prim") 3674937295934324738) []) (TyConApp (Name "$" (Just "GHC.Types") 0) [TyConApp (Name "Char" (Just "GHC.Types") 8214565720323798834) []]))
--- 			)
--- 		) 
--- 		(Lit (LitString "\"HERE\""))
+--      (Var 
+--          (Id 
+--              (Name "$unpackCString" (Just "GHC.CString") 0) 
+--              (TyFun (TyConApp (Name "Addr#" (Just "GHC.Prim") 3674937295934324738) []) (TyConApp (Name "$" (Just "GHC.Types") 0) [TyConApp (Name "Char" (Just "GHC.Types") 8214565720323798834) []]))
+--          )
+--      ) 
+--      (Lit (LitString "\"HERE\""))
 -- )
 -- We remove $unpackCString, and convert the LitString to a list
 unpackString :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> State h t
@@ -41,9 +41,9 @@ unpackString s@(State {type_env = tenv, known_values = kv}) = modifyASTsFix (unp
 unpackString' :: TypeEnv -> KnownValues -> Expr -> Expr
 unpackString' _ _ (App (Var (Id (Name "unpackCString#"_ _) _)) e) = e
 unpackString' tenv kv (Lit (LitString s)) = 
-	let
-		cns = mkCons kv tenv
-		em = mkEmpty kv tenv
-	in
-	foldr App em $ map (App cns . Lit . LitChar) s
+    let
+        cns = mkCons kv tenv
+        em = mkEmpty kv tenv
+    in
+    foldr App em $ map (App cns . Lit . LitChar) s
 unpackString' _ _ e = e

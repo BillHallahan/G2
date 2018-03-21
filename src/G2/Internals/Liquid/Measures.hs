@@ -108,7 +108,9 @@ convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m (Def { ctor 
     case dc' of
         Just _ -> Just $ Alt (DataAlt dc'' is) e -- [1]
         Nothing -> Nothing
+convertDefs _ _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
 mkExprFromBody :: State h t -> Maybe Type -> TCValues  -> M.Map Name Type -> Body -> Expr
 mkExprFromBody s ret tcv m (E e) = convertLHExpr e ret tcv s m
 mkExprFromBody s ret tcv m (P e) = convertLHExpr e ret tcv s m
+mkExprFromBody _ _ _ _ _ = error "mkExprFromBody: Unhandled Body"

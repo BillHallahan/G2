@@ -6,8 +6,6 @@ import G2.Internals.Solver.Language
 
 import Data.Ratio
 
-import Debug.Trace
-
 -- | SMT Parser
 -- This is not complete!  It currently only covers the small amount of the SMT
 -- language needed to parse models
@@ -93,7 +91,7 @@ consName :: Parsec String st String
 consName = do
     reserved "as"
     ex <- identifier
-    sk <- parens (many1 identifier)
+    _ <- parens (many1 identifier)
     return ex
 
 intExpr :: Parser SMTAST
@@ -109,7 +107,7 @@ doubleFloatExpr = doubleFloatExprNeg <|> doubleFloatExprRat
 
 doubleFloatExprNeg :: Parser SMTAST
 doubleFloatExprNeg = do
-    si <- reserved "-"
+    _ <- reserved "-"
     (VDouble r) <- parens doubleFloatExprRat
     return (VDouble (-r))
 
