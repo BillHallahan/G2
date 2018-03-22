@@ -15,8 +15,6 @@ import G2.Internals.Liquid.Interface
 import G2.Internals.Translation
 import G2.Internals.Solver
 
-import G2.Lib.Printers
-
 import Reqs
 
 checkInputOutput :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String String] ->  IO TestTree
@@ -37,9 +35,9 @@ checkInputOutput' proj src md entry i req config = try (checkInputOutput'' proj 
 
 checkInputOutput'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO Bool
 checkInputOutput'' proj src md entry i req config = do
-    (mb_modname, binds, tycons, cls, tgtNames, exp) <- translateLoaded proj src [] False config
+    (mb_modname, binds, tycons, cls, _, ex) <- translateLoaded proj src [] False config
 
-    let init_state = initState binds tycons cls Nothing Nothing Nothing False False (T.pack entry) mb_modname exp
+    let init_state = initState binds tycons cls Nothing Nothing Nothing False False (T.pack entry) mb_modname ex
     let halter_set_state = init_state {halter = steps config}
     
     (con, hhp) <- getSMT config
@@ -48,7 +46,7 @@ checkInputOutput'' proj src md entry i req config = do
 
     r <- run StdRed con hhp config () halter_set_state
     mr <- validateStates proj src md entry chAll [] r
-    let io = map (\(_, i, o, _) -> i ++ [o]) r
+    let io = map (\(_, i', o, _) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
     return $ mr && chEx
@@ -78,7 +76,7 @@ checkInputOutputLH'' proj src md entry i req config = do
     let chAll = checkExprAll req
 
     mr <- validateStates proj src md entry chAll [] r
-    let io = map (\(_, i, o, _) -> i ++ [o]) r
+    let io = map (\(_, i', o, _) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
     return $ mr && chEx

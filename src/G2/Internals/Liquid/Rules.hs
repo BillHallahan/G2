@@ -123,6 +123,5 @@ instance Reducer LHReducer Int Int [FuncCall] where
     redRules _ = lhReduce
     stopRed = halterIsZero
     stepHalter = halterSub1
-    orderInit _ = const 0
     orderStates _ = selectLH
 

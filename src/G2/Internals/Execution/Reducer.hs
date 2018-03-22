@@ -28,10 +28,6 @@ class Reducer r p h t | r -> p, r -> h, r -> t where
     -- Takes a state, and updates it's halter record field
     stepHalter :: r -> State h t -> h
 
-    -- | orderInit
-    -- Returns an inital value for the extra data in orderStates
-    orderInit :: r -> State h t -> p
-
     --  orderStates
     -- Takes a list of states that have finished executing, and been kept
     -- and states that still have to be run through reduction rules.
@@ -46,7 +42,6 @@ instance Reducer StdRed () Int () where
     redRules _ = stdReduce
     stopRed = halterIsZero
     stepHalter = halterSub1
-    orderInit _ = const ()
     orderStates = executeNext
 
 executeNext :: Reducer r p h t => r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
