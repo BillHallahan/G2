@@ -1,5 +1,9 @@
-module G2.Internals.Liquid.Rules (lhReduce, selectLH, initialTrack) where
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
+module G2.Internals.Liquid.Rules (LHReducer (..), lhReduce, selectLH, initialTrack) where
+
+import G2.Internals.Execution.Reducer
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
 import qualified G2.Internals.Language.ApplyTypes as AT
@@ -84,15 +88,15 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
         False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
 
-selectLH :: Maybe Int -> Int -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])]
-selectLH maxOut ii solved next =
+selectLH :: Int -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])]
+selectLH ii solved next =
     let
         mi = case solved of
                 [] -> ii
                 _ -> minimum $ map (length . track . snd) solved
         next' = dropWhile (\(_, s) -> trackingGreater s mi) next
     in
-    if isJust maxOut && length solved >= fromJust maxOut then [] else next'
+    next'
 
 trackingGreater :: State h [FuncCall] -> Int -> Bool
 trackingGreater (State {track = tr}) i = length tr > i
@@ -112,3 +116,13 @@ initialTrack eenv (Cast e _) = initialTrack eenv e
 initialTrack eenv (Assume _ e) = initialTrack eenv e
 initialTrack eenv (Assert _ _ e) = initialTrack eenv e
 initialTrack _ _ = 0
+
+data LHReducer = LHReducer
+
+instance Reducer LHReducer Int Int [FuncCall] where
+    redRules _ = lhReduce
+    stopRed _ = halterIsZero
+    stepHalter _ = halterSub1
+    orderInit _ = const 0
+    orderStates _ = selectLH
+

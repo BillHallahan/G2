@@ -16,6 +16,7 @@ import G2.Internals.Initialization.MkCurrExpr
 import G2.Internals.Preprocessing.Interface
 
 import G2.Internals.Execution.Interface
+import G2.Internals.Execution.Reducer
 import G2.Internals.Execution.Rules
 import G2.Internals.Execution.PrimitiveEval
 import G2.Internals.Execution.Memory
@@ -91,13 +92,16 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: (ASTContainer h Expr, ASTContainer t Expr, ASTContainer h Type, ASTContainer t Type, Named h, Named t) => 
-       (State h t -> (Rule, [ReduceResult t])) 
-    -> (State h t -> Bool) -> (State h t -> h) 
-    -> (p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]) 
-    -> SMTConverter ast out io -> io -> Config -> p -> State h t -> IO [(State h t, [Expr], Expr, Maybe FuncCall)]
-run red hal halR sel con hhp config p (state@ State { type_env = tenv
-                                                    , known_values = kv }) = do
+run :: (Named h
+       , Named t
+       , ASTContainer h Expr
+       , ASTContainer t Expr
+       , ASTContainer h Type
+       , ASTContainer t Type
+       , Reducer r p h t) => r ->
+    SMTConverter ast out io -> io -> Config -> p -> State h t -> IO [(State h t, [Expr], Expr, Maybe FuncCall)]
+run red con hhp config p (state@State { type_env = tenv
+                                      , known_values = kv }) = do
     -- putStrLn . pprExecStateStr $ state
     -- let swept = state
     -- print $ E.keys $ expr_env state
@@ -151,7 +155,7 @@ run red hal halR sel con hhp config p (state@ State { type_env = tenv
 
     -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
 
-    exec_states <- runNDepth red hal halR sel con hhp p [preproc_state'] config
+    exec_states <- runNDepth red con hhp p [preproc_state'] config
 
     let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
                -- , Name "walkInt" Nothing 0

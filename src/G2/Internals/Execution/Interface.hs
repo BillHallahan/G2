@@ -2,15 +2,13 @@
 --   Module for interacting and interfacing with the symbolic execution engine.
 module G2.Internals.Execution.Interface
     ( runNDepth
-    , executeNext
-    , halterIsZero
-    , halterSub1
     , runNDepthNoConstraintChecks
     , stdReduce
     ) where
 
 import G2.Internals.Config.Config
 
+import G2.Internals.Execution.Reducer
 import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
 import G2.Internals.Solver.Language
@@ -41,23 +39,29 @@ import System.Directory
 --     go (rules, state) = let (rule, states) = reduceNoConstraintChecks stdReduce undefined state
 --                         in map (\s -> (rules ++ [rule], s)) states
 
-runNDepth :: (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> (p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)])  -> SMTConverter ast out io -> io -> p -> [State h t] -> Config -> IO [([Int], State h t)]
-runNDepth red hal halR sel con hpp p states config = runNDepth' red hal halR sel p [] $ map (\s -> ([], s)) states
+runNDepth :: Reducer r p h t => r -> SMTConverter ast out io -> io -> p -> [State h t] -> Config -> IO [([Int], State h t)]
+runNDepth red con hpp p states config = runNDepth' red p [] $ map (\s -> ([], s)) states
   where
-    runNDepth' :: (State h t -> (Rule, [ReduceResult t])) -> (State h t -> Bool) -> (State h t -> h) -> (p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]) -> p -> [([Int], State h t)] -> [([Int], State h t)] -> IO [([Int], State h t)]
-    runNDepth' _ _ _ _ _ _ [] = return []
+    runNDepth' :: Reducer r p h t => r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> IO [([Int], State h t)]
+    runNDepth' _ _ _ [] = return []
     -- runNDepth' red' hal' sel' fnsh ((rss, 0):xs) =
     --     let
     --         fnsh' = if true_assert (snd rss) && isExecValueForm (snd rss) then rss:fnsh else fnsh
     --     in
     --     return . (:) rss =<< runNDepth' red' sel' fnsh' (sel' fnsh' xs)
-    runNDepth' red' hal' halR' sel' p' fnsh (rss@(is, s):xs)
-        | hal' s =
+    runNDepth' rede p' fnsh (rss@(is, s):xs)
+        | stopRed rede s =
             let
+                sel' = orderStates rede
                 fnsh' = if true_assert s && isExecValueForm s then rss:fnsh else fnsh
             in
-            return . (:) rss =<< runNDepth' red' hal' halR' sel' p' fnsh' (sel' p' fnsh' xs)
+            return . (:) rss =<< runNDepth' rede p' fnsh' (sel' p' fnsh' xs)
         | otherwise = do
+            let red' = redRules rede
+            let hal' = stopRed rede
+            let halR' = stepHalter rede
+            let sel' = orderStates rede
+
             case logStates config of
                 Just f -> outputState f is s
                 Nothing -> return ()
@@ -68,13 +72,10 @@ runNDepth red hal halR sel con hpp p states config = runNDepth' red hal halR sel
             
             let mod_info = map (\(i, s') -> (is ++ maybe [] (\i' -> [i']) i, s' {halter = halR' s'})) isred
             
-            runNDepth' red' hal' halR' sel' p' fnsh (mod_info ++ xs)
+            runNDepth' rede p' fnsh (mod_info ++ xs)
 
-executeNext :: Maybe Int -> p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
-executeNext mi _ solved xs =
-    case mi of
-        Just i -> if length solved >= i then [] else xs
-        Nothing -> xs
+executeNext :: p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
+executeNext _ _ xs = xs
 
 halterSub1 :: State Int t -> Int
 halterSub1 (State {halter = h}) = h - 1

@@ -114,7 +114,8 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos config = do
               Right s -> error s
     let max_abstr = initialTrack (expr_env init_state) fe
 
-    ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
+    -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
+    ret <- run LHReducer con hhp config max_abstr final_state
     -- ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
