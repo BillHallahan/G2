@@ -26,8 +26,9 @@ runNDepth red con hpp p states config = runNDepth' red p [] $ map (\s -> ([], s)
         | stopRed red' s =
             let
                 fnsh' = if true_assert s && isExecValueForm s then rss:fnsh else fnsh
+                (xs', p'') = orderStates red' p' fnsh' xs
             in
-            return . (:) rss =<< runNDepth' red' p' fnsh' (orderStates red' p' fnsh' xs)
+            return . (:) rss =<< runNDepth' red' p'' fnsh' xs'
         | otherwise = do
             case logStates config of
                 Just f -> outputState f is s

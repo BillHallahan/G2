@@ -34,7 +34,7 @@ class Reducer r p h t | r -> p, r -> h, r -> t where
     -- Reorders the latter list, to set the priority of each state
     -- The State at the head of the list is the next executed.
     -- Takes and returns some extra data that it can use however it wants
-    orderStates :: r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
+    orderStates :: r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> ([([Int], State h t)], p)
 
 data StdRed = StdRed
 
@@ -44,8 +44,8 @@ instance Reducer StdRed () Int () where
     stepHalter = halterSub1
     orderStates = executeNext
 
-executeNext :: Reducer r p h t => r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
-executeNext _ _ _ xs = xs
+executeNext :: Reducer r p h t => r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> ([([Int], State h t)], ())
+executeNext _ _ _ xs = (xs, ())
 
 halterSub1 :: Reducer r p h t => r -> State Int t -> Int
 halterSub1 _ (State {halter = h}) = h - 1
