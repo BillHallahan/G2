@@ -44,17 +44,17 @@ data StdRed = StdRed
 
 instance Reducer StdRed () Int () where
     redRules _ = stdReduce
-    stopRed _ = halterIsZero
-    stepHalter _ = halterSub1
+    stopRed = halterIsZero
+    stepHalter = halterSub1
     orderInit _ = const ()
-    orderStates _ = executeNext
+    orderStates = executeNext
 
-executeNext :: p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
-executeNext _ _ xs = xs
+executeNext :: Reducer r p h t => r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
+executeNext _ _ _ xs = xs
 
-halterSub1 :: State Int t -> Int
-halterSub1 (State {halter = h}) = h - 1
+halterSub1 :: Reducer r p h t => r -> State Int t -> Int
+halterSub1 _ (State {halter = h}) = h - 1
 
-halterIsZero :: State Int t -> Bool
-halterIsZero (State {halter = 0}) = True
-halterIsZero _ = False
+halterIsZero :: Reducer r p h t => r -> State Int t -> Bool
+halterIsZero _ (State {halter = 0}) = True
+halterIsZero _ _ = False

@@ -17,72 +17,29 @@ import G2.Lib.Printers
 import Data.List
 import System.Directory
 
--- runNBreadth :: SMTConverter ast out io -> io -> [([Rule], State t)] -> Int -> IO [([Rule], State t)]
--- runNBreadth _ _ [] _ = return []
--- runNBreadth _ _ rss 0 = return rss
--- runNBreadth con hpp rss n = do
---     rss' <- return . concat =<< mapM go rss
---     runNBreadth con hpp rss' (n - 1)
-
---     where
---         go :: ([Rule], State t) -> IO [([Rule], State t)]
---         go (rules, state) = do
---             (rule, states) <- reduce stdReduce con hpp undefined state
---             return $ map (\s -> (rules ++ [rule], s)) states
- 
--- runNBreadthNoConstraintChecks :: [([Rule], State t)] -> Int -> [([Rule], State t)]
--- runNBreadthNoConstraintChecks [] _ = []
--- runNBreadthNoConstraintChecks rss 0 = rss
--- runNBreadthNoConstraintChecks rss n = runNBreadthNoConstraintChecks (concatMap go rss) (n - 1)
---   where
---     go :: ([Rule], State t) -> [([Rule], State t)]
---     go (rules, state) = let (rule, states) = reduceNoConstraintChecks stdReduce undefined state
---                         in map (\s -> (rules ++ [rule], s)) states
-
 runNDepth :: Reducer r p h t => r -> SMTConverter ast out io -> io -> p -> [State h t] -> Config -> IO [([Int], State h t)]
 runNDepth red con hpp p states config = runNDepth' red p [] $ map (\s -> ([], s)) states
   where
     runNDepth' :: Reducer r p h t => r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> IO [([Int], State h t)]
     runNDepth' _ _ _ [] = return []
-    -- runNDepth' red' hal' sel' fnsh ((rss, 0):xs) =
-    --     let
-    --         fnsh' = if true_assert (snd rss) && isExecValueForm (snd rss) then rss:fnsh else fnsh
-    --     in
-    --     return . (:) rss =<< runNDepth' red' sel' fnsh' (sel' fnsh' xs)
-    runNDepth' rede p' fnsh (rss@(is, s):xs)
-        | stopRed rede s =
+    runNDepth' red' p' fnsh (rss@(is, s):xs)
+        | stopRed red' s =
             let
-                sel' = orderStates rede
                 fnsh' = if true_assert s && isExecValueForm s then rss:fnsh else fnsh
             in
-            return . (:) rss =<< runNDepth' rede p' fnsh' (sel' p' fnsh' xs)
+            return . (:) rss =<< runNDepth' red' p' fnsh' (orderStates red' p' fnsh' xs)
         | otherwise = do
-            let red' = redRules rede
-            let hal' = stopRed rede
-            let halR' = stepHalter rede
-            let sel' = orderStates rede
-
             case logStates config of
                 Just f -> outputState f is s
                 Nothing -> return ()
 
-            reduceds <- reduce red' con hpp config s
+            reduceds <- reduce (redRules red') con hpp config s
 
             let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
             
-            let mod_info = map (\(i, s') -> (is ++ maybe [] (\i' -> [i']) i, s' {halter = halR' s'})) isred
+            let mod_info = map (\(i, s') -> (is ++ maybe [] (\i' -> [i']) i, s' {halter = stepHalter red' s'})) isred
             
-            runNDepth' rede p' fnsh (mod_info ++ xs)
-
-executeNext :: p -> [([Int], State h t)] -> [([Int], State h t)] -> [([Int], State h t)]
-executeNext _ _ xs = xs
-
-halterSub1 :: State Int t -> Int
-halterSub1 (State {halter = h}) = h - 1
-
-halterIsZero :: State Int t -> Bool
-halterIsZero (State {halter = 0}) = True
-halterIsZero _ = False
+            runNDepth' red' p' fnsh (mod_info ++ xs)
 
 runNDepthNoConstraintChecks :: [State h t] -> Int -> [State h t]
 runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (s, d)) states
