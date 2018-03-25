@@ -13,6 +13,7 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , empty
                                        , fromList
                                        , map
+                                       , map'
                                        , insert
                                        , insertWithSMTADT
                                        , null
@@ -33,6 +34,7 @@ import Data.Coerce
 import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
+import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (map, null)
@@ -83,6 +85,9 @@ fromList kv = coerce . foldr (insert kv) empty
 
 map :: (PathCond -> PathCond) -> PathConds -> PathConds
 map f = PathConds . M.map (\(pc, ns) -> (HS.map f pc, ns)) . toMap
+
+map' :: (PathCond -> a) -> PathConds -> [a]
+map' f = L.map f . toList
 
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each

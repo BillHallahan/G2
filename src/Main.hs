@@ -86,7 +86,7 @@ runGHC as = do
   let m_assume = mAssume tail_args
   let m_assert = mAssert tail_args
   let m_reaches = mReaches tail_args
-  let m_retsTrue = returnsTrue tail_args
+  let m_retsTrue = mReturnsTrue tail_args
 
   let m_mapsrc = mkMapSrc tail_args
 
@@ -99,8 +99,8 @@ runGHC as = do
     (mb_modname, pre_binds, pre_tycons, pre_cls, _, ex) <- translateLoaded proj src libs True config
 
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
-    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) m_retsTrue 
-                               (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex
+    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
+                               (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
     let halter_set_state = init_state {halter = steps config}
 
     -- error $ pprExecStateStr init_state
@@ -121,26 +121,39 @@ runGHC as = do
 
     -- putStrLn "----------------\n----------------"
 
-    printFuncCalls tentry in_out
+    printFuncCalls config  tentry in_out
 
 
 
-printFuncCalls :: T.Text -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
-printFuncCalls entry =
+printFuncCalls :: Config -> T.Text -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
+printFuncCalls config entry =
     mapM_ (\(s, inArg, ex, _) -> do
         let funcCall = mkCleanExprHaskell s
                      . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
 
         let funcOut = mkCleanExprHaskell s $ ex
 
+        ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s
+        ppStatePiece (printRelExprEnv config) "rel expr_env" $ ppRelExprEnv s
+        ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s
+        ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s
         -- print $ model s
         -- print inArg
         -- print ex
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 
-returnsTrue :: [String] -> Bool
-returnsTrue a = boolArg "returns-true" a M.empty False
+ppStatePiece :: Bool -> String -> String -> IO ()
+ppStatePiece b n res =
+    case b of
+        True -> do
+            putStrLn $ "---" ++ n ++ "---"
+            putStrLn res
+            putStrLn ""
+        False -> return ()
+
+mReturnsTrue :: [String] -> Bool
+mReturnsTrue a = boolArg "returns-true" a M.empty Off
 
 mAssume :: [String] -> Maybe String
 mAssume a = strArg "assume" a M.empty Just Nothing

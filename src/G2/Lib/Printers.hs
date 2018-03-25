@@ -1,8 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Lib.Printers ( mkCleanExprHaskell
+                       , mkUnsugaredExprHaskell
+                       , ppExprEnv
+                       , ppRelExprEnv
+                       , ppCurrExpr
+                       , ppPathConds
+                       , ppPathCond
                        , pprExecStateStr) where
 
+import G2.Internals.Execution.Memory
 import qualified G2.Internals.Language.ApplyTypes as AT
 import G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
@@ -21,15 +28,21 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 
+import Debug.Trace
+
 mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 
 mkNameHaskell :: Name -> String
 mkNameHaskell (Name n _ _) = T.unpack n
 
+mkUnsugaredExprHaskell :: State h t -> Expr -> String
+mkUnsugaredExprHaskell (State {apply_types = af, known_values = kv, type_classes = tc}) =
+    mkExprHaskell False kv . modifyFix (mkCleanExprHaskell' af kv tc)
+
 mkCleanExprHaskell :: State h t -> Expr -> String
 mkCleanExprHaskell (State {apply_types = af, known_values = kv, type_classes = tc}) =
-    mkExprHaskell kv . modifyFix (mkCleanExprHaskell' af kv tc)
+    mkExprHaskell True kv . modifyFix (mkCleanExprHaskell' af kv tc)
 
 mkCleanExprHaskell' :: AT.ApplyTypes -> KnownValues -> TypeClasses -> Expr -> Expr
 mkCleanExprHaskell' at kv tc e
@@ -49,8 +62,8 @@ mkCleanExprHaskell' at kv tc e
     , n `elem` map idName (AT.applyFuncs at) = e''
     | otherwise = e
 
-mkExprHaskell :: KnownValues -> Expr -> String
-mkExprHaskell kv ex = mkExprHaskell' ex 0
+mkExprHaskell :: Bool -> KnownValues -> Expr -> String
+mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
     where
         mkExprHaskell' :: Expr -> Int -> String
         mkExprHaskell' (Var ids) _ = mkIdHaskell ids
@@ -59,9 +72,11 @@ mkExprHaskell kv ex = mkExprHaskell' ex 0
         mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
             | Data (DataCon n _ _) <- appCenter a
-            , isTuple n = printTuple kv a
+            , isTuple n
+            , sugar = printTuple kv a
             | Data (DataCon n1 _ _) <- e1
-            , nameOccStr n1 == ":" =
+            , nameOccStr n1 == ":"
+            , sugar =
                 case typeOf e2 of
                     TyLitChar -> printString a
                     _ -> printList kv a
@@ -76,7 +91,7 @@ mkExprHaskell kv ex = mkExprHaskell' ex 0
         mkExprHaskell' (App e1 ea@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' ea i ++ ")"
         mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
         mkExprHaskell' (Data d) _ = mkDataConHaskell d
-        mkExprHaskell' (Case e _ ae) i = off (i + 1) ++ "\ncase " ++ (mkExprHaskell' e i) ++ " of\n" 
+        mkExprHaskell' (Case e _ ae) i = "\n" ++ off (i + 1) ++ "case " ++ (mkExprHaskell' e i) ++ " of\n" 
                                         ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
         mkExprHaskell' (Cast e (_ :~ t)) i = "((coerce " ++ mkExprHaskell' e i ++ ") :: " ++ mkTypeHaskell t ++ ")"
@@ -86,24 +101,24 @@ mkExprHaskell kv ex = mkExprHaskell' ex 0
         mkAltHaskell i (Alt am e) =
             off i ++ mkAltMatchHaskell am ++ " -> " ++ mkExprHaskell' e i
 
-        mkAltMatchHaskell :: AltMatch -> String
-        mkAltMatchHaskell (DataAlt dc ids) = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdHaskell ids)
-        mkAltMatchHaskell (LitAlt l) = mkLitHaskell l
-        mkAltMatchHaskell Default = "_"
+mkAltMatchHaskell :: AltMatch -> String
+mkAltMatchHaskell (DataAlt dc ids) = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdHaskell ids)
+mkAltMatchHaskell (LitAlt l) = mkLitHaskell l
+mkAltMatchHaskell Default = "_"
 
-        mkDataConHaskell :: DataCon -> String
-        -- Special casing for Data.Map in the modified base
-        mkDataConHaskell (DataCon (Name "Assocs" _ _) _ _) = "fromList"
-        mkDataConHaskell (DataCon n _ _) = mkNameHaskell n
+mkDataConHaskell :: DataCon -> String
+-- Special casing for Data.Map in the modified base
+mkDataConHaskell (DataCon (Name "Assocs" _ _) _ _) = "fromList"
+mkDataConHaskell (DataCon n _ _) = mkNameHaskell n
 
-        off :: Int -> String
-        off i = duplicate "   " i
+off :: Int -> String
+off i = duplicate "   " i
 
 printList :: KnownValues -> Expr -> String
 printList kv a = "[" ++ intercalate ", " (printList' kv a) ++ "]"
 
 printList' :: KnownValues -> Expr -> [String]
-printList' kv (App (App _ e) e') = mkExprHaskell kv e:printList' kv e'
+printList' kv (App (App _ e) e') = mkExprHaskell True kv e:printList' kv e'
 printList' _ _ = []
 
 printString :: Expr -> String
@@ -121,7 +136,7 @@ printTuple :: KnownValues -> Expr -> String
 printTuple kv a = "(" ++ intercalate ", " (reverse $ printTuple' kv a) ++ ")"
 
 printTuple' :: KnownValues -> Expr -> [String]
-printTuple' kv (App e e') = mkExprHaskell kv e':printTuple' kv e
+printTuple' kv (App e e') = mkExprHaskell True kv e':printTuple' kv e
 printTuple' _ _ = []
 
 
@@ -178,6 +193,44 @@ mkTypeHaskell _ = "Unsupported type in printer."
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
+
+ppExprEnv :: State h t -> String
+ppExprEnv s@(State {expr_env = eenv}) =
+    let
+        eenvs = M.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
+    in
+    intercalate "\n" $ map (\(n, es) -> mkNameHaskell n ++ " = " ++ es) eenvs
+
+-- | ppRelExprEnv
+-- Prints all variable definitions from the expression environment,
+-- that are required to understand the curr expr and path constraints
+ppRelExprEnv :: State h t -> String
+ppRelExprEnv s =
+    let
+        s' = markAndSweep s
+    in
+    ppExprEnv s'
+
+ppCurrExpr :: State h t -> String
+ppCurrExpr s@(State {curr_expr = CurrExpr _ e}) = mkUnsugaredExprHaskell s e
+
+ppPathConds :: State h t -> String
+ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map' (ppPathCond s) pc
+
+ppPathCond :: State h t -> PathCond -> String
+ppPathCond s (AltCond am e b) = mkAltMatchHaskell am ++ (if b then " == " else " /= ") ++ mkUnsugaredExprHaskell s e
+ppPathCond s (ExtCond e b) =
+    let
+        es = mkUnsugaredExprHaskell s e
+    in
+    if b then es else "not (" ++ es ++ ")"
+ppPathCond s (ConsCond dc e b) =
+    let
+        dcs = mkDataConHaskell dc
+        es = mkUnsugaredExprHaskell s e
+    in
+    if b then es ++ " is " ++ dcs else es ++ " is not " ++ dcs
+ppPathCond _ (PCExists i) = "Exists " ++ mkIdHaskell i
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs

@@ -44,6 +44,9 @@ foldrx k z = go
             go []     = z
             go (y:ys) = y `k` go ys
 
+map2 :: [(a, b)] -> [b]
+map2 = map snd
+
 -- g2Entry7 :: Int -> [(Int, Int)]
 -- g2Entry7 a = let m = M.fromList [(123456, a)]
 --              in M.toList m

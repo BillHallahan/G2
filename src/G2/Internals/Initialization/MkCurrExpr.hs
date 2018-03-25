@@ -5,6 +5,7 @@ module G2.Internals.Initialization.MkCurrExpr ( mkCurrExpr
                                               , findFunc
                                               , instantiateArgTypes ) where
 
+import G2.Internals.Config
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.ApplyTypes as AT
@@ -12,10 +13,10 @@ import qualified G2.Internals.Language.ApplyTypes as AT
 import Data.List
 import qualified Data.Text as T
 
-mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text
+mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text
            -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers
-           -> KnownValues -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert rsTrue s m_mod tc at ng eenv walkers kv =
+           -> KnownValues -> Config -> (Expr, [Id], NameGen)
+mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv config =
     case findFunc s m_mod eenv of
         Left (f, ex) -> 
             let
@@ -29,7 +30,7 @@ mkCurrExpr m_assume m_assert rsTrue s m_mod tc at ng eenv walkers kv =
                 app_ex = foldl' App var_ex $ typsE ++ var_ids
 
                 -- strict_app_ex = app_ex
-                strict_app_ex = mkStrict walkers app_ex
+                strict_app_ex = if strict config then mkStrict walkers app_ex else app_ex
 
                 (name, ng'') = freshName ng'
                 id_name = Id name (typeOf strict_app_ex)
@@ -38,7 +39,7 @@ mkCurrExpr m_assume m_assert rsTrue s m_mod tc at ng eenv walkers kv =
                 assume_ex = mkAssumeAssert Assume m_assume m_mod var_ids var_name var_name eenv
                 assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod var_ids assume_ex var_name eenv
 
-                retsTrue_ex = if rsTrue then retsTrue assert_ex else assert_ex
+                retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
                 
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in

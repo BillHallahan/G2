@@ -70,7 +70,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos config = do
     let lh_measures = measureSpecs ghcInfos
     -- let lh_measure_names = map (symbolName . val .name) lh_measures
 
-    let init_state = initState prog tys cls Nothing Nothing Nothing False True entry mb_modname ex
+    let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
     -- let annot_state = annotateCases cleaned_state
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
