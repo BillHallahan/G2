@@ -19,9 +19,6 @@ import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Solver
 
--- Ugh, how can we not import this?
-import G2.Internals.Initialization.MkCurrExpr
-
 import G2.Lib.Printers
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
@@ -103,9 +100,9 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos config = do
 
     -- let (up_ng_state, ng) = renameAll mark_and_sweep_state (name_gen mark_and_sweep_state)
     -- let final_state = up_ng_state {name_gen = ng}
-    let halter_set_state = track_state {halter = steps config}
+    -- let halter_set_state = track_state {halter = steps config}
 
-    let final_state = halter_set_state
+    let final_state = track_state
 
     -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
     ret <- run LHRed ZeroHalter (LHOrderer entry mb_modname (expr_env init_state)) con hhp config final_state

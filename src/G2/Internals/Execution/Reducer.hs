@@ -14,6 +14,7 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , halterSub1
                                       , halterIsZero ) where
 
+import G2.Internals.Config
 import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
 
@@ -30,7 +31,7 @@ class Reducer r  t | r -> t where
 class Halter h hv t | h -> hv where
     -- | initHalt
     -- Initializes each state halter value
-    initHalt :: h -> State hv t -> hv
+    initHalt :: h -> Config -> State hv2 t -> hv
 
     -- | stopRed
     -- Determines whether to continue reduction on the current state
@@ -45,7 +46,7 @@ class Halter h hv t | h -> hv where
 class Orderer or orv t | or -> orv where
     -- | initOrdering
     -- Initializing each states ordering value 
-    initOrder :: or -> State h t -> orv
+    initOrder :: or -> Config -> State h t -> orv
 
     --  orderStates
     -- Takes a list of states that have finished executing, and been kept
@@ -63,11 +64,12 @@ instance Reducer StdRed () where
     redRules _ = stdReduce
 
 instance Halter ZeroHalter Int t where
+    initHalt _ config _ = steps config
     stopRed = halterIsZero
     stepHalter = halterSub1
 
 instance Orderer NextOrderer () t where
-    initOrder _ _ = ()
+    initOrder _ _ _ = ()
     orderStates = executeNext
 
 executeNext :: Orderer r () t => r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> ([([Int], State h t)], ())

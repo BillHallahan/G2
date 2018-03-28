@@ -101,12 +101,11 @@ runGHC as = do
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                                (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
-    let halter_set_state = init_state {halter = steps config}
 
     (con, hhp) <- getSMT config
 
     -- in_out <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
-    in_out <- run StdRed ZeroHalter NextOrderer con hhp config halter_set_state
+    in_out <- run StdRed ZeroHalter NextOrderer con hhp config init_state
 
 
     case validate config of

@@ -28,8 +28,6 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-import Debug.Trace
-
 mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 

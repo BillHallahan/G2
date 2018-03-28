@@ -102,17 +102,15 @@ run :: (Named hv
     SMTConverter ast out io -> io -> Config -> State hv t -> IO [(State hv t, [Expr], Expr, Maybe FuncCall)]
 run red hal ord con hhp config (state@State { type_env = tenv
                                             , known_values = kv }) = do
-    let swept = markAndSweep state
+    let halter_set_state = state {halter = initHalt hal config state}
+
+    let swept = markAndSweep halter_set_state
 
     let preproc_state = runPreprocessing swept
 
-    let preproc_state_alpha = preproc_state
+    let ior = initOrder ord config preproc_state
 
-    let preproc_state' = preproc_state_alpha
-
-    let ior = initOrder ord preproc_state'
-
-    exec_states <- runNDepth red hal ord con hhp ior [preproc_state'] config
+    exec_states <- runNDepth red hal ord con hhp ior [preproc_state] config
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states

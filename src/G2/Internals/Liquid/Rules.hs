@@ -127,7 +127,7 @@ instance Reducer LHRed [FuncCall] where
     redRules _ = lhReduce
 
 instance Orderer LHOrderer Int [FuncCall] where
-    initOrder (LHOrderer entry modn eenv) _ =
+    initOrder (LHOrderer entry modn eenv) _ _ =
         let 
             fe = case E.occLookup entry modn eenv of
                 Just e -> e
