@@ -1,7 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module G2.Internals.Liquid.Rules (LHReducer (..), lhReduce, selectLH, initialTrack) where
+module G2.Internals.Liquid.Rules ( LHRed (..)
+                                 , LHOrderer (..)
+                                 , lhReduce
+                                 , selectLH
+                                 , initialTrack) where
 
 import G2.Internals.Execution.Reducer
 import G2.Internals.Execution.Rules
@@ -13,6 +17,7 @@ import qualified G2.Internals.Language.Stack as S
 import Data.Maybe
 import Data.Monoid
 import Data.Semigroup
+import qualified Data.Text as T
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -115,11 +120,18 @@ initialTrack eenv (Assume _ e) = initialTrack eenv e
 initialTrack eenv (Assert _ _ e) = initialTrack eenv e
 initialTrack _ _ = 0
 
-data LHReducer = LHReducer
+data LHRed = LHRed
+data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
 
-instance Reducer LHReducer Int Int [FuncCall] where
+instance Reducer LHRed [FuncCall] where
     redRules _ = lhReduce
-    stopRed = halterIsZero
-    stepHalter = halterSub1
-    orderStates _ = selectLH
 
+instance Orderer LHOrderer Int [FuncCall] where
+    initOrder (LHOrderer entry modn eenv) _ =
+        let 
+            fe = case E.occLookup entry modn eenv of
+                Just e -> e
+                Nothing -> error "initOrder: Bad function passed"
+        in
+        initialTrack eenv fe
+    orderStates _ = selectLH

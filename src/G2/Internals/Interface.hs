@@ -35,8 +35,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import G2.Lib.Printers
-
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text
           -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> [Name]
           -> Config -> State Int ()
@@ -92,126 +90,32 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: (Named h
+run :: (Named hv
        , Named t
-       , ASTContainer h Expr
+       , ASTContainer hv Expr
        , ASTContainer t Expr
-       , ASTContainer h Type
+       , ASTContainer hv Type
        , ASTContainer t Type
-       , Reducer r p h t) => r ->
-    SMTConverter ast out io -> io -> Config -> p -> State h t -> IO [(State h t, [Expr], Expr, Maybe FuncCall)]
-run red con hhp config p (state@State { type_env = tenv
-                                      , known_values = kv }) = do
-    -- putStrLn . pprExecStateStr $ state
-    -- let swept = state
-    -- print $ E.keys $ expr_env state
-
+       , Reducer r t
+       , Halter h hv t
+       , Orderer or orv t) => r -> h -> or ->
+    SMTConverter ast out io -> io -> Config -> State hv t -> IO [(State hv t, [Expr], Expr, Maybe FuncCall)]
+run red hal ord con hhp config (state@State { type_env = tenv
+                                            , known_values = kv }) = do
     let swept = markAndSweep state
 
-    -- putStrLn . pprExecStateStr $ swept
-
-    -- timedMsg $ "old tenv: " ++ show (M.size $ type_env state)
-    -- timedMsg $ "old eenv: " ++ show (E.size $ expr_env state)
-
-    -- timedMsg $ "new tenv: " ++ show (M.size $ type_env swept)
-    -- timedMsg $ "new eenv: " ++ show (E.size $ expr_env swept)
-
-    -- timedMsg $ show $ map fst $ M.toList $ type_env swept
-    -- timedMsg "--------------------"
-    -- timedMsg $ show $ map fst $ E.toList $ expr_env swept
-
-
-
-    -- timedMsg "ayo"
-    -- putStrLn $ show $ fst $ head $ E.toList $ expr_env swept
-    -- putStrLn $ pprExecStateStrSimple swept []
-    -- error "we managed to get here at least"
     let preproc_state = runPreprocessing swept
 
     let preproc_state_alpha = preproc_state
 
     let preproc_state' = preproc_state_alpha
 
+    let ior = initOrder ord preproc_state'
 
-    -- timedMsg "after preprocessing"
-    -- putStrLn $ pprExecStateStr preproc_state'
-    -- error "this is bad"
-
-    -- putStrLn . pprExecStateStr $ state
-    -- putStrLn . pprExecStateStr $ preproc_state'
-
-    -- putStrLn $ "entries in eenv: " ++ (show $ length $ E.keys $ expr_env preproc_state)
-    -- putStrLn $ "chars in eenv: " ++ (show $ length $ show $ E.keys $ expr_env preproc_state)
-    -- mapM (putStrLn . show) $ E.toList $ expr_env preproc_state
-    -- mapM (putStrLn . show) $ zip (take 1 $ E.toList $ expr_env preproc_state) [1..]
-    -- mapM (putStrLn . show) $ zip (M.toList $ type_env preproc_state) [1..]
-    -- putStrLn $ "chars in eenv: " ++ (show $ expr_env preproc_state)
-    -- putStrLn $ "chars in tenv: " ++ (show $ length $ show $ M.keys $ type_env preproc_state)
-    -- putStrLn $ pprExecStateStrSimple preproc_state
-
-    -- mapM (putStrLn . show) $ E.keys $ expr_env preproc_state
-    -- putStrLn "---------------------------------"
-    -- mapM (putStrLn . show) $ M.keys $ type_env preproc_state
-
-    -- putStrLn "^^^^^PREPROCESSED STATE^^^^^"
-
-    exec_states <- runNDepth red con hhp p [preproc_state'] config
-
-    let list = [ Name "g2Entry3" (Just "Prelude") 8214565720323790643
-               -- , Name "walkInt" Nothing 0
-               -- , Name "$walk" Nothing 1
-               , Name "==" (Just "GHC.Classes") 3458764513820541095
-               -- , Name "eqInt" (Just "GHC.Classes") 8214565720323791309
-               -- , Name "$+" (Just "GHC.Base") 1
-               -- , Name "$-" (Just "GHC.Base") 1
-               -- , Name "$*" (Just "GHC.Base") 1
-               -- , Name "$fEqInt" (Just "GHC.Classes") 8214565720323785830
-               -- , Name "+" (Just "GHC.Num") 8214565720323785390
-               -- , Name "$fNumInt" (Just "GHC.Num") 8214565720323786720
-               , Name "$fNumInteger" (Just "GHC.Num") 8214565720323796130
-
-               , Name "$fNumFloat" (Just "GHC.Float") 8214565720323796344
-               , Name "$fEqFloat" (Just "GHC.Float") 8214565720323796344
-
-               , Name "$c+" Nothing 8214565720323811984
-               , Name "$==" Nothing 1
-               , Name "fromInteger" (Just "GHC.Num") 8214565720323796906
-               , Name "fromIntegerInt" (Just "GHC.Num") 8214565720323796918
-               , Name "$cfromInteger" Nothing 8214565720323819153
-
-               , Name "Integer" (Just "GHC.Integer.Type2") 0
-
-               , Name "error" (Just "GHC.Err") 8214565720323791940
-               ]
-
-    -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStr s)) exec_states
-    -- mapM_ (\(rs, s) -> putStrLn $ (show rs) ++ "\n" ++ (pprExecStateStrSimple s list)) exec_states
+    exec_states <- runNDepth red hal ord con hhp ior [preproc_state'] config
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states
-    let nonident_states = filter (not . isExecValueForm . snd) exec_states
-
-    -- putStrLn $ "exec states: " ++ (show $ length exec_states)
-    -- putStrLn $ "ident states: " ++ (show $ length ident_states')
-
-    -- sm <- satModelOutputs con hhp exec_states
-    -- let ident_states' = ident_states
-
-    -- mapM_ (\(rs, st) -> do
-    --     putStrLn $ pprExecStateStr st
-    --     putStrLn $ intercalate "\n" $ map show $ zip ([1..] :: [Integer]) rs
-    -- --     -- putStrLn $ pprExecStateStrSimple st
-
-    -- -- --     -- putStrLn . pprExecEEnvStr $ expr_env st
-    -- --     -- print $ curr_expr st
-    -- -- --     -- print $ true_assert st
-    -- -- --     -- print $ assertions st
-    -- --     -- putStrLn . pprPathsStr . PC.toList $ path_conds st
-    -- -- --     -- print $ E.symbolicKeys $ expr_env st
-    -- -- --     -- print $ input_ids st
-    -- -- --     -- print $ model st
-    -- --     putStrLn "----\n"
-    --     ) ident_states'
 
     ident_states'' <- 
         mapM (\(_, s) -> do

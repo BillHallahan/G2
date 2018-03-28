@@ -103,12 +103,10 @@ runGHC as = do
                                (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
     let halter_set_state = init_state {halter = steps config}
 
-    -- error $ pprExecStateStr init_state
-
     (con, hhp) <- getSMT config
 
     -- in_out <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
-    in_out <- run StdRed con hhp config () halter_set_state
+    in_out <- run StdRed ZeroHalter NextOrderer con hhp config halter_set_state
 
 
     case validate config of

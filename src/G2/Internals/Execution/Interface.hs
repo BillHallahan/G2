@@ -17,18 +17,18 @@ import G2.Lib.Printers
 import Data.List
 import System.Directory
 
-runNDepth :: Reducer r p h t => r -> SMTConverter ast out io -> io -> p -> [State h t] -> Config -> IO [([Int], State h t)]
-runNDepth red con hpp p states config = runNDepth' red p [] $ map (\s -> ([], s)) states
+runNDepth :: (Reducer r t, Halter h hv t, Orderer or orv t) => r -> h -> or -> SMTConverter ast out io -> io -> orv -> [State hv t] -> Config -> IO [([Int], State hv t)]
+runNDepth red hal ord con hpp p states config = runNDepth' red hal ord p [] $ map (\s -> ([], s)) states
   where
-    runNDepth' :: Reducer r p h t => r -> p -> [([Int], State h t)] -> [([Int], State h t)] -> IO [([Int], State h t)]
-    runNDepth' _ _ _ [] = return []
-    runNDepth' red' p' fnsh (rss@(is, s):xs)
-        | stopRed red' s =
+    runNDepth' :: (Reducer r t, Halter h hv t, Orderer or orv t) => r -> h -> or -> orv -> [([Int], State hv t)] -> [([Int], State hv t)] -> IO [([Int], State hv t)]
+    runNDepth' _ _ _ _ _ [] = return []
+    runNDepth' red' hal' ord' p' fnsh (rss@(is, s):xs)
+        | stopRed hal' s =
             let
                 fnsh' = if true_assert s && isExecValueForm s then rss:fnsh else fnsh
-                (xs', p'') = orderStates red' p' fnsh' xs
+                (xs', p'') = orderStates ord' p' fnsh' xs
             in
-            return . (:) rss =<< runNDepth' red' p'' fnsh' xs'
+            return . (:) rss =<< runNDepth' red' hal' ord' p'' fnsh' xs'
         | otherwise = do
             case logStates config of
                 Just f -> outputState f is s
@@ -38,9 +38,9 @@ runNDepth red con hpp p states config = runNDepth' red p [] $ map (\s -> ([], s)
 
             let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
             
-            let mod_info = map (\(i, s') -> (is ++ maybe [] (\i' -> [i']) i, s' {halter = stepHalter red' s'})) isred
+            let mod_info = map (\(i, s') -> (is ++ maybe [] (\i' -> [i']) i, s' {halter = stepHalter hal' s'})) isred
             
-            runNDepth' red' p' fnsh (mod_info ++ xs)
+            runNDepth' red' hal' ord' p' fnsh (mod_info ++ xs)
 
 runNDepthNoConstraintChecks :: [State h t] -> Int -> [State h t]
 runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (s, d)) states

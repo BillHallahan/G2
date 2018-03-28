@@ -107,15 +107,8 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos config = do
 
     let final_state = halter_set_state
 
-    -- TODO: This is a bit messy...
-    -- Get the initial max number of abstract variable
-    let fe = case findFunc entry mb_modname (expr_env init_state) of
-              Left (_, e) -> e
-              Right s -> error s
-    let max_abstr = initialTrack (expr_env init_state) fe
-
     -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
-    ret <- run LHReducer con hhp config max_abstr final_state
+    ret <- run LHRed ZeroHalter (LHOrderer entry mb_modname (expr_env init_state)) con hhp config final_state
     -- ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions

@@ -346,7 +346,7 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     
     (con, hhp) <- getSMT config
 
-    r <- run StdRed con hhp config () halter_set_state
+    r <- run StdRed ZeroHalter NextOrderer con hhp config halter_set_state
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 
