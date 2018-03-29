@@ -7,6 +7,7 @@
 module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , Halter (..)
                                       , Orderer (..)
+                                      , HaltC (..)
                                       , StdRed (..)
                                       , ZeroHalter (..)
                                       , NextOrderer (..)
@@ -21,13 +22,26 @@ import G2.Internals.Language.Support
 -- | Reducer r t
 -- A Reducer is used to describe a set of Reduction Rules
 -- A set of Reduction Rules takes a State, and outputs new states
+-- The type parameter r is used to disambiguate between different producers.
+-- To create a new reducer, define some new type, and use it as r.
 class Reducer r  t | r -> t where
     -- | redRules
     -- Takes a State, and performs the appropriate Reduction Rule
     redRules :: r -> State h t -> (Rule, [ReduceResult t])
 
--- | Halter h hv
+-- HaltC
+-- Used by members of the Halter typeclass to control whether to continue
+-- evaluating the current State, or switch to evaluating a new state.
+data HaltC = Continue -- Continue evaluating the current State
+           | Switch -- Switch to evaluating a new state, but continue evaluating the current state later
+           | Accept -- Switch to evaluating a new state, and accept the current state
+           | Discard -- Switch to evaluating a new state, and reject the current state
+           deriving (Eq, Show, Read)
+
+-- | Halter h hv t
 -- Determines when to stop evaluating a state
+-- The type parameter h is used to disambiguate between different producers.
+-- To create a new reducer, define some new type, and use it as h.
 class Halter h hv t | h -> hv where
     -- | initHalt
     -- Initializes each state halter value
@@ -35,14 +49,16 @@ class Halter h hv t | h -> hv where
 
     -- | stopRed
     -- Determines whether to continue reduction on the current state
-    stopRed :: h -> State hv t -> Bool
+    stopRed :: h -> State hv t -> HaltC
 
     -- | stepHalter
     -- Takes a state, and updates it's halter record field
     stepHalter :: h -> State hv t -> hv
 
--- | Orderer r p
+-- | Orderer or orv t
 -- Picks an order to evaluate the states, to allow prioritizing some over others 
+-- The type parameter or is used to disambiguate between different producers.
+-- To create a new reducer, define some new type, and use it as or.
 class Orderer or orv t | or -> orv where
     -- | initOrdering
     -- Initializing each states ordering value 
@@ -78,6 +94,9 @@ executeNext _ _ _ xs = (xs, ())
 halterSub1 :: Halter h Int t => h -> State Int t -> Int
 halterSub1 _ (State {halter = h}) = h - 1
 
-halterIsZero :: Halter h Int t => h -> State Int t -> Bool
-halterIsZero _ (State {halter = 0}) = True
-halterIsZero _ _ = False
+halterIsZero :: Halter h Int t => h -> State Int t -> HaltC
+halterIsZero _ s@(State {halter = 0}) =
+    case isExecValueForm s && true_assert s of
+        True -> Accept
+        False -> Discard
+halterIsZero _ _ = Continue

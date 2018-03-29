@@ -23,12 +23,22 @@ runNDepth red hal ord con hpp p states config = runNDepth' red hal ord p [] $ ma
     runNDepth' :: (Reducer r t, Halter h hv t, Orderer or orv t) => r -> h -> or -> orv -> [([Int], State hv t)] -> [([Int], State hv t)] -> IO [([Int], State hv t)]
     runNDepth' _ _ _ _ _ [] = return []
     runNDepth' red' hal' ord' p' fnsh (rss@(is, s):xs)
-        | stopRed hal' s =
+        | hc == Accept =
             let
-                fnsh' = if true_assert s && isExecValueForm s then rss:fnsh else fnsh
+                fnsh' = rss:fnsh
                 (xs', p'') = orderStates ord' p' fnsh' xs
             in
             return . (:) rss =<< runNDepth' red' hal' ord' p'' fnsh' xs'
+        | hc == Discard =
+            let
+                (xs', p'') = orderStates ord' p' fnsh xs
+            in
+            runNDepth' red' hal' ord' p'' fnsh xs'
+        | hc == Switch =
+            let
+                (xs', p'') = orderStates ord' p' fnsh (rss:xs)
+            in
+            runNDepth' red' hal' ord' p'' fnsh xs'
         | otherwise = do
             case logStates config of
                 Just f -> outputState f is s
@@ -41,6 +51,8 @@ runNDepth red hal ord con hpp p states config = runNDepth' red hal ord p [] $ ma
             let mod_info = map (\(i, s') -> (is ++ maybe [] (\i' -> [i']) i, s' {halter = stepHalter hal' s'})) isred
             
             runNDepth' red' hal' ord' p' fnsh (mod_info ++ xs)
+        where
+            hc = stopRed hal' s
 
 runNDepthNoConstraintChecks :: [State h t] -> Int -> [State h t]
 runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (s, d)) states

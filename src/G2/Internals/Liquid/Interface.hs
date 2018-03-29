@@ -21,6 +21,8 @@ import G2.Internals.Solver
 
 import G2.Lib.Printers
 
+import Language.Haskell.Liquid.Constraint.Generate
+import Language.Haskell.Liquid.Constraint.Types
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types hiding (Config, cls)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
@@ -54,15 +56,20 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- attempt to find counterexamples to the functions liquid type
 findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
 findCounterExamples proj fp entry libs lhlibs config = do
-    ghcInfos <- getGHCInfos proj [fp] lhlibs
+    (ghcInfos, cgi) <- getGHCInfos proj [fp] lhlibs
+    
     tgt_trans <- translateLoaded proj fp libs False config
-    runLHCore entry tgt_trans ghcInfos config
+
+    runLHCore entry tgt_trans ghcInfos cgi config
 
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
                     -> [GhcInfo]
+                    -> [CGInfo]
                     -> Config
           -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
-runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos config = do
+runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = do
+    let annm = mconcat $ map annotMap cgi
+
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
     -- let lh_measure_names = map (symbolName . val .name) lh_measures
@@ -117,14 +124,20 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos config = do
 
     return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ track s}, es, e, ais)) ret'
 
-getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
+getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO ([GhcInfo], [CGInfo])
 getGHCInfos proj fp lhlibs = do
+    -- GhcInfo
     config <- getOpts []
 
     let config' = config {idirs = idirs config ++ [proj] ++ lhlibs
                          , files = files config ++ lhlibs
                          , ghcOptions = ["-v"]}
-    return . fst =<< LHI.getGhcInfos Nothing config' fp
+    (ghci, _) <- LHI.getGhcInfos Nothing config' fp
+
+    -- CGInfo
+    let cgi = map generateConstraints ghci
+
+    return (ghci, cgi) 
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
 funcSpecs = concatMap (gsTySigs . spec)
@@ -246,7 +259,7 @@ parseLHFuncTuple s (FuncCall {funcName = n@(Name n' _ _), arguments = ars, retur
 testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
                -> IO [LHReturn]
 testLiquidFile proj fp libs lhlibs config = do
-    ghcInfos <- getGHCInfos proj [fp] lhlibs
+    (ghcInfos, cgi) <- getGHCInfos proj [fp] lhlibs
     tgt_transv <- translateLoadedV proj fp libs False config
 
     let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns, ex) = tgt_transv
@@ -271,7 +284,7 @@ testLiquidFile proj fp libs lhlibs config = do
 
     fmap concat $ mapM (\e -> do
         putStrLn $ show e
-        runLHCore e tgt_trans ghcInfos config >>= (return . parseLHOut e))
+        runLHCore e tgt_trans ghcInfos cgi config >>= (return . parseLHOut e))
                        cleaned_tgt_lhs
 
 testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
