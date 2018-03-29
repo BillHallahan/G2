@@ -207,7 +207,7 @@ mkIdLookup i nm tm =
 mkIdUpdatingNM :: Id -> NameMap -> TypeNameMap -> (G2.Id, NameMap)
 mkIdUpdatingNM vid nm tm =
     let
-        n@(G2.Name n' m _) = mkName . V.varName $ vid
+        n@(G2.Name n' m _ _) = mkName . V.varName $ vid
         i = G2.Id n ((mkType tm . varType) vid)
 
         nm' = HM.insert (n', m) n nm
@@ -215,7 +215,7 @@ mkIdUpdatingNM vid nm tm =
     (i, nm')
 
 mkName :: Name -> G2.Name
-mkName name = G2.Name occ mdl unq
+mkName name = G2.Name occ mdl unq l
   where
     occ = T.pack . occNameString . nameOccName $ name
     unq = (getKey . nameUnique) name
@@ -223,21 +223,29 @@ mkName name = G2.Name occ mdl unq
               Nothing -> Nothing
               Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
 
+    l = case getSrcLoc name of
+            RealSrcLoc rsl -> Just $ G2.Loc {G2.line = srcLocLine rsl, G2.col = srcLocCol rsl} 
+            _ -> Nothing
+
 mkNameLookup :: Name -> NameMap -> G2.Name
 mkNameLookup name nm =
     -- We only lookup in the NameMap if the Module name is not Nothing
     -- Internally, a module may use multiple variables with the same name and a module Nothing
     case mdl of
-        Nothing -> G2.Name occ mdl unq
+        Nothing -> G2.Name occ mdl unq l
         _ -> case HM.lookup (occ, mdl) nm of
-                Just n' -> n'
-                Nothing -> G2.Name occ mdl unq
+                Just (G2.Name n' m i _) -> G2.Name n' m i l
+                Nothing -> G2.Name occ mdl unq l
     where
         occ = T.pack . occNameString . nameOccName $ name
         unq = getKey . nameUnique $ name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
                   Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
+
+        l = case getSrcLoc name of
+            RealSrcLoc rsl -> Just $ G2.Loc {G2.line = srcLocLine rsl, G2.col = srcLocCol rsl} 
+            _ -> Nothing
 
 switchModule :: T.Text -> Maybe T.Text
 switchModule m =
@@ -292,11 +300,11 @@ mkTyCon nm tm t = case dcs of
                         Just dcs' -> ((nm'', tm''), Just (n, dcs'))
                         Nothing -> ((nm'', tm''), Nothing)
   where
-    n@(G2.Name n' m _) = mkName . tyConName $ t
+    n@(G2.Name n' m _ _) = mkName . tyConName $ t
     tm' = HM.insert (n', m) n tm
 
     nm' = foldr (uncurry HM.insert) nm
-            $ map (\n_@(G2.Name n'_ m_ _) -> ((n'_, m_), n_)) 
+            $ map (\n_@(G2.Name n'_ m_ _ _) -> ((n'_, m_), n_)) 
             $ map (flip mkNameLookup nm . dataConName) $ visibleDataCons (algTyConRhs t)
 
     bv = map (mkName . V.varName) $ tyConTyVars t
@@ -323,10 +331,10 @@ mkTyCon nm tm t = case dcs of
 mkTyConName :: TypeNameMap -> TyCon -> G2.Name
 mkTyConName tm tc =
     let
-        n@(G2.Name n' m _) = mkName $ tyConName tc
+        n@(G2.Name n' m _ l) = mkName $ tyConName tc
     in
     case HM.lookup (n', m) tm of
-    Just tn -> tn
+    Just (G2.Name n'' m' i _) -> G2.Name n'' m' i l
     Nothing -> n
 
 mkData :: NameMap -> TypeNameMap -> DataCon -> G2.DataCon

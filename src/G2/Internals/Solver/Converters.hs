@@ -205,12 +205,12 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "True" _ _) _ _) e b) =
+pathConsToSMT (ConsCond (DataCon (Name "True" _ _ _) _ _) e b) =
     let
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "False" _ _) _ _) e b) =
+pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _ _) e b) =
     let
         exprSMT = exprToSMT e
     in
@@ -230,8 +230,8 @@ exprToSMT (Lit c) =
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
-exprToSMT (Data (DataCon (Name n _ _) (TyConApp (Name "Bool" _ _) _) _)) =
-    case n of
+exprToSMT (Data (DataCon n (TyConApp (Name "Bool" _ _ _) _) _)) =
+    case nameOcc n of
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
@@ -295,8 +295,8 @@ altToSMT :: AltMatch -> Expr -> SMTAST
 altToSMT (LitAlt (LitInt i)) _ = VInt i
 altToSMT (LitAlt (LitFloat f)) _ = VFloat f
 altToSMT (LitAlt (LitDouble d)) _ = VDouble d
-altToSMT (DataAlt (DataCon (Name "True" _ _) _ _) _) _ = VBool True
-altToSMT (DataAlt (DataCon (Name "False" _ _) _ _) _) _ = VBool False
+altToSMT (DataAlt (DataCon (Name "True" _ _ _) _ _) _) _ = VBool True
+altToSMT (DataAlt (DataCon (Name "False" _ _ _) _ _) _) _ = VBool False
 altToSMT (DataAlt (DataCon n t ts) ns) e =
     let
         c = Cons (nameToStr n) (map f $ zip ns ts) (typeToSMT t)
@@ -358,7 +358,7 @@ typeToSMT TyLitFloat = SortFloat
 -- typeToSMT (TyConApp (Name "Int" _ _) _) = SortInt
 -- typeToSMT (TyConApp (Name "Float" _ _) _) = SortFloat
 -- typeToSMT (TyConApp (Name "Double" _ _) _) = SortDouble
-typeToSMT (TyConApp (Name "Bool" _ _) _) = SortBool
+typeToSMT (TyConApp (Name "Bool" _ _ _) _) = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT (TyForAll (NamedTyBndr _) _) = Sort "TyForAll" []
@@ -449,7 +449,7 @@ smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
-    Data (DataCon (Name (T.pack $ show b) Nothing 0) (TyConApp (Name "Bool" Nothing 0) []) [])
+    Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyConApp (Name "Bool" Nothing 0 Nothing) []) [])
 smtastToExpr (Cons n smts s) =
     foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon (strToName n) (sortToType s) [])) smts
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
@@ -459,7 +459,7 @@ sortToType :: Sort -> Type
 sortToType (SortInt) = TyLitInt
 sortToType (SortFloat) = TyLitFloat
 sortToType (SortDouble) = TyLitDouble
-sortToType (SortBool) = TyConApp (Name "Bool" Nothing 0) []
+sortToType (SortBool) = TyConApp (Name "Bool" Nothing 0 Nothing) []
 sortToType (Sort n xs) = TyConApp (strToName n) (map sortToType xs)
 
 modelAsExpr :: Model -> ExprModel

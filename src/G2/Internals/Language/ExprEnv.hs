@@ -113,14 +113,14 @@ isSymbolic n eenv@(ExprEnv eenv') =
 -- TODO -- This seems kinda too much like a special case to be here...
 occLookup :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
 occLookup n m (ExprEnv eenv) = 
-    let ex = L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
+    let ex = L.find (\(Name n' m' _ _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) $ eenv
     in
     fmap (\(n', e) -> Var $ Id n' (typeOf e)) ex
 
 lookupNameMod :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =
-    listToMaybe . L.filter (\(Name n m _, _) -> ns == n && ms == m) . toExprList
+    listToMaybe . L.filter (\(Name n m _ _, _) -> ns == n && ms == m) . toExprList
 
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =

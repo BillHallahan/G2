@@ -82,7 +82,7 @@ retsTrue e = Assert Nothing e e
 findFunc :: T.Text -> Maybe T.Text -> ExprEnv -> Either (Id, Expr) String
 findFunc s m_mod eenv =
     let
-        match = E.toExprList $ E.filterWithKey (\(Name n _ _) _ -> n == s) eenv
+        match = E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
     in
     case match of
         [] -> Right $ "No functions with name " ++ (T.unpack s)
@@ -90,7 +90,7 @@ findFunc s m_mod eenv =
         pairs -> case m_mod of
             Nothing -> Right $ "Multiple functions with same name. " ++
                                "Wrap the target function in a module so we can try again!"
-            Just m -> case filter (\(Name _ m' _, _) -> m' == Just m) pairs of
+            Just m -> case filter (\(n, _) -> nameModule n == Just m) pairs of
                 [(n, e)] -> Left (Id n (typeOf e), e)
                 [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in module " ++ (T.unpack m)
                 _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++

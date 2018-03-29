@@ -149,7 +149,7 @@ instance Typed Expr where
         let
             (t1, m') = case typeOf' m b of
                 (TYPE, _m) -> (TyForAll (NamedTyBndr b), _m)
-                (TyConApp (Name "TYPE" _ _ ) _, _m) -> (TyForAll (NamedTyBndr b), _m)
+                (TyConApp (Name "TYPE" _ _ _ ) _, _m) -> (TyForAll (NamedTyBndr b), _m)
                 (TyFun TYPE _, _m) -> (TyForAll (NamedTyBndr b), _m)
                 (t, _m) -> (TyFun t, m)
             (t2, m'') = typeOf' m' expr
@@ -337,12 +337,12 @@ isAlgDataTy' _ = False
 
 isTYPE :: Type -> Bool
 isTYPE TYPE = True
-isTYPE (TyConApp (Name "TYPE" _ _) _) = True
+isTYPE (TyConApp (Name "TYPE" _ _ _) _) = True
 isTYPE _ = False
 
 hasTYPE :: Type -> Bool
 hasTYPE TYPE = True
-hasTYPE (TyConApp (Name "TYPE" _ _) _) = True
+hasTYPE (TyConApp (Name "TYPE" _ _ _) _) = True
 hasTYPE (TyFun t t') = hasTYPE t || hasTYPE t'
 hasTYPE _ = False
 

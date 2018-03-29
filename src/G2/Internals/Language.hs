@@ -5,6 +5,7 @@ module G2.Internals.Language
     , module G2.Internals.Language.CreateFuncs
     , module G2.Internals.Language.Expr
     , module G2.Internals.Language.Ids
+    , module G2.Internals.Language.Located
     , module G2.Internals.Language.Naming
     , module G2.Internals.Language.Primitives
     , module G2.Internals.Language.Support
@@ -17,6 +18,7 @@ import G2.Internals.Language.AST
 import G2.Internals.Language.CreateFuncs
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Ids
+import G2.Internals.Language.Located
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Primitives
 import G2.Internals.Language.Support

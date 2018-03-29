@@ -102,7 +102,7 @@ type CleanedNames = M.Map Name Name
 
 -- | Naive expression lookup by only the occurrence name string.
 naiveLookup :: T.Text -> E.ExprEnv -> [(Name, Expr)]
-naiveLookup key = filter (\(Name occ _ _, _) -> occ == key) . E.toExprList
+naiveLookup key = filter (\(Name occ _ _ _, _) -> occ == key) . E.toExprList
 
 emptyFuncInterps :: FuncInterps
 emptyFuncInterps = FuncInterps M.empty

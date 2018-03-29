@@ -21,28 +21,28 @@ eqIgIds :: Id -> Id -> Bool
 eqIgIds (Id n _) (Id n' _) = eqIgNames n n'
 
 eqIgNames :: Name -> Name -> Bool
-eqIgNames (Name n m _) (Name n' m' _) = n == n' && m == m'
+eqIgNames (Name n m _ _) (Name n' m' _ _) = n == n' && m == m'
 
 typeNameIs :: Type -> T.Text -> Bool
-typeNameIs (TyConApp (Name n _ _) _) s = n == s
+typeNameIs (TyConApp n _) s = s == nameOcc n
 typeNameIs _ _ = False
 
 dcHasName :: T.Text -> Expr -> Bool
-dcHasName s (Data (DataCon (Name n _ _) _ _)) = s == n
+dcHasName s (Data (DataCon n _ _)) = s == nameOcc n
 dcHasName _ _ = False
 
 isBool :: Expr -> Bool
-isBool (Data (DataCon _ (TyConApp (Name "Bool" _ _) _) _)) = True
+isBool (Data (DataCon _ (TyConApp (Name "Bool" _ _ _) _) _)) = True
 isBool _ = False
 
 dcInAppHasName :: T.Text -> Expr -> Int -> Bool
-dcInAppHasName s (Data (DataCon (Name n _ _) _ _)) 0 = s == n
+dcInAppHasName s (Data (DataCon n _ _)) 0 = s == nameOcc n
 dcInAppHasName s (App a _) n = dcInAppHasName s a (n - 1)
 dcInAppHasName _ _ _ = False
 
 buriedDCName :: T.Text -> Expr -> Bool
 buriedDCName s (App a _) = buriedDCName s a
-buriedDCName s (Data (DataCon (Name n _ _) _ _)) = s == n
+buriedDCName s (Data (DataCon n _ _)) = s == nameOcc n
 buriedDCName _ _ = False
 
 appNthArgIs :: Expr -> (Expr -> Bool) -> Int -> Bool
@@ -65,7 +65,7 @@ appNth (App _ e) i p = appNth e (i - 1) p
 appNth _ _ _ = False
 
 isIntT :: Type -> Bool
-isIntT (TyConApp (Name "Int" _ _) _) = True
+isIntT (TyConApp (Name "Int" _ _ _) _) = True
 isIntT _ = False
 
 isDouble :: Expr -> (Rational -> Bool) -> Bool
@@ -94,7 +94,7 @@ getIntB :: Expr -> (Integer -> Bool) -> Bool
 getIntB e = getInt e False
 
 getBoolB :: Expr -> (Bool -> Bool) -> Bool
-getBoolB (Data (DataCon (Name n _ _) _ _)) f = f (n == "True")
+getBoolB (Data (DataCon n _ _)) f = f (nameOcc n == "True")
 getBoolB _ _ = False
 
 isApp :: Expr -> Bool

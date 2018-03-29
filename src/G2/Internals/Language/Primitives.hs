@@ -62,11 +62,11 @@ strToPrim _ = Nothing
 
 findPrim :: Primitive -> [(Name, Type)] -> (Name, Type)
 findPrim prim [] = error $ "findPrim: not found: " ++ (T.unpack $ primStr prim)
-findPrim prim (p@(Name occ _ _, _):ps) =
+findPrim prim (p@(Name occ _ _ _, _):ps) =
     if primStr prim == occ then p else findPrim prim ps
 
 mkRawPrim :: [(Name, Type)] -> Name -> Expr
-mkRawPrim primtys name@(Name occ _ _) = 
+mkRawPrim primtys name@(Name occ _ _ _) = 
         case prim of
             Just _ -> foldr Lam cases ids
             Nothing -> Prim Undefined TyBottom
@@ -79,8 +79,8 @@ mkRawPrim primtys name@(Name occ _ _) =
 
     tys = (map typeOf forall_ids) ++ fun_tys
 
-    ids = map (\(i, t) -> Id (Name "a" Nothing i) t) $ zip [1..] (init tys)
-    binds = map (\(i, t) -> Id (Name "b" Nothing i) t) $ zip [1..] (init tys)
+    ids = map (\(i, t) -> Id (Name "a" Nothing i Nothing) t) $ zip [1..] (init tys)
+    binds = map (\(i, t) -> Id (Name "b" Nothing i Nothing) t) $ zip [1..] (init tys)
 
     varIds = map Var ids
     varBinds = map Var binds

@@ -95,7 +95,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = d
 
     let ng2_state = lhtc_state {name_gen = meas_ng}
 
-    let merged_state = mergeLHSpecState (filter isJust$ nub $ map (\(Name _ m _) -> m) tgt_ns) specs ng2_state meas_eenv tcv
+    let merged_state = mergeLHSpecState (filter isJust$ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
     -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv tcv merged_state
 
@@ -234,7 +234,7 @@ parseLHOut entry ((s, inArg, ex, ais):xs) =
   let 
       tl = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell s 
-               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyUnknown) $ inArg
+               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0 Nothing) TyUnknown) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell s $ ex
 
       called = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
@@ -251,8 +251,8 @@ sameFuncNameArgs _ Nothing = False
 sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = f2, funcArgs = fa2})) = f1 == f2 && fa1 == fa2
 
 parseLHFuncTuple :: State h t -> FuncCall -> FuncInfo
-parseLHFuncTuple s (FuncCall {funcName = n@(Name n' _ _), arguments = ars, returns = out}) =
-    FuncInfo { func = n'
+parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
+    FuncInfo { func = nameOcc n
              , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n TyUnknown)) ars)
              , funcReturn = T.pack $ mkCleanExprHaskell s out }
 

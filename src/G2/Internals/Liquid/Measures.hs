@@ -64,7 +64,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         st = specTypeToType tenv srt
         
         bnds = tyForAllBindings $ fromJust st
-        ds = map (Name "d" Nothing) [1 .. length bnds]
+        ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]
         nbnds = zip ds $ map TyVar bnds
         as = map (\(d, t) -> Id d $ TyConApp (lhTC tcv) [t]) nbnds
         as' = as ++ bnds

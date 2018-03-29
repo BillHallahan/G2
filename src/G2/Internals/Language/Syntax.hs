@@ -21,13 +21,28 @@ type Program = [Binds]
 -- assume naming independence.
 type Binds = [(Id, Expr)]
 
+-- | Loc
+-- Records a location in the source code
+data Loc = Loc { line :: Int
+               , col :: Int} deriving (Show, Eq, Read, Ord, Generic)
+
 -- | The occurrence name is defined as a string, with a `Maybe` module name
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
-data Name = Name T.Text (Maybe T.Text) Int deriving (Show, Eq, Read, Ord, Generic)
+data Name = Name T.Text (Maybe T.Text) Int (Maybe Loc) deriving (Show, Read, Generic)
 
-instance Hashable Name
+instance Eq Name where
+    Name n m i _ == Name n' m' i' _ = n ==n' && m == m' && i == i'
+
+instance Ord Name where
+    Name n m i _ `compare` Name n' m' i' _ = (n, m, i) `compare` (n', m', i')
+
+instance Hashable Name where
+    hashWithSalt s (Name n m i _) =
+        s `hashWithSalt`
+        n `hashWithSalt`
+        m `hashWithSalt` i
 
 data Id = Id Name Type deriving (Show, Eq, Read, Generic)
 
@@ -64,9 +79,8 @@ data Expr = Var Id
 instance Hashable Expr
 
 -- | Primitives
--- | These enumerate a set of known, and G2-augmented operations, over wrapped
+-- | These enumerate a set of known, and G2-augmented operations, over unwrapped
 -- data types such as Int, Char, Double, etc. We refer to these as primitives.
--- We further introduce a assertion and assumption as special features.
 data Primitive = Ge
                | Gt
                | Eq

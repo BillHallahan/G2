@@ -22,11 +22,11 @@ primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
 primInject = modifyASTs primInjectT
 
 primInjectT :: Type -> Type
-primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _) _) = TYPE
-primInjectT (TyConApp (Name "Int#" _ _) _) = TyLitInt
-primInjectT (TyConApp (Name "Float#" _ _) _) = TyLitFloat
-primInjectT (TyConApp (Name "Double#" _ _) _) = TyLitDouble
-primInjectT (TyConApp (Name "Char#" _ _) _) = TyLitChar
+primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _ _) _) = TYPE
+primInjectT (TyConApp (Name "Int#" _ _ _) _) = TyLitInt
+primInjectT (TyConApp (Name "Float#" _ _ _) _) = TyLitFloat
+primInjectT (TyConApp (Name "Double#" _ _ _) _) = TyLitDouble
+primInjectT (TyConApp (Name "Char#" _ _ _) _) = TyLitChar
 primInjectT t = t
 
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
@@ -38,8 +38,8 @@ dataInject prog progTy =
 
 -- TODO: Polymorphic types?
 dataInject' :: [(Name, [Type])] -> Expr -> Expr
-dataInject' ns v@(Var (Id (Name n m _) t)) = 
-    case find (\(Name n' m' _, _) -> n == n' && m == m') ns of
+dataInject' ns v@(Var (Id (Name n m _ _) t)) = 
+    case find (\(Name n' m' _ _, _) -> n == n' && m == m') ns of
         Just (n', ts) -> Data (DataCon n' t ts)
         Nothing -> v
 dataInject' _ e = e
@@ -102,7 +102,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
 replaceFromPD :: Id -> Expr -> (Id, Expr)
 replaceFromPD i@(Id n _) e =
     let
-        e' = fmap snd $ find ((==) (nameOccStr n) . fst) primDefs
+        e' = fmap snd $ find ((==) (nameOcc n) . fst) primDefs
     in
     (i, maybe e id e')
 

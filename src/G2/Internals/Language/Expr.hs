@@ -113,7 +113,7 @@ mkEmpty kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcEmpty k
 mkIdentity :: Type -> Expr
 mkIdentity t =
     let
-        x = Id (Name "x" Nothing 0) t
+        x = Id (Name "x" Nothing 0 Nothing) t
     in
     Lam x (Var x)
 
@@ -249,10 +249,10 @@ alphaReduction :: ASTContainer m Expr => m -> m
 alphaReduction = modifyASTsM alphaReduction'
 
 alphaReduction' :: Max Int -> Expr -> (Expr, Max Int)
-alphaReduction' mi l@(Lam i@(Id (Name n m ii) t) e) =
+alphaReduction' mi l@(Lam i@(Id (Name n m ii lo) t) e) =
     let
         mi' = mi + 1
-        n' = Name n m (getMax mi')
+        n' = Name n m (getMax mi') lo
         i' = Id n' t
 
         e' = replaceASTs (Var i) (Var i') e

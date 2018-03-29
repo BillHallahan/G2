@@ -39,7 +39,7 @@ unpackString :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> State
 unpackString s@(State {type_env = tenv, known_values = kv}) = modifyASTsFix (unpackString' tenv kv) s
 
 unpackString' :: TypeEnv -> KnownValues -> Expr -> Expr
-unpackString' _ _ (App (Var (Id (Name "unpackCString#"_ _) _)) e) = e
+unpackString' _ _ (App (Var (Id (Name "unpackCString#" _ _ _) _)) e) = e
 unpackString' tenv kv (Lit (LitString s)) = 
     let
         cns = mkCons kv tenv

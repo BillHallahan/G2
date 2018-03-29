@@ -88,7 +88,7 @@ genTCFuncs lh eenv tenv ti ng dc (n:ns) ws =
     genTCFuncs lh eenv' tenv ti' ng' dc ns ws
 
 lhFuncName :: Name -> NameGen -> (Name, NameGen)
-lhFuncName (Name n _ _) ng = freshSeededString ("lh" `T.append` n `T.append` "Func") ng
+lhFuncName n ng = freshSeededString ("lh" `T.append` nameOcc n `T.append` "Func") ng
 
 -- | accessFunction
 --Create a function to access a TC function from the ADT
@@ -190,7 +190,7 @@ boundNameBindings lh adt ng =
 
 
 lhEqName :: Name -> Name
-lhEqName (Name n _ _) = Name ("lhEqName" `T.append` n) Nothing 0
+lhEqName n = Name ("lhEqName" `T.append` nameOcc n) Nothing 0 Nothing
 
 lhTEnvExpr :: Name -> Case2Alts -> LHFuncCall -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhTEnvExpr lh ca fc eenv tenv kv w (n, adt) ng =
@@ -233,7 +233,7 @@ lhTEnvCase _ fc eenv tenv kv w ti _ bn (NewTyCon { rep_type = t@(TyConApp n _) }
         e = fc eenv tenv kv w ti v1 v2
     in
     (Lam i1 (Lam i2 e), ng3)
-lhTEnvCase _ _ _ _ _ _ _ _ _ _ ng = (Var (Id (Name "BADlhTEnvCase" Nothing 0) TyUnknown), ng)
+lhTEnvCase _ _ _ _ _ _ _ _ _ _ ng = (Var (Id (Name "BADlhTEnvCase" Nothing 0 Nothing) TyUnknown), ng)
 
 lhTEnvDataConAlts :: Case2Alts -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Name -> Id -> Id -> [Name] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 lhTEnvDataConAlts _ _ _ _ _ _ _ _ _ _ ng [] = ([], ng)
@@ -303,7 +303,7 @@ eqLHFuncCall lhExN _ tenv kv w _ e e'
     | otherwise = error $ "\nError in eqLHFuncCall" ++ show (typeOf e)
 
 lhNeqName :: Name -> Name
-lhNeqName (Name n _ _) = Name ("lhNeName" `T.append` n) Nothing 0
+lhNeqName n = Name ("lhNeName" `T.append` nameOcc n) Nothing 0 Nothing
 
 lhNeqExpr :: Name -> Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhNeqExpr lh eqW eenv _ (n, _) ng = 
@@ -332,7 +332,7 @@ isTC n (Id _ (TyConApp n' _)) = n == n'
 isTC _ _ = False
 
 lhLtName :: Name -> Name
-lhLtName (Name n _ _) = Name ("lhLtName" `T.append` n) Nothing 0
+lhLtName n = Name ("lhLtName" `T.append` nameOcc n) Nothing 0 Nothing
 
 -- Once we have the first datacon (dc1) selected, we have to branch on all datacons less than dc1
 lhLtCase2Alts :: Name -> ExprEnv -> TypeEnv -> KnownValues -> Walkers -> [(Name, Id)] -> Id -> Id -> [Id] -> DataCon -> NameGen -> ([Alt], NameGen)
@@ -439,7 +439,7 @@ dataConName (DataCon n _ _) = n
 
 
 lhLeName :: Name -> Name
-lhLeName (Name n _ _) = Name ("lhLeName" `T.append` n) Nothing 0
+lhLeName n = Name ("lhLeName" `T.append` nameOcc n) Nothing 0 Nothing
 
 lhLeExpr :: Walkers -> Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhLeExpr ltW eqW eenv _ (n, _) ng = 
@@ -469,7 +469,7 @@ lhLeExpr ltW eqW eenv _ (n, _) ng =
     (e, ng')
 
 lhGtName :: Name -> Name
-lhGtName (Name n _ _) = Name ("lhGtName" `T.append` n) Nothing 0
+lhGtName n = Name ("lhGtName" `T.append` nameOcc n) Nothing 0 Nothing
 
 lhGtExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhGtExpr ltW eenv _ (n, _) ng = 
@@ -491,7 +491,7 @@ lhGtExpr ltW eenv _ (n, _) ng =
     (e, ng')
 
 lhGeName :: Name -> Name
-lhGeName (Name n _ _) = Name ("lhGeName" `T.append` n) Nothing 0
+lhGeName n = Name ("lhGeName" `T.append` nameOcc n) Nothing 0 Nothing
 
 lhGeExpr :: Walkers -> ExprEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhGeExpr leW eenv _ (n, _) ng = 
@@ -521,7 +521,7 @@ flipLastTwo xs = xs
 -- DataType Ref Gen
 ---------------------------------------
 lhPolyPredName :: Name -> Name
-lhPolyPredName (Name n _ _) = Name ("lhPolyPred" `T.append` n) Nothing 0
+lhPolyPredName n = Name ("lhPolyPred" `T.append` nameOcc n) Nothing 0 Nothing
 
 lhPolyPred :: ExprEnv -> TypeEnv -> Name -> KnownValues -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 lhPolyPred eenv tenv lh kv w (n, adt) ng =
@@ -619,12 +619,12 @@ polyPredLHFunc' true w bnf i
             as' = map (polyPredFunc' true w bnf) ts
         in
         foldl' App (Var f) (as ++ as')
-    | TyFun _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0) (typeOf i)) true
+    | TyFun _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | t <- typeOf i
     ,  t == TyLitInt
     || t == TyLitDouble
     || t == TyLitFloat
-    || t == TyLitChar = Lam (Id (Name "nonused_id" Nothing 0) (typeOf i)) true
+    || t == TyLitChar = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | TyVar _ <- typeOf i = polyPredFunc' true w bnf (typeOf i)
     | otherwise = error $ "Unhandled type " ++ show (typeOf i)
 

@@ -96,7 +96,7 @@ mergeLHSpecState' :: SpecTypeFunc h t -> [(Var, LocSpecType)] -> State h t -> St
 mergeLHSpecState' _ [] s = s
 mergeLHSpecState' f ((v,lst):xs) s =
     let
-        (Id (Name n m _) _) = mkIdUnsafe v
+        (Id (Name n m _ _) _) = mkIdUnsafe v
 
         g2N = E.lookupNameMod n m (expr_env s)
     in
@@ -154,7 +154,7 @@ addLHTCLams lh e =
     let
         tva = nub . mapMaybe (tYPEOrTyVar) $ args e
         
-        ds = map (Name "d" Nothing) [1 .. length tva]
+        ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length tva]
 
         as = map (\(d, i) -> (idName i, Lang.Id d $ TyConApp lh [TyVar i])) (zip ds tva)
     in
@@ -291,7 +291,7 @@ typeToLHTypeClass tc ti lh t =
                 _ -> Var lhD
         Nothing -> case lookup t ti of
             Just lhD -> Var lhD
-            Nothing -> Var (Lang.Id (Name "BAD" Nothing 0) TyUnknown)-- TODO : Can hit this when have TyFun... -- error $ "Typeclass not found in typeToLHTypeClass" ++ show t
+            Nothing -> Var (Lang.Id (Name "BAD" Nothing 0 Nothing) TyUnknown)-- TODO : Can hit this when have TyFun... -- error $ "Typeclass not found in typeToLHTypeClass" ++ show t
 
 type SpecTypeFunc h t = Name -> Expr -> SpecType -> State h t -> State h t
 
@@ -364,10 +364,7 @@ addTrueAsserts' mn knv tenv tcn bn n e =
                     Let [(b, e')] $ Lang.Assert (Just fc) (mkTrue knv tenv) (Var b))
                 e
     in
-    if not (hasAssert e) && not (n `elem` tcn) && moduleName n `elem` mn then ee else e
-
-moduleName :: Name -> Maybe T.Text
-moduleName (Name _ m _) = m
+    if not (hasAssert e) && not (n `elem` tcn) && nameModule n `elem` mn then ee else e
 
 hasAssert :: Expr -> Bool
 hasAssert = getAny . eval hasAssert'
@@ -419,7 +416,7 @@ convertSpecTypeDict tcv (State {type_env = tenv}) st =
         tva = nub . filter isTyVar $ specTypeLamTypes tenv st
         lhtc = map (\t -> TyConApp lh [t]) tva
 
-        dsnames = map (Name "d" Nothing) [0 .. (length tva - 1)]
+        dsnames = map (\i -> Name "d" Nothing i Nothing) [0 .. (length tva - 1)]
     in 
     zip dsnames lhtc
 
@@ -587,7 +584,7 @@ rTyConType tenv rtc sts =
         False -> Nothing
 
 convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State h t -> M.Map Name Type -> Expr
-convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0) TyUnknown
+convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0 Nothing) TyUnknown
 convertLHExpr (ECon c)  t _ (State {known_values = knv, type_env = tenv}) _ = convertCon t knv tenv c
 convertLHExpr (EVar s) _ _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m
 convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
@@ -712,7 +709,7 @@ convertLHExpr (PAtom brel e e') pt tcv s@(State {expr_env = eenv, known_values =
 convertLHExpr e _ _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
 convertSymbol :: Name -> ExprEnv -> M.Map Name Type -> Lang.Id
-convertSymbol nm@(Name n md _) eenv m =
+convertSymbol nm@(Name n md _ _) eenv m =
     let
         t = maybe TyUnknown id $ M.lookup nm m
     in
@@ -721,7 +718,7 @@ convertSymbol nm@(Name n md _) eenv m =
         _ -> Id nm t
 
 convertEVar :: Name -> ExprEnv -> TypeEnv -> M.Map Name Type -> Lang.Expr
-convertEVar nm@(Name n md _) eenv tenv m =
+convertEVar nm@(Name n md _ _) eenv tenv m =
     let
         t = maybe TyUnknown id $ M.lookup nm m
     in
@@ -749,8 +746,8 @@ symbolName s =
         m' = T.dropEnd i m
     in
     case (m', n) of
-        (n', "") -> Name n' Nothing 0
-        _ -> Name n (Just m') 0
+        (n', "") -> Name n' Nothing 0 Nothing
+        _ -> Name n (Just m') 0 Nothing
 
 convertCon :: Maybe Type -> KnownValues -> TypeEnv -> Constant -> Expr
 convertCon (Just (TyConApp n _)) knv tenv (Ref.I i)

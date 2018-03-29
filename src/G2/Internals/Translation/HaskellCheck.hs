@@ -52,7 +52,7 @@ runCheck proj src modN entry chAll gflags s ars out = do
         return $ v' && and chAllR'
 
 simpVar :: T.Text -> Expr
-simpVar s = Var (Id (Name s Nothing 0) TyBottom)
+simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
 
 runHPC :: FilePath -> String -> String -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 runHPC src modN entry in_out = do

@@ -32,7 +32,7 @@ mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 
 mkNameHaskell :: Name -> String
-mkNameHaskell (Name n _ _) = T.unpack n
+mkNameHaskell = T.unpack . nameOcc
 
 mkUnsugaredExprHaskell :: State h t -> Expr -> String
 mkUnsugaredExprHaskell (State {apply_types = af, known_values = kv, type_classes = tc}) =
@@ -73,7 +73,7 @@ mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
             , isTuple n
             , sugar = printTuple kv a
             | Data (DataCon n1 _ _) <- e1
-            , nameOccStr n1 == ":"
+            , nameOcc n1 == ":"
             , sugar =
                 case typeOf e2 of
                     TyLitChar -> printString a
@@ -106,7 +106,7 @@ mkAltMatchHaskell Default = "_"
 
 mkDataConHaskell :: DataCon -> String
 -- Special casing for Data.Map in the modified base
-mkDataConHaskell (DataCon (Name "Assocs" _ _) _ _) = "fromList"
+mkDataConHaskell (DataCon (Name "Assocs" _ _ _) _ _) = "fromList"
 mkDataConHaskell (DataCon n _ _) = mkNameHaskell n
 
 off :: Int -> String
@@ -127,7 +127,7 @@ printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
 printString' _ = []
 
 isTuple :: Name -> Bool
-isTuple (Name n _ _) = T.head n == '(' && T.last n == ')'
+isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
                      && T.all (\c -> c == '(' || c == ')' || c == ',') n
 
 printTuple :: KnownValues -> Expr -> String
@@ -139,7 +139,7 @@ printTuple' _ _ = []
 
 
 isInfixable :: Expr -> Bool
-isInfixable (Data (DataCon (Name n _ _) _ _)) = not $ T.any isAlphaNum n
+isInfixable (Data (DataCon n _ _)) = not $ T.any isAlphaNum $ nameOcc n
 isInfixable _ = False
 
 isApp :: Expr -> Bool

@@ -126,7 +126,7 @@ printFuncCalls :: Config -> T.Text -> [(State h t, [Expr], Expr, Maybe FuncCall)
 printFuncCalls config entry =
     mapM_ (\(s, inArg, ex, _) -> do
         let funcCall = mkCleanExprHaskell s
-                     . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyBottom) $ inArg
+                     . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0 Nothing) TyBottom) $ inArg
 
         let funcOut = mkCleanExprHaskell s $ ex
 

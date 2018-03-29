@@ -20,7 +20,7 @@ specialTypes = map (uncurry specialTypes') specials
 specialTypes' :: (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> (Name, AlgDataTy)
 specialTypes' (n, m, ns) dcn = 
     let
-        tn = Name n m 0
+        tn = Name n m 0 Nothing
         dc = map (specialDC ns tn) dcn
     in
     (tn, DataTyCon {bound_names = ns, data_cons = dc})
@@ -33,14 +33,14 @@ specialDC ns tn (n, m, ts) =
         t = foldr (TyFun) (TyConApp tn tv) ts
         t' = foldr (\n' -> TyForAll (NamedTyBndr (Id n' TYPE))) t ns
     in
-    DataCon (Name n m 0) t' ts
+    DataCon (Name n m 0 Nothing) t' ts
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
-specialTypeNames = HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0)) specialTypeNames'
+specialTypeNames = HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
 
 specialConstructors :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialConstructors =
-    HM.fromList $ map (\nm@(n, m) -> (nm, Name n m 0)) specialConstructors'
+    HM.fromList $ map (\nm@(n, m) -> (nm, Name n m 0 Nothing)) specialConstructors'
 
 specialTypeNames' :: [(T.Text, Maybe T.Text, [Name])]
 specialTypeNames' = map fst specials
@@ -49,13 +49,13 @@ specialConstructors' :: [(T.Text, Maybe T.Text)]
 specialConstructors' = map (\(n, m, _) -> (n, m)) $ concatMap snd specials
 
 aName :: Name
-aName = Name "a" Nothing 0
+aName = Name "a" Nothing 0 Nothing
 
 aTyVar :: Type
 aTyVar = TyVar (Id aName TYPE)
 
 listName :: Name
-listName = Name "[]" (Just "GHC.Types") 0
+listName = Name "[]" (Just "GHC.Types") 0 Nothing
 
 specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
 specials = [ (( "[]"
@@ -89,7 +89,7 @@ mkTuples ls rs m n | n < 0 = []
                         let
                             s = ls `T.append` T.pack (replicate n ',') `T.append` rs
 
-                            ns = if n == 0 then [] else map (Name "a" m) [0..n]
+                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..n]
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
