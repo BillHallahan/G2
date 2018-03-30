@@ -37,7 +37,7 @@ import qualified Data.Text as T
 
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text
           -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> [Name]
-          -> Config -> State Int ()
+          -> Config -> State ()
 initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNames config =
     let
         eenv = mkExprEnv prog
@@ -79,7 +79,6 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , known_values = kv
     , cleaned_names = M.empty
     , rules = []
-    , halter = 0
     , track = ()
  }
 
@@ -98,13 +97,11 @@ run :: (Named hv
        , ASTContainer t Type
        , Reducer r t
        , Halter h hv t
-       , Orderer or orv t) => r -> h -> or ->
-    SMTConverter ast out io -> io -> Config -> State hv t -> IO [(State hv t, [Expr], Expr, Maybe FuncCall)]
-run red hal ord con hhp config (state@State { type_env = tenv
-                                            , known_values = kv }) = do
-    let halter_set_state = state {halter = initHalt hal config state}
-
-    let swept = markAndSweep halter_set_state
+       , Orderer or orv sov t) => r -> h -> or ->
+    SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
+run red hal ord con hhp config (is@State { type_env = tenv
+                                         , known_values = kv }) = do
+    let swept = markAndSweep is
 
     let preproc_state = runPreprocessing swept
 

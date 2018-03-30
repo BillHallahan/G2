@@ -37,10 +37,10 @@ import qualified Data.Text as T
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: State h [FuncCall] -> (Rule, [ReduceResult [FuncCall]])
+lhReduce :: State [FuncCall] -> (Rule, [ReduceResult [FuncCall]])
 lhReduce = stdReduceBase lhReduce'
 
-lhReduce' :: State h [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
+lhReduce' :: State [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
 lhReduce' State { expr_env = eenv
                , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
                , name_gen = ng
@@ -93,15 +93,15 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
         False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
 
-selectLH :: Int -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> ([([Int], State h [FuncCall])], Int)
+selectLH :: Int -> [ExState h () [FuncCall]] -> [ExState h () [FuncCall]] -> ([ExState h () [FuncCall]], Int)
 selectLH ii solved next =
     let
-        mi = minimum $ ii:map (length . track . snd) solved
-        next' = dropWhile (\(_, s) -> trackingGreater s mi) next
+        mi = minimum $ ii:map (length . track . state) solved
+        next' = dropWhile (\ExState {state = s} -> trackingGreater s mi) next
     in
     (next', mi)
 
-trackingGreater :: State h [FuncCall] -> Int -> Bool
+trackingGreater :: State [FuncCall] -> Int -> Bool
 trackingGreater (State {track = tr}) i = length tr > i
 
 -- Counts the maximal number of Vars with names in the ExprEnv
@@ -126,7 +126,7 @@ data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
 instance Reducer LHRed [FuncCall] where
     redRules _ = lhReduce
 
-instance Orderer LHOrderer Int [FuncCall] where
+instance Orderer LHOrderer Int () [FuncCall] where
     initOrder (LHOrderer entry modn eenv) _ _ =
         let 
             fe = case E.occLookup entry modn eenv of
@@ -134,4 +134,7 @@ instance Orderer LHOrderer Int [FuncCall] where
                 Nothing -> error "initOrder: Bad function passed"
         in
         initialTrack eenv fe
+
+    initPerStateOrder _ _ _ = ()
+
     orderStates _ = selectLH

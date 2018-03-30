@@ -122,7 +122,7 @@ runGHC as = do
 
 
 
-printFuncCalls :: Config -> T.Text -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
+printFuncCalls :: Config -> T.Text -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 printFuncCalls config entry =
     mapM_ (\(s, inArg, ex, _) -> do
         let funcCall = mkCleanExprHaskell s

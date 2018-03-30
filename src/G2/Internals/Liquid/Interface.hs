@@ -54,7 +54,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
+findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
 findCounterExamples proj fp entry libs lhlibs config = do
     (ghcInfos, cgi) <- getGHCInfos proj [fp] lhlibs
     
@@ -66,7 +66,7 @@ runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [
                     -> [GhcInfo]
                     -> [CGInfo]
                     -> Config
-          -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
+                    -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
 runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = do
     let annm = mconcat $ map annotMap cgi
 
@@ -145,7 +145,7 @@ funcSpecs = concatMap (gsTySigs . spec)
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)
 
-reqNames :: State h t -> [Name]
+reqNames :: State t -> [Name]
 reqNames (State { expr_env = eenv
                 , type_classes = tc
                 , known_values = kv }) = 
@@ -180,7 +180,7 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
+printLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [LHReturn] -> IO ()
@@ -227,7 +227,7 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: T.Text -> [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
+parseLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
            -> [LHReturn]
 parseLHOut _ [] = []
 parseLHOut entry ((s, inArg, ex, ais):xs) =
@@ -250,7 +250,7 @@ sameFuncNameArgs :: FuncInfo -> Maybe FuncInfo -> Bool
 sameFuncNameArgs _ Nothing = False
 sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = f2, funcArgs = fa2})) = f1 == f2 && fa1 == fa2
 
-parseLHFuncTuple :: State h t -> FuncCall -> FuncInfo
+parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
     FuncInfo { func = nameOcc n
              , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n TyUnknown)) ars)

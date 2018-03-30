@@ -111,7 +111,7 @@ accessFunction tcn dc@(DataCon _ _ ts) i ng =
     in
     (Lam lb (Lam tb c), ng5)
 
-createLHTC :: State h t -> ExprEnv -> (State h t, ExprEnv, TCValues)
+createLHTC :: State t -> ExprEnv -> (State t, ExprEnv, TCValues)
 createLHTC s@(State { type_env = tenv
                     , name_gen = ng
                     , known_values = kv

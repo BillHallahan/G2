@@ -16,12 +16,12 @@ import G2.Lib.Printers
 
 import System.Process
 
-validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
+validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
 validateStates proj src modN entry chAll ghflags in_out = do
     return . all id =<< mapM (\(s, i, o, _) -> runCheck proj src modN entry chAll ghflags s i o) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State h t -> [Expr] -> Expr -> IO Bool
+runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> IO Bool
 runCheck proj src modN entry chAll gflags s ars out = do
     runGhc (Just libdir) $ do
         _ <- loadProj Nothing proj src gflags False
@@ -54,7 +54,7 @@ runCheck proj src modN entry chAll gflags s ars out = do
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
 
-runHPC :: FilePath -> String -> String -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
+runHPC :: FilePath -> String -> String -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 runHPC src modN entry in_out = do
     let calls = map (\(s, i, o, _) -> toCall entry s i o) in_out
 
@@ -83,7 +83,7 @@ runHPC' src modN ars = do
 
     -- putStrLn mainFunc
 
-toCall :: String -> State h t -> [Expr] -> Expr -> String
+toCall :: String -> State t -> [Expr] -> Expr -> String
 toCall entry s ars _ = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
 
 removeModule :: String -> String -> String

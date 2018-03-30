@@ -34,11 +34,11 @@ mkIdHaskell (Id n _) = mkNameHaskell n
 mkNameHaskell :: Name -> String
 mkNameHaskell = T.unpack . nameOcc
 
-mkUnsugaredExprHaskell :: State h t -> Expr -> String
+mkUnsugaredExprHaskell :: State t -> Expr -> String
 mkUnsugaredExprHaskell (State {apply_types = af, known_values = kv, type_classes = tc}) =
     mkExprHaskell False kv . modifyFix (mkCleanExprHaskell' af kv tc)
 
-mkCleanExprHaskell :: State h t -> Expr -> String
+mkCleanExprHaskell :: State t -> Expr -> String
 mkCleanExprHaskell (State {apply_types = af, known_values = kv, type_classes = tc}) =
     mkExprHaskell True kv . modifyFix (mkCleanExprHaskell' af kv tc)
 
@@ -192,7 +192,7 @@ duplicate :: String -> Int -> String
 duplicate _ 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
 
-ppExprEnv :: State h t -> String
+ppExprEnv :: State t -> String
 ppExprEnv s@(State {expr_env = eenv}) =
     let
         eenvs = M.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
@@ -202,20 +202,20 @@ ppExprEnv s@(State {expr_env = eenv}) =
 -- | ppRelExprEnv
 -- Prints all variable definitions from the expression environment,
 -- that are required to understand the curr expr and path constraints
-ppRelExprEnv :: State h t -> String
+ppRelExprEnv :: State t -> String
 ppRelExprEnv s =
     let
         s' = markAndSweep s
     in
     ppExprEnv s'
 
-ppCurrExpr :: State h t -> String
+ppCurrExpr :: State t -> String
 ppCurrExpr s@(State {curr_expr = CurrExpr _ e}) = mkUnsugaredExprHaskell s e
 
-ppPathConds :: State h t -> String
+ppPathConds :: State t -> String
 ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map' (ppPathCond s) pc
 
-ppPathCond :: State h t -> PathCond -> String
+ppPathCond :: State t -> PathCond -> String
 ppPathCond s (AltCond am e b) = mkAltMatchHaskell am ++ (if b then " == " else " /= ") ++ mkUnsugaredExprHaskell s e
 ppPathCond s (ExtCond e b) =
     let
@@ -237,7 +237,7 @@ injTuple :: [String] -> String
 injTuple strs = "(" ++ (intercalate "," strs) ++ ")"
 
 -- | More raw version of state dumps.
-pprExecStateStr :: State h t -> String
+pprExecStateStr :: State t -> String
 pprExecStateStr ex_state = injNewLine acc_strs
   where
     eenv_str = pprExecEEnvStr (expr_env ex_state)

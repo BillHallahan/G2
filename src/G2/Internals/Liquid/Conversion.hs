@@ -38,7 +38,7 @@ import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
 
-addLHTC :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> TCValues -> State h t
+addLHTC :: ASTContainer t Expr => State t -> TCValues -> State t
 addLHTC s@(State {expr_env = eenv, type_env = tenv, curr_expr = cexpr, type_classes = tc}) tcv =
     let
         (eenv', eenvT) = addLHTCExprEnv eenv tenv tc tcv
@@ -64,7 +64,7 @@ replaceVarTy' _ e = e
 -- reference expressions in E'.  This prevents infinite chains of Assumes/Asserts.  
 -- Finally, the two expression environments are merged, before the whole state
 -- is returned.
-mergeLHSpecState :: [Maybe T.Text] -> [(Var, LocSpecType)] -> State h t -> ExprEnv -> TCValues -> State h t
+mergeLHSpecState :: [Maybe T.Text] -> [(Var, LocSpecType)] -> State t -> ExprEnv -> TCValues -> State t
 mergeLHSpecState ns xs s@(State {expr_env = eenv, curr_expr = cexpr }) meenv tcv =
     let
         s' = addTrueAsserts ns $ mergeLHSpecState' (addAssertSpecType meenv tcv) xs s
@@ -92,7 +92,7 @@ mergeLHSpecState ns xs s@(State {expr_env = eenv, curr_expr = cexpr }) meenv tcv
 -- Merges a list of Vars and SpecTypes with a State, by finding
 -- cooresponding vars between the list and the state, and calling
 -- mergeLHSpecState on the corresponding exprs and specs
-mergeLHSpecState' :: SpecTypeFunc h t -> [(Var, LocSpecType)] -> State h t -> State h t
+mergeLHSpecState' :: SpecTypeFunc t -> [(Var, LocSpecType)] -> State t -> State t
 mergeLHSpecState' _ [] s = s
 mergeLHSpecState' f ((v,lst):xs) s =
     let
@@ -293,9 +293,9 @@ typeToLHTypeClass tc ti lh t =
             Just lhD -> Var lhD
             Nothing -> Var (Lang.Id (Name "BAD" Nothing 0 Nothing) TyUnknown)-- TODO : Can hit this when have TyFun... -- error $ "Typeclass not found in typeToLHTypeClass" ++ show t
 
-type SpecTypeFunc h t = Name -> Expr -> SpecType -> State h t -> State h t
+type SpecTypeFunc t = Name -> Expr -> SpecType -> State t -> State t
 
-addAssertSpecType :: ExprEnv -> TCValues -> SpecTypeFunc h t
+addAssertSpecType :: ExprEnv -> TCValues -> SpecTypeFunc t
 addAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
                                             , name_gen = ng }) =
     let
@@ -317,7 +317,7 @@ addAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
     s { expr_env = E.insert n newE eenv
       , name_gen = ng''}
 
-addAssumeAssertSpecType :: ExprEnv -> TCValues -> SpecTypeFunc h t
+addAssumeAssertSpecType :: ExprEnv -> TCValues -> SpecTypeFunc t
 addAssumeAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
                                                   , name_gen = ng }) =
     let
@@ -343,7 +343,7 @@ addAssumeAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
 
 -- | addTrueAsserts
 -- adds an assertion of True to all functions without an assertion
-addTrueAsserts :: [Maybe T.Text] -> State h t -> State h t
+addTrueAsserts :: [Maybe T.Text] -> State t -> State t
 addTrueAsserts mn s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = knv, type_classes = tc}) =
     let
         (b, ng') = freshName ng
@@ -377,7 +377,7 @@ hasAssert' _ = Any False
 -- We create an Expr from a SpecType in two phases.  First, we create outer
 -- lambda expressions, then we create a conjunction of m boolean expressions
 -- describing allowed  values of the bound variables
-convertAssertSpecType :: TCValues -> State h t -> SpecType -> Lang.Id -> Maybe (M.Map Name Type) -> Expr
+convertAssertSpecType :: TCValues -> State t -> SpecType -> Lang.Id -> Maybe (M.Map Name Type) -> Expr
 convertAssertSpecType tcv s@(State { type_env = tenv }) st ret m =
     let
         nt = convertSpecTypeDict tcv s st
@@ -393,7 +393,7 @@ convertAssertSpecType tcv s@(State { type_env = tenv }) st ret m =
     in
     primInject $ lams' apps
 
-convertAssumeSpecType :: TCValues -> State h t -> SpecType -> Expr
+convertAssumeSpecType :: TCValues -> State t -> SpecType -> Expr
 convertAssumeSpecType tcv s@(State { type_env = tenv }) st =
     let
         nt = convertSpecTypeDict tcv s st
@@ -408,7 +408,7 @@ convertAssumeSpecType tcv s@(State { type_env = tenv }) st =
     in
     primInject $ lams' apps
 
-convertSpecTypeDict :: TCValues -> State h t -> SpecType -> [(Name, Type)]
+convertSpecTypeDict :: TCValues -> State t -> SpecType -> [(Name, Type)]
 convertSpecTypeDict tcv (State {type_env = tenv}) st =
     let
         lh = lhTC tcv
@@ -456,14 +456,14 @@ specTypeLamTypes _ r@(RAllS {}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full 
 specTypeLamTypes _ (RApp {}) = []
 specTypeLamTypes _ r = error ("Error in specTypeLamTypes " ++ (show $ PPR.rtypeDoc Full r))
 
-specTypeApps :: SpecType -> TCValues -> State h t -> M.Map Name Type -> Lang.Id -> Expr
+specTypeApps :: SpecType -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> Expr
 specTypeApps st tcv s@(State {expr_env = eenv}) m b =
     let
         ste = specTypeApps' st tcv s m b
     in
     foldl1' (\e -> App (App (mkAnd eenv) e)) $ ste
 
-assumeSpecTypeApps :: SpecType -> TCValues -> State h t -> M.Map Name Type -> Expr
+assumeSpecTypeApps :: SpecType -> TCValues -> State t -> M.Map Name Type -> Expr
 assumeSpecTypeApps st tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = knv}) m =
     let
         (i, _) = freshId TyUnknown ng
@@ -472,7 +472,7 @@ assumeSpecTypeApps st tcv s@(State {expr_env = eenv, type_env = tenv, name_gen =
         xs@(_:_) -> foldl1' (\e -> App (App (mkAnd eenv) e)) xs
         _ -> mkTrue knv tenv
 
-specTypeApps' :: SpecType -> TCValues -> State h t -> M.Map Name Type -> Lang.Id -> [Expr]
+specTypeApps' :: SpecType -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> [Expr]
 specTypeApps' (RVar {rt_var = (RTV v), rt_reft = r}) tcv s m b =
     let
         symb = reftSymbol $ ur_reft r
@@ -518,7 +518,7 @@ specTypeApps' (RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {exp
     [App (App an (App (Lam i re) (Var b))) argsPred]
 specTypeApps' _ _ _ _ _ = error "specTypeApps': Unhandled case"
 
-polyPredFunc :: [SpecType] -> ExprEnv -> TypeClasses -> Type -> TCValues -> State h t -> M.Map Name Type -> Lang.Id -> Expr
+polyPredFunc :: [SpecType] -> ExprEnv -> TypeClasses -> Type -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> Expr
 polyPredFunc as eenv tc ty tcv s m b =
     let
         dict = fromJustErr "No lhDict for polyPredFunc" $ lhTCDict eenv tcv tc ty m
@@ -526,7 +526,7 @@ polyPredFunc as eenv tc ty tcv s m b =
     in
     mkApp $ [Var $ Id (lhPP tcv) TyUnknown, dict, Type (typeOf b)] ++ as' ++ [Var b]
 
-polyPredLam :: SpecType -> TCValues -> State h t -> M.Map Name Type -> Expr
+polyPredLam :: SpecType -> TCValues -> State t -> M.Map Name Type -> Expr
 polyPredLam rapp tcv s@(State {type_env = tenv, name_gen = ng}) m =
     let
         t = unsafeSpecTypeToType tenv rapp
@@ -583,7 +583,7 @@ rTyConType tenv rtc sts =
         True -> fmap (\n' -> TyConApp n' (catMaybes ts)) n
         False -> Nothing
 
-convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State h t -> M.Map Name Type -> Expr
+convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State t -> M.Map Name Type -> Expr
 convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0 Nothing) TyUnknown
 convertLHExpr (ECon c)  t _ (State {known_values = knv, type_env = tenv}) _ = convertCon t knv tenv c
 convertLHExpr (EVar s) _ _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m

@@ -18,7 +18,7 @@ import qualified Data.HashMap.Lazy as HM
 
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
-createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State h t -> (ExprEnv, NameGen)
+createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State t -> (ExprEnv, NameGen)
 createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = ng}) = 
     let
         nt = M.fromList $ mapMaybe (measureTypeMappings tenv tcv) meas
@@ -54,7 +54,7 @@ addLHDictToType lh t =
     in
     foldr TyFun t lhD
 
-convertMeasure :: State h t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
+convertMeasure :: State t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
 convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
     let
         -- nt = M.fromList $ convertSpecTypeDict tcv s srt
@@ -84,7 +84,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
-convertDefs :: State h t -> [Type] -> Maybe Type -> TCValues -> M.Map Name Type -> Def SpecType GHC.DataCon -> Maybe Alt
+convertDefs :: State t -> [Type] -> Maybe Type -> TCValues -> M.Map Name Type -> Def SpecType GHC.DataCon -> Maybe Alt
 convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m (Def { ctor = dc, body = b, binds = bds}) =
     let
         (DataCon n t _) = mkData HM.empty HM.empty dc
@@ -110,7 +110,7 @@ convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m (Def { ctor 
         Nothing -> Nothing
 convertDefs _ _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
-mkExprFromBody :: State h t -> Maybe Type -> TCValues  -> M.Map Name Type -> Body -> Expr
+mkExprFromBody :: State t -> Maybe Type -> TCValues  -> M.Map Name Type -> Body -> Expr
 mkExprFromBody s ret tcv m (E e) = convertLHExpr e ret tcv s m
 mkExprFromBody s ret tcv m (P e) = convertLHExpr e ret tcv s m
 mkExprFromBody _ _ _ _ _ = error "mkExprFromBody: Unhandled Body"

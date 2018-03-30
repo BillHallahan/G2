@@ -39,10 +39,10 @@ allowedName (Name n m _ _) =
     && T.all (`elem` allowedSymbol) (maybe "" (id) m)
     && (T.head n) `elem` allowedStartSymbols
 
-cleanNames :: (ASTContainer h Expr, ASTContainer t Expr, ASTContainer h Type, ASTContainer t Type, Named h, Named t) => State h t -> State h t
+cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> State t
 cleanNames s = cleanNames' s (L.nub $ allNames s)
 
-cleanNames' :: (ASTContainer h Expr, ASTContainer t Expr, ASTContainer h Type, ASTContainer t Type, Named h, Named t) => State h t -> [Name] -> State h t
+cleanNames' :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name] -> State t
 cleanNames' s [] = s
 cleanNames' s@State {name_gen = ng} (name@(Name n m i l):ns) 
     | allowedName name = cleanNames' s ns
@@ -65,5 +65,5 @@ cleanNames' s@State {name_gen = ng} (name@(Name n m i l):ns)
 -- allNames :: State -> [Name]
 -- allNames s = exprNames s ++ E.keys (expr_env s)
 
-allNames :: (ASTContainer h Expr, ASTContainer t Expr, ASTContainer h Type, ASTContainer t Type, Named h, Named t) => State h t -> [Name]
+allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
 allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)

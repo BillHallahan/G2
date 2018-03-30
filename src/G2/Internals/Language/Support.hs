@@ -42,29 +42,28 @@ import qualified Data.Text as T
 -- The h parameter is used to help track whether reduce should continue executing
 -- a state or not
 -- The t parameter can be used to track extra information during the execution.
-data State h t = State { expr_env :: E.ExprEnv
-                       , type_env :: TypeEnv
-                       , curr_expr :: CurrExpr
-                       , name_gen :: NameGen
-                       , path_conds :: PathConds
-                       , true_assert :: Bool
-                       , assert_ids :: Maybe FuncCall
-                       , type_classes :: TypeClasses
-                       , sym_links :: SymLinks
-                       , input_ids :: InputIds
-                       , symbolic_ids :: SymbolicIds
-                       , func_table :: FuncInterps
-                       , deepseq_walkers :: Walkers
-                       , apply_types :: AT.ApplyTypes
-                       , exec_stack :: Stack Frame
-                       , model :: Model
-                       , arbValueGen :: ArbValueGen
-                       , known_values :: KnownValues
-                       , cleaned_names :: CleanedNames
-                       , rules :: [Rule]
-                       , halter :: h
-                       , track :: t
-                       } deriving (Show, Eq, Read)
+data State t = State { expr_env :: E.ExprEnv
+                     , type_env :: TypeEnv
+                     , curr_expr :: CurrExpr
+                     , name_gen :: NameGen
+                     , path_conds :: PathConds
+                     , true_assert :: Bool
+                     , assert_ids :: Maybe FuncCall
+                     , type_classes :: TypeClasses
+                     , sym_links :: SymLinks
+                     , input_ids :: InputIds
+                     , symbolic_ids :: SymbolicIds
+                     , func_table :: FuncInterps
+                     , deepseq_walkers :: Walkers
+                     , apply_types :: AT.ApplyTypes
+                     , exec_stack :: Stack Frame
+                     , model :: Model
+                     , arbValueGen :: ArbValueGen
+                     , known_values :: KnownValues
+                     , cleaned_names :: CleanedNames
+                     , rules :: [Rule]
+                     , track :: t
+                     } deriving (Show, Eq, Read)
 
 -- | The InputIds are a list of the variable names passed as input to the
 -- function being symbolically executed
@@ -145,7 +144,7 @@ data Frame = CaseFrame Id [Alt]
 type Model = M.Map Name Expr
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
-renameState :: (Named h, Named t) => Name -> Name -> State h t -> State h t
+renameState :: Named t => Name -> Name -> State t -> State t
 renameState old new_seed s =
     let (new, ng') = freshSeededName new_seed (name_gen s)
     in State { expr_env = rename old new (expr_env s)
@@ -170,10 +169,9 @@ renameState old new_seed s =
              , known_values = rename old new (known_values s)
              , cleaned_names = M.insert new old (cleaned_names s)
              , rules = rules s
-             , halter = rename old new (halter s)
              , track = rename old new (track s) }
 
-instance {-# OVERLAPPING #-} (Named h, Named t) => Named (State h t) where
+instance {-# OVERLAPPING #-} Named t => Named (State t) where
     names s = names (expr_env s)
             ++ names (type_env s)
             ++ names (curr_expr s)
@@ -190,7 +188,6 @@ instance {-# OVERLAPPING #-} (Named h, Named t) => Named (State h t) where
             ++ names (model s)
             ++ names (known_values s)
             ++ names (cleaned_names s)
-            ++ names (halter s)
             ++ names (track s)
 
     rename old new s =
@@ -216,7 +213,6 @@ instance {-# OVERLAPPING #-} (Named h, Named t) => Named (State h t) where
                , known_values = rename old new (known_values s)
                , cleaned_names = M.insert new old (cleaned_names s)
                , rules = rules s
-               , halter = rename old new (halter s)
                , track = rename old new (track s) }
 
     renames hm s =
@@ -242,11 +238,10 @@ instance {-# OVERLAPPING #-} (Named h, Named t) => Named (State h t) where
                , known_values = renames hm (known_values s)
                , cleaned_names = foldr (uncurry M.insert) (cleaned_names s) (HM.toList hm)
                , rules = rules s
-               , halter = renames hm (halter s)
                , track = renames hm (track s) }
 
 -- | TypeClass definitions
-instance {-# OVERLAPPING #-} (ASTContainer h Expr, ASTContainer t Expr) => ASTContainer (State h t) Expr where
+instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++
                       (containedASTs $ expr_env s) ++
                       (containedASTs $ curr_expr s) ++
@@ -256,7 +251,6 @@ instance {-# OVERLAPPING #-} (ASTContainer h Expr, ASTContainer t Expr) => ASTCo
                       (containedASTs $ input_ids s) ++
                       (containedASTs $ symbolic_ids s) ++
                       (containedASTs $ exec_stack s) ++
-                      (containedASTs $ halter s) ++
                       (containedASTs $ track s)
 
     modifyContainedASTs f s = s { type_env  = modifyContainedASTs f $ type_env s
@@ -268,11 +262,9 @@ instance {-# OVERLAPPING #-} (ASTContainer h Expr, ASTContainer t Expr) => ASTCo
                                 , input_ids = modifyContainedASTs f $ input_ids s
                                 , symbolic_ids = modifyContainedASTs f $ symbolic_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
-                                , halter = modifyContainedASTs f $ halter s
                                 , track = modifyContainedASTs f $ track s }
 
-
-instance {-# OVERLAPPING #-} (ASTContainer d Type, ASTContainer t Type) => ASTContainer (State d t) Type where
+instance {-# OVERLAPPING #-} ASTContainer t Type => ASTContainer (State t) Type where
     containedASTs s = ((containedASTs . expr_env) s) ++
                       ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
@@ -283,7 +275,6 @@ instance {-# OVERLAPPING #-} (ASTContainer d Type, ASTContainer t Type) => ASTCo
                       ((containedASTs . input_ids) s) ++
                       ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . exec_stack) s) ++
-                      ((containedASTs . halter) s) ++
                       (containedASTs $ track s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
@@ -296,7 +287,6 @@ instance {-# OVERLAPPING #-} (ASTContainer d Type, ASTContainer t Type) => ASTCo
                                 , input_ids = (modifyContainedASTs f . input_ids) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
-                                , halter = (modifyContainedASTs f . halter) s
                                 , track = modifyContainedASTs f $ track s }
 
 instance ASTContainer CurrExpr Expr where

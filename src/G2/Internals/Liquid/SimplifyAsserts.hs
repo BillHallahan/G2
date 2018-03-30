@@ -8,7 +8,7 @@ import G2.Internals.Liquid.TCValues
 
 type ModifiedKnownValues = KnownValues
 
-simplifyAsserts :: (ASTContainer h Expr, ASTContainer t Expr) => ModifiedKnownValues -> TCValues -> State h t -> State h t
+simplifyAsserts :: ASTContainer t Expr => ModifiedKnownValues -> TCValues -> State t -> State t
 simplifyAsserts mkv tcv s@(State {type_env = tenv, known_values = kv}) =
     modifyASTs (simplifyAsserts' tenv kv mkv tcv) s
 

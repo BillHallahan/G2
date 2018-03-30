@@ -25,7 +25,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-subModel :: State h t -> ([Expr], Expr, Maybe FuncCall)
+subModel :: State t -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
                 , input_ids = is
@@ -93,7 +93,7 @@ isTC _ _ = False
 
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable
-checkConstraints :: SMTConverter ast out io -> io -> State h t -> IO Result
+checkConstraints :: SMTConverter ast out io -> io -> State t -> IO Result
 checkConstraints con io s = do
     case checkConsistency (known_values s) (type_env s) (path_conds s) of
         Just True -> return SAT
@@ -104,7 +104,7 @@ checkConstraints con io s = do
             -- putStrLn $ "PC unsafe = " ++ (pprPathsStr . PC.toList . unsafeElimCast $ path_conds s)
             checkConstraints' con io s
 
-checkConstraints' :: SMTConverter ast out io -> io -> State h t -> IO Result
+checkConstraints' :: SMTConverter ast out io -> io -> State t -> IO Result
 checkConstraints' con io s = do
     -- let s' = filterTEnv . simplifyPrims $ s
     let s' = s {path_conds = unsafeElimCast . simplifyPrims $ path_conds s}
@@ -114,7 +114,7 @@ checkConstraints' con io s = do
 
     checkSat con io formula
 
-checkConstraintsWithSMTSorts :: Config -> SMTConverter ast out io -> io -> State h t -> IO Result
+checkConstraintsWithSMTSorts :: Config -> SMTConverter ast out io -> io -> State t -> IO Result
 checkConstraintsWithSMTSorts config con io s = do
     let tenv = filterTEnv (type_env s) (path_conds s)
     let pc = unsafeElimCast . simplifyPrims $ path_conds s
@@ -191,7 +191,7 @@ elimTyForAll' t = t
 
 -- | checkModel
 -- Checks if the constraints are satisfiable, and returns a model if they are
-checkModel :: SMTConverter ast out io -> io -> State h t -> IO (Result, Maybe ExprModel)
+checkModel :: SMTConverter ast out io -> io -> State t -> IO (Result, Maybe ExprModel)
 checkModel con io s = do
     -- let s' = filterTEnv . simplifyPrims $ s
     let s' = s {path_conds = simplifyPrims $ path_conds s}
@@ -201,7 +201,7 @@ checkModel con io s = do
 -- We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
-checkModel' :: SMTConverter ast out io -> io -> [Id] -> State h t -> IO (Result, Maybe ExprModel)
+checkModel' :: SMTConverter ast out io -> io -> [Id] -> State t -> IO (Result, Maybe ExprModel)
 checkModel' _ _ [] s = do
     return (SAT, Just $ model s)
 -- We can't use the ADT solver when we have a Boolean, because the RHS of the
@@ -222,7 +222,7 @@ checkModel' con io (i:is) s = do
         Just m' -> checkModel' con io is (s {model = M.union m' (model s), arbValueGen = av})
         Nothing -> return (UNSAT, Nothing)
 
-getModelVal :: SMTConverter ast out io -> io -> Id -> Maybe Config -> State h t -> IO (Maybe ExprModel, ArbValueGen)
+getModelVal :: SMTConverter ast out io -> io -> Id -> Maybe Config -> State t -> IO (Maybe ExprModel, ArbValueGen)
 getModelVal con io (Id n _) config s = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
  
@@ -239,7 +239,7 @@ getModelVal con io (Id n _) config s = do
                     e <- checkNumericConstraints con io config s'
                     return (e, arbValueGen s)
 
-checkNumericConstraints :: SMTConverter ast out io -> io -> Maybe Config -> State h t -> IO (Maybe ExprModel)
+checkNumericConstraints :: SMTConverter ast out io -> io -> Maybe Config -> State t -> IO (Maybe ExprModel)
 checkNumericConstraints con io config s = do
     let headers = case maybe False smtADTs config of
                         False -> toSMTHeaders s
@@ -259,7 +259,7 @@ checkNumericConstraints con io config s = do
 -- | addADTs
 -- Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: Name -> Name -> [Type] -> State h t -> (Result, [Id], State h t)
+addADTs :: Name -> Name -> [Type] -> State t -> (Result, [Id], State t)
 addADTs n tn ts s =
     let
         pc = PC.scc (known_values s) [n] (path_conds s)
@@ -304,7 +304,7 @@ addADTs n tn ts s =
 
 -- | checkModelWithSMTSorts
 -- Checks if the constraints are satisfiable, and returns a model if they are
-checkModelWithSMTSorts :: SMTConverter ast out io -> io -> Config -> State h t -> IO (Result, Maybe ExprModel)
+checkModelWithSMTSorts :: SMTConverter ast out io -> io -> Config -> State t -> IO (Result, Maybe ExprModel)
 checkModelWithSMTSorts con io config s@(State {expr_env = eenv}) = do
     let tenv = filterTEnv (type_env s) (path_conds s)
     let cexpr = earlySubVar eenv $ curr_expr s
@@ -319,7 +319,7 @@ checkModelWithSMTSorts con io config s@(State {expr_env = eenv}) = do
                , path_conds = pc' }
     return . fmap liftCasts =<< checkModelWithSMTSorts' con io (symbolic_ids s') config s'
 
-checkModelWithSMTSorts' :: SMTConverter ast out io -> io -> [Id] -> Config -> State h t -> IO (Result, Maybe ExprModel)
+checkModelWithSMTSorts' :: SMTConverter ast out io -> io -> [Id] -> Config -> State t -> IO (Result, Maybe ExprModel)
 checkModelWithSMTSorts' _ _ [] _ s = do
     return (SAT, Just $ model s)
 checkModelWithSMTSorts' con io (i:is) config s = do
