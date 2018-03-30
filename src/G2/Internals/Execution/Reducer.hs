@@ -20,6 +20,12 @@ import G2.Internals.Config
 import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
 
+-- | ExState
+-- Used when applying execution rules
+-- Allows tracking extra information to control halting of rule application,
+-- and to reorder states
+-- see also, the Reducer, Halter, Orderer typeclasses
+-- cases is used for logging states
 data ExState hv sov t = ExState { state :: State t
                                 , halter_val :: hv
                                 , order_val :: sov
