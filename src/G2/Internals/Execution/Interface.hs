@@ -20,30 +20,31 @@ import System.Directory
 runNDepth :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> SMTConverter ast out io -> io -> orv -> [State t] -> Config -> IO [([Int], State t)]
 runNDepth red hal ord con hpp p states config =
     mapM (\ExState {state = s, cases = c} -> return (c, s))
-        =<< (runNDepth' red hal ord p [] $ map (\s -> ExState { state = s
-                                                              , halter_val = initHalt hal config s
-                                                              , order_val = initPerStateOrder ord config s
-                                                              , cases = []}) states)
+        =<< (runNDepth' red hal ord p (Processed {accepted = [], discarded = []}) $ map (\s -> ExState { state = s
+                                                                                                       , halter_val = initHalt hal config s
+                                                                                                       , order_val = initPerStateOrder ord config s
+                                                                                                       , cases = []}) states)
   where
-    runNDepth' :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> [ExState hv sov t] -> [ExState hv sov t] -> IO [ExState hv sov t]
+    runNDepth' :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> Processed (ExState hv sov t) -> [ExState hv sov t] -> IO [ExState hv sov t]
     runNDepth' _ _ _ _ _ [] = return []
     runNDepth' red' hal' ord' p' fnsh (rss@(ExState {state = s, halter_val = h_val, cases = is}):xs)
         | hc == Accept =
             let
-                fnsh' = rss:fnsh
+                fnsh' = fnsh {accepted = rss:accepted fnsh}
                 (xs', p'') = orderStates ord' p' fnsh' xs
             in
-            return . (:) rss =<< runNDepth' red' hal' ord' p'' fnsh' xs'
+            return . (:) rss =<< runNDepth' red' hal' ord' p'' fnsh' (reInitFirstHalter hal' fnsh' xs')
         | hc == Discard =
             let
-                (xs', p'') = orderStates ord' p' fnsh xs
+                fnsh' = fnsh {discarded = rss:discarded fnsh}
+                (xs', p'') = orderStates ord' p' fnsh' xs
             in
-            runNDepth' red' hal' ord' p'' fnsh xs'
+            runNDepth' red' hal' ord' p'' fnsh' (reInitFirstHalter hal' fnsh' xs')
         | hc == Switch =
             let
                 (xs', p'') = orderStates ord' p' fnsh (rss:xs)
             in
-            runNDepth' red' hal' ord' p'' fnsh xs'
+            runNDepth' red' hal' ord' p'' fnsh (reInitFirstHalter hal' fnsh xs')
         | otherwise = do
             case logStates config of
                 Just f -> outputState f is s
@@ -53,11 +54,23 @@ runNDepth red hal ord con hpp p states config =
 
             let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
             
-            let mod_info = map (\(i, s') -> rss {state = s', halter_val = stepHalter hal' h_val s', cases = is ++ maybe [] (\i' -> [i']) i}) isred
+            let mod_info = map (\(i, s') -> rss {state = s', halter_val = stepHalter hal' h_val (processedToState fnsh) s', cases = is ++ maybe [] (\i' -> [i']) i}) isred
             
             runNDepth' red' hal' ord' p' fnsh (mod_info ++ xs)
         where
-            hc = stopRed hal' h_val s
+            hc = stopRed hal' h_val (processedToState fnsh) s
+
+reInitFirstHalter :: Halter h hv t => h -> Processed (ExState hv sov t) -> [ExState hv sov t] -> [ExState hv sov t]
+reInitFirstHalter h proc (es@ExState {state = s, halter_val = hv}:xs) =
+    let
+        hv' = reInitHalt h hv (processedToState proc) s
+    in
+    es {halter_val = hv'}:xs
+reInitFirstHalter _ _ [] = []
+
+processedToState :: Processed (ExState hv sov t) -> Processed (State t)
+processedToState (Processed {accepted = app, discarded = dis}) =
+    Processed {accepted = map state app, discarded = map state dis}
 
 runNDepthNoConstraintChecks :: [State t] -> Int -> [State t]
 runNDepthNoConstraintChecks states d = runNDepthNCC' $ map (\s -> (s, d)) states

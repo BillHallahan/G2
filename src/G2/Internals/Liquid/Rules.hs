@@ -2,9 +2,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Internals.Liquid.Rules ( LHRed (..)
-                                 , LHOrderer (..)
+                                 , LHHalter (..)
                                  , lhReduce
-                                 , selectLH
                                  , initialTrack) where
 
 import G2.Internals.Execution.Reducer
@@ -93,17 +92,6 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
         False -> Nothing
 symbState _ _ _ _ _ _ = error "Bad expr in symbState"
 
-selectLH :: Int -> [ExState h () [FuncCall]] -> [ExState h () [FuncCall]] -> ([ExState h () [FuncCall]], Int)
-selectLH ii solved next =
-    let
-        mi = minimum $ ii:map (length . track . state) solved
-        next' = dropWhile (\ExState {state = s} -> trackingGreater s mi) next
-    in
-    (next', mi)
-
-trackingGreater :: State [FuncCall] -> Int -> Bool
-trackingGreater (State {track = tr}) i = length tr > i
-
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function
 initialTrack :: ExprEnv -> Expr -> Int
@@ -121,13 +109,15 @@ initialTrack eenv (Assert _ _ e) = initialTrack eenv e
 initialTrack _ _ = 0
 
 data LHRed = LHRed
-data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
+-- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
+data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
+
 
 instance Reducer LHRed [FuncCall] where
     redRules _ = lhReduce
 
-instance Orderer LHOrderer Int () [FuncCall] where
-    initOrder (LHOrderer entry modn eenv) _ _ =
+instance Halter LHHalter Int [FuncCall] where
+    initHalt (LHHalter entry modn eenv) _ _ =
         let 
             fe = case E.occLookup entry modn eenv of
                 Just e -> e
@@ -135,6 +125,8 @@ instance Orderer LHOrderer Int () [FuncCall] where
         in
         initialTrack eenv fe
 
-    initPerStateOrder _ _ _ = ()
+    reInitHalt _ ii (Processed {accepted = acc}) _ = minimum $ ii:map (length . track) acc
 
-    orderStates _ = selectLH
+    stopRed _ hv _ s = if length (track s) > hv then Discard else Continue
+
+    stepHalter _ hv _ _ = hv
