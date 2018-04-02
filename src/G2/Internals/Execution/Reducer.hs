@@ -7,20 +7,30 @@
 module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , Halter (..)
                                       , Orderer (..)
-                                      , ExState (..)
                                       , Processed (..)
                                       , HaltC (..)
                                       , HCombiner (..)
                                       , StdRed (..)
                                       , ZeroHalter (..)
+                                      , MaxOutputsHalter (..)
                                       , NextOrderer (..)
+                                      , getState
+                                      , getOrderVal
+                                      , setOrderVal
                                       , executeNext
                                       , halterSub1
-                                      , halterIsZero ) where
+                                      , halterIsZero
+                                      , runReducer ) where
 
 import G2.Internals.Config
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
+import G2.Internals.Solver
+import G2.Lib.Printers
+
+import Data.Foldable
+import Data.Maybe
+import System.Directory
 
 -- | ExState
 -- Used when applying execution rules
@@ -28,10 +38,20 @@ import G2.Internals.Language
 -- and to reorder states
 -- see also, the Reducer, Halter, Orderer typeclasses
 -- cases is used for logging states
-data ExState hv sov t = ExState { state :: State t
+data ExState hv sov rsov t = ExState { state :: State t
                                 , halter_val :: hv
                                 , order_val :: sov
-                                , cases :: [Int]}
+                                , cases :: [Int]
+                                }
+
+getState :: ExState hv sov rsov t -> State t
+getState (ExState {state = s}) = s
+
+getOrderVal :: ExState hv sov rsov t -> sov
+getOrderVal (ExState {order_val = ord}) = ord
+
+setOrderVal :: ExState hv sov rsov t -> sov -> ExState hv sov rsov t
+setOrderVal s sv = s {order_val = sv}
 
 -- | Processed a
 -- Keeps track of type a's that have either been accepted or dropped
@@ -103,13 +123,13 @@ class Orderer or orv sov t | or -> orv, or -> sov where
     -- Reorders the latter list, to set the priority of each state
     -- The State at the head of the list is the next executed.
     -- Takes and returns some extra data that it can use however it wants
-    orderStates :: or -> orv -> Processed (ExState h sov t) -> [ExState h sov t] -> ([ExState h sov t], orv)    
+    orderStates :: or -> orv -> Processed (ExState hv sov rsov t) -> [ExState hv sov rsov t] -> ([ExState hv sov rsov t], orv)    
 
--- HCombiner h1 h2
+-- | HCombiner h1 h2
 -- Allows executing multiple halters.
 -- If the halters disagree, prioritizes the order:
 -- Discard, Accept, Switch, Continue
-data HCombiner h1 h2 = h1 :<~ h2 deriving (Eq, Show, Read)
+data HCombiner h1 h2 = h1 :<~> h2 deriving (Eq, Show, Read)
 
 -- We use C to combine the halter values for HCombiner
 -- We should never define any other instance of Halter with C, or export it
@@ -130,28 +150,28 @@ instance {-# OVERLAPPING #-} (Named a, Named b) => Named (C a b) where
     renames hm (C a b) = C (renames hm a) (renames hm b)
 
 instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 hv2) t where
-    initHalt (h1 :<~ h2) config s =
+    initHalt (h1 :<~> h2) config s =
         let
             hv1 = initHalt h1 config s
             hv2 = initHalt h2 config s
         in
         C hv1 hv2
 
-    reInitHalt (h1 :<~ h2) (C hv1 hv2) proc s =
+    reInitHalt (h1 :<~> h2) (C hv1 hv2) proc s =
         let
             hv1' = reInitHalt h1 hv1 proc s
             hv2' = reInitHalt h2 hv2 proc s
         in
         C hv1' hv2'
 
-    stopRed (h1 :<~ h2) (C hv1 hv2) proc s =
+    stopRed (h1 :<~> h2) (C hv1 hv2) proc s =
         let
             hc1 = stopRed h1 hv1 proc s
             hc2 = stopRed h2 hv2 proc s
         in
         min hc1 hc2
 
-    stepHalter (h1 :<~ h2) (C hv1 hv2) proc s =
+    stepHalter (h1 :<~> h2) (C hv1 hv2) proc s =
         let
             hv1' = stepHalter h1 hv1 proc s
             hv2' = stepHalter h2 hv2 proc s
@@ -160,6 +180,7 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
 
 data StdRed = StdRed
 data ZeroHalter = ZeroHalter
+data MaxOutputsHalter = MaxOutputsHalter
 data NextOrderer = NextOrderer
 
 instance Reducer StdRed () where
@@ -171,12 +192,18 @@ instance Halter ZeroHalter Int t where
     stopRed = halterIsZero
     stepHalter = halterSub1
 
+instance Halter MaxOutputsHalter Int t where
+    initHalt _ config _ = fromJust $ maxOutputs config
+    reInitHalt _ hv _ _ = hv
+    stopRed _ m (Processed {accepted = acc}) _ = if m >= length acc then Discard else Continue
+    stepHalter _ hv _ _ = hv
+
 instance Orderer NextOrderer () () t where
     initOrder _ _ _ = ()
     initPerStateOrder _ _ _ = ()
     orderStates = executeNext
 
-executeNext :: Orderer r () () t => r -> p -> Processed (ExState h sov t) -> [ExState h sov t] -> ([ExState h sov t], ())
+executeNext :: Orderer r () () t => r -> p -> Processed (ExState hv sov rsov t) -> [ExState hv sov rsov t] -> ([ExState hv sov rsov t], ())
 executeNext _ _ _ xs = (xs, ())
 
 halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> Int
@@ -188,3 +215,74 @@ halterIsZero _ 0 _ s =
         True -> Accept
         False -> Discard
 halterIsZero _ _ _ _ = Continue
+
+--------
+--------
+
+-- | runReducer
+-- Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
+runReducer :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> SMTConverter ast out io -> io -> orv -> [State t] -> Config -> IO [([Int], State t)]
+runReducer red hal ord con hpp p states config =
+    mapM (\ExState {state = s, cases = c} -> return (c, s))
+        =<< (runReducer' red hal ord p (Processed {accepted = [], discarded = []}) $ map (\s -> ExState { state = s
+                                                                                                       , halter_val = initHalt hal config s
+                                                                                                       , order_val = initPerStateOrder ord config s
+                                                                                                       , cases = []}) states)
+  where
+    runReducer' :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> Processed (ExState hv sov rsov t) -> [ExState hv sov rsov t] -> IO [ExState hv sov rsov t]
+    runReducer' _ _ _ _ _ [] = return []
+    runReducer' red' hal' ord' p' fnsh (rss@(ExState {state = s, halter_val = h_val, cases = is}):xs)
+        | hc == Accept =
+            let
+                fnsh' = fnsh {accepted = rss:accepted fnsh}
+                (xs', p'') = orderStates ord' p' fnsh' xs
+            in
+            return . (:) rss =<< runReducer' red' hal' ord' p'' fnsh' (reInitFirstHalter hal' fnsh' xs')
+        | hc == Discard =
+            let
+                fnsh' = fnsh {discarded = rss:discarded fnsh}
+                (xs', p'') = orderStates ord' p' fnsh' xs
+            in
+            runReducer' red' hal' ord' p'' fnsh' (reInitFirstHalter hal' fnsh' xs')
+        | hc == Switch =
+            let
+                (xs', p'') = orderStates ord' p' fnsh (rss:xs)
+            in
+            runReducer' red' hal' ord' p'' fnsh (reInitFirstHalter hal' fnsh xs')
+        | otherwise = do
+            case logStates config of
+                Just f -> outputState f is s
+                Nothing -> return ()
+
+            reduceds <- reduce (redRules red') con hpp config s
+
+            let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
+            
+            let mod_info = map (\(i, s') -> rss {state = s', halter_val = stepHalter hal' h_val (processedToState fnsh) s', cases = is ++ maybe [] (\i' -> [i']) i}) isred
+            
+            runReducer' red' hal' ord' p' fnsh (mod_info ++ xs)
+        where
+            hc = stopRed hal' h_val (processedToState fnsh) s
+
+reInitFirstHalter :: Halter h hv t => h -> Processed (ExState hv sov rsov t) -> [ExState hv sov rsov t] -> [ExState hv sov rsov t]
+reInitFirstHalter h proc (es@ExState {state = s, halter_val = hv}:xs) =
+    let
+        hv' = reInitHalt h hv (processedToState proc) s
+    in
+    es {halter_val = hv'}:xs
+reInitFirstHalter _ _ [] = []
+
+processedToState :: Processed (ExState hv sov rsov t) -> Processed (State t)
+processedToState (Processed {accepted = app, discarded = dis}) =
+    Processed {accepted = map state app, discarded = map state dis}
+
+outputState :: String -> [Int] -> State t -> IO ()
+outputState fdn is s = do
+    let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
+    createDirectoryIfMissing True dir
+
+    let fn = dir ++ "state" ++ show (length $ rules s) ++ ".txt"
+    let write = pprExecStateStr s
+    writeFile fn write
+
+    putStrLn fn

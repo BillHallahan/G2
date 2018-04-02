@@ -107,7 +107,7 @@ run red hal ord con hhp config (is@State { type_env = tenv
 
     let ior = initOrder ord config preproc_state
 
-    exec_states <- runNDepth red hal ord con hhp ior [preproc_state] config
+    exec_states <- runExecution red hal ord con hhp ior [preproc_state] config
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states
