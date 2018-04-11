@@ -12,6 +12,7 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as S
+import G2.Internals.Liquid.Annotations
 
 import Data.Maybe
 import Data.Monoid
@@ -36,16 +37,16 @@ import qualified Data.Text as T
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: State [FuncCall] -> (Rule, [ReduceResult [FuncCall]])
-lhReduce = stdReduceBase lhReduce'
+lhReduce :: AnnotMap -> State [FuncCall] -> (Rule, [ReduceResult [FuncCall]])
+lhReduce annm = stdReduceBase (lhReduce' annm)
 
-lhReduce' :: State [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
-lhReduce' State { expr_env = eenv
-               , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
-               , name_gen = ng
-               , apply_types = at
-               , exec_stack = stck
-               , track = tr } =
+lhReduce' :: AnnotMap -> State [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
+lhReduce' annm State { expr_env = eenv
+                     , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
+                     , name_gen = ng
+                     , apply_types = at
+                     , exec_stack = stck
+                     , track = tr } =
         let
             (r, er) = stdReduceEvaluate eenv vv ng
             states = map (\(eenv', cexpr', paths', ngen', f) ->
@@ -59,13 +60,13 @@ lhReduce' State { expr_env = eenv
                         , []
                         , tr))
                        er
-            sb = symbState eenv vv ng at stck tr
+            sb = symbState annm eenv vv ng at stck tr
         in
         Just $ (r, states ++ maybeToList sb)
-lhReduce' _ = Nothing
+lhReduce' _ _ = Nothing
 
-symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [FuncCall] -> Maybe (ReduceResult [FuncCall])
-symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e _)) ng at stck tr =
+symbState :: AnnotMap -> ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [FuncCall] -> Maybe (ReduceResult [FuncCall])
+symbState annm eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e _)) ng at stck tr =
     let
         cexprT = returnType cexpr
 
@@ -90,7 +91,7 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
         True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (FuncCall {funcName = fn, arguments = ars, returns = Var i}):tr)
         False -> Nothing
-symbState _ _ _ _ _ _ = error "Bad expr in symbState"
+symbState _ _ _ _ _ _ _ = error "Bad expr in symbState"
 
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function
@@ -108,13 +109,13 @@ initialTrack eenv (Assume _ e) = initialTrack eenv e
 initialTrack eenv (Assert _ _ e) = initialTrack eenv e
 initialTrack _ _ = 0
 
-data LHRed = LHRed
+data LHRed = LHRed AnnotMap
 -- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
 data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
 instance Reducer LHRed [FuncCall] where
-    redRules _ = lhReduce
+    redRules (LHRed annm) = lhReduce annm
 
 instance Halter LHHalter Int [FuncCall] where
     initHalt (LHHalter entry modn eenv) _ _ =

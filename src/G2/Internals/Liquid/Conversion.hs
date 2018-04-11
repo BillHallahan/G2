@@ -5,6 +5,7 @@ module G2.Internals.Liquid.Conversion ( addLHTC
                                       , addLHTCExprEnv
                                       , replaceVarTy
                                       , mergeLHSpecState
+                                      , convertSpecType
                                       , convertSpecTypeDict
                                       , convertLHExpr
                                       , specTypeToType
@@ -377,8 +378,8 @@ hasAssert' _ = Any False
 -- We create an Expr from a SpecType in two phases.  First, we create outer
 -- lambda expressions, then we create a conjunction of m boolean expressions
 -- describing allowed  values of the bound variables
-convertAssertSpecType :: TCValues -> State t -> SpecType -> Lang.Id -> Maybe (M.Map Name Type) -> Expr
-convertAssertSpecType tcv s@(State { type_env = tenv }) st ret m =
+convertSpecType :: TCValues -> State t -> SpecType -> Lang.Id -> Maybe (M.Map Name Type) -> Expr
+convertSpecType tcv s@(State { type_env = tenv }) st ret m =
     let
         nt = convertSpecTypeDict tcv s st
 
@@ -392,6 +393,9 @@ convertAssertSpecType tcv s@(State { type_env = tenv }) st ret m =
         apps = specTypeApps st tcv s m' ret
     in
     primInject $ lams' apps
+
+convertAssertSpecType :: TCValues -> State t -> SpecType -> Lang.Id -> Maybe (M.Map Name Type) -> Expr
+convertAssertSpecType = convertSpecType
 
 convertAssumeSpecType :: TCValues -> State t -> SpecType -> Expr
 convertAssumeSpecType tcv s@(State { type_env = tenv }) st =
@@ -575,7 +579,8 @@ unpackReft = coerce
 rTyConType :: TypeEnv -> RTyCon -> [SpecType]-> Maybe Type
 rTyConType tenv rtc sts = 
     let
-        n = nameModMatch (mkTyConName HM.empty . rtc_tc $ rtc) tenv
+        tcn = mkTyConName HM.empty . rtc_tc $ rtc
+        n = nameModMatch tcn tenv
 
         ts = map (specTypeToType tenv) sts
     in
@@ -590,10 +595,14 @@ convertLHExpr (EVar s) _ _ (State { expr_env = eenv, type_env = tenv }) m = conv
 convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
     let
         f = convertLHExpr e Nothing tcv s m
-        f_ar_t@(~(TyConApp _ f_ar_ts)) = last $ argumentTypes f
+
+        at = argumentTypes f
+        f_ar_t = case at of
+                    (_:_) -> Just $ last at
+                    _ -> Nothing
     in
-    case convertLHExpr e' (Just f_ar_t) tcv s m of
-        v@(Var (Id _ (TyConApp _ ts))) -> 
+    case (convertLHExpr e' f_ar_t tcv s m, f_ar_t) of
+        (v@(Var (Id _ (TyConApp _ ts))), Just (TyConApp _ f_ar_ts)) -> 
             let
                 specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts
                 te = map Type specTo
@@ -607,7 +616,7 @@ convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
                 apps = mkApp $ fw:te ++ [v]
             in
             apps
-        e'' -> App f e''
+        (e'', _) -> App f e''
 convertLHExpr (ENeg e) t tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
     let
         e' = convertLHExpr e t tcv s m
@@ -736,11 +745,13 @@ symbolName :: Symbol -> Name
 symbolName s =
     let
         t = symbolSafeText s
-        l = T.last t
+        l = case T.null t of
+            True -> Just $ T.last t
+            False -> Nothing
 
         ((m, n), i) =
             case l of
-                ')' -> (T.breakOnEnd ".(" t, 2)
+                Just ')' -> (T.breakOnEnd ".(" t, 2)
                 _ -> (T.breakOnEnd "." t, 1)
 
         m' = T.dropEnd i m
@@ -836,12 +847,13 @@ fromJustErr s _ = error s
 
 convertBrel :: Brel -> TCValues -> Expr
 convertBrel Ref.Eq tcv = Var $ Id (lhEq tcv) TyUnknown
+convertBrel Ref.Ueq tcv = Var $ Id (lhEq tcv) TyUnknown
 convertBrel Ref.Ne tcv = Var $ Id (lhNe tcv) TyUnknown
 convertBrel Ref.Gt tcv = Var $ Id (lhGt tcv) TyUnknown
 convertBrel Ref.Ge tcv = Var $ Id (lhGe tcv) TyUnknown
 convertBrel Ref.Lt tcv = Var $ Id (lhLt tcv) TyUnknown
 convertBrel Ref.Le tcv = Var $ Id (lhLe tcv) TyUnknown
-convertBrel _ _ = error "convertBrel: Unhandled case"
+convertBrel _ _ = error "convertBrel: Unhandled brel"
 
 tyVarInTyAppHasName :: Name -> Type -> Bool
 tyVarInTyAppHasName n (TyConApp n' (TyVar (Id _ _):_)) = n == n'

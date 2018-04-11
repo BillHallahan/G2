@@ -26,6 +26,8 @@ type Binds = [(Id, Expr)]
 data Loc = Loc { line :: Int
                , col :: Int} deriving (Show, Eq, Read, Ord, Generic)
 
+instance Hashable Loc
+
 -- | The occurrence name is defined as a string, with a `Maybe` module name
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the

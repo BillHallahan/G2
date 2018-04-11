@@ -10,6 +10,7 @@ import G2.Internals.Interface
 import G2.Internals.Language as Lang
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Execution
+import G2.Internals.Liquid.Annotations
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.Measures
@@ -68,8 +69,6 @@ runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [
                     -> Config
                     -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
 runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = do
-    let annm = mconcat $ map annotMap cgi
-
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
     -- let lh_measure_names = map (symbolName . val .name) lh_measures
@@ -85,6 +84,9 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = d
 
     let (lh_state, meenv', tcv) = createLHTC ng_state meenv
     let lhtc_state = addLHTC lh_state tcv
+
+    let annm = getAnnotMap tcv lhtc_state cgi
+    -- print $ amKeys annm
 
     let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
     let meenv''' = replaceVarTy meenvT meenv''
@@ -112,7 +114,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = d
     let final_state = track_state
 
     -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
-    ret <- run LHRed (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp config final_state
+    ret <- run (LHRed annm) (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp config final_state
     -- ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions

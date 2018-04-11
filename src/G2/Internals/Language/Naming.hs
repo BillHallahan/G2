@@ -5,6 +5,7 @@
 module G2.Internals.Language.Naming
     ( nameOcc
     , nameModule
+    , nameLoc
     , NameGen
     , Named (names, rename, renames)
     , doRename
@@ -56,6 +57,8 @@ nameOcc (Name occ _ _ _) = occ
 nameModule :: Name -> Maybe T.Text
 nameModule (Name _ mb _ _) = mb
 
+nameLoc :: Name -> Maybe Loc
+nameLoc (Name _ _ _ l) = l
 
 data NameGen = NameGen { max_uniq :: (HM.HashMap (T.Text, Maybe T.Text) Int)
                        , dc_children :: (HM.HashMap Name [Name]) }

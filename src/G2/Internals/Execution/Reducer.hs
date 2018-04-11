@@ -38,19 +38,19 @@ import System.Directory
 -- and to reorder states
 -- see also, the Reducer, Halter, Orderer typeclasses
 -- cases is used for logging states
-data ExState hv sov rsov t = ExState { state :: State t
+data ExState hv sov t = ExState { state :: State t
                                 , halter_val :: hv
                                 , order_val :: sov
                                 , cases :: [Int]
                                 }
 
-getState :: ExState hv sov rsov t -> State t
+getState :: ExState hv sov t -> State t
 getState (ExState {state = s}) = s
 
-getOrderVal :: ExState hv sov rsov t -> sov
+getOrderVal :: ExState hv sov t -> sov
 getOrderVal (ExState {order_val = ord}) = ord
 
-setOrderVal :: ExState hv sov rsov t -> sov -> ExState hv sov rsov t
+setOrderVal :: ExState hv sov t -> sov -> ExState hv sov t
 setOrderVal s sv = s {order_val = sv}
 
 -- | Processed a
@@ -123,7 +123,7 @@ class Orderer or orv sov t | or -> orv, or -> sov where
     -- Reorders the latter list, to set the priority of each state
     -- The State at the head of the list is the next executed.
     -- Takes and returns some extra data that it can use however it wants
-    orderStates :: or -> orv -> Processed (ExState hv sov rsov t) -> [ExState hv sov rsov t] -> ([ExState hv sov rsov t], orv)    
+    orderStates :: or -> orv -> Processed (ExState hv sov t) -> [ExState hv sov t] -> ([ExState hv sov t], orv)    
 
 -- | HCombiner h1 h2
 -- Allows executing multiple halters.
@@ -203,7 +203,7 @@ instance Orderer NextOrderer () () t where
     initPerStateOrder _ _ _ = ()
     orderStates = executeNext
 
-executeNext :: Orderer r () () t => r -> p -> Processed (ExState hv sov rsov t) -> [ExState hv sov rsov t] -> ([ExState hv sov rsov t], ())
+executeNext :: Orderer r () () t => r -> p -> Processed (ExState hv sov t) -> [ExState hv sov t] -> ([ExState hv sov t], ())
 executeNext _ _ _ xs = (xs, ())
 
 halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> Int
@@ -229,7 +229,7 @@ runReducer red hal ord con hpp p states config =
                                                                                                        , order_val = initPerStateOrder ord config s
                                                                                                        , cases = []}) states)
   where
-    runReducer' :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> Processed (ExState hv sov rsov t) -> [ExState hv sov rsov t] -> IO [ExState hv sov rsov t]
+    runReducer' :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> Processed (ExState hv sov t) -> [ExState hv sov t] -> IO [ExState hv sov t]
     runReducer' _ _ _ _ _ [] = return []
     runReducer' red' hal' ord' p' fnsh (rss@(ExState {state = s, halter_val = h_val, cases = is}):xs)
         | hc == Accept =
@@ -264,7 +264,7 @@ runReducer red hal ord con hpp p states config =
         where
             hc = stopRed hal' h_val (processedToState fnsh) s
 
-reInitFirstHalter :: Halter h hv t => h -> Processed (ExState hv sov rsov t) -> [ExState hv sov rsov t] -> [ExState hv sov rsov t]
+reInitFirstHalter :: Halter h hv t => h -> Processed (ExState hv sov t) -> [ExState hv sov t] -> [ExState hv sov t]
 reInitFirstHalter h proc (es@ExState {state = s, halter_val = hv}:xs) =
     let
         hv' = reInitHalt h hv (processedToState proc) s
@@ -272,7 +272,7 @@ reInitFirstHalter h proc (es@ExState {state = s, halter_val = hv}:xs) =
     es {halter_val = hv'}:xs
 reInitFirstHalter _ _ [] = []
 
-processedToState :: Processed (ExState hv sov rsov t) -> Processed (State t)
+processedToState :: Processed (ExState hv sov t) -> Processed (State t)
 processedToState (Processed {accepted = app, discarded = dis}) =
     Processed {accepted = map state app, discarded = map state dis}
 
