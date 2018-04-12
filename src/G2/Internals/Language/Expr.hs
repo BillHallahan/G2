@@ -30,6 +30,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , leadingLamIds
                                   , insertInLams
                                   , maybeInsertInLams
+                                  , inLams
                                   , replaceASTs
                                   , args
                                   , passedArgs
@@ -194,6 +195,12 @@ maybeInsertInLams f = maybeInsertInLams' f []
 maybeInsertInLams' :: ([Id] -> Expr -> Maybe Expr) -> [Id] -> Expr -> Maybe Expr
 maybeInsertInLams' f xs (Lam i e)  = fmap (Lam i) $ maybeInsertInLams' f (i:xs) e
 maybeInsertInLams' f xs e = f (reverse xs) e
+
+-- | inLams
+-- Returns the Expr in nested Lams
+inLams :: Expr -> Expr
+inLams (Lam _ e) = inLams e
+inLams e = e
 
 leadingLamIds :: Expr -> [Id]
 leadingLamIds (Lam i e) = i:leadingLamIds e

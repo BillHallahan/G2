@@ -42,7 +42,7 @@ lhReduce annm = stdReduceBase (lhReduce' annm)
 
 lhReduce' :: AnnotMap -> State [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
 lhReduce' annm State { expr_env = eenv
-                     , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
+                     , curr_expr = CurrExpr Evaluate vv@(Var _)-- vv@(Let _ (Assert _ _ _))
                      , name_gen = ng
                      , apply_types = at
                      , exec_stack = stck
@@ -63,10 +63,31 @@ lhReduce' annm State { expr_env = eenv
             sb = symbState annm eenv vv ng at stck tr
         in
         Just $ (r, states ++ maybeToList sb)
+lhReduce' annm State { expr_env = eenv
+                     , curr_expr = CurrExpr Return l@(Lam (Id n _) _)
+                     , name_gen = ng
+                     , exec_stack = estk
+                     , track = tr }
+    | Just (appfr@(ApplyFrame _), estk') <- S.pop estk =
+        let
+            (r, (eenv', cexpr, ng'), [new]) = reduceLam eenv l ng appfr
+        in
+        Just
+            (r, [( eenv'
+                 , cexpr
+                 , []
+                 , []
+                 , Nothing
+                 , ng'
+                 , estk'
+                 , []
+                 , rename n new tr)])
 lhReduce' _ _ = Nothing
 
 symbState :: AnnotMap -> ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [FuncCall] -> Maybe (ReduceResult [FuncCall])
-symbState annm eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e _)) ng at stck tr =
+symbState annm eenv (Var (Id n _)) ng at stck tr
+    | Just cexpr <- E.lookup n eenv
+    , Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e _) <- inLams cexpr =
     let
         cexprT = returnType cexpr
 
@@ -76,7 +97,7 @@ symbState annm eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, 
 
         (i, ng') = freshId t ng
 
-        cexpr' = Let [(b, atf (Var i))] $ Assume e (Var b)
+        cexpr' = insertInLams (\ _ _ -> Let [(b, atf (Var i))] $ Assume e (Var b)) cexpr
 
         eenv' = E.insertSymbolic (idName i) i eenv
 
@@ -91,7 +112,7 @@ symbState annm eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, 
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
         True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (FuncCall {funcName = fn, arguments = ars, returns = Var i}):tr)
         False -> Nothing
-symbState _ _ _ _ _ _ _ = error "Bad expr in symbState"
+symbState _ _ _ _ _ _ _ = Nothing -- error "Bad expr in symbState"
 
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function

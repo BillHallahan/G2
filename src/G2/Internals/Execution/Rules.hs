@@ -13,6 +13,7 @@ module G2.Internals.Execution.Rules
   , stdReduce
   , stdReduceBase
   , stdReduceEvaluate
+  , reduceLam
   ) where
 
 import G2.Internals.Config.Config
@@ -613,44 +614,11 @@ reduceEReturn eenv e ngen (CastFrame (t1 :~ t2)) =
     , CurrExpr Evaluate $ simplifyCasts $ Cast e (t1 :~ t2)
     , ngen))
 
--- In the event that our Lam parameter is a type variable, we have to handle
--- it by retyping.
-reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
-  | hasTYPE t =
-      let aty = case traceIdType i eenv of
-                      Just ty -> ty
-                      Nothing -> error $ "unable to trace: " ++ show n'
-          binds = [(Id n aty, Type aty)]
-          lexpr' = retype b aty lexpr
-          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
-      in ( RuleReturnEApplyLamType news
-         , ( eenv'
-           , CurrExpr Evaluate lexpr''
-           , ngen'))
-
-reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
-  | hasTYPE t =
-      let aty = typeOf aexpr
-          binds = [(Id n aty, aexpr)]
-          lexpr' = retype b aty lexpr
-          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
-      in ( RuleReturnEApplyLamType news
-         , ( eenv'
-           , CurrExpr Evaluate lexpr''
-           , ngen'))
-
--- When we have an `ApplyFrame` on the top of the stack, things might get a
--- bit tricky, since we need to make sure that the thing we end up returning
--- is appropriately a value. In the case of `Lam`, we need to perform
--- application, and then go into the expression body.
--- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
-  | otherwise =
-        let binds = [(b, aexpr)]
-            (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
-        in ( RuleReturnEApplyLamExpr news
-           , ( eenv'
-             , CurrExpr Evaluate lexpr'
-             , ngen'))
+reduceEReturn eenv cexpr@(Lam _ _) ngen fr =
+    let
+        (r, rr, _) = reduceLam eenv cexpr ngen fr
+    in
+    (r, rr)
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.
@@ -679,3 +647,47 @@ reduceEReturn eenv c ngen (ApplyFrame aexpr) =
       _ -> (RuleError, (eenv, CurrExpr Return c, ngen))
 
 reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
+
+reduceLam :: ExprEnv -> Expr -> NameGen -> Frame -> (Rule, EReturnResult, [Name])
+  -- In the event that our Lam parameter is a type variable, we have to handle
+-- it by retyping.
+reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
+  | hasTYPE t =
+      let aty = case traceIdType i eenv of
+                      Just ty -> ty
+                      Nothing -> error $ "unable to trace: " ++ show n'
+          binds = [(Id n aty, Type aty)]
+          lexpr' = retype b aty lexpr
+          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
+      in ( RuleReturnEApplyLamType news
+         , ( eenv'
+           , CurrExpr Evaluate lexpr''
+           , ngen')
+         , news)
+
+reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
+  | hasTYPE t =
+      let aty = typeOf aexpr
+          binds = [(Id n aty, aexpr)]
+          lexpr' = retype b aty lexpr
+          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
+      in ( RuleReturnEApplyLamType news
+         , ( eenv'
+           , CurrExpr Evaluate lexpr''
+           , ngen')
+         , news)
+
+-- When we have an `ApplyFrame` on the top of the stack, things might get a
+-- bit tricky, since we need to make sure that the thing we end up returning
+-- is appropriately a value. In the case of `Lam`, we need to perform
+-- application, and then go into the expression body.
+-- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
+  | otherwise =
+        let binds = [(b, aexpr)]
+            (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
+        in ( RuleReturnEApplyLamExpr news
+           , ( eenv'
+             , CurrExpr Evaluate lexpr'
+             , ngen')
+           , news)
+reduceLam _ _ _ _ = error "Bad expr in reduceLam"
