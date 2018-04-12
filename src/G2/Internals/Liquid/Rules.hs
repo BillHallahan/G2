@@ -19,6 +19,8 @@ import Data.Monoid
 import Data.Semigroup
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
 -- Var f can potentially split into two states.
@@ -29,8 +31,9 @@ import qualified Data.Text as T
 --
 --     We introduce a new symbolic variable x_s, with the same type of s, and
 --     set the curr expr to
---     let x = x_s in Assert (a x'_1 ... x'_n x_s) x_s
+--     lam x_1 .. lam x_n . let x = x_s in Assume [inferred] (Assume (a x'_1 ... x'_n x) x)
 --     appropriately binding x'_i to x_i in the expression environment
+--     where [inferred] is the inferred type of the variable
 --
 --     This allows us to choose any value for the return type of the function.
 --     In this rule, we also return a b, oldb `mappend` [(f, [x_1, ..., x_n], x)]
@@ -42,7 +45,7 @@ lhReduce annm = stdReduceBase (lhReduce' annm)
 
 lhReduce' :: AnnotMap -> State [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
 lhReduce' annm State { expr_env = eenv
-                     , curr_expr = CurrExpr Evaluate vv@(Var _)-- vv@(Let _ (Assert _ _ _))
+                     , curr_expr = CurrExpr Evaluate vv@(Var _)
                      , name_gen = ng
                      , apply_types = at
                      , exec_stack = stck
@@ -63,11 +66,11 @@ lhReduce' annm State { expr_env = eenv
             sb = symbState annm eenv vv ng at stck tr
         in
         Just $ (r, states ++ maybeToList sb)
-lhReduce' annm State { expr_env = eenv
-                     , curr_expr = CurrExpr Return l@(Lam (Id n _) _)
-                     , name_gen = ng
-                     , exec_stack = estk
-                     , track = tr }
+lhReduce' _ State { expr_env = eenv
+                  , curr_expr = CurrExpr Return l@(Lam (Id n _) _)
+                  , name_gen = ng
+                  , exec_stack = estk
+                  , track = tr }
     | Just (appfr@(ApplyFrame _), estk') <- S.pop estk =
         let
             (r, (eenv', cexpr, ng'), [new]) = reduceLam eenv l ng appfr
@@ -89,7 +92,9 @@ symbState annm eenv (Var (Id n _)) ng at stck tr
     | Just cexpr <- E.lookup n eenv
     , Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e _) <- inLams cexpr =
     let
-        cexprT = returnType cexpr
+        inf_typ = lookupAnnot n annm
+
+        cexprT = returnType $ inLams cexpr
 
         (t, atf) = case AT.lookup cexprT at of
                         Just (t', f) -> (TyConApp t' [], App (Var f))
@@ -110,9 +115,9 @@ symbState annm eenv (Var (Id n _)) ng at stck tr
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (FuncCall {funcName = fn, arguments = ars, returns = Var i}):tr)
+        True -> trace (show $ inf_typ) Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (FuncCall {funcName = fn, arguments = ars, returns = Var i}):tr)
         False -> Nothing
-symbState _ _ _ _ _ _ _ = Nothing -- error "Bad expr in symbState"
+symbState _ _ _ _ _ _ _ = Nothing
 
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function

@@ -101,6 +101,8 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = d
     -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv tcv merged_state
 
+    let annm' = simplifyAssertsG mkv tcv (type_env beta_red_state) (known_values beta_red_state) annm
+
     let spec_assert_state = addSpecialAsserts beta_red_state
 
     let track_state = spec_assert_state {track = [] :: [FuncCall]}
@@ -114,7 +116,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = d
     let final_state = track_state
 
     -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
-    ret <- run (LHRed annm) (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp config final_state
+    ret <- run (LHRed annm') (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp config final_state
     -- ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions

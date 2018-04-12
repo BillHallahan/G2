@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Liquid.Annotations ( AnnotMap
@@ -64,3 +65,8 @@ fstSrcSpanToLoc _ = Nothing
 rightFstToLeft :: (a, [(b, c)]) -> [((a, b), c)]
 rightFstToLeft (a, xs) =
     map (\(b, c) -> ((a, b), c)) xs
+
+instance ASTContainer AnnotMap Expr where
+    containedASTs = catMaybes . HM.elems . coerce
+    modifyContainedASTs f = AM . HM.map (fmap f) . coerce
+

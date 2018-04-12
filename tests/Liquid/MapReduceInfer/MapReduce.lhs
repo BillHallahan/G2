@@ -58,7 +58,7 @@ Step 2: Group By Key
 --------------------
 
 \begin{code}
-{-@ group :: (Ord k) => {xs:List (k, v) | size xs >0} -> M.Map k ({l:List v | size l>0}) @-}
+{-@ group :: (Ord k) => List (k, v) -> M.Map k ({l:List v | size l>0}) @-}
 group     = foldr addKV  M.empty
 
 addKV (k,v) m = M.insert k vs' m

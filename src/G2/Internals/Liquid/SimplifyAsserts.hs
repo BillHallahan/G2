@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.Liquid.SimplifyAsserts (simplifyAsserts) where
+module G2.Internals.Liquid.SimplifyAsserts ( simplifyAsserts
+                                           , simplifyAssertsG) where
 
 import G2.Internals.Language
 import G2.Internals.Language.KnownValues
@@ -11,6 +12,9 @@ type ModifiedKnownValues = KnownValues
 simplifyAsserts :: ASTContainer t Expr => ModifiedKnownValues -> TCValues -> State t -> State t
 simplifyAsserts mkv tcv s@(State {type_env = tenv, known_values = kv}) =
     modifyASTs (simplifyAsserts' tenv kv mkv tcv) s
+
+simplifyAssertsG :: ASTContainer m Expr => KnownValues -> TCValues -> TypeEnv -> KnownValues -> m -> m
+simplifyAssertsG mkv tcv tenv kv = modifyASTs (simplifyIn tenv kv mkv tcv)
 
 simplifyAsserts' :: TypeEnv -> KnownValues -> ModifiedKnownValues -> TCValues -> Expr -> Expr
 simplifyAsserts' tenv kv mkv tcv (Assume a e) = Assume (simplifyIn tenv kv mkv tcv a) e
