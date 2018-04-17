@@ -58,6 +58,10 @@ Step 2: Group By Key
 --------------------
 
 \begin{code}
+{-@ group2 :: List k -> M.Map k ({l:List v | size l>0}) @-}
+group2    :: List k -> M.Map k (List v)
+group2     = foldr (\_ m -> m)  M.empty
+
 {-@ group :: (Ord k) => List (k, v) -> M.Map k ({l:List v | size l>0}) @-}
 group     = foldr addKV  M.empty
 

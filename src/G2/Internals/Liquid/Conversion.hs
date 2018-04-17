@@ -676,6 +676,7 @@ convertLHExpr (EIte b e1 e2) t tcv s@(State { type_env = tenv, name_gen = ng, kn
         a2 = Lang.Alt (DataAlt fs []) e2'
     in
     Case bE cb [a1, a2]
+convertLHExpr (ECst e _) t tcv s m = convertLHExpr e t tcv s m
 convertLHExpr (PAnd es) _ tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
     case map (\e -> convertLHExpr e Nothing tcv s m) es of
         [] -> mkTrue knv tenv
@@ -715,6 +716,7 @@ convertLHExpr (PAtom brel e e') pt tcv s@(State {expr_env = eenv, known_values =
                             ++ show ec' ++ "\nt2 = " ++ show t2 ++ "\nm = " ++ show m) $ lhTCDict eenv tcv tc t2 m
     in
     mkApp [brel', dict, Type t2, ec3, ec3']
+convertLHExpr (PKVar (KV {kv = s}) su)  _ _ _ _ = error $ "PKVar s = " ++ show (symbolName s) ++ "\nsu = " ++ show su ++ " End"
 convertLHExpr e _ _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
 
 convertSymbol :: Name -> ExprEnv -> M.Map Name Type -> Lang.Id

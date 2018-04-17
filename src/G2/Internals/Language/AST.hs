@@ -139,6 +139,7 @@ instance AST Expr where
     children (Cast e _) = [e]
     children (Coercion _) = []
     children (Type _) = []
+    children (Tick _ e) = [e]
     children (Assume e e') = [e, e']
     children (Assert _ e e') = [e, e']
 
@@ -150,6 +151,7 @@ instance AST Expr where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
         mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
     modifyChildren f (Cast e c) = Cast (f e) c
+    modifyChildren f (Tick t e) = Tick t (f e)
     modifyChildren f (Assume e e') = Assume (f e) (f e')
     modifyChildren f (Assert is e e') = Assert is (f e) (f e')
     modifyChildren _ e = e
@@ -191,6 +193,7 @@ instance ASTContainer Expr Type where
     containedASTs (Cast e c) = containedASTs e ++ containedASTs c
     containedASTs (Coercion c) = containedASTs c
     containedASTs (Type t) = [t]
+    containedASTs (Tick _ e) = containedASTs e
     containedASTs (Assume e e') = containedASTs e ++ containedASTs e'
     containedASTs (Assert is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
     containedASTs _ = []
@@ -205,6 +208,7 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (Type t) = Type (f t)
     modifyContainedASTs f (Cast e c) = Cast (modifyContainedASTs f e) (modifyContainedASTs f c)
     modifyContainedASTs f (Coercion c) = Coercion (modifyContainedASTs f c)
+    modifyContainedASTs f (Tick t e) = Tick t (modifyContainedASTs f e)
     modifyContainedASTs f (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs f (Assert is e e') = 
         Assert (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')

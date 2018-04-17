@@ -8,65 +8,80 @@ module G2.Internals.Liquid.Annotations ( AnnotMap
 import G2.Internals.Language
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.TCValues
+import G2.Internals.Liquid.Types
 
-import Language.Haskell.Liquid.Constraint.Types
+import Language.Haskell.Liquid.Liquid()
+import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
 import Language.Haskell.Liquid.Types hiding (Loc)
+import Language.Haskell.Liquid.Types.RefType
+import Language.Haskell.Liquid.UX.Annotate
+import qualified Language.Haskell.Liquid.UX.Config as LHC
 
 import Data.Coerce
 import qualified Data.HashMap.Lazy as HM
+import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
+import FastString
+import Module
 import SrcLoc
 
-newtype AnnotMap = AM (HM.HashMap (Loc, Maybe T.Text) (Maybe Expr)) deriving (Eq, Show)
+newtype AnnotMap = AM (HM.HashMap Loc [Expr]) deriving (Eq, Show)
 
 amKeys (AM am) = HM.keys am
 
-lookupAnnot :: Name -> AnnotMap -> Maybe Expr
+lookupAnnot :: Name -> AnnotMap -> Maybe [Expr]
 lookupAnnot (Name n (Just m) _ (Just l)) =
-    maybe Nothing id . HM.lookup (l, Just $ m `T.append` "." `T.append` n) . coerce
+    HM.lookup l . coerce
 lookupAnnot (Name n Nothing _ (Just l)) =
-    maybe Nothing id . HM.lookup (l, Just n) . coerce
+    HM.lookup l . coerce
 lookupAnnot _ = const Nothing
 
-getAnnotMap :: TCValues -> State t -> [CGInfo] -> AnnotMap
-getAnnotMap tcv s cgi =
-    annotMapToExpr tcv s $ mconcat $ map annotMap cgi
+getAnnotMap :: LHC.Config -> TCValues -> State t -> [LHOutput] -> AnnotMap
+getAnnotMap lh_config tcv s ghci_cg =
+    let
+        anna = map lhCleanAnnotMaps ghci_cg
+    in
+    annotMapToExpr tcv s $ mconcat anna
+
+lhCleanAnnotMaps :: LHOutput -> AnnInfo SpecType
+lhCleanAnnotMaps (LHOutput {ghcI = ghci, cgI = cgi, solution = sol}) =
+    applySolution sol $ coerce $ HM.map (mapMaybe annotExprSpecType) $ coerce $ annotMap cgi
 
 -- From https://github.com/ucsd-progsys/liquidhaskell/blob/75184064eed475289648ead76e3e9d370b168e66/src/Language/Haskell/Liquid/Types.hs
 -- newtype AnnInfo a = AI (M.HashMap SrcSpan [(Maybe Text, a)])
 
-annotMapToExpr :: TCValues -> State t -> AnnInfo (Annot SpecType) -> AnnotMap
+annotMapToExpr :: TCValues -> State t -> AnnInfo SpecType -> AnnotMap
 annotMapToExpr tcv s (AI hm) =
-    AM $ HM.fromList $ concatMap rightFstToLeft
-       $ mapMaybe fstSrcSpanToLoc $ HM.toList $ HM.map (annotValToExpr tcv s) hm
+    AM $ HM.fromListWith (++)
+       $ mapMaybe fstSrcSpanToLoc $ HM.toList $ HM.map (valToExpr tcv s) hm
 
-annotValToExpr :: TCValues -> State t -> [(Maybe T.Text, Annot SpecType)] -> [(Maybe T.Text, Maybe Expr)]
-annotValToExpr tcv s = map (annotValToExpr' tcv s)
+valToExpr :: TCValues -> State t -> [(Maybe T.Text, SpecType)] -> [Expr]
+valToExpr tcv s = map (valToExpr' tcv s)
 
-annotValToExpr' :: TCValues -> State t -> (Maybe T.Text, Annot SpecType) -> (Maybe T.Text, Maybe Expr)
-annotValToExpr' tcv s (t, ast) = (t, annotExpr tcv s ast)
+valToExpr' :: TCValues -> State t -> (Maybe T.Text, SpecType) -> Expr
+valToExpr' tcv s (_, ast) = convertSpecType tcv s ast (Id (Name "ret" Nothing 0 Nothing) TyBottom) Nothing
 
-annotExpr :: TCValues -> State t -> Annot SpecType -> Maybe Expr
-annotExpr tcv s (AnnUse st) = Just $ convertSpecType tcv s st (Id (Name "ret" Nothing 0 Nothing) TyBottom) Nothing
-annotExpr tcv s (AnnDef st) = Just $ convertSpecType tcv s st (Id (Name "ret" Nothing 0 Nothing) TyBottom) Nothing
-annotExpr tcv s (AnnRDf st) = Just $ convertSpecType tcv s st (Id (Name "ret" Nothing 0 Nothing) TyBottom) Nothing
-annotExpr _ _ (AnnLoc _) = Nothing
+annotExprSpecType :: (Maybe T.Text, Annot SpecType) -> Maybe (Maybe T.Text, SpecType)
+annotExprSpecType (a, AnnUse st) = Just (a, st)
+annotExprSpecType (a, AnnDef st) = Just (a, st)
+annotExprSpecType (a, AnnRDf st) = Just (a, st)
+annotExprSpecType (a, AnnLoc _) = Nothing
 
 fstSrcSpanToLoc :: (SrcSpan, b) -> Maybe (Loc, b)
 fstSrcSpanToLoc (RealSrcSpan r, b) =
     let
         l = realSrcSpanStart r
     in
-    Just (Loc {line = srcLocLine l, col = srcLocCol l}, b)
+    Just (Loc {line = srcLocLine l, col = srcLocCol l, file = unpackFS $ srcLocFile l}, b)
 fstSrcSpanToLoc _ = Nothing
 
-rightFstToLeft :: (a, [(b, c)]) -> [((a, b), c)]
+rightFstToLeft :: (a, [(b, c)]) -> [((a, b), [c])]
 rightFstToLeft (a, xs) =
-    map (\(b, c) -> ((a, b), c)) xs
+    map (\(b, c) -> ((a, b), [c])) xs
 
 instance ASTContainer AnnotMap Expr where
-    containedASTs = catMaybes . HM.elems . coerce
-    modifyContainedASTs f = AM . HM.map (fmap f) . coerce
+    containedASTs =  concat . HM.elems . coerce
+    modifyContainedASTs f = AM . HM.map (modifyContainedASTs f) . coerce
 

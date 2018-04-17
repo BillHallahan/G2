@@ -165,7 +165,9 @@ class Named a where
 instance Named Name where
     names n = [n]
     rename old (Name nn nm ni _) n@(Name _ _ _ l) = if old == n then Name nn nm ni l else n
-    renames hm n = HM.lookupDefault n n hm
+    renames hm n@(Name _ _ _ l) =
+        case HM.lookupDefault n n hm of
+            Name n' m' i _ -> Name n' m' i l
 
 instance Named Id where
     names (Id n t) = n:names t

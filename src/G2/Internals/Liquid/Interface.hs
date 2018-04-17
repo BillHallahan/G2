@@ -18,16 +18,22 @@ import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
+import G2.Internals.Liquid.Types
 import G2.Internals.Solver
 
 import G2.Lib.Printers
 
 import Language.Haskell.Liquid.Constraint.Generate
-import Language.Haskell.Liquid.Constraint.Types
+import Language.Haskell.Liquid.Constraint.ToFixpoint
+import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types hiding (Config, cls)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
+import qualified Language.Haskell.Liquid.UX.Config as LHC
+
+import Language.Fixpoint.Solver
+import qualified Language.Fixpoint.Types as F
 import Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.Coerce
@@ -57,18 +63,21 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- attempt to find counterexamples to the functions liquid type
 findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
 findCounterExamples proj fp entry libs lhlibs config = do
-    (ghcInfos, cgi) <- getGHCInfos proj [fp] lhlibs
+    lh_config <- getOpts []
+
+    ghc_cg <- getGHCInfos lh_config proj [fp] lhlibs
     
-    tgt_trans <- translateLoaded proj fp libs False config
+    tgt_trans <- translateLoaded proj fp libs False config 
 
-    runLHCore entry tgt_trans ghcInfos cgi config
+    runLHCore lh_config entry tgt_trans ghc_cg config
 
-runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
-                    -> [GhcInfo]
-                    -> [CGInfo]
+runLHCore :: LHC.Config -> T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
+                    -> [LHOutput]
                     -> Config
                     -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
-runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = do
+runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
+    let ghcInfos = map ghcI ghci_cg
+
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
     -- let lh_measure_names = map (symbolName . val .name) lh_measures
@@ -85,7 +94,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = d
     let (lh_state, meenv', tcv) = createLHTC ng_state meenv
     let lhtc_state = addLHTC lh_state tcv
 
-    let annm = getAnnotMap tcv lhtc_state cgi
+    let annm = getAnnotMap lh_config tcv lhtc_state ghci_cg
     -- print $ amKeys annm
 
     let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
@@ -105,7 +114,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = d
 
     let spec_assert_state = addSpecialAsserts beta_red_state
 
-    let track_state = spec_assert_state {track = [] :: [FuncCall]}
+    let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing} }
 
     (con, hhp) <- getSMT config
 
@@ -122,26 +131,33 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghcInfos cgi config = d
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
                   0 -> 0
-                  _ -> minimum $ map (\(s, _, _, _) -> length $ track s) ret
-    let ret' = filter (\(s, _, _, _) -> mi == (length $ track s)) ret
+                  _ -> minimum $ map (\(s, _, _, _) -> length $ abstract_calls $ track s) ret
+    let ret' = filter (\(s, _, _, _) -> mi == (length $ abstract_calls $ track s)) ret
     -- let ret' = ret
 
-    return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ track s}, es, e, ais)) ret'
+    return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}, es, e, ais)) ret'
 
-getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO ([GhcInfo], [CGInfo])
-getGHCInfos proj fp lhlibs = do
-    -- GhcInfo
-    config <- getOpts []
-
+getGHCInfos :: LHC.Config -> FilePath -> [FilePath] -> [FilePath] -> IO [LHOutput]
+getGHCInfos config proj fp lhlibs = do
     let config' = config {idirs = idirs config ++ [proj] ++ lhlibs
                          , files = files config ++ lhlibs
                          , ghcOptions = ["-v"]}
+
+    -- GhcInfo
     (ghci, _) <- LHI.getGhcInfos Nothing config' fp
 
-    -- CGInfo
-    let cgi = map generateConstraints ghci
+    mapM (getGHCInfos' config') ghci
 
-    return (ghci, cgi) 
+
+getGHCInfos' :: LHC.Config -> GhcInfo -> IO LHOutput
+getGHCInfos' config ghci = do
+    -- CGInfo
+    let cgi = generateConstraints ghci
+
+    finfo <- cgInfoFInfo ghci cgi
+    F.Result r sol _ <- solve (fixConfig "LH_FILEPATH" config) finfo
+
+    return (LHOutput {ghcI = ghci, cgI = cgi, solution = sol})
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
 funcSpecs = concatMap (gsTySigs . spec)
@@ -263,7 +279,9 @@ parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
 testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
                -> IO [LHReturn]
 testLiquidFile proj fp libs lhlibs config = do
-    (ghcInfos, cgi) <- getGHCInfos proj [fp] lhlibs
+    lh_config <- getOpts []
+    ghci_cg <- getGHCInfos lh_config proj [fp] lhlibs
+
     tgt_transv <- translateLoadedV proj fp libs False config
 
     let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns, ex) = tgt_transv
@@ -288,7 +306,7 @@ testLiquidFile proj fp libs lhlibs config = do
 
     fmap concat $ mapM (\e -> do
         putStrLn $ show e
-        runLHCore e tgt_trans ghcInfos cgi config >>= (return . parseLHOut e))
+        runLHCore lh_config e tgt_trans ghci_cg config >>= (return . parseLHOut e))
                        cleaned_tgt_lhs
 
 testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config

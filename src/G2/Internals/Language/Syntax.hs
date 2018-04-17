@@ -24,7 +24,8 @@ type Binds = [(Id, Expr)]
 -- | Loc
 -- Records a location in the source code
 data Loc = Loc { line :: Int
-               , col :: Int} deriving (Show, Eq, Read, Ord, Generic)
+               , col :: Int
+               , file :: String } deriving (Show, Eq, Read, Ord, Generic)
 
 instance Hashable Loc
 
@@ -74,6 +75,7 @@ data Expr = Var Id
           | Type Type
           | Cast Expr Coercion
           | Coercion Coercion
+          | Tick Tickish Expr
           | Assume Expr Expr
           | Assert (Maybe FuncCall) Expr Expr
           deriving (Show, Eq, Read, Generic)
@@ -191,6 +193,10 @@ data Type = TyVar Id
           deriving (Show, Eq, Read, Generic)
 
 instance Hashable Type
+
+data Tickish = Breakpoint Loc deriving (Show, Eq, Read, Generic)
+
+instance Hashable Tickish
 
 -- | Represents a function call, with it's arguments and return value as Expr
 data FuncCall = FuncCall { funcName :: Name
