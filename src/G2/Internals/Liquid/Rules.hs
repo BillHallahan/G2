@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Liquid.Rules ( LHRed (..)
                                  , LHHalter (..)
@@ -15,10 +16,13 @@ import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as S
 import G2.Internals.Liquid.Annotations
 
+import Data.List
 import Data.Maybe
 import Data.Monoid
 import Data.Semigroup
 import qualified Data.Text as T
+
+import Debug.Trace
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -101,12 +105,22 @@ symbState annm eenv
 
         (i, ng') = freshId t ng
 
-        inferred = lookupAnnot last_v annm
-        inferredApp = case inferred of
-                            Just inf -> [] :: [Maybe Expr] -- map (\inf' -> Just $ mkApp $ inf':ars ++ [ret]) inf
-                            Nothing -> []
+        cfn = case fn of
+            Name n (Just m) _ _ -> m `T.append` "." `T.append` n
+            Name n _ _ _ -> n
 
-        cexpr' = Let [(b, atf (Var i))] $ foldr Assume (Assume e (Var b)) $ (catMaybes inferredApp) 
+        inferred = maybe [] (map snd) $ lookupAnnotAtLoc last_v annm -- lookupAnnot last_v annm
+        inferredExprs = mkInferredAssumptions (ars ++ [ret]) inferred
+        inferred' = foldr Assume (Var b) $ e:inferredExprs
+        -- inferredExpr = case inferred of
+        --                 Just inf -> find (\(n, _) -> n == Just cfn) inf
+        --                 Nothing -> Nothing -- trace ("inferred = " ++ show (fmap (map fst) inferred)) fmap (map snd) inferred
+        -- inferredAssume = case inferredExpr of
+        --                     Just (_, inf) -> Assume (mkApp $ inf:ars ++ [ret])
+        --                     Nothing -> id
+
+        cexpr' = Let [(b, atf (Var i))] $ inferred'
+        -- cexpr' = Let [(b, atf (Var i))] $ inferredAssume $ Assume e (Var b)
         -- cexpr' = Let [(b, atf (Var i))] $ Assume e (Var b)
 
         eenv' = E.insertSymbolic (idName i) i eenv
@@ -120,7 +134,7 @@ symbState annm eenv
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
+        True -> trace ("length inferred = " ++ show (length inferred) ++ "\ninferred = " ++ show inferred) Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
         False -> Nothing
 symbState _ _ _ _ _ _ _ = Nothing
 
@@ -139,6 +153,23 @@ initialTrack eenv (Cast e _) = initialTrack eenv e
 initialTrack eenv (Assume _ e) = initialTrack eenv e
 initialTrack eenv (Assert _ _ e) = initialTrack eenv e
 initialTrack _ _ = 0
+
+mkInferredAssumptions :: [Expr] -> [Expr] -> [Expr]
+mkInferredAssumptions ars_ret es = mkInferredAssumptions' (reverse ars_ret) es
+
+
+mkInferredAssumptions' :: [Expr] -> [Expr] -> [Expr]
+mkInferredAssumptions' _ [] = []
+mkInferredAssumptions' ret_ars (e:es) =
+    let
+        cl = countLams e
+        app = e:reverse (take cl ret_ars)
+    in
+    (mkApp app):mkInferredAssumptions' ret_ars es
+
+countLams :: Expr -> Int
+countLams (Lam _ e) = 1 + countLams e
+countLams _ = 0
 
 data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name } deriving (Eq, Show)

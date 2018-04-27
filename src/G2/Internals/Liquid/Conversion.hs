@@ -26,6 +26,7 @@ import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine ()
 import Language.Fixpoint.Types.PrettyPrint
 import Language.Fixpoint.Types.Refinements hiding (Expr, I)
+import Language.Fixpoint.Types.Sorts
 import  Language.Fixpoint.Types.Names
 import qualified Language.Fixpoint.Types.Refinements as Ref
 
@@ -38,6 +39,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
+
+import Debug.Trace
 
 addLHTC :: ASTContainer t Expr => State t -> TCValues -> State t
 addLHTC s@(State {expr_env = eenv, type_env = tenv, curr_expr = cexpr, type_classes = tc}) tcv =
@@ -389,7 +392,7 @@ convertSpecType tcv s@(State { type_env = tenv }) st ret m =
         lams = specTypeLams tenv st 
         lams' = dclams . lams . Lam ret
 
-        m' = maybe (M.fromList nt) id m
+        m' = trace (show st) maybe (M.fromList nt) id m
         apps = specTypeApps st tcv s m' ret
     in
     primInject $ lams' apps
@@ -525,7 +528,7 @@ specTypeApps' _ _ _ _ _ = error "specTypeApps': Unhandled case"
 polyPredFunc :: [SpecType] -> ExprEnv -> TypeClasses -> Type -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> Expr
 polyPredFunc as eenv tc ty tcv s m b =
     let
-        dict = fromJustErr "No lhDict for polyPredFunc" $ lhTCDict eenv tcv tc ty m
+        dict = fromJustErr ("No lhDict in polyPredFunc " ++ show ty) $ lhTCDict eenv tcv tc ty m
         as' = map (\a -> polyPredLam a tcv s m) as
     in
     mkApp $ [Var $ Id (lhPP tcv) TyUnknown, dict, Type (typeOf b)] ++ as' ++ [Var b]
@@ -585,11 +588,24 @@ rTyConType tenv rtc sts =
         ts = map (specTypeToType tenv) sts
     in
     case (not . any isNothing $ ts) of
-        True -> fmap (\n' -> TyConApp n' (catMaybes ts)) n
+        True -> case fmap (\n' -> TyConApp n' (catMaybes ts)) n of
+                    Nothing -> primType tcn
+                    t -> t
         False -> Nothing
 
+sortToType :: KnownValues -> Sort -> Type
+sortToType knv FInt = Lang.tyInt knv
+sortToType knv FReal = Lang.tyDouble knv
+
+primType :: Name -> Maybe Type
+primType (Name "Int#" _ _ _) = Just TyLitInt
+primType (Name "Float#" _ _ _) = Just TyLitFloat
+primType (Name "Double#" _ _ _) = Just TyLitDouble
+primType (Name "Word#" _ _ _) = Just TyLitInt
+primType _ = Nothing
+
 convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State t -> M.Map Name Type -> Expr
-convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0 Nothing) TyUnknown
+convertLHExpr (ESym (SL n)) _ _ _ _ = trace ("sym n = " ++ show n) Var $ Id (Name n Nothing 0 Nothing) TyUnknown
 convertLHExpr (ECon c)  t _ (State {known_values = knv, type_env = tenv}) _ = convertCon t knv tenv c
 convertLHExpr (EVar s) _ _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m
 convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
@@ -676,7 +692,8 @@ convertLHExpr (EIte b e1 e2) t tcv s@(State { type_env = tenv, name_gen = ng, kn
         a2 = Lang.Alt (DataAlt fs []) e2'
     in
     Case bE cb [a1, a2]
-convertLHExpr (ECst e _) t tcv s m = convertLHExpr e t tcv s m
+convertLHExpr (ECst e s) t tcv st@(State { known_values = knv }) m =
+    convertLHExpr e t tcv st m
 convertLHExpr (PAnd es) _ tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
     case map (\e -> convertLHExpr e Nothing tcv s m) es of
         [] -> mkTrue knv tenv
@@ -783,7 +800,15 @@ bopDict Ref.Mod = integralDict
 bopDict _ = numDict
 
 lhTCDict :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
-lhTCDict eenv tcv tc t m =
+lhTCDict eenv tcv tc t@(TyConApp _ _) m = lhTCDict' eenv tcv tc t m
+lhTCDict eenv tcv tc t@(TyVar _) m = lhTCDict' eenv tcv tc t m
+lhTCDict eenv tcv tc TyLitInt m = lhTCDict' eenv tcv tc (TyConApp (Name "Int#" (Just "GHC.Prims") 0 Nothing) []) m
+lhTCDict eenv tcv tc TyLitDouble m = lhTCDict' eenv tcv tc (TyConApp (Name "Double#" (Just "GHC.Prims") 0 Nothing) []) m
+lhTCDict eenv tcv tc TyLitFloat m = lhTCDict' eenv tcv tc (TyConApp (Name "Float#" (Just "GHC.Prims") 0 Nothing) []) m
+lhTCDict _ _ _ t _ = error $ "Unrecognized type in lhTCDict " ++ show t
+
+lhTCDict' :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
+lhTCDict' eenv tcv tc t m =
     case fmap Var $ lookupTCDict tc (lhTC tcv) t of
         Just d -> case t of 
                 TyConApp _ ts -> Just $ mkApp $ d:mapMaybe (\t' -> lhTCDict eenv tcv tc t' m) ts ++ map (Type) ts -- ++ m

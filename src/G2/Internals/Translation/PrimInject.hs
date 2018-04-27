@@ -24,6 +24,7 @@ primInject = modifyASTs primInjectT
 primInjectT :: Type -> Type
 primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _ _) _) = TYPE
 primInjectT (TyConApp (Name "Int#" _ _ _) _) = TyLitInt
+primInjectT (TyConApp (Name "Word#" _ _ _) _) = TyLitInt
 primInjectT (TyConApp (Name "Float#" _ _ _) _) = TyLitFloat
 primInjectT (TyConApp (Name "Double#" _ _ _) _) = TyLitDouble
 primInjectT (TyConApp (Name "Char#" _ _ _) _) = TyLitChar

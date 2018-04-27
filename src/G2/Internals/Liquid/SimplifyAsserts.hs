@@ -1,7 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Liquid.SimplifyAsserts ( simplifyAsserts
-                                           , simplifyAssertsG) where
+                                           , simplifyAssertsG
+                                           , eCheck) where
 
 import G2.Internals.Language
 import G2.Internals.Language.KnownValues
@@ -30,7 +32,9 @@ simplifyIn tenv kv mkv tcv e =
     if e == e' then e else simplifyIn tenv kv mkv tcv e'
 
 simplifyIn' :: TypeEnv -> KnownValues -> ModifiedKnownValues -> TCValues -> Expr -> Expr
-simplifyIn' tenv kv mkv tcv = elimAnds tenv kv mkv . elimLHPP tenv kv tcv . varBetaReduction
+-- simplifyIn' tenv kv mkv tcv = elimAnds tenv kv mkv . elimLHPP tenv kv tcv . varBetaReduction
+simplifyIn' tenv kv mkv tcv = elimAnds tenv kv mkv . varBetaReduction
+
 
 elimAnds :: TypeEnv -> KnownValues -> ModifiedKnownValues -> Expr -> Expr
 elimAnds tenv kv mkv = elimCalls2 (andFunc mkv) (mkTrue kv tenv)
@@ -91,3 +95,58 @@ elimCalls2' f a e
     , f == idName f'
     , a == a' = r 
     | otherwise = e
+
+
+
+eCheck = (Assume 
+            (App 
+              (Var (Id (Name "f" (Just "GHC.Classes") 8214565720323801952 (Just (Span {start = Loc {line = 369, col = 7, file = "../base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 369, col = 9, file = "../base-4.9.1.0/GHC/Classes2.hs"}}))) (TyFun (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) (TyFun (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []))))) 
+              (App 
+                (App 
+                  (Var (Id (Name "LHpp" Nothing 0 Nothing) TyUnknown)) 
+                  (Lam 
+                    (Id (Name "fs?" Nothing 112486 Nothing) (TyConApp (Name "List" (Just "List") 8214565720323847245 (Just (Span {start = Loc {line = 74, col = 1, file = "./tests/Liquid/List.lhs"}, end = Loc {line = 76, col = 39, file = "./tests/Liquid/List.lhs"}}))) [TyVar (Id (Name "v" Nothing 6989586621679020522 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE)])) 
+                      (App 
+                        (Var (Id (Name "&&" (Just "GHC.Classes") 8214565720323801952 (Just (Span {start = Loc {line = 369, col = 7, file = "../base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 369, col = 9, file = "../base-4.9.1.0/GHC/Classes2.hs"}}))) (TyFun (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) (TyFun (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []))))) 
+                        (App 
+                          (Lam 
+                            (Id (Name "lq_tmp$36$x$35$$35$694" (Just "") 0 Nothing) (TyConApp (Name "List" (Just "List") 8214565720323847245 (Just (Span {start = Loc {line = 74, col = 1, file = "./tests/Liquid/List.lhs"}, end = Loc {line = 76, col = 39, file = "./tests/Liquid/List.lhs"}}))) [TyVar (Id (Name "v" Nothing 6989586621679020522 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE)])) 
+                            (Data (DataCon (Name "True" (Just "GHC.Types") 0 Nothing) (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) []))
+                          ) 
+                          (Var (Id (Name "fs?" Nothing 112486 Nothing) (TyConApp (Name "List" (Just "List") 8214565720323847245 (Just (Span {start = Loc {line = 74, col = 1, file = "./tests/Liquid/List.lhs"}, end = Loc {line = 76, col = 39, file = "./tests/Liquid/List.lhs"}}))) [TyVar (Id (Name "v" Nothing 6989586621679020522 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE)])))
+                        )
+                      )
+                  )
+                ) 
+                (Var (Id (Name "ret" Nothing 0 Nothing) (TyConApp (Name "Map" (Just "Data.Map") 8214565720323826620 (Just (Span {start = Loc {line = 472, col = 1, file = "../base-4.9.1.0/Data/Map.hs"}, end = Loc {line = 472, col = 31, file = "../base-4.9.1.0/Data/Map.hs"}}))) [TyVar (Id (Name "k" Nothing 6989586621679020521 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE),TyConApp (Name "List" (Just "List") 8214565720323847245 (Just (Span {start = Loc {line = 74, col = 1, file = "./tests/Liquid/List.lhs"}, end = Loc {line = 76, col = 39, file = "./tests/Liquid/List.lhs"}}))) [TyVar (Id (Name "v" Nothing 6989586621679020522 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE)]])))
+              )
+            )
+
+      ) (Var (Id (Name "a" Nothing 0 Nothing) TyUnknown))
+
+
+eCheck2 = (Assume 
+            (App 
+              (Var (Id (Name "f" (Just "GHC.Classes") 8214565720323801952 (Just (Span {start = Loc {line = 369, col = 7, file = "../base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 369, col = 9, file = "../base-4.9.1.0/GHC/Classes2.hs"}}))) (TyFun (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) (TyFun (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []))))) 
+              (App 
+                (App 
+                  (Var (Id (Name "LHpp" Nothing 0 Nothing) TyUnknown)) 
+                  (Lam 
+                    (Id (Name "fs?" Nothing 112486 Nothing) (TyConApp (Name "List" (Just "List") 8214565720323847245 (Just (Span {start = Loc {line = 74, col = 1, file = "./tests/Liquid/List.lhs"}, end = Loc {line = 76, col = 39, file = "./tests/Liquid/List.lhs"}}))) [TyVar (Id (Name "v" Nothing 6989586621679020522 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE)])) 
+                      (App 
+                        (Var (Id (Name "&&" (Just "GHC.Classes") 8214565720323801952 (Just (Span {start = Loc {line = 369, col = 7, file = "../base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 369, col = 9, file = "../base-4.9.1.0/GHC/Classes2.hs"}}))) (TyFun (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) (TyFun (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []))))) 
+                        (App 
+                          (Lam 
+                            (Id (Name "lq_tmp$36$x$35$$35$694" (Just "") 0 Nothing) (TyConApp (Name "List" (Just "List") 8214565720323847245 (Just (Span {start = Loc {line = 74, col = 1, file = "./tests/Liquid/List.lhs"}, end = Loc {line = 76, col = 39, file = "./tests/Liquid/List.lhs"}}))) [TyVar (Id (Name "v" Nothing 6989586621679020522 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE)])) 
+                            (Data (DataCon (Name "True" (Just "GHC.Types") 0 Nothing) (TyConApp (Name "Bool" (Just "GHC.Types") 0 Nothing) []) []))
+                          ) 
+                          (Var (Id (Name "fs?" Nothing 112486 Nothing) (TyConApp (Name "List" (Just "List") 8214565720323847245 (Just (Span {start = Loc {line = 74, col = 1, file = "./tests/Liquid/List.lhs"}, end = Loc {line = 76, col = 39, file = "./tests/Liquid/List.lhs"}}))) [TyVar (Id (Name "v" Nothing 6989586621679020522 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE)])))
+                        )
+                      )
+                  )
+                ) 
+                (Var (Id (Name "ret" Nothing 0 Nothing) (TyConApp (Name "Map" (Just "Data.Map") 8214565720323826620 (Just (Span {start = Loc {line = 472, col = 1, file = "../base-4.9.1.0/Data/Map.hs"}, end = Loc {line = 472, col = 31, file = "../base-4.9.1.0/Data/Map.hs"}}))) [TyVar (Id (Name "k" Nothing 6989586621679020521 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE),TyConApp (Name "List" (Just "List") 8214565720323847245 (Just (Span {start = Loc {line = 74, col = 1, file = "./tests/Liquid/List.lhs"}, end = Loc {line = 76, col = 39, file = "./tests/Liquid/List.lhs"}}))) [TyVar (Id (Name "v" Nothing 6989586621679020522 (Just (Span {start = Loc {line = 62, col = 14, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}, end = Loc {line = 62, col = 40, file = "/Users/BillHallahan/Documents/Research/SymbolicExecution/G2/tests/Liquid/MapReduceInfer/MapReduce.lhs"}}))) TYPE)]])))
+              )
+            )
+
+      ) (Var (Id (Name "a" Nothing 0 Nothing) TyUnknown))

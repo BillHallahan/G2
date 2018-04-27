@@ -181,6 +181,7 @@ verified by LH:
 foldr1 op (x :+: xs) = foldr op x xs
 foldr1 op Emp        = die "Cannot call foldr1 with empty list"
 
+{-@ foldr :: (a -> b -> b) -> b -> List a -> b @-}
 foldr :: (a -> b -> b) -> b -> List a -> b
 foldr _  b Emp        = b
 foldr op b (x :+: xs) = x `op` (foldr op b xs)

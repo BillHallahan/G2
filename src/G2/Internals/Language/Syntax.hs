@@ -29,11 +29,18 @@ data Loc = Loc { line :: Int
 
 instance Hashable Loc
 
+-- | Span
+-- Records a span in the source code
+data Span = Span { start :: Loc
+                 , end :: Loc } deriving (Show, Eq, Read, Ord, Generic)
+
+instance Hashable Span
+
 -- | The occurrence name is defined as a string, with a `Maybe` module name
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
-data Name = Name T.Text (Maybe T.Text) Int (Maybe Loc) deriving (Show, Read, Generic)
+data Name = Name T.Text (Maybe T.Text) Int (Maybe Span) deriving (Show, Read, Generic)
 
 instance Eq Name where
     Name n m i _ == Name n' m' i' _ = n ==n' && m == m' && i == i'
@@ -194,7 +201,7 @@ data Type = TyVar Id
 
 instance Hashable Type
 
-data Tickish = Breakpoint Loc deriving (Show, Eq, Read, Generic)
+data Tickish = Breakpoint Span deriving (Show, Eq, Read, Generic)
 
 instance Hashable Tickish
 

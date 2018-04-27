@@ -27,7 +27,7 @@ import Language.Haskell.Liquid.Constraint.Generate
 import Language.Haskell.Liquid.Constraint.ToFixpoint
 import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
-import Language.Haskell.Liquid.Types hiding (Config, cls)
+import Language.Haskell.Liquid.Types hiding (Config, cls, names)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
 import qualified Language.Haskell.Liquid.UX.Config as LHC
@@ -94,7 +94,6 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let (lh_state, meenv', tcv) = createLHTC ng_state meenv
     let lhtc_state = addLHTC lh_state tcv
 
-    let annm = getAnnotMap lh_config tcv lhtc_state ghci_cg
     -- print $ amKeys annm
 
     let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
@@ -106,13 +105,18 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let ng2_state = lhtc_state {name_gen = meas_ng}
 
-    let merged_state = mergeLHSpecState (filter isJust$ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
+    let merged_state = mergeLHSpecState (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
     -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
     let beta_red_state = simplifyAsserts mkv tcv merged_state
+    let beta_red_state' = (markAndSweepPreserving (reqNames beta_red_state ++ names tcv ++ names mkv) beta_red_state) { type_env = type_env beta_red_state }
 
-    let annm' = simplifyAssertsG mkv tcv (type_env beta_red_state) (known_values beta_red_state) annm
+    let annm = getAnnotMap lh_config tcv beta_red_state' ghci_cg
+    let annm' = simplifyAssertsG mkv tcv (type_env beta_red_state') (known_values beta_red_state') annm
 
-    let spec_assert_state = addSpecialAsserts beta_red_state
+    -- print $ simplifyAssertsG mkv tcv (type_env beta_red_state') (known_values beta_red_state') eCheck
+    -- print (undefined :: Int)
+
+    let spec_assert_state = addSpecialAsserts beta_red_state'
 
     let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing} }
 
@@ -321,4 +325,3 @@ testLiquidDir proj dir libs lhlibs config = do
     ) hs_files
 
   return results
-

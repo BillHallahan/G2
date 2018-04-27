@@ -131,23 +131,32 @@ createLHTC s@(State { type_env = tenv
 
         (meenv8, ng9, pp_w) = createFuncs meenv7 ng8 tenv' M.empty (lhPolyPredName . fst) lhStore (lhPolyPred meenv7 tenv lhTCN kv)
 
+        primN = [Name "Int#" (Just "GHC.Prims") 0 Nothing, Name "Float#" (Just "GHC.Prims") 0 Nothing, Name "Double#" (Just "GHC.Prims") 0 Nothing]
+        (meenv9, ng10, eq_w2) = createPrimFuncs meenv8 ng9 eq_w Eq primN
+        (meenv10, ng11, neq_w2) = createPrimFuncs meenv9 ng10 neq_w Neq primN
+        (meenv11, ng12, lt_w2) = createPrimFuncs meenv10 ng11 lt_w Lt primN
+        (meenv12, ng13, le_w2) = createPrimFuncs meenv11 ng12 le_w Le primN
+        (meenv13, ng14, gt_w2) = createPrimFuncs meenv12 ng13 gt_w Gt primN
+        (meenv14, ng15, ge_w2) = createPrimFuncs meenv13 ng14 ge_w Ge primN
+        (meenv15, ng16, pp_w2) = createPrimPolyPreds meenv14 ng15 pp_w primN
+
         tb = tyBool kv
 
-        (tvAN, ng10) = freshSeededString "a" ng9
+        (tvAN, ng17) = freshSeededString "a" ng16
         tvA = TyVar $ Id tvAN TYPE
 
-        (meenv9, tenv'', tc', ng11) = genTC meenv8 tenv tc lhTCN
-                        [ (lhEqN, TyFun tvA (TyFun tvA tb), eq_w) 
-                        , (lhNeN, TyFun tvA (TyFun tvA tb), neq_w)
-                        , (lhLtN, TyFun tvA (TyFun tvA tb), lt_w)
-                        , (lhLeN, TyFun tvA (TyFun tvA tb), le_w)
-                        , (lhGtN, TyFun tvA (TyFun tvA tb), gt_w)
-                        , (lhGeN, TyFun tvA (TyFun tvA tb), ge_w)
-                        , (lhPPN, TyFun (TyFun tvA tb) tb, pp_w) ] ng10
+        (meenv16, tenv'', tc', ng18) = genTC meenv15 tenv tc lhTCN
+                        [ (lhEqN, TyFun tvA (TyFun tvA tb), eq_w2) 
+                        , (lhNeN, TyFun tvA (TyFun tvA tb), neq_w2)
+                        , (lhLtN, TyFun tvA (TyFun tvA tb), lt_w2)
+                        , (lhLeN, TyFun tvA (TyFun tvA tb), le_w2)
+                        , (lhGtN, TyFun tvA (TyFun tvA tb), gt_w2)
+                        , (lhGeN, TyFun tvA (TyFun tvA tb), ge_w2)
+                        , (lhPPN, TyFun (TyFun tvA tb) tb, pp_w2) ] ng17
 
         tcv = TCValues {lhTC = lhTCN, lhEq = lhEqN, lhNe = lhNeN, lhLt = lhLtN, lhLe = lhLeN, lhGt = lhGtN, lhGe = lhGeN, lhPP = lhPPN}
     in
-    (s { name_gen = ng11, type_env = tenv'', type_classes = tc' }, meenv9, tcv)
+    (s { name_gen = ng18, type_env = tenv'', type_classes = tc' }, meenv16, tcv)
 
 ---------------------------------------
 -- Gen Helper
@@ -640,3 +649,44 @@ polyPredFunc' true w bnf (TyConApp n ts)
         in
         foldl' App (Var f) (as ++ ft)
 polyPredFunc' _ _ _ _ = error "polyPredFunc': Unhandled type'"
+
+createPrimFuncs :: ExprEnv -> NameGen -> Walkers -> Primitive -> [Name] -> (ExprEnv, NameGen, Walkers)
+createPrimFuncs eenv ng w _ [] = (eenv, ng, w)
+createPrimFuncs eenv ng w p (n:ns) =
+    let
+        (eenv', ng', w') = createPrimFunc eenv ng w p n
+    in
+    createPrimFuncs eenv' ng' w' p ns
+
+createPrimFunc :: ExprEnv -> NameGen -> Walkers -> Primitive -> Name -> (ExprEnv, NameGen, Walkers)
+createPrimFunc eenv ng w p n =
+    let
+        (f, ng2) = freshSeededString "prim" ng
+
+        e = Prim p TyBottom
+        eenv2 = E.insert f e eenv
+
+        w2 = M.insert n (Id f TyBottom) w
+    in
+    (eenv2, ng2, w2)
+
+createPrimPolyPreds :: ExprEnv -> NameGen -> Walkers -> [Name] -> (ExprEnv, NameGen, Walkers)
+createPrimPolyPreds eenv ng w [] = (eenv, ng, w)
+createPrimPolyPreds eenv ng w (n:ns) =
+    let
+        (eenv', ng', w') = createPrimPolyPred eenv ng w n
+    in
+    createPrimPolyPreds eenv' ng' w' ns
+
+createPrimPolyPred :: ExprEnv -> NameGen -> Walkers -> Name -> (ExprEnv, NameGen, Walkers)
+createPrimPolyPred eenv ng w n =
+    let
+        (f, ng2) = freshSeededString "primPP" ng
+
+        i = Id (Name "x" Nothing 0 Nothing) TyBottom
+        e = Lam i (Var i)
+        eenv2 = E.insert f e eenv
+
+        w2 = M.insert n (Id f TyBottom) w
+    in
+    (eenv2, ng2, w2)

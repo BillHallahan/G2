@@ -14,6 +14,8 @@ module G2.Internals.Translation.Haskell
     , mkName
     , mkTyConName
     , mkData
+    , mkSpan
+    , mkRealSpan
     , absVarLoc
     , NameMap
     , TypeNameMap
@@ -37,6 +39,7 @@ import Literal
 import Name
 import Outputable
 import Pair
+import SrcLoc
 import TidyPgm
 import TyCon
 import TyCoRep
@@ -199,13 +202,9 @@ mkExpr _ tm _ (Type ty) = G2.Type (mkType tm ty)
 
 createTickish :: Maybe ModBreaks -> Tickish i -> Maybe G2.Tickish
 createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
-    case modBreaks_locs mb A.! bid of
-        RealSrcSpan l' ->
-            Just $ G2.Breakpoint $ G2.Loc { G2.line = srcSpanStartLine l'
-                                          , G2.col = srcSpanStartCol l'
-                                          , G2.file = unpackFS $ srcSpanFile l'}
-        _ -> Nothing
-createTickish _ (HpcTick {}) = error "HpcTick"
+    case mkSpan $ modBreaks_locs mb A.! bid of
+        Just s -> Just $ G2.Breakpoint $ s
+        Nothing -> Nothing
 createTickish _ _ = Nothing
 
 mkId :: TypeNameMap -> Id -> G2.Id
@@ -234,7 +233,7 @@ mkIdUpdatingNM vid nm tm =
     (i, nm')
 
 mkName :: Name -> G2.Name
-mkName name = G2.Name occ mdl unq Nothing
+mkName name = G2.Name occ mdl unq sp
   where
     occ = T.pack . occNameString . nameOccName $ name
     unq = (getKey . nameUnique) name
@@ -242,21 +241,48 @@ mkName name = G2.Name occ mdl unq Nothing
               Nothing -> Nothing
               Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
 
+    sp = mkSpan $ getSrcSpan name
+
 mkNameLookup :: Name -> NameMap -> G2.Name
 mkNameLookup name nm =
     -- We only lookup in the NameMap if the Module name is not Nothing
     -- Internally, a module may use multiple variables with the same name and a module Nothing
     case mdl of
-        Nothing -> G2.Name occ mdl unq Nothing
+        Nothing -> G2.Name occ mdl unq sp
         _ -> case HM.lookup (occ, mdl) nm of
-                Just n' -> n'
-                Nothing -> G2.Name occ mdl unq Nothing
+                Just (G2.Name n' m i _) -> G2.Name n' m i sp
+                Nothing -> G2.Name occ mdl unq sp
     where
         occ = T.pack . occNameString . nameOccName $ name
         unq = getKey . nameUnique $ name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
                   Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
+
+        sp = mkSpan $ getSrcSpan name
+
+mkSpan :: SrcSpan -> Maybe G2.Span
+mkSpan (RealSrcSpan s) = Just $ mkRealSpan s
+mkSpan _ = Nothing
+
+mkRealSpan :: RealSrcSpan -> G2.Span
+mkRealSpan s =
+    let
+        st = mkRealLoc $ realSrcSpanStart s
+        en = mkRealLoc $ realSrcSpanEnd s
+    in
+    G2.Span { G2.start = st
+            , G2.end = en}
+
+mkLoc :: SrcLoc -> Maybe G2.Loc
+mkLoc (RealSrcLoc l) = Just $ mkRealLoc l
+mkLoc _ = Nothing
+
+mkRealLoc :: RealSrcLoc -> G2.Loc
+mkRealLoc l =
+    G2.Loc { G2.line = srcLocLine l
+           , G2.col = srcLocCol l
+           , G2.file = unpackFS $ srcLocFile l}
 
 switchModule :: T.Text -> Maybe T.Text
 switchModule m =
@@ -399,9 +425,9 @@ absVarLoc =
         )
 
 absVarLoc' :: G2.Expr -> IO G2.Expr
-absVarLoc' (G2.Var (G2.Id (G2.Name n m i (Just l@(G2.Loc {G2.file = f}))) t)) = do
-    f' <- makeAbsolute f
-    return $ G2.Var $ G2.Id (G2.Name n m i (Just $ l {G2.file = f})) t
+absVarLoc' (G2.Var (G2.Id (G2.Name n m i (Just s)) t)) = do
+    s' <- absLocSpan s
+    return $ G2.Var $ G2.Id (G2.Name n m i (Just $ s)) t
 absVarLoc' (G2.App e1 e2) = do
     e1' <- absVarLoc' e1
     e2' <- absVarLoc' e2
@@ -421,9 +447,9 @@ absVarLoc' (G2.Case e i as) = do
 absVarLoc' (G2.Cast e c) = do
     e' <- absVarLoc' e
     return $ G2.Cast e' c
-absVarLoc' (G2.Tick (G2.Breakpoint (l@(G2.Loc {G2.file = f}))) e) = do
-    f' <- makeAbsolute f
-    let t' = G2.Breakpoint $ l {G2.file = f'}
+absVarLoc' (G2.Tick (G2.Breakpoint s) e) = do
+    s' <- absLocSpan s
+    let t' = G2.Breakpoint s'
 
     e' <- absVarLoc' e
     return $ G2.Tick t' e'
@@ -437,3 +463,14 @@ absVarLoc' (G2.Assert fc e1 e2) = do
     return $ G2.Assert fc e1' e2'
 absVarLoc' e = return e
 
+absLocSpan :: G2.Span -> IO G2.Span
+absLocSpan s@G2.Span {G2.start = st, G2.end = en} = do
+    st' <- absLoc st
+    en' <- absLoc en
+    return $ s {G2.start = st', G2.end = en'}
+
+absLoc :: G2.Loc -> IO G2.Loc
+absLoc l@G2.Loc {G2.file = f} = do
+    f' <- makeAbsolute f
+    return $ l {G2.file = f'}
+absLoc l = return l

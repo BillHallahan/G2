@@ -22,7 +22,7 @@ createDeepSeqWalks eenv tenv ng =
     createFuncs eenv ng tenv' M.empty (createDeepSeqName . fst) createDeepSeqStore (createDeepSeqExpr tenv)
 
 createDeepSeqName ::  Name -> Name
-createDeepSeqName n = Name ("walk" `T.append` nameOcc n) Nothing 0 (loc n)
+createDeepSeqName n = Name ("walk" `T.append` nameOcc n) Nothing 0 (spanning n)
 
 createDeepSeqStore :: (Name, AlgDataTy) -> Name -> Walkers -> Walkers
 createDeepSeqStore (n, adt) n' w =

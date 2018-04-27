@@ -11,6 +11,7 @@ import G2.Internals.Language.Syntax
 
 import Data.Hashable
 import qualified Data.HashSet as HS
+import qualified Data.Text as T
 
 -- | Describes the data types that can be represented in a tree format.
 class AST t where
@@ -360,6 +361,14 @@ instance ASTContainer Char Expr where
     modifyContainedASTs _ t = t
 
 instance ASTContainer Char Type where
+    containedASTs _ = []
+    modifyContainedASTs _ t = t
+
+instance ASTContainer T.Text Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ t = t
+
+instance ASTContainer T.Text Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
