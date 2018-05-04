@@ -22,8 +22,6 @@ import Data.Monoid
 import Data.Semigroup
 import qualified Data.Text as T
 
-import Debug.Trace
-
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
 -- Var f can potentially split into two states.
@@ -134,7 +132,7 @@ symbState annm eenv
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
-        True -> trace ("length inferred = " ++ show (length inferred) ++ "\ninferred = " ++ show inferred) Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
+        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
         False -> Nothing
 symbState _ _ _ _ _ _ _ = Nothing
 

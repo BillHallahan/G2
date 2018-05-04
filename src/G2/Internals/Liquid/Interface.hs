@@ -18,6 +18,7 @@ import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
+import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
 import G2.Internals.Solver
 
@@ -49,6 +50,8 @@ import qualified GHC as GHC
 import Var
 
 import G2.Internals.Language.KnownValues
+
+import Debug.Trace
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -107,16 +110,21 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let merged_state = mergeLHSpecState (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
     -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
-    let beta_red_state = simplifyAsserts mkv tcv merged_state
-    let beta_red_state' = (markAndSweepPreserving (reqNames beta_red_state ++ names tcv ++ names mkv) beta_red_state) { type_env = type_env beta_red_state }
 
-    let annm = getAnnotMap lh_config tcv beta_red_state' ghci_cg
-    let annm' = simplifyAssertsG mkv tcv (type_env beta_red_state') (known_values beta_red_state') annm
+    let beta_red_state = simplifyAsserts mkv tcv merged_state
+    let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
+
+    -- We create annm_gen_state purely to have to generate less annotations
+    -- We continue execution with beta_red_state later, because otherwise we might have lost some values for LH TC that we need
+    let annm_gen_state = (markAndSweepPreserving pres_names beta_red_state) { type_env = type_env beta_red_state }
+
+    let annm = getAnnotMap lh_config tcv annm_gen_state meas_eenv ghci_cg
+    let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
 
     -- print $ simplifyAssertsG mkv tcv (type_env beta_red_state') (known_values beta_red_state') eCheck
     -- print (undefined :: Int)
 
-    let spec_assert_state = addSpecialAsserts beta_red_state'
+    let spec_assert_state = addSpecialAsserts beta_red_state
 
     let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing} }
 
@@ -129,7 +137,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let final_state = track_state
 
     -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
-    ret <- run (LHRed annm') (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp config final_state
+    ret <- run (LHRed annm') (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp (pres_names ++ names annm') config final_state
     -- ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions

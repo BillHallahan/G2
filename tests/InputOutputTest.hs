@@ -43,7 +43,7 @@ checkInputOutput'' proj src md entry i req config = do
 
     let chAll = checkExprAll req
 
-    r <- run StdRed ZeroHalter NextOrderer con hhp config init_state
+    r <- run StdRed ZeroHalter NextOrderer con hhp [] config init_state
     mr <- validateStates proj src md entry chAll [] r
     let io = map (\(_, i', o, _) -> i' ++ [o]) r
 

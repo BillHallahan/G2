@@ -635,6 +635,12 @@ polyPredLHFunc' true w bnf i
     || t == TyLitFloat
     || t == TyLitChar = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | TyVar _ <- typeOf i = polyPredFunc' true w bnf (typeOf i)
+    | TyApp f a <- typeOf i =
+        let
+            ppf = polyPredFunc' true w bnf f
+            ppa = polyPredLHFunc' true w bnf (PresType a)
+        in
+        Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | otherwise = error $ "Unhandled type " ++ show (typeOf i)
 
 polyPredFunc' :: Expr ->  Walkers -> [(Name, Id)] -> Type -> Expr

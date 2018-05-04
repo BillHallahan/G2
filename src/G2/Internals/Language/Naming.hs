@@ -543,6 +543,10 @@ instance Named Int where
     names _ = []
     rename _ _ = id
 
+instance Named T.Text where
+    names _ = []
+    rename _ _ = id
+
 freshSeededString :: T.Text -> NameGen -> (Name, NameGen)
 freshSeededString t = freshSeededName (Name t Nothing 0 Nothing)
 

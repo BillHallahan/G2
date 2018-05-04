@@ -98,10 +98,10 @@ run :: (Named hv
        , Reducer r t
        , Halter h hv t
        , Orderer or orv sov t) => r -> h -> or ->
-    SMTConverter ast out io -> io -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
-run red hal ord con hhp config (is@State { type_env = tenv
-                                         , known_values = kv }) = do
-    let swept = markAndSweep is
+    SMTConverter ast out io -> io -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
+run red hal ord con hhp pns config (is@State { type_env = tenv
+                                             , known_values = kv }) = do
+    let swept = markAndSweepPreserving pns is
 
     let preproc_state = runPreprocessing swept
 

@@ -4,17 +4,18 @@
 module G2.Internals.Liquid.Annotations ( AnnotMap
                                        , getAnnotMap
                                        , lookupAnnot
-                                       , lookupAnnotAtLoc, amKeys) where
+                                       , lookupAnnotAtLoc) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
 
 import Language.Haskell.Liquid.Liquid()
 import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
-import Language.Haskell.Liquid.Types hiding (Loc)
+import Language.Haskell.Liquid.Types hiding (Loc, names)
 import Language.Haskell.Liquid.Types.RefType
 import Language.Haskell.Liquid.UX.Annotate
 import qualified Language.Haskell.Liquid.UX.Config as LHC
@@ -37,8 +38,6 @@ import Debug.Trace
 
 newtype AnnotMap = AM { unAnnotMap :: HM.HashMap Span [(Maybe T.Text, Expr)] } deriving (Eq, Show)
 
-amKeys (AM am) = HM.keys am
-
 lookupAnnot :: Name -> AnnotMap -> Maybe [(Maybe T.Text, Expr)]
 lookupAnnot (Name n _ _ (Just s)) =
     HM.lookup s . unAnnotMap
@@ -49,13 +48,13 @@ lookupAnnotAtLoc (Name n _ _ (Just (Span {start = l}))) =
     Just . concatMap snd . find (\(Span {start = l'}, _) -> l == l') . HM.toList . unAnnotMap
 lookupAnnotAtLoc _ = const Nothing
 
-getAnnotMap :: LHC.Config -> TCValues -> State t -> [LHOutput] -> AnnotMap
-getAnnotMap lh_config tcv s@(State {expr_env = eenv}) ghci_cg =
+getAnnotMap :: LHC.Config -> TCValues -> State t -> ExprEnv -> [LHOutput] -> AnnotMap
+getAnnotMap lh_config tcv s@(State {expr_env = eenv}) meenv ghci_cg =
     let
         locM = locLookup $ expr_env s
 
         anna = map lhCleanAnnotMaps ghci_cg
-        annaE = map (annotMapToExpr locM tcv s) anna
+        annaE = map (annotMapToExpr locM tcv s meenv) anna
     in
     coerce $ mconcat $ map unAnnotMap annaE
 
@@ -69,36 +68,30 @@ unAnnInfo (AI hm) = hm
 -- From https://github.com/ucsd-progsys/liquidhaskell/blob/75184064eed475289648ead76e3e9d370b168e66/src/Language/Haskell/Liquid/Types.hs
 -- newtype AnnInfo a = AI (M.HashMap SrcSpan [(Maybe Text, a)])
 
-annotMapToExpr :: M.Map Loc Name -> TCValues -> State t -> AnnInfo SpecType -> AnnotMap
-annotMapToExpr locM tcv s (AI hm) =
+annotMapToExpr :: M.Map Loc Name -> TCValues -> State t -> ExprEnv -> AnnInfo SpecType -> AnnotMap
+annotMapToExpr locM tcv s meenv (AI hm) =
     AM $ HM.fromListWith (++)
-       $ mapMaybe fstSrcSpanToLoc $ HM.toList $ HM.mapWithKey (valToExpr locM tcv s) hm
+       $ mapMaybe fstSrcSpanToLoc $ HM.toList $ HM.mapWithKey (valToExpr locM tcv s meenv) hm
 
-valToExpr :: M.Map Loc Name -> TCValues -> State t -> SrcSpan -> [(Maybe T.Text, SpecType)] -> [(Maybe T.Text, Expr)]
-valToExpr locM tcv s srcspn =
+valToExpr :: M.Map Loc Name -> TCValues -> State t -> ExprEnv -> SrcSpan -> [(Maybe T.Text, SpecType)] -> [(Maybe T.Text, Expr)]
+valToExpr locM tcv s meenv srcspn =
     case mkSpan srcspn of
-        Just spn -> map (valToExpr' locM tcv s spn)
+        Just spn -> mapMaybe (valToExpr' locM tcv s meenv spn)
         Nothing -> const []
 
-valToExpr' :: M.Map Loc Name -> TCValues -> State t -> Span -> (Maybe T.Text, SpecType) -> (Maybe T.Text, Expr)
-valToExpr' locM tcv s@(State {expr_env = eenv, type_env = tenv}) (Span {start = stloc}) (n, ast) =
+valToExpr' :: M.Map Loc Name -> TCValues -> State t -> ExprEnv -> Span -> (Maybe T.Text, SpecType) -> Maybe (Maybe T.Text, Expr)
+valToExpr' locM tcv s@(State {expr_env = eenv, type_env = tenv, known_values = kv}) meenv (Span {start = stloc}) (n, ast) =
     let
-        e = case flip E.lookup (E.filter hasAssumeAssert eenv) =<<  M.lookup stloc locM of -- TODO: MOVE THIS FILTER OUT
-                Just e' -> e'
-                _ -> error "Unfound Expr in valToExpr'"
-        ai = assertionLamIds e
-        m = Just $ lamIdMap tcv $ leadingLamIds e
+        e = flip E.lookup (E.filter hasAssumeAssert eenv) =<<  M.lookup stloc locM
+        ai = maybe [] assertionLamIds e
+        m = fmap (lamIdMap kv tcv . leadingLamIds) e
 
         t = unsafeSpecTypeToType tenv ast
         i = Id (Name "ret" Nothing 0 Nothing) t
     in
-    trace ("ai = " ++ show ai ++ "\nm = " ++ show m) (n, addIds (convertSpecType tcv s ast i m) ai)
-
--- annotExprSpecType :: (Maybe T.Text, Annot SpecType) -> Maybe (Maybe T.Text, SpecType)
--- annotExprSpecType (a, AnnUse st) = trace ("a1 = " ++ show a ++ " st = " ++ show st) Just (a, st)
--- annotExprSpecType (a, AnnDef st) = trace ("a2 = " ++ show a ++ " st = " ++ show st) Just (a, st)
--- annotExprSpecType (a, AnnRDf st) = trace ("a3 = " ++ show a) Just (a, st)
--- annotExprSpecType (a, AnnLoc _) = Nothing
+    case e of
+        Just e -> Just (n, addIds (convertSpecType tcv (s {expr_env = meenv}) ast i m) ai)
+        Nothing -> Nothing
 
 fstSrcSpanToLoc :: (SrcSpan, b) -> Maybe (Span, b)
 fstSrcSpanToLoc (RealSrcSpan r, b) =
@@ -129,20 +122,26 @@ hasAssumeAssert' (Let _ (Assume _ _)) = True
 hasAssumeAssert' (Let _ (Assert _ _ _)) = True
 hasAssumeAssert' _ = False
 
-lamIdMap :: TCValues -> [Id] -> M.Map Name Type
-lamIdMap tcv =
-    M.fromList . map (\(Id n t) -> (n, t)) . filter (isLHTC tcv)
+lamIdMap :: KnownValues -> TCValues -> [Id] -> M.Map Name Type
+lamIdMap kv tcv =
+    M.fromList . map (\(Id n t) -> (n, t)) . filter (\i -> isLHTC tcv i || isNumD kv i)
 
 isLHTC :: TCValues -> Id -> Bool
-isLHTC tcv (Id _ (TyConApp n _)) = trace ("n = " ++ show n) n == lhTC tcv
-isLHTC _ i = trace ("i = " ++ show i) False
+isLHTC tcv (Id _ (TyConApp n _)) = n == lhTC tcv
+isLHTC _ i = False
+
+isNumD :: KnownValues -> Id -> Bool
+isNumD kv (Id _ (TyConApp n _)) = n == KV.numTC kv
+isNumD _ i = False
 
 instance ASTContainer AnnotMap Expr where
     containedASTs =  map snd . concat . HM.elems . unAnnotMap
     modifyContainedASTs f = AM . HM.map (modifyContainedASTs f) . coerce
 
-
-
+instance Named AnnotMap where
+    names = names . unAnnotMap
+    rename old new = coerce . rename old new . unAnnotMap
+    renames hm = coerce . renames hm . unAnnotMap
 
 closeAnnots :: AnnInfo (Annot SpecType) -> AnnInfo SpecType
 closeAnnots = closeA . filterA . collapseA

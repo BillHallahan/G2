@@ -12,6 +12,7 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , ordTCDict
                                          , integralTCDict
                                          , lookupTCDict
+                                         , lookupTCDicts
                                          , tcDicts
                                          , satisfyingTCTypes
                                          , satisfyingTC) where

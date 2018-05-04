@@ -392,7 +392,7 @@ convertSpecType tcv s@(State { type_env = tenv }) st ret m =
         lams = specTypeLams tenv st 
         lams' = dclams . lams . Lam ret
 
-        m' = trace (show st) maybe (M.fromList nt) id m
+        m' = maybe (M.fromList nt) id m
         apps = specTypeApps st tcv s m' ret
     in
     primInject $ lams' apps
@@ -605,7 +605,7 @@ primType (Name "Word#" _ _ _) = Just TyLitInt
 primType _ = Nothing
 
 convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State t -> M.Map Name Type -> Expr
-convertLHExpr (ESym (SL n)) _ _ _ _ = trace ("sym n = " ++ show n) Var $ Id (Name n Nothing 0 Nothing) TyUnknown
+convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0 Nothing) TyUnknown
 convertLHExpr (ECon c)  t _ (State {known_values = knv, type_env = tenv}) _ = convertCon t knv tenv c
 convertLHExpr (EVar s) _ _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m
 convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
@@ -805,7 +805,7 @@ lhTCDict eenv tcv tc t@(TyVar _) m = lhTCDict' eenv tcv tc t m
 lhTCDict eenv tcv tc TyLitInt m = lhTCDict' eenv tcv tc (TyConApp (Name "Int#" (Just "GHC.Prims") 0 Nothing) []) m
 lhTCDict eenv tcv tc TyLitDouble m = lhTCDict' eenv tcv tc (TyConApp (Name "Double#" (Just "GHC.Prims") 0 Nothing) []) m
 lhTCDict eenv tcv tc TyLitFloat m = lhTCDict' eenv tcv tc (TyConApp (Name "Float#" (Just "GHC.Prims") 0 Nothing) []) m
-lhTCDict _ _ _ t _ = error $ "Unrecognized type in lhTCDict " ++ show t
+lhTCDict _ _ _ t _ = Nothing
 
 lhTCDict' :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
 lhTCDict' eenv tcv tc t m =
@@ -859,6 +859,8 @@ callFromInteger eenv knv tcv tc e t m =
             _ -> Nothing
 
 favorNonTyInteger :: KnownValues -> Type -> Type -> Type
+favorNonTyInteger _ t TyUnknown = t
+favorNonTyInteger _ TyUnknown t' = t'
 favorNonTyInteger knv t t' =
     if t /= Lang.tyInteger knv then
         t
