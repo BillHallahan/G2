@@ -179,9 +179,9 @@ collapseA (AI m) = AI (fmap pickOneA m)
 pickOneA :: [(t, Annot t1)] -> [(t, Annot t1)]
 pickOneA xas = case (rs, ds, ls, us) of
                  (x:_, _, _, _) -> [x]
-                 (_, x:_, _, _) -> [x]
-                 (_, _, x:_, _) -> [x]
-                 (_, _, _, x:_) -> [x]
+                 -- (_, x:_, _, _) -> [x]
+                 -- (_, _, x:_, _) -> [x]
+                 -- (_, _, _, x:_) -> [x]
                  (_, _, _, _  ) -> [ ]
   where
     rs = [x | x@(_, AnnRDf _) <- xas]

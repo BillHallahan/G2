@@ -4,29 +4,22 @@ import Prelude hiding (length)
 
 data CList a = Cons !a (CList a) | Nil
 
-data CList2 a = Cons2 a (CList2 a) | Nil2
 
+data CList2 a = Cons2 a | Nil2
 
+{-@ getNthInt3 :: xs:CList2 Int -> n:Int -> Int @-}
 getNthInt3 :: CList2 Int -> Int -> Int
 getNthInt3 x y = getNth2 x y
 
-{-@ getNth2 :: xs:CList2 a -> {n:Int | 0 < n } -> a @-}
+{-@ getNth2 :: xs:CList2 a -> {n:Int | n < length2 xs} -> a @-}
 getNth2 :: CList2 a -> Int -> a 
-getNth2 (Cons2 _ xs) n = getNth2 xs n
+getNth2 xs@(Cons2 _) n = getNth2 xs n
 getNth2 _      _ = die 0
 
-
-data CList4 a = Cons4 a (CList4 a) | Nil4
-
-getNth4 :: CList4 a -> Int -> a 
-getNth4 (Cons4 _ xs) n = getNth4 xs n
-getNth4 _      _ = die 0
-
-
-{-@ getNth5 :: xs:CList a -> {n:Int | 0 < n} -> a @-}
-getNth5 :: CList a -> Int -> a 
-getNth5 (Cons x xs) n = getNth5 xs n
-getNth5 _      _ = die 0
+{-@ measure length2 @-}
+length2 :: CList2 a -> Int
+length2 (Cons2 _) = 1
+length2 Nil2 = 0
 
 {-@ getNthInt :: xs:CList Int -> {n:Int | 0 <= n && n <= length xs} -> Int @-}
 getNthInt :: CList Int -> Int -> Int
