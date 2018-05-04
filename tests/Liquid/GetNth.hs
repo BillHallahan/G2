@@ -23,6 +23,11 @@ getNth4 (Cons4 _ xs) n = getNth4 xs n
 getNth4 _      _ = die 0
 
 
+{-@ getNth5 :: xs:CList a -> {n:Int | 0 < n} -> a @-}
+getNth5 :: CList a -> Int -> a 
+getNth5 (Cons x xs) n = getNth5 xs n
+getNth5 _      _ = die 0
+
 {-@ getNthInt :: xs:CList Int -> {n:Int | 0 <= n && n <= length xs} -> Int @-}
 getNthInt :: CList Int -> Int -> Int
 getNthInt x y = getNth x y

@@ -138,6 +138,10 @@ instance ASTContainer AnnotMap Expr where
     containedASTs =  map snd . concat . HM.elems . unAnnotMap
     modifyContainedASTs f = AM . HM.map (modifyContainedASTs f) . coerce
 
+instance ASTContainer AnnotMap Type where
+    containedASTs = containedASTs . map snd . concat . HM.elems . unAnnotMap
+    modifyContainedASTs f = AM . HM.map (modifyContainedASTs f) . coerce
+
 instance Named AnnotMap where
     names = names . unAnnotMap
     rename old new = coerce . rename old new . unAnnotMap

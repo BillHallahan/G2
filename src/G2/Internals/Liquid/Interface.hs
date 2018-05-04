@@ -126,7 +126,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let spec_assert_state = addSpecialAsserts beta_red_state
 
-    let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing} }
+    let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm'} }
 
     (con, hhp) <- getSMT config
 
@@ -137,7 +137,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let final_state = track_state
 
     -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
-    ret <- run (LHRed annm') (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp (pres_names ++ names annm') config final_state
+    ret <- run LHRed (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp (pres_names ++ names annm') config final_state
     -- ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions

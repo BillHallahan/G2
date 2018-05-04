@@ -40,11 +40,11 @@ import qualified Data.Text as T
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: AnnotMap -> State LHTracker -> (Rule, [ReduceResult LHTracker])
-lhReduce annm = stdReduceBase (lhReduce' annm)
+lhReduce :: State LHTracker -> (Rule, [ReduceResult LHTracker])
+lhReduce = stdReduceBase lhReduce'
 
-lhReduce' :: AnnotMap -> State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
-lhReduce' annm State { expr_env = eenv
+lhReduce' :: State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
+lhReduce' State { expr_env = eenv
                      , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
                      , name_gen = ng
                      , apply_types = at
@@ -63,14 +63,14 @@ lhReduce' annm State { expr_env = eenv
                         , []
                         , tr))
                        er
-            sb = symbState annm eenv vv ng at stck tr
+            sb = symbState eenv vv ng at stck tr
         in
         Just $ (r, states ++ maybeToList sb)
-lhReduce' annm State { expr_env = eenv
-                     , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
-                     , name_gen = ng
-                     , exec_stack = stck
-                     , track = tr} =
+lhReduce' State { expr_env = eenv
+                , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
+                , name_gen = ng
+                , exec_stack = stck
+                , track = tr} =
     let
         (r, er) = stdReduceEvaluate eenv vv ng
         states = map (\(eenv', cexpr', paths', ngen', f) ->
@@ -87,13 +87,13 @@ lhReduce' annm State { expr_env = eenv
     in
     Just $ (r, states)
 
-lhReduce' _ _ = Nothing
+lhReduce' _ = Nothing
 
-symbState :: AnnotMap -> ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> LHTracker -> Maybe (ReduceResult LHTracker)
-symbState annm eenv 
+symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> LHTracker -> Maybe (ReduceResult LHTracker)
+symbState eenv 
           cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars, returns = ret})) e _)) 
           ng at stck 
-          tr@(LHTracker {abstract_calls = abs_c, last_var = Just last_v }) =
+          tr@(LHTracker {abstract_calls = abs_c, last_var = Just last_v, annotations = annm }) =
     let
         cexprT = returnType cexpr
 
@@ -134,7 +134,7 @@ symbState annm eenv
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
         True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
         False -> Nothing
-symbState _ _ _ _ _ _ _ = Nothing
+symbState _ _ _ _ _ _ = Nothing
 
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function
@@ -170,34 +170,35 @@ countLams (Lam _ e) = 1 + countLams e
 countLams _ = 0
 
 data LHTracker = LHTracker { abstract_calls :: [FuncCall]
-                           , last_var :: Maybe Name } deriving (Eq, Show)
+                           , last_var :: Maybe Name
+                           , annotations :: AnnotMap } deriving (Eq, Show)
 
 instance Named LHTracker where
-    names (LHTracker {abstract_calls = abs_c, last_var = n}) = names abs_c ++ names n
+    names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = annots}) = names abs_c ++ names n ++ names annots
     
-    rename old new (LHTracker {abstract_calls = abs_c, last_var = n}) =
-        LHTracker {abstract_calls = rename old new abs_c, last_var = rename old new n}
+    rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = annots}) =
+        LHTracker {abstract_calls = rename old new abs_c, last_var = rename old new n, annotations = rename old new annots}
     
-    renames hm (LHTracker {abstract_calls = abs_c, last_var = n}) =
-        LHTracker {abstract_calls = renames hm abs_c, last_var = renames hm n}
+    renames hm (LHTracker {abstract_calls = abs_c, last_var = n, annotations = annots}) =
+        LHTracker {abstract_calls = renames hm abs_c, last_var = renames hm n, annotations = renames hm annots}
 
 instance ASTContainer LHTracker Expr where
-    containedASTs (LHTracker {abstract_calls = abs_c}) = containedASTs abs_c
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c}) =
-        lht {abstract_calls = modifyContainedASTs f abs_c}
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = annots}) = containedASTs abs_c ++ containedASTs annots
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
+        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
 
 instance ASTContainer LHTracker Type where
-    containedASTs (LHTracker {abstract_calls = abs_c}) = containedASTs abs_c
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c}) =
-        lht {abstract_calls = modifyContainedASTs f abs_c}
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = annots}) = containedASTs abs_c ++ containedASTs annots
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
+        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
 
-data LHRed = LHRed AnnotMap
+data LHRed = LHRed
 -- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
 data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
 instance Reducer LHRed LHTracker where
-    redRules (LHRed annm) = lhReduce annm
+    redRules LHRed = lhReduce
 
 instance Halter LHHalter Int LHTracker where
     initHalt (LHHalter entry modn eenv) _ _ =

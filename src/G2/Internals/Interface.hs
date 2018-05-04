@@ -35,6 +35,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import G2.Lib.Printers
+
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text
           -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> [Name]
           -> Config -> State ()
@@ -111,6 +113,8 @@ run red hal ord con hhp pns config (is@State { type_env = tenv
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states
+
+    -- mapM_ (\(_, s) -> putStrLn $ pprExecStateStr s) exec_states
 
     ident_states'' <- 
         mapM (\(_, s) -> do
