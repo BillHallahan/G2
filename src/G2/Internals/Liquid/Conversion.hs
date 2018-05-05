@@ -26,7 +26,6 @@ import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine ()
 import Language.Fixpoint.Types.PrettyPrint
 import Language.Fixpoint.Types.Refinements hiding (Expr, I)
-import Language.Fixpoint.Types.Sorts
 import  Language.Fixpoint.Types.Names
 import qualified Language.Fixpoint.Types.Refinements as Ref
 
@@ -39,8 +38,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
-
-import Debug.Trace
 
 addLHTC :: ASTContainer t Expr => State t -> TCValues -> State t
 addLHTC s@(State {expr_env = eenv, type_env = tenv, curr_expr = cexpr, type_classes = tc}) tcv =
@@ -593,10 +590,6 @@ rTyConType tenv rtc sts =
                     t -> t
         False -> Nothing
 
-sortToType :: KnownValues -> Sort -> Type
-sortToType knv FInt = Lang.tyInt knv
-sortToType knv FReal = Lang.tyDouble knv
-
 primType :: Name -> Maybe Type
 primType (Name "Int#" _ _ _) = Just TyLitInt
 primType (Name "Float#" _ _ _) = Just TyLitFloat
@@ -692,7 +685,7 @@ convertLHExpr (EIte b e1 e2) t tcv s@(State { type_env = tenv, name_gen = ng, kn
         a2 = Lang.Alt (DataAlt fs []) e2'
     in
     Case bE cb [a1, a2]
-convertLHExpr (ECst e s) t tcv st@(State { known_values = knv }) m =
+convertLHExpr (ECst e _) t tcv st m =
     convertLHExpr e t tcv st m
 convertLHExpr (PAnd es) _ tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
     case map (\e -> convertLHExpr e Nothing tcv s m) es of
@@ -805,7 +798,7 @@ lhTCDict eenv tcv tc t@(TyVar _) m = lhTCDict' eenv tcv tc t m
 lhTCDict eenv tcv tc TyLitInt m = lhTCDict' eenv tcv tc (TyConApp (Name "Int#" (Just "GHC.Prims") 0 Nothing) []) m
 lhTCDict eenv tcv tc TyLitDouble m = lhTCDict' eenv tcv tc (TyConApp (Name "Double#" (Just "GHC.Prims") 0 Nothing) []) m
 lhTCDict eenv tcv tc TyLitFloat m = lhTCDict' eenv tcv tc (TyConApp (Name "Float#" (Just "GHC.Prims") 0 Nothing) []) m
-lhTCDict _ _ _ t _ = Nothing
+lhTCDict _ _ _ _ _ = Nothing
 
 lhTCDict' :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
 lhTCDict' eenv tcv tc t m =

@@ -272,9 +272,9 @@ mkAppliedDCs at ng appTN (DataCon n _ ts:xs) =
 
         appDC = DataCon appN (TyConApp appTN []) appTS
 
-        (end, ng3) = mkAppliedDCs at ng2 appTN xs
+        (en, ng3) = mkAppliedDCs at ng2 appTN xs
     in
-    (appDC:end, ng3)
+    (appDC:en, ng3)
 
 mkAppliedToFunc :: ApplyTypes -> NameGen -> Name -> [(DataCon, DataCon)] -> (Expr, NameGen)
 mkAppliedToFunc at ng appTN dcs =
@@ -304,9 +304,9 @@ mkAppliedToAlts at ng ((appDC@(DataCon _ _ appTs), funcDC@(DataCon _ _ funcTs)):
 
         dcExpr = foldl' (App) (Data funcDC) mappedIds
 
-        (end, ng3) = mkAppliedToAlts at ng2 xs
+        (en, ng3) = mkAppliedToAlts at ng2 xs
     in
-    (Alt am dcExpr:end, ng3)
+    (Alt am dcExpr:en, ng3)
 
 mkAppliedToAlts' :: ApplyTypes -> Type -> Id -> Expr
 mkAppliedToAlts' at t i =

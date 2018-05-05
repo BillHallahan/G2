@@ -17,7 +17,6 @@ import Language.Haskell.Liquid.Liquid()
 import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
 import Language.Haskell.Liquid.Types hiding (Loc, names)
 import Language.Haskell.Liquid.Types.RefType
-import Language.Haskell.Liquid.UX.Annotate
 import qualified Language.Haskell.Liquid.UX.Config as LHC
 
 import G2.Internals.Translation.Haskell
@@ -30,26 +29,22 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import FastString
-import Module
 import SrcLoc
-
-import Debug.Trace
 
 newtype AnnotMap = AM { unAnnotMap :: HM.HashMap Span [(Maybe T.Text, Expr)] } deriving (Eq, Show)
 
 lookupAnnot :: Name -> AnnotMap -> Maybe [(Maybe T.Text, Expr)]
-lookupAnnot (Name n _ _ (Just s)) =
+lookupAnnot (Name _ _ _ (Just s)) =
     HM.lookup s . unAnnotMap
 lookupAnnot _ = const Nothing
 
 lookupAnnotAtLoc :: Name -> AnnotMap -> Maybe [(Maybe T.Text, Expr)]
-lookupAnnotAtLoc (Name n _ _ (Just (Span {start = l}))) =
+lookupAnnotAtLoc (Name _ _ _ (Just (Span {start = l}))) =
     Just . concatMap snd . find (\(Span {start = l'}, _) -> l == l') . HM.toList . unAnnotMap
 lookupAnnotAtLoc _ = const Nothing
 
 getAnnotMap :: LHC.Config -> TCValues -> State t -> ExprEnv -> [LHOutput] -> AnnotMap
-getAnnotMap lh_config tcv s@(State {expr_env = eenv}) meenv ghci_cg =
+getAnnotMap lh_config tcv s meenv ghci_cg =
     let
         locM = locLookup $ expr_env s
 
@@ -59,11 +54,8 @@ getAnnotMap lh_config tcv s@(State {expr_env = eenv}) meenv ghci_cg =
     coerce $ mconcat $ map unAnnotMap annaE
 
 lhCleanAnnotMaps :: LHOutput -> AnnInfo SpecType
-lhCleanAnnotMaps (LHOutput {ghcI = ghci, cgI = cgi, solution = sol}) =
+lhCleanAnnotMaps (LHOutput {cgI = cgi, solution = sol}) =
     applySolution sol $ {- coerce $ HM.map (mapMaybe annotExprSpecType) $ -} closeAnnots $ annotMap cgi
-
-unAnnInfo :: AnnInfo SpecType -> HM.HashMap SrcSpan [(Maybe T.Text, SpecType)]
-unAnnInfo (AI hm) = hm
 
 -- From https://github.com/ucsd-progsys/liquidhaskell/blob/75184064eed475289648ead76e3e9d370b168e66/src/Language/Haskell/Liquid/Types.hs
 -- newtype AnnInfo a = AI (M.HashMap SrcSpan [(Maybe Text, a)])
@@ -90,7 +82,7 @@ valToExpr' locM tcv s@(State {expr_env = eenv, type_env = tenv, known_values = k
         i = Id (Name "ret" Nothing 0 Nothing) t
     in
     case e of
-        Just e -> Just (n, addIds (convertSpecType tcv (s {expr_env = meenv}) ast i m) ai)
+        Just _ -> Just (n, addIds (convertSpecType tcv (s {expr_env = meenv}) ast i m) ai)
         Nothing -> Nothing
 
 fstSrcSpanToLoc :: (SrcSpan, b) -> Maybe (Span, b)
@@ -98,21 +90,17 @@ fstSrcSpanToLoc (RealSrcSpan r, b) =
     Just (mkRealSpan r, b)
 fstSrcSpanToLoc _ = Nothing
 
-rightFstToLeft :: (a, [(b, c)]) -> [((a, b), [c])]
-rightFstToLeft (a, xs) =
-    map (\(b, c) -> ((a, b), [c])) xs
-
 assertionLamIds :: Expr -> [Id]
 assertionLamIds = assertionLamIds' . inLams
 
 assertionLamIds' :: Expr -> [Id]
 assertionLamIds' (Let _ (Assume _ (Assert _ a _))) = leadingLamIds a
 assertionLamIds' (Let _ (Assert _ a _)) = leadingLamIds a
-assertionLamIds' e = []
+assertionLamIds' _ = []
 
 addIds :: Expr -> [Id] -> Expr
-addIds e [] = e
 addIds e@(Lam ei _) (i:is) = if i == ei then e else Lam i $ addIds e is
+addIds e _ = e
 
 hasAssumeAssert :: Expr -> Bool
 hasAssumeAssert = hasAssumeAssert' . inLams
@@ -128,11 +116,11 @@ lamIdMap kv tcv =
 
 isLHTC :: TCValues -> Id -> Bool
 isLHTC tcv (Id _ (TyConApp n _)) = n == lhTC tcv
-isLHTC _ i = False
+isLHTC _ _ = False
 
 isNumD :: KnownValues -> Id -> Bool
 isNumD kv (Id _ (TyConApp n _)) = n == KV.numTC kv
-isNumD _ i = False
+isNumD _ _ = False
 
 instance ASTContainer AnnotMap Expr where
     containedASTs =  map snd . concat . HM.elems . unAnnotMap

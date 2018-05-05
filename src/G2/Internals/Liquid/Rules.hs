@@ -16,7 +16,6 @@ import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as S
 import G2.Internals.Liquid.Annotations
 
-import Data.List
 import Data.Maybe
 import Data.Monoid
 import Data.Semigroup
@@ -103,23 +102,11 @@ symbState eenv
 
         (i, ng') = freshId t ng
 
-        cfn = case fn of
-            Name n (Just m) _ _ -> m `T.append` "." `T.append` n
-            Name n _ _ _ -> n
-
         inferred = maybe [] (map snd) $ lookupAnnotAtLoc last_v annm -- lookupAnnot last_v annm
         inferredExprs = mkInferredAssumptions (ars ++ [ret]) inferred
         inferred' = foldr Assume (Var b) $ e:inferredExprs
-        -- inferredExpr = case inferred of
-        --                 Just inf -> find (\(n, _) -> n == Just cfn) inf
-        --                 Nothing -> Nothing -- trace ("inferred = " ++ show (fmap (map fst) inferred)) fmap (map snd) inferred
-        -- inferredAssume = case inferredExpr of
-        --                     Just (_, inf) -> Assume (mkApp $ inf:ars ++ [ret])
-        --                     Nothing -> id
 
         cexpr' = Let [(b, atf (Var i))] $ inferred'
-        -- cexpr' = Let [(b, atf (Var i))] $ inferredAssume $ Assume e (Var b)
-        -- cexpr' = Let [(b, atf (Var i))] $ Assume e (Var b)
 
         eenv' = E.insertSymbolic (idName i) i eenv
 

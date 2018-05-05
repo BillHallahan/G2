@@ -18,7 +18,6 @@ import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
-import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
 import G2.Internals.Solver
 
@@ -26,7 +25,6 @@ import G2.Lib.Printers
 
 import Language.Haskell.Liquid.Constraint.Generate
 import Language.Haskell.Liquid.Constraint.ToFixpoint
-import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types hiding (Config, cls, names)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
@@ -50,8 +48,6 @@ import qualified GHC as GHC
 import Var
 
 import G2.Internals.Language.KnownValues
-
-import Debug.Trace
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -83,11 +79,10 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
-    -- let lh_measure_names = map (symbolName . val .name) lh_measures
 
     let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
-    -- let annot_state = annotateCases cleaned_state
+
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
 
     let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
@@ -97,19 +92,14 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let (lh_state, meenv', tcv) = createLHTC ng_state meenv
     let lhtc_state = addLHTC lh_state tcv
 
-    -- print $ amKeys annm
 
     let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
     let meenv''' = replaceVarTy meenvT meenv''
     let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
 
-    -- let ((meenv, mkv), ng') = doRenames (E.keys meas_eenv) meas_ng (meas_eenv, known_values lhtc_state)
-    -- let ng_state = lhtc_state {name_gen = ng'}
-
     let ng2_state = lhtc_state {name_gen = meas_ng}
 
     let merged_state = mergeLHSpecState (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
-    -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
 
     let beta_red_state = simplifyAsserts mkv tcv merged_state
     let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
@@ -121,24 +111,15 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let annm = getAnnotMap lh_config tcv annm_gen_state meas_eenv ghci_cg
     let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
 
-    -- print $ simplifyAssertsG mkv tcv (type_env beta_red_state') (known_values beta_red_state') eCheck
-    -- print (undefined :: Int)
-
     let spec_assert_state = addSpecialAsserts beta_red_state
 
     let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm'} }
 
     (con, hhp) <- getSMT config
 
-    -- let (up_ng_state, ng) = renameAll mark_and_sweep_state (name_gen mark_and_sweep_state)
-    -- let final_state = up_ng_state {name_gen = ng}
-    -- let halter_set_state = track_state {halter = steps config}
-
     let final_state = track_state
 
-    -- ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
     ret <- run LHRed (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp (pres_names ++ names annm') config final_state
-    -- ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -167,7 +148,7 @@ getGHCInfos' config ghci = do
     let cgi = generateConstraints ghci
 
     finfo <- cgInfoFInfo ghci cgi
-    F.Result r sol _ <- solve (fixConfig "LH_FILEPATH" config) finfo
+    F.Result _ sol _ <- solve (fixConfig "LH_FILEPATH" config) finfo
 
     return (LHOutput {ghcI = ghci, cgI = cgi, solution = sol})
     
@@ -327,9 +308,9 @@ testLiquidDir proj dir libs lhlibs config = do
   raw_files <- listDirectory dir
   let hs_files = filter (\a -> (".hs" `isSuffixOf` a) || (".lhs" `isSuffixOf` a)) raw_files
   
-  results <- mapM (\file -> do
-      res <- testLiquidFile proj file libs lhlibs config
-      return (file, res)
+  results <- mapM (\fle -> do
+      res <- testLiquidFile proj fle libs lhlibs config
+      return (fle, res)
     ) hs_files
 
   return results

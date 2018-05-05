@@ -274,10 +274,6 @@ mkRealSpan s =
     G2.Span { G2.start = st
             , G2.end = en}
 
-mkLoc :: SrcLoc -> Maybe G2.Loc
-mkLoc (RealSrcLoc l) = Just $ mkRealLoc l
-mkLoc _ = Nothing
-
 mkRealLoc :: RealSrcLoc -> G2.Loc
 mkRealLoc l =
     G2.Loc { G2.line = srcLocLine l
@@ -426,7 +422,6 @@ absVarLoc =
 
 absVarLoc' :: G2.Expr -> IO G2.Expr
 absVarLoc' (G2.Var (G2.Id (G2.Name n m i (Just s)) t)) = do
-    s' <- absLocSpan s
     return $ G2.Var $ G2.Id (G2.Name n m i (Just $ s)) t
 absVarLoc' (G2.App e1 e2) = do
     e1' <- absVarLoc' e1
@@ -473,4 +468,3 @@ absLoc :: G2.Loc -> IO G2.Loc
 absLoc l@G2.Loc {G2.file = f} = do
     f' <- makeAbsolute f
     return $ l {G2.file = f'}
-absLoc l = return l
