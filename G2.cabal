@@ -63,6 +63,7 @@ test-suite test
                        , liquidhaskell
                        , liquid-fixpoint
                        , MissingH
+                       , mtl
                        , reducers
                        , regex-compat
                        , parsec
