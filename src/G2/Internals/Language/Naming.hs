@@ -576,13 +576,6 @@ freshNames i ngen = freshSeededNames (replicate i (Name "fs?" Nothing 0 Nothing)
 
 freshId :: Type -> NameGen -> (Id, NameGen)
 freshId = freshSeededId (Name "fs?" Nothing 0 Nothing)
-    
-freshSeededId :: Named a => a -> Type -> NameGen -> (Id, NameGen)
-freshSeededId x t ngen =
-    let
-        (n, ngen') = freshSeededName (name x) ngen
-    in
-    (Id n t, ngen')
 
 freshIds :: [Type] -> NameGen -> ([Id], NameGen)
 freshIds ts ngen = 
@@ -590,6 +583,13 @@ freshIds ts ngen =
         (ns, ngen') = freshNames (length ts) ngen
     in
     (map (uncurry Id) (zip ns ts), ngen')
+    
+freshSeededId :: Named a => a -> Type -> NameGen -> (Id, NameGen)
+freshSeededId x t ngen =
+    let
+        (n, ngen') = freshSeededName (name x) ngen
+    in
+    (Id n t, ngen')
 
 freshVar :: Type -> NameGen -> (Expr, NameGen)
 freshVar t ngen =
