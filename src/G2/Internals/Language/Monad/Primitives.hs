@@ -24,62 +24,62 @@ import G2.Internals.Language.Support
 
 import G2.Internals.Language.Monad.Support
 
-appExpr :: (ExprEnv -> Expr) -> StateM t Expr
-appExpr f = return . f =<< expr_envM
+appExpr :: ExState s m => (ExprEnv -> Expr) -> m Expr
+appExpr f = return . f =<< exprEnv
 
-mkGeE :: StateM t Expr
+mkGeE :: ExState s m => m Expr
 mkGeE = appExpr mkGe
 
-mkGtE :: StateM t Expr
+mkGtE :: ExState s m => m Expr
 mkGtE = appExpr mkGt
 
-mkEqE :: StateM t Expr
+mkEqE :: ExState s m => m Expr
 mkEqE = appExpr mkEq
 
-mkNeqE :: StateM t Expr
+mkNeqE :: ExState s m => m Expr
 mkNeqE = appExpr mkNeq
 
-mkLtE :: StateM t Expr
+mkLtE :: ExState s m => m Expr
 mkLtE = appExpr mkLt
 
-mkLeE :: StateM t Expr
+mkLeE :: ExState s m => m Expr
 mkLeE = appExpr mkLe
 
-mkAndE :: StateM t Expr
+mkAndE :: ExState s m => m Expr
 mkAndE = appExpr mkAnd
 
-mkOrE :: StateM t Expr
+mkOrE :: ExState s m => m Expr
 mkOrE = appExpr mkOr
 
-mkNotE :: StateM t Expr
+mkNotE :: ExState s m => m Expr
 mkNotE = appExpr mkNot
 
-mkPlusE :: StateM t Expr
+mkPlusE :: ExState s m => m Expr
 mkPlusE = appExpr mkPlus
 
-mkMinusE :: StateM t Expr
+mkMinusE :: ExState s m => m Expr
 mkMinusE = appExpr mkMinus
 
-mkMultE :: StateM t Expr
+mkMultE :: ExState s m => m Expr
 mkMultE = appExpr mkMult
 
-mkDivE :: StateM t Expr
+mkDivE :: ExState s m => m Expr
 mkDivE = appExpr mkDiv
 
-mkModE :: StateM t Expr
+mkModE :: ExState s m => m Expr
 mkModE = appExpr mkMod
 
-mkNegateE :: StateM t Expr
+mkNegateE :: ExState s m => m Expr
 mkNegateE = appExpr mkNegate
 
-mkImpliesE :: StateM t Expr
+mkImpliesE :: ExState s m => m Expr
 mkImpliesE = appExpr mkImplies
 
-mkIffE :: StateM t Expr
+mkIffE :: ExState s m => m Expr
 mkIffE = appExpr mkIff
 
-mkFromIntegerE :: StateM t Expr
+mkFromIntegerE :: ExState s m => m Expr
 mkFromIntegerE = appExpr mkFromInteger
 
-mkToIntegerE :: StateM t Expr
+mkToIntegerE :: ExState s m => m Expr
 mkToIntegerE = appExpr mkToInteger

@@ -12,17 +12,17 @@ import Prelude hiding( filter
                      , map
                      , null)
 
-liftEE :: (ExprEnv -> a) -> StateM t a
-liftEE f = readRecord (f . expr_env)
+liftEE :: ExState s m => (ExprEnv -> a) -> m a
+liftEE f = return . f =<< exprEnv
 
-memberE :: Name -> StateM t Bool
+memberE :: ExState s m => Name -> m Bool
 memberE n = liftEE (E.member n)
 
-lookupE :: Name -> StateM t (Maybe Expr)
+lookupE :: ExState s m => Name -> m (Maybe Expr)
 lookupE n = liftEE (E.lookup n)
 
-insertE :: Name -> Expr -> StateM t ()
+insertE :: ExState s m => Name -> Expr -> m ()
 insertE n e = do
-    eenv <- expr_envM
+    eenv <- exprEnv
     let eenv' = E.insert n e eenv
-    rep_expr_envM eenv'
+    putExprEnv eenv'

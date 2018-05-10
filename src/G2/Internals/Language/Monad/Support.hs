@@ -1,4 +1,10 @@
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module G2.Internals.Language.Monad.Support ( StateM
+                                           , ExState (..)
+                                           , runStateM
                                            , readRecord
                                            , expr_envM
                                            , rep_expr_envM
@@ -14,9 +20,38 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 
-type StateM t s = SM.State (State t) s
+newtype StateM t a = StateM { unSM :: (SM.State (State t) a) } deriving (Applicative, Functor, Monad)
 
-readRecord :: (State t -> r) -> StateM t r
+instance SM.MonadState (State t) (StateM t) where
+    state f = StateM (SM.state f)
+
+class SM.MonadState s m => ExState s m | m -> s where
+    exprEnv :: m ExprEnv
+    putExprEnv :: ExprEnv -> m ()
+
+    typeEnv :: m TypeEnv
+
+    nameGen :: m NameGen
+    putNameGen :: NameGen -> m ()
+
+    knownValues :: m KnownValues
+
+
+instance ExState (State t) (StateM t) where
+    exprEnv = expr_envM
+    putExprEnv = rep_expr_envM
+
+    typeEnv = type_envM
+
+    nameGen = name_genM
+    putNameGen = rep_name_genM
+
+    knownValues = known_valuesM
+
+runStateM :: StateM t a -> State t -> (a, State t)
+runStateM (StateM s) s' = SM.runState s s'
+
+readRecord :: SM.MonadState s m => (s -> r) -> m r
 readRecord f = return . f =<< SM.get
 
 expr_envM :: StateM t ExprEnv
@@ -30,11 +65,11 @@ rep_expr_envM eenv = do
 type_envM :: StateM t TypeEnv
 type_envM = readRecord type_env
 
-withNG :: (NameGen -> (a, NameGen)) -> StateM t a
+withNG :: ExState s m => (NameGen -> (a, NameGen)) -> m a
 withNG f = do
-    ng <- name_genM
+    ng <- nameGen
     let (a, ng') = f ng
-    rep_name_genM ng'
+    putNameGen ng'
     return a
 
 name_genM :: StateM t NameGen

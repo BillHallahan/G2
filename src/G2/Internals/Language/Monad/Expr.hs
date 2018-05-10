@@ -1,11 +1,11 @@
 module G2.Internals.Language.Monad.Expr ( mkDCIntE
-										, mkDCIntegerE
-										, mkDCFloatE
-										, mkDCDoubleE
-										, mkTrueE
-										, mkFalseE
-										, mkConsE
-										, mkEmptyE ) where
+                                        , mkDCIntegerE
+                                        , mkDCFloatE
+                                        , mkDCDoubleE
+                                        , mkTrueE
+                                        , mkFalseE
+                                        , mkConsE
+                                        , mkEmptyE ) where
 
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
@@ -13,32 +13,32 @@ import G2.Internals.Language.Support
 
 import G2.Internals.Language.Monad.Support
 
-appKVTEnv :: (KnownValues -> TypeEnv -> Expr) -> StateM t Expr
+appKVTEnv :: ExState s m => (KnownValues -> TypeEnv -> Expr) -> m Expr
 appKVTEnv f = do
-	kv <- known_valuesM
-	tenv <- type_envM
-	return $ f kv tenv
+    kv <- knownValues
+    tenv <- typeEnv
+    return $ f kv tenv
 
-mkDCIntE :: StateM t Expr
+mkDCIntE :: ExState s m => m Expr
 mkDCIntE = appKVTEnv mkDCInt
 
-mkDCIntegerE :: StateM t Expr
+mkDCIntegerE :: ExState s m => m Expr
 mkDCIntegerE = appKVTEnv mkDCInteger
 
-mkDCFloatE :: StateM t Expr
+mkDCFloatE :: ExState s m => m Expr
 mkDCFloatE = appKVTEnv mkDCFloat
 
-mkDCDoubleE :: StateM t Expr
+mkDCDoubleE :: ExState s m => m Expr
 mkDCDoubleE = appKVTEnv mkDCDouble
 
-mkTrueE :: StateM t Expr
+mkTrueE :: ExState s m => m Expr
 mkTrueE = appKVTEnv mkTrue
 
-mkFalseE :: StateM t Expr
+mkFalseE :: ExState s m => m Expr
 mkFalseE = appKVTEnv mkFalse
 
-mkConsE :: StateM t Expr
+mkConsE :: ExState s m => m Expr
 mkConsE = appKVTEnv mkCons
 
-mkEmptyE :: StateM t Expr
+mkEmptyE :: ExState s m => m Expr
 mkEmptyE = appKVTEnv mkEmpty
