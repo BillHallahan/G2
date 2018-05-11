@@ -7,10 +7,10 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Monad.Support
 
-import Prelude hiding( filter
-                     , lookup
-                     , map
-                     , null)
+import Prelude hiding ( filter
+                      , lookup
+                      , map
+                      , null)
 
 liftEE :: ExState s m => (ExprEnv -> a) -> m a
 liftEE f = return . f =<< exprEnv

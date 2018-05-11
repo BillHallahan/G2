@@ -36,8 +36,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import G2.Internals.Language.Monad
-
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text
           -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> [Name]
           -> Config -> State ()

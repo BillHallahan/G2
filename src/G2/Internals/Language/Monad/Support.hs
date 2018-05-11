@@ -26,6 +26,7 @@ class SM.MonadState s m => ExState s m | m -> s where
     putExprEnv :: ExprEnv -> m ()
 
     typeEnv :: m TypeEnv
+    putTypeEnv :: TypeEnv -> m ()
 
     nameGen :: m NameGen
     putNameGen :: NameGen -> m ()
@@ -37,6 +38,7 @@ instance ExState (State t) (StateM t) where
     putExprEnv = rep_expr_envM
 
     typeEnv = readRecord type_env
+    putTypeEnv = rep_type_envM
 
     nameGen = readRecord name_gen
     putNameGen = rep_name_genM
@@ -53,6 +55,11 @@ rep_expr_envM :: ExprEnv -> StateM t ()
 rep_expr_envM eenv = do
     s <- SM.get
     SM.put $ s {expr_env = eenv}
+
+rep_type_envM :: TypeEnv -> StateM t ()
+rep_type_envM tenv = do
+    s <- SM.get
+    SM.put $ s {type_env = tenv}
 
 withNG :: ExState s m => (NameGen -> (a, NameGen)) -> m a
 withNG f = do

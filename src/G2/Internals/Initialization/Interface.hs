@@ -10,9 +10,6 @@ import G2.Internals.Initialization.Functionalizer
 import G2.Internals.Initialization.InitVarLocs
 import G2.Internals.Initialization.Types
 
-import G2.Internals.Language.Typing
-import Debug.Trace
-
 runInitialization :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> [Type] -> [Name] ->
     (SimpleState, FuncInterps, ApplyTypes, Walkers)
 runInitialization eenv tenv ng kv ts tgtNames =
@@ -26,9 +23,7 @@ runInitialization eenv tenv ng kv ts tgtNames =
                         , name_gen = ng2
                         , known_values = kv }
 
-        (s', ft, at) = functionalize s ts tgtNames
-        eenv5 = elimTicks . initVarLocs $ expr_env s'
-
-        s'' = s' { expr_env = eenv5 }
+        ((ft, at), s') = runSimpleStateM (functionalize ts tgtNames) s
+        s'' = elimTicks . initVarLocs $ s'
     in
     (s'', ft, at, ds_walkers)

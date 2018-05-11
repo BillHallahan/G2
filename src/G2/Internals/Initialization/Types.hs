@@ -1,7 +1,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module G2.Internals.Initialization.Types (SimpleState (..)) where
+module G2.Internals.Initialization.Types ( SimpleState (..)
+                                         , SimpleStateM (..)
+                                         , runSimpleStateM
+                                         , evalSimpleStateM
+                                         , execSimpleStateM ) where
 
 import qualified Control.Monad.State.Lazy as SM
 
@@ -25,16 +29,31 @@ instance ExState SimpleState SimpleStateM where
     putExprEnv = rep_expr_envM
 
     typeEnv = return . type_env =<< SM.get
+    putTypeEnv = rep_type_envM
 
     nameGen = return . name_gen =<< SM.get
     putNameGen = rep_name_genM
 
     knownValues = return . known_values =<< SM.get
 
+runSimpleStateM :: SimpleStateM a -> SimpleState -> (a, SimpleState)
+runSimpleStateM (SimpleStateM s) s' = SM.runState s s'
+
+evalSimpleStateM :: SimpleStateM a -> SimpleState -> a
+evalSimpleStateM s = fst . runSimpleStateM s
+
+execSimpleStateM :: SimpleStateM a -> SimpleState -> SimpleState
+execSimpleStateM s = snd . runSimpleStateM s
+
 rep_expr_envM :: L.ExprEnv -> SimpleStateM ()
 rep_expr_envM eenv = do
     s <- SM.get
     SM.put $ s {expr_env = eenv}
+
+rep_type_envM :: L.TypeEnv -> SimpleStateM ()
+rep_type_envM tenv = do
+    s <- SM.get
+    SM.put $ s {type_env = tenv}
 
 rep_name_genM :: L.NameGen -> SimpleStateM ()
 rep_name_genM ng = do
