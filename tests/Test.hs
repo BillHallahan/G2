@@ -37,10 +37,10 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
-        , liquidTests
-        , testFileTests
-        , smtADTTests
-        , baseTests
+        -- , liquidTests
+        -- , testFileTests
+        -- , smtADTTests
+        -- , baseTests
         ]
 
 timeout :: Timeout

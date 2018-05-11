@@ -34,33 +34,38 @@
 
 module G2.Internals.Initialization.Functionalizer (functionalize) where
 
-import G2.Internals.Language
+import G2.Internals.Initialization.Types
+import G2.Internals.Language hiding (State (..))
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 
 import Data.List
 import qualified Data.Map as M
 
-functionalize :: TypeEnv -> ExprEnv -> NameGen -> [Type] -> [Name]
-              -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
-functionalize tenv eenv ng ts tgtNames =
+import Debug.Trace
+
+functionalize :: SimpleState -> [Type] -> [Name]
+              -> (SimpleState, FuncInterps, AT.ApplyTypes)
+functionalize s@(SimpleState { type_env = tenv, expr_env = eenv, name_gen = ng }) ts tgtNames =
     let
         -- Get names for all need apply type
-        types = (filter isTyFun ts) ++ (nubBy (.::.) $
-                argTypesTEnv tenv ++ E.higherOrderExprs eenv)
+        -- ts' = filter isTyFun ts
+        types = (nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs eenv)
         (appT, ng2) = applyTypeNames ng types
 
+        s2 = s {name_gen = ng2}
+
         -- Update the expression and  type environments with apply types
-        (tenv2, eenv2, fi, at, ng3) = mkApplyFuncAndTypes tenv eenv ng2 appT tgtNames
+        (s3, fi, at) = mkApplyFuncAndTypes s2 appT tgtNames
 
         -- Get all adts that are functionalizable
         funcADTs = functionalizableADTs tenv
 
         -- create walkers over the functionalizable adts
-        (tenv3, eenv3, at2, ng4) = functionalizableADTsMaps funcADTs tenv2 eenv2 at ng3
+        (s4, at2) = functionalizableADTsMaps funcADTs s3 at
     in
-    (tenv3, eenv3, fi, at2, ng4)
-
+    -- trace ("functionalize ts = " ++ show ts)
+    (s4, fi, at2)
 
 -- creates ApplyType names for the given types
 applyTypeNames :: NameGen -> [Type] -> ([(Type, Name)], NameGen)
@@ -72,22 +77,22 @@ applyTypeNames ng ts =
 
 -- Updates the ExprEnv and TypeEnv with ApplyTypes and Apply Functions
 -- creates FuncInterps and ApplyTypes tables
-mkApplyFuncAndTypes :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)] -> [Name] ->
-                       (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
-mkApplyFuncAndTypes tenv eenv ng tyn tgtNames = 
+mkApplyFuncAndTypes :: SimpleState -> [(Type, Name)] -> [Name] ->
+                       (SimpleState, FuncInterps, AT.ApplyTypes)
+mkApplyFuncAndTypes s@(SimpleState { expr_env = eenv }) tyn tgtNames = 
     let
         eenv' = E.filterWithKey (\n _ -> n `elem` tgtNames) eenv
         -- This just gets passed around unmodified in mkApplyFuncTypes'
         -- but precomputing is faster
         funcT = M.toList $ E.map' typeOf eenv'
     in
-    mkApplyFuncAndTypes' tenv eenv ng tyn funcT (FuncInterps M.empty) (AT.empty)
+    mkApplyFuncAndTypes' s tyn funcT (FuncInterps M.empty) (AT.empty)
 
-mkApplyFuncAndTypes' :: TypeEnv -> ExprEnv -> NameGen -> [(Type, Name)]
+mkApplyFuncAndTypes' :: SimpleState -> [(Type, Name)]
                      -> [(Name, Type)] -> FuncInterps -> AT.ApplyTypes
-                     -> (TypeEnv, ExprEnv, FuncInterps, AT.ApplyTypes, NameGen)
-mkApplyFuncAndTypes' tenv eenv ng [] _ fi at = (tenv, eenv, fi, at, ng)
-mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
+                     -> (SimpleState, FuncInterps, AT.ApplyTypes)
+mkApplyFuncAndTypes' s _ _ fi at = (s, fi, at)
+mkApplyFuncAndTypes' s@(SimpleState { type_env = tenv, expr_env = eenv, name_gen = ng }) ((t, n):xs) funcT (FuncInterps fi) at =
     let
         funcFolds = foldr (\(n', t') accs ->
                             case specializes M.empty t t' of
@@ -117,8 +122,10 @@ mkApplyFuncAndTypes' tenv eenv ng ((t, n):xs) funcT (FuncInterps fi) at =
         -- Update expression enviroment
         (expr, ng4) = mkApplyTypeMap ng3 (zip applyCons funcFolds) (TyConApp n []) t
         eenv2 = E.insert applyFuncN expr eenv
+
+        s' = s {type_env = tenv2, expr_env = eenv2, name_gen = ng4}
     in
-    mkApplyFuncAndTypes' tenv2 eenv2 ng4 xs funcT (FuncInterps fi') at2
+    mkApplyFuncAndTypes' s' xs funcT (FuncInterps fi') at2
 
 -- Makes a function to map the apply types to the cooresponding Apply Functions
 mkApplyTypeMap :: NameGen -> [(Name, (Name, Type, M.Map Name Type))]
@@ -207,10 +214,9 @@ containsParam'' _ _ = False
 
 -- We (a) create applied ADTs for all functionalizable ADTs and (b) create
 -- functions to convert the applied ADTs to functionalizable ADTs
-functionalizableADTsMaps :: [Name] -> TypeEnv -> ExprEnv -> AT.ApplyTypes
-                         -> NameGen
-                         -> (TypeEnv, ExprEnv, AT.ApplyTypes, NameGen)
-functionalizableADTsMaps adts tenv eenv at ng =
+functionalizableADTsMaps :: [Name] -> SimpleState -> AT.ApplyTypes
+                         -> (SimpleState, AT.ApplyTypes)
+functionalizableADTsMaps adts s@(SimpleState { type_env = tenv, expr_env = eenv, name_gen = ng }) at =
     let
         (applyTypes, ng2) = freshSeededNames adts ng
         (applyFuncs, ng3) = freshSeededNames adts ng2
@@ -221,29 +227,31 @@ functionalizableADTsMaps adts tenv eenv at ng =
                           (Id f (TyFun (TyConApp t' []) (TyConApp t []))))
                 at
               $ zip3 adts applyTypes applyFuncs
-    in
-    functionalizableADTTypes adts tenv eenv at2 ng3
 
-functionalizableADTTypes :: [Name] -> TypeEnv -> ExprEnv -> AT.ApplyTypes -> NameGen -> 
-                             (TypeEnv, ExprEnv, AT.ApplyTypes, NameGen)
-functionalizableADTTypes [] tenv eenv at ng = (tenv, eenv, at, ng)
-functionalizableADTTypes (n:ns) tenv eenv at ng =
+        s' = s { name_gen = ng3 }
+    in
+    functionalizableADTTypes adts s' at2
+
+functionalizableADTTypes :: [Name] -> SimpleState -> AT.ApplyTypes -> 
+                             (SimpleState, AT.ApplyTypes)
+functionalizableADTTypes [] s at = (s, at)
+functionalizableADTTypes (n:ns) s@(SimpleState { type_env = tenv }) at =
     let
         funcADT = M.lookup n tenv
 
         typeFuncN = AT.lookup (TyConApp n []) at
 
-        (tenv2, eenv2, ng2) =
+        s' =
             case (funcADT, typeFuncN) of
                 (Just t, Just (appTypeN, appFuncN)) ->
-                  functionalizableADTType appTypeN appFuncN t tenv eenv ng at
-                _ -> (tenv, eenv, ng)
+                  functionalizableADTType appTypeN appFuncN t s at
+                _ -> s
     in
-    functionalizableADTTypes ns tenv2 eenv2 at ng2
+    functionalizableADTTypes ns s' at
 
-functionalizableADTType :: Name -> Id -> AlgDataTy -> TypeEnv -> ExprEnv
-                        -> NameGen -> ApplyTypes -> (TypeEnv, ExprEnv, NameGen)
-functionalizableADTType appTypeN (Id appFuncN _) dc tenv eenv ng at =
+functionalizableADTType :: Name -> Id -> AlgDataTy -> SimpleState
+                        -> ApplyTypes -> SimpleState
+functionalizableADTType appTypeN (Id appFuncN _) dc s@(SimpleState { type_env = tenv, expr_env = eenv, name_gen = ng }) at =
     let
         -- Create a new Apply Data Type, and put it in the Type Environment 
         (appDCs, ng2) = mkAppliedDCs at ng appTypeN (dataCon dc)
@@ -258,7 +266,7 @@ functionalizableADTType appTypeN (Id appFuncN _) dc tenv eenv ng at =
 
         eenv2 = E.insert appFuncN func eenv
     in
-    (tenv2, eenv2, ng3)
+    s { type_env = tenv2, expr_env = eenv2, name_gen = ng3 }
 
 mkAppliedDCs :: ApplyTypes -> NameGen -> Name -> [DataCon] -> ([DataCon], NameGen)
 mkAppliedDCs _ ng _ [] = ([], ng)

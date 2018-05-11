@@ -6,11 +6,7 @@ module G2.Internals.Language.Monad.Support ( StateM
                                            , ExState (..)
                                            , runStateM
                                            , readRecord
-                                           , expr_envM
-                                           , rep_expr_envM
-                                           , type_envM
-                                           , withNG
-                                           , known_valuesM ) where
+                                           , withNG ) where
 
 import qualified Control.Monad.State.Lazy as SM
 import Data.Functor.Identity
@@ -36,17 +32,16 @@ class SM.MonadState s m => ExState s m | m -> s where
 
     knownValues :: m KnownValues
 
-
 instance ExState (State t) (StateM t) where
-    exprEnv = expr_envM
+    exprEnv = readRecord expr_env
     putExprEnv = rep_expr_envM
 
-    typeEnv = type_envM
+    typeEnv = readRecord type_env
 
-    nameGen = name_genM
+    nameGen = readRecord name_gen
     putNameGen = rep_name_genM
 
-    knownValues = known_valuesM
+    knownValues = readRecord known_values
 
 runStateM :: StateM t a -> State t -> (a, State t)
 runStateM (StateM s) s' = SM.runState s s'
@@ -54,16 +49,10 @@ runStateM (StateM s) s' = SM.runState s s'
 readRecord :: SM.MonadState s m => (s -> r) -> m r
 readRecord f = return . f =<< SM.get
 
-expr_envM :: StateM t ExprEnv
-expr_envM = readRecord expr_env
-
 rep_expr_envM :: ExprEnv -> StateM t ()
 rep_expr_envM eenv = do
     s <- SM.get
     SM.put $ s {expr_env = eenv}
-
-type_envM :: StateM t TypeEnv
-type_envM = readRecord type_env
 
 withNG :: ExState s m => (NameGen -> (a, NameGen)) -> m a
 withNG f = do
@@ -72,13 +61,7 @@ withNG f = do
     putNameGen ng'
     return a
 
-name_genM :: StateM t NameGen
-name_genM = readRecord name_gen
-
 rep_name_genM :: NameGen -> StateM t ()
 rep_name_genM ng = do
     s <- SM.get
     SM.put $ s {name_gen = ng}
-
-known_valuesM :: StateM t KnownValues
-known_valuesM = readRecord known_values

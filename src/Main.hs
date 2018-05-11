@@ -99,8 +99,14 @@ runGHC as = do
     (mb_modname, pre_binds, pre_tycons, pre_cls, _, ex) <- translateLoaded proj src libs True config
 
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
+
+    putStrLn "BEFORE init_state"
+
     let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                                (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
+
+    putStrLn $ "AFTER init_state"
+    -- putStrLn $ show (expr_env init_state)
 
     (con, hhp) <- getSMT config
 
