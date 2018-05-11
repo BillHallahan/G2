@@ -49,8 +49,7 @@ functionalize :: SimpleState -> [Type] -> [Name]
 functionalize s@(SimpleState { type_env = tenv, expr_env = eenv, name_gen = ng }) ts tgtNames =
     let
         -- Get names for all need apply type
-        -- ts' = filter isTyFun ts
-        types = (nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs eenv)
+        types = filter isTyFun ts ++ (nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs eenv)
         (appT, ng2) = applyTypeNames ng types
 
         s2 = s {name_gen = ng2}
@@ -64,7 +63,6 @@ functionalize s@(SimpleState { type_env = tenv, expr_env = eenv, name_gen = ng }
         -- create walkers over the functionalizable adts
         (s4, at2) = functionalizableADTsMaps funcADTs s3 at
     in
-    -- trace ("functionalize ts = " ++ show ts)
     (s4, fi, at2)
 
 -- creates ApplyType names for the given types
@@ -91,7 +89,7 @@ mkApplyFuncAndTypes s@(SimpleState { expr_env = eenv }) tyn tgtNames =
 mkApplyFuncAndTypes' :: SimpleState -> [(Type, Name)]
                      -> [(Name, Type)] -> FuncInterps -> AT.ApplyTypes
                      -> (SimpleState, FuncInterps, AT.ApplyTypes)
-mkApplyFuncAndTypes' s _ _ fi at = (s, fi, at)
+mkApplyFuncAndTypes' s [] _ fi at = (s, fi, at)
 mkApplyFuncAndTypes' s@(SimpleState { type_env = tenv, expr_env = eenv, name_gen = ng }) ((t, n):xs) funcT (FuncInterps fi) at =
     let
         funcFolds = foldr (\(n', t') accs ->
