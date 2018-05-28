@@ -147,8 +147,8 @@ isApp (App _ _) = True
 isApp _ = False
 
 mkLitHaskell :: Lit -> String
-mkLitHaskell (LitInt i) = show i
-mkLitHaskell (LitInteger i) = show i
+mkLitHaskell (LitInt i) = if i < 0 then "(" ++ show i ++ ")" else show i
+mkLitHaskell (LitInteger i) = if i < 0 then "(" ++ show i ++ ")" else show i
 mkLitHaskell (LitFloat r) = "(" ++ show ((fromRational r) :: Float) ++ ")"
 mkLitHaskell (LitDouble r) = "(" ++ show ((fromRational r) :: Double) ++ ")"
 mkLitHaskell (LitChar c) = ['\'', c, '\'']

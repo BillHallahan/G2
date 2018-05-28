@@ -8,6 +8,7 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , Halter (..)
                                       , Orderer (..)
                                       , Processed (..)
+                                      , ReducerRes (..)
                                       , HaltC (..)
                                       , HCombiner (..)
                                       , StdRed (..)
@@ -20,6 +21,8 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , executeNext
                                       , halterSub1
                                       , halterIsZero
+
+                                      , reduce
                                       , runReducer ) where
 
 import G2.Internals.Config
@@ -58,6 +61,17 @@ setOrderVal s sv = s {order_val = sv}
 data Processed a = Processed { accepted :: [a]
                              , discarded :: [a] }
 
+-- | ReducerRes
+-- Used by Reducers to indicate there progress reducing
+data ReducerRes = NoProgress | InProgress | Finished deriving (Eq, Ord, Show, Read)
+
+progPrioritizer :: ReducerRes -> ReducerRes -> ReducerRes
+progPrioritizer InProgress _ = InProgress
+progPrioritizer _ InProgress = InProgress
+progPrioritizer Finished _ = Finished
+progPrioritizer _ Finished = Finished
+progPrioritizer _ _ = NoProgress
+
 -- HaltC
 -- Used by members of the Halter typeclass to control whether to continue
 -- evaluating the current State, or switch to evaluating a new state.
@@ -75,7 +89,7 @@ data HaltC = Discard -- Switch to evaluating a new state, and reject the current
 class Reducer r  t | r -> t where
     -- | redRules
     -- Takes a State, and performs the appropriate Reduction Rule
-    redRules :: r -> State t -> (Rule, [ReduceResult t])
+    redRules :: r -> State t -> IO (ReducerRes, [State t])
 
 -- | Halter h hv t
 -- Determines when to stop evaluating a state
@@ -178,13 +192,42 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         C hv1' hv2'
 
-data StdRed = StdRed
+-- RCombiner r1 r2
+-- Combines reducers in various ways
+data RCombiner r1 r2 = r1 :<~ r2 -- | Apply r2, followed by r1
+                     | r1 :<~? r2 -- | Apply r2, apply r1 only if r2 returns NoProgress
+                     | r1 :<~| r2 -- | Apply r2, apply r1 only if r2 returns Finished
+
+instance (Reducer r1 t, Reducer r2 t) => Reducer (RCombiner r1 r2) t where
+    redRules (r1 :<~ r2) s = do
+        (r', s') <- redRules r2 s
+        rs <- mapM (redRules r1) s'
+        let (r'', s'') = unzip rs
+
+        let rf = foldr1 progPrioritizer (r':r'')
+
+        return $ (rf, concat s'')
+    redRules (r1 :<~? r2) s = do
+        rs@(r', s') <- redRules r2 s
+        case r' of
+            NoProgress -> redRules r1 s
+            _ -> return rs
+    redRules (r1 :<~? r2) s = do
+        rs@(r', s') <- redRules r2 s
+        case r' of
+            Finished -> redRules r1 s
+            _ -> return rs
+
+data StdRed ast out io = StdRed (SMTConverter ast out io) io Config
 data ZeroHalter = ZeroHalter
 data MaxOutputsHalter = MaxOutputsHalter
 data NextOrderer = NextOrderer
 
-instance Reducer StdRed () where
-    redRules _ = stdReduce
+instance Reducer (StdRed ast out io) () where
+    redRules (StdRed smt io config) s = do
+        (r, s) <- reduce stdReduce smt io config s
+        
+        return (if r == RuleIdentity then Finished else InProgress, s)
 
 instance Halter ZeroHalter Int t where
     initHalt _ config _ = steps config
@@ -218,6 +261,12 @@ halterIsZero _ _ _ _ = Continue
 
 --------
 --------
+
+reduce :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO (Rule, [State t])
+reduce red con hpp config s = do
+    let (rule, res) = red s
+    sts <- resultsToState con hpp config rule s res
+    return (rule, sts)
 
 -- | runReducer
 -- Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
@@ -254,7 +303,7 @@ runReducer red hal ord con hpp p states config =
                 Just f -> outputState f is s
                 Nothing -> return ()
 
-            reduceds <- reduce (redRules red') con hpp config s
+            (_, reduceds) <- redRules red' s
 
             let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
             

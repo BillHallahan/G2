@@ -118,7 +118,9 @@ smt2 setup getmdl = SMTConverter {
                     QF_NIRA -> "QF_NIRA"
                     _ -> "ALL"
             in
-            "(set-logic " ++ s ++ ")"
+            case lgc of
+                ALL -> ""
+                _ -> "(set-logic " ++ s ++ ")"
 
         , (.>=) = function2 ">="
         , (.>) = function2 ">"
@@ -139,6 +141,7 @@ smt2 setup getmdl = SMTConverter {
         , (./) = function2 "/"
         , smtQuot = function2 "div"
         , smtModulo = function2 "mod"
+        , smtSqrt = \x -> "(^ " ++ x ++ " 0.5)" 
         , neg = function1 "-"
 
         , itor = function1 "to_real"

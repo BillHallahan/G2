@@ -48,7 +48,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | (:-) SMTAST SMTAST -- Subtraction
             | (:*) SMTAST SMTAST
             | (:/) SMTAST SMTAST
-            | SqrtSMT SMTAST SMTAST
+            | SqrtSMT SMTAST
             | QuotSMT SMTAST SMTAST
             | Modulo SMTAST SMTAST
             | Neg SMTAST --Unary negation
@@ -127,6 +127,7 @@ data SMTConverter ast out io =
         , (./) :: ast -> ast -> ast
         , smtQuot :: ast -> ast -> ast
         , smtModulo :: ast -> ast -> ast
+        , smtSqrt :: ast -> ast
         , neg :: ast -> ast
         , itor :: ast -> ast
 

@@ -266,6 +266,7 @@ funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ "
 
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
+funcToSMT1Prim SqRt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
 funcToSMT1Prim IntToDouble e = ItoR (exprToSMT e)
@@ -280,7 +281,6 @@ funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
 funcToSMT2Prim Gt a1 a2 = exprToSMT a1 :> exprToSMT a2
 funcToSMT2Prim Eq a1 a2 = exprToSMT a1 := exprToSMT a2
 funcToSMT2Prim Neq a1 a2 = exprToSMT a1 :/= exprToSMT a2
-funcToSMT2Prim SqRt a1 a2 = exprToSMT a1 `SqrtSMT` exprToSMT a2
 funcToSMT2Prim Lt a1 a2 = exprToSMT a1 :< exprToSMT a2
 funcToSMT2Prim Le a1 a2 = exprToSMT a1 :<= exprToSMT a2
 funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
@@ -406,6 +406,7 @@ toSolverAST con (x :* y) = (.*) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :/ y) = (./) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x `QuotSMT` y) = smtQuot con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x `Modulo` y) = smtModulo con (toSolverAST con x) (toSolverAST con y)
+toSolverAST con (SqrtSMT x) = smtSqrt con $ toSolverAST con x
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
 toSolverAST con (ItoR x) = itor con $ toSolverAST con x
 

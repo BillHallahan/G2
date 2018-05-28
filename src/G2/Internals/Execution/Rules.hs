@@ -8,8 +8,8 @@ module G2.Internals.Execution.Rules
   , ReduceResult
   , EvaluateResult
   , isExecValueForm
-  , reduce
   , reduceNoConstraintChecks
+  , resultsToState
   , stdReduce
   , stdReduceBase
   , stdReduceEvaluate
@@ -223,12 +223,6 @@ lookupForPrim e _ = e
 
 -- | Result of a Evaluate reduction.
 type ReduceResult t = (E.ExprEnv, CurrExpr, [Constraint], [Assertion], Maybe FuncCall, NameGen, S.Stack Frame, [Id], t)
-
-reduce :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO [State t]
-reduce red con hpp config s = do
-    let (rule, res) = red s
-    sts <- resultsToState con hpp config rule s res
-    return sts
 
 reduceNoConstraintChecks :: (State t -> (Rule, [ReduceResult t])) -> Config -> State t -> [State t]
 reduceNoConstraintChecks red config s =

@@ -41,6 +41,7 @@ tests = return . testGroup "Tests"
         , testFileTests
         , smtADTTests
         , baseTests
+        , primTests
         ]
 
 timeout :: Timeout
@@ -319,6 +320,21 @@ baseTests =
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 2 [AtLeast 6]
         ]
 
+primTests :: IO TestTree
+primTests =
+    return . testGroup "Prims"
+        =<< sequence [
+              checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "quotI1" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "quotI2" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "remI1" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "remI2" 1000 3 [AtLeast 3]
+
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "p1List" 300000 1 [AtLeast 1]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "p2List" 700000 1 [AtLeast 1]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "integerToFloatList" 150000 1 [AtLeast 1]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
+        ]
+
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkExpr proj src stps m_assume m_assert entry i reqList =
     checkExprReaches proj src stps m_assume m_assert Nothing entry i reqList
@@ -353,7 +369,7 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     
     (con, hhp) <- getSMT config
 
-    r <- run StdRed ZeroHalter NextOrderer con hhp [] config init_state
+    r <- run (StdRed con hhp config) ZeroHalter NextOrderer con hhp [] config init_state
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 

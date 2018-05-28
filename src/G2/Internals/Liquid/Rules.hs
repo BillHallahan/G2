@@ -8,6 +8,7 @@ module G2.Internals.Liquid.Rules ( LHRed (..)
                                  , lhReduce
                                  , initialTrack) where
 
+import G2.Internals.Config
 import G2.Internals.Execution.Reducer
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
@@ -15,6 +16,7 @@ import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as S
 import G2.Internals.Liquid.Annotations
+import G2.Internals.Solver hiding (Assert)
 
 import Data.Maybe
 import Data.Monoid
@@ -179,13 +181,16 @@ instance ASTContainer LHTracker Type where
     modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
         lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
 
-data LHRed = LHRed
+data LHRed ast out io = LHRed (SMTConverter ast out io) io Config
 -- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
 data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
-instance Reducer LHRed LHTracker where
-    redRules LHRed = lhReduce
+instance Reducer (LHRed ast out io) LHTracker where
+    redRules (LHRed smt io config) s = do
+        (r, s) <- reduce lhReduce smt io config s
+
+        return $ (if r == RuleIdentity then Finished else InProgress, s)
 
 instance Halter LHHalter Int LHTracker where
     initHalt (LHHalter entry modn eenv) _ _ =
