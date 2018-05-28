@@ -158,6 +158,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f4" 2000 1 [AtLeast 4, RForAll (\[_, x, _] -> isInt x $ \x' -> x' == 0)]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f5" 2000 1 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f6" 2000 1 [AtLeast 10]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "callf" 2000 1 [AtLeast 1]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

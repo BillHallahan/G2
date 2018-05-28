@@ -25,3 +25,6 @@ f5 (f:fs) x = f x:f5 fs x
 f6 :: [Int -> Int] -> Int -> [Int]
 f6 [] _ = []
 f6 (f:fs) x = f x:f6 fs x
+
+callf :: (Int -> Int) -> Int -> Int
+callf = f
