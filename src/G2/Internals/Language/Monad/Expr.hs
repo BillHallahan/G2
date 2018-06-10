@@ -1,4 +1,6 @@
-module G2.Internals.Language.Monad.Expr ( mkDCIntE
+module G2.Internals.Language.Monad.Expr ( mkDCTrueM
+                                        , mkDCFalseM
+                                        , mkDCIntE
                                         , mkDCIntegerE
                                         , mkDCFloatE
                                         , mkDCDoubleE
@@ -13,11 +15,17 @@ import G2.Internals.Language.Support
 
 import G2.Internals.Language.Monad.Support
 
-appKVTEnv :: ExState s m => (KnownValues -> TypeEnv -> Expr) -> m Expr
+appKVTEnv :: ExState s m => (KnownValues -> TypeEnv -> a) -> m a
 appKVTEnv f = do
     kv <- knownValues
     tenv <- typeEnv
     return $ f kv tenv
+
+mkDCTrueM :: ExState s m => m DataCon
+mkDCTrueM = appKVTEnv mkDCTrue
+
+mkDCFalseM :: ExState s m => m DataCon
+mkDCFalseM = appKVTEnv mkDCFalse
 
 mkDCIntE :: ExState s m => m Expr
 mkDCIntE = appKVTEnv mkDCInt

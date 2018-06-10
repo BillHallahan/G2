@@ -30,7 +30,6 @@ createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = n
 
         eenv' = foldr (uncurry E.insert) eenv meas'
         (eenv'', ng') = doRenames mvNames ng eenv'
-        -- (meas'', ng') = (meas', ng)
     in
     (eenv'', ng')
 
@@ -57,8 +56,6 @@ addLHDictToType lh t =
 convertMeasure :: State t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
 convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
     let
-        -- nt = M.fromList $ convertSpecTypeDict tcv s srt
-
         n' = symbolName $ val n
 
         st = specTypeToType tenv srt

@@ -20,6 +20,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.KnownValues
 import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Liquid.TCValues
+import G2.Internals.Liquid.Types
 
 import Language.Haskell.Liquid.Types
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
@@ -41,8 +42,18 @@ import qualified Data.Text as T
 
 import Debug.Trace
 
-addLHTC :: ASTContainer t Expr => State t -> TCValues -> State t
-addLHTC s@(State {expr_env = eenv, type_env = tenv, curr_expr = cexpr, type_classes = tc}) tcv =
+addLHTC :: LHState -> LHState
+addLHTC lh_s@(LHState {state = s, measures = meas, tcvalues = tcv}) = 
+    let
+        s' = addLHTCState s tcv
+        (meas', meenvT) = addLHTCExprEnv meas (type_env s) (type_classes s) tcv
+        meas'' = replaceVarTy meenvT meas'
+    in
+    lh_s {state = s', measures = meas''}
+
+
+addLHTCState :: ASTContainer t Expr => State t -> TCValues -> State t
+addLHTCState s@(State {expr_env = eenv, type_env = tenv, curr_expr = cexpr, type_classes = tc}) tcv =
     let
         (eenv', eenvT) = addLHTCExprEnv eenv tenv tc tcv
         cexpr' = addLHTCCurrExpr eenv tenv cexpr tc tcv

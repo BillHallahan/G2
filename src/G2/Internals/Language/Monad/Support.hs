@@ -4,9 +4,12 @@
 
 module G2.Internals.Language.Monad.Support ( StateM
                                            , ExState (..)
+                                           , FullState (..)
                                            , runStateM
                                            , readRecord
-                                           , withNG ) where
+                                           , withNG
+                                           , typeClasses
+                                           , putTypeClasses ) where
 
 import qualified Control.Monad.State.Lazy as SM
 import Data.Functor.Identity
@@ -15,6 +18,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
+import G2.Internals.Language.TypeClasses
 
 newtype StateM t a = StateM { unSM :: (SM.State (State t) a) } deriving (Applicative, Functor, Monad)
 
@@ -33,6 +37,10 @@ class SM.MonadState s m => ExState s m | m -> s where
 
     knownValues :: m KnownValues
 
+class ExState s m => FullState s m | m -> s where
+    typeClasses :: m TypeClasses
+    putTypeClasses :: TypeClasses -> m ()
+
 instance ExState (State t) (StateM t) where
     exprEnv = readRecord expr_env
     putExprEnv = rep_expr_envM
@@ -44,6 +52,10 @@ instance ExState (State t) (StateM t) where
     putNameGen = rep_name_genM
 
     knownValues = readRecord known_values
+
+instance FullState (State t) (StateM t) where
+    typeClasses = readRecord type_classes
+    putTypeClasses = rep_type_classesM
 
 runStateM :: StateM t a -> State t -> (a, State t)
 runStateM (StateM s) s' = SM.runState s s'
@@ -72,3 +84,8 @@ rep_name_genM :: NameGen -> StateM t ()
 rep_name_genM ng = do
     s <- SM.get
     SM.put $ s {name_gen = ng}
+
+rep_type_classesM :: TypeClasses -> StateM t ()
+rep_type_classesM tc = do
+    s <- SM.get
+    SM.put $ s {type_classes = tc}

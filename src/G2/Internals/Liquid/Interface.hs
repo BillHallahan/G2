@@ -8,8 +8,11 @@ import G2.Internals.Config.Config
 import G2.Internals.Translation
 import G2.Internals.Interface
 import G2.Internals.Language as Lang
+import G2.Internals.Language.Monad
 import qualified G2.Internals.Language.ExprEnv as E
+
 import G2.Internals.Execution
+
 import G2.Internals.Liquid.Annotations
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ElimPartialApp
@@ -89,12 +92,17 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
     let ng_state = no_part_state {name_gen = ng'}
 
-    let (lh_state, meenv', tcv) = createLHTC ng_state meenv
-    let lhtc_state = addLHTC lh_state tcv
+    let ng_state' = ng_state {track = []}
 
+    let lh_state = createLHTC meenv ng_state'
 
-    let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
-    let meenv''' = replaceVarTy meenvT meenv''
+    let lhtc_state1 = addLHTC lh_state
+    let meenv''' = measures lhtc_state1
+    let tcv = tcvalues lhtc_state1
+    let lhtc_state = state lhtc_state1
+
+    -- let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
+    -- let meenv''' = replaceVarTy meenvT meenv''
     let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
 
     let ng2_state = lhtc_state {name_gen = meas_ng}
