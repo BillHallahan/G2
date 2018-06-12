@@ -508,7 +508,7 @@ specTypeApps' (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r }) tc
         _ -> specTypeApps' fin tcv s m' i ++ specTypeApps' fout tcv s m' b
 specTypeApps' (RAllT {rt_ty = rty}) tcv s m b =
     specTypeApps' rty tcv s m b
-specTypeApps' (RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {expr_env = eenv, type_env = tenv, type_classes = tc}) m b =
+specTypeApps' rapp@(RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {expr_env = eenv, type_env = tenv, type_classes = tc}) m b =
     let
         symb = reftSymbol $ ur_reft r
         ty = case rTyConType tenv c as of

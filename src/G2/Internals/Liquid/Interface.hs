@@ -127,7 +127,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let final_state = track_state
 
-    ret <- run (LHRed con hhp config) (ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp (pres_names ++ names annm') config final_state
+    ret <- run (LHRed con hhp config) (MaxOutputsHalter :<~> ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp (pres_names ++ names annm') config final_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of

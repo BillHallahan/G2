@@ -106,7 +106,7 @@ runGHC as = do
     (con, hhp) <- getSMT config
 
     -- in_out <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
-    in_out <- run (StdRed con hhp config) ZeroHalter NextOrderer con hhp [] config init_state
+    in_out <- run (StdRed con hhp config) (MaxOutputsHalter :<~> ZeroHalter) NextOrderer con hhp [] config init_state
 
 
     case validate config of

@@ -35,6 +35,8 @@ import Data.Foldable
 import Data.Maybe
 import System.Directory
 
+import Debug.Trace
+
 -- | ExState
 -- Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -235,10 +237,13 @@ instance Halter ZeroHalter Int t where
     stopRed = halterIsZero
     stepHalter = halterSub1
 
-instance Halter MaxOutputsHalter Int t where
-    initHalt _ config _ = fromJust $ maxOutputs config
+instance Halter MaxOutputsHalter (Maybe Int) t where
+    initHalt _ config _ = maxOutputs config
     reInitHalt _ hv _ _ = hv
-    stopRed _ m (Processed {accepted = acc}) _ = if m >= length acc then Discard else Continue
+    stopRed _ m (Processed {accepted = acc}) _ =
+        case m of
+            Just m' -> if length acc >= m' then Discard else Continue
+            _ -> Continue
     stepHalter _ hv _ _ = hv
 
 instance Orderer NextOrderer () () t where
