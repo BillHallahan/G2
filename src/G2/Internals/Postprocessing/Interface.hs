@@ -6,6 +6,6 @@ import G2.Internals.Language
 import G2.Internals.Postprocessing.NameSwitcher
 import G2.Internals.Postprocessing.Undefunctionalize
 
-runPostprocessing :: (ASTContainer m Expr, Named m) => State h t -> m -> m
+runPostprocessing :: (ASTContainer m Expr, Named m) => State t -> m -> m
 runPostprocessing s = undefunctionalize s
                     . switchNames s

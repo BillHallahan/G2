@@ -14,6 +14,9 @@ module G2.Internals.Translation.Haskell
     , mkName
     , mkTyConName
     , mkData
+    , mkSpan
+    , mkRealSpan
+    , absVarLoc
     , NameMap
     , TypeNameMap
     ) where
@@ -25,8 +28,6 @@ import qualified Class as C
 import Coercion
 import CoreSyn
 import DataCon
-import DriverPhases
-import DriverPipeline
 import DynFlags
 import FastString
 import GHC
@@ -34,33 +35,25 @@ import GHC.Paths
 import HscMain
 import HscTypes
 import InstEnv
-import Lexer
 import Literal
 import Name
 import Outputable
 import Pair
-import qualified Parser as P
-import RdrName
 import SrcLoc
-import StaticFlags
-import StringBuffer
-import SysTools
 import TidyPgm
 import TyCon
 import TyCoRep
 import Unique
 import Var as V
 
+import qualified Data.Array as A
 import qualified Data.ByteString.Char8 as C
 import Data.Foldable
 import Data.List
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
-
-import Unsafe.Coerce
-
-import Debug.Trace
+import System.Directory
 
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
@@ -97,13 +90,13 @@ equivMods = HM.fromList
 hskToG2 :: Maybe HscTarget -> FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
     IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String], [ExportedName])
 hskToG2 hsc proj src nm tm simpl = do
-    (mb_modname, sums_gutss, _, c, m_dets, exp) <- mkCompileClosure hsc proj src simpl
+    (mb_modname, sums_gutss, _, c, m_dets, ex) <- mkCompileClosure hsc proj src simpl
     
-    let (nm2, binds) = mapAccumR (\nm' (_, _, b) -> mapAccumR (\v -> mkBinds v tm) nm' b) nm sums_gutss
+    let (nm2, binds) = mapAccumR (\nm' (_, _, b, br) -> mapAccumR (\v -> mkBinds v tm br) nm' b) nm sums_gutss
     let binds' = concat binds
 
     let m_dets_tycon = map (typeEnvTyCons . md_types) m_dets
-    let ((nm3, tm2), tycons) = mapAccumR (\(nm', tm') (_, t, _) -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm2, tm) sums_gutss
+    let ((nm3, tm2), tycons) = mapAccumR (\(nm', tm') (_, t, _, _) -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm2, tm) sums_gutss
     let ((nm4, tm3), tycons') = mapAccumR (\(nm', tm') t -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm3, tm2) m_dets_tycon
     let tycons'' = catMaybes $ concat tycons ++ concat tycons'
 
@@ -112,12 +105,12 @@ hskToG2 hsc proj src nm tm simpl = do
     let tgt_lhs = map (occNameString . nameOccName . V.varName) $
           filter ((== mb_modname) . fmap (moduleNameString . moduleName) . nameModule_maybe . V.varName) $
           concatMap bindersOf $
-          concatMap (\(_, _, bs) -> bs) sums_gutss
+          concatMap (\(_, _, bs, _) -> bs) sums_gutss
 
-    return (mb_modname, binds', tycons'', classes, nm4, tm3, tgt_lhs, exp)
+    return (mb_modname, binds', tycons'', classes, nm4, tm3, tgt_lhs, ex)
 
 type ExportedName = G2.Name
-type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind])], HscEnv, [ClsInst], [ModDetails], [ExportedName])
+type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind], Maybe ModBreaks)], HscEnv, [ClsInst], [ModDetails], [ExportedName])
 
 loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool -> Ghc SuccessFlag
 loadProj hsc proj src gflags simpl = do
@@ -144,8 +137,8 @@ loadProj hsc proj src gflags simpl = do
 
 mkCompileClosure :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO CompileClosure
 mkCompileClosure hsc proj src simpl = do
-    (mb_modname, mod_graph, mod_gutss, env) <- runGhc (Just libdir) $ do
-        loadProj hsc proj src [] simpl
+    (mb_modname, mod_graph, mod_gutss, mod_breaks, env) <- runGhc (Just libdir) $ do
+        _ <- loadProj hsc proj src [] simpl
         env <- getSession
         -- Now that things are loaded, make the compilation closure.
         mod_graph <- getModuleGraph
@@ -153,12 +146,13 @@ mkCompileClosure hsc proj src simpl = do
         tmods <- mapM typecheckModule pmods
         dmods <- mapM desugarModule tmods
         let mod_gutss = map coreModule dmods
+        let mod_breaks = map mg_modBreaks mod_gutss
 
         let mb_modname = listToMaybe $ map (moduleNameString . moduleName . ms_mod)
                                      $ filter ((== Just src) . ml_hs_file . ms_location)
                                      $ map (pm_mod_summary) pmods
 
-        return (mb_modname, mod_graph, mod_gutss, env)
+        return (mb_modname, mod_graph, mod_gutss, mod_breaks, env)
 
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
@@ -175,33 +169,43 @@ mkCompileClosure hsc proj src simpl = do
 
     let exported = concatMap exportedNames mod_gutss
 
-    return (mb_modname, zip3 mod_graph tcss bindss, env, cls_insts, mod_dets, exported)
+    return (mb_modname, zip4 mod_graph tcss bindss mod_breaks, env, cls_insts, mod_dets, exported)
 
-mkBinds :: NameMap -> TypeNameMap -> CoreBind -> (NameMap, [(G2.Id, G2.Expr)])
-mkBinds nm tm (NonRec var expr) = 
+mkBinds :: NameMap -> TypeNameMap -> Maybe ModBreaks -> CoreBind -> (NameMap, [(G2.Id, G2.Expr)])
+mkBinds nm tm mb (NonRec var expr) = 
     let
         (i, nm') = mkIdUpdatingNM var nm tm
     in
-    (nm', [(i, mkExpr nm' tm expr)])
-mkBinds nm tm (Rec ves) =
+    (nm', [(i, mkExpr nm' tm mb expr)])
+mkBinds nm tm mb (Rec ves) =
     mapAccumR (\nm' (v, e) ->
                 let
                     (i, nm'') = mkIdUpdatingNM v nm' tm
                 in
-                (nm'', (i, mkExpr nm'' tm e))
+                (nm'', (i, mkExpr nm'' tm mb e))
             ) nm ves
 
-mkExpr :: NameMap  -> TypeNameMap -> CoreExpr -> G2.Expr
-mkExpr nm tm (Var var) = G2.Var (mkIdLookup var nm tm)
-mkExpr _ _ (Lit lit) = G2.Lit (mkLit lit)
-mkExpr nm tm (App fxpr axpr) = G2.App (mkExpr nm tm fxpr) (mkExpr nm tm axpr)
-mkExpr nm tm (Lam var expr) = G2.Lam (mkId tm var) (mkExpr nm tm expr)
-mkExpr nm tm (Let bnd expr) = G2.Let (mkBind nm tm bnd) (mkExpr nm tm expr)
-mkExpr nm tm (Case mxpr var _ alts) = G2.Case (mkExpr nm tm mxpr) (mkId tm var) (mkAlts nm tm alts)
-mkExpr nm tm (Cast expr c) =  G2.Cast (mkExpr nm tm expr) (mkCoercion tm c)
-mkExpr _  tm (Coercion c) = G2.Coercion (mkCoercion tm c)
-mkExpr nm tm (Tick _ expr) = mkExpr nm tm expr
-mkExpr _ tm (Type ty) = G2.Type (mkType tm ty)
+mkExpr :: NameMap -> TypeNameMap -> Maybe ModBreaks -> CoreExpr -> G2.Expr
+mkExpr nm tm _ (Var var) = G2.Var (mkIdLookup var nm tm)
+mkExpr _ _ _ (Lit lit) = G2.Lit (mkLit lit)
+mkExpr nm tm mb (App fxpr axpr) = G2.App (mkExpr nm tm mb fxpr) (mkExpr nm tm mb axpr)
+mkExpr nm tm mb (Lam var expr) = G2.Lam (mkId tm var) (mkExpr nm tm mb expr)
+mkExpr nm tm mb (Let bnd expr) = G2.Let (mkBind nm tm mb bnd) (mkExpr nm tm mb expr)
+mkExpr nm tm mb (Case mxpr var _ alts) = G2.Case (mkExpr nm tm mb mxpr) (mkId tm var) (mkAlts nm tm mb alts)
+mkExpr nm tm mb (Cast expr c) =  G2.Cast (mkExpr nm tm mb expr) (mkCoercion tm c)
+mkExpr _  tm _ (Coercion c) = G2.Coercion (mkCoercion tm c)
+mkExpr nm tm mb (Tick t expr) =
+    case createTickish mb t of
+        Just t' -> G2.Tick t' $ mkExpr nm tm mb expr
+        Nothing -> mkExpr nm tm mb expr
+mkExpr _ tm _ (Type ty) = G2.Type (mkType tm ty)
+
+createTickish :: Maybe ModBreaks -> Tickish i -> Maybe G2.Tickish
+createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
+    case mkSpan $ modBreaks_locs mb A.! bid of
+        Just s -> Just $ G2.Breakpoint $ s
+        Nothing -> Nothing
+createTickish _ _ = Nothing
 
 mkId :: TypeNameMap -> Id -> G2.Id
 mkId tm vid = G2.Id ((mkName . V.varName) vid) ((mkType tm . varType) vid)
@@ -221,7 +225,7 @@ mkIdLookup i nm tm =
 mkIdUpdatingNM :: Id -> NameMap -> TypeNameMap -> (G2.Id, NameMap)
 mkIdUpdatingNM vid nm tm =
     let
-        n@(G2.Name n' m _) = mkName . V.varName $ vid
+        n@(G2.Name n' m _ _) = mkName . V.varName $ vid
         i = G2.Id n ((mkType tm . varType) vid)
 
         nm' = HM.insert (n', m) n nm
@@ -229,7 +233,7 @@ mkIdUpdatingNM vid nm tm =
     (i, nm')
 
 mkName :: Name -> G2.Name
-mkName name = G2.Name occ mdl unq
+mkName name = G2.Name occ mdl unq sp
   where
     occ = T.pack . occNameString . nameOccName $ name
     unq = (getKey . nameUnique) name
@@ -237,21 +241,44 @@ mkName name = G2.Name occ mdl unq
               Nothing -> Nothing
               Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
 
+    sp = mkSpan $ getSrcSpan name
+
 mkNameLookup :: Name -> NameMap -> G2.Name
 mkNameLookup name nm =
     -- We only lookup in the NameMap if the Module name is not Nothing
     -- Internally, a module may use multiple variables with the same name and a module Nothing
     case mdl of
-        Nothing -> G2.Name occ mdl unq
+        Nothing -> G2.Name occ mdl unq sp
         _ -> case HM.lookup (occ, mdl) nm of
-                Just n' -> n'
-                Nothing -> G2.Name occ mdl unq
+                Just (G2.Name n' m i _) -> G2.Name n' m i sp
+                Nothing -> G2.Name occ mdl unq sp
     where
         occ = T.pack . occNameString . nameOccName $ name
         unq = getKey . nameUnique $ name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
                   Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
+
+        sp = mkSpan $ getSrcSpan name
+
+mkSpan :: SrcSpan -> Maybe G2.Span
+mkSpan (RealSrcSpan s) = Just $ mkRealSpan s
+mkSpan _ = Nothing
+
+mkRealSpan :: RealSrcSpan -> G2.Span
+mkRealSpan s =
+    let
+        st = mkRealLoc $ realSrcSpanStart s
+        en = mkRealLoc $ realSrcSpanEnd s
+    in
+    G2.Span { G2.start = st
+            , G2.end = en}
+
+mkRealLoc :: RealSrcLoc -> G2.Loc
+mkRealLoc l =
+    G2.Loc { G2.line = srcLocLine l
+           , G2.col = srcLocCol l
+           , G2.file = unpackFS $ srcLocFile l}
 
 switchModule :: T.Text -> Maybe T.Text
 switchModule m =
@@ -272,15 +299,15 @@ mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
 mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
-mkBind :: NameMap -> TypeNameMap -> CoreBind -> [(G2.Id, G2.Expr)]
-mkBind nm tm (NonRec var expr) = [(mkId tm var, mkExpr nm tm expr)]
-mkBind nm tm (Rec ves) = map (\(v, e) -> (mkId tm v, mkExpr nm tm e)) ves
+mkBind :: NameMap -> TypeNameMap -> Maybe ModBreaks -> CoreBind -> [(G2.Id, G2.Expr)]
+mkBind nm tm mb (NonRec var expr) = [(mkId tm var, mkExpr nm tm mb expr)]
+mkBind nm tm mb (Rec ves) = map (\(v, e) -> (mkId tm v, mkExpr nm tm mb e)) ves
 
-mkAlts :: NameMap -> TypeNameMap -> [CoreAlt] -> [G2.Alt]
-mkAlts nm tm = map (mkAlt nm tm)
+mkAlts :: NameMap -> TypeNameMap -> Maybe ModBreaks -> [CoreAlt] -> [G2.Alt]
+mkAlts nm tm mb = map (mkAlt nm tm mb)
 
-mkAlt :: NameMap -> TypeNameMap -> CoreAlt -> G2.Alt
-mkAlt nm tm (acon, prms, expr) = G2.Alt (mkAltMatch nm tm acon prms) (mkExpr nm tm expr)
+mkAlt :: NameMap -> TypeNameMap -> Maybe ModBreaks -> CoreAlt -> G2.Alt
+mkAlt nm tm mb (acon, prms, expr) = G2.Alt (mkAltMatch nm tm acon prms) (mkExpr nm tm mb expr)
 
 mkAltMatch :: NameMap -> TypeNameMap -> AltCon -> [Var] -> G2.AltMatch
 mkAltMatch nm tm (DataAlt dcon) params = G2.DataAlt (mkData nm tm dcon) (map (mkId tm) params)
@@ -306,11 +333,11 @@ mkTyCon nm tm t = case dcs of
                         Just dcs' -> ((nm'', tm''), Just (n, dcs'))
                         Nothing -> ((nm'', tm''), Nothing)
   where
-    n@(G2.Name n' m _) = mkName . tyConName $ t
+    n@(G2.Name n' m _ _) = mkName . tyConName $ t
     tm' = HM.insert (n', m) n tm
 
     nm' = foldr (uncurry HM.insert) nm
-            $ map (\n_@(G2.Name n'_ m_ _) -> ((n'_, m_), n_)) 
+            $ map (\n_@(G2.Name n'_ m_ _ _) -> ((n'_, m_), n_)) 
             $ map (flip mkNameLookup nm . dataConName) $ visibleDataCons (algTyConRhs t)
 
     bv = map (mkName . V.varName) $ tyConTyVars t
@@ -337,10 +364,10 @@ mkTyCon nm tm t = case dcs of
 mkTyConName :: TypeNameMap -> TyCon -> G2.Name
 mkTyConName tm tc =
     let
-        n@(G2.Name n' m _) = mkName $ tyConName tc
+        n@(G2.Name n' m _ l) = mkName $ tyConName tc
     in
     case HM.lookup (n', m) tm of
-    Just tn -> tn
+    Just (G2.Name n'' m' i _) -> G2.Name n'' m' i l
     Nothing -> n
 
 mkData :: NameMap -> TypeNameMap -> DataCon -> G2.DataCon
@@ -381,3 +408,63 @@ exportedNames = concatMap availInfoNames . mg_exports
 availInfoNames :: AvailInfo -> [ExportedName]
 availInfoNames (Avail _ n) = [mkName n]
 availInfoNames (AvailTC n ns _) = mkName n:map mkName ns
+
+-- | absVarLoc'
+-- Switches all file paths in Var namesand Ticks to be absolute
+absVarLoc :: G2.Program -> IO G2.Program
+absVarLoc = 
+    mapM 
+        (mapM (\(i, e) -> do 
+                    e' <- absVarLoc' e
+                    return (i, e')
+              )
+        )
+
+absVarLoc' :: G2.Expr -> IO G2.Expr
+absVarLoc' (G2.Var (G2.Id (G2.Name n m i (Just s)) t)) = do
+    return $ G2.Var $ G2.Id (G2.Name n m i (Just $ s)) t
+absVarLoc' (G2.App e1 e2) = do
+    e1' <- absVarLoc' e1
+    e2' <- absVarLoc' e2
+    return $ G2.App e1' e2'
+absVarLoc' (G2.Lam i e) = return . G2.Lam i =<< absVarLoc' e
+absVarLoc' (G2.Let b e) = do
+    b' <- mapM (\(i, be) -> do
+                    be' <- absVarLoc' be
+                    return (i, be')
+               ) b
+    e' <- absVarLoc' e
+    return $ G2.Let b' e'
+absVarLoc' (G2.Case e i as) = do
+    e' <- absVarLoc' e
+    as' <- mapM (\(G2.Alt a ae) -> return . G2.Alt a =<< absVarLoc' ae) as
+    return $ G2.Case e' i as'
+absVarLoc' (G2.Cast e c) = do
+    e' <- absVarLoc' e
+    return $ G2.Cast e' c
+absVarLoc' (G2.Tick (G2.Breakpoint s) e) = do
+    s' <- absLocSpan s
+    let t' = G2.Breakpoint s'
+
+    e' <- absVarLoc' e
+    return $ G2.Tick t' e'
+absVarLoc' (G2.Assume e1 e2) = do
+    e1' <- absVarLoc' e1
+    e2' <- absVarLoc' e2
+    return $ G2.Assume e1' e2'
+absVarLoc' (G2.Assert fc e1 e2) = do
+    e1' <- absVarLoc' e1
+    e2' <- absVarLoc' e2
+    return $ G2.Assert fc e1' e2'
+absVarLoc' e = return e
+
+absLocSpan :: G2.Span -> IO G2.Span
+absLocSpan s@G2.Span {G2.start = st, G2.end = en} = do
+    st' <- absLoc st
+    en' <- absLoc en
+    return $ s {G2.start = st', G2.end = en'}
+
+absLoc :: G2.Loc -> IO G2.Loc
+absLoc l@G2.Loc {G2.file = f} = do
+    f' <- makeAbsolute f
+    return $ l {G2.file = f'}

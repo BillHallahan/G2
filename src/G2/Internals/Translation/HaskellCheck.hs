@@ -5,7 +5,7 @@ import DynFlags
 import GHC hiding (Name)
 import GHC.Paths
 
-import Data.Foldable
+import Data.Either
 import Data.List
 import qualified Data.Text as T
 import Text.Regex
@@ -15,56 +15,73 @@ import G2.Internals.Language
 import G2.Internals.Translation.Haskell
 import G2.Lib.Printers
 
-import System.Directory
+import Control.Exception
+
 import System.Process
 
-validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
+validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
 validateStates proj src modN entry chAll ghflags in_out = do
     return . all id =<< mapM (\(s, i, o, _) -> runCheck proj src modN entry chAll ghflags s i o) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State h t -> [Expr] -> Expr -> IO Bool
+runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> IO Bool
 runCheck proj src modN entry chAll gflags s ars out = do
-    runGhc (Just libdir) $ do
-        loadProj Nothing proj src gflags False
+    (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s ars out)
+
+    v' <- unsafeCoerce v :: IO (Either SomeException Bool)
+    let outStr = mkCleanExprHaskell s out
+    let v'' = case v' of
+                    Left _ -> outStr == "error"
+                    Right b -> b && outStr /= "error"
+
+    chAllR' <- unsafeCoerce chAllR :: IO [Either SomeException Bool]
+    let chAllR'' = rights chAllR'
+
+    return $ v'' && and chAllR''
+
+runCheck' :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
+runCheck' proj src modN entry chAll gflags s ars out = do
+        _ <- loadProj Nothing proj src gflags False
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN
 
+        let exN = mkModuleName "Control.Exception"
+        let exImD = simpleImportDecl exN
+
         let mdN = mkModuleName modN
         let imD = simpleImportDecl mdN
 
-        setContext [IIDecl prImD, IIDecl imD]
+        setContext [IIDecl prImD, IIDecl exImD, IIDecl imD]
 
         let arsStr = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
         let outStr = mkCleanExprHaskell s out
         let chck = case outStr == "error" of
-                        False -> arsStr ++ " == " ++ outStr
-                        True -> "True"
+                        False -> "try (evaluate (" ++ arsStr ++ " == " ++ outStr ++ ")) :: IO (Either SomeException Bool)"
+                        True -> "try (evaluate (" ++ arsStr ++ " == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
 
         v <- compileExpr chck
-        let v' = unsafeCoerce v :: Bool
 
-        let chArgs = ars ++ [out]
+        let chArgs = ars ++ [out] 
         let chAllStr = map (\f -> mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
+        let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
 
-        chAllR <- mapM compileExpr chAllStr
-        let chAllR' = unsafeCoerce chAllR :: [Bool]
+        chAllR <- mapM compileExpr chAllStr'
 
-        return $ v' && and chAllR'
+        return $ (v, chAllR)
 
 simpVar :: T.Text -> Expr
-simpVar s = Var (Id (Name s Nothing 0) TyBottom)
+simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
 
-runHPC :: FilePath -> FilePath -> String -> String -> [(State h t, [Expr], Expr, Maybe FuncCall)] -> IO ()
-runHPC proj src modN entry in_out = do
+runHPC :: FilePath -> String -> String -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO ()
+runHPC src modN entry in_out = do
     let calls = map (\(s, i, o, _) -> toCall entry s i o) in_out
 
-    runHPC' proj src modN calls
+    runHPC' src modN calls
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runHPC' :: FilePath -> FilePath -> String -> [String] -> IO ()
-runHPC' proj src modN ars = do
+runHPC' :: FilePath -> String -> [String] -> IO ()
+runHPC' src modN ars = do
     srcCode <- readFile src
     let srcCode' = removeModule modN srcCode
 
@@ -85,7 +102,7 @@ runHPC' proj src modN ars = do
 
     -- putStrLn mainFunc
 
-toCall :: String -> State h t -> [Expr] -> Expr -> String
+toCall :: String -> State t -> [Expr] -> Expr -> String
 toCall entry s ars _ = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
 
 removeModule :: String -> String -> String

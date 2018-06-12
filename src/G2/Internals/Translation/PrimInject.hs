@@ -8,7 +8,6 @@ module G2.Internals.Translation.PrimInject
     , addPrimsToBase
     , mergeProgs
     , mergeProgTys
-    , mergeTCs
     ) where
 
 import G2.Internals.Language.AST
@@ -23,11 +22,12 @@ primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
 primInject = modifyASTs primInjectT
 
 primInjectT :: Type -> Type
-primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _) _) = TYPE
-primInjectT (TyConApp (Name "Int#" _ _) _) = TyLitInt
-primInjectT (TyConApp (Name "Float#" _ _) _) = TyLitFloat
-primInjectT (TyConApp (Name "Double#" _ _) _) = TyLitDouble
-primInjectT (TyConApp (Name "Char#" _ _) _) = TyLitChar
+primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _ _) _) = TYPE
+primInjectT (TyConApp (Name "Int#" _ _ _) _) = TyLitInt
+primInjectT (TyConApp (Name "Word#" _ _ _) _) = TyLitInt
+primInjectT (TyConApp (Name "Float#" _ _ _) _) = TyLitFloat
+primInjectT (TyConApp (Name "Double#" _ _ _) _) = TyLitDouble
+primInjectT (TyConApp (Name "Char#" _ _ _) _) = TyLitChar
 primInjectT t = t
 
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
@@ -39,20 +39,14 @@ dataInject prog progTy =
 
 -- TODO: Polymorphic types?
 dataInject' :: [(Name, [Type])] -> Expr -> Expr
-dataInject' ns v@(Var (Id (Name n m _) t)) = 
-    case find (\(Name n' m' _, _) -> n == n' && m == m') ns of
+dataInject' ns v@(Var (Id (Name n m _ _) t)) = 
+    case find (\(Name n' m' _ _, _) -> n == n' && m == m') ns of
         Just (n', ts) -> Data (DataCon n' t ts)
         Nothing -> v
 dataInject' _ e = e
 
 conName :: DataCon -> (Name, [Type])
 conName (DataCon n _ ts) = (n, ts)
-
-occFind :: Name -> [Name] -> Maybe Name
-occFind _ [] = Nothing
-occFind key (n:ns) = if (nameOccStr key == nameOccStr n)
-                         then Just n
-                         else occFind key ns
 
 primDefs :: [(T.Text, Expr)]
 primDefs = [ ("==#", Prim Eq TyBottom)
@@ -86,6 +80,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
            , ("timesFloat#", Prim Mult TyBottom)
            , ("minusFloat#", Prim Minus TyBottom)
            , ("negateFloat#", Prim Negate TyBottom)
+           , ("sqrtFloat#", Prim SqRt TyBottom)
            , ("/##", Prim Div TyBottom)
            , ("divideFloat#", Prim Div TyBottom)
            , ("eqFloat#", Prim Eq TyBottom)
@@ -109,7 +104,7 @@ primDefs = [ ("==#", Prim Eq TyBottom)
 replaceFromPD :: Id -> Expr -> (Id, Expr)
 replaceFromPD i@(Id n _) e =
     let
-        e' = fmap snd $ find ((==) (nameOccStr n) . fst) primDefs
+        e' = fmap snd $ find ((==) (nameOcc n) . fst) primDefs
     in
     (i, maybe e id e')
 
@@ -121,9 +116,6 @@ mergeProgs :: Program -> Program -> Program
 mergeProgs prog prims = prog ++ prims
 
 -- The prog is used to change the names of types in the prog' and primTys
-mergeProgTys :: Program -> Program -> [ProgramType] -> [ProgramType] -> (Program, [ProgramType])
-mergeProgTys prog prog' progTys primTys =
-    (prog', progTys ++ primTys)
-
-mergeTCs :: [(Name, Id, [Id])] -> Program -> ([(Name, Id, [Id])])
-mergeTCs tc prog = tc
+mergeProgTys :: [ProgramType] -> [ProgramType] -> [ProgramType]
+mergeProgTys progTys primTys =
+    progTys ++ primTys

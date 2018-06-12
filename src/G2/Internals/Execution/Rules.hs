@@ -8,11 +8,12 @@ module G2.Internals.Execution.Rules
   , ReduceResult
   , EvaluateResult
   , isExecValueForm
-  , reduce
   , reduceNoConstraintChecks
+  , resultsToState
   , stdReduce
   , stdReduceBase
   , stdReduceEvaluate
+  , reduceLam
   ) where
 
 import G2.Internals.Config.Config
@@ -26,10 +27,8 @@ import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
 
 import Control.Monad
-import Data.List
 import Data.Maybe
 
-import Debug.Trace
 
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
@@ -193,7 +192,7 @@ traceIdType (Id n ty) eenv =
     case E.lookup n eenv of
       Nothing -> Nothing
       Just (Type res) -> Just res
-      Just expr -> traceIdType (Id n ty) eenv
+      Just _ -> traceIdType (Id n ty) eenv
 
 -- | Remove everything from an [Expr] that are actually Types.
 removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
@@ -202,7 +201,7 @@ removeTypes ((Var (Id n ty)):es) eenv = case E.lookup n eenv of
     Just (Type _) -> removeTypes es eenv
     _ -> (Var (Id n ty)) : removeTypes es eenv
 removeTypes (e:es) eenv = e : removeTypes es eenv
-removeTypes [] eenv = []
+removeTypes [] _ = []
   
 repeatedLookup :: Expr -> ExprEnv -> Expr
 repeatedLookup v@(Var (Id n _)) eenv
@@ -225,20 +224,14 @@ lookupForPrim e _ = e
 -- | Result of a Evaluate reduction.
 type ReduceResult t = (E.ExprEnv, CurrExpr, [Constraint], [Assertion], Maybe FuncCall, NameGen, S.Stack Frame, [Id], t)
 
-reduce :: (State h t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State h t -> IO [State h t]
-reduce red con hpp config s = do
-    let (rule, res) = red s
-    sts <- resultsToState con hpp config rule s res
-    return sts
-
-reduceNoConstraintChecks :: (State h t -> (Rule, [ReduceResult t])) -> Config -> State h t -> [State h t]
+reduceNoConstraintChecks :: (State t -> (Rule, [ReduceResult t])) -> Config -> State t -> [State t]
 reduceNoConstraintChecks red config s =
     let
         (rule, res) = red s
     in
     map (resultToState config s rule) res
 
-resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State h t -> [ReduceResult t] -> IO [State h t]
+resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State t -> [ReduceResult t] -> IO [State t]
 resultsToState _ _ _ _ _ [] = return []
 resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _, _, _):xs)
     | not (null pc) = do
@@ -277,7 +270,7 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
         s' = resultToState config s rule red
 
 {-# INLINE selectCheckConstraints #-}
-selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State h t -> IO Result)
+selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State t -> IO Result)
 selectCheckConstraints (Config {smtADTs = False}) = checkConstraints
 selectCheckConstraints config = checkConstraintsWithSMTSorts config
 
@@ -292,7 +285,7 @@ pcRelevant (Config {smtADTs = False}) = PC.relevant
 pcRelevant _ = PC.relevantWithSMTADT
 
 {-# INLINE resultToState #-}
-resultToState :: Config -> State h t -> Rule -> ReduceResult t -> State h t
+resultToState :: Config -> State t -> Rule -> ReduceResult t -> State t
 resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, tv) =
     s {
         expr_env = eenv
@@ -306,18 +299,16 @@ resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, tv) =
 
 -- | stdReduce
 -- Interprets Haskell with no special semantics.
-stdReduce :: State h t -> (Rule, [ReduceResult t])
+stdReduce :: State t -> (Rule, [ReduceResult t])
 stdReduce = stdReduceBase (const Nothing)
 
-stdReduceBase :: (State h t -> Maybe (Rule, [ReduceResult t])) -> State h t -> (Rule, [ReduceResult t])
+stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> State t -> (Rule, [ReduceResult t])
 stdReduceBase redEx s@State { exec_stack = estk
                             , expr_env = eenv
                             , curr_expr = cexpr
                             , name_gen = ngen
                             , track = tr
                             }
-  | CurrExpr r (Annotation _ e) <- cexpr
-  , Just red <- redEx s = red
   | isExecValueForm s =
       (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk, [], tr)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
@@ -342,7 +333,6 @@ stdReduceBase redEx s@State { exec_stack = estk
       (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], Nothing, ngen, estk, [], tr) ])
 
   | Just red <- redEx s = red
-  | CurrExpr r (Annotation _ e) <- cexpr = (RuleAnnotation, [(eenv, CurrExpr r e, [], [], Nothing, ngen, estk, [], tr)])
 
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = stdReduceEvaluate eenv expr ngen
@@ -512,7 +502,7 @@ reduceCase eenv mexpr bind alts ngen
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  , (DataCon _ dty _) <- dcon
+  , (DataCon _ _ _) <- dcon
   , ar' <- removeTypes ar eenv
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
@@ -618,44 +608,11 @@ reduceEReturn eenv e ngen (CastFrame (t1 :~ t2)) =
     , CurrExpr Evaluate $ simplifyCasts $ Cast e (t1 :~ t2)
     , ngen))
 
--- In the event that our Lam parameter is a type variable, we have to handle
--- it by retyping.
-reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
-  | hasTYPE t =
-      let aty = case traceIdType i eenv of
-                      Just ty -> ty
-                      Nothing -> error $ "unable to trace: " ++ show n'
-          binds = [(Id n aty, Type aty)]
-          lexpr' = retype b aty lexpr
-          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
-      in ( RuleReturnEApplyLamType news
-         , ( eenv'
-           , CurrExpr Evaluate lexpr''
-           , ngen'))
-
-reduceEReturn eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
-  | hasTYPE t =
-      let aty = typeOf aexpr
-          binds = [(Id n aty, aexpr)]
-          lexpr' = retype b aty lexpr
-          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
-      in ( RuleReturnEApplyLamType news
-         , ( eenv'
-           , CurrExpr Evaluate lexpr''
-           , ngen'))
-
--- When we have an `ApplyFrame` on the top of the stack, things might get a
--- bit tricky, since we need to make sure that the thing we end up returning
--- is appropriately a value. In the case of `Lam`, we need to perform
--- application, and then go into the expression body.
--- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
-  | otherwise =
-        let binds = [(b, aexpr)]
-            (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
-        in ( RuleReturnEApplyLamExpr news
-           , ( eenv'
-             , CurrExpr Evaluate lexpr'
-             , ngen'))
+reduceEReturn eenv cexpr@(Lam _ _) ngen fr =
+    let
+        (r, rr, _) = reduceLam eenv cexpr ngen fr
+    in
+    (r, rr)
 
 -- When we return symbolic values on an `ApplyFrame`, introduce new name
 -- mappings in the eenv to form this long symbolic normal form chain.
@@ -684,3 +641,47 @@ reduceEReturn eenv c ngen (ApplyFrame aexpr) =
       _ -> (RuleError, (eenv, CurrExpr Return c, ngen))
 
 reduceEReturn eenv c ngen _ = (RuleError, (eenv, CurrExpr Return c, ngen))
+
+reduceLam :: ExprEnv -> Expr -> NameGen -> Frame -> (Rule, EReturnResult, [Name])
+  -- In the event that our Lam parameter is a type variable, we have to handle
+-- it by retyping.
+reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
+  | hasTYPE t =
+      let aty = case traceIdType i eenv of
+                      Just ty -> ty
+                      Nothing -> error $ "unable to trace: " ++ show n'
+          binds = [(Id n aty, Type aty)]
+          lexpr' = retype b aty lexpr
+          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
+      in ( RuleReturnEApplyLamType news
+         , ( eenv'
+           , CurrExpr Evaluate lexpr''
+           , ngen')
+         , news)
+
+reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
+  | hasTYPE t =
+      let aty = typeOf aexpr
+          binds = [(Id n aty, aexpr)]
+          lexpr' = retype b aty lexpr
+          (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
+      in ( RuleReturnEApplyLamType news
+         , ( eenv'
+           , CurrExpr Evaluate lexpr''
+           , ngen')
+         , news)
+
+-- When we have an `ApplyFrame` on the top of the stack, things might get a
+-- bit tricky, since we need to make sure that the thing we end up returning
+-- is appropriately a value. In the case of `Lam`, we need to perform
+-- application, and then go into the expression body.
+-- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
+  | otherwise =
+        let binds = [(b, aexpr)]
+            (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
+        in ( RuleReturnEApplyLamExpr news
+           , ( eenv'
+             , CurrExpr Evaluate lexpr'
+             , ngen')
+           , news)
+reduceLam _ _ _ _ = error "Bad expr in reduceLam"

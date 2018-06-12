@@ -13,8 +13,6 @@ import Data.Maybe
 import Data.Monoid
 import Data.Tuple
 
-import Debug.Trace
-
 data ArbValueGen = ArbValueGen { intGen :: Integer
                                , floatGen :: Rational
                                , doubleGen :: Rational
@@ -52,7 +50,7 @@ arbValue TyLitDouble _ av =
         d = doubleGen av
     in
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
-arbValue t _ av = (Prim Undefined TyBottom, av)-- error $ "Bad type in arbValue: " ++ show t
+arbValue _ _ av = (Prim Undefined TyBottom, av)-- error $ "Bad type in arbValue: " ++ show t
 
 -- | numArgs
 numArgs :: DataCon -> Int

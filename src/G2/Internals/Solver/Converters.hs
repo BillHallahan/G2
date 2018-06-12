@@ -17,7 +17,6 @@ module G2.Internals.Solver.Converters
     , smtastToExpr
     , modelAsExpr ) where
 
-import Control.Monad
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -39,10 +38,10 @@ import G2.Internals.Solver.Language
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: State h t -> [SMTHeader]
+toSMTHeaders :: State t -> [SMTHeader]
 toSMTHeaders = addSetLogic . toSMTHeaders'
 
-toSMTHeaders' :: State h t -> [SMTHeader]
+toSMTHeaders' :: State t -> [SMTHeader]
 toSMTHeaders' s  = 
     let
         pc = PC.toList $ path_conds s
@@ -51,10 +50,10 @@ toSMTHeaders' s  =
     ++
     (pathConsToSMTHeaders pc)
 
-toSMTHeadersWithSMTSorts :: State h t -> [SMTHeader]
+toSMTHeadersWithSMTSorts :: State t -> [SMTHeader]
 toSMTHeadersWithSMTSorts = addSetLogic . toSMTHeadersWithSMTSorts'
 
-toSMTHeadersWithSMTSorts' :: State h t -> [SMTHeader]
+toSMTHeadersWithSMTSorts' :: State t -> [SMTHeader]
 toSMTHeadersWithSMTSorts' s =
     (typesToSMTSorts $ type_env s)
     ++
@@ -173,9 +172,6 @@ isNIRA' :: SMTAST -> All
 isNIRA' (ItoR _) = All True
 isNIRA' s = All $ getAll (isNIA' s) || getAll (isNRA' s)
 
-isCore :: (ASTContainer m SMTAST) => m -> Bool
-isCore = getAll . evalASTs isCore'
-
 isCore' :: SMTAST -> All
 isCore' (_ := _) = All True
 isCore' (_ :&& _) = All True
@@ -185,7 +181,7 @@ isCore' (_ :=> _) = All True
 isCore' (_ :<=> _) = All True
 isCore' (VBool _) = All True
 isCore' (V _ s) = All $ isCoreSort s
-isCore' s = All False
+isCore' _ = All False
 
 isCoreSort :: Sort -> Bool
 isCoreSort SortBool = True
@@ -209,12 +205,12 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "True" _ _) _ _) e b) =
+pathConsToSMT (ConsCond (DataCon (Name "True" _ _ _) _ _) e b) =
     let
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "False" _ _) _ _) e b) =
+pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _ _) e b) =
     let
         exprSMT = exprToSMT e
     in
@@ -234,8 +230,8 @@ exprToSMT (Lit c) =
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
-exprToSMT (Data (DataCon (Name n _ _) (TyConApp (Name "Bool" _ _) _) _)) =
-    case n of
+exprToSMT (Data (DataCon n (TyConApp (Name "Bool" _ _ _) _) _)) =
+    case nameOcc n of
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
@@ -270,6 +266,7 @@ funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ "
 
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
+funcToSMT1Prim SqRt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
 funcToSMT1Prim IntToDouble e = ItoR (exprToSMT e)
@@ -284,7 +281,6 @@ funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
 funcToSMT2Prim Gt a1 a2 = exprToSMT a1 :> exprToSMT a2
 funcToSMT2Prim Eq a1 a2 = exprToSMT a1 := exprToSMT a2
 funcToSMT2Prim Neq a1 a2 = exprToSMT a1 :/= exprToSMT a2
-funcToSMT2Prim SqRt a1 a2 = exprToSMT a1 `SqrtSMT` exprToSMT a2
 funcToSMT2Prim Lt a1 a2 = exprToSMT a1 :< exprToSMT a2
 funcToSMT2Prim Le a1 a2 = exprToSMT a1 :<= exprToSMT a2
 funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
@@ -299,15 +295,15 @@ altToSMT :: AltMatch -> Expr -> SMTAST
 altToSMT (LitAlt (LitInt i)) _ = VInt i
 altToSMT (LitAlt (LitFloat f)) _ = VFloat f
 altToSMT (LitAlt (LitDouble d)) _ = VDouble d
-altToSMT (DataAlt (DataCon (Name "True" _ _) _ _) _) _ = VBool True
-altToSMT (DataAlt (DataCon (Name "False" _ _) _ _) _) _ = VBool False
+altToSMT (DataAlt (DataCon (Name "True" _ _ _) _ _) _) _ = VBool True
+altToSMT (DataAlt (DataCon (Name "False" _ _ _) _ _) _) _ = VBool False
 altToSMT (DataAlt (DataCon n t ts) ns) e =
     let
         c = Cons (nameToStr n) (map f $ zip ns ts) (typeToSMT t)
 
         ta = typeArgs e
         t' = case (null ta, returnType t) of
-            (False, TyConApp n _) -> Just $ TyConApp n ta
+            (False, TyConApp n' _) -> Just $ TyConApp n' ta
             _ -> Nothing
     in
     case t' of
@@ -362,10 +358,10 @@ typeToSMT TyLitFloat = SortFloat
 -- typeToSMT (TyConApp (Name "Int" _ _) _) = SortInt
 -- typeToSMT (TyConApp (Name "Float" _ _) _) = SortFloat
 -- typeToSMT (TyConApp (Name "Double" _ _) _) = SortDouble
-typeToSMT (TyConApp (Name "Bool" _ _) _) = SortBool
+typeToSMT (TyConApp (Name "Bool" _ _ _) _) = SortBool
 typeToSMT (TyConApp n ts) = Sort (nameToStr n) (map typeToSMT ts)
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
-typeToSMT (TyForAll (NamedTyBndr _) t) = Sort "TyForAll" []
+typeToSMT (TyForAll (NamedTyBndr _) _) = Sort "TyForAll" []
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 typesToSMTSorts :: TypeEnv -> [SMTHeader]
@@ -374,6 +370,7 @@ typesToSMTSorts tenv =
         where
             typeToSortDecl :: (Name, AlgDataTy) -> (SMTName, [SMTName], [DC])
             typeToSortDecl (n, DataTyCon ns dcs) = (nameToStr n, map nameToStr ns, map dataConToDC dcs)
+            typeToSortDecl _ = error "typeToSortDecl: Bad DataCon passed"
 
             dataConToDC :: DataCon -> DC
             dataConToDC (DataCon n _ ts) =
@@ -409,6 +406,7 @@ toSolverAST con (x :* y) = (.*) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :/ y) = (./) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x `QuotSMT` y) = smtQuot con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x `Modulo` y) = smtModulo con (toSolverAST con x) (toSolverAST con y)
+toSolverAST con (SqrtSMT x) = smtSqrt con $ toSolverAST con x
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
 toSolverAST con (ItoR x) = itor con $ toSolverAST con x
 
@@ -452,7 +450,7 @@ smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
-    Data (DataCon (Name (T.pack $ show b) Nothing 0) (TyConApp (Name "Bool" Nothing 0) []) [])
+    Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyConApp (Name "Bool" Nothing 0 Nothing) []) [])
 smtastToExpr (Cons n smts s) =
     foldl (\v a -> App v (smtastToExpr a)) (Data (DataCon (strToName n) (sortToType s) [])) smts
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
@@ -462,7 +460,7 @@ sortToType :: Sort -> Type
 sortToType (SortInt) = TyLitInt
 sortToType (SortFloat) = TyLitFloat
 sortToType (SortDouble) = TyLitDouble
-sortToType (SortBool) = TyConApp (Name "Bool" Nothing 0) []
+sortToType (SortBool) = TyConApp (Name "Bool" Nothing 0 Nothing) []
 sortToType (Sort n xs) = TyConApp (strToName n) (map sortToType xs)
 
 modelAsExpr :: Model -> ExprModel

@@ -36,7 +36,7 @@ empty :: ApplyTypes
 empty = ApplyTypes HM.empty
 
 insert :: Type -> Name -> Id -> ApplyTypes -> ApplyTypes
-insert t name funcName = coerce . HM.insert t (name, funcName) . applyTypesMap
+insert t name fn = coerce . HM.insert t (name, fn) . applyTypesMap
 
 toList :: ApplyTypes -> [(Type, (Name, Id))]
 toList = HM.toList . applyTypesMap

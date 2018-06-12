@@ -21,13 +21,38 @@ type Program = [Binds]
 -- assume naming independence.
 type Binds = [(Id, Expr)]
 
+-- | Loc
+-- Records a location in the source code
+data Loc = Loc { line :: Int
+               , col :: Int
+               , file :: String } deriving (Show, Eq, Read, Ord, Generic)
+
+instance Hashable Loc
+
+-- | Span
+-- Records a span in the source code
+data Span = Span { start :: Loc
+                 , end :: Loc } deriving (Show, Eq, Read, Ord, Generic)
+
+instance Hashable Span
+
 -- | The occurrence name is defined as a string, with a `Maybe` module name
 -- appearing. The `Int` denotes a `Unique` translated from GHC. For instance,
 -- in the case of @Map.empty@, the occurrence name is @"empty"@, while the
 -- module name is some variant of @Just \"Data.Map\"@.
-data Name = Name T.Text (Maybe T.Text) Int deriving (Show, Eq, Read, Ord, Generic)
+data Name = Name T.Text (Maybe T.Text) Int (Maybe Span) deriving (Show, Read, Generic)
 
-instance Hashable Name
+instance Eq Name where
+    Name n m i _ == Name n' m' i' _ = n ==n' && m == m' && i == i'
+
+instance Ord Name where
+    Name n m i _ `compare` Name n' m' i' _ = (n, m, i) `compare` (n', m', i')
+
+instance Hashable Name where
+    hashWithSalt s (Name n m i _) =
+        s `hashWithSalt`
+        n `hashWithSalt`
+        m `hashWithSalt` i
 
 data Id = Id Name Type deriving (Show, Eq, Read, Generic)
 
@@ -57,17 +82,16 @@ data Expr = Var Id
           | Type Type
           | Cast Expr Coercion
           | Coercion Coercion
+          | Tick Tickish Expr
           | Assume Expr Expr
           | Assert (Maybe FuncCall) Expr Expr
-          | Annotation Name Expr
           deriving (Show, Eq, Read, Generic)
 
 instance Hashable Expr
 
 -- | Primitives
--- | These enumerate a set of known, and G2-augmented operations, over wrapped
+-- | These enumerate a set of known, and G2-augmented operations, over unwrapped
 -- data types such as Int, Char, Double, etc. We refer to these as primitives.
--- We further introduce a assertion and assumption as special features.
 data Primitive = Ge
                | Gt
                | Eq
@@ -115,12 +139,13 @@ data DataCon = DataCon Name Type [Type] deriving (Show, Eq, Read, Generic)
 
 instance Hashable DataCon
 
--- | Alternative case constructors, which are done by structural matching,
--- which is a phrase I invented to describe this. In essence, consider the
+-- | Alternative case constructors, which are done by structural matching.
+-- In essence, consider the
 -- following scenario:
 --    case expr of
---       Con1 -> ...
---       Con2 -> ...
+--       Con1 k_1 ... k_m -> ...
+--       Con2 k'_1 ... k'_n-> ...
+--       ...
 -- We define structural matching as when the expr matches to either Con1 or
 -- Con2. Unlike traditional true / false matching in imperative languages,
 -- structural matching is more general and is data constructor matching.
@@ -175,6 +200,10 @@ data Type = TyVar Id
           deriving (Show, Eq, Read, Generic)
 
 instance Hashable Type
+
+data Tickish = Breakpoint Span deriving (Show, Eq, Read, Generic)
+
+instance Hashable Tickish
 
 -- | Represents a function call, with it's arguments and return value as Expr
 data FuncCall = FuncCall { funcName :: Name

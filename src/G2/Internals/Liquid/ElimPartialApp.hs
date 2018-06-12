@@ -10,7 +10,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 
 import Data.Foldable
 
-elimPartialApp :: State h t -> State h t
+elimPartialApp :: State t -> State t
 elimPartialApp s@(State {expr_env = eenv, name_gen = ng }) =
     let
         mr = maximum $ E.map' req eenv

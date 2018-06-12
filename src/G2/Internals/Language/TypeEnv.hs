@@ -50,7 +50,7 @@ data AlgDataTy = DataTyCon { bound_names :: [Name]
                              } deriving (Show, Eq, Read)
 
 nameModMatch :: Name -> TypeEnv -> Maybe Name
-nameModMatch (Name n m _) = find (\(Name n' m' _) -> n == n' && m == m' ) . M.keys
+nameModMatch (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m' ) . M.keys
 
 -- Returns a list of all argument function types in the type env
 argTypesTEnv :: TypeEnv -> [Type]
@@ -88,7 +88,8 @@ getDataCons n tenv =
     case M.lookup n tenv of
         Just (DataTyCon _ dc) -> Just dc
         Just (NewTyCon _ dc _) -> Just [dc]
-        Nothing -> Nothing
+        Just (TypeSynonym (TyConApp n' _)) -> getDataCons n' tenv
+        _ -> Nothing
 
 baseDataCons :: [DataCon] -> [DataCon]
 baseDataCons = filter baseDataCon
@@ -154,9 +155,9 @@ getDataCon tenv adt dc =
     maybe Nothing (flip dataConWithName dc) adt'
 
 getDataConNameMod :: TypeEnv -> Name -> Name -> Maybe DataCon
-getDataConNameMod tenv (Name n m _) dc =
+getDataConNameMod tenv (Name n m _ _) dc =
     let
-        adt' = fmap snd $ find (\(Name n' m' _, _) -> n == n' && m == m') $ M.toList tenv
+        adt' = fmap snd $ find (\(Name n' m' _ _, _) -> n == n' && m == m') $ M.toList tenv
     in
     maybe Nothing (flip dataConWithNameMod dc) adt'
 
@@ -178,7 +179,7 @@ dataConWithNameMod (DataTyCon _ dcs) n = listToMaybe $ filter (flip dataConHasNa
 dataConWithNameMod _ _ = Nothing
 
 dataConHasNameMod :: DataCon -> Name -> Bool
-dataConHasNameMod (DataCon (Name n m _) _ _) (Name n' m' _) = n == n' && m == m'
+dataConHasNameMod (DataCon (Name n m _ _) _ _) (Name n' m' _ _) = n == n' && m == m'
 
 retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
 retypeAlgDataTy ts adt =
@@ -204,6 +205,8 @@ instance ASTContainer AlgDataTy Type where
 instance ASTContainer AlgDataTy DataCon where
     containedASTs (DataTyCon _ dcs) = dcs
     containedASTs (NewTyCon _ dcs _) = [dcs]
+    containedASTs (TypeSynonym _) = []
 
     modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon ns (modifyContainedASTs f dcs)
     modifyContainedASTs f (NewTyCon ns dc rt) = NewTyCon ns (modifyContainedASTs f dc) rt
+    modifyContainedASTs _ st@(TypeSynonym _) = st

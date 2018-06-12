@@ -8,8 +8,8 @@ import G2.Internals.Language.Support
 -- | createFuncs
 -- Give a list of b's, and functions to generate names and expressions from those
 -- b's, generates functions and puts them in the ExprEnv
--- The function to generate the expression gets the full list of b/Name pairs
 -- All b/Name pairs are also stored in some s, using the provided function
+-- The function to generate the expression gets the full s of b/Name pairs
 createFuncs :: ExprEnv
             -> NameGen
             -> [b]

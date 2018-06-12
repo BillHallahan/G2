@@ -2,23 +2,28 @@ module G2.Internals.Initialization.Interface where
 
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
-import G2.Internals.Language.Support
+import G2.Internals.Language.Support hiding (State (..))
 import G2.Internals.Initialization.DeepSeqWalks
+import G2.Internals.Initialization.ElimTicks
 import G2.Internals.Initialization.ElimTypeSynonyms
 import G2.Internals.Initialization.Functionalizer
-import G2.Internals.Initialization.KnownValues
+import G2.Internals.Initialization.InitVarLocs
+import G2.Internals.Initialization.Types
 
-runInitialization :: ExprEnv -> TypeEnv -> NameGen -> [Type] -> [Name] ->
-    (ExprEnv, TypeEnv, NameGen, FuncInterps, ApplyTypes, Walkers)
-runInitialization eenv tenv ng ts tgtNames =
+runInitialization :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> [Type] -> [Name] ->
+    (SimpleState, FuncInterps, ApplyTypes, Walkers)
+runInitialization eenv tenv ng kv ts tgtNames =
     let
-        -- tenv2 = injectSpecials tenv eenv
         eenv2 = elimTypeSyms tenv eenv
         tenv2 = elimTypeSymsTEnv tenv
         (eenv3, ng2, ds_walkers) = createDeepSeqWalks eenv2 tenv2 ng
-        -- (eenv3, ng3, pt_walkers) = createPolyPredWalks eenv2 tenv ng2 kv
-        -- (eenv4, ng4, wrap) = createHigherOrderWrappers eenv3 tenv ng3 kv
-        (eenv4, ng4) = (eenv3, ng2)
-        (tenv3, eenv5, ft, at, ng5) = functionalize tenv2 eenv4 ng4 ts tgtNames
+
+        s = SimpleState { expr_env = eenv3
+                        , type_env = tenv2
+                        , name_gen = ng2
+                        , known_values = kv }
+
+        ((ft, at), s') = runSimpleStateM (functionalize ts tgtNames) s
+        s'' = elimTicks . initVarLocs $ s'
     in
-    (eenv5, tenv3, ng5, ft, at, ds_walkers)
+    (s'', ft, at, ds_walkers)

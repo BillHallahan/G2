@@ -1,18 +1,27 @@
-module G2.Internals.Liquid.Rules (lhReduce, selectLH, initialTrack) where
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-import G2.Internals.Execution.NormalForms
+module G2.Internals.Liquid.Rules ( LHRed (..)
+                                 , LHHalter (..)
+                                 , LHTracker (..)
+                                 , lhReduce
+                                 , initialTrack) where
+
+import G2.Internals.Config
+import G2.Internals.Execution.Reducer
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as S
+import G2.Internals.Liquid.Annotations
+import G2.Internals.Solver hiding (Assert)
 
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
 import Data.Semigroup
-
-import Debug.Trace
+import qualified Data.Text as T
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -32,16 +41,16 @@ import Debug.Trace
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: State h [FuncCall] -> (Rule, [ReduceResult [FuncCall]])
+lhReduce :: State LHTracker -> (Rule, [ReduceResult LHTracker])
 lhReduce = stdReduceBase lhReduce'
 
-lhReduce' :: State h [FuncCall] -> Maybe (Rule, [ReduceResult [FuncCall]])
+lhReduce' :: State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
 lhReduce' State { expr_env = eenv
-               , curr_expr = CurrExpr Evaluate vv@(Let [(b, e)] a@(Assert _ _ _))
-               , name_gen = ng
-               , apply_types = at
-               , exec_stack = stck
-               , track = tr } =
+                     , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
+                     , name_gen = ng
+                     , apply_types = at
+                     , exec_stack = stck
+                     , track = tr } =
         let
             (r, er) = stdReduceEvaluate eenv vv ng
             states = map (\(eenv', cexpr', paths', ngen', f) ->
@@ -58,10 +67,34 @@ lhReduce' State { expr_env = eenv
             sb = symbState eenv vv ng at stck tr
         in
         Just $ (r, states ++ maybeToList sb)
+lhReduce' State { expr_env = eenv
+                , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
+                , name_gen = ng
+                , exec_stack = stck
+                , track = tr} =
+    let
+        (r, er) = stdReduceEvaluate eenv vv ng
+        states = map (\(eenv', cexpr', paths', ngen', f) ->
+                        ( eenv'
+                        , cexpr'
+                        , paths'
+                        , []
+                        , Nothing
+                        , ngen'
+                        , maybe stck (\f' -> S.push f' stck) f
+                        , []
+                        , tr {last_var = Just n}))
+                       er
+    in
+    Just $ (r, states)
+
 lhReduce' _ = Nothing
 
-symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> [FuncCall] -> Maybe (ReduceResult [FuncCall])
-symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars})) e e')) ng at stck tr =
+symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> LHTracker -> Maybe (ReduceResult LHTracker)
+symbState eenv 
+          cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars, returns = ret})) e _)) 
+          ng at stck 
+          tr@(LHTracker {abstract_calls = abs_c, last_var = Just last_v, annotations = annm }) =
     let
         cexprT = returnType cexpr
 
@@ -71,7 +104,11 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
 
         (i, ng') = freshId t ng
 
-        cexpr' = Let [(b, atf (Var i))] $ Assume e (Var b)
+        inferred = maybe [] (map snd) $ lookupAnnotAtLoc last_v annm -- lookupAnnot last_v annm
+        inferredExprs = mkInferredAssumptions (ars ++ [ret]) inferred
+        inferred' = foldr Assume (Var b) $ e:inferredExprs
+
+        cexpr' = Let [(b, atf (Var i))] $ inferred'
 
         eenv' = E.insertSymbolic (idName i) i eenv
 
@@ -84,22 +121,9 @@ symbState eenv cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, argum
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], (FuncCall {funcName = fn, arguments = ars, returns = Var i}):tr)
+        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
         False -> Nothing
-symbState _ _ _ _ _ _ = error "Bad expr in symbState"
-
-selectLH :: Maybe Int -> Int -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])] -> [([Int], State h [FuncCall])]
-selectLH maxOut ii solved next =
-    let
-        mi = case solved of
-                [] -> ii
-                _ -> minimum $ map (length . track . snd) solved
-        next' = dropWhile (\(_, s) -> trackingGreater s mi) next
-    in
-    if isJust maxOut && length solved >= fromJust maxOut then [] else next'
-
-trackingGreater :: State h [FuncCall] -> Int -> Bool
-trackingGreater (State {track = tr}) i = length tr > i
+symbState _ _ _ _ _ _ = Nothing
 
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function
@@ -116,3 +140,69 @@ initialTrack eenv (Cast e _) = initialTrack eenv e
 initialTrack eenv (Assume _ e) = initialTrack eenv e
 initialTrack eenv (Assert _ _ e) = initialTrack eenv e
 initialTrack _ _ = 0
+
+mkInferredAssumptions :: [Expr] -> [Expr] -> [Expr]
+mkInferredAssumptions ars_ret es = mkInferredAssumptions' (reverse ars_ret) es
+
+
+mkInferredAssumptions' :: [Expr] -> [Expr] -> [Expr]
+mkInferredAssumptions' _ [] = []
+mkInferredAssumptions' ret_ars (e:es) =
+    let
+        cl = countLams e
+        app = e:reverse (take cl ret_ars)
+    in
+    (mkApp app):mkInferredAssumptions' ret_ars es
+
+countLams :: Expr -> Int
+countLams (Lam _ e) = 1 + countLams e
+countLams _ = 0
+
+data LHTracker = LHTracker { abstract_calls :: [FuncCall]
+                           , last_var :: Maybe Name
+                           , annotations :: AnnotMap } deriving (Eq, Show)
+
+instance Named LHTracker where
+    names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = annots}) = names abs_c ++ names n ++ names annots
+    
+    rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = annots}) =
+        LHTracker {abstract_calls = rename old new abs_c, last_var = rename old new n, annotations = rename old new annots}
+    
+    renames hm (LHTracker {abstract_calls = abs_c, last_var = n, annotations = annots}) =
+        LHTracker {abstract_calls = renames hm abs_c, last_var = renames hm n, annotations = renames hm annots}
+
+instance ASTContainer LHTracker Expr where
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = annots}) = containedASTs abs_c ++ containedASTs annots
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
+        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
+
+instance ASTContainer LHTracker Type where
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = annots}) = containedASTs abs_c ++ containedASTs annots
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
+        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
+
+data LHRed ast out io = LHRed (SMTConverter ast out io) io Config
+-- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
+data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
+
+
+instance Reducer (LHRed ast out io) LHTracker where
+    redRules (LHRed smt io config) s = do
+        (r, s) <- reduce lhReduce smt io config s
+
+        return $ (if r == RuleIdentity then Finished else InProgress, s)
+
+instance Halter LHHalter Int LHTracker where
+    initHalt (LHHalter entry modn eenv) _ _ =
+        let 
+            fe = case E.occLookup entry modn eenv of
+                Just e -> e
+                Nothing -> error "initOrder: Bad function passed"
+        in
+        initialTrack eenv fe
+
+    reInitHalt _ ii (Processed {accepted = acc}) _ = minimum $ ii:map (length . abstract_calls . track) acc
+
+    stopRed _ hv _ s = if length (abstract_calls $ track s) > hv then Discard else Continue
+
+    stepHalter _ hv _ _ = hv

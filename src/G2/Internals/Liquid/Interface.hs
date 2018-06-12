@@ -8,9 +8,12 @@ import G2.Internals.Config.Config
 import G2.Internals.Translation
 import G2.Internals.Interface
 import G2.Internals.Language as Lang
+import G2.Internals.Language.Monad
 import qualified G2.Internals.Language.ExprEnv as E
+
 import G2.Internals.Execution
-import G2.Internals.Liquid.Annotate
+
+import G2.Internals.Liquid.Annotations
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.Measures
@@ -18,17 +21,21 @@ import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
+import G2.Internals.Liquid.Types
 import G2.Internals.Solver
-
--- Ugh, how can we not import this?
-import G2.Internals.Initialization.MkCurrExpr
 
 import G2.Lib.Printers
 
+import Language.Haskell.Liquid.Constraint.Generate
+import Language.Haskell.Liquid.Constraint.ToFixpoint
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
-import Language.Haskell.Liquid.Types hiding (Config)
+import Language.Haskell.Liquid.Types hiding (Config, cls, names)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
+import qualified Language.Haskell.Liquid.UX.Config as LHC
+
+import Language.Fixpoint.Solver
+import qualified Language.Fixpoint.Types as F
 import Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.Coerce
@@ -45,8 +52,6 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
-import Debug.Trace
-
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -58,85 +63,102 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
+findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
 findCounterExamples proj fp entry libs lhlibs config = do
-    ghcInfos <- getGHCInfos proj [fp] lhlibs
-    tgt_trans <- translateLoaded proj fp libs False config
-    runLHCore entry tgt_trans ghcInfos config
+    lh_config <- getOpts []
 
-runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
-                    -> [GhcInfo]
+    ghc_cg <- getGHCInfos lh_config proj [fp] lhlibs
+    
+    tgt_trans <- translateLoaded proj fp libs False config 
+
+    runLHCore lh_config entry tgt_trans ghc_cg config
+
+runLHCore :: LHC.Config -> T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
+                    -> [LHOutput]
                     -> Config
-          -> IO [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
-runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, exp) ghcInfos config = do
+                    -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
+runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
+    let ghcInfos = map ghcI ghci_cg
+
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
-    -- let lh_measure_names = map (symbolName . val .name) lh_measures
 
-    let init_state = initState prog tys cls Nothing Nothing Nothing False True entry mb_modname exp
+    let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
-    -- let annot_state = annotateCases cleaned_state
+
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
 
     let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
     let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
     let ng_state = no_part_state {name_gen = ng'}
 
-    let (lh_state, meenv', tcv) = createLHTC ng_state meenv
-    let lhtc_state = addLHTC lh_state tcv
+    let ng_state' = ng_state {track = []}
 
-    let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
-    let meenv''' = replaceVarTy meenvT meenv''
+    let lh_state = createLHTC meenv ng_state'
+
+    let lhtc_state1 = addLHTC lh_state
+    let meenv''' = measures lhtc_state1
+    let tcv = tcvalues lhtc_state1
+    let lhtc_state = state lhtc_state1
+
+    -- let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
+    -- let meenv''' = replaceVarTy meenvT meenv''
     let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
-
-    -- let ((meenv, mkv), ng') = doRenames (E.keys meas_eenv) meas_ng (meas_eenv, known_values lhtc_state)
-    -- let ng_state = lhtc_state {name_gen = ng'}
 
     let ng2_state = lhtc_state {name_gen = meas_ng}
 
-    let merged_state = mergeLHSpecState (filter isJust$ nub $ map (\(Name _ m _) -> m) tgt_ns) specs ng2_state meas_eenv tcv
-    -- let (merged_state, mkv) = mergeLHSpecState [] specs measure_state tcv
+    let merged_state = mergeLHSpecState (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
+
     let beta_red_state = simplifyAsserts mkv tcv merged_state
+    let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
+
+    -- We create annm_gen_state purely to have to generate less annotations
+    -- We continue execution with beta_red_state later, because otherwise we might have lost some values for LH TC that we need
+    let annm_gen_state = (markAndSweepPreserving pres_names beta_red_state) { type_env = type_env beta_red_state }
+
+    let annm = getAnnotMap lh_config tcv annm_gen_state meas_eenv ghci_cg
+    let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
 
     let spec_assert_state = addSpecialAsserts beta_red_state
 
-    let track_state = spec_assert_state {track = [] :: [FuncCall]}
+    let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm'} }
 
     (con, hhp) <- getSMT config
 
-    -- let (up_ng_state, ng) = renameAll mark_and_sweep_state (name_gen mark_and_sweep_state)
-    -- let final_state = up_ng_state {name_gen = ng}
-    let halter_set_state = track_state {halter = steps config}
+    let final_state = track_state
 
-    let final_state = halter_set_state
-
-    -- TODO: This is a bit messy...
-    -- Get the initial max number of abstract variable
-    let fe = case findFunc entry mb_modname (expr_env init_state) of
-              Left (_, e) -> e
-              Right s -> error s
-    let max_abstr = initialTrack (expr_env init_state) fe
-
-    ret <- run lhReduce halterIsZero halterSub1 (selectLH (maxOutputs config)) con hhp config max_abstr final_state
-    -- ret <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
+    ret <- run (LHRed con hhp config) (MaxOutputsHalter :<~> ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp (pres_names ++ names annm') config final_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
                   0 -> 0
-                  _ -> minimum $ map (\(s, _, _, _) -> length $ track s) ret
-    let ret' = filter (\(s, _, _, _) -> mi == (length $ track s)) ret
+                  _ -> minimum $ map (\(s, _, _, _) -> length $ abstract_calls $ track s) ret
+    let ret' = filter (\(s, _, _, _) -> mi == (length $ abstract_calls $ track s)) ret
     -- let ret' = ret
 
-    return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ track s}, es, e, ais)) ret'
+    return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}, es, e, ais)) ret'
 
-getGHCInfos :: FilePath -> [FilePath] -> [FilePath] -> IO [GhcInfo]
-getGHCInfos proj fp lhlibs = do
-    config <- getOpts []
-
+getGHCInfos :: LHC.Config -> FilePath -> [FilePath] -> [FilePath] -> IO [LHOutput]
+getGHCInfos config proj fp lhlibs = do
     let config' = config {idirs = idirs config ++ [proj] ++ lhlibs
                          , files = files config ++ lhlibs
                          , ghcOptions = ["-v"]}
-    return . fst =<< LHI.getGhcInfos Nothing config' fp
+
+    -- GhcInfo
+    (ghci, _) <- LHI.getGhcInfos Nothing config' fp
+
+    mapM (getGHCInfos' config') ghci
+
+
+getGHCInfos' :: LHC.Config -> GhcInfo -> IO LHOutput
+getGHCInfos' config ghci = do
+    -- CGInfo
+    let cgi = generateConstraints ghci
+
+    finfo <- cgInfoFInfo ghci cgi
+    F.Result _ sol _ <- solve (fixConfig "LH_FILEPATH" config) finfo
+
+    return (LHOutput {ghcI = ghci, cgI = cgi, solution = sol})
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
 funcSpecs = concatMap (gsTySigs . spec)
@@ -144,7 +166,7 @@ funcSpecs = concatMap (gsTySigs . spec)
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)
 
-reqNames :: State h t -> [Name]
+reqNames :: State t -> [Name]
 reqNames (State { expr_env = eenv
                 , type_classes = tc
                 , known_values = kv }) = 
@@ -179,28 +201,28 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
+printLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [LHReturn] -> IO ()
 printParsedLHOut [] = return ()
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
                            , violating = Nothing
-                           , abstracted = abs} : xs) = do
+                           , abstracted = abstr} : xs) = do
     putStrLn "The call"
     TI.putStrLn $ call `T.append` " = " `T.append` output
     TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
-    printAbs abs
+    printAbs abstr
     putStrLn ""
     printParsedLHOut xs
-printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
-                           , violating = Just (FuncInfo {func = f', funcArgs = call', funcReturn = output'})
-                           , abstracted = abs } : xs) = do
+printParsedLHOut (LHReturn { calledFunc = FuncInfo {funcArgs = call, funcReturn = output}
+                           , violating = Just (FuncInfo {func = f, funcArgs = call', funcReturn = output'})
+                           , abstracted = abstr } : xs) = do
     TI.putStrLn $ call `T.append` " = " `T.append` output
     putStrLn "makes a call to"
     TI.putStrLn $ call' `T.append` " = " `T.append` output'
-    TI.putStrLn $ "violating " `T.append` f' `T.append` "'s refinement type"
-    printAbs abs
+    TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
+    printAbs abstr
     putStrLn ""
     printParsedLHOut xs
 
@@ -226,42 +248,45 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: T.Text -> [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)]
+parseLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
            -> [LHReturn]
-parseLHOut entry [] = []
+parseLHOut _ [] = []
 parseLHOut entry ((s, inArg, ex, ais):xs) =
-  let tail = parseLHOut entry xs
+  let 
+      tl = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell s 
-               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0) TyUnknown) $ inArg
+               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0 Nothing) TyUnknown) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell s $ ex
 
       called = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
       viFunc = fmap (parseLHFuncTuple s) ais
 
-      abs = map (parseLHFuncTuple s) $ track s
+      abstr = map (parseLHFuncTuple s) $ track s
   in
   LHReturn { calledFunc = called
            , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc
-           , abstracted = abs} : tail
+           , abstracted = abstr} : tl
 
 sameFuncNameArgs :: FuncInfo -> Maybe FuncInfo -> Bool
 sameFuncNameArgs _ Nothing = False
 sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = f2, funcArgs = fa2})) = f1 == f2 && fa1 == fa2
 
-parseLHFuncTuple :: State h t -> FuncCall -> FuncInfo
-parseLHFuncTuple s (FuncCall {funcName = n@(Name n' _ _), arguments = ars, returns = out}) =
-    FuncInfo { func = n'
+parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
+parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
+    FuncInfo { func = nameOcc n
              , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n TyUnknown)) ars)
              , funcReturn = T.pack $ mkCleanExprHaskell s out }
 
 testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
                -> IO [LHReturn]
 testLiquidFile proj fp libs lhlibs config = do
-    ghcInfos <- getGHCInfos proj [fp] lhlibs
+    lh_config <- getOpts []
+    ghci_cg <- getGHCInfos lh_config proj [fp] lhlibs
+
     tgt_transv <- translateLoadedV proj fp libs False config
 
-    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns, exp) = tgt_transv
-    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns, exp)
+    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns, ex) = tgt_transv
+    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns, ex)
 
     putStrLn $ "******** Liquid File Test: *********"
     putStrLn fp
@@ -282,7 +307,7 @@ testLiquidFile proj fp libs lhlibs config = do
 
     fmap concat $ mapM (\e -> do
         putStrLn $ show e
-        runLHCore e tgt_trans ghcInfos config >>= (return . parseLHOut e))
+        runLHCore lh_config e tgt_trans ghci_cg config >>= (return . parseLHOut e))
                        cleaned_tgt_lhs
 
 testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
@@ -291,10 +316,9 @@ testLiquidDir proj dir libs lhlibs config = do
   raw_files <- listDirectory dir
   let hs_files = filter (\a -> (".hs" `isSuffixOf` a) || (".lhs" `isSuffixOf` a)) raw_files
   
-  results <- mapM (\file -> do
-      res <- testLiquidFile proj file libs lhlibs config
-      return (file, res)
+  results <- mapM (\fle -> do
+      res <- testLiquidFile proj fle libs lhlibs config
+      return (fle, res)
     ) hs_files
 
   return results
-

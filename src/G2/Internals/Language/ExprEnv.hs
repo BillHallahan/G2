@@ -38,7 +38,6 @@ module G2.Internals.Language.ExprEnv
     , fromExprList
     , isRedirect
     , isRoot
-    , EnvObj(..)
     ) where
 
 import G2.Internals.Language.AST
@@ -55,8 +54,6 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-
-import Debug.Trace
 
 -- | From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
@@ -114,19 +111,19 @@ isSymbolic n eenv@(ExprEnv eenv') =
 -- TODO -- This seems kinda too much like a special case to be here...
 occLookup :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
 occLookup n m (ExprEnv eenv) = 
-    let ex = L.find (\(Name n' m' _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
+    let ex = L.find (\(Name n' m' _ _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) $ eenv
     in
     fmap (\(n', e) -> Var $ Id n' (typeOf e)) ex
 
 lookupNameMod :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =
-    listToMaybe . L.filter (\(Name n m _, _) -> ns == n && ms == m) . toExprList
+    listToMaybe . L.filter (\(Name n m _ _, _) -> ns == n && ms == m) . toExprList
 
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =
     case M.lookup n env' of
-        Just (RedirObj n') -> trace (show n') env ! n'
+        Just (RedirObj n') -> env ! n'
         Just (ExprObj e) -> e
         Just (SymbObj i) -> Var i
         Nothing -> error $ "ExprEnv.!: Given key is not an element of the expr env" ++ show n

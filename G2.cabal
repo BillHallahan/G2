@@ -18,19 +18,21 @@ cabal-version:       >=1.24
 executable G2
   -- other-modules:   
   -- other-extensions:    
-  build-depends:         base >= 4.8 && < 5
+  build-depends:         array
+                       , base >= 4.8 && < 5
                        , bytestring
                        , Cabal
                        , containers >= 0.5 && < 0.6
                        , directory
+                       , extra
                        , filepath
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc
                        , hashable
                        , hpc
                        , HTTP
-                       , liquidhaskell == 0.8.0.5
-                       , liquid-fixpoint == 0.7.0.5
+                       , liquidhaskell >= 0.8.0.5
+                       , liquid-fixpoint >= 0.7.0.5
                        , MissingH
                        , mtl
                        , reducers
@@ -47,11 +49,13 @@ executable G2
   main-is:             Main.hs
 
 test-suite test
-  build-depends:         base >= 4.8 && < 5
+  build-depends:         array
+                       , base >= 4.8 && < 5
                        , bytestring
                        , Cabal
                        , containers >= 0.5 && < 0.6
                        , directory
+                       , extra
                        , filepath
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc
@@ -61,6 +65,7 @@ test-suite test
                        , liquidhaskell
                        , liquid-fixpoint
                        , MissingH
+                       , mtl
                        , reducers
                        , regex-compat
                        , parsec

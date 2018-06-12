@@ -26,13 +26,12 @@ isExprValueForm (Case _ _ _) _ = False
 isExprValueForm (Cast e (t :~ _)) eenv = not (hasFuncType t) && isExprValueForm e eenv
 isExprValueForm (Assume _ _) _ = False
 isExprValueForm (Assert _ _ _) _ = False
-isExprValueForm (Annotation _ _) _ = False
 isExprValueForm _ _ = True
 
 -- | Is the execution state in a value form of some sort? This would entail:
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
-isExecValueForm :: State h t -> Bool
+isExecValueForm :: State t -> Bool
 isExecValueForm state | Nothing <- S.pop (exec_stack state)
                       , CurrExpr Return _ <- curr_expr state = True
 

@@ -30,6 +30,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , leadingLamIds
                                   , insertInLams
                                   , maybeInsertInLams
+                                  , inLams
                                   , replaceASTs
                                   , args
                                   , passedArgs
@@ -39,7 +40,6 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , varId
                                   , symbVars
                                   , freeVars
-                                  , removeOuterAnnot
                                   , alphaReduction
                                   , varBetaReduction
                                   , mkStrict) where
@@ -114,7 +114,7 @@ mkEmpty kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcEmpty k
 mkIdentity :: Type -> Expr
 mkIdentity t =
     let
-        x = Id (Name "x" Nothing 0) t
+        x = Id (Name "x" Nothing 0 Nothing) t
     in
     Lam x (Var x)
 
@@ -196,6 +196,12 @@ maybeInsertInLams' :: ([Id] -> Expr -> Maybe Expr) -> [Id] -> Expr -> Maybe Expr
 maybeInsertInLams' f xs (Lam i e)  = fmap (Lam i) $ maybeInsertInLams' f (i:xs) e
 maybeInsertInLams' f xs e = f (reverse xs) e
 
+-- | inLams
+-- Returns the Expr in nested Lams
+inLams :: Expr -> Expr
+inLams (Lam _ e) = inLams e
+inLams e = e
+
 leadingLamIds :: Expr -> [Id]
 leadingLamIds (Lam i e) = i:leadingLamIds e
 leadingLamIds _ = []
@@ -246,18 +252,14 @@ freeVars' eenv bound (Var i) =
         ([], [i])
 freeVars' _ _ _ = ([], [])
 
-removeOuterAnnot :: Expr -> Expr
-removeOuterAnnot (Annotation _ e) = e
-removeOuterAnnot e = e
-
 alphaReduction :: ASTContainer m Expr => m -> m
 alphaReduction = modifyASTsM alphaReduction'
 
 alphaReduction' :: Max Int -> Expr -> (Expr, Max Int)
-alphaReduction' mi l@(Lam i@(Id (Name n m ii) t) e) =
+alphaReduction' mi l@(Lam i@(Id (Name n m ii lo) t) e) =
     let
         mi' = mi + 1
-        n' = Name n m (getMax mi')
+        n' = Name n m (getMax mi') lo
         i' = Id n' t
 
         e' = replaceASTs (Var i) (Var i') e

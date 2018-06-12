@@ -12,6 +12,7 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , ordTCDict
                                          , integralTCDict
                                          , lookupTCDict
+                                         , lookupTCDicts
                                          , tcDicts
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
@@ -107,8 +108,8 @@ integralTCDict kv tc t = lookupTCDict tc (integralTC kv) t
 -- Returns the dictionary for the given typeclass and Type,
 -- if one exists
 lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
-lookupTCDict tc (Name n _ _) t =
-    (fmap (insts . snd) $ find (\(Name n' _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) -- M.lookup n ((coerce :: TypeClasses -> TCType) tc) 
+lookupTCDict tc (Name n _ _ _) t =
+    (fmap (insts . snd) $ find (\(Name n' _ _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) -- M.lookup n ((coerce :: TypeClasses -> TCType) tc) 
     >>= fmap snd . find (\(t', _) -> t .:: t')
 
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]

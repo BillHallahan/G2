@@ -6,7 +6,7 @@ module G2.Internals.Preprocessing.AdjustTypes (adjustTypes) where
 import G2.Internals.Language.AST
 import G2.Internals.Language
 
-adjustTypes :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> State h t
+adjustTypes :: ASTContainer t Expr => State t -> State t
 adjustTypes = wrapInteger . unpackString
 
 -- | wrapInteger
@@ -17,7 +17,7 @@ adjustTypes = wrapInteger . unpackString
 -- data Integer = Integer Int#
 -- and change ((fromInteger [Dict]) LitInteger) to:
 -- ((fromInteger [Dict]) (dcInteger LitInt))
-wrapInteger :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> State h t
+wrapInteger :: ASTContainer t Expr => State t -> State t
 wrapInteger s@(State {known_values = kv, type_env = tenv}) = modifyASTs (wrapInteger' (mkDCInteger kv tenv)) s
 
 wrapInteger' :: Expr -> Expr -> Expr
@@ -26,24 +26,24 @@ wrapInteger' _ e = e
 
 -- | GHC may represent strings as:
 -- (App 
--- 		(Var 
---			(Id 
---				(Name "$unpackCString" (Just "GHC.CString") 0) 
--- 				(TyFun (TyConApp (Name "Addr#" (Just "GHC.Prim") 3674937295934324738) []) (TyConApp (Name "$" (Just "GHC.Types") 0) [TyConApp (Name "Char" (Just "GHC.Types") 8214565720323798834) []]))
--- 			)
--- 		) 
--- 		(Lit (LitString "\"HERE\""))
+--      (Var 
+--          (Id 
+--              (Name "$unpackCString" (Just "GHC.CString") 0) 
+--              (TyFun (TyConApp (Name "Addr#" (Just "GHC.Prim") 3674937295934324738) []) (TyConApp (Name "$" (Just "GHC.Types") 0) [TyConApp (Name "Char" (Just "GHC.Types") 8214565720323798834) []]))
+--          )
+--      ) 
+--      (Lit (LitString "\"HERE\""))
 -- )
 -- We remove $unpackCString, and convert the LitString to a list
-unpackString :: (ASTContainer h Expr, ASTContainer t Expr) => State h t -> State h t
+unpackString :: ASTContainer t Expr => State t -> State t
 unpackString s@(State {type_env = tenv, known_values = kv}) = modifyASTsFix (unpackString' tenv kv) s
 
 unpackString' :: TypeEnv -> KnownValues -> Expr -> Expr
-unpackString' _ _ (App (Var (Id (Name "unpackCString#"_ _) _)) e) = e
+unpackString' _ _ (App (Var (Id (Name "unpackCString#" _ _ _) _)) e) = e
 unpackString' tenv kv (Lit (LitString s)) = 
-	let
-		cns = mkCons kv tenv
-		em = mkEmpty kv tenv
-	in
-	foldr App em $ map (App cns . Lit . LitChar) s
+    let
+        cns = mkCons kv tenv
+        em = mkEmpty kv tenv
+    in
+    foldr App em $ map (App cns . Lit . LitChar) s
 unpackString' _ _ e = e

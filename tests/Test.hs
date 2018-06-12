@@ -41,6 +41,7 @@ tests = return . testGroup "Tests"
         , testFileTests
         , smtADTTests
         , baseTests
+        , primTests
         ]
 
 timeout :: Timeout
@@ -150,6 +151,18 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1000 2 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
+
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
+
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f1" 2000 3 [Exactly 0]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f2" 2000 3 [AtLeast 4, RForAll (\[_, x, y] -> x == y)]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f3" 2000 3 [Exactly 0]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f4" 2000 3 [AtLeast 4, RForAll (\[_, x, _] -> isInt x $ \x' -> x' == 0)]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f5" 2000 3 [Exactly 0]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f6" 2000 3 [AtLeast 10]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f7" 2000 3 [AtLeast 10, RForAll (\[x, _, y] -> isInt x $ \x' -> isInt y $ \y' -> x' == y')]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f8" 2000 3 [AtLeast 10]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "callf" 2000 3 [AtLeast 1]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -279,6 +292,7 @@ testFileTests =
                 -- , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                 --                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                 --                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]
+                -- , checkExpr "tests/TestFiles/" "tests/TestFiles/HigherOrderList.hs" 400 Nothing Nothing "g" 3 [AtLeast  10] 
                 
         ]
 
@@ -311,6 +325,21 @@ baseTests =
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 2 [AtLeast 6]
         ]
 
+primTests :: IO TestTree
+primTests =
+    return . testGroup "Prims"
+        =<< sequence [
+              checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "quotI1" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "quotI2" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "remI1" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "remI2" 1000 3 [AtLeast 3]
+
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "p1List" 300000 1 [AtLeast 1]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "p2List" 700000 1 [AtLeast 1]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "integerToFloatList" 150000 1 [AtLeast 1]
+            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
+        ]
+
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkExpr proj src stps m_assume m_assert entry i reqList =
     checkExprReaches proj src stps m_assume m_assert Nothing entry i reqList
@@ -339,14 +368,13 @@ testFile proj src m_assume m_assert m_reaches entry config =
 
 testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO ([([Expr], Expr)])
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
-    (mb_modname, binds, tycons, cls, tgtNames, exp) <- translateLoaded proj src [] True config
+    (mb_modname, binds, tycons, cls, _, ex) <- translateLoaded proj src [] True config
 
-    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) False (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname exp
-    let halter_set_state = init_state {halter = steps config}
+    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname ex config
     
     (con, hhp) <- getSMT config
 
-    r <- run stdReduce halterIsZero halterSub1 (executeNext Nothing) con hhp config () halter_set_state
+    r <- run (StdRed con hhp config) ZeroHalter NextOrderer con hhp [] config init_state
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 
@@ -365,7 +393,7 @@ checkLiquidWithConfig proj fp entry i config reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n" ++ show r) ch
 
-findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State Int [FuncCall], [Expr], Expr, Maybe FuncCall)])
+findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [FuncCall], [Expr], Expr, Maybe FuncCall)])
 findCounterExamples' proj fp entry libs lhlibs config = try (findCounterExamples proj fp entry libs lhlibs config)
 
 errors :: [Expr] -> Bool

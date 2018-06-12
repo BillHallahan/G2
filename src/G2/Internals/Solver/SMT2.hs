@@ -19,8 +19,6 @@ import Data.Ratio
 import System.IO
 import System.Process
 
-import Debug.Trace
-
 type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
 
 z3 :: SMT2Converter
@@ -102,7 +100,7 @@ smt2 setup getmdl = SMTConverter {
             in
             if length ns > 0 then
                 "(declare-datatypes (" ++ adtDecs ++ ") ("
-                ++ (foldr (\(n, bn, dc) e -> 
+                ++ (foldr (\(_, bn, dc) e -> 
                     "(par " ++ "(" ++ (intercalate " " bn) ++ ")" ++ " (" ++ (dcHandler dc) ++ ") )" ++ e) "" ns) ++  "))"
             else
                 ""
@@ -120,7 +118,9 @@ smt2 setup getmdl = SMTConverter {
                     QF_NIRA -> "QF_NIRA"
                     _ -> "ALL"
             in
-            "(set-logic " ++ s ++ ")"
+            case lgc of
+                ALL -> ""
+                _ -> "(set-logic " ++ s ++ ")"
 
         , (.>=) = function2 ">="
         , (.>) = function2 ">"
@@ -141,6 +141,7 @@ smt2 setup getmdl = SMTConverter {
         , (./) = function2 "/"
         , smtQuot = function2 "div"
         , smtModulo = function2 "mod"
+        , smtSqrt = \x -> "(^ " ++ x ++ " 0.5)" 
         , neg = function1 "-"
 
         , itor = function1 "to_real"
@@ -163,7 +164,7 @@ smt2 setup getmdl = SMTConverter {
         , sortBool = "Bool"
         , sortADT = \n ts -> if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map (sortN (smt2 setup getmdl)) ts) ++ ")"
 
-        , cons = \n asts s ->
+        , cons = \n asts _ ->
             if asts /= [] then
                 "(" ++ n ++ " " ++ (intercalate " " asts) ++ ")" 
             else
@@ -187,17 +188,17 @@ function3 f a b c = "(" ++ f ++ " " ++ a ++ " " ++ b ++ " " ++ c ++ ")"
 
 --TODO: SAME AS sortName in language, fix
 sortN :: SMTConverter ast out io -> Sort -> ast
-sortN smt SortInt = sortInt smt
-sortN smt SortFloat = sortFloat smt
-sortN smt SortDouble = sortDouble smt
-sortN smt SortBool = sortBool smt
-sortN smt (Sort n s) = sortADT smt n s
+sortN smtc SortInt = sortInt smtc
+sortN smtc SortFloat = sortFloat smtc
+sortN smtc SortDouble = sortDouble smtc
+sortN smtc SortBool = sortBool smtc
+sortN smtc (Sort n s) = sortADT smtc n s
 
 selectorName :: SMT2Converter -> Sort -> SMTName
-selectorName smt SortInt = sortInt smt
-selectorName smt SortFloat = sortFloat smt
-selectorName smt SortDouble = sortDouble smt
-selectorName smt SortBool = sortBool smt
+selectorName smtc SortInt = sortInt smtc
+selectorName smtc SortFloat = sortFloat smtc
+selectorName smtc SortDouble = sortDouble smtc
+selectorName smtc SortBool = sortBool smtc
 selectorName _ (Sort n _) = n
 
 -- | getProcessHandles
@@ -234,11 +235,7 @@ getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in"]
 
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getCVC4ProcessHandles = do
-    hhp@(h_in, h_out, pr) <- getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]
-    -- hPutStr h_in "(set-logic ALL)\n"
-
-    return hhp
+getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]
 
 -- | setUpFormulaZ3
 -- Writes a function to Z3
@@ -375,8 +372,8 @@ solveExpr' h_in h_out con headers (v:vs) = do
 
 solveExpr'' :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> Expr -> IO SMTAST
 solveExpr'' h_in h_out con headers e = do
-    let smt = toSolverAST con $ exprToSMT e
-    hPutStr h_in ("(eval " ++ smt ++ " :completion)\n")
+    let smte = toSolverAST con $ exprToSMT e
+    hPutStr h_in ("(eval " ++ smte ++ " :completion)\n")
     out <- getLinesMatchParens h_out
     _ <- evaluate (length out)
 

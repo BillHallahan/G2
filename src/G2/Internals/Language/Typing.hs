@@ -51,8 +51,6 @@ import G2.Internals.Language.Syntax
 import qualified Data.Map as M
 import Data.Monoid hiding (Alt)
 
-import Debug.Trace
-
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) []
 
@@ -151,7 +149,7 @@ instance Typed Expr where
         let
             (t1, m') = case typeOf' m b of
                 (TYPE, _m) -> (TyForAll (NamedTyBndr b), _m)
-                (TyConApp (Name "TYPE" _ _ ) _, _m) -> (TyForAll (NamedTyBndr b), _m)
+                (TyConApp (Name "TYPE" _ _ _ ) _, _m) -> (TyForAll (NamedTyBndr b), _m)
                 (TyFun TYPE _, _m) -> (TyForAll (NamedTyBndr b), _m)
                 (t, _m) -> (TyFun t, m)
             (t2, m'') = typeOf' m' expr
@@ -163,9 +161,9 @@ instance Typed Expr where
     typeOf' m (Type ty) = (ty, m)
     typeOf' m (Cast _ (_ :~ t')) = (t', m)
     typeOf' m (Coercion (_ :~ t')) = (t', m)
+    typeOf' m (Tick _ e) = typeOf' m e
     typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
-    typeOf' m (Annotation _ e) = typeOf' m e
 
 instance Typed Type where
     typeOf' m v@(TyVar (Id n _)) =
@@ -183,7 +181,7 @@ instance Typed Type where
             (t2', m'') = typeOf' m' t2
         in
         (TyFun t1' t2', m'')
-    typeOf' m t@(TyApp t1 t2) =
+    typeOf' m (TyApp t1 t2) =
         let
             (t1', m') = typeOf' m t1
             (t2', m'') = typeOf' m' t2
@@ -231,7 +229,7 @@ t1 .::. t2 = fst (specializes M.empty t1 t2) && fst (specializes M.empty t2 t1)
 
 specializes :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
 specializes m _ TYPE = (True, m)
-specializes m t (TyVar (Id n t')) =
+specializes m t (TyVar (Id n _)) =
     case M.lookup n m of
         Just (TyVar _) -> (True, m)
         Just t' -> specializes m t t'
@@ -277,7 +275,7 @@ specializes m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
       (b1, m') = specializes m t1 t1'
       (b2, m'') = specializes m' t2 t2'
   in (b1 && b2, m'')
-specializes m (TyFun t1 t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+specializes m (TyFun t1 t2) (TyForAll (NamedTyBndr _) t2') =
   specializes m (TyFun t1 t2) t2'
 specializes m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
   let
@@ -289,7 +287,7 @@ specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
       (b1, m') = specializes m t1 t1'
       (b2, m'') = specializes m' t2 t2'
   in (b1 && b2, m'')
-specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr (Id n t1')) t2') =
+specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr _) t2') =
   specializes m (TyForAll (AnonTyBndr t1) t2) t2'
 specializes m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') =
   let
@@ -340,12 +338,12 @@ isAlgDataTy' _ = False
 
 isTYPE :: Type -> Bool
 isTYPE TYPE = True
-isTYPE (TyConApp (Name "TYPE" _ _) _) = True
+isTYPE (TyConApp (Name "TYPE" _ _ _) _) = True
 isTYPE _ = False
 
 hasTYPE :: Type -> Bool
 hasTYPE TYPE = True
-hasTYPE (TyConApp (Name "TYPE" _ _) _) = True
+hasTYPE (TyConApp (Name "TYPE" _ _ _) _) = True
 hasTYPE (TyFun t t') = hasTYPE t || hasTYPE t'
 hasTYPE _ = False
 
@@ -397,7 +395,7 @@ argumentTypes = argumentTypes' . typeOf
 
 argumentTypes' :: Type -> [Type]
 argumentTypes' (TyForAll (AnonTyBndr t1) t2) = t1:argumentTypes' t2
-argumentTypes' (TyForAll (NamedTyBndr i) t2) = TYPE:argumentTypes' t2
+argumentTypes' (TyForAll (NamedTyBndr _) t2) = TYPE:argumentTypes' t2
 argumentTypes' (TyFun t1 t2) = t1:argumentTypes' t2
 argumentTypes' _ = []
 
