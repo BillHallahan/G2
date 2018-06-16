@@ -2,6 +2,7 @@
 
 module TestUtils where
 
+import Data.Monoid
 import qualified Data.Text as T
 
 import G2.Internals.Language
@@ -108,3 +109,10 @@ isError _ = False
 isTyFun :: Type -> Bool
 isTyFun (TyFun _ _) = True
 isTyFun _ = False
+
+noUndefined :: Expr -> Bool
+noUndefined = getAll . evalASTs noUndefined'
+
+noUndefined' :: Expr -> All
+noUndefined' (Prim Undefined _) = All False
+noUndefined' _ = All True

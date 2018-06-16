@@ -282,7 +282,7 @@ addADTs n tn ts s =
                         (ns, _) = childrenNames n ts'' (name_gen s)
 
                         vs = map (\n' -> 
-                                case  E.lookup n' eenv of
+                                case E.lookup n' eenv of
                                     Just e -> e
                                     Nothing -> Prim Undefined TyBottom) ns
                         is = mapMaybe (varId) vs

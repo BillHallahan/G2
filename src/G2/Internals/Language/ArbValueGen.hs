@@ -32,7 +32,7 @@ arbValueInit = ArbValueGen { intGen = 0
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 arbValue (TyConApp n ts) tenv av =
-    maybe (Prim Undefined TyBottom, av) 
+  maybe (Prim Undefined TyBottom, av) 
           (\adt -> getADT tenv adt ts av)
           (M.lookup n tenv)
 arbValue TyLitInt _ av =
