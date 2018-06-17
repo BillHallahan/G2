@@ -187,10 +187,10 @@ data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
 instance Reducer (LHRed ast out io) LHTracker where
-    redRules (LHRed smt io config) s = do
+    redRules lhr@(LHRed smt io config) s = do
         (r, s) <- reduce lhReduce smt io config s
 
-        return $ (if r == RuleIdentity then Finished else InProgress, s)
+        return $ (if r == RuleIdentity then Finished else InProgress, s, lhr)
 
 instance Halter LHHalter Int LHTracker where
     initHalt (LHHalter entry modn eenv) _ _ =

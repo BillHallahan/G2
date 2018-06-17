@@ -106,7 +106,17 @@ runGHC as = do
     (con, hhp) <- getSMT config
 
     -- in_out <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
-    in_out <- run (StdRed con hhp config) (MaxOutputsHalter :<~> ZeroHalter) NextOrderer con hhp [] config init_state
+    let tr_ng = mkNameGen ()
+    let state_name = Name "state" Nothing 0 Nothing
+
+    in_out <- run (NonRedPCRed con hhp config
+                    :<~| TaggerRed state_name tr_ng
+                    :<~| StdRed con hhp config) 
+                  (DiscardIfAcceptedTag state_name 
+                    :<~> MaxOutputsHalter 
+                    :<~> ZeroHalter)
+                  NextOrderer
+                  con hhp [] config init_state
 
 
     case validate config of

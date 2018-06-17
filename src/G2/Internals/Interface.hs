@@ -32,6 +32,7 @@ import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
+import qualified Data.HashSet as S
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -68,6 +69,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
     , path_conds = PC.fromList kv $ map PCExists is
+    , non_red_path_conds = []
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc
@@ -84,6 +86,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , cleaned_names = M.empty
     , rules = []
     , track = ()
+    , tags = S.empty
  }
 
 mkExprEnv :: Program -> E.ExprEnv
@@ -125,6 +128,8 @@ run red hal ord con hhp pns config (is@State { type_env = tenv
             ) $ ident_states'
 
     let ident_states''' = catMaybes ident_states''
+
+    mapM_ (print . tags) ident_states'''
 
     let sm = map (\s -> let (es, e, ais) = subModel s in (s, es, e, ais)) $ ident_states'''
 
