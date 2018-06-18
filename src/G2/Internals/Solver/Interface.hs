@@ -223,7 +223,7 @@ checkModel' con io (i:is) s = do
         Nothing -> return (UNSAT, Nothing)
 
 getModelVal :: SMTConverter ast out io -> io -> Id -> Maybe Config -> State t -> IO (Maybe ExprModel, ArbValueGen)
-getModelVal con io (Id n _) config s = do
+getModelVal con io i@(Id n _) config s = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
  
     let pc = PC.scc (known_values s) [n] (path_conds s)

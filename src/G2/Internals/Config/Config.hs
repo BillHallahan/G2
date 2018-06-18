@@ -4,23 +4,27 @@ import Data.Char
 import Data.List
 import qualified Data.Map as M
 
-data SMTSolver = Z3 | CVC4
+data SMTSolver = Z3 | CVC4 deriving (Eq, Show, Read)
+
+data HigherOrderSolver = EarlyDefunc
+                       | LateDefunc deriving (Eq, Show, Read)
 
 data Config = Config {
-      base :: [FilePath] -- Filepath(s) to base libraries.  Get compiled in order from left to right
-    , logStates :: Maybe String -- If Just, dumps all thes states into the given folder
-    , maxOutputs :: Maybe Int -- Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
-    , printCurrExpr :: Bool -- Controls whether the curr expr is printed
-    , printExprEnv :: Bool -- Controls whether the expr env is printed
-    , printRelExprEnv :: Bool -- Controls whether the portion of the expr env relevant to the curr expr and path constraints is printed
-    , printPathCons :: Bool -- Controls whether path constraints are printed
-    , returnsTrue :: Bool -- If True, shows only those inputs that do not return True
-    , smt :: SMTSolver -- Sets the SMT solver to solve constraints with
-    , smtADTs :: Bool -- If True, uses the SMT solver to solve ADT constraints, else uses a more efficient algorithm
-    , steps :: Int -- How many steps to take when running States
-    , strict :: Bool -- Should the function output be strictly evaluated?
-    , timeLimit :: Int -- Seconds
-    , validate :: Bool -- If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
+      base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
+    , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
+    , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
+    , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
+    , printExprEnv :: Bool -- ^ Controls whether the expr env is printed
+    , printRelExprEnv :: Bool -- ^ Controls whether the portion of the expr env relevant to the curr expr and path constraints is printed
+    , printPathCons :: Bool -- ^ Controls whether path constraints are printed
+    , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
+    , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
+    , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smtADTs :: Bool -- ^ If True, uses the SMT solver to solve ADT constraints, else uses a more efficient algorithm
+    , steps :: Int -- ^ How many steps to take when running States
+    , strict :: Bool -- ^ Should the function output be strictly evaluated?
+    , timeLimit :: Int -- ^ Seconds
+    , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
 }
 
 mkConfigDef :: Config
@@ -36,6 +40,7 @@ mkConfig as m = Config {
     , printPathCons = boolArg "print-pc" as m Off
     , printRelExprEnv = boolArg "print-rel-eenv" as m Off
     , returnsTrue = boolArg "returns-true" as m Off
+    , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg EarlyDefunc
     , smt = strArg "smt" as m smtSolverArg Z3
     , smtADTs = boolArg "smt-adts" as m Off
     , steps = strArg "n" as m read 500
@@ -52,6 +57,14 @@ smtSolverArg' :: String -> SMTSolver
 smtSolverArg' "z3" = Z3
 smtSolverArg' "cvc4" = CVC4
 smtSolverArg' _ = error "Unrecognized SMT solver."
+
+higherOrderSolArg :: String -> HigherOrderSolver
+higherOrderSolArg = higherOrderSolArg' . map toLower
+
+higherOrderSolArg' :: String -> HigherOrderSolver
+higherOrderSolArg' "early" = EarlyDefunc
+higherOrderSolArg' "late" = LateDefunc
+higherOrderSolArg' _ = error "Unrecognized higher order solver."
 
 data BoolDef = On | Off deriving (Eq, Show)
 

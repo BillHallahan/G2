@@ -37,9 +37,12 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , reduce
                                       , runReducer ) where
 
+import qualified G2.Internals.Language.ApplyTypes as AT
+import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Config
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
+import G2.Internals.Language.Stack as Stck
 import G2.Internals.Solver
 import G2.Lib.Printers
 
@@ -159,6 +162,7 @@ class Orderer or orv sov t | or -> orv, or -> sov where
 data RCombiner r1 r2 = r1 :<~ r2 -- ^ Apply r2, followed by r1.  Takes the leftmost update to r1
                      | r1 :<~? r2 -- ^ Apply r2, apply r1 only if r2 returns NoProgress
                      | r1 :<~| r2 -- ^ Apply r2, apply r1 only if r2 returns Finished
+                     deriving (Eq, Show, Read)
 
 instance (Reducer r1 t, Reducer r2 t) => Reducer (RCombiner r1 r2) t where
     redRules (r1 :<~ r2) s = do
@@ -203,11 +207,53 @@ instance Reducer (StdRed ast out io) () where
 data NonRedPCRed ast out io = NonRedPCRed (SMTConverter ast out io) io Config
 
 instance Reducer (NonRedPCRed ast out io) () where
-    redRules nrpr@(NonRedPCRed smt io config) s = do
-        (r, s') <- reduce stdReduce smt io config s
+    redRules nrpr s@(State { expr_env = eenv
+                           , type_env = tenv
+                           , curr_expr = cexpr
+                           , exec_stack = stck
+                           , known_values = kv
+                           , path_conds = pc
+                           , non_red_path_conds = re_pc@(_:_)
+                           , apply_types = at
+                           , input_ids = is
+                           , symbolic_ids = si }) = do
+        let stck' = Stck.push (CurrExprFrame cexpr) stck
 
-        return (if r == RuleIdentity then Finished else InProgress, s', nrpr)
+        let and = mkAnd eenv
+        let true = mkTrue kv tenv
+        let cexpr' = CurrExpr Evaluate $ foldr (\e -> App (App and e)) true re_pc
+        let cexpr'' = higherOrderToAppTys eenv at cexpr'
 
+        let s' = s { curr_expr = cexpr''
+                   , exec_stack = stck'
+                   , non_red_path_conds = []
+                   , path_conds = typeToAppType at pc
+                   , input_ids = typeToAppType at is
+                   , symbolic_ids = typeToAppType at si }
+
+        return (InProgress, [s'], nrpr)
+    redRules nrpr s = return (Finished, [s], nrpr)
+
+higherOrderToAppTys :: ASTContainer m Expr => ExprEnv -> ApplyTypes -> m -> m
+higherOrderToAppTys eenv at = modifyASTs (higherOrderToAppTys' eenv at)
+
+higherOrderToAppTys' :: ExprEnv -> ApplyTypes -> Expr -> Expr
+higherOrderToAppTys' eenv at v@(Var (Id n t))
+    | E.isSymbolic n eenv
+    , isTyFun t
+    , Just (tn, f) <- AT.lookup t at =
+        App (Var f) (Var (Id n (TyConApp tn [])))
+    | otherwise = v
+higherOrderToAppTys' _ _ e = e
+
+typeToAppType :: ASTContainer m Type => ApplyTypes -> m -> m
+typeToAppType at = modifyContainedASTs (typeToAppType' at)
+
+typeToAppType' :: ApplyTypes -> Type -> Type
+typeToAppType' at t =
+    case AT.applyTypeName t at of
+        Just tn -> TyConApp tn []
+        Nothing -> t
 
 data TaggerRed = TaggerRed Name NameGen
 

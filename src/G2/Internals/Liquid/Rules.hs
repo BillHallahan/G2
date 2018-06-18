@@ -62,6 +62,7 @@ lhReduce' State { expr_env = eenv
                         , ngen'
                         , maybe stck (\f' -> S.push f' stck) f
                         , []
+                        , []
                         , tr))
                        er
             sb = symbState eenv vv ng at stck tr
@@ -82,6 +83,7 @@ lhReduce' State { expr_env = eenv
                         , Nothing
                         , ngen'
                         , maybe stck (\f' -> S.push f' stck) f
+                        , []
                         , []
                         , tr {last_var = Just n}))
                        er
@@ -121,7 +123,7 @@ symbState eenv
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
+        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
         False -> Nothing
 symbState _ _ _ _ _ _ = Nothing
 

@@ -24,7 +24,7 @@ mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv config =
 
                 (typsE, typs') = instantitateTypes tc kv typs
 
-                (var_ids, is, ng') = mkInputs at ng typs'
+                (var_ids, is, ng') = mkInputs (higherOrderSolver config) at ng typs'
                 
                 var_ex = Var f
                 app_ex = foldl' App var_ex $ typsE ++ var_ids
@@ -46,21 +46,24 @@ mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv config =
             (let_ex, is, ng'')
         Right s' -> error s'
 
-mkInputs :: ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
-mkInputs _ ng [] = ([], [], ng)
-mkInputs at ng (t:ts) =
+mkInputs :: HigherOrderSolver -> ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
+mkInputs _ _ ng [] = ([], [], ng)
+mkInputs hs at ng (t:ts) =
     let
         (name, ng') = freshName ng
 
         (t', fv) =
             case AT.lookup t at of
-                Just (t'', f) -> (TyConApp t'' [], App (Var f))
+                Just (t'', f) ->
+                    if hs == EarlyDefunc
+                        then (TyConApp t'' [], App (Var f))
+                        else (t, id)
                 Nothing -> (t, id)
 
         i = Id name t'
         var_id = fv $ Var i
 
-        (ev, ei, ng'') = mkInputs at ng' ts
+        (ev, ei, ng'') = mkInputs hs at ng' ts
     in
     (var_id:ev, i:ei, ng'')
 

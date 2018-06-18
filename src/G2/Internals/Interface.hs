@@ -107,8 +107,9 @@ run :: (Named hv
        , Orderer or orv sov t) => r -> h -> or ->
     SMTConverter ast out io -> io -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
 run red hal ord con hhp pns config (is@State { type_env = tenv
-                                             , known_values = kv }) = do
-    let swept = markAndSweepPreserving pns is
+                                             , known_values = kv
+                                             , apply_types = at }) = do
+    let swept = markAndSweepPreserving (pns ++ names at) is
 
     let preproc_state = runPreprocessing swept
 
@@ -128,8 +129,6 @@ run red hal ord con hhp pns config (is@State { type_env = tenv
             ) $ ident_states'
 
     let ident_states''' = catMaybes ident_states''
-
-    mapM_ (print . tags) ident_states'''
 
     let sm = map (\s -> let (es, e, ais) = subModel s in (s, es, e, ais)) $ ident_states'''
 

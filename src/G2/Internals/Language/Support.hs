@@ -139,6 +139,7 @@ data Frame = CaseFrame Id [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
            | CastFrame Coercion
+           | CurrExprFrame CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
            deriving (Show, Eq, Read)
@@ -308,12 +309,14 @@ instance ASTContainer CurrExpr Type where
 instance ASTContainer Frame Expr where
     containedASTs (CaseFrame _ a) = containedASTs a
     containedASTs (ApplyFrame e) = [e]
+    containedASTs (CurrExprFrame e) = containedASTs e
     containedASTs (AssumeFrame e) = [e]
     containedASTs (AssertFrame _ e) = [e]
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i a) = CaseFrame i (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (f e)
+    modifyContainedASTs f (CurrExprFrame e) = CurrExprFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame is (f e)
     modifyContainedASTs _ fr = fr
@@ -321,6 +324,7 @@ instance ASTContainer Frame Expr where
 instance ASTContainer Frame Type where
     containedASTs (CaseFrame i a) = containedASTs i ++ containedASTs a
     containedASTs (ApplyFrame e) = containedASTs e
+    containedASTs (CurrExprFrame e) = containedASTs e
     containedASTs (AssumeFrame e) = containedASTs e
     containedASTs (AssertFrame _ e) = containedASTs e
     containedASTs _ = []
@@ -328,6 +332,7 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (CaseFrame i a) =
         CaseFrame (modifyContainedASTs f i) (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (modifyContainedASTs f e)
+    modifyContainedASTs f (CurrExprFrame e) = CurrExprFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame (modifyContainedASTs f is) (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
@@ -351,6 +356,7 @@ instance Named Frame where
     names (ApplyFrame e) = names e
     names (UpdateFrame n) = [n]
     names (CastFrame c) = names c
+    names (CurrExprFrame e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is ++ names e
 
@@ -358,6 +364,7 @@ instance Named Frame where
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
     rename old new (CastFrame c) = CastFrame (rename old new c)
+    rename old new (CurrExprFrame e) = CurrExprFrame (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
 
@@ -365,5 +372,6 @@ instance Named Frame where
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
     renames hm (UpdateFrame n) = UpdateFrame (renames hm n)
     renames hm (CastFrame c) = CastFrame (renames hm c)
+    renames hm (CurrExprFrame e) = CurrExprFrame (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
