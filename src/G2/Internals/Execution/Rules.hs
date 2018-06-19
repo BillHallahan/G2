@@ -372,6 +372,33 @@ stdReduceBase redEx s@State { exec_stack = estk
          (RuleReturnCAssert, [(eenv, CurrExpr Evaluate fexpr, [], [cond], is, ngen, estk', [], [], tr)])
 
   | CurrExpr Return expr <- cexpr
+  , Just (frm, _) <- S.pop estk
+  , not (isApplyFrame frm)
+  , (Var (Id f idt):_) <- unApp expr
+  , E.isSymbolic f eenv
+  , t <- typeOf expr
+  , isTyFun idt
+  , not (isTyFun t) 
+  , Just eq_tc <- eqTCDict kv tc t =
+    let
+      (new_sym, ngen') = freshSeededString "sym" ngen
+      new_sym_id = Id new_sym t
+
+      nrpc_e = mkApp [mkEq eenv, Type t, Var eq_tc, expr, Var new_sym_id]
+    in
+    (RuleReturnReplaceSymbFunc, 
+      [( E.insertSymbolic new_sym new_sym_id eenv
+      , CurrExpr Return (Var new_sym_id)
+      , []
+      , []
+      , Nothing
+      , ngen'
+      , estk
+      , []
+      , [nrpc_e]
+      , tr)])
+
+  | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- S.pop estk =
       let (rule, (eenv', cexpr', ngen', nr_pc)) = reduceEReturn eenv expr ngen f kv tc
       in
@@ -582,25 +609,6 @@ type EReturnResult = (E.ExprEnv, CurrExpr, NameGen, [Expr])
 -- | Handle the Return states.
 reduceEReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> KnownValues -> TypeClasses -> (Rule, EReturnResult)
 reduceEReturn eenv cexpr ngen frm kv tc
-  | not (isApplyFrame frm)
-  , (Var (Id f idt):_) <- unApp cexpr
-  , E.isSymbolic f eenv
-  , t <- typeOf cexpr
-  , isTyFun idt
-  , not (isTyFun t) 
-  , Just eq_tc <- eqTCDict kv tc t =
-    let
-      (new_sym, ngen') = freshSeededString "sym" ngen
-      new_sym_id = Id new_sym t
-
-      nrpc_e = mkApp [mkEq eenv, Type t, Var eq_tc, cexpr, Var new_sym_id]
-    in
-    (RuleReturnReplaceSymbFunc, 
-      ( E.insertSymbolic new_sym new_sym_id eenv
-      , CurrExpr Return (Var new_sym_id)
-      , ngen'
-      , [nrpc_e]))
-
 -- We are returning something and the first thing that we have on the stack
 -- is an `UpdateFrame`, this means that we add a redirection pointer to the
 -- `ExecExprEnv`, and continue with execution. This is the equivalent of

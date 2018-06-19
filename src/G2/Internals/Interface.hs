@@ -96,7 +96,7 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: (Named hv
+run :: (Named hv, Show t
        , Named t
        , ASTContainer hv Expr
        , ASTContainer t Expr
@@ -108,8 +108,9 @@ run :: (Named hv
     SMTConverter ast out io -> io -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
 run red hal ord con hhp pns config (is@State { type_env = tenv
                                              , known_values = kv
-                                             , apply_types = at }) = do
-    let swept = markAndSweepPreserving (pns ++ names at) is
+                                             , apply_types = at
+                                             , type_classes = tc }) = do
+    let swept = markAndSweepPreserving (pns ++ names at ++ names (lookupEqDicts kv tc)) is
 
     let preproc_state = runPreprocessing swept
 
@@ -131,6 +132,10 @@ run red hal ord con hhp pns config (is@State { type_env = tenv
     let ident_states''' = catMaybes ident_states''
 
     let sm = map (\s -> let (es, e, ais) = subModel s in (s, es, e, ais)) $ ident_states'''
+
+    -- mapM_ (print) sm
+
+    putStrLn "2"
 
     let sm' = map (\sm''@(s, _, _, _) -> runPostprocessing s sm'') sm
     let sm'' = map (\(s, es, e, ais) -> (s, es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'

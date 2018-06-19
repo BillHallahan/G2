@@ -13,6 +13,7 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , integralTCDict
                                          , lookupTCDict
                                          , lookupTCDicts
+                                         , lookupEqDicts
                                          , tcDicts
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
@@ -111,6 +112,9 @@ lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
 lookupTCDict tc (Name n _ _ _) t =
     (fmap (insts . snd) $ find (\(Name n' _ _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) -- M.lookup n ((coerce :: TypeClasses -> TCType) tc) 
     >>= fmap snd . find (\(t', _) -> t .:: t')
+
+lookupEqDicts :: KnownValues -> TypeClasses -> Maybe [(Type, Id)]
+lookupEqDicts kv = lookupTCDicts (eqTC kv)
 
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
 lookupTCDicts n = fmap insts . M.lookup n . coerce

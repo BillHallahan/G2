@@ -112,8 +112,9 @@ runGHC as = do
     in_out <- run (NonRedPCRed con hhp config
                     :<~| TaggerRed state_name tr_ng
                     :<~| StdRed con hhp config) 
-                  (DiscardIfAcceptedTag state_name 
-                    :<~> MaxOutputsHalter 
+                  (-- DiscardIfAcceptedTag state_name 
+                   -- :<~>
+                    MaxOutputsHalter 
                     :<~> ZeroHalter)
                   NextOrderer
                   con hhp [] config init_state
@@ -124,7 +125,7 @@ runGHC as = do
             r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
-            runHPC src (T.unpack $ fromJust mb_modname) entry in_out
+            -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
         False -> return ()
 
     -- putStrLn "----------------\n----------------"

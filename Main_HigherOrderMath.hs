@@ -1,4 +1,4 @@
-module HigherOrderMath where
+
 
 abs2 :: Float -> Float
 abs2 x
@@ -61,9 +61,6 @@ sameFloatArgLarger f x = f x x > x
 functionSatisfies :: ((Float -> Float) -> Bool) -> (Float -> Float) -> Float -> Float
 functionSatisfies f g x = if f g then g x else x
 
-functionSatisfies2 :: (Float -> Float) -> (Float -> Float) -> Float -> Float
-functionSatisfies2 f g x = g x
-
 fToG :: ((Float -> Float) -> Bool) -> (Float -> Float) -> Bool
 fToG f g = f g
 
@@ -86,3 +83,9 @@ isTrue1 _ _ b = b
 
 isTrue2 :: (Float -> Float -> Float) -> Float -> Bool -> Bool
 isTrue2 _ _ b = b
+
+main :: IO ()
+main =do
+  print (functionSatisfies notNegativeAt0 sub1 (0.0))
+  print (functionSatisfies notNegativeAt0 abs2 (-1.0))
+  

@@ -25,6 +25,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 subModel :: State t -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
