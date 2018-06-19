@@ -133,10 +133,6 @@ run red hal ord con hhp pns config (is@State { type_env = tenv
 
     let sm = map (\s -> let (es, e, ais) = subModel s in (s, es, e, ais)) $ ident_states'''
 
-    -- mapM_ (print) sm
-
-    putStrLn "2"
-
     let sm' = map (\sm''@(s, _, _, _) -> runPostprocessing s sm'') sm
     let sm'' = map (\(s, es, e, ais) -> (s, es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
 
