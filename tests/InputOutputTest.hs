@@ -43,7 +43,21 @@ checkInputOutput'' proj src md entry i req config = do
 
     let chAll = checkExprAll req
 
-    r <- run (StdRed con hhp config) ZeroHalter NextOrderer con hhp [] config init_state
+    r <- if higherOrderSolver config == AllFuncs
+          then run 
+              (NonRedPCRed con hhp config
+                :<~| StdRed con hhp config) 
+              (MaxOutputsHalter 
+                :<~> ZeroHalter)
+              NextOrderer
+              con hhp [] config init_state
+          else run
+              (NonRedPCRed con hhp config
+                :<~| StdRed con hhp config) 
+              (MaxOutputsHalter 
+                :<~> ZeroHalter)
+              NextOrderer
+              con hhp [] config init_state
     mr <- validateStates proj src md entry chAll [] r
     let io = map (\(_, i', o, _) -> i' ++ [o]) r
 

@@ -1,6 +1,6 @@
 module HigherOrder where
 
-data X = X
+data X = X deriving Eq
 
 f :: X -> X
 f X = X

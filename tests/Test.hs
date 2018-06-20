@@ -59,13 +59,13 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 600 (Just "equalsFour") Nothing "add" 3 [RExists peano_0_4, RExists peano_1_3, RExists peano_2_2, RExists peano_3_1, RExists peano_4_0, Exactly 5]
                 , checkExpr "tests/Samples/" "tests/Samples/Peano.hs" 750 (Just "equalsFour") Nothing "multiply" 3 [RExists peano_1_4, RExists peano_2_2, RExists peano_4_1, Exactly 3]
 
-                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 2 [RExists negativeSquareRes, AtLeast 1]
+                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 800 (Just "isTrue0") Nothing "notNegativeAt0NegativeAt1" 2 [RExists negativeSquareRes, AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue1") Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 Nothing Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger" 3 [RExists addRes, RExists subRes, AtLeast 2]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 1000 Nothing Nothing "approxSqrt" 3 [AtLeast 2]
-                -- -- The below test fails because Z3 returns unknown.
+                -- The below test fails because Z3 returns unknown.
                 -- , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameFloatArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
                 
                 , checkExpr "tests/Samples/" "tests/Samples/McCarthy91.hs" 1000 (Just "lessThan91") Nothing "mccarthy" 2 [RForAll (\[App _ (Lit (LitInt x)), _] -> x <= 100), AtLeast 1]
@@ -83,7 +83,7 @@ sampleTests =
 
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
-                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1400 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
 
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 8, RForAll errors]
 
@@ -301,11 +301,11 @@ smtADTTests :: IO TestTree
 smtADTTests =
     return . testGroup "SMTADT"
         =<< sequence [
-              checkExprWithConfig "tests/Samples/" "tests/Samples/Peano.hs" (Just "equalsFour") Nothing Nothing "add" 3 (mkConfigDef {steps = 600, smtADTs = True}) [RForAll peano_4_out, Exactly 5]
-            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNth.hs" Nothing Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True}) [AtLeast 10, RForAll getNthTest]
-            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNthPoly.hs" Nothing Nothing Nothing "getNth" 3 (mkConfigDef {steps = 1200, smtADTs = True}) [AtLeast 10]
+              checkExprWithConfig "tests/Samples/" "tests/Samples/Peano.hs" (Just "equalsFour") Nothing Nothing "add" 3 (mkConfigTest {steps = 600, smtADTs = True}) [RForAll peano_4_out, Exactly 5]
+            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNth.hs" Nothing Nothing Nothing "getNth" 3 (mkConfigTest {steps = 1200, smtADTs = True}) [AtLeast 10, RForAll getNthTest]
+            , checkExprWithConfig "tests/Samples/" "tests/Samples/GetNthPoly.hs" Nothing Nothing Nothing "getNth" 3 (mkConfigTest {steps = 1200, smtADTs = True}) [AtLeast 10]
 
-            , checkLiquidWithConfig "tests/Liquid" "tests/Liquid/Peano.hs" "add" 3 (mkConfigDef {steps = 400, smtADTs = True}) [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 1]
+            , checkLiquidWithConfig "tests/Liquid" "tests/Liquid/Peano.hs" "add" 3 (mkConfigTest {steps = 400, smtADTs = True}) [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 1]
         ]
 
 baseTests :: IO TestTree
@@ -347,7 +347,7 @@ checkExpr proj src stps m_assume m_assert entry i reqList =
 
 checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkExprReaches proj src stps m_assume m_assert m_reaches entry i reqList = do
-    checkExprWithConfig proj src m_assume m_assert m_reaches entry i (mkConfigDef {steps = stps}) reqList
+    checkExprWithConfig proj src m_assume m_assert m_reaches entry i (mkConfigTest {steps = stps}) reqList
 
 checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkExprWithConfig proj src m_assume m_assert m_reaches entry i config reqList = do
@@ -375,12 +375,16 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     
     (con, hhp) <- getSMT config
 
-    r <- run (StdRed con hhp config) ZeroHalter NextOrderer con hhp [] config init_state
+    r <- run (NonRedPCRed con hhp config
+               :<~| StdRed con hhp config)
+             (MaxOutputsHalter 
+               :<~> ZeroHalter)
+             NextOrderer con hhp [] config init_state
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
-checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigDef {steps = stps}) reqList
+checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps}) reqList
 
 checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
 checkLiquidWithConfig proj fp entry i config reqList = do
@@ -402,3 +406,6 @@ errors e =
     case last e of
         Prim Error _ -> True
         _ -> False
+
+mkConfigTest :: Config
+mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs }

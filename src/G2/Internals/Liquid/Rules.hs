@@ -41,7 +41,7 @@ import qualified Data.Text as T
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: State LHTracker -> (Rule, [ReduceResult LHTracker])
+lhReduce :: Config -> State LHTracker -> (Rule, [ReduceResult LHTracker])
 lhReduce = stdReduceBase lhReduce'
 
 lhReduce' :: State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
@@ -190,7 +190,7 @@ data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 instance Reducer (LHRed ast out io) LHTracker where
     redRules lhr@(LHRed smt io config) s = do
-        (r, s) <- reduce lhReduce smt io config s
+        (r, s) <- reduce (lhReduce config) smt io config s
 
         return $ (if r == RuleIdentity then Finished else InProgress, s, lhr)
 

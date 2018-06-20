@@ -2,7 +2,8 @@
 
 module G2.Internals.Language.Primitives where
 
-import qualified G2.Internals.Language.ExprEnv as E 
+import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.KnownValues 
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
@@ -118,6 +119,9 @@ mkGt = mkPrim Gt
 
 mkEq :: E.ExprEnv -> Expr
 mkEq = mkPrim Eq
+
+mkEq' :: KnownValues -> Expr
+mkEq' kv = Var (Id (eqFunc kv) TyBottom)
 
 mkNeq :: E.ExprEnv -> Expr
 mkNeq = mkPrim Neq

@@ -300,18 +300,18 @@ resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
 
 -- | stdReduce
 -- Interprets Haskell with no special semantics.
-stdReduce :: State t -> (Rule, [ReduceResult t])
+stdReduce :: Config -> State t -> (Rule, [ReduceResult t])
 stdReduce = stdReduceBase (const Nothing)
 
-stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> State t -> (Rule, [ReduceResult t])
-stdReduceBase redEx s@State { exec_stack = estk
-                            , expr_env = eenv
-                            , curr_expr = cexpr
-                            , name_gen = ngen
-                            , known_values = kv
-                            , type_classes = tc
-                            , track = tr
-                            }
+stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> Config -> State t -> (Rule, [ReduceResult t])
+stdReduceBase redEx con s@State { exec_stack = estk
+                               , expr_env = eenv
+                               , curr_expr = cexpr
+                               , name_gen = ngen
+                               , known_values = kv
+                               , type_classes = tc
+                               , track = tr
+                               }
   | isExecValueForm s =
       (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk, [], [], tr)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
@@ -384,7 +384,16 @@ stdReduceBase redEx s@State { exec_stack = estk
       (new_sym, ngen') = freshSeededString "sym" ngen
       new_sym_id = Id new_sym t
 
-      nrpc_e = mkApp [mkEq eenv, Type t, Var eq_tc, expr, Var new_sym_id]
+      nrpc_e = mkApp $ 
+                     [ mkEq' kv]
+                     ++
+                     (if mode con == Liquid
+                        then [ Var (Id (Name "" Nothing 0 Nothing) TyBottom) ]
+                        else [])
+                     ++
+                     [ Type t
+                     , Var eq_tc, expr
+                     , Var new_sym_id]
     in
     (RuleReturnReplaceSymbFunc, 
       [( E.insertSymbolic new_sym new_sym_id eenv

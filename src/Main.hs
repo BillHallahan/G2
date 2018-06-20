@@ -108,7 +108,16 @@ runGHC as = do
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing
 
-    in_out <- run (NonRedPCRed con hhp config
+    in_out <- if higherOrderSolver config == AllFuncs
+              then run 
+                  (NonRedPCRed con hhp config
+                    :<~| StdRed con hhp config) 
+                  (MaxOutputsHalter 
+                    :<~> ZeroHalter)
+                  NextOrderer
+                  con hhp [] config init_state
+              else run
+                  (NonRedPCRed con hhp config
                     :<~| TaggerRed state_name tr_ng
                     :<~| StdRed con hhp config) 
                   (DiscardIfAcceptedTag state_name 
@@ -116,7 +125,6 @@ runGHC as = do
                     :<~> ZeroHalter)
                   NextOrderer
                   con hhp [] config init_state
-
 
     case validate config of
         True -> do

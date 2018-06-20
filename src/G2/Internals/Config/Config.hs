@@ -4,13 +4,16 @@ import Data.Char
 import Data.List
 import qualified Data.Map as M
 
+data Mode = Regular | Liquid deriving (Eq, Show, Read)
+
 data SMTSolver = Z3 | CVC4 deriving (Eq, Show, Read)
 
-data HigherOrderSolver = EarlyDefunc
-                       | LateDefunc deriving (Eq, Show, Read)
+data HigherOrderSolver = AllFuncs
+                       | SingleFunc deriving (Eq, Show, Read)
 
 data Config = Config {
-      base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
+      mode :: Mode
+    , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
     , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
@@ -32,7 +35,8 @@ mkConfigDef = mkConfig [] M.empty
 
 mkConfig :: [String] -> M.Map String [String] -> Config
 mkConfig as m = Config {
-      base = strArgs "base" as m id ["../base-4.9.1.0/Control/Exception/Base.hs", "../base-4.9.1.0/Prelude.hs"]
+      mode = Regular
+    , base = strArgs "base" as m id ["../base-4.9.1.0/Control/Exception/Base.hs", "../base-4.9.1.0/Prelude.hs"]
     , logStates = strArg "log-states" as m Just Nothing
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
@@ -40,7 +44,7 @@ mkConfig as m = Config {
     , printPathCons = boolArg "print-pc" as m Off
     , printRelExprEnv = boolArg "print-rel-eenv" as m Off
     , returnsTrue = boolArg "returns-true" as m Off
-    , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg EarlyDefunc
+    , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg Z3
     , smtADTs = boolArg "smt-adts" as m Off
     , steps = strArg "n" as m read 500
@@ -62,8 +66,8 @@ higherOrderSolArg :: String -> HigherOrderSolver
 higherOrderSolArg = higherOrderSolArg' . map toLower
 
 higherOrderSolArg' :: String -> HigherOrderSolver
-higherOrderSolArg' "early" = EarlyDefunc
-higherOrderSolArg' "late" = LateDefunc
+higherOrderSolArg' "all" = AllFuncs
+higherOrderSolArg' "single" = SingleFunc
 higherOrderSolArg' _ = error "Unrecognized higher order solver."
 
 data BoolDef = On | Off deriving (Eq, Show)

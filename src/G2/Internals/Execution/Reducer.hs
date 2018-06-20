@@ -104,7 +104,7 @@ data HaltC = Discard -- ^ Switch to evaluating a new state, and reject the curre
 -- A set of Reduction Rules takes a State, and outputs new states
 -- The type parameter r is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as r.
-class Reducer r  t | r -> t where
+class Reducer r  t where
     -- | redRules
     -- Takes a State, and performs the appropriate Reduction Rule
     redRules :: r -> State t -> IO (ReducerRes, [State t], r)
@@ -198,7 +198,7 @@ data StdRed ast out io = StdRed (SMTConverter ast out io) io Config
 
 instance Reducer (StdRed ast out io) () where
     redRules stdr@(StdRed smt io config) s = do
-        (r, s') <- reduce stdReduce smt io config s
+        (r, s') <- reduce (stdReduce config) smt io config s
         
         return (if r == RuleIdentity then Finished else InProgress, s', stdr)
 
@@ -206,7 +206,7 @@ instance Reducer (StdRed ast out io) () where
 -- Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed ast out io = NonRedPCRed (SMTConverter ast out io) io Config
 
-instance Reducer (NonRedPCRed ast out io) () where
+instance Reducer (NonRedPCRed ast out io) t where
     redRules nrpr s@(State { expr_env = eenv
                            , type_env = tenv
                            , curr_expr = cexpr
@@ -257,7 +257,7 @@ typeToAppType' at t =
 
 data TaggerRed = TaggerRed Name NameGen
 
-instance Reducer TaggerRed () where
+instance Reducer TaggerRed t where
     redRules tr@(TaggerRed n ng) s@(State {tags = ts}) =
         let
             (n'@(Name n_ m_ _ _), ng') = freshSeededName n ng
