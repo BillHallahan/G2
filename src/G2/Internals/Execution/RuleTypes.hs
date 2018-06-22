@@ -50,6 +50,12 @@ data Rule = RuleEvalVal
           | RulePrimError
 
           | RuleAnnotation
+
+          | RuleReturnAppSymbFunc
+          | RuleReturnReplaceSymbFunc
+
+          | RuleReturnCurrExprFr
+
           | RuleError
            deriving (Show, Eq, Read)
 

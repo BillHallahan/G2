@@ -32,6 +32,7 @@ import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as Stack
 import qualified G2.Internals.Language.SymLinks as Sym
 
+import qualified Data.HashSet as S
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -68,6 +69,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
     , path_conds = PC.fromList kv $ map PCExists is
+    , non_red_path_conds = []
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc
@@ -84,6 +86,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , cleaned_names = M.empty
     , rules = []
     , track = ()
+    , tags = S.empty
  }
 
 mkExprEnv :: Program -> E.ExprEnv
@@ -93,7 +96,7 @@ mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
 
-run :: (Named hv
+run :: (Named hv, Show t
        , Named t
        , ASTContainer hv Expr
        , ASTContainer t Expr
@@ -104,8 +107,10 @@ run :: (Named hv
        , Orderer or orv sov t) => r -> h -> or ->
     SMTConverter ast out io -> io -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
 run red hal ord con hhp pns config (is@State { type_env = tenv
-                                             , known_values = kv }) = do
-    let swept = markAndSweepPreserving pns is
+                                             , known_values = kv
+                                             , apply_types = at
+                                             , type_classes = tc }) = do
+    let swept = markAndSweepPreserving (pns ++ names at ++ names (lookupEqDicts kv tc)) is
 
     let preproc_state = runPreprocessing swept
 

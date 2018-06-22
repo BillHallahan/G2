@@ -105,16 +105,33 @@ runGHC as = do
 
     (con, hhp) <- getSMT config
 
-    -- in_out <- run stdReduce halterIsZero halterSub1 (executeNext (maxOutputs config)) con hhp config () halter_set_state
-    in_out <- run (StdRed con hhp config) (MaxOutputsHalter :<~> ZeroHalter) NextOrderer con hhp [] config init_state
+    let tr_ng = mkNameGen ()
+    let state_name = Name "state" Nothing 0 Nothing
 
+    in_out <- if higherOrderSolver config == AllFuncs
+              then run 
+                  (NonRedPCRed con hhp config
+                    :<~| StdRed con hhp config) 
+                  (MaxOutputsHalter 
+                    :<~> ZeroHalter)
+                  NextOrderer
+                  con hhp [] config init_state
+              else run
+                  (NonRedPCRed con hhp config
+                    :<~| TaggerRed state_name tr_ng
+                    :<~| StdRed con hhp config) 
+                  (DiscardIfAcceptedTag state_name 
+                    :<~> MaxOutputsHalter 
+                    :<~> ZeroHalter)
+                  NextOrderer
+                  con hhp [] config init_state
 
     case validate config of
         True -> do
             r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
-            runHPC src (T.unpack $ fromJust mb_modname) entry in_out
+            -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
         False -> return ()
 
     -- putStrLn "----------------\n----------------"

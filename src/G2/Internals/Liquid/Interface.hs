@@ -65,13 +65,15 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- attempt to find counterexamples to the functions liquid type
 findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
 findCounterExamples proj fp entry libs lhlibs config = do
+    let config' = config { mode = Liquid }
+
     lh_config <- getOpts []
 
     ghc_cg <- getGHCInfos lh_config proj [fp] lhlibs
     
-    tgt_trans <- translateLoaded proj fp libs False config 
+    tgt_trans <- translateLoaded proj fp libs False config' 
 
-    runLHCore lh_config entry tgt_trans ghc_cg config
+    runLHCore lh_config entry tgt_trans ghc_cg config'
 
 runLHCore :: LHC.Config -> T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
                     -> [LHOutput]
@@ -92,6 +94,8 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
     let ng_state = no_part_state {name_gen = ng'}
 
+
+
     let ng_state' = ng_state {track = []}
 
     let lh_state = createLHTC meenv ng_state'
@@ -109,7 +113,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let merged_state = mergeLHSpecState (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
 
-    let beta_red_state = simplifyAsserts mkv tcv merged_state
+    let beta_red_state = simplifyAsserts mkv tcv merged_state {apply_types = apply_types ng2_state}
     let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
 
     -- We create annm_gen_state purely to have to generate less annotations
@@ -125,9 +129,30 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     (con, hhp) <- getSMT config
 
-    let final_state = track_state
+    let final_state = track_state { known_values = mkv }
 
-    ret <- run (LHRed con hhp config) (MaxOutputsHalter :<~> ZeroHalter :<~> LHHalter entry mb_modname (expr_env init_state)) NextOrderer con hhp (pres_names ++ names annm') config final_state
+    let tr_ng = mkNameGen ()
+    let state_name = Name "state" Nothing 0 Nothing
+
+    ret <- if higherOrderSolver config == AllFuncs
+              then run 
+                    (NonRedPCRed con hhp config
+                      :<~| LHRed con hhp config) 
+                    (MaxOutputsHalter 
+                      :<~> ZeroHalter 
+                      :<~> LHHalter entry mb_modname (expr_env init_state)) 
+                    NextOrderer 
+                    con hhp (pres_names ++ names annm') config final_state
+              else run 
+                    (NonRedPCRed con hhp config
+                      :<~| TaggerRed state_name tr_ng
+                      :<~| LHRed con hhp config) 
+                    (DiscardIfAcceptedTag state_name
+                      :<~> MaxOutputsHalter 
+                      :<~> ZeroHalter 
+                      :<~> LHHalter entry mb_modname (expr_env init_state)) 
+                    NextOrderer 
+                    con hhp (pres_names ++ names annm') config final_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -169,7 +194,8 @@ measureSpecs = concatMap (gsMeasures . spec)
 reqNames :: State t -> [Name]
 reqNames (State { expr_env = eenv
                 , type_classes = tc
-                , known_values = kv }) = 
+                , known_values = kv
+                , apply_types = at }) = 
     Lang.names [ mkGe eenv
                , mkGt eenv
                , mkEq eenv
@@ -191,7 +217,12 @@ reqNames (State { expr_env = eenv
                -- , mkToInteger eenv
                ]
     ++
-    Lang.names (M.filterWithKey (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv) (coerce tc :: M.Map Name Class))
+    Lang.names 
+      (M.filterWithKey 
+          (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv) 
+          (coerce tc :: M.Map Name Class)
+      )
+    ++ Lang.names at
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do

@@ -61,6 +61,12 @@ sameFloatArgLarger f x = f x x > x
 functionSatisfies :: ((Float -> Float) -> Bool) -> (Float -> Float) -> Float -> Float
 functionSatisfies f g x = if f g then g x else x
 
+functionSatisfies2 :: (Float -> Float) -> (Float -> Float) -> Float -> Float
+functionSatisfies2 f g x = g x
+
+fToG :: ((Float -> Float) -> Bool) -> (Float -> Float) -> Bool
+fToG f g = f g
+
 notNegativeAt0 :: (Float -> Float) -> Bool
 notNegativeAt0 f = f 0 >= 0
 

@@ -7,14 +7,26 @@
 module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , Halter (..)
                                       , Orderer (..)
+
                                       , Processed (..)
                                       , ReducerRes (..)
                                       , HaltC (..)
-                                      , HCombiner (..)
+
+                                      -- Reducers
+                                      , RCombiner (..)
                                       , StdRed (..)
+                                      , NonRedPCRed (..)
+                                      , TaggerRed (..)
+
+                                      -- Halters
+                                      , HCombiner (..)
                                       , ZeroHalter (..)
+                                      , DiscardIfAcceptedTag (..)
                                       , MaxOutputsHalter (..)
+
+                                      -- Orderers
                                       , NextOrderer (..)
+
                                       , getState
                                       , getOrderVal
                                       , setOrderVal
@@ -25,13 +37,17 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , reduce
                                       , runReducer ) where
 
+import qualified G2.Internals.Language.ApplyTypes as AT
+import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Config
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
+import G2.Internals.Language.Stack as Stck
 import G2.Internals.Solver
 import G2.Lib.Printers
 
 import Data.Foldable
+import qualified Data.HashSet as S
 import Data.Maybe
 import System.Directory
 
@@ -64,7 +80,7 @@ data Processed a = Processed { accepted :: [a]
                              , discarded :: [a] }
 
 -- | ReducerRes
--- Used by Reducers to indicate there progress reducing
+-- Used by Reducers to indicate their progress reducing
 data ReducerRes = NoProgress | InProgress | Finished deriving (Eq, Ord, Show, Read)
 
 progPrioritizer :: ReducerRes -> ReducerRes -> ReducerRes
@@ -74,13 +90,13 @@ progPrioritizer Finished _ = Finished
 progPrioritizer _ Finished = Finished
 progPrioritizer _ _ = NoProgress
 
--- HaltC
+-- | HaltC
 -- Used by members of the Halter typeclass to control whether to continue
 -- evaluating the current State, or switch to evaluating a new state.
-data HaltC = Discard -- Switch to evaluating a new state, and reject the current state
-           | Accept -- Switch to evaluating a new state, and accept the current state
-           | Switch -- Switch to evaluating a new state, but continue evaluating the current state later
-           | Continue -- Continue evaluating the current State
+data HaltC = Discard -- ^ Switch to evaluating a new state, and reject the current state
+           | Accept -- ^ Switch to evaluating a new state, and accept the current state
+           | Switch -- ^ Switch to evaluating a new state, but continue evaluating the current state later
+           | Continue -- ^ Continue evaluating the current State
            deriving (Eq, Ord, Show, Read)
 
 -- | Reducer r t
@@ -88,15 +104,15 @@ data HaltC = Discard -- Switch to evaluating a new state, and reject the current
 -- A set of Reduction Rules takes a State, and outputs new states
 -- The type parameter r is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as r.
-class Reducer r  t | r -> t where
+class Reducer r  t where
     -- | redRules
     -- Takes a State, and performs the appropriate Reduction Rule
-    redRules :: r -> State t -> IO (ReducerRes, [State t])
+    redRules :: r -> State t -> IO (ReducerRes, [State t], r)
 
 -- | Halter h hv t
 -- Determines when to stop evaluating a state
 -- The type parameter h is used to disambiguate between different producers.
--- To create a new reducer, define some new type, and use it as h.
+-- To create a new Halter, define some new type, and use it as h.
 class Halter h hv t | h -> hv where
     -- | initHalt
     -- Initializes each state halter value
@@ -122,8 +138,8 @@ class Halter h hv t | h -> hv where
 -- Law: Given
 --    (exs', _) = orderStates or orv proc exs
 -- it must be the case that length exs' == length exs
--- An Orderer should never eliinate a state, only reorder the states
--- To not evaluate certain states, use a Halterer
+-- An Orderer should never eliminate a state, only reorder the states
+-- To not evaluate certain states, use a Halter
 class Orderer or orv sov t | or -> orv, or -> sov where
     -- | initOrdering
     -- Initializing the overall ordering value 
@@ -140,6 +156,116 @@ class Orderer or orv sov t | or -> orv, or -> sov where
     -- The State at the head of the list is the next executed.
     -- Takes and returns some extra data that it can use however it wants
     orderStates :: or -> orv -> Processed (ExState hv sov t) -> [ExState hv sov t] -> ([ExState hv sov t], orv)    
+
+-- | RCombiner r1 r2
+-- Combines reducers in various ways
+data RCombiner r1 r2 = r1 :<~ r2 -- ^ Apply r2, followed by r1.  Takes the leftmost update to r1
+                     | r1 :<~? r2 -- ^ Apply r2, apply r1 only if r2 returns NoProgress
+                     | r1 :<~| r2 -- ^ Apply r2, apply r1 only if r2 returns Finished
+                     deriving (Eq, Show, Read)
+
+instance (Reducer r1 t, Reducer r2 t) => Reducer (RCombiner r1 r2) t where
+    redRules (r1 :<~ r2) s = do
+        (rr2, s', r2') <- redRules r2 s
+        (rr1, s'', r1') <- redRulesToStates r1 s'
+
+        return (progPrioritizer rr1 rr2, s'', r1' :<~ r2')
+    redRules (r1 :<~? r2) s = do
+        rs@(rr2, s', r2') <- redRules r2 s
+        case rr2 of
+            NoProgress -> do
+                (rr1, s'', r1') <- redRulesToStates r1 s'
+                return (rr1, s'', r1' :<~? r2')
+            _ -> return (rr2, s', r1 :<~? r2')
+    redRules (r1 :<~| r2) s = do
+        rs@(rr2, s', r2') <- redRules r2 s
+        case rr2 of
+            Finished -> do
+                (rr1, s'', r1') <- redRulesToStates r1 s'
+                return (rr1, s'', r1' :<~| r2')
+            _ -> return (rr2, s', r1 :<~| r2')
+
+redRulesToStates :: Reducer r t => r -> [State t] -> IO (ReducerRes, [State t], r)
+redRulesToStates r s = do
+    rs <- mapM (redRules r) s
+    let (rr, s', r') = unzip3 rs
+
+    let rf = foldr progPrioritizer NoProgress rr
+
+    return $ (rf, concat s', head r')
+
+data StdRed ast out io = StdRed (SMTConverter ast out io) io Config
+
+instance Reducer (StdRed ast out io) () where
+    redRules stdr@(StdRed smt io config) s = do
+        (r, s') <- reduce (stdReduce config) smt io config s
+        
+        return (if r == RuleIdentity then Finished else InProgress, s', stdr)
+
+-- | NonRedPCRed ast out io
+-- Removes and reduces the values in a State's non_red_path_conds field. 
+data NonRedPCRed ast out io = NonRedPCRed (SMTConverter ast out io) io Config
+
+instance Reducer (NonRedPCRed ast out io) t where
+    redRules nrpr s@(State { expr_env = eenv
+                           , type_env = tenv
+                           , curr_expr = cexpr
+                           , exec_stack = stck
+                           , known_values = kv
+                           , path_conds = pc
+                           , non_red_path_conds = re_pc@(_:_)
+                           , apply_types = at
+                           , input_ids = is
+                           , symbolic_ids = si }) = do
+        let stck' = Stck.push (CurrExprFrame cexpr) stck
+
+        let and = mkAnd eenv
+        let true = mkTrue kv tenv
+        let cexpr' = CurrExpr Evaluate $ foldr (\e -> App (App and e)) true re_pc
+        let cexpr'' = higherOrderToAppTys eenv at cexpr'
+
+        let s' = s { curr_expr = cexpr''
+                   , exec_stack = stck'
+                   , non_red_path_conds = []
+                   , path_conds = typeToAppType at pc
+                   , input_ids = typeToAppType at is
+                   , symbolic_ids = typeToAppType at si }
+
+        return (InProgress, [s'], nrpr)
+    redRules nrpr s = return (Finished, [s], nrpr)
+
+higherOrderToAppTys :: ASTContainer m Expr => ExprEnv -> ApplyTypes -> m -> m
+higherOrderToAppTys eenv at = modifyASTs (higherOrderToAppTys' eenv at)
+
+higherOrderToAppTys' :: ExprEnv -> ApplyTypes -> Expr -> Expr
+higherOrderToAppTys' eenv at v@(Var (Id n t))
+    | E.isSymbolic n eenv
+    , isTyFun t
+    , Just (tn, f) <- AT.lookup t at =
+        App (Var f) (Var (Id n (TyConApp tn [])))
+    | otherwise = v
+higherOrderToAppTys' _ _ e = e
+
+typeToAppType :: ASTContainer m Type => ApplyTypes -> m -> m
+typeToAppType at = modifyContainedASTs (typeToAppType' at)
+
+typeToAppType' :: ApplyTypes -> Type -> Type
+typeToAppType' at t =
+    case AT.applyTypeName t at of
+        Just tn -> TyConApp tn []
+        Nothing -> t
+
+data TaggerRed = TaggerRed Name NameGen
+
+instance Reducer TaggerRed t where
+    redRules tr@(TaggerRed n ng) s@(State {tags = ts}) =
+        let
+            (n'@(Name n_ m_ _ _), ng') = freshSeededName n ng
+        in
+        if null $ S.filter (\(Name n__ m__ _ _) -> n_ == n__ && m_ == m__) ts then
+            return (Finished, [s {tags = S.insert n' ts}], TaggerRed n ng')
+        else
+            return (Finished, [s], tr)
 
 -- | HCombiner h1 h2
 -- Allows executing multiple halters.
@@ -194,48 +320,15 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         C hv1' hv2'
 
--- RCombiner r1 r2
--- Combines reducers in various ways
-data RCombiner r1 r2 = r1 :<~ r2 -- | Apply r2, followed by r1
-                     | r1 :<~? r2 -- | Apply r2, apply r1 only if r2 returns NoProgress
-                     | r1 :<~| r2 -- | Apply r2, apply r1 only if r2 returns Finished
-
-instance (Reducer r1 t, Reducer r2 t) => Reducer (RCombiner r1 r2) t where
-    redRules (r1 :<~ r2) s = do
-        (r', s') <- redRules r2 s
-        rs <- mapM (redRules r1) s'
-        let (r'', s'') = unzip rs
-
-        let rf = foldr1 progPrioritizer (r':r'')
-
-        return $ (rf, concat s'')
-    redRules (r1 :<~? r2) s = do
-        rs@(r', s') <- redRules r2 s
-        case r' of
-            NoProgress -> redRules r1 s
-            _ -> return rs
-    redRules (r1 :<~? r2) s = do
-        rs@(r', s') <- redRules r2 s
-        case r' of
-            Finished -> redRules r1 s
-            _ -> return rs
-
-data StdRed ast out io = StdRed (SMTConverter ast out io) io Config
 data ZeroHalter = ZeroHalter
-data MaxOutputsHalter = MaxOutputsHalter
-data NextOrderer = NextOrderer
-
-instance Reducer (StdRed ast out io) () where
-    redRules (StdRed smt io config) s = do
-        (r, s) <- reduce stdReduce smt io config s
-        
-        return (if r == RuleIdentity then Finished else InProgress, s)
 
 instance Halter ZeroHalter Int t where
     initHalt _ config _ = steps config
     reInitHalt _ hv _ _ = hv
     stopRed = halterIsZero
     stepHalter = halterSub1
+
+data MaxOutputsHalter = MaxOutputsHalter
 
 instance Halter MaxOutputsHalter (Maybe Int) t where
     initHalt _ config _ = maxOutputs config
@@ -245,6 +338,35 @@ instance Halter MaxOutputsHalter (Maybe Int) t where
             Just m' -> if length acc >= m' then Discard else Continue
             _ -> Continue
     stepHalter _ hv _ _ = hv
+
+-- | DiscardIfAcceptedTag
+-- If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
+-- matches a Tag in the Accepted State list,
+-- and in the State being evaluated, discard the State
+data DiscardIfAcceptedTag = DiscardIfAcceptedTag Name 
+
+instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
+    initHalt _ _ _ = S.empty
+    
+    -- reInitHalter gets the intersection of the accepted States Tags,
+    -- and the Tags of the State being evaluated.
+    -- Then, it filters further by the name in the Halter
+    reInitHalt (DiscardIfAcceptedTag (Name n m _ _)) 
+               _ 
+               (Processed {accepted = acc})
+               (State {tags = ts}) =
+        let
+            allAccTags = S.unions $ map tags acc
+            matchCurrState = S.intersection ts allAccTags
+        in
+        S.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
+
+    stopRed _ ns _ _ =
+        if not (S.null ns) then Discard else Continue
+
+    stepHalter _ hv _ _ = hv
+
+data NextOrderer = NextOrderer
 
 instance Orderer NextOrderer () () t where
     initOrder _ _ _ = ()
@@ -308,13 +430,13 @@ runReducer red hal ord con hpp p states config =
                 Just f -> outputState f is s
                 Nothing -> return ()
 
-            (_, reduceds) <- redRules red' s
+            (_, reduceds, red'') <- redRules red' s
 
             let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
             
             let mod_info = map (\(i, s') -> rss {state = s', halter_val = stepHalter hal' h_val (processedToState fnsh) s', cases = is ++ maybe [] (\i' -> [i']) i}) isred
             
-            runReducer' red' hal' ord' p' fnsh (mod_info ++ xs)
+            runReducer' red'' hal' ord' p' fnsh (mod_info ++ xs)
         where
             hc = stopRed hal' h_val (processedToState fnsh) s
 

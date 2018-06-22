@@ -52,13 +52,8 @@ mkInputs at ng (t:ts) =
     let
         (name, ng') = freshName ng
 
-        (t', fv) =
-            case AT.lookup t at of
-                Just (t'', f) -> (TyConApp t'' [], App (Var f))
-                Nothing -> (t, id)
-
-        i = Id name t'
-        var_id = fv $ Var i
+        i = Id name t
+        var_id = Var i
 
         (ev, ei, ng'') = mkInputs at ng' ts
     in

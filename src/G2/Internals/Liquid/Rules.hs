@@ -41,7 +41,7 @@ import qualified Data.Text as T
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: State LHTracker -> (Rule, [ReduceResult LHTracker])
+lhReduce :: Config -> State LHTracker -> (Rule, [ReduceResult LHTracker])
 lhReduce = stdReduceBase lhReduce'
 
 lhReduce' :: State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
@@ -61,6 +61,7 @@ lhReduce' State { expr_env = eenv
                         , Nothing
                         , ngen'
                         , maybe stck (\f' -> S.push f' stck) f
+                        , []
                         , []
                         , tr))
                        er
@@ -82,6 +83,7 @@ lhReduce' State { expr_env = eenv
                         , Nothing
                         , ngen'
                         , maybe stck (\f' -> S.push f' stck) f
+                        , []
                         , []
                         , tr {last_var = Just n}))
                        er
@@ -121,7 +123,7 @@ symbState eenv
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && null (tyVars cexprT) of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
+        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
         False -> Nothing
 symbState _ _ _ _ _ _ = Nothing
 
@@ -187,10 +189,10 @@ data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
 instance Reducer (LHRed ast out io) LHTracker where
-    redRules (LHRed smt io config) s = do
-        (r, s) <- reduce lhReduce smt io config s
+    redRules lhr@(LHRed smt io config) s = do
+        (r, s) <- reduce (lhReduce config) smt io config s
 
-        return $ (if r == RuleIdentity then Finished else InProgress, s)
+        return $ (if r == RuleIdentity then Finished else InProgress, s, lhr)
 
 instance Halter LHHalter Int LHTracker where
     initHalt (LHHalter entry modn eenv) _ _ =

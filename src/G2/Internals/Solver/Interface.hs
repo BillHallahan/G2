@@ -25,6 +25,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 subModel :: State t -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
@@ -42,16 +44,20 @@ subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
     subVar em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
 subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> TypeClasses -> m -> m
-subVar em eenv tc = modifyContainedVars (subVar' em eenv tc) . filterTC tc
+subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc []) . filterTC tc
 
-subVar' :: ExprModel -> ExprEnv -> TypeClasses -> Expr -> Expr
-subVar' em eenv tc v@(Var (Id n _)) =
+subVar' :: ExprModel -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
+subVar' em eenv tc is v@(Var i@(Id n _))
+    | i `notElem` is =
     case M.lookup n em of
-        Just e -> filterTC tc e
+        Just e -> subVar' em eenv tc (i:is) $ filterTC tc e
         Nothing -> case E.lookup n eenv of
-            Just e -> if (isExprValueForm e eenv && notLam e) || isApp e || isVar e then subVar' em eenv tc $ filterTC tc e else v
+            Just e -> if (isExprValueForm e eenv && notLam e) || isApp e || isVar e
+                        then subVar' em eenv tc (i:is) $ filterTC tc e
+                        else v
             Nothing -> v
-subVar' _ _ _ e = e
+    | otherwise = v
+subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 
 notLam :: Expr -> Bool
 notLam (Lam _ _) = False
@@ -64,13 +70,6 @@ isApp _ = False
 isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
-
-modifyContainedVars :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
-modifyContainedVars f = modifyContainedASTs (modifyVars' f [])
-
-modifyVars' :: (Expr -> Expr) -> [Id] -> Expr -> Expr
-modifyVars' f is v@(Var i) = if i `elem` is then v else modifyVars' f (i:is) (f v)
-modifyVars' f is e = modifyChildren (modifyVars' f is) e
 
 filterTC :: ASTContainer m Expr => TypeClasses -> m -> m
 filterTC tc = modifyASTsFix (filterTC' tc)
@@ -282,7 +281,7 @@ addADTs n tn ts s =
                         (ns, _) = childrenNames n ts'' (name_gen s)
 
                         vs = map (\n' -> 
-                                case  E.lookup n' eenv of
+                                case E.lookup n' eenv of
                                     Just e -> e
                                     Nothing -> Prim Undefined TyBottom) ns
                         is = mapMaybe (varId) vs
