@@ -227,9 +227,9 @@ instance Reducer (NonRedPCRed ast out io) t where
         let s' = s { curr_expr = cexpr''
                    , exec_stack = stck'
                    , non_red_path_conds = []
-                   , path_conds = typeToAppType at pc
-                   , input_ids = typeToAppType at is
-                   , symbolic_ids = typeToAppType at si }
+                   , path_conds = AT.typeToAppType at pc
+                   , input_ids = AT.typeToAppType at is
+                   , symbolic_ids = AT.typeToAppType at si }
 
         return (InProgress, [s'], nrpr)
     redRules nrpr s = return (Finished, [s], nrpr)
@@ -245,15 +245,6 @@ higherOrderToAppTys' eenv at v@(Var (Id n t))
         App (Var f) (Var (Id n (TyConApp tn [])))
     | otherwise = v
 higherOrderToAppTys' _ _ e = e
-
-typeToAppType :: ASTContainer m Type => ApplyTypes -> m -> m
-typeToAppType at = modifyContainedASTs (typeToAppType' at)
-
-typeToAppType' :: ApplyTypes -> Type -> Type
-typeToAppType' at t =
-    case AT.applyTypeName t at of
-        Just tn -> TyConApp tn []
-        Nothing -> t
 
 data TaggerRed = TaggerRed Name NameGen
 

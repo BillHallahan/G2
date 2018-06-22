@@ -14,6 +14,7 @@ module G2.Internals.Solver.Interface
 import G2.Internals.Config.Config
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Language hiding (Model)
+import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Solver.ADTSolver
@@ -24,8 +25,6 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
-
-import Debug.Trace
 
 subModel :: State t -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
@@ -205,15 +204,17 @@ checkModel' _ _ [] s = do
     return (SAT, Just $ model s)
 -- We can't use the ADT solver when we have a Boolean, because the RHS of the
 -- DataAlt might be a primitive.
-checkModel' con io (Id n t@(TyConApp tn ts):is) s
+checkModel' con io (Id n t@(TyConApp tn ts):is) s@(State {apply_types = at})
     | t /= tyBool (known_values s)  =
     do
         let (r, is', s') = addADTs n tn ts s
 
         let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
 
+        let is''' = AT.typeToAppType at $ is ++ is''
+
         case r of
-            SAT -> checkModel' con io (is ++ is'') s'
+            SAT -> checkModel' con io is''' s'
             r' -> return (r', Nothing)
 checkModel' con io (i:is) s = do
     (m, av) <- getModelVal con io i Nothing s
@@ -222,7 +223,7 @@ checkModel' con io (i:is) s = do
         Nothing -> return (UNSAT, Nothing)
 
 getModelVal :: SMTConverter ast out io -> io -> Id -> Maybe Config -> State t -> IO (Maybe ExprModel, ArbValueGen)
-getModelVal con io (Id n _) config s = do
+getModelVal con io i@(Id n _) config s = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
  
     let pc = PC.scc (known_values s) [n] (path_conds s)
@@ -287,7 +288,7 @@ addADTs n tn ts s =
                         is = mapMaybe (varId) vs
                     in
                     (mkApp $ fdc:vs, is)
-                _ -> error "Unusable DataCon in addADTs"
+                _ -> error $ "Unusable DataCon in addADTs"
 
         m = M.insert n dc (model s)
 

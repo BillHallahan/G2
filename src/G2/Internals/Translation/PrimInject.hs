@@ -94,11 +94,13 @@ primDefs = [ ("==#", Prim Eq TyBottom)
 
            , ("fromIntToFloat", Prim IntToFloat TyBottom)
            , ("fromIntToDouble", Prim IntToDouble TyBottom)
+           , ("absentErr", Prim Error TyBottom)
            , ("error", Prim Error TyBottom)
            , ("errorWithoutStackTrace", Prim Error TyBottom)
            , ("divZeroError", Prim Error TyBottom)
            , ("patError", Prim Error TyBottom)
-           , ("absentErr", Prim Error TyBottom)
+           , ("succError", Prim Error TyBottom)
+           , ("toEnumError", Prim Error TyBottom)
            , ("undefined", Prim Error TyBottom)]
 
 replaceFromPD :: Id -> Expr -> (Id, Expr)

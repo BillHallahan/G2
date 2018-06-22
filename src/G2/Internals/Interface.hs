@@ -59,7 +59,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
 
-        (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc at ng' eenv' ds_walkers kv config
+        (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc ng' eenv' ds_walkers kv config
 
         eenv'' = checkReaches eenv' tenv' kv m_reaches m_mod
     in

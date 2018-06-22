@@ -1,12 +1,16 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module G2.Internals.Language.ApplyTypes ( ApplyTypes
                                         , lookup
                                         , applyTypeName
                                         , applyTypeFunc
                                         , applyFuncs
                                         , empty
+                                        , typeToAppType
                                         , insert
                                         , toList) where
 
+import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
@@ -34,6 +38,15 @@ applyFuncs = map snd . HM.elems . applyTypesMap
 
 empty :: ApplyTypes
 empty = ApplyTypes HM.empty
+
+typeToAppType :: ASTContainer m Type => ApplyTypes -> m -> m
+typeToAppType at = modifyContainedASTs (typeToAppType' at)
+
+typeToAppType' :: ApplyTypes -> Type -> Type
+typeToAppType' at t =
+    case applyTypeName t at of
+        Just tn -> TyConApp tn []
+        Nothing -> t
 
 insert :: Type -> Name -> Id -> ApplyTypes -> ApplyTypes
 insert t name fn = coerce . HM.insert t (name, fn) . applyTypesMap

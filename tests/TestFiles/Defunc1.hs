@@ -15,3 +15,8 @@ add1 x = x + 1
 
 multiply2 :: Int -> Int
 multiply2 x = x * 2
+
+data X = X (Int -> Int)
+
+x :: X -> Int
+x (X g) = g 4

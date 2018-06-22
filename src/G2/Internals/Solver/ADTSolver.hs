@@ -1,5 +1,5 @@
 module G2.Internals.Solver.ADTSolver ( checkConsistency
-                                     , findConsistent) where
+                                     , findConsistent, findConsistent'') where
 
 import G2.Internals.Language.Casts
 import G2.Internals.Language.Support
