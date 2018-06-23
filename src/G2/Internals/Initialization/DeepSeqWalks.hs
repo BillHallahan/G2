@@ -132,6 +132,8 @@ createDeepSeqDataConCase2 tenv w ti (i:is) ng e
         (ae, ng'') = createDeepSeqDataConCase2 tenv w ti is ng' (App e viCast)
     in
     (Case bCast i' [Alt Default ae], ng'')
+    | TyFun _ _ <- typeOf i =
+        createDeepSeqDataConCase2 tenv w ti is ng (App e (Var i)) 
     | otherwise =
         let
             (i', ng') = freshId (typeOf i) ng

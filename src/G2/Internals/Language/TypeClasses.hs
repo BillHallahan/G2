@@ -15,6 +15,8 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , lookupTCDicts
                                          , lookupEqDicts
                                          , tcDicts
+                                         , concreteSatEq
+                                         , concreteSatTC
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
 
@@ -168,6 +170,19 @@ tyConAppArg _ = []
 inter :: Eq a => [[a]] -> [a]
 inter [] = []
 inter xs = foldr1 intersect xs
+
+concreteSatEq :: KnownValues -> TypeClasses -> Type -> Expr
+concreteSatEq kv tc t = concreteSatTC tc (eqTC kv) t
+
+concreteSatTC :: TypeClasses -> Name -> Type -> Expr
+concreteSatTC tc tcn t@(TyConApp _ ts) =
+    case lookupTCDict tc tcn t of
+        Just i -> foldl' App (Var i) $ map Type ts ++  map (concreteSatTC tc tcn) ts
+        Nothing -> error "Unknown typeclass in concreteSatTC"
+concreteSatTC tc tcn t =
+    case lookupTCDict tc tcn t of
+        Just i -> Var i
+        Nothing -> error "Unknown typeclass in concreteSatTC"
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments

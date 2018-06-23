@@ -104,7 +104,7 @@ deepLookup n eenv =
 isSymbolic :: Name -> ExprEnv -> Bool
 isSymbolic n eenv@(ExprEnv eenv') =
     case M.lookup n eenv' of
-        Just (ExprObj (App (Var fvar) _)) -> isSymbolic (idName fvar) eenv
+        -- Just (ExprObj (App (Var fvar) _)) -> isSymbolic (idName fvar) eenv
         Just (SymbObj _) -> True
         _ -> False
 

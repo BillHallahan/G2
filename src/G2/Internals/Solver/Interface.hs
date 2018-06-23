@@ -207,11 +207,15 @@ checkModel' _ _ [] s = do
 checkModel' con io (Id n t@(TyConApp tn ts):is) s@(State {apply_types = at})
     | t /= tyBool (known_values s)  =
     do
+        -- case n of
+        --     Name "sym" _ _ _ -> putStrLn "Sym"
+        --     _ -> return ()
+
         let (r, is', s') = addADTs n tn ts s
 
         let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
 
-        let is''' = AT.typeToAppType at $ is ++ is''
+        let is''' = is ++ (AT.typeToAppType at is'')
 
         case r of
             SAT -> checkModel' con io is''' s'

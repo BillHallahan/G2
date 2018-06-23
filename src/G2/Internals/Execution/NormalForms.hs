@@ -31,9 +31,13 @@ isExprValueForm _ _ = True
 -- | Is the execution state in a value form of some sort? This would entail:
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
+-- * We have no path conds to reduce
 isExecValueForm :: State t -> Bool
 isExecValueForm state | Nothing <- S.pop (exec_stack state)
-                      , CurrExpr Return _ <- curr_expr state = True
-
+                      , CurrExpr Return _ <- curr_expr state
+                      , non_red_path_conds state == [] = True
                       | otherwise = False
 
+
+isExecValueFormDisNonRedPC :: State t -> Bool
+isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = []}
