@@ -20,3 +20,14 @@ data X = X (Int -> Int)
 
 x :: X -> Int
 x (X g) = g 4
+
+data Y a = Y a
+
+mapY :: (a -> a) -> Y a -> Y a
+mapY f (Y x) = Y (f x)
+
+yAdd1 :: Y Int -> Y Int
+yAdd1 (Y x) = Y (x + 1)
+
+mapYInt :: (Y Int -> Y Int) -> Y Int -> Y Int
+mapYInt f x = f x 

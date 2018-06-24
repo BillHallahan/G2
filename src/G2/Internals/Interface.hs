@@ -54,10 +54,12 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
 
         ng = mkNameGen (prog, prog_typ)
 
-        (s', ft, at, ds_walkers) = runInitialization eenv tenv ng kv ts tgtNames
+        (s', ft, at, ds_walkers) = runInitialization eenv tenv ng kv tc ts tgtNames
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
+        kv' = IT.known_values s'
+        tc' = IT.type_classes s'
 
         (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc ng' eenv' ds_walkers kv config
 
@@ -72,7 +74,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , non_red_path_conds = []
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
-    , type_classes = tc
+    , type_classes = tc'
     , input_ids = is
     , symbolic_ids = is
     , sym_links = Sym.empty
@@ -82,7 +84,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , exec_stack = Stack.empty
     , model = M.empty
     , arbValueGen = arbValueInit
-    , known_values = kv
+    , known_values = kv'
     , cleaned_names = M.empty
     , rules = []
     , track = ()
@@ -110,7 +112,7 @@ run red hal ord con hhp pns config (is@State { type_env = tenv
                                              , known_values = kv
                                              , apply_types = at
                                              , type_classes = tc }) = do
-    let swept = markAndSweepPreserving (pns ++ names at ++ names (lookupEqDicts kv tc)) is
+    let swept = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is
 
     let preproc_state = runPreprocessing swept
 

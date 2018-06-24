@@ -423,13 +423,16 @@ instance Named KnownValues where
             , ltFunc = ltF
             , leFunc = leF
 
+            , structEqTC = seT
+            , structEqFunc = seF
+
             , andFunc = andF
             , orFunc = orF
 
             , patErrorFunc = patE
             }) =
             [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF, tList, tCons, tEmp
-            , eqT, numT, ordT, integralT, eqF, neqF, geF, gtF, ltF, leF
+            , eqT, numT, ordT, integralT, eqF, neqF, geF, gtF, ltF, leF, seT, seF
             , andF, orF, patE]
 
     rename old new (KnownValues {
@@ -462,6 +465,9 @@ instance Named KnownValues where
                    , gtFunc = gtF
                    , ltFunc = ltF
                    , leFunc = leF
+
+                   , structEqTC = seT
+                   , structEqFunc = seF
 
                    , andFunc = andF
                    , orFunc = orF
@@ -497,6 +503,9 @@ instance Named KnownValues where
                         , gtFunc = rename old new gtF
                         , ltFunc = rename old new ltF
                         , leFunc = rename old new leF
+
+                        , structEqTC = rename old new seT
+                        , structEqFunc = rename old new seF
 
                         , andFunc = rename old new andF
                         , orFunc = rename old new orF

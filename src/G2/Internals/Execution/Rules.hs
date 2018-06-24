@@ -23,6 +23,7 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as S
 import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
 
@@ -378,13 +379,15 @@ stdReduceBase redEx con s@State { exec_stack = estk
   , t <- typeOf expr
   , isTyFun idt
   , not (isTyFun t) 
-  , eq_tc <- concreteSatEq kv tc t = -- eqTCDict kv tc t =
+  , eq_tc <- concreteSatStructEq kv tc t =
     let
       (new_sym, ngen') = freshSeededString "sym" ngen
       new_sym_id = Id new_sym t
 
+      s_eq_f = KV.structEqFunc kv
+
       nrpc_e = mkApp $ 
-                     [ mkEq' kv]
+                     [ Var (Id s_eq_f TyUnknown)]
                      ++
                      (if mode con == Liquid
                         then [ Var (Id (Name "" Nothing 0 Nothing) TyBottom) ]

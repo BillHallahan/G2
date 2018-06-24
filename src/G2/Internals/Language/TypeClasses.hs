@@ -11,11 +11,14 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , numTCDict
                                          , ordTCDict
                                          , integralTCDict
+                                         , structEqTCDict
                                          , lookupTCDict
                                          , lookupTCDicts
                                          , lookupEqDicts
+                                         , lookupStructEqDicts
                                          , tcDicts
                                          , concreteSatEq
+                                         , concreteSatStructEq
                                          , concreteSatTC
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
@@ -108,15 +111,23 @@ ordTCDict kv tc t = lookupTCDict tc (ordTC kv) t
 integralTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
 integralTCDict kv tc t = lookupTCDict tc (integralTC kv) t
 
+structEqTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
+structEqTCDict kv tc t = lookupTCDict tc (structEqTC kv) t
+
+
 -- Returns the dictionary for the given typeclass and Type,
 -- if one exists
 lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
 lookupTCDict tc (Name n _ _ _) t =
-    (fmap (insts . snd) $ find (\(Name n' _ _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) -- M.lookup n ((coerce :: TypeClasses -> TCType) tc) 
-    >>= fmap snd . find (\(t', _) -> t .:: t')
+    case (fmap (insts . snd) $ find (\(Name n' _ _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) of
+        Just c -> fmap snd $ find (\(t', _) -> t .:: t') c
+        Nothing -> Nothing
 
 lookupEqDicts :: KnownValues -> TypeClasses -> Maybe [(Type, Id)]
 lookupEqDicts kv = lookupTCDicts (eqTC kv)
+
+lookupStructEqDicts :: KnownValues -> TypeClasses -> Maybe [(Type, Id)]
+lookupStructEqDicts kv = lookupTCDicts (structEqTC kv)
 
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
 lookupTCDicts n = fmap insts . M.lookup n . coerce
@@ -174,11 +185,14 @@ inter xs = foldr1 intersect xs
 concreteSatEq :: KnownValues -> TypeClasses -> Type -> Expr
 concreteSatEq kv tc t = concreteSatTC tc (eqTC kv) t
 
+concreteSatStructEq :: KnownValues -> TypeClasses -> Type -> Expr
+concreteSatStructEq kv tc t = concreteSatTC tc (structEqTC kv) t
+
 concreteSatTC :: TypeClasses -> Name -> Type -> Expr
 concreteSatTC tc tcn t@(TyConApp _ ts) =
     case lookupTCDict tc tcn t of
         Just i -> foldl' App (Var i) $ map Type ts ++  map (concreteSatTC tc tcn) ts
-        Nothing -> error "Unknown typeclass in concreteSatTC"
+        Nothing -> error $ "Unknown typeclass in concreteSatTC"
 concreteSatTC tc tcn t =
     case lookupTCDict tc tcn t of
         Just i -> Var i

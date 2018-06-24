@@ -39,6 +39,9 @@ data KnownValues = KnownValues {
                  , ltFunc :: Name
                  , leFunc :: Name
 
+                 , structEqTC :: Name
+                 , structEqFunc :: Name
+
                  , andFunc :: Name
                  , orFunc :: Name
 

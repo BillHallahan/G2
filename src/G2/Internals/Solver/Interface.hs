@@ -232,7 +232,7 @@ getModelVal con io i@(Id n _) config s = do
  
     let pc = PC.scc (known_values s) [n] (path_conds s)
     let s' = s {path_conds = pc }
-
+    
     case PC.null pc of
                 True -> 
                     let
