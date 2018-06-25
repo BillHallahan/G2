@@ -10,7 +10,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 --
 -- So in this context, the following are considered NOT-value forms:
 --   `Var`, only if a lookup still available in the expression environment.
---   `App`, which involves pushing the RHS onto the `Stack`.
+--   `App`, which involves pushing the RHS onto the `Stack`, if the center is not a Prim or DataCon
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
 isExprValueForm :: Expr -> E.ExprEnv -> Bool
@@ -19,7 +19,7 @@ isExprValueForm (Var var) eenv =
 isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
     (Data _:_) -> True
-    (v@(Var _):_) -> isExprValueForm v eenv
+    (v@(Var _):_) -> False
     _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
