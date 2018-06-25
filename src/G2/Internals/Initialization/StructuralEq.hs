@@ -135,20 +135,36 @@ createStructEqFunc dcn fn tn (DataTyCon {bound_names = ns, data_cons = dc}) = do
 
     e <- createStructEqFuncDC t bt bd bm dc'
     insertE fn e
-    -- kv <- knownValues
-    -- tc <- IT.typeClasses
-    -- let eq = case eqTCDict kv tc (TyConApp tn []) of
-    --             Just i -> i
-    --             Nothing -> Id (Name "BAD" Nothing 0 Nothing) TyBottom
-    -- let eqf = eqFunc kv
-
-    -- insertE fn (App (App (Var (Id eqf TyUnknown)) (Type (TyConApp tn []))) (Var eq))
-createStructEqFunc dcn fn tn (NewTyCon {bound_names = ns, data_con = dc, rep_type = rt}) = do
+createStructEqFunc dcn fn tn (NewTyCon {bound_names = ns, rep_type = rt}) = do
     kv <- knownValues
     tc <- IT.typeClasses
-    let sef = structEqTCDict kv tc rt
 
-    return ()
+    ns' <- freshSeededNamesN ns
+    let t = TyConApp tn (map (TyVar . flip Id TYPE) ns)
+
+    bt <- freshIdsN $ map (const TYPE) ns
+    bd <- freshIdsN $ map (\i -> TyConApp dcn [TyVar i]) bt
+    let bm = zip (map idName bt) $ zip bt bd
+
+    let t' = foldr (\(n, t_) -> retype (Id n TYPE) t_) t $ zip ns (map TyVar bt)
+
+    lam1I <- freshIdN t'
+    lam2I <- freshIdN t'
+
+    let rt' = foldr (\(n, rt_) -> retype (Id n TYPE) rt_) rt $ zip ns (map TyVar bt)
+
+    let ex = Var $ Id (structEqFunc kv) TyUnknown
+    let c = t' :~ rt'
+    let cLam1I = Cast (Var lam1I) c
+    let cLam2I = Cast (Var lam2I) c
+
+    d <- dictForType bm rt'
+
+    let e = Lam lam1I $ Lam lam2I $ App (App (App (App ex (Type rt')) d) cLam1I) cLam2I
+    let e' = foldr Lam e bd
+    let e'' = foldr Lam e' bt
+
+    insertE fn e''
 createStructEqFunc _ _ _ (TypeSynonym {}) = error "Type synonym in createStructEqFunc"
 
 createStructEqFuncDC :: Type -> [Id] -> [Id] -> [(Name, (Id, Id))] -> [DataCon] -> IT.SimpleStateM Expr

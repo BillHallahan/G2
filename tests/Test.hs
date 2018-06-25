@@ -181,6 +181,8 @@ testFileTests =
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 400 Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 400 Nothing Nothing "x" 2 [AtLeast 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 600 Nothing Nothing "mapYInt" 3 [AtLeast 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 600 Nothing Nothing "makeMoney" 3 [AtLeast 3]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" 400 Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" 400 Nothing Nothing "f" 2
