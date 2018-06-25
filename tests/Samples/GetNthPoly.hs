@@ -2,11 +2,11 @@ module GetNthPoly where
 
 import Prelude hiding (length)
 
-data CList a = Cons !a (CList a) | Nil
+data CList a = Cons !a (CList a) | Nil deriving (Eq)
 
 data IList = ICons Int IList
 
-data X = X
+data X = X deriving (Eq)
 
 data Peano = Succ Peano | Zero
 

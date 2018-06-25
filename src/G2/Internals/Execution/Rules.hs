@@ -23,12 +23,12 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.PathConds as PC
 import qualified G2.Internals.Language.Stack as S
 import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
 
 import Control.Monad
 import Data.Maybe
-
 
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
@@ -312,7 +312,7 @@ stdReduceBase redEx con s@State { exec_stack = estk
                                , type_classes = tc
                                , track = tr
                                }
-  | isExecValueForm s =
+  | isExecValueFormDisNonRedPC s=
       (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk, [], [], tr)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
   | CurrExpr Evaluate expr <- cexpr
@@ -379,20 +379,22 @@ stdReduceBase redEx con s@State { exec_stack = estk
   , t <- typeOf expr
   , isTyFun idt
   , not (isTyFun t) 
-  , Just eq_tc <- eqTCDict kv tc t =
+  , eq_tc <- concreteSatStructEq kv tc t =
     let
       (new_sym, ngen') = freshSeededString "sym" ngen
       new_sym_id = Id new_sym t
 
+      s_eq_f = KV.structEqFunc kv
+
       nrpc_e = mkApp $ 
-                     [ mkEq' kv]
+                     [ Var (Id s_eq_f TyUnknown)]
                      ++
                      (if mode con == Liquid
                         then [ Var (Id (Name "" Nothing 0 Nothing) TyBottom) ]
                         else [])
                      ++
                      [ Type t
-                     , Var eq_tc, expr
+                     , eq_tc, expr
                      , Var new_sym_id]
     in
     (RuleReturnReplaceSymbFunc, 
@@ -403,7 +405,7 @@ stdReduceBase redEx con s@State { exec_stack = estk
       , Nothing
       , ngen'
       , estk
-      , []
+      , [new_sym_id]
       , [nrpc_e]
       , tr)])
 

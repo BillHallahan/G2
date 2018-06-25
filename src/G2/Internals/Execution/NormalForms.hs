@@ -10,7 +10,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 --
 -- So in this context, the following are considered NOT-value forms:
 --   `Var`, only if a lookup still available in the expression environment.
---   `App`, which involves pushing the RHS onto the `Stack`.
+--   `App`, which involves pushing the RHS onto the `Stack`, if the center is not a Prim or DataCon
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
 isExprValueForm :: Expr -> E.ExprEnv -> Bool
@@ -19,7 +19,7 @@ isExprValueForm (Var var) eenv =
 isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
     (Data _:_) -> True
-    (v@(Var _):_) -> isExprValueForm v eenv
+    (v@(Var _):_) -> False
     _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
@@ -31,9 +31,13 @@ isExprValueForm _ _ = True
 -- | Is the execution state in a value form of some sort? This would entail:
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
+-- * We have no path conds to reduce
 isExecValueForm :: State t -> Bool
 isExecValueForm state | Nothing <- S.pop (exec_stack state)
-                      , CurrExpr Return _ <- curr_expr state = True
-
+                      , CurrExpr Return _ <- curr_expr state
+                      , non_red_path_conds state == [] = True
                       | otherwise = False
 
+
+isExecValueFormDisNonRedPC :: State t -> Bool
+isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = []}

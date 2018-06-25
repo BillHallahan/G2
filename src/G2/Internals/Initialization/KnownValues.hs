@@ -45,6 +45,9 @@ initKnownValues eenv tenv =
     , ltFunc = exprWithStrName eenv "<"
     , leFunc = exprWithStrName eenv "<="
 
+    , structEqTC = Name "NotDefinedYet" Nothing 0 Nothing
+    , structEqFunc = Name "NotDefinedYet" Nothing 0 Nothing
+
     , andFunc = exprWithStrName eenv "&&"
     , orFunc = exprWithStrName eenv "||"
 

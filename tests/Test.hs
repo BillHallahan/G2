@@ -63,7 +63,7 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue1") Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, RForAll allabs2NonNeg, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 Nothing Nothing "fixed" 3 [RExists abs2NonNeg, RExists squareRes, RExists fourthPowerRes, AtLeast 4]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger" 3 [RExists addRes, RExists subRes, AtLeast 2]
-                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 400 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
+                , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 600 Nothing Nothing "functionSatisfies" 4 [RExists functionSatisfiesRes, AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 1000 Nothing Nothing "approxSqrt" 3 [AtLeast 2]
                 -- The below test fails because Z3 returns unknown.
                 -- , checkExpr "tests/Samples/" "tests/Samples/HigherOrderMath.hs" 1200 (Just "isTrue2") Nothing "sameFloatArgLarger" 2 [RExists approxSqrtRes, RExists pythagoreanRes, AtLeast 2]
@@ -82,8 +82,8 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "getNth" 3 [AtLeast 10]
 
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
-                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1200 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
-                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1600 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
+                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 800 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 3, RForAll cfmapTest]
 
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 8, RForAll errors]
 
@@ -180,6 +180,12 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/CheckSq.hs" 400 Nothing Nothing "checkSq" 2 [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3))]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 400 Nothing Nothing "f" 2 [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 400 Nothing Nothing "x" 2 [AtLeast 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 600 Nothing Nothing "mapYInt" 3 [AtLeast 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 600 Nothing Nothing "makeMoney" 3 [AtLeast 3]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 1600 Nothing Nothing "compZZ" 4 [AtLeast 3, RForAll (\[_, _, _, x] -> getBoolB x not)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 1600 Nothing Nothing "compZZ2" 4 [AtLeast 3, RForAll (\[_, _, _, x] -> getBoolB x not)]
+
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" 400 Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/MultCase.hs" 400 Nothing Nothing "f" 2

@@ -54,16 +54,10 @@ functionalize ts tgtNames = do
     appT <- applyTypeNames types
 
 
-    -- Update the expression and  type environments with apply types
+    -- Update the expression and type environments with apply types
     (fi, at) <- mkApplyFuncAndTypes appT tgtNames
 
-    -- Get all adts that are functionalizable
-    funcADTs <- return . functionalizableADTs =<< typeEnv
-
-    -- create walkers over the functionalizable adts
-    at2 <- functionalizableADTsMaps funcADTs at
-    
-    return (fi, at2)
+    return (fi, at)
 
 -- creates ApplyType names for the given types
 applyTypeNames :: [Type] -> SimpleStateM [(Type, Name)]

@@ -14,9 +14,9 @@ import Data.List
 import qualified Data.Text as T
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text
-           -> TypeClasses -> ApplyTypes -> NameGen -> ExprEnv -> Walkers
+           -> TypeClasses -> NameGen -> ExprEnv -> Walkers
            -> KnownValues -> Config -> (Expr, [Id], NameGen)
-mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv config =
+mkCurrExpr m_assume m_assert s m_mod tc ng eenv walkers kv config =
     case findFunc s m_mod eenv of
         Left (f, ex) -> 
             let
@@ -24,7 +24,7 @@ mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv config =
 
                 (typsE, typs') = instantitateTypes tc kv typs
 
-                (var_ids, is, ng') = mkInputs at ng typs'
+                (var_ids, is, ng') = mkInputs ng typs'
                 
                 var_ex = Var f
                 app_ex = foldl' App var_ex $ typsE ++ var_ids
@@ -46,16 +46,16 @@ mkCurrExpr m_assume m_assert s m_mod tc at ng eenv walkers kv config =
             (let_ex, is, ng'')
         Right s' -> error s'
 
-mkInputs :: ApplyTypes -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
-mkInputs _ ng [] = ([], [], ng)
-mkInputs at ng (t:ts) =
+mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
+mkInputs ng [] = ([], [], ng)
+mkInputs ng (t:ts) =
     let
         (name, ng') = freshName ng
 
         i = Id name t
         var_id = Var i
 
-        (ev, ei, ng'') = mkInputs at ng' ts
+        (ev, ei, ng'') = mkInputs ng' ts
     in
     (var_id:ev, i:ei, ng'')
 
