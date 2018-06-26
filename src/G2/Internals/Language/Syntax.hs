@@ -118,6 +118,7 @@ data Primitive = Ge
                | ToInteger
                | Error
                | Undefined
+               | BindFunc
                deriving (Show, Eq, Read, Generic)
 
 instance Hashable Primitive
