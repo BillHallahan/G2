@@ -1,6 +1,6 @@
 module POPL where
 
-import Prelude hiding (zipWith, filter, head, zip, foldr)
+import Prelude hiding (zipWith, filter, head, zip, foldr, take, sum)
 
 
 -- 1) Basic Symbolic Execution
@@ -11,19 +11,17 @@ zip (x:xs) (y:ys) = (x, y) : zip xs ys
 
 -- 2) Lazy evaluation
 sumKNats :: Int -> Int
-sumKNats n = foldr (+) 0 $ take n inf 
-
-foldr            :: (a -> b -> b) -> b -> [a] -> b
-foldr _ z []     =  z
-foldr f z (x:xs) =  f x (foldr f z xs)
+sumKNats n = sum $ take n [0..] 
 
 
+sum :: [Int] -> Int
+sum (x:xs) = x + sum xs
+sum [] = 0
 
-inf :: [Int]
-inf = inf' 0
-
-inf' :: Int -> [Int]
-inf' x = x:inf' (x + 1) 
+take                   :: Int -> [a] -> [a]
+take n _      | n <= 0 =  []
+take _ []              =  []
+take n (x:xs)          =  x : take (n-1) xs
 
 -- 3) Higher Order Func
 succ :: Int -> Int
