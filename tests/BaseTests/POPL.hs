@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module POPL where
 
 import Prelude hiding (zipWith, filter, head, zip, foldr, take, sum)
@@ -10,9 +12,26 @@ zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : zip xs ys
 
 -- 2) Lazy evaluation
-sumKNats :: Int -> Int
-sumKNats n = sum $ take n [0..] 
+isEven :: Int -> Bool
+isEven x = x `mod` 2 == 0
 
+inEven :: Int -> Int -> Bool
+inEven x _ = isEven x
+
+outEven :: Int -> Int -> Bool
+outEven _ x = isEven x
+
+sumKNats :: Int -> Int
+sumKNats n = sum $ take n (range 1)
+
+sumKNats0 :: Int -> Int
+sumKNats0 n = sum $ take n (range 0)-- [0..]
+
+range :: Int -> [Int]
+range x = x:range (x + 1) 
+
+gt5 :: Int -> Int -> Bool
+gt5 _ y = y > 5
 
 sum :: [Int] -> Int
 sum (x:xs) = x + sum xs
@@ -95,8 +114,6 @@ collatz x =
         then x:(collatz $ x `quot` 2)
         else x:(collatz $ 3 * x + 1)
 
-isEven :: Int -> Bool
-isEven x = x `mod` 2 == 0
 
 isOdd :: Int -> Bool
 isOdd x = x `mod` 2 == 1
