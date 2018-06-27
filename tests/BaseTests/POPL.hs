@@ -2,7 +2,7 @@
 
 module POPL where
 
-import Prelude hiding (zipWith, filter, head, zip, foldr, take, sum)
+import Prelude hiding (zipWith, filter, head, zip, foldr, take, sum, (!!))
 
 
 -- 1) Basic Symbolic Execution
@@ -12,14 +12,34 @@ zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : zip xs ys
 
 -- 2) Lazy evaluation
-isEven :: Int -> Bool
-isEven x = x `mod` 2 == 0
+
+inGe0 :: Int -> Int -> Bool
+inGe0 x _ = x >= 0
+
+is4Mod6 :: Int -> Int -> Bool
+is4Mod6 _ r = r `mod` 6 == 4 
+
+ith4Mod6 :: Int -> Int
+ith4Mod6 i = kModNs 4 6 !! i
+
+-- Supposed to return a list of numbers that are k mod n
+kModNs :: Int -> Int -> [Int]
+kModNs k n = k:kModNs (k + n) k
+
+(!!)                    :: [a] -> Int -> a
+xs     !! n | n < 0 =  error "Prelude.!!: negative index"
+[]     !! _         =  error "Prelude.!!: index too large"
+(x:_)  !! 0         =  x
+(_:xs) !! n         =  xs !! (n-1)
+
+takeNFromN :: Int -> [Int]
+takeNFromN n = take n (range n)
 
 inEven :: Int -> Int -> Bool
-inEven x _ = isEven x
+inEven x _ = x `mod` 2 == 0
 
 outEven :: Int -> Int -> Bool
-outEven _ x = isEven x
+outEven _ x = x `mod` 2 == 0
 
 sumKNats :: Int -> Int
 sumKNats n = sum (take n (range 1))
