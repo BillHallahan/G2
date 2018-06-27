@@ -22,7 +22,7 @@ outEven :: Int -> Int -> Bool
 outEven _ x = isEven x
 
 sumKNats :: Int -> Int
-sumKNats n = sum $ take n (range 1)
+sumKNats n = sum (take n (range 1))
 
 sumKNats0 :: Int -> Int
 sumKNats0 n = sum $ take n (range 0)-- [0..]
