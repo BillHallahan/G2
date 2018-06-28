@@ -116,9 +116,10 @@ symbState eenv
 
         -- the top of the stack may be an update frame for the variable currently being evaluated
         -- we don't want the definition to be updated with a symbolic variable, so we remove it
-        stck' = case S.pop stck of
-                    Just (UpdateFrame u, stck'') -> if u == fn then stck'' else stck
-                    _ -> stck
+        -- stck' = case S.pop stck of
+        --             Just (UpdateFrame u, stck'') -> if u == fn then stck'' else stck
+        --             _ -> stck
+        stck' = stck
     in
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state

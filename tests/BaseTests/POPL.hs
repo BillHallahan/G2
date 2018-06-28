@@ -5,6 +5,7 @@ module POPL where
 import Prelude hiding (zipWith, filter, head, zip, foldr, take, sum, (!!))
 
 
+
 -- 1) Basic Symbolic Execution
 zip :: [a] -> [b] -> [(a, b)]
 zip [] _ = []
