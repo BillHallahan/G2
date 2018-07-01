@@ -291,7 +291,7 @@ resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
         expr_env = eenv
       , curr_expr = cexpr
       , path_conds = foldr (pcInsert config (known_values s)) (path_conds s) $ pc
-      , non_red_path_conds = non_red_pc ++ non_red_path_conds s
+      , non_red_path_conds = non_red_path_conds s ++ non_red_pc
       , name_gen = ng
       , exec_stack = st
       , symbolic_ids = symbolic_ids s ++ is
@@ -306,6 +306,7 @@ stdReduce = stdReduceBase (const Nothing)
 stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> Config -> State t -> (Rule, [ReduceResult t])
 stdReduceBase redEx con s@State { exec_stack = estk
                                , expr_env = eenv
+                               , type_env = tenv
                                , curr_expr = cexpr
                                , name_gen = ngen
                                , known_values = kv
@@ -329,7 +330,19 @@ stdReduceBase redEx con s@State { exec_stack = estk
   | CurrExpr Evaluate expr@(App _ _) <- cexpr
   , (Prim Error _):_ <- unApp expr =
       (RulePrimError, [(eenv, CurrExpr Return (Prim Error TyBottom), [], [], Nothing, ngen, estk, [], [], tr)])
-
+  -- TODO: This is kinda a hack... we need better handling of Prims overall
+  | CurrExpr Evaluate (App (App (Prim BindFunc TyUnknown) (Var i1)) v2) <- cexpr =
+    (RuleReturnCAssert,
+      [( E.insert (idName i1) v2 eenv
+       , CurrExpr Return (mkTrue kv tenv)
+       , []
+       , []
+       , Nothing
+       , ngen
+       , estk
+       , []
+       , []
+       , tr)])
   | CurrExpr Evaluate expr <- cexpr
   , isExprValueForm expr eenv =
       -- Our current thing is a value form, which means we can return it.
@@ -394,8 +407,9 @@ stdReduceBase redEx con s@State { exec_stack = estk
                         else [])
                      ++
                      [ Type t
-                     , eq_tc, expr
-                     , Var new_sym_id]
+                     , eq_tc
+                     , Var new_sym_id
+                     , expr ]
     in
     (RuleReturnReplaceSymbFunc, 
       [( E.insertSymbolic new_sym new_sym_id eenv

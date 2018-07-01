@@ -104,7 +104,7 @@ data HaltC = Discard -- ^ Switch to evaluating a new state, and reject the curre
 -- A set of Reduction Rules takes a State, and outputs new states
 -- The type parameter r is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as r.
-class Reducer r  t where
+class Reducer r t where
     -- | redRules
     -- Takes a State, and performs the appropriate Reduction Rule
     redRules :: r -> State t -> IO (ReducerRes, [State t], r)
@@ -213,7 +213,7 @@ instance Reducer (NonRedPCRed ast out io) t where
                            , exec_stack = stck
                            , known_values = kv
                            , path_conds = pc
-                           , non_red_path_conds = re_pc@(_:_)
+                           , non_red_path_conds = nr:nrs
                            , apply_types = at
                            , input_ids = is
                            , symbolic_ids = si }) = do
@@ -221,12 +221,12 @@ instance Reducer (NonRedPCRed ast out io) t where
 
         let and = mkAnd eenv
         let true = mkTrue kv tenv
-        let cexpr' = CurrExpr Evaluate $ foldr (\e -> App (App and e)) true re_pc
+        let cexpr' = CurrExpr Evaluate nr -- CurrExpr Evaluate $ foldr (\e -> App (App and e)) true re_pc
         let cexpr'' = higherOrderToAppTys eenv at cexpr'
 
         let s' = s { curr_expr = cexpr''
                    , exec_stack = stck'
-                   , non_red_path_conds = []
+                   , non_red_path_conds = nrs
                    , path_conds = AT.typeToAppType at pc
                    , input_ids = AT.typeToAppType at is
                    , symbolic_ids = AT.typeToAppType at si }

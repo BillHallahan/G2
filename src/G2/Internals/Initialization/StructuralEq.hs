@@ -237,7 +237,7 @@ structEqCheck _ TyLitFloat i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1
 structEqCheck _ TyLitDouble i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
 structEqCheck _ TyLitChar i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
 structEqCheck _ (TyForAll _ _) _ _ = mkTrueE
-structEqCheck _ (TyFun _ _) _ _ = mkTrueE
+structEqCheck _ (TyFun _ _) i1 i2 = return $ App (App (Prim BindFunc TyUnknown) (Var i1)) (Var i2) -- mkTrueE
 structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t
 
 dictForType :: [(Name, (Id, Id))] -> Type -> IT.SimpleStateM Expr

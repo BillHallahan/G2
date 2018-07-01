@@ -183,8 +183,8 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 400 Nothing Nothing "x" 2 [AtLeast 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 600 Nothing Nothing "mapYInt" 3 [AtLeast 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 600 Nothing Nothing "makeMoney" 3 [AtLeast 3]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 1600 Nothing Nothing "compZZ" 4 [AtLeast 3, RForAll (\[_, _, _, x] -> getBoolB x not)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 1600 Nothing Nothing "compZZ2" 4 [AtLeast 3, RForAll (\[_, _, _, x] -> getBoolB x not)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 1600 Nothing Nothing "compZZ" 4 [AtLeast 2, RForAll (\[_, _, _, x] -> getBoolB x not)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc1.hs" 1600 Nothing Nothing "compZZ2" 4 [AtLeast 2, RForAll (\[_, _, _, x] -> getBoolB x not)]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Defunc2.hs" 400 Nothing Nothing "funcMap" 3 [RForAll defunc2Check, AtLeast 30]
 
