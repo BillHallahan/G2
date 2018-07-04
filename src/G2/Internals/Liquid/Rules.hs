@@ -46,13 +46,15 @@ lhReduce = stdReduceBase lhReduce'
 
 lhReduce' :: State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
 lhReduce' State { expr_env = eenv
-                     , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
-                     , name_gen = ng
-                     , apply_types = at
-                     , exec_stack = stck
-                     , track = tr } =
+                , type_env = tenv
+                , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
+                , name_gen = ng
+                , known_values = kv
+                , apply_types = at
+                , exec_stack = stck
+                , track = tr } =
         let
-            (r, er) = stdReduceEvaluate eenv vv ng
+            (r, er) = stdReduceEvaluate eenv vv tenv kv ng
             states = map (\(eenv', cexpr', paths', ngen', f) ->
                         ( eenv'
                         , cexpr'
@@ -69,12 +71,14 @@ lhReduce' State { expr_env = eenv
         in
         Just $ (r, states ++ maybeToList sb)
 lhReduce' State { expr_env = eenv
+                , type_env = tenv
                 , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
                 , name_gen = ng
+                , known_values = kv
                 , exec_stack = stck
                 , track = tr} =
     let
-        (r, er) = stdReduceEvaluate eenv vv ng
+        (r, er) = stdReduceEvaluate eenv vv tenv kv ng
         states = map (\(eenv', cexpr', paths', ngen', f) ->
                         ( eenv'
                         , cexpr'
