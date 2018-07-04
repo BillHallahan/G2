@@ -46,13 +46,15 @@ lhReduce = stdReduceBase lhReduce'
 
 lhReduce' :: State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
 lhReduce' State { expr_env = eenv
-                     , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
-                     , name_gen = ng
-                     , apply_types = at
-                     , exec_stack = stck
-                     , track = tr } =
+                , type_env = tenv
+                , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
+                , name_gen = ng
+                , known_values = kv
+                , apply_types = at
+                , exec_stack = stck
+                , track = tr } =
         let
-            (r, er) = stdReduceEvaluate eenv vv ng
+            (r, er) = stdReduceEvaluate eenv vv tenv kv ng
             states = map (\(eenv', cexpr', paths', ngen', f) ->
                         ( eenv'
                         , cexpr'
@@ -69,12 +71,14 @@ lhReduce' State { expr_env = eenv
         in
         Just $ (r, states ++ maybeToList sb)
 lhReduce' State { expr_env = eenv
+                , type_env = tenv
                 , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
                 , name_gen = ng
+                , known_values = kv
                 , exec_stack = stck
                 , track = tr} =
     let
-        (r, er) = stdReduceEvaluate eenv vv ng
+        (r, er) = stdReduceEvaluate eenv vv tenv kv ng
         states = map (\(eenv', cexpr', paths', ngen', f) ->
                         ( eenv'
                         , cexpr'
@@ -116,9 +120,10 @@ symbState eenv
 
         -- the top of the stack may be an update frame for the variable currently being evaluated
         -- we don't want the definition to be updated with a symbolic variable, so we remove it
-        stck' = case S.pop stck of
-                    Just (UpdateFrame u, stck'') -> if u == fn then stck'' else stck
-                    _ -> stck
+        -- stck' = case S.pop stck of
+        --             Just (UpdateFrame u, stck'') -> if u == fn then stck'' else stck
+        --             _ -> stck
+        stck' = stck
     in
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state

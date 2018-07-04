@@ -671,7 +671,7 @@ convertLHExpr (EBin b e e') pt tcv s@(State { expr_env = eenv, type_classes = tc
 
         t2 = favorNonTyInteger knv t t'
 
-        ndict = fromJustErr ("No numDict for EBin\n" ++ show lhe ++ "\n" ++ show lhe' ++ "\n" ++ show t ++ "\n" ++ show t') $ bopDict b eenv knv tc t2 m
+        ndict = fromJustErr ("No numDict for EBin\n"  ++ show b ++ "\n" ++ show lhe ++ "\n" ++ show lhe' ++ "\n" ++ show t ++ "\n" ++ show t') $ bopDict b eenv knv tc t2 m
 
         lhdict = fromJustErr "No lhDict for EBin" $ lhTCDict eenv tcv tc t2 m
     in

@@ -161,7 +161,13 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let ret' = filter (\(s, _, _, _) -> mi == (length $ abstract_calls $ track s)) ret
     -- let ret' = ret
 
-    return $ map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}, es, e, ais)) ret'
+
+
+    let states = map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}, es, e, ais)) ret'
+
+    -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
+
+    return states
 
 getGHCInfos :: LHC.Config -> FilePath -> [FilePath] -> [FilePath] -> IO [LHOutput]
 getGHCInfos config proj fp lhlibs = do

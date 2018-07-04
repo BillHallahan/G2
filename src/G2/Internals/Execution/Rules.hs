@@ -18,6 +18,7 @@ module G2.Internals.Execution.Rules
 
 import G2.Internals.Config.Config
 import G2.Internals.Execution.NormalForms
+import G2.Internals.Execution.PrimitiveEval
 import G2.Internals.Execution.RuleTypes
 import G2.Internals.Language
 import qualified G2.Internals.Language.PathConds as PC
@@ -29,6 +30,8 @@ import G2.Internals.Solver.Language hiding (Assert)
 
 import Control.Monad
 import Data.Maybe
+
+import Debug.Trace
 
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
@@ -351,7 +354,7 @@ stdReduceBase redEx con s@State { exec_stack = estk
   | Just red <- redEx s = red
 
   | CurrExpr Evaluate expr <- cexpr =
-      let (rule, eval_results) = stdReduceEvaluate eenv expr ngen
+      let (rule, eval_results) = stdReduceEvaluate eenv expr tenv kv ngen
           states = map (\(eenv', cexpr', paths', ngen', f) ->
                         ( eenv'
                         , cexpr'
@@ -437,8 +440,8 @@ type EvaluateResult = (E.ExprEnv, CurrExpr, [Constraint], NameGen, Maybe Frame)
 -- The semantics differ a bit from SSTG a bit, namely in what is and is not
 -- returned from the heap. In SSTG, you return either literals or pointers.
 -- The distinction is less clear here. For now :)
-stdReduceEvaluate ::  E.ExprEnv -> Expr -> NameGen -> (Rule, [EvaluateResult])
-stdReduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
+stdReduceEvaluate ::  E.ExprEnv -> Expr -> TypeEnv -> KnownValues -> NameGen -> (Rule, [EvaluateResult])
+stdReduceEvaluate eenv (Var v) _ _ ngen = case E.lookup (idName v) eenv of
     Just expr ->
       -- If the target in our environment is already a value form, we do not
       -- need to push additional redirects for updating later on.
@@ -460,7 +463,7 @@ stdReduceEvaluate eenv (Var v) ngen = case E.lookup (idName v) eenv of
          , frame)])
     Nothing -> error "stdReduceEvaluate: lookup was Nothing"
 
-stdReduceEvaluate eenv (App fexpr aexpr) ngen =
+stdReduceEvaluate eenv (App fexpr aexpr) tenv kv ngen =
     -- Push application RHS onto the stack. This is essentially the same as the
     -- original STG rules, but we pretend that every function is (appropriately)
     -- single argument. However one problem is that eenv sharing has a redundant
@@ -470,11 +473,14 @@ stdReduceEvaluate eenv (App fexpr aexpr) ngen =
     -- location on the actual Haskell heap during execution.
     case unApp (App fexpr aexpr) of
         ((Prim prim ty):ar) ->
-            let ar' = map (flip lookupForPrim eenv) ar
-            in 
+            let
+                ar' = map (flip lookupForPrim eenv) ar
+                appP = mkApp (Prim prim ty : ar')
+                exP = evalPrims kv tenv appP
+            in
             ( RuleEvalPrimToNorm
                 , [( eenv
-                   , CurrExpr Return (mkApp (Prim prim ty : ar'))
+                   , CurrExpr Return exP
                    , []
                    , ngen
                    , Nothing)])
@@ -486,7 +492,7 @@ stdReduceEvaluate eenv (App fexpr aexpr) ngen =
                   , []
                   , ngen
                   , Just frame)])
-stdReduceEvaluate eenv (Let binds expr) ngen =
+stdReduceEvaluate eenv (Let binds expr) _ _ ngen =
     -- Lift all the let bindings into the environment and continue with eenv
     -- and continue with evaluation of the let expression.
     let (eenv', expr', ngen', news) = liftLetBinds binds eenv expr ngen
@@ -497,10 +503,10 @@ stdReduceEvaluate eenv (Let binds expr) ngen =
           , ngen'
           , Nothing)])
 
-stdReduceEvaluate eenv (Case mexpr cvar alts) ngen =
+stdReduceEvaluate eenv (Case mexpr cvar alts) _ _ ngen =
     reduceCase eenv mexpr cvar alts ngen
 
-stdReduceEvaluate eenv cast@(Cast e coer) ngen =
+stdReduceEvaluate eenv cast@(Cast e coer) _ _ ngen =
     let
         (cast', ngen') = splitCast ngen cast
 
@@ -520,14 +526,14 @@ stdReduceEvaluate eenv cast@(Cast e coer) ngen =
                           , ngen
                           , Just frame)])
 
-stdReduceEvaluate eenv (Assume pre lexpr) ngen =
+stdReduceEvaluate eenv (Assume pre lexpr) _ _ ngen =
     let frame = AssumeFrame lexpr
     in (RuleEvalAssume, [( eenv
                          , CurrExpr Evaluate pre
                          , []
                          , ngen
                          , Just frame)])
-stdReduceEvaluate eenv (Assert is pre lexpr) ngen =
+stdReduceEvaluate eenv (Assert is pre lexpr) _ _ ngen =
     let frame = AssertFrame is lexpr
     in (RuleEvalAssert, [( eenv
                          , CurrExpr Evaluate pre
@@ -535,7 +541,7 @@ stdReduceEvaluate eenv (Assert is pre lexpr) ngen =
                          , ngen
                          , Just frame)])
 
-stdReduceEvaluate eenv c ngen =
+stdReduceEvaluate eenv c _ _ ngen =
     (RuleError, [(eenv, CurrExpr Evaluate c, [], ngen, Nothing)])
 
 -- | Handle the Case forms of Evaluate.
