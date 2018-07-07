@@ -623,9 +623,11 @@ convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
         f_ar_t = case at of
                     (_:_) -> Just $ last at
                     _ -> Nothing
+
+        argE = convertLHExpr e' f_ar_t tcv s m
     in
-    case (convertLHExpr e' f_ar_t tcv s m, f_ar_t) of
-        (v@(Var (Id _ (TyConApp _ ts))), Just (TyConApp _ f_ar_ts)) -> 
+    case (typeOf argE, f_ar_t) of
+        (TyConApp _ ts, Just (TyConApp _ f_ar_ts)) -> 
             let
                 specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts
                 te = map Type specTo
@@ -636,10 +638,10 @@ convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
 
                 fw = mkApp $ f:tcs
 
-                apps = mkApp $ fw:te ++ [v]
+                apps = mkApp $ fw:te ++ [argE]
             in
             apps
-        (e'', _) -> App f e''
+        (e'', _) -> App f argE
 convertLHExpr (ENeg e) t tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
     let
         e' = convertLHExpr e t tcv s m
