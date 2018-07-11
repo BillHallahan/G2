@@ -377,7 +377,7 @@ testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe 
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     (mb_modname, binds, tycons, cls, _, ex) <- translateLoaded proj src [] True config
 
-    let init_state = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname ex config
+    let (init_state, _) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname ex config
     
     (con, hhp) <- getSMT config
 
