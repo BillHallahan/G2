@@ -39,7 +39,7 @@ import qualified Data.Text as T
 
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text
           -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> [Name]
-          -> Config -> State ()
+          -> Config -> (State (), Id)
 initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNames config =
     let
         eenv = mkExprEnv prog
@@ -47,8 +47,8 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv
 
-        fe = case findFunc f m_mod eenv of
-              Left (_, e) -> e
+        (ie, fe) = case findFunc f m_mod eenv of
+              Left ie' -> ie'
               Right s -> error s
         (_, ts) = instantiateArgTypes tc kv fe
 
@@ -65,7 +65,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
 
         eenv'' = checkReaches eenv' tenv' kv m_reaches m_mod
     in
-    State {
+    (State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv'' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
@@ -90,6 +90,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , track = ()
     , tags = S.empty
  }
+ , ie)
 
 mkExprEnv :: Program -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat

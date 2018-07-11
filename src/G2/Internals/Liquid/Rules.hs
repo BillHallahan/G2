@@ -41,11 +41,12 @@ import qualified Data.Text as T
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: Config -> State LHTracker -> (Rule, [ReduceResult LHTracker])
-lhReduce = stdReduceBase lhReduce'
+lhReduce :: [Name] -> Config -> State LHTracker -> (Rule, [ReduceResult LHTracker])
+lhReduce ns = stdReduceBase (lhReduce' ns)
 
-lhReduce' :: State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
-lhReduce' State { expr_env = eenv
+lhReduce' :: [Name] -> State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
+lhReduce' ns
+          State { expr_env = eenv
                 , type_env = tenv
                 , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
                 , name_gen = ng
@@ -67,16 +68,16 @@ lhReduce' State { expr_env = eenv
                         , []
                         , tr))
                        er
-            sb = symbState eenv vv ng at stck tr
+            sb = symbState ns eenv vv ng at stck tr
         in
         Just $ (r, states ++ maybeToList sb)
-lhReduce' State { expr_env = eenv
-                , type_env = tenv
-                , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
-                , name_gen = ng
-                , known_values = kv
-                , exec_stack = stck
-                , track = tr} =
+lhReduce' _ State { expr_env = eenv
+                  , type_env = tenv
+                  , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
+                  , name_gen = ng
+                  , known_values = kv
+                  , exec_stack = stck
+                  , track = tr} =
     let
         (r, er) = stdReduceEvaluate eenv vv tenv kv ng
         states = map (\(eenv', cexpr', paths', ngen', f) ->
@@ -94,10 +95,10 @@ lhReduce' State { expr_env = eenv
     in
     Just $ (r, states)
 
-lhReduce' _ = Nothing
+lhReduce' _ _ = Nothing
 
-symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> LHTracker -> Maybe (ReduceResult LHTracker)
-symbState eenv 
+symbState :: [Name] -> ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> LHTracker -> Maybe (ReduceResult LHTracker)
+symbState ns eenv 
           cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars, returns = ret})) e _)) 
           ng at stck 
           tr@(LHTracker {abstract_calls = abs_c, last_var = Just last_v, annotations = annm }) =
@@ -127,10 +128,10 @@ symbState eenv
     in
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
-    case not (hasTyBottom cexprT) && null (tyVars cexprT) of
+    case not (hasTyBottom cexprT) && null (tyVars cexprT) && fn `elem` ns of
         True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
         False -> Nothing
-symbState _ _ _ _ _ _ = Nothing
+symbState _ _ _ _ _ _ _ = Nothing
 
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function
@@ -188,14 +189,14 @@ instance ASTContainer LHTracker Type where
     modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
         lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
 
-data LHRed ast out io = LHRed (SMTConverter ast out io) io Config
+data LHRed ast out io = LHRed [Name] (SMTConverter ast out io) io Config
 -- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
 data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
 instance Reducer (LHRed ast out io) LHTracker where
-    redRules lhr@(LHRed smt io config) s = do
-        (r, s) <- reduce (lhReduce config) smt io config s
+    redRules lhr@(LHRed ns smt io config) s = do
+        (r, s) <- reduce (lhReduce ns config) smt io config s
 
         return $ (if r == RuleIdentity then Finished else InProgress, s, lhr)
 

@@ -52,6 +52,8 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
+import Debug.Trace
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -85,16 +87,17 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let specs = funcSpecs ghcInfos
     let lh_measures = measureSpecs ghcInfos
 
-    let init_state = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
+    let (init_state, ifi) = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
+
+
 
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
 
     let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
     let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
     let ng_state = no_part_state {name_gen = ng'}
-
-
+    
 
     let ng_state' = ng_state {track = []}
 
@@ -111,7 +114,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let ng2_state = lhtc_state {name_gen = meas_ng}
 
-    let merged_state = mergeLHSpecState (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
+    let (merged_state, ifi') = mergeLHSpecState ifi (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
 
     let beta_red_state = simplifyAsserts mkv tcv merged_state {apply_types = apply_types ng2_state}
     let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
@@ -131,28 +134,30 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let final_state = track_state { known_values = mkv }
 
+    let (final_state', abs_fun) = adjustCurrExpr ifi' final_state
+
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing
 
     ret <- if higherOrderSolver config == AllFuncs
               then run 
                     (NonRedPCRed con hhp config
-                      :<~| LHRed con hhp config) 
+                      :<~| LHRed abs_fun con hhp config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
-                    con hhp (pres_names ++ names annm') config final_state
+                    con hhp (pres_names ++ names annm') config final_state'
               else run 
                     (NonRedPCRed con hhp config
                       :<~| TaggerRed state_name tr_ng
-                      :<~| LHRed con hhp config) 
+                      :<~| LHRed abs_fun con hhp config) 
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
-                    con hhp (pres_names ++ names annm') config final_state
+                    con hhp (pres_names ++ names annm') config final_state'
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -168,6 +173,36 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
 
     return states
+
+adjustCurrExpr :: Lang.Id -> State t -> (State t, [Name])
+adjustCurrExpr i@(Id n t) s@(State {expr_env = eenv, curr_expr = (CurrExpr ce cexpr), name_gen = ng}) =
+    let
+        (i'@(Id n' _), ng') = freshSeededId n t ng
+
+        e = case E.lookup n eenv of
+                Just e' -> e'
+                Nothing -> error "Expr not found in adjustCurrExpr"
+
+        funs = filter (\(Var (Id vn _)) -> vn `elem` E.keys eenv) $ vars e
+        funN = varNames funs
+        (funs', ng'') = renameAll funs ng'
+
+        e' = foldr (uncurry replaceASTs) e $ zip funs funs'
+        eenv' = E.insert n' e' eenv
+
+        cexpr' = replaceVarByName (idName i) (Var i') cexpr
+
+        eenv'' = flip E.insertExprs eenv' . map (\(Var (Id f _), orig) -> (f, rewriteAssertName f $ eenv E.! orig)) $ zip funs' funN
+    in
+    (s {expr_env = eenv'', curr_expr = CurrExpr ce cexpr', name_gen = ng''}, varNames funs')
+
+rewriteAssertName :: Name -> Expr -> Expr
+rewriteAssertName n (Lang.Assert (Just fc) e e') = Lang.Assert (Just $ fc {funcName = n}) e e'
+rewriteAssertName n e = modifyChildren (rewriteAssertName n) e
+
+replaceVarByName :: Name -> Expr -> Expr -> Expr
+replaceVarByName n e v@(Var (Id n' _)) = if n == n' then e else v
+replaceVarByName n e e' = modifyChildren (replaceVarByName n e) e'
 
 getGHCInfos :: LHC.Config -> FilePath -> [FilePath] -> [FilePath] -> IO [LHOutput]
 getGHCInfos config proj fp lhlibs = do
