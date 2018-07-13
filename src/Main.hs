@@ -140,8 +140,6 @@ runGHC as = do
 
     printFuncCalls config  tentry in_out
 
-
-
 printFuncCalls :: Config -> T.Text -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 printFuncCalls config entry =
     mapM_ (\(s, inArg, ex, _) -> do
