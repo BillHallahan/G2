@@ -23,15 +23,21 @@ It is capable of generating assertion failure counterexamples and solving for hi
 #### Command line:
 
 Reachability:
+
 cabal run G2 ./tests/Samples/ ./tests/Samples/Peano.hs add
 
 LiquidHaskell:
+
 cabal run G2 ./tests/Liquid/ -- --liquid ./tests/Liquid/Peano.hs --liquid-func add
 
 Arguments:
+
 --n = number of reduction steps to run
+
 --max-outputs = number of inputs/results to display
+
 --smt = Pass "z3" or "cvc4" to select a solver [Default: Z3]
+
 --time = Set a timeout
 
 ---
