@@ -35,8 +35,6 @@ tupleList n = [(x, y) | x <- [0..n]
 check4VeryEasy :: Bool
 check4VeryEasy = check 4 [(0, 1), (1, 3), (2, 0), (3, 2)]
 
-check4VeryEasy2 :: Bool
-check4VeryEasy2 = all (0 <=) [0]
 
 check4Easy :: Int -> Int -> Int -> Int -> Bool
 check4Easy p1 p2 p3 p4 = check 4 [(0, p1), (1, p2), (2, p3), (3, p4)]

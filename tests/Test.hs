@@ -330,6 +330,8 @@ baseTests =
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 2000 2 [AtLeast 6]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "averageF" 2000 2 [AtLeast 6]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 2 [AtLeast 6]
+
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/Other.hs" "Other" "check4VeryEasy2" 600 1 [AtLeast 1]
         ]
 
 primTests :: IO TestTree
