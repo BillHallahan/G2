@@ -63,7 +63,7 @@ evalPrim2 kv tenv Ge x y = evalPrim2NumBool (>=) kv tenv x y
 evalPrim2 kv tenv Gt x y = evalPrim2NumBool (>) kv tenv x y
 evalPrim2 kv tenv Eq x y = evalPrim2NumBool (==) kv tenv x y
 evalPrim2 kv tenv Lt x y = evalPrim2NumBool (<) kv tenv x y
-evalPrim2 kv tenv Le x y = evalPrim2NumBool (<) kv tenv x y
+evalPrim2 kv tenv Le x y = evalPrim2NumBool (<=) kv tenv x y
 evalPrim2 _ _ Plus x y = evalPrim2Num (+) x y
 evalPrim2 _ _ Minus x y = evalPrim2Num (-) x y
 evalPrim2 _ _ Mult x y = evalPrim2Num (*) x y
