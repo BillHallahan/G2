@@ -194,9 +194,9 @@ redRulesToStates r s = do
 
     return $ (rf, concat s', head r')
 
-data StdRed ast out io = StdRed (SMTConverter ast out io) io Config
+data StdRed con io = StdRed con io Config
 
-instance Reducer (StdRed ast out io) () where
+instance SMTConverter con ast out io => Reducer (StdRed con io) () where
     redRules stdr@(StdRed smt io config) s = do
         (r, s') <- reduce (stdReduce config) smt io config s
         
@@ -204,9 +204,9 @@ instance Reducer (StdRed ast out io) () where
 
 -- | NonRedPCRed ast out io
 -- Removes and reduces the values in a State's non_red_path_conds field. 
-data NonRedPCRed ast out io = NonRedPCRed (SMTConverter ast out io) io Config
+data NonRedPCRed con = NonRedPCRed con Config
 
-instance Reducer (NonRedPCRed ast out io) t where
+instance SMTConverter con ast out io => Reducer (NonRedPCRed con) t where
     redRules nrpr s@(State { expr_env = eenv
                            , type_env = tenv
                            , curr_expr = cexpr
@@ -380,7 +380,7 @@ halterIsZero _ _ _ _ = Continue
 --------
 --------
 
-reduce :: (State t -> (Rule, [ReduceResult t])) -> SMTConverter ast out io -> io -> Config -> State t -> IO (Rule, [State t])
+reduce :: SMTConverter con ast out io => (State t -> (Rule, [ReduceResult t])) -> con -> io -> Config -> State t -> IO (Rule, [State t])
 reduce red con hpp config s = do
     let (rule, res) = red s
     sts <- resultsToState con hpp config rule s res
@@ -388,7 +388,7 @@ reduce red con hpp config s = do
 
 -- | runReducer
 -- Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> SMTConverter ast out io -> io -> orv -> [State t] -> Config -> IO [([Int], State t)]
+runReducer :: (Reducer r t, Halter h hv t, Orderer or orv sov t, SMTConverter con ast out io) => r -> h -> or -> con -> io -> orv -> [State t] -> Config -> IO [([Int], State t)]
 runReducer red hal ord con hpp p states config =
     mapM (\ExState {state = s, cases = c} -> return (c, s))
         =<< (runReducer' red hal ord p (Processed {accepted = [], discarded = []}) $ map (\s -> ExState { state = s

@@ -14,7 +14,7 @@ import G2.Internals.Language.Support
 import G2.Internals.Solver.Language
 
 {-# INLINE runExecution #-}
-runExecution :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> SMTConverter ast out io -> io -> orv -> [State t] -> Config -> IO [([Int], State t)]
+runExecution :: (Reducer r t, Halter h hv t, Orderer or orv sov t, SMTConverter con ast out io) => r -> h -> or -> con -> io -> orv -> [State t] -> Config -> IO [([Int], State t)]
 runExecution = runReducer
 
 runNDepthNoConstraintChecks :: Config -> [State t] -> Int -> [State t]

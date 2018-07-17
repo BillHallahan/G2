@@ -234,7 +234,7 @@ reduceNoConstraintChecks red config s =
     in
     map (resultToState config s rule) res
 
-resultsToState :: SMTConverter ast out io -> io -> Config -> Rule -> State t -> [ReduceResult t] -> IO [State t]
+resultsToState :: SMTConverter con ast out io => con -> io -> Config -> Rule -> State t -> [ReduceResult t] -> IO [State t]
 resultsToState _ _ _ _ _ [] = return []
 resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _, _, _, _):xs)
     | not (null pc) = do
@@ -273,7 +273,7 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
         s' = resultToState config s rule red
 
 {-# INLINE selectCheckConstraints #-}
-selectCheckConstraints :: Config -> (SMTConverter ast out io -> io -> State t -> IO Result)
+selectCheckConstraints :: SMTConverter con ast out io => Config -> con -> io -> State t -> IO Result
 selectCheckConstraints (Config {smtADTs = False}) = checkConstraints
 selectCheckConstraints config = checkConstraintsWithSMTSorts config
 

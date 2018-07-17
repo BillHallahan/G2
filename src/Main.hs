@@ -105,21 +105,21 @@ runGHC as = do
     let (init_state, _) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                                (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
 
-    (con, hhp) <- getSMT config
+    (SomeSMT con, hhp) <- getSMT config
 
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing
 
     in_out <- if higherOrderSolver config == AllFuncs
               then run 
-                  (NonRedPCRed con hhp config
+                  (NonRedPCRed con config
                     :<~| StdRed con hhp config) 
                   (MaxOutputsHalter 
                     :<~> ZeroHalter)
                   NextOrderer
                   con hhp [] config init_state
               else run
-                  (NonRedPCRed con hhp config
+                  (NonRedPCRed con config
                     :<~| TaggerRed state_name tr_ng
                     :<~| StdRed con hhp config) 
                   (DiscardIfAcceptedTag state_name 

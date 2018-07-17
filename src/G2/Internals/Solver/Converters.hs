@@ -377,7 +377,7 @@ typesToSMTSorts tenv =
                 DC (nameToStr n) $ map typeToSMT ts
 
 -- | toSolver
-toSolver :: SMTConverter ast out io -> [SMTHeader] -> out
+toSolver :: SMTConverter con ast out io => con -> [SMTHeader] -> out
 toSolver con [] = empty con
 toSolver con (Assert ast:xs) = 
     merge con (assert con $ toSolverAST con ast) (toSolver con xs)
@@ -386,7 +386,7 @@ toSolver con (SortDecl ns:xs) = merge con (toSolverSortDecl con ns) (toSolver co
 toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
 
 -- | toSolverAST
-toSolverAST :: SMTConverter ast out io -> SMTAST -> ast
+toSolverAST :: SMTConverter con ast out io => con -> SMTAST -> ast
 toSolverAST con (x :>= y) = (.>=) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :> y) = (.>) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x := y) = (.=) con (toSolverAST con x) (toSolverAST con y)
@@ -433,15 +433,15 @@ toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
 -- | toSolverSortDecl
-toSolverSortDecl :: SMTConverter ast out io -> [(SMTName, [SMTName],  [DC])] -> out
+toSolverSortDecl :: SMTConverter con ast out io => con -> [(SMTName, [SMTName],  [DC])] -> out
 toSolverSortDecl = sortDecl
 
 -- | toSolverVarDecl
-toSolverVarDecl :: SMTConverter ast out io -> SMTName -> Sort -> out
+toSolverVarDecl :: SMTConverter con ast out io => con -> SMTName -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 -- | toSolverSetLogic
-toSolverSetLogic :: SMTConverter ast out io -> Logic -> out
+toSolverSetLogic :: SMTConverter con ast out io => con -> Logic -> out
 toSolverSetLogic = setLogic
 
 -- | smtastToExpr

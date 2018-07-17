@@ -6,7 +6,7 @@ import qualified Data.Map as M
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
-data SMTSolver = Z3 | CVC4 deriving (Eq, Show, Read)
+data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc deriving (Eq, Show, Read)
@@ -45,7 +45,7 @@ mkConfig as m = Config {
     , printRelExprEnv = boolArg "print-rel-eenv" as m Off
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
-    , smt = strArg "smt" as m smtSolverArg Z3
+    , smt = strArg "smt" as m smtSolverArg ConZ3
     , smtADTs = boolArg "smt-adts" as m Off
     , steps = strArg "n" as m read 500
     , strict = boolArg "strict" as m On
@@ -58,8 +58,8 @@ smtSolverArg :: String -> SMTSolver
 smtSolverArg = smtSolverArg' . map toLower
 
 smtSolverArg' :: String -> SMTSolver
-smtSolverArg' "z3" = Z3
-smtSolverArg' "cvc4" = CVC4
+smtSolverArg' "z3" = ConZ3
+smtSolverArg' "cvc4" = ConCVC4
 smtSolverArg' _ = error "Unrecognized SMT solver."
 
 higherOrderSolArg :: String -> HigherOrderSolver

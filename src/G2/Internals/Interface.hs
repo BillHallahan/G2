@@ -107,8 +107,9 @@ run :: (Named hv, Show t
        , ASTContainer t Type
        , Reducer r t
        , Halter h hv t
-       , Orderer or orv sov t) => r -> h -> or ->
-    SMTConverter ast out io -> io -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
+       , Orderer or orv sov t
+       , SMTConverter con ast out io) => r -> h -> or ->
+    con -> io -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
 run red hal ord con hhp pns config (is@State { type_env = tenv
                                              , known_values = kv
                                              , apply_types = at

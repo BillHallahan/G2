@@ -39,20 +39,20 @@ checkInputOutput'' proj src md entry i req config = do
 
     let (init_state, _) = initState binds tycons cls Nothing Nothing Nothing False (T.pack entry) mb_modname ex config
     
-    (con, hhp) <- getSMT config
+    (SomeSMT con, hhp) <- getSMT config
 
     let chAll = checkExprAll req
 
     r <- if higherOrderSolver config == AllFuncs
           then run 
-              (NonRedPCRed con hhp config
+              (NonRedPCRed con config
                 :<~| StdRed con hhp config) 
               (MaxOutputsHalter 
                 :<~> ZeroHalter)
               NextOrderer
               con hhp [] config init_state
           else run
-              (NonRedPCRed con hhp config
+              (NonRedPCRed con config
                 :<~| StdRed con hhp config) 
               (MaxOutputsHalter 
                 :<~> ZeroHalter)

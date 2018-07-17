@@ -1,5 +1,13 @@
 -- | This defines an SMTConverter for the SMT2 language
 -- It provides methods to construct formulas, as well as feed them to an external solver
+
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module G2.Internals.Solver.SMT2 where
 
 import G2.Internals.Config.Config
@@ -19,160 +27,278 @@ import Data.Ratio
 import System.IO
 import System.Process
 
-type SMT2Converter = SMTConverter String String (Handle, Handle, ProcessHandle)
+data Z3 = Z3
+data CVC4 = CVC4
 
-z3 :: SMT2Converter
-z3 = (smt2 setUpFormulaZ3 getModelZ3) {sortDecl = sortDeclZ3 z3}
+data SomeSMT io where
+    SomeSMT :: forall con ast out io . SMTConverter con ast out io => con -> SomeSMT io
 
-cvc4 :: SMT2Converter
-cvc4 = smt2 setUpFormulaCVC4 getModelCVC4
+instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
+    empty _ = ""  
+    merge _ = (++)
 
-smt2 :: (Handle -> String -> IO ())
-     -> (Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)])
-     -> SMT2Converter
-smt2 setup getmdl = SMTConverter {
-          empty = ""  
-        , merge = (++)
-
-        , checkSat = \(h_in, h_out, _) formula -> do
-            -- putStrLn "checkSat"
-            -- putStrLn formula
-            
-            setup h_in formula
-            r <- checkSat' h_in h_out
-
-            -- putStrLn $ show r
-
-            return r
-
-        , checkSatGetModel = \(h_in, h_out, _) formula headers vs -> do
-            setup h_in formula
-            -- putStrLn "\n\n checkSatGetModel"
-            -- putStrLn formula
-            r <- checkSat' h_in h_out
-            -- putStrLn $ "r =  " ++ show r
-            if r == SAT then do
-                mdl <- getmdl h_in h_out vs
-                -- putStrLn "======"
-                -- putStrLn (show mdl)
-                let m = parseModel headers mdl
-                -- putStrLn $ "m = " ++ show m
-                -- putStrLn "======"
-                return (r, Just m)
-            else do
-                return (r, Nothing)
-
-        , checkSatGetModelGetExpr = \(h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) -> do
-            setup h_in formula
-            -- putStrLn "\n\n checkSatGetModelGetExpr"
-            -- putStrLn formula
-            r <- checkSat' h_in h_out
-            -- putStrLn $ "r =  " ++ show r
-            if r == SAT then do
-                mdl <- getmdl h_in h_out vs
-                -- putStrLn "======"
-                -- putStrLn formula
-                -- putStrLn ""
-                -- putStrLn (show mdl)
-                -- putStrLn "======"
-                let m = parseModel headers mdl
-
-                expr <- solveExpr h_in h_out (smt2 setup getmdl) headers eenv e
-                -- putStrLn (show expr)
-                return (r, Just m, Just expr)
-            else do
-                return (r, Nothing, Nothing)
-
-        , assert = function1 "assert"
-        , sortDecl = \ns ->
-            let
-                dcHandler :: [DC] -> String
-                dcHandler [] = ""
-                dcHandler (DC n s:dc) =
-                    let
-                        si = map (\(s'', i) -> (s'', (selectorName (smt2 setup getmdl) s'') ++ show i)) $ zip s ([0..] :: [Integer])
-                        s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ "_F " ++ (selectorName (smt2 setup getmdl) _s) ++ ")") $ si
-                    in
-                    "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
-
-                -- binders = intercalate " " $ concatMap (\(_, s, _) -> s) ns
-                adtDecs = intercalate " " $ map (\(n, bn, _) -> "(" ++ n ++ " " ++ show (length bn) ++ ")") ns
-            in
-            if length ns > 0 then
-                "(declare-datatypes (" ++ adtDecs ++ ") ("
-                ++ (foldr (\(_, bn, dc) e -> 
-                    "(par " ++ "(" ++ (intercalate " " bn) ++ ")" ++ " (" ++ (dcHandler dc) ++ ") )" ++ e) "" ns) ++  "))"
-            else
-                ""
-            
-        , varDecl = \n s -> "(declare-const " ++ n ++ " " ++ s ++ ")"
+    checkSat _ (h_in, h_out, _) formula = do
+        -- putStrLn "checkSat"
+        -- putStrLn formula
         
-        , setLogic = \lgc ->
-            let 
-                s = case lgc of
-                    QF_LIA -> "QF_LIA"
-                    QF_LRA -> "QF_LRA"
-                    QF_LIRA -> "QF_LIRA"
-                    QF_NIA -> "QF_NIA"
-                    QF_NRA -> "QF_NRA"
-                    QF_NIRA -> "QF_NIRA"
-                    _ -> "ALL"
-            in
-            case lgc of
-                ALL -> ""
-                _ -> "(set-logic " ++ s ++ ")"
+        setUpFormulaZ3 h_in formula
+        r <- checkSat' h_in h_out
 
-        , (.>=) = function2 ">="
-        , (.>) = function2 ">"
-        , (.=) = function2 "="
-        , (./=) = \x -> function1 "not" . function2 "=" x
-        , (.<=) = function2 "<="
-        , (.<) = function2 "<"
+        -- putStrLn $ show r
 
-        , (.&&) = function2 "and"
-        , (.||) = function2 "or"
-        , (.!) = function1 "not"
-        , (.=>) = function2 "=>"
-        , (.<=>) = function2 "="
+        return r
 
-        , (.+) = function2 "+"
-        , (.-) = function2 "-"
-        , (.*) = function2 "*"
-        , (./) = function2 "/"
-        , smtQuot = function2 "div"
-        , smtModulo = function2 "mod"
-        , smtSqrt = \x -> "(^ " ++ x ++ " 0.5)" 
-        , neg = function1 "-"
+    checkSatGetModel _ (h_in, h_out, _) formula headers vs = do
+        setUpFormulaZ3 h_in formula
+        -- putStrLn "\n\n checkSatGetModel"
+        -- putStrLn formula
+        r <- checkSat' h_in h_out
+        -- putStrLn $ "r =  " ++ show r
+        if r == SAT then do
+            mdl <- getModelZ3 h_in h_out vs
+            -- putStrLn "======"
+            -- putStrLn (show mdl)
+            let m = parseModel headers mdl
+            -- putStrLn $ "m = " ++ show m
+            -- putStrLn "======"
+            return (r, Just m)
+        else do
+            return (r, Nothing)
 
-        , itor = function1 "to_real"
+    checkSatGetModelGetExpr con (h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) = do
+        setUpFormulaZ3 h_in formula
+        -- putStrLn "\n\n checkSatGetModelGetExpr"
+        -- putStrLn formula
+        r <- checkSat' h_in h_out
+        -- putStrLn $ "r =  " ++ show r
+        if r == SAT then do
+            mdl <- getModelZ3 h_in h_out vs
+            -- putStrLn "======"
+            -- putStrLn formula
+            -- putStrLn ""
+            -- putStrLn (show mdl)
+            -- putStrLn "======"
+            let m = parseModel headers mdl
 
-        , tester = \n e -> "(is-" ++ n ++ " " ++ e ++ ")"
+            expr <- solveExpr h_in h_out con headers eenv e
+            -- putStrLn (show expr)
+            return (r, Just m, Just expr)
+        else do
+            return (r, Nothing, Nothing)
 
-        , ite = function3 "ite"
+    assert _ = function1 "assert"
+    sortDecl = sortDeclZ3
+        
+    varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
+    
+    setLogic _ lgc =
+        let 
+            s = case lgc of
+                QF_LIA -> "QF_LIA"
+                QF_LRA -> "QF_LRA"
+                QF_LIRA -> "QF_LIRA"
+                QF_NIA -> "QF_NIA"
+                QF_NRA -> "QF_NRA"
+                QF_NIRA -> "QF_NIRA"
+                _ -> "ALL"
+        in
+        case lgc of
+            ALL -> ""
+            _ -> "(set-logic " ++ s ++ ")"
 
-        , int = \x -> if x >= 0 then show x else "(- " ++ show (abs x) ++ ")"
-        , float = \r -> 
-            "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
-        , double = \r ->
-            "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
-        , bool = \b -> if b then "true" else "false"
-        , var = \n -> function1 n
+    (.>=) _ = function2 ">="
+    (.>) _ = function2 ">"
+    (.=) _ = function2 "="
+    (./=) _ x = function1 "not" . function2 "=" x
+    (.<=) _ = function2 "<="
+    (.<) _ = function2 "<"
 
-        , sortInt = "Int"
-        , sortFloat = "Real"
-        , sortDouble = "Real"
-        , sortBool = "Bool"
-        , sortADT = \n ts -> if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map (sortN (smt2 setup getmdl)) ts) ++ ")"
+    (.&&) _ = function2 "and"
+    (.||) _ = function2 "or"
+    (.!) _ = function1 "not"
+    (.=>) _ = function2 "=>"
+    (.<=>) _ = function2 "="
 
-        , cons = \n asts _ ->
-            if asts /= [] then
-                "(" ++ n ++ " " ++ (intercalate " " asts) ++ ")" 
-            else
-                n
-        , varName = \n _ -> n
+    (.+) _ = function2 "+"
+    (.-) _ = function2 "-"
+    (.*) _ = function2 "*"
+    (./) _ = function2 "/"
+    smtQuot _ = function2 "div"
+    smtModulo _ = function2 "mod"
+    smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
+    neg _ = function1 "-"
 
-        , asSort = \ast s -> "(as " ++ ast ++ sortN (smt2 setup getmdl) s ++ ")"
-    }
+    itor _ = function1 "to_real"
+
+    tester _ n e = "(is-" ++ n ++ " " ++ e ++ ")"
+
+    ite _ = function3 "ite"
+
+    int _ x = if x >= 0 then show x else "(- " ++ show (abs x) ++ ")"
+    float _ r = 
+        "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    double _ r =
+        "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    bool _ b = if b then "true" else "false"
+    var _ n = function1 n
+
+    sortInt _ = "Int"
+    sortFloat _ = "Real"
+    sortDouble _ = "Real"
+    sortBool _ = "Bool"
+    sortADT con n ts = if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map (sortN con) ts) ++ ")"
+
+    cons _ n asts _ =
+        if asts /= [] then
+            "(" ++ n ++ " " ++ (intercalate " " asts) ++ ")" 
+        else
+            n
+    varName _ n _ = n
+
+    asSort con ast s = "(as " ++ ast ++ sortN con s ++ ")"
+
+instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
+    empty _ = ""  
+    merge _ = (++)
+
+    checkSat _ (h_in, h_out, _) formula = do
+        -- putStrLn "checkSat"
+        -- putStrLn formula
+        
+        setUpFormulaCVC4 h_in formula
+        r <- checkSat' h_in h_out
+
+        -- putStrLn $ show r
+
+        return r
+
+    checkSatGetModel _ (h_in, h_out, _) formula headers vs = do
+        setUpFormulaCVC4 h_in formula
+        -- putStrLn "\n\n checkSatGetModel"
+        -- putStrLn formula
+        r <- checkSat' h_in h_out
+        -- putStrLn $ "r =  " ++ show r
+        if r == SAT then do
+            mdl <- getModelCVC4 h_in h_out vs
+            -- putStrLn "======"
+            -- putStrLn (show mdl)
+            let m = parseModel headers mdl
+            -- putStrLn $ "m = " ++ show m
+            -- putStrLn "======"
+            return (r, Just m)
+        else do
+            return (r, Nothing)
+
+    checkSatGetModelGetExpr con (h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) = do
+        setUpFormulaCVC4 h_in formula
+        -- putStrLn "\n\n checkSatGetModelGetExpr"
+        -- putStrLn formula
+        r <- checkSat' h_in h_out
+        -- putStrLn $ "r =  " ++ show r
+        if r == SAT then do
+            mdl <- getModelCVC4 h_in h_out vs
+            -- putStrLn "======"
+            -- putStrLn formula
+            -- putStrLn ""
+            -- putStrLn (show mdl)
+            -- putStrLn "======"
+            let m = parseModel headers mdl
+
+            expr <- solveExpr h_in h_out con headers eenv e
+            -- putStrLn (show expr)
+            return (r, Just m, Just expr)
+        else do
+            return (r, Nothing, Nothing)
+
+    assert _ = function1 "assert"
+    sortDecl con ns =
+        let
+            dcHandler :: [DC] -> String
+            dcHandler [] = ""
+            dcHandler (DC n s:dc) =
+                let
+                    si = map (\(s'', i) -> (s'', (selectorName con s'') ++ show i)) $ zip s ([0..] :: [Integer])
+                    s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ "_F " ++ (selectorName con _s) ++ ")") $ si
+                in
+                "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
+
+            -- binders = intercalate " " $ concatMap (\(_, s, _) -> s) ns
+            adtDecs = intercalate " " $ map (\(n, bn, _) -> "(" ++ n ++ " " ++ show (length bn) ++ ")") ns
+        in
+        if length ns > 0 then
+            "(declare-datatypes (" ++ adtDecs ++ ") ("
+            ++ (foldr (\(_, bn, dc) e -> 
+                "(par " ++ "(" ++ (intercalate " " bn) ++ ")" ++ " (" ++ (dcHandler dc) ++ ") )" ++ e) "" ns) ++  "))"
+        else
+            ""
+        
+    varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
+    
+    setLogic _ lgc =
+        let 
+            s = case lgc of
+                QF_LIA -> "QF_LIA"
+                QF_LRA -> "QF_LRA"
+                QF_LIRA -> "QF_LIRA"
+                QF_NIA -> "QF_NIA"
+                QF_NRA -> "QF_NRA"
+                QF_NIRA -> "QF_NIRA"
+                _ -> "ALL"
+        in
+        case lgc of
+            ALL -> ""
+            _ -> "(set-logic " ++ s ++ ")"
+
+    (.>=) _ = function2 ">="
+    (.>) _ = function2 ">"
+    (.=) _ = function2 "="
+    (./=) _ = \x -> function1 "not" . function2 "=" x
+    (.<=) _ = function2 "<="
+    (.<) _ = function2 "<"
+
+    (.&&) _ = function2 "and"
+    (.||) _ = function2 "or"
+    (.!) _ = function1 "not"
+    (.=>) _ = function2 "=>"
+    (.<=>) _ = function2 "="
+
+    (.+) _ = function2 "+"
+    (.-) _ = function2 "-"
+    (.*) _ = function2 "*"
+    (./) _ = function2 "/"
+    smtQuot _ = function2 "div"
+    smtModulo _ = function2 "mod"
+    smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
+    neg _ = function1 "-"
+
+    itor _ = function1 "to_real"
+
+    tester _ n e = "(is-" ++ n ++ " " ++ e ++ ")"
+
+    ite _ = function3 "ite"
+
+    int _ x = if x >= 0 then show x else "(- " ++ show (abs x) ++ ")"
+    float _ r = 
+        "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    double _ r =
+        "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    bool _ b = if b then "true" else "false"
+    var _ n = function1 n
+
+    sortInt _ = "Int"
+    sortFloat _ = "Real"
+    sortDouble _ = "Real"
+    sortBool _ = "Bool"
+    sortADT con n ts = if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map (sortN con) ts) ++ ")"
+
+    cons _ n asts _ =
+        if asts /= [] then
+            "(" ++ n ++ " " ++ (intercalate " " asts) ++ ")" 
+        else
+            n
+    varName _ n _ = n
+
+    asSort con ast s = "(as " ++ ast ++ sortN con s ++ ")"
 
 functionList :: String -> [String] -> String
 functionList f xs = "(" ++ f ++ " " ++ (intercalate " " xs) ++ ")" 
@@ -187,14 +313,14 @@ function3 :: String -> String -> String -> String -> String
 function3 f a b c = "(" ++ f ++ " " ++ a ++ " " ++ b ++ " " ++ c ++ ")"
 
 --TODO: SAME AS sortName in language, fix
-sortN :: SMTConverter ast out io -> Sort -> ast
+sortN :: SMTConverter con ast out io => con -> Sort -> ast
 sortN smtc SortInt = sortInt smtc
 sortN smtc SortFloat = sortFloat smtc
 sortN smtc SortDouble = sortDouble smtc
 sortN smtc SortBool = sortBool smtc
 sortN smtc (Sort n s) = sortADT smtc n s
 
-selectorName :: SMT2Converter -> Sort -> SMTName
+selectorName :: SMTConverter con SMTName out io => con ->  Sort -> SMTName
 selectorName smtc SortInt = sortInt smtc
 selectorName smtc SortFloat = sortFloat smtc
 selectorName smtc SortDouble = sortDouble smtc
@@ -218,13 +344,13 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getSMT :: Config -> IO (SMT2Converter, (Handle, Handle, ProcessHandle))
-getSMT (Config {smt = Z3}) = do
+getSMT :: Config -> IO (SomeSMT (Handle, Handle, ProcessHandle), (Handle, Handle, ProcessHandle))
+getSMT (Config {smt = ConZ3}) = do
     hpp <- getZ3ProcessHandles
-    return (z3, hpp)
-getSMT (Config {smt = CVC4}) = do
+    return (SomeSMT Z3, hpp)
+getSMT (Config {smt = ConCVC4}) = do
     hpp <- getCVC4ProcessHandles
-    return (cvc4, hpp)
+    return (SomeSMT CVC4, hpp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
@@ -355,7 +481,7 @@ getLinesMatchParens' h_out n = do
         out' <- getLinesMatchParens' h_out n'
         return $ out ++ out'
 
-solveExpr :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> ExprEnv -> Expr -> IO Expr
+solveExpr :: SMTConverter con [Char] out io => Handle -> Handle -> con -> [SMTHeader] -> ExprEnv -> Expr -> IO Expr
 solveExpr h_in h_out con headers eenv e = do
     let vs = symbVars eenv e
     vs' <- solveExpr' h_in h_out con headers vs
@@ -363,14 +489,14 @@ solveExpr h_in h_out con headers eenv e = do
     
     return $ foldr (uncurry replaceASTs) e (zip vs vs'')
 
-solveExpr'  :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> [Expr] -> IO [SMTAST]
+solveExpr'  :: SMTConverter con [Char] out io => Handle -> Handle -> con -> [SMTHeader] -> [Expr] -> IO [SMTAST]
 solveExpr' _ _ _ _ [] = return []
 solveExpr' h_in h_out con headers (v:vs) = do
     v' <- solveExpr'' h_in h_out con headers v
     vs' <- solveExpr' h_in h_out con headers vs
     return (v':vs')
 
-solveExpr'' :: Handle -> Handle -> SMT2Converter -> [SMTHeader] -> Expr -> IO SMTAST
+solveExpr'' :: SMTConverter con [Char] out io => Handle -> Handle -> con -> [SMTHeader] -> Expr -> IO SMTAST
 solveExpr'' h_in h_out con headers e = do
     let smte = toSolverAST con $ exprToSMT e
     hPutStr h_in ("(eval " ++ smte ++ " :completion)\n")
@@ -379,7 +505,7 @@ solveExpr'' h_in h_out con headers e = do
 
     return $ parseToSMTAST headers out (typeToSMT . typeOf $ e)
 
-sortDeclZ3 :: SMT2Converter -> [(SMTName, [SMTName], [DC])] -> String
+sortDeclZ3 :: SMTConverter con SMTName out io => con -> [(SMTName, [SMTName], [DC])] -> String
 sortDeclZ3 con ns = 
             let
                 dcHandler :: [DC] -> String

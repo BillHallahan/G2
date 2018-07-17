@@ -1,6 +1,7 @@
 -- | Language
 --   Provides a language definition designed to closely resemble the SMTLIB2 language.
 
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Internals.Solver.Language
@@ -94,67 +95,124 @@ type ExprModel = Support.Model
 -- This data type is used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
 -- datatypes, to a form understandable by the solver.
-data SMTConverter ast out io =
-    SMTConverter {
-          empty :: out
-        , merge :: out -> out -> out
+-- data SMTConverter ast out io =
+--     SMTConverter {
+--           empty :: out
+--         , merge :: out -> out -> out
 
-        , checkSat :: io -> out -> IO Result
-        , checkSatGetModel :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe Model)
-        , checkSatGetModelGetExpr :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe Model, Maybe Expr)
+--         , checkSat :: io -> out -> IO Result
+--         , checkSatGetModel :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe Model)
+--         , checkSatGetModelGetExpr :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe Model, Maybe Expr)
 
-        , assert :: ast -> out
-        , sortDecl :: [(SMTName, [SMTName], [DC])] -> out
-        , varDecl :: SMTName -> ast -> out
-        , setLogic :: Logic -> out
+--         , assert :: ast -> out
+--         , sortDecl :: [(SMTName, [SMTName], [DC])] -> out
+--         , varDecl :: SMTName -> ast -> out
+--         , setLogic :: Logic -> out
 
-        , (.>=) :: ast -> ast -> ast
-        , (.>) :: ast -> ast -> ast
-        , (.=) :: ast -> ast -> ast
-        , (./=) :: ast -> ast -> ast
-        , (.<) :: ast -> ast -> ast
-        , (.<=) :: ast -> ast -> ast
+--         , (.>=) :: ast -> ast -> ast
+--         , (.>) :: ast -> ast -> ast
+--         , (.=) :: ast -> ast -> ast
+--         , (./=) :: ast -> ast -> ast
+--         , (.<) :: ast -> ast -> ast
+--         , (.<=) :: ast -> ast -> ast
 
-        , (.&&) :: ast -> ast -> ast
-        , (.||) :: ast -> ast -> ast
-        , (.!) :: ast -> ast
-        , (.=>) :: ast -> ast -> ast
-        , (.<=>) :: ast -> ast -> ast
+--         , (.&&) :: ast -> ast -> ast
+--         , (.||) :: ast -> ast -> ast
+--         , (.!) :: ast -> ast
+--         , (.=>) :: ast -> ast -> ast
+--         , (.<=>) :: ast -> ast -> ast
 
-        , (.+) :: ast -> ast -> ast
-        , (.-) :: ast -> ast -> ast
-        , (.*) :: ast -> ast -> ast
-        , (./) :: ast -> ast -> ast
-        , smtQuot :: ast -> ast -> ast
-        , smtModulo :: ast -> ast -> ast
-        , smtSqrt :: ast -> ast
-        , neg :: ast -> ast
-        , itor :: ast -> ast
+--         , (.+) :: ast -> ast -> ast
+--         , (.-) :: ast -> ast -> ast
+--         , (.*) :: ast -> ast -> ast
+--         , (./) :: ast -> ast -> ast
+--         , smtQuot :: ast -> ast -> ast
+--         , smtModulo :: ast -> ast -> ast
+--         , smtSqrt :: ast -> ast
+--         , neg :: ast -> ast
+--         , itor :: ast -> ast
 
-        , tester :: SMTName -> ast -> ast
+--         , tester :: SMTName -> ast -> ast
 
-        , ite :: ast -> ast -> ast -> ast
+--         , ite :: ast -> ast -> ast -> ast
 
-        --values
-        , int :: Integer -> ast
-        , float :: Rational -> ast
-        , double :: Rational -> ast
-        , bool :: Bool -> ast
-        , cons :: SMTName -> [ast] -> Sort -> ast
-        , var :: SMTName -> ast -> ast
-        , asSort :: ast -> Sort -> ast
+--         --values
+--         , int :: Integer -> ast
+--         , float :: Rational -> ast
+--         , double :: Rational -> ast
+--         , bool :: Bool -> ast
+--         , cons :: SMTName -> [ast] -> Sort -> ast
+--         , var :: SMTName -> ast -> ast
+--         , asSort :: ast -> Sort -> ast
 
-        --sorts
-        , sortInt :: ast
-        , sortFloat :: ast
-        , sortDouble :: ast
-        , sortBool :: ast
-        , sortADT :: SMTName -> [Sort] -> ast
+--         --sorts
+--         , sortInt :: ast
+--         , sortFloat :: ast
+--         , sortDouble :: ast
+--         , sortBool :: ast
+--         , sortADT :: SMTName -> [Sort] -> ast
 
-        , varName :: SMTName -> Sort -> ast
-    }
+--         , varName :: SMTName -> Sort -> ast
+--     }
+class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
+    empty :: con -> out
+    merge :: con -> out -> out -> out
 
-sortName :: SMTConverter ast out io -> Sort -> ast
+    checkSat :: con -> io -> out -> IO Result
+    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe Model)
+    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe Model, Maybe Expr)
+
+    assert :: con -> ast -> out
+    sortDecl :: con -> [(SMTName, [SMTName], [DC])] -> out
+    varDecl :: con -> SMTName -> ast -> out
+    setLogic :: con -> Logic -> out
+
+    (.>=) :: con -> ast -> ast -> ast
+    (.>) :: con -> ast -> ast -> ast
+    (.=) :: con -> ast -> ast -> ast
+    (./=) :: con -> ast -> ast -> ast
+    (.<) :: con -> ast -> ast -> ast
+    (.<=) :: con -> ast -> ast -> ast
+
+    (.&&) :: con -> ast -> ast -> ast
+    (.||) :: con -> ast -> ast -> ast
+    (.!) :: con -> ast -> ast
+    (.=>) :: con -> ast -> ast -> ast
+    (.<=>) :: con -> ast -> ast -> ast
+
+    (.+) :: con -> ast -> ast -> ast
+    (.-) :: con -> ast -> ast -> ast
+    (.*) :: con -> ast -> ast -> ast
+    (./) :: con -> ast -> ast -> ast
+    smtQuot :: con -> ast -> ast -> ast
+    smtModulo :: con -> ast -> ast -> ast
+    smtSqrt :: con -> ast -> ast
+    neg :: con -> ast -> ast
+    itor :: con -> ast -> ast
+
+    tester :: con -> SMTName -> ast -> ast
+
+    ite :: con -> ast -> ast -> ast -> ast
+
+    --values
+    int :: con -> Integer -> ast
+    float :: con -> Rational -> ast
+    double :: con -> Rational -> ast
+    bool :: con -> Bool -> ast
+    cons :: con -> SMTName -> [ast] -> Sort -> ast
+    var :: con -> SMTName -> ast -> ast
+    asSort :: con -> ast -> Sort -> ast
+
+    --sorts
+    sortInt :: con -> ast
+    sortFloat :: con -> ast
+    sortDouble :: con -> ast
+    sortBool :: con -> ast
+    sortADT :: con -> SMTName -> [Sort] -> ast
+
+    varName :: con -> SMTName -> Sort -> ast
+
+sortName :: SMTConverter con ast out io => con -> Sort -> ast
 sortName con SortInt = sortInt con
 sortName con SortFloat = sortFloat con
 sortName con SortDouble = sortDouble con

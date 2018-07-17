@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module G2.Internals.Liquid.Rules ( LHRed (..)
                                  , LHHalter (..)
@@ -189,12 +190,12 @@ instance ASTContainer LHTracker Type where
     modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
         lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
 
-data LHRed ast out io = LHRed [Name] (SMTConverter ast out io) io Config
+data LHRed con io = LHRed [Name] con io Config
 -- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
 data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
-instance Reducer (LHRed ast out io) LHTracker where
+instance SMTConverter con ast out io => Reducer (LHRed con io) LHTracker where
     redRules lhr@(LHRed ns smt io config) s = do
         (r, s) <- reduce (lhReduce ns config) smt io config s
 
