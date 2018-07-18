@@ -127,9 +127,7 @@ run red hal ord con hhp pns config (is@State { type_env = tenv
 
     ident_states'' <- 
         mapM (\(_, s) -> do
-            (_, m) <- case smtADTs config of
-                          False -> checkModel con hhp s
-                          True -> checkModelWithSMTSorts con hhp config s
+            (_, m) <- checkModel con hhp s
             return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states'
 

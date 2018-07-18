@@ -23,7 +23,6 @@ data Config = Config {
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
-    , smtADTs :: Bool -- ^ If True, uses the SMT solver to solve ADT constraints, else uses a more efficient algorithm
     , steps :: Int -- ^ How many steps to take when running States
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
@@ -46,7 +45,6 @@ mkConfig as m = Config {
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg ConZ3
-    , smtADTs = boolArg "smt-adts" as m Off
     , steps = strArg "n" as m read 500
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300

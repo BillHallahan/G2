@@ -6,12 +6,9 @@ module G2.Internals.Solver.Interface
     , subVar
     , subVarFuncCall
     , checkConstraints
-    , checkConstraintsWithSMTSorts
     , checkModel
-    , checkModelWithSMTSorts
     ) where
 
-import G2.Internals.Config.Config
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Language hiding (Model)
 import qualified G2.Internals.Language.ApplyTypes as AT
@@ -21,8 +18,6 @@ import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Converters
 import G2.Internals.Solver.Language
 
-import qualified Data.HashMap.Lazy as HM
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -104,95 +99,18 @@ checkConstraints con io s = do
 
 checkConstraints' :: SMTConverter con ast out io => con -> io -> State t -> IO Result
 checkConstraints' con io s = do
-    -- let s' = filterTEnv . simplifyPrims $ s
-    let s' = s {path_conds = unsafeElimCast . simplifyPrims $ path_conds s}
+    let s' = s {path_conds = unsafeElimCast $ path_conds s}
 
     let headers = toSMTHeaders s'
     let formula = toSolver con headers
 
     checkSat con io formula
 
-checkConstraintsWithSMTSorts :: SMTConverter con ast out io => Config -> con -> io -> State t -> IO Result
-checkConstraintsWithSMTSorts config con io s = do
-    let tenv = filterTEnv (type_env s) (path_conds s)
-    let pc = unsafeElimCast . simplifyPrims $ path_conds s
-
-    let (tenv', pc', _) = case smt config of
-                                ConZ3 -> elimPolymorphic tenv pc () (name_gen s)
-                                ConCVC4 -> (tenv, pc, ())
-
-    let s' = s { type_env = tenv'
-               , path_conds = pc' }
-
-    let headers = toSMTHeadersWithSMTSorts s'
-    let formula = toSolver con headers
-
-    checkSat con io formula
-
-elimPolymorphic :: (ASTContainer m Type, Named m) => TypeEnv -> PC.PathConds -> m -> NameGen -> (TypeEnv, PC.PathConds, m)
-elimPolymorphic tenv pc e ng =
-    let
-       ts = nub $ evalASTs nonTyVarTyConApp (tenv, pc)
-       (tenv', nm, tm) = genNewAlgDataTy tenv M.empty ts HM.empty [] ng
-
-       pc' = elimTyForAll $ foldr (uncurry replaceASTs) pc tm
-       e' = elimTyForAll $ foldr (uncurry replaceASTs) e tm
-    in
-    renames nm (tenv', pc', e')
-
-nonTyVarTyConApp :: Type -> [Type]
-nonTyVarTyConApp t@(TyConApp _ ts) = if not $ any isTyVar ts then [t] else []
-nonTyVarTyConApp _ = []
-
-genNewAlgDataTy :: TypeEnv -> TypeEnv -> [Type] -> HM.HashMap Name Name -> [(Type, Type)] -> NameGen -> (TypeEnv, HM.HashMap Name Name, [(Type, Type)])
-genNewAlgDataTy _ tenv [] nm tm _ = (tenv, nm, tm)
-genNewAlgDataTy tenv ntenv ((TyConApp n []):xs) nm tm ng =
-    let
-        adt = case M.lookup n tenv of
-                    Just a -> a
-                    Nothing -> error $ "ADT not found in genNewAlgDataTy" ++ show n
-
-        ntenv' = M.insert n adt ntenv
-    in
-    genNewAlgDataTy tenv ntenv' xs nm tm ng
-genNewAlgDataTy tenv ntenv (t@(TyConApp n ts):xs) nm tm ng =
-    let
-        adt = case M.lookup n tenv of
-                    Just a -> a
-                    Nothing -> error $ "ADT not found in genNewAlgDataTy" ++ show n
-        tyv = map (TyVar . flip Id TYPE) $ bound_names adt
-        tyRep = (t, TyConApp n []):zip tyv ts
-
-        adt' = adt {bound_names = []}
-
-        -- ns = nub $ names adt
-        -- (ns', ng') = renameAll ns ng
-        (n', ng') = freshSeededName n ng
-        nns = HM.singleton n n'
-
-        adt'' = renames nns $ foldr (uncurry replaceASTs) adt' tyRep
-
-        adt''' = elimTyForAll adt''
-
-        ntenv' = M.insert n' adt''' ntenv
-    in
-    genNewAlgDataTy tenv ntenv' xs (HM.union nns nm) (tm ++ tyRep) ng'
-genNewAlgDataTy _ _ _ _ _ _ = error "Unhandled type in genNewAlgDataTy"
-
-
-elimTyForAll :: (ASTContainer m Type) => m -> m
-elimTyForAll = modifyASTs elimTyForAll'
-
-elimTyForAll' :: Type -> Type
-elimTyForAll' (TyForAll _ t) = t
-elimTyForAll' t = t
-
 -- | checkModel
 -- Checks if the constraints are satisfiable, and returns a model if they are
 checkModel :: SMTConverter con ast out io => con -> io -> State t -> IO (Result, Maybe ExprModel)
 checkModel con io s = do
-    -- let s' = filterTEnv . simplifyPrims $ s
-    let s' = s {path_conds = simplifyPrims $ path_conds s}
+    let s' = s {path_conds =  path_conds s}
     return . fmap liftCasts =<< checkModel' con io (symbolic_ids s') s'
 
 -- | checkModel'
@@ -207,10 +125,6 @@ checkModel' _ _ [] s = do
 checkModel' con io (Id n t@(TyConApp tn ts):is) s@(State {apply_types = at})
     | t /= tyBool (known_values s)  =
     do
-        -- case n of
-        --     Name "sym" _ _ _ -> putStrLn "Sym"
-        --     _ -> return ()
-
         let (r, is', s') = addADTs n tn ts s
 
         let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
@@ -221,13 +135,13 @@ checkModel' con io (Id n t@(TyConApp tn ts):is) s@(State {apply_types = at})
             SAT -> checkModel' con io is''' s'
             r' -> return (r', Nothing)
 checkModel' con io (i:is) s = do
-    (m, av) <- getModelVal con io i Nothing s
+    (m, av) <- getModelVal con io i s
     case m of
         Just m' -> checkModel' con io is (s {model = M.union m' (model s), arbValueGen = av})
         Nothing -> return (UNSAT, Nothing)
 
-getModelVal :: SMTConverter con ast out io => con -> io -> Id -> Maybe Config -> State t -> IO (Maybe ExprModel, ArbValueGen)
-getModelVal con io i@(Id n _) config s = do
+getModelVal :: SMTConverter con ast out io => con -> io -> Id -> State t -> IO (Maybe ExprModel, ArbValueGen)
+getModelVal con io (Id n _) s = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
  
     let pc = PC.scc (known_values s) [n] (path_conds s)
@@ -240,14 +154,12 @@ getModelVal con io i@(Id n _) config s = do
                     in
                     return (Just $ M.singleton n' e, av) 
                 False -> do
-                    e <- checkNumericConstraints con io config s'
+                    e <- checkNumericConstraints con io s'
                     return (e, arbValueGen s)
 
-checkNumericConstraints :: SMTConverter con ast out io => con -> io -> Maybe Config -> State t -> IO (Maybe ExprModel)
-checkNumericConstraints con io config s = do
-    let headers = case maybe False smtADTs config of
-                        False -> toSMTHeaders s
-                        True -> toSMTHeadersWithSMTSorts s
+checkNumericConstraints :: SMTConverter con ast out io => con -> io -> State t -> IO (Maybe ExprModel)
+checkNumericConstraints con io s = do
+    let headers = toSMTHeaders s
     let formula = toSolver con headers
 
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars . PC.toList $ path_conds s
@@ -305,91 +217,3 @@ addADTs n tn ts s =
         False -> case not . null $ dcs of
                     True -> (SAT, nst, s {model = M.union m (model s)})
                     False -> (UNSAT, [], s)
-
--- | checkModelWithSMTSorts
--- Checks if the constraints are satisfiable, and returns a model if they are
-checkModelWithSMTSorts :: SMTConverter con ast out io => con -> io -> Config -> State t -> IO (Result, Maybe ExprModel)
-checkModelWithSMTSorts con io config s@(State {expr_env = eenv}) = do
-    let tenv = filterTEnv (type_env s) (path_conds s)
-    let cexpr = earlySubVar eenv $ curr_expr s
-    let pc = unsafeElimCast . earlySubVar eenv . simplifyPrims $ path_conds s
-
-    let (tenv', pc', cexpr') = case smt config of
-                                    ConZ3 -> elimPolymorphic tenv pc cexpr (name_gen s)
-                                    ConCVC4 -> (tenv, pc, cexpr)
-
-    let s' = s { type_env = tenv'
-               , curr_expr = cexpr'
-               , path_conds = pc' }
-    return . fmap liftCasts =<< checkModelWithSMTSorts' con io (symbolic_ids s') config s'
-
-checkModelWithSMTSorts' :: SMTConverter con ast out io => con -> io -> [Id] -> Config -> State t -> IO (Result, Maybe ExprModel)
-checkModelWithSMTSorts' _ _ [] _ s = do
-    return (SAT, Just $ model s)
-checkModelWithSMTSorts' con io (i:is) config s = do
-    (m, av) <- getModelVal con io i (Just config) s
-    case m of
-        Just m' -> checkModelWithSMTSorts' con io is config (s {model = M.union m' (model s), arbValueGen = av})
-        Nothing -> return (UNSAT, Nothing)
-
--- Narrow the TypeEnv to the types relevant to the given PathConds
-filterTEnv :: TypeEnv -> PC.PathConds -> TypeEnv
-filterTEnv tenv pc =
-    let
-        ns = filter (typeEnvName tenv) $ nub $ names pc
-    in
-    filterTEnv' ns ns tenv-- M.filterWithKey (\k _ -> k `elem` ns) tenv
-
-filterTEnv' :: [Name] -> [Name] -> TypeEnv -> TypeEnv
-filterTEnv' [] keep tenv =
-    M.filterWithKey (\k _ -> k `elem` keep) tenv
-filterTEnv' search keep tenv =
-    let
-        new = filter (not . flip elem keep) 
-            $ filter (typeEnvName tenv) 
-            $ names 
-            $ mapMaybe (flip M.lookup tenv) search
-    in
-    filterTEnv' new (new ++ keep) tenv
-
-typeEnvName :: TypeEnv -> Name -> Bool
-typeEnvName tenv = flip elem (M.keys tenv)
-
-earlySubVar :: (ASTContainer m Expr) => ExprEnv -> m -> m
-earlySubVar eenv = modifyASTs (earlySubVar' eenv)
-
-earlySubVar' :: ExprEnv -> Expr -> Expr
-earlySubVar' eenv v@(Var (Id n _)) =
-    case E.deepLookup n eenv of
-        Just v' -> v'
-        Nothing -> v
-earlySubVar' _ e = e
-
--- filterTEnv :: State -> State
--- filterTEnv s@State { type_env = tenv} =
---     if tenv == tenv'
---       then s { type_env = tenv }
---       else filterTEnv (s { type_env = tenv' })
---   where
---     tenv' = M.filter (filterTEnv' tenv) tenv
-
--- filterTEnv' :: TypeEnv -> AlgDataTy -> Bool
--- filterTEnv' tenv (DataTyCon _ dc) = length dc > 0 && not (any (filterTEnv'' tenv) dc)
--- filterTEnv' _ _ = False
-
--- filterTEnv'' :: TypeEnv -> DataCon -> Bool
--- filterTEnv'' tenv (DataCon _ _ ts) = any (hasFuncType) ts || any (notPresent tenv) ts
--- filterTEnv'' _ _ = False
-
--- notPresent :: TypeEnv -> Type -> Bool
--- notPresent tenv (TyConApp n _) = n `M.notMember` tenv
--- notPresent _ _ = False
-
-{- TODO: This function is hacky- would be better to correctly handle typeclasses... -}
-simplifyPrims :: ASTContainer t Expr => t -> t
-simplifyPrims = modifyASTs simplifyPrims'
-
-simplifyPrims' :: Expr -> Expr
-simplifyPrims' (App (App (App (Prim Negate t) _) _) a) = App (Prim Negate t) a
-simplifyPrims' (App (App (App (App (Prim p t) _) _) a) b) = App (App (Prim p t) a) b
-simplifyPrims' e = e

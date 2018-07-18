@@ -87,7 +87,6 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             return (r, Nothing, Nothing)
 
     assert _ = function1 "assert"
-    sortDecl = sortDeclZ3
         
     varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
     
@@ -130,7 +129,6 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
     itor _ = function1 "to_real"
 
-    tester _ n e = "(is-" ++ n ++ " " ++ e ++ ")"
 
     ite _ = function3 "ite"
 
@@ -146,7 +144,6 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     sortFloat _ = "Real"
     sortDouble _ = "Real"
     sortBool _ = "Bool"
-    sortADT con n ts = if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map (sortN con) ts) ++ ")"
 
     cons _ n asts _ =
         if asts /= [] then
@@ -154,8 +151,6 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         else
             n
     varName _ n _ = n
-
-    asSort con ast s = "(as " ++ ast ++ sortN con s ++ ")"
 
 instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     empty _ = ""  
@@ -211,26 +206,6 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
             return (r, Nothing, Nothing)
 
     assert _ = function1 "assert"
-    sortDecl con ns =
-        let
-            dcHandler :: [DC] -> String
-            dcHandler [] = ""
-            dcHandler (DC n s:dc) =
-                let
-                    si = map (\(s'', i) -> (s'', (selectorName con s'') ++ show i)) $ zip s ([0..] :: [Integer])
-                    s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ "_F " ++ (selectorName con _s) ++ ")") $ si
-                in
-                "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
-
-            -- binders = intercalate " " $ concatMap (\(_, s, _) -> s) ns
-            adtDecs = intercalate " " $ map (\(n, bn, _) -> "(" ++ n ++ " " ++ show (length bn) ++ ")") ns
-        in
-        if length ns > 0 then
-            "(declare-datatypes (" ++ adtDecs ++ ") ("
-            ++ (foldr (\(_, bn, dc) e -> 
-                "(par " ++ "(" ++ (intercalate " " bn) ++ ")" ++ " (" ++ (dcHandler dc) ++ ") )" ++ e) "" ns) ++  "))"
-        else
-            ""
         
     varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
     
@@ -273,8 +248,6 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
 
     itor _ = function1 "to_real"
 
-    tester _ n e = "(is-" ++ n ++ " " ++ e ++ ")"
-
     ite _ = function3 "ite"
 
     int _ x = if x >= 0 then show x else "(- " ++ show (abs x) ++ ")"
@@ -289,7 +262,6 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     sortFloat _ = "Real"
     sortDouble _ = "Real"
     sortBool _ = "Bool"
-    sortADT con n ts = if ts == [] then n else "(" ++ n ++ " " ++ (intercalate " " $ map (sortN con) ts) ++ ")"
 
     cons _ n asts _ =
         if asts /= [] then
@@ -297,8 +269,6 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         else
             n
     varName _ n _ = n
-
-    asSort con ast s = "(as " ++ ast ++ sortN con s ++ ")"
 
 functionList :: String -> [String] -> String
 functionList f xs = "(" ++ f ++ " " ++ (intercalate " " xs) ++ ")" 
@@ -318,14 +288,12 @@ sortN smtc SortInt = sortInt smtc
 sortN smtc SortFloat = sortFloat smtc
 sortN smtc SortDouble = sortDouble smtc
 sortN smtc SortBool = sortBool smtc
-sortN smtc (Sort n s) = sortADT smtc n s
 
 selectorName :: SMTConverter con SMTName out io => con ->  Sort -> SMTName
 selectorName smtc SortInt = sortInt smtc
 selectorName smtc SortFloat = sortFloat smtc
 selectorName smtc SortDouble = sortDouble smtc
 selectorName smtc SortBool = sortBool smtc
-selectorName _ (Sort n _) = n
 
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
@@ -401,40 +369,12 @@ parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty
     . map (\(n, str, s) -> (n, parseToSMTAST headers str s))
 
 parseToSMTAST :: [SMTHeader] -> String -> Sort -> SMTAST
-parseToSMTAST headers str s = correctTypes s . modifyFix elimLets . parseGetValues $ str
+parseToSMTAST headers str s = correctTypes s . parseGetValues $ str
     where
         correctTypes :: Sort -> SMTAST -> SMTAST
         correctTypes (SortFloat) (VDouble r) = VFloat r
         correctTypes (SortDouble) (VFloat r) = VDouble r
-        correctTypes _ (Cons "true" _ _) = VBool True
-        correctTypes _ (Cons "false" _ _) = VBool False
-        correctTypes _ c@(Cons _ _ _) = correctConsTypes c
         correctTypes _ a = a
-
-        correctConsTypes :: SMTAST -> SMTAST
-        correctConsTypes (Cons n smts (Sort _ _)) =
-            let
-                sName = M.lookup n consNameToSort
-            in
-            case sName of
-                Just n' -> Cons n (map (uncurry correctTypes) (zip (repeat SortFloat) smts)) n' -- TODO : Fix SortFloat to be correct here...
-                Nothing -> error ("Sort constructor " ++ (show n) ++ " not found in correctConsTypes\n\n" ++ str)
-        correctConsTypes err = error $ "correctConsTypes: invalid SMTAST: " ++ show err
-
-        consNameToSort :: M.Map SMTName Sort
-        consNameToSort = 
-            let
-                nameDC = concat [x | (SortDecl x) <- headers]
-            in
-            M.fromList $ concatMap (\(n, _, dcs) -> [(dcn, Sort n []) | (DC dcn _) <- dcs]) nameDC
-
-        elimLets :: SMTAST -> SMTAST
-        elimLets (SLet (n, a) a') = modifyFix (replaceLets n a) a'
-        elimLets a = a
-
-        replaceLets :: SMTName -> SMTAST -> SMTAST -> SMTAST
-        replaceLets n a c@(Cons n' _ _) = if n == n' then a else c
-        replaceLets _ _ a = a
 
 getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelZ3 h_in h_out ns = do
@@ -504,21 +444,3 @@ solveExpr'' h_in h_out con headers e = do
     _ <- evaluate (length out)
 
     return $ parseToSMTAST headers out (typeToSMT . typeOf $ e)
-
-sortDeclZ3 :: SMTConverter con SMTName out io => con -> [(SMTName, [SMTName], [DC])] -> String
-sortDeclZ3 con ns = 
-            let
-                dcHandler :: [DC] -> String
-                dcHandler [] = ""
-                dcHandler (DC n s:dc) =
-                    let
-                        si = map (\(s'', i) -> (s'', selectorName con s'' ++ show i)) $ zip s ([0..] :: [Integer])
-                        s' = intercalate " " . map (\(_s, i) -> "(F_" ++ i ++ "_F " ++ (selectorName con _s) ++ ")") $ si
-                    in
-                    "(" ++ n ++ " " ++ s' ++ ") " ++ dcHandler dc
-
-                binders = intercalate " " $ concatMap (\(_, s, _) -> s) ns
-            in
-            "(declare-datatypes (" ++ binders ++ ") ("
-            ++ (foldr (\(n, _, dc) e -> 
-                "(" ++ n ++ " " ++ (dcHandler dc) ++ ") " ++ e) "" ns) ++  "))"

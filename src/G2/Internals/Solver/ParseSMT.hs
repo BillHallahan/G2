@@ -59,7 +59,7 @@ getValuesParser :: Parser SMTAST
 getValuesParser = parens (parens (identifier >> sExpr))
 
 sExpr :: Parser SMTAST
-sExpr = try consExpr <|> parens sExpr <|> letExpr <|> try doubleFloatExpr
+sExpr = try boolExpr <|> parens sExpr <|> letExpr <|> try doubleFloatExpr
                      <|> try doubleFloatExprDec <|> intExpr
 
 letExpr :: Parser SMTAST
@@ -75,14 +75,12 @@ identExprTuple = do
     ex <- sExpr
     return (bind, ex)
 
-consExpr :: Parser SMTAST
-consExpr = do
+boolExpr :: Parser SMTAST
+boolExpr = do
     n <- parensConsName <|> identifier
-    l <- optionMaybe (many1 sExpr)
-    let l' = case l of 
-                Just l'' -> l''
-                Nothing -> []
-    return $ Cons n l' (Sort "" [])
+    case n of
+        "true" -> return (VBool True)
+        "false" -> return (VBool False)
 
 parensConsName :: Parsec String st String
 parensConsName = parens parensConsName <|> consName

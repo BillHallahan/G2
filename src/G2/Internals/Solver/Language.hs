@@ -22,7 +22,6 @@ type SMTName = String
 -- An assertion says the given SMTAST is true
 -- A sort decl declares a new sort.
 data SMTHeader = Assert SMTAST
-               | SortDecl [(SMTName, [SMTName], [DC])]
                | VarDecl SMTName Sort
                | SetLogic Logic
                deriving (Show, Eq)
@@ -63,8 +62,6 @@ data SMTAST = (:>=) SMTAST SMTAST
             | VFloat Rational
             | VDouble Rational
             | VBool Bool
-            | Cons SMTName [SMTAST] Sort
-            | As SMTAST Sort
 
             | V SMTName Sort
 
@@ -75,10 +72,7 @@ data Sort = SortInt
           | SortFloat
           | SortDouble
           | SortBool
-          | Sort SMTName [Sort]
           deriving (Show, Eq)
-
-data DC = DC SMTName [Sort] deriving (Show, Eq)
 
 data Result = SAT
             | UNSAT
@@ -92,68 +86,9 @@ isSat _ = False
 type Model = M.Map SMTName SMTAST
 type ExprModel = Support.Model
 
--- This data type is used to describe the specific output format required by various solvers
+-- This class is used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
 -- datatypes, to a form understandable by the solver.
--- data SMTConverter ast out io =
---     SMTConverter {
---           empty :: out
---         , merge :: out -> out -> out
-
---         , checkSat :: io -> out -> IO Result
---         , checkSatGetModel :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe Model)
---         , checkSatGetModelGetExpr :: io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe Model, Maybe Expr)
-
---         , assert :: ast -> out
---         , sortDecl :: [(SMTName, [SMTName], [DC])] -> out
---         , varDecl :: SMTName -> ast -> out
---         , setLogic :: Logic -> out
-
---         , (.>=) :: ast -> ast -> ast
---         , (.>) :: ast -> ast -> ast
---         , (.=) :: ast -> ast -> ast
---         , (./=) :: ast -> ast -> ast
---         , (.<) :: ast -> ast -> ast
---         , (.<=) :: ast -> ast -> ast
-
---         , (.&&) :: ast -> ast -> ast
---         , (.||) :: ast -> ast -> ast
---         , (.!) :: ast -> ast
---         , (.=>) :: ast -> ast -> ast
---         , (.<=>) :: ast -> ast -> ast
-
---         , (.+) :: ast -> ast -> ast
---         , (.-) :: ast -> ast -> ast
---         , (.*) :: ast -> ast -> ast
---         , (./) :: ast -> ast -> ast
---         , smtQuot :: ast -> ast -> ast
---         , smtModulo :: ast -> ast -> ast
---         , smtSqrt :: ast -> ast
---         , neg :: ast -> ast
---         , itor :: ast -> ast
-
---         , tester :: SMTName -> ast -> ast
-
---         , ite :: ast -> ast -> ast -> ast
-
---         --values
---         , int :: Integer -> ast
---         , float :: Rational -> ast
---         , double :: Rational -> ast
---         , bool :: Bool -> ast
---         , cons :: SMTName -> [ast] -> Sort -> ast
---         , var :: SMTName -> ast -> ast
---         , asSort :: ast -> Sort -> ast
-
---         --sorts
---         , sortInt :: ast
---         , sortFloat :: ast
---         , sortDouble :: ast
---         , sortBool :: ast
---         , sortADT :: SMTName -> [Sort] -> ast
-
---         , varName :: SMTName -> Sort -> ast
---     }
 class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
     empty :: con -> out
     merge :: con -> out -> out -> out
@@ -163,7 +98,6 @@ class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
     checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe Model, Maybe Expr)
 
     assert :: con -> ast -> out
-    sortDecl :: con -> [(SMTName, [SMTName], [DC])] -> out
     varDecl :: con -> SMTName -> ast -> out
     setLogic :: con -> Logic -> out
 
@@ -190,8 +124,6 @@ class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
     neg :: con -> ast -> ast
     itor :: con -> ast -> ast
 
-    tester :: con -> SMTName -> ast -> ast
-
     ite :: con -> ast -> ast -> ast -> ast
 
     --values
@@ -201,14 +133,12 @@ class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
     bool :: con -> Bool -> ast
     cons :: con -> SMTName -> [ast] -> Sort -> ast
     var :: con -> SMTName -> ast -> ast
-    asSort :: con -> ast -> Sort -> ast
 
     --sorts
     sortInt :: con -> ast
     sortFloat :: con -> ast
     sortDouble :: con -> ast
     sortBool :: con -> ast
-    sortADT :: con -> SMTName -> [Sort] -> ast
 
     varName :: con -> SMTName -> Sort -> ast
 
@@ -217,7 +147,6 @@ sortName con SortInt = sortInt con
 sortName con SortFloat = sortFloat con
 sortName con SortDouble = sortDouble con
 sortName con SortBool = sortBool con
-sortName con (Sort n s) = sortADT con n s
 
 instance AST SMTAST where
     children (x :>= y) = [x, y]
@@ -242,8 +171,6 @@ instance AST SMTAST where
     children (Ite x x' x'') = [x, x', x'']
     children (SLet (_, x) x') = [x, x']
 
-    children (Cons _ x _) = x
-
     children _ = []
 
     modifyChildren f (x :>= y) = f x :>= f y
@@ -267,15 +194,11 @@ instance AST SMTAST where
     modifyChildren f (Ite x x' x'') = Ite (f x) (f x') (f x'')
     modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')
 
-    modifyChildren f (Cons n x s) = Cons n (map f x) s
-
     modifyChildren _ e = e
 
 instance AST Sort where
-    children (Sort _ s) = s
     children _ = []
 
-    modifyChildren f (Sort n s) = Sort n (map f s) 
     modifyChildren _ s = s
 
 instance ASTContainer SMTHeader SMTAST where
@@ -286,10 +209,8 @@ instance ASTContainer SMTHeader SMTAST where
     modifyContainedASTs _ s = s
 
 instance ASTContainer SMTAST Sort where
-    containedASTs (Cons _ _ s) = [s]
     containedASTs (V _ s) = [s]
     containedASTs x = eval containedASTs x
 
-    modifyContainedASTs f (Cons n x s) = Cons n x (modify f s)
     modifyContainedASTs f (V n s) = V n (modify f s)
     modifyContainedASTs f x = modify (modifyContainedASTs f) x

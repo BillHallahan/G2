@@ -245,26 +245,26 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
             -- change an Unknown into a SAT or UNSAT
             -- Switching which of the following two lines is commented turns this on/off
             -- let s'' = s'
-            let s'' = s' {path_conds = pcRelevant config (known_values s) pc (path_conds s')}
+            let s'' = s' {path_conds = PC.relevant (known_values s) pc (path_conds s')}
 
-            res <- (selectCheckConstraints config) con hpp s''
+            res <- checkConstraints con hpp s''
 
             if res == SAT then
                 return . (:) s' =<< resultsToState con hpp config rule s xs
             else
                 resultsToState con hpp config rule s xs
     | not (null asserts) && not (true_assert s) = do
-        let assertS = s' { path_conds = foldr (pcInsert config kv) (path_conds s') asserts, true_assert = True, assert_ids = ais }
-        let assertSRel = assertS {path_conds = pcRelevant config kv asserts (path_conds assertS)}
+        let assertS = s' { path_conds = foldr (PC.insert kv) (path_conds s') asserts, true_assert = True, assert_ids = ais }
+        let assertSRel = assertS {path_conds = PC.relevant kv asserts (path_conds assertS)}
 
         let negAsserts = map PC.negatePC asserts
         
-        let negAssertS = s' {path_conds = foldr (pcInsert config kv) (path_conds s') negAsserts}
-        let negAssertSRel = negAssertS {path_conds = pcRelevant config kv negAsserts (path_conds negAssertS)}
+        let negAssertS = s' {path_conds = foldr (PC.insert kv) (path_conds s') negAsserts}
+        let negAssertSRel = negAssertS {path_conds = PC.relevant kv negAsserts (path_conds negAssertS)}
 
         let potentialS = [(assertS, assertSRel), (negAssertS, negAssertSRel)]
 
-        finalS <- filterM (\(_, s_) -> return . isSat =<< (selectCheckConstraints config) con hpp s_) potentialS
+        finalS <- filterM (\(_, s_) -> return . isSat =<< checkConstraints con hpp s_) potentialS
         let finalS' = map fst finalS
 
         return . (++) finalS' =<< resultsToState con hpp config rule s xs
@@ -272,28 +272,13 @@ resultsToState con hpp config rule s@(State {known_values = kv}) (red@(_, _, pc,
     where
         s' = resultToState config s rule red
 
-{-# INLINE selectCheckConstraints #-}
-selectCheckConstraints :: SMTConverter con ast out io => Config -> con -> io -> State t -> IO Result
-selectCheckConstraints (Config {smtADTs = False}) = checkConstraints
-selectCheckConstraints config = checkConstraintsWithSMTSorts config
-
-{-# INLINE pcInsert #-}
-pcInsert :: Config -> KnownValues -> PC.PathCond -> PC.PathConds -> PC.PathConds
-pcInsert (Config {smtADTs = False}) = PC.insert
-pcInsert _ = PC.insertWithSMTADT
-
-{-# INLINE pcRelevant #-}
-pcRelevant :: Config -> KnownValues -> [PC.PathCond] -> PC.PathConds -> PC.PathConds
-pcRelevant (Config {smtADTs = False}) = PC.relevant
-pcRelevant _ = PC.relevantWithSMTADT
-
 {-# INLINE resultToState #-}
 resultToState :: Config -> State t -> Rule -> ReduceResult t -> State t
 resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
-      , path_conds = foldr (pcInsert config (known_values s)) (path_conds s) $ pc
+      , path_conds = foldr (PC.insert (known_values s)) (path_conds s) $ pc
       , non_red_path_conds = non_red_path_conds s ++ non_red_pc
       , name_gen = ng
       , exec_stack = st
