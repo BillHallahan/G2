@@ -369,13 +369,14 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
     let (init_state, _) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname ex config
     
-    (SomeSMT con, hhp) <- getSMT config
+    SomeSolver con <- getSMT config
+    let con' = GroupRelated con
 
-    r <- run (NonRedPCRed con config
-               :<~| StdRed con hhp config)
+    r <- run (NonRedPCRed con' config
+               :<~| StdRed con' config)
              (MaxOutputsHalter 
                :<~> ZeroHalter)
-             NextOrderer con hhp [] config init_state
+             NextOrderer con' [] config init_state
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 

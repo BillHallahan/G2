@@ -36,6 +36,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , passedArgs
                                   , nthArg
                                   , vars
+                                  , varIds
                                   , varNames
                                   , varId
                                   , symbVars

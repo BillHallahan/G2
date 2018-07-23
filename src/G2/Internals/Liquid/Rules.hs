@@ -190,14 +190,14 @@ instance ASTContainer LHTracker Type where
     modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
         lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
 
-data LHRed con io = LHRed [Name] con io Config
+data LHRed con = LHRed [Name] con Config
 -- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
 data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
-instance SMTConverter con ast out io => Reducer (LHRed con io) LHTracker where
-    redRules lhr@(LHRed ns smt io config) s = do
-        (r, s) <- reduce (lhReduce ns config) smt io config s
+instance Solver con => Reducer (LHRed con) LHTracker where
+    redRules lhr@(LHRed ns smt config) s = do
+        (r, s) <- reduce (lhReduce ns config) smt config s
 
         return $ (if r == RuleIdentity then Finished else InProgress, s, lhr)
 

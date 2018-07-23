@@ -194,11 +194,11 @@ redRulesToStates r s = do
 
     return $ (rf, concat s', head r')
 
-data StdRed con io = StdRed con io Config
+data StdRed con = StdRed con Config
 
-instance SMTConverter con ast out io => Reducer (StdRed con io) () where
-    redRules stdr@(StdRed smt io config) s = do
-        (r, s') <- reduce (stdReduce config) smt io config s
+instance Solver con => Reducer (StdRed con) () where
+    redRules stdr@(StdRed smt config) s = do
+        (r, s') <- reduce (stdReduce config) smt config s
         
         return (if r == RuleIdentity then Finished else InProgress, s', stdr)
 
@@ -206,7 +206,7 @@ instance SMTConverter con ast out io => Reducer (StdRed con io) () where
 -- Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed con = NonRedPCRed con Config
 
-instance SMTConverter con ast out io => Reducer (NonRedPCRed con) t where
+instance Solver con => Reducer (NonRedPCRed con) t where
     redRules nrpr s@(State { expr_env = eenv
                            , type_env = tenv
                            , curr_expr = cexpr
@@ -380,16 +380,16 @@ halterIsZero _ _ _ _ = Continue
 --------
 --------
 
-reduce :: SMTConverter con ast out io => (State t -> (Rule, [ReduceResult t])) -> con -> io -> Config -> State t -> IO (Rule, [State t])
-reduce red con hpp config s = do
+reduce :: Solver solver => (State t -> (Rule, [ReduceResult t])) -> solver -> Config -> State t -> IO (Rule, [State t])
+reduce red con config s = do
     let (rule, res) = red s
-    sts <- resultsToState con hpp config rule s res
+    sts <- resultsToState con config rule s res
     return (rule, sts)
 
 -- | runReducer
 -- Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r t, Halter h hv t, Orderer or orv sov t, SMTConverter con ast out io) => r -> h -> or -> con -> io -> orv -> [State t] -> Config -> IO [([Int], State t)]
-runReducer red hal ord con hpp p states config =
+runReducer :: (Reducer r t, Halter h hv t, Orderer or orv sov t, Solver solver) => r -> h -> or -> solver -> orv -> [State t] -> Config -> IO [([Int], State t)]
+runReducer red hal ord con p states config =
     mapM (\ExState {state = s, cases = c} -> return (c, s))
         =<< (runReducer' red hal ord p (Processed {accepted = [], discarded = []}) $ map (\s -> ExState { state = s
                                                                                                        , halter_val = initHalt hal config s

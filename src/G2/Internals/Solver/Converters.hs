@@ -1,5 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | Converters
 -- This contains functions to switch from
@@ -14,7 +18,10 @@ module G2.Internals.Solver.Converters
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
     , pcVars
     , smtastToExpr
-    , modelAsExpr ) where
+    , modelAsExpr
+    , checkConstraints
+    , checkModel
+    , SMTConverter (..) ) where
 
 import Data.List
 import qualified Data.Map as M
@@ -22,13 +29,209 @@ import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
 
--- import G2.Internals.Translation.HaskellPrelude
+import G2.Internals.Language hiding (Assert, vars)
+import qualified G2.Internals.Language.ApplyTypes as AT
+import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.Typing
-import G2.Internals.Language.Support hiding (Model)
+import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax hiding (Assert)
+import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Language
+import G2.Internals.Solver.Solver
+
+-- This class is used to describe the specific output format required by various solvers
+-- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
+-- datatypes, to a form understandable by the solver.
+class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
+    getIO :: con -> io
+
+    empty :: con -> out
+    merge :: con -> out -> out -> out
+
+    checkSat :: con -> io -> out -> IO Result
+    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
+    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe SMTModel, Maybe Expr)
+
+    assert :: con -> ast -> out
+    varDecl :: con -> SMTName -> ast -> out
+    setLogic :: con -> Logic -> out
+
+    (.>=) :: con -> ast -> ast -> ast
+    (.>) :: con -> ast -> ast -> ast
+    (.=) :: con -> ast -> ast -> ast
+    (./=) :: con -> ast -> ast -> ast
+    (.<) :: con -> ast -> ast -> ast
+    (.<=) :: con -> ast -> ast -> ast
+
+    (.&&) :: con -> ast -> ast -> ast
+    (.||) :: con -> ast -> ast -> ast
+    (.!) :: con -> ast -> ast
+    (.=>) :: con -> ast -> ast -> ast
+    (.<=>) :: con -> ast -> ast -> ast
+
+    (.+) :: con -> ast -> ast -> ast
+    (.-) :: con -> ast -> ast -> ast
+    (.*) :: con -> ast -> ast -> ast
+    (./) :: con -> ast -> ast -> ast
+    smtQuot :: con -> ast -> ast -> ast
+    smtModulo :: con -> ast -> ast -> ast
+    smtSqrt :: con -> ast -> ast
+    neg :: con -> ast -> ast
+    itor :: con -> ast -> ast
+
+    ite :: con -> ast -> ast -> ast -> ast
+
+    --values
+    int :: con -> Integer -> ast
+    float :: con -> Rational -> ast
+    double :: con -> Rational -> ast
+    bool :: con -> Bool -> ast
+    cons :: con -> SMTName -> [ast] -> Sort -> ast
+    var :: con -> SMTName -> ast -> ast
+
+    --sorts
+    sortInt :: con -> ast
+    sortFloat :: con -> ast
+    sortDouble :: con -> ast
+    sortBool :: con -> ast
+
+    varName :: con -> SMTName -> Sort -> ast
+
+-- | checkConstraints
+-- Checks if the path constraints are satisfiable
+checkConstraints :: SMTConverter con ast out io => con -> State t -> PathConds -> IO Result
+checkConstraints con s pc = do
+    case checkConsistency (known_values s) (type_env s) pc of
+        Just True -> return SAT
+        Just False -> return UNSAT
+        _ -> do
+            -- putStrLn "------"
+            -- putStrLn $ "PC        = " ++ (pprPathsStr . PC.toList $ path_conds s)
+            -- putStrLn $ "PC unsafe = " ++ (pprPathsStr . PC.toList . unsafeElimCast $ path_conds s)
+            checkConstraints' con (getIO con) pc
+
+checkConstraints' :: SMTConverter con ast out io => con -> io -> PathConds -> IO Result
+checkConstraints' con io pc = do
+    let pc' = unsafeElimCast pc
+
+    let headers = toSMTHeaders pc'
+    let formula = toSolver con headers
+
+    checkSat con io formula
+
+-- | checkModel
+-- Checks if the constraints are satisfiable, and returns a model if they are
+checkModel :: SMTConverter con ast out io => con -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
+checkModel con s is pc = return . fmap liftCasts =<< checkModel' con s is pc
+
+-- | checkModel'
+-- We split based on whether we are evaluating a ADT or a literal.
+-- ADTs can be solved using our efficient addADTs, while literals require
+-- calling an SMT solver.
+checkModel' :: SMTConverter con ast out io => con -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
+checkModel' _ s [] _ = do
+    return (SAT, Just $ model s)
+-- We can't use the ADT solver when we have a Boolean, because the RHS of the
+-- DataAlt might be a primitive.
+checkModel' con s@(State {apply_types = at}) (Id n t@(TyConApp tn ts):is) pc
+    | t /= tyBool (known_values s)  =
+    do
+        let (r, is', s') = addADTs n tn ts s pc
+
+        let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
+
+        let is''' = is ++ (AT.typeToAppType at is'')
+
+        case r of
+            SAT -> checkModel' con s' is''' pc
+            r' -> return (r', Nothing)
+checkModel' con s (i:is) pc
+    | (idName i) `M.member` (model s) = checkModel' con s is pc
+    | otherwise =  do
+        (m, av) <- getModelVal con s i pc
+        case m of
+            Just m' -> checkModel' con (s {model = M.union m' (model s), arbValueGen = av}) is pc
+            Nothing -> return (UNSAT, Nothing)
+
+getModelVal :: SMTConverter con ast out io => con -> State t -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
+getModelVal con s (Id n _) pc = do
+    let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
+ 
+    let pc' = PC.scc (known_values s) [n] pc
+    
+    case PC.null pc' of
+                True -> 
+                    let
+                        (e, av) = arbValue t (type_env s) (arbValueGen s)
+                    in
+                    return (Just $ M.singleton n' e, av) 
+                False -> do
+                    m <- checkNumericConstraints con pc'
+                    return (m, arbValueGen s)
+
+checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
+checkNumericConstraints con pc = do
+    let headers = toSMTHeaders pc
+    let formula = toSolver con headers
+
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
+
+    let io = getIO con
+    (_, m) <- checkSatGetModel con io formula headers vs
+
+    let m' = fmap modelAsExpr m
+
+    case m' of
+        Just m'' -> return $ Just m''
+        Nothing -> return Nothing
+
+-- | addADTs
+-- Determines an ADT based on the path conds.  The path conds form a witness.
+-- In particular, refer to findConsistent in Solver/ADTSolver.hs
+addADTs :: Name -> Name -> [Type] -> State t -> PathConds -> (Result, [Id], State t)
+addADTs n tn ts s pc =
+    let
+        pc' = PC.scc (known_values s) [n] pc
+
+        dcs = findConsistent (known_values s) (type_env s) pc'
+
+        eenv = expr_env s
+
+        (dc, nst) = case dcs of
+                Just (fdc:_) ->
+                    let
+                        -- We map names over the arguments of a DataCon, to make sure we have the correct
+                        -- number of undefined's.
+                        -- In the case of a PrimCon, we still need one undefined if the primitive is not
+                        -- in the type env
+                        ts'' = case exprInCasts fdc of
+                            Data (DataCon _ _ ts') -> map (const $ Name "a" Nothing 0 Nothing) ts'
+                            _ -> [Name "b" Nothing 0 Nothing]
+
+                        (ns, _) = childrenNames n ts'' (name_gen s)
+
+                        vs = map (\n' -> 
+                                case E.lookup n' eenv of
+                                    Just e -> e
+                                    Nothing -> Prim Undefined TyBottom) ns
+                        is = mapMaybe (varId) vs
+                    in
+                    (mkApp $ fdc:vs, is)
+                _ -> error $ "Unusable DataCon in addADTs"
+
+        m = M.insert n dc (model s)
+
+        (bse, av) = arbValue (TyConApp tn ts) (type_env s) (arbValueGen s)
+
+        m' = M.insert n bse m
+    in
+    case PC.null pc' of
+        True -> (SAT, [], s {model = M.union m' (model s), arbValueGen = av})
+        False -> case not . null $ dcs of
+                    True -> (SAT, [], s {model = M.union m (model s)})
+                    False -> (UNSAT, [], s)
 
 -- | toSMTHeaders
 -- Here we convert from a State, to an SMTHeader.  This SMTHeader can later
@@ -37,17 +240,17 @@ import G2.Internals.Solver.Language
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: State t -> [SMTHeader]
+toSMTHeaders :: PathConds -> [SMTHeader]
 toSMTHeaders = addSetLogic . toSMTHeaders'
 
-toSMTHeaders' :: State t -> [SMTHeader]
-toSMTHeaders' s  = 
+toSMTHeaders' :: PathConds -> [SMTHeader]
+toSMTHeaders' pc  = 
     let
-        pc = PC.toList $ path_conds s
+        pc' = PC.toList pc
     in
-    nub (pcVarDecls pc)
+    nub (pcVarDecls pc')
     ++
-    (pathConsToSMTHeaders pc)
+    (pathConsToSMTHeaders pc')
 
 -- | addSetLogic
 -- Determines an appropriate SetLogic command, and adds it to the headers
@@ -373,6 +576,12 @@ toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 toSolverVarDecl :: SMTConverter con ast out io => con -> SMTName -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
+sortName :: SMTConverter con ast out io => con -> Sort -> ast
+sortName con SortInt = sortInt con
+sortName con SortFloat = sortFloat con
+sortName con SortDouble = sortDouble con
+sortName con SortBool = sortBool con
+
 -- | toSolverSetLogic
 toSolverSetLogic :: SMTConverter con ast out io => con -> Logic -> out
 toSolverSetLogic = setLogic
@@ -393,5 +602,5 @@ sortToType (SortFloat) = TyLitFloat
 sortToType (SortDouble) = TyLitDouble
 sortToType (SortBool) = TyConApp (Name "Bool" Nothing 0 Nothing) []
 
-modelAsExpr :: Model -> ExprModel
+modelAsExpr :: SMTModel -> Model
 modelAsExpr = M.mapKeys strToName . M.map smtastToExpr

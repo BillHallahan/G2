@@ -5,18 +5,20 @@ module G2.Internals.Solver.Interface
     ( subModel
     , subVar
     , subVarFuncCall
-    , checkConstraints
-    , checkModel
+    , SMTConverter (..)
+    , Solver (..)
     ) where
 
 import G2.Internals.Execution.NormalForms
-import G2.Internals.Language hiding (Model)
+import G2.Internals.Language
 import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Converters
 import G2.Internals.Solver.Language
+import G2.Internals.Solver.SMT2
+import G2.Internals.Solver.Solver
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -33,14 +35,14 @@ subModel (State { expr_env = eenv
     in
     filterTC tc $ subVar m eenv tc (map Var is, cexpr, ais')
 
-subVarFuncCall :: ExprModel -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
+subVarFuncCall :: Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
     subVar em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
-subVar :: (ASTContainer m Expr) => ExprModel -> ExprEnv -> TypeClasses -> m -> m
+subVar :: (ASTContainer m Expr) => Model -> ExprEnv -> TypeClasses -> m -> m
 subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc []) . filterTC tc
 
-subVar' :: ExprModel -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
+subVar' :: Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
 subVar' em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is =
     case M.lookup n em of
@@ -83,137 +85,3 @@ tcCenter _ _ = False
 isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyConApp n _))) = isTypeClassNamed n tc
 isTC _ _ = False
-
--- | checkConstraints
--- Checks if the path constraints are satisfiable
-checkConstraints :: SMTConverter con ast out io => con -> io -> State t -> IO Result
-checkConstraints con io s = do
-    case checkConsistency (known_values s) (type_env s) (path_conds s) of
-        Just True -> return SAT
-        Just False -> return UNSAT
-        _ -> do
-            -- putStrLn "------"
-            -- putStrLn $ "PC        = " ++ (pprPathsStr . PC.toList $ path_conds s)
-            -- putStrLn $ "PC unsafe = " ++ (pprPathsStr . PC.toList . unsafeElimCast $ path_conds s)
-            checkConstraints' con io s
-
-checkConstraints' :: SMTConverter con ast out io => con -> io -> State t -> IO Result
-checkConstraints' con io s = do
-    let s' = s {path_conds = unsafeElimCast $ path_conds s}
-
-    let headers = toSMTHeaders s'
-    let formula = toSolver con headers
-
-    checkSat con io formula
-
--- | checkModel
--- Checks if the constraints are satisfiable, and returns a model if they are
-checkModel :: SMTConverter con ast out io => con -> io -> State t -> IO (Result, Maybe ExprModel)
-checkModel con io s = do
-    let s' = s {path_conds =  path_conds s}
-    return . fmap liftCasts =<< checkModel' con io (symbolic_ids s') s'
-
--- | checkModel'
--- We split based on whether we are evaluating a ADT or a literal.
--- ADTs can be solved using our efficient addADTs, while literals require
--- calling an SMT solver.
-checkModel' :: SMTConverter con ast out io => con -> io -> [Id] -> State t -> IO (Result, Maybe ExprModel)
-checkModel' _ _ [] s = do
-    return (SAT, Just $ model s)
--- We can't use the ADT solver when we have a Boolean, because the RHS of the
--- DataAlt might be a primitive.
-checkModel' con io (Id n t@(TyConApp tn ts):is) s@(State {apply_types = at})
-    | t /= tyBool (known_values s)  =
-    do
-        let (r, is', s') = addADTs n tn ts s
-
-        let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
-
-        let is''' = is ++ (AT.typeToAppType at is'')
-
-        case r of
-            SAT -> checkModel' con io is''' s'
-            r' -> return (r', Nothing)
-checkModel' con io (i:is) s = do
-    (m, av) <- getModelVal con io i s
-    case m of
-        Just m' -> checkModel' con io is (s {model = M.union m' (model s), arbValueGen = av})
-        Nothing -> return (UNSAT, Nothing)
-
-getModelVal :: SMTConverter con ast out io => con -> io -> Id -> State t -> IO (Maybe ExprModel, ArbValueGen)
-getModelVal con io (Id n _) s = do
-    let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
- 
-    let pc = PC.scc (known_values s) [n] (path_conds s)
-    let s' = s {path_conds = pc }
-    
-    case PC.null pc of
-                True -> 
-                    let
-                        (e, av) = arbValue t (type_env s) (arbValueGen s)
-                    in
-                    return (Just $ M.singleton n' e, av) 
-                False -> do
-                    e <- checkNumericConstraints con io s'
-                    return (e, arbValueGen s)
-
-checkNumericConstraints :: SMTConverter con ast out io => con -> io -> State t -> IO (Maybe ExprModel)
-checkNumericConstraints con io s = do
-    let headers = toSMTHeaders s
-    let formula = toSolver con headers
-
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars . PC.toList $ path_conds s
-
-    (_, m) <- checkSatGetModel con io formula headers vs
-
-    let m' = fmap modelAsExpr m
-
-    case m' of
-        Just m'' -> return $ Just m''
-        Nothing -> return Nothing
-
--- | addADTs
--- Determines an ADT based on the path conds.  The path conds form a witness.
--- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: Name -> Name -> [Type] -> State t -> (Result, [Id], State t)
-addADTs n tn ts s =
-    let
-        pc = PC.scc (known_values s) [n] (path_conds s)
-
-        dcs = findConsistent (known_values s) (type_env s) pc
-
-        eenv = expr_env s
-
-        (dc, nst) = case dcs of
-                Just (fdc:_) ->
-                    let
-                        -- We map names over the arguments of a DataCon, to make sure we have the correct
-                        -- number of undefined's.
-                        -- In the case of a PrimCon, we still need one undefined if the primitive is not
-                        -- in the type env
-                        ts'' = case exprInCasts fdc of
-                            Data (DataCon _ _ ts') -> map (const $ Name "a" Nothing 0 Nothing) ts'
-                            _ -> [Name "b" Nothing 0 Nothing]
-
-                        (ns, _) = childrenNames n ts'' (name_gen s)
-
-                        vs = map (\n' -> 
-                                case E.lookup n' eenv of
-                                    Just e -> e
-                                    Nothing -> Prim Undefined TyBottom) ns
-                        is = mapMaybe (varId) vs
-                    in
-                    (mkApp $ fdc:vs, is)
-                _ -> error $ "Unusable DataCon in addADTs"
-
-        m = M.insert n dc (model s)
-
-        (bse, av) = arbValue (TyConApp tn ts) (type_env s) (arbValueGen s)
-
-        m' = M.insert n bse m
-    in
-    case PC.null pc of
-        True -> (SAT, [], s {model = M.union m' (model s), arbValueGen = av})
-        False -> case not . null $ dcs of
-                    True -> (SAT, nst, s {model = M.union m (model s)})
-                    False -> (UNSAT, [], s)

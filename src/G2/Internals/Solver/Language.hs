@@ -6,12 +6,14 @@
 
 module G2.Internals.Solver.Language
     ( module G2.Internals.Solver.Language
-    , module G2.Internals.Language.AST) where
+    , module G2.Internals.Language.AST
+    , SMTModel
+    , Result (..)) where
 
-import G2.Internals.Language.Support (ExprEnv, CurrExpr)
-import qualified G2.Internals.Language.Support as Support (Model) 
+import G2.Internals.Language.Support (ExprEnv, CurrExpr, Model)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.AST
+import G2.Internals.Solver.Solver
 
 import qualified Data.Map as M
 
@@ -74,79 +76,11 @@ data Sort = SortInt
           | SortBool
           deriving (Show, Eq)
 
-data Result = SAT
-            | UNSAT
-            | Unknown String
-            deriving (Show, Eq)
-
 isSat :: Result -> Bool
 isSat SAT = True
 isSat _ = False
 
-type Model = M.Map SMTName SMTAST
-type ExprModel = Support.Model
-
--- This class is used to describe the specific output format required by various solvers
--- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
--- datatypes, to a form understandable by the solver.
-class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
-    empty :: con -> out
-    merge :: con -> out -> out -> out
-
-    checkSat :: con -> io -> out -> IO Result
-    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe Model)
-    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe Model, Maybe Expr)
-
-    assert :: con -> ast -> out
-    varDecl :: con -> SMTName -> ast -> out
-    setLogic :: con -> Logic -> out
-
-    (.>=) :: con -> ast -> ast -> ast
-    (.>) :: con -> ast -> ast -> ast
-    (.=) :: con -> ast -> ast -> ast
-    (./=) :: con -> ast -> ast -> ast
-    (.<) :: con -> ast -> ast -> ast
-    (.<=) :: con -> ast -> ast -> ast
-
-    (.&&) :: con -> ast -> ast -> ast
-    (.||) :: con -> ast -> ast -> ast
-    (.!) :: con -> ast -> ast
-    (.=>) :: con -> ast -> ast -> ast
-    (.<=>) :: con -> ast -> ast -> ast
-
-    (.+) :: con -> ast -> ast -> ast
-    (.-) :: con -> ast -> ast -> ast
-    (.*) :: con -> ast -> ast -> ast
-    (./) :: con -> ast -> ast -> ast
-    smtQuot :: con -> ast -> ast -> ast
-    smtModulo :: con -> ast -> ast -> ast
-    smtSqrt :: con -> ast -> ast
-    neg :: con -> ast -> ast
-    itor :: con -> ast -> ast
-
-    ite :: con -> ast -> ast -> ast -> ast
-
-    --values
-    int :: con -> Integer -> ast
-    float :: con -> Rational -> ast
-    double :: con -> Rational -> ast
-    bool :: con -> Bool -> ast
-    cons :: con -> SMTName -> [ast] -> Sort -> ast
-    var :: con -> SMTName -> ast -> ast
-
-    --sorts
-    sortInt :: con -> ast
-    sortFloat :: con -> ast
-    sortDouble :: con -> ast
-    sortBool :: con -> ast
-
-    varName :: con -> SMTName -> Sort -> ast
-
-sortName :: SMTConverter con ast out io => con -> Sort -> ast
-sortName con SortInt = sortInt con
-sortName con SortFloat = sortFloat con
-sortName con SortDouble = sortDouble con
-sortName con SortBool = sortBool con
+type SMTModel = M.Map SMTName SMTAST
 
 instance AST SMTAST where
     children (x :>= y) = [x, y]
@@ -214,3 +148,4 @@ instance ASTContainer SMTAST Sort where
 
     modifyContainedASTs f (V n s) = V n (modify f s)
     modifyContainedASTs f x = modify (modifyContainedASTs f) x
+

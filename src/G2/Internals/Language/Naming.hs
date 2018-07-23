@@ -14,6 +14,7 @@ module G2.Internals.Language.Naming
     , nameToStr
     , strToName
     , mkNameGen
+    , varIds
     , varNames
     , exprNames
     , typeNames
@@ -93,12 +94,16 @@ mkNameGen nmd =
             , dc_children = HM.empty
     }
 
-varNames :: (ASTContainer m Expr) => m -> [Name]
-varNames = evalASTs varNames'
+--Returns all Var Ids in an ASTContainer
+varIds :: (ASTContainer m Expr) => m -> [Id]
+varIds = evalASTs varIds'
 
-varNames' :: Expr -> [Name]
-varNames' (Var (Id n _)) = [n]
-varNames' _ = []
+varIds' :: Expr -> [Id]
+varIds' (Var i) = [i]
+varIds' _ = []
+
+varNames :: (ASTContainer m Expr) => m -> [Name]
+varNames = map idName . varIds
 
 
 exprNames :: (ASTContainer m Expr) => m -> [Name]

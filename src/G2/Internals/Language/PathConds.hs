@@ -9,18 +9,17 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , Assertion
                                        , PathConds
                                        , negatePC
-                                       , toMap
                                        , empty
                                        , fromList
                                        , map
                                        , map'
                                        , insert
-                                       , insertWithSMTADT
                                        , null
                                        , number
                                        , relevant
-                                       , relevantWithSMTADT
+                                       , relatedSets
                                        , scc
+                                       , varIdsInPC
                                        , toList) where
 
 import G2.Internals.Language.AST
@@ -40,6 +39,7 @@ import Data.Maybe
 import Prelude hiding (map, null)
 import qualified Prelude as P (map)
 
+import Debug.Trace
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
 --
 -- In the implementation:
@@ -98,10 +98,6 @@ map' f = L.map f . toList
 insert :: KV.KnownValues -> PathCond -> PathConds -> PathConds
 insert = insert' varNamesInPC
 
-{-# INLINE insertWithSMTADT #-}
-insertWithSMTADT :: KV.KnownValues -> PathCond -> PathConds -> PathConds
-insertWithSMTADT = insert' varNamesInPCWithSMTADT
-
 insert' :: (KV.KnownValues -> PathCond -> [Name]) -> KV.KnownValues -> PathCond -> PathConds -> PathConds
 insert' f kv p (PathConds pcs) =
     let
@@ -132,13 +128,42 @@ relevant kv pc pcs =
         [] -> fromList kv pc
         rel -> scc kv rel pcs
 
-relevantWithSMTADT :: KV.KnownValues -> [PathCond] -> PathConds -> PathConds
-relevantWithSMTADT kv pc pcs = 
-    case concatMap (varNamesInPCWithSMTADT kv) pc of
-        [] -> fromList kv pc
-        rel -> scc kv rel pcs
+-- Returns a list of PathConds, where the union of the output PathConds
+-- is the input PathConds, and the PathCond are seperated into there SCCs
+relatedSets :: KV.KnownValues -> PathConds -> [PathConds]
+relatedSets kv pc@(PathConds pcm) = 
+    let
+        epc = PathConds $ M.filterWithKey (\k _ -> not (isJust k)) pcm
+    in
+    if null epc then relatedSets' kv pc [] else epc:relatedSets' kv pc []
 
-varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
+-- relatedSets' :: KV.KnownValues -> PathConds -> [PathConds]
+-- relatedSets' kv pc@(PathConds pcm) =
+--     case catMaybes (M.keys pcm) of
+--         k:_ ->
+--             let
+--                 s = scc kv [k] pc
+--                 vs = concat $ map' (varNamesInPC kv) s
+--                 pcm' = M.filterWithKey (\k' _ -> case k' of
+--                                                     Nothing -> False
+--                                                     Just k'' -> k'' `notElem` vs) pcm
+--             in
+--             s:relatedSets' kv (PathConds pcm')
+--         [] -> []
+
+relatedSets' :: KV.KnownValues -> PathConds -> [Name] -> [PathConds]
+relatedSets' kv pc@(PathConds pcm) ns =
+    case catMaybes (M.keys pcm) L.\\ ns of
+      k:_ ->
+          let
+              s = scc kv [k] pc
+              ns' = concat $ map' (varNamesInPC kv) s
+          in
+          s:relatedSets' kv pc (k:ns ++ ns')
+      [] ->  []
+
+
+varIdsInPC :: KV.KnownValues -> PathCond -> [Id]
 -- [AltCond]
 -- Optimization
 -- When we have an AltCond with a Var expr, we only have to look at
@@ -147,24 +172,20 @@ varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
 -- parents/children can't impose restrictions on it.  We are completely
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
-varNamesInPC kv (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varNamesInPC kv $ AltCond altC e b
-varNamesInPC kv (AltCond (DataAlt (DataCon _ _ _) _) (Var (Id n t)) _) 
-             | t /= tyBool kv = [n]
-varNamesInPC _ (AltCond a e _) = varNamesInAltMatch a ++ varNames e
-varNamesInPC _ (ExtCond e _) = varNames e
-varNamesInPC _ (ConsCond _ e _) = varNames e
-varNamesInPC _ (PCExists _) = []
+varIdsInPC kv (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varIdsInPC kv $ AltCond altC e b
+varIdsInPC kv (AltCond (DataAlt (DataCon _ _ _) _) (Var i@(Id _ t)) _) 
+             | t /= tyBool kv = [i]
+varIdsInPC _ (AltCond a e _) = varIdsInAltMatch a ++ varIds e
+varIdsInPC _ (ExtCond e _) = varIds e
+varIdsInPC _ (ConsCond _ e _) = varIds e
+varIdsInPC _ (PCExists _) = []
 
-varNamesInPCWithSMTADT :: KV.KnownValues -> PathCond -> [Name]
-varNamesInPCWithSMTADT kv (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varNamesInPCWithSMTADT kv $ AltCond altC e b
-varNamesInPCWithSMTADT _ (AltCond a e _) = varNamesInAltMatch a ++ varNames e
-varNamesInPCWithSMTADT _ (ExtCond e _) = varNames e
-varNamesInPCWithSMTADT _ (ConsCond _ e _) = varNames e
-varNamesInPCWithSMTADT _ (PCExists _) = []
+varIdsInAltMatch :: AltMatch -> [Id]
+varIdsInAltMatch (DataAlt _ i) = i
+varIdsInAltMatch _ = []
 
-varNamesInAltMatch :: AltMatch -> [Name]
-varNamesInAltMatch (DataAlt _ i) = names i
-varNamesInAltMatch _ = []
+varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
+varNamesInPC kv = P.map idName . varIdsInPC kv
 
 scc :: KV.KnownValues -> [Name] -> PathConds -> PathConds
 scc kv ns (PathConds pc) = PathConds $ scc' kv ns pc M.empty

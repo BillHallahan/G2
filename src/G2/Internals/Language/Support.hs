@@ -9,6 +9,7 @@ module G2.Internals.Language.Support
     , module G2.Internals.Language.TypeEnv
     , AT.ApplyTypes
     , E.ExprEnv
+    , PathConds
     , KnownValues
     , PathCond (..)
     , Constraint

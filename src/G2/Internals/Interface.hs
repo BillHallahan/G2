@@ -24,6 +24,7 @@ import G2.Internals.Execution.Memory
 
 import G2.Internals.Solver.Interface
 import G2.Internals.Solver.Language hiding (Assert)
+import G2.Internals.Solver.Solver
 
 import G2.Internals.Postprocessing.Interface
 
@@ -108,9 +109,9 @@ run :: (Named hv, Show t
        , Reducer r t
        , Halter h hv t
        , Orderer or orv sov t
-       , SMTConverter con ast out io) => r -> h -> or ->
-    con -> io -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
-run red hal ord con hhp pns config (is@State { type_env = tenv
+       , Solver solver) => r -> h -> or ->
+    solver -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
+run red hal ord con pns config (is@State { type_env = tenv
                                              , known_values = kv
                                              , apply_types = at
                                              , type_classes = tc }) = do
@@ -120,14 +121,14 @@ run red hal ord con hhp pns config (is@State { type_env = tenv
 
     let ior = initOrder ord config preproc_state
 
-    exec_states <- runExecution red hal ord con hhp ior [preproc_state] config
+    exec_states <- runExecution red hal ord con ior [preproc_state] config
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states
 
     ident_states'' <- 
         mapM (\(_, s) -> do
-            (_, m) <- checkModel con hhp s
+            (_, m) <- solve con s (symbolic_ids s) (path_conds s)
             return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states'
 

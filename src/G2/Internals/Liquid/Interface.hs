@@ -22,7 +22,7 @@ import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Liquid.Types
-import G2.Internals.Solver
+import G2.Internals.Solver hiding (solve)
 
 import G2.Lib.Printers
 
@@ -130,7 +130,8 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm'} }
 
-    (SomeSMT con, hhp) <- getSMT config
+    SomeSolver con <- getSMT config
+    let con' = GroupRelated con
 
     let final_state = track_state { known_values = mkv }
 
@@ -141,23 +142,23 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     ret <- if higherOrderSolver config == AllFuncs
               then run 
-                    (NonRedPCRed con config
-                      :<~| LHRed abs_fun con hhp config) 
+                    (NonRedPCRed con' config
+                      :<~| LHRed abs_fun con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
-                    con hhp (pres_names ++ names annm') config final_state'
+                    con' (pres_names ++ names annm') config final_state'
               else run 
-                    (NonRedPCRed con config
+                    (NonRedPCRed con' config
                       :<~| TaggerRed state_name tr_ng
-                      :<~| LHRed abs_fun con hhp config) 
+                      :<~| LHRed abs_fun con' config) 
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
-                    con hhp (pres_names ++ names annm') config final_state'
+                    con' (pres_names ++ names annm') config final_state'
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of

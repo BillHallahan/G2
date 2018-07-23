@@ -5,35 +5,55 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module G2.Internals.Solver.SMT2 where
 
 import G2.Internals.Config.Config
+import qualified G2.Internals.Language.ApplyTypes as AT
 import G2.Internals.Language.Expr
-import G2.Internals.Language.Support hiding (Model)
+import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.Naming
+import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax hiding (Assert)
+import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.Typing
+import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Language
 import G2.Internals.Solver.ParseSMT
+import G2.Internals.Solver.Solver
 import G2.Internals.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Data.List
 import Data.List.Utils (countElem)
 import qualified Data.Map as M
+import Data.Maybe
 import Data.Ratio
 import System.IO
 import System.Process
 
-data Z3 = Z3
-data CVC4 = CVC4
+import Debug.Trace
 
-data SomeSMT io where
-    SomeSMT :: forall con ast out io . SMTConverter con ast out io => con -> SomeSMT io
+data Z3 = Z3 (Handle, Handle, ProcessHandle)
+data CVC4 = CVC4 (Handle, Handle, ProcessHandle)
+
+data SomeSolver where
+    SomeSolver :: forall con . Solver con => con -> SomeSolver
+
+instance Solver Z3 where
+    check = checkConstraints
+    solve = checkModel
+
+instance Solver CVC4 where
+    check = checkConstraints
+    solve = checkModel
 
 instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
+    getIO (Z3 hhp) = hhp
+
     empty _ = ""  
     merge _ = (++)
 
@@ -153,6 +173,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     varName _ n _ = n
 
 instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
+    getIO (CVC4 hhp) = hhp
+
     empty _ = ""  
     merge _ = (++)
 
@@ -282,19 +304,6 @@ function2 f a b = "(" ++ f ++ " " ++ a ++ " " ++ b ++ ")"
 function3 :: String -> String -> String -> String -> String
 function3 f a b c = "(" ++ f ++ " " ++ a ++ " " ++ b ++ " " ++ c ++ ")"
 
---TODO: SAME AS sortName in language, fix
-sortN :: SMTConverter con ast out io => con -> Sort -> ast
-sortN smtc SortInt = sortInt smtc
-sortN smtc SortFloat = sortFloat smtc
-sortN smtc SortDouble = sortDouble smtc
-sortN smtc SortBool = sortBool smtc
-
-selectorName :: SMTConverter con SMTName out io => con ->  Sort -> SMTName
-selectorName smtc SortInt = sortInt smtc
-selectorName smtc SortFloat = sortFloat smtc
-selectorName smtc SortDouble = sortDouble smtc
-selectorName smtc SortBool = sortBool smtc
-
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
@@ -312,13 +321,13 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getSMT :: Config -> IO (SomeSMT (Handle, Handle, ProcessHandle), (Handle, Handle, ProcessHandle))
+getSMT :: Config -> IO SomeSolver
 getSMT (Config {smt = ConZ3}) = do
-    hpp <- getZ3ProcessHandles
-    return (SomeSMT Z3, hpp)
+    hhp <- getZ3ProcessHandles
+    return $ SomeSolver (Z3 hhp)
 getSMT (Config {smt = ConCVC4}) = do
-    hpp <- getCVC4ProcessHandles
-    return (SomeSMT CVC4, hpp)
+    hhp <- getCVC4ProcessHandles
+    return $ SomeSolver (CVC4 hhp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
@@ -364,7 +373,7 @@ checkSat' h_in h_out = do
     else do
         return (Unknown "")
 
-parseModel :: [SMTHeader] -> [(SMTName, String, Sort)] -> Model
+parseModel :: [SMTHeader] -> [(SMTName, String, Sort)] -> SMTModel
 parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty
     . map (\(n, str, s) -> (n, parseToSMTAST headers str s))
 
