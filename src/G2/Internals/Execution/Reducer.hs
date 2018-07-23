@@ -204,9 +204,9 @@ instance Solver con => Reducer (StdRed con) () where
 
 -- | NonRedPCRed ast out io
 -- Removes and reduces the values in a State's non_red_path_conds field. 
-data NonRedPCRed con = NonRedPCRed con Config
+data NonRedPCRed = NonRedPCRed Config
 
-instance Solver con => Reducer (NonRedPCRed con) t where
+instance Reducer NonRedPCRed t where
     redRules nrpr s@(State { expr_env = eenv
                            , type_env = tenv
                            , curr_expr = cexpr

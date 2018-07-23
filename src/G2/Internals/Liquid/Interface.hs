@@ -142,7 +142,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
 
     ret <- if higherOrderSolver config == AllFuncs
               then run 
-                    (NonRedPCRed con' config
+                    (NonRedPCRed config
                       :<~| LHRed abs_fun con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
@@ -150,7 +150,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
                     NextOrderer 
                     con' (pres_names ++ names annm') config final_state'
               else run 
-                    (NonRedPCRed con' config
+                    (NonRedPCRed config
                       :<~| TaggerRed state_name tr_ng
                       :<~| LHRed abs_fun con' config) 
                     (DiscardIfAcceptedTag state_name

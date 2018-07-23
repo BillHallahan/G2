@@ -113,14 +113,14 @@ runGHC as = do
 
     in_out <- if higherOrderSolver config == AllFuncs
               then run 
-                  (NonRedPCRed con' config
+                  (NonRedPCRed config
                     :<~| StdRed con' config) 
                   (MaxOutputsHalter 
                     :<~> ZeroHalter)
                   NextOrderer
                   con' [] config init_state
               else run
-                  (NonRedPCRed con' config
+                  (NonRedPCRed config
                     :<~| TaggerRed state_name tr_ng
                     :<~| StdRed con' config) 
                   (DiscardIfAcceptedTag state_name 

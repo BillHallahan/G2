@@ -46,14 +46,14 @@ checkInputOutput'' proj src md entry i req config = do
 
     r <- if higherOrderSolver config == AllFuncs
           then run 
-              (NonRedPCRed con' config
+              (NonRedPCRed config
                 :<~| StdRed con' config) 
               (MaxOutputsHalter 
                 :<~> ZeroHalter)
               NextOrderer
               con' [] config init_state
           else run
-              (NonRedPCRed con' config
+              (NonRedPCRed config
                 :<~| StdRed con' config) 
               (MaxOutputsHalter 
                 :<~> ZeroHalter)

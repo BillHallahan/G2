@@ -372,7 +372,7 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     SomeSolver con <- getSMT config
     let con' = GroupRelated con
 
-    r <- run (NonRedPCRed con' config
+    r <- run (NonRedPCRed config
                :<~| StdRed con' config)
              (MaxOutputsHalter 
                :<~> ZeroHalter)

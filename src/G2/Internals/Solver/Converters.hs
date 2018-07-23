@@ -138,14 +138,10 @@ checkModel' _ s [] _ = do
 checkModel' con s@(State {apply_types = at}) (Id n t@(TyConApp tn ts):is) pc
     | t /= tyBool (known_values s)  =
     do
-        let (r, is', s') = addADTs n tn ts s pc
-
-        let is'' = filter (\i -> i `notElem` is && (idName i) `M.notMember` (model s)) is'
-
-        let is''' = is ++ (AT.typeToAppType at is'')
+        let (r, s') = addADTs n tn ts s pc
 
         case r of
-            SAT -> checkModel' con s' is''' pc
+            SAT -> checkModel' con s' is pc
             r' -> return (r', Nothing)
 checkModel' con s (i:is) pc
     | (idName i) `M.member` (model s) = checkModel' con s is pc
@@ -158,17 +154,15 @@ checkModel' con s (i:is) pc
 getModelVal :: SMTConverter con ast out io => con -> State t -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
 getModelVal con s (Id n _) pc = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
- 
-    let pc' = PC.scc (known_values s) [n] pc
-    
-    case PC.null pc' of
+     
+    case PC.null pc of
                 True -> 
                     let
                         (e, av) = arbValue t (type_env s) (arbValueGen s)
                     in
                     return (Just $ M.singleton n' e, av) 
                 False -> do
-                    m <- checkNumericConstraints con pc'
+                    m <- checkNumericConstraints con pc
                     return (m, arbValueGen s)
 
 checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
@@ -190,16 +184,14 @@ checkNumericConstraints con pc = do
 -- | addADTs
 -- Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: Name -> Name -> [Type] -> State t -> PathConds -> (Result, [Id], State t)
+addADTs :: Name -> Name -> [Type] -> State t -> PathConds -> (Result, State t)
 addADTs n tn ts s pc =
     let
-        pc' = PC.scc (known_values s) [n] pc
-
-        dcs = findConsistent (known_values s) (type_env s) pc'
+        dcs = findConsistent (known_values s) (type_env s) pc
 
         eenv = expr_env s
 
-        (dc, nst) = case dcs of
+        dc = case dcs of
                 Just (fdc:_) ->
                     let
                         -- We map names over the arguments of a DataCon, to make sure we have the correct
@@ -216,9 +208,8 @@ addADTs n tn ts s pc =
                                 case E.lookup n' eenv of
                                     Just e -> e
                                     Nothing -> Prim Undefined TyBottom) ns
-                        is = mapMaybe (varId) vs
                     in
-                    (mkApp $ fdc:vs, is)
+                    mkApp $ fdc:vs
                 _ -> error $ "Unusable DataCon in addADTs"
 
         m = M.insert n dc (model s)
@@ -227,11 +218,11 @@ addADTs n tn ts s pc =
 
         m' = M.insert n bse m
     in
-    case PC.null pc' of
-        True -> (SAT, [], s {model = M.union m' (model s), arbValueGen = av})
+    case PC.null pc of
+        True -> (SAT, s {model = M.union m' (model s), arbValueGen = av})
         False -> case not . null $ dcs of
-                    True -> (SAT, [], s {model = M.union m (model s)})
-                    False -> (UNSAT, [], s)
+                    True -> (SAT, s {model = M.union m (model s)})
+                    False -> (UNSAT, s)
 
 -- | toSMTHeaders
 -- Here we convert from a State, to an SMTHeader.  This SMTHeader can later
