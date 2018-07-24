@@ -101,25 +101,14 @@ class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
 
 -- | checkConstraints
 -- Checks if the path constraints are satisfiable
-checkConstraints :: SMTConverter con ast out io => con -> State t -> PathConds -> IO Result
-checkConstraints con s pc = do
-    case checkConsistency (known_values s) (type_env s) pc of
-        Just True -> return SAT
-        Just False -> return UNSAT
-        _ -> do
-            -- putStrLn "------"
-            -- putStrLn $ "PC        = " ++ (pprPathsStr . PC.toList $ path_conds s)
-            -- putStrLn $ "PC unsafe = " ++ (pprPathsStr . PC.toList . unsafeElimCast $ path_conds s)
-            checkConstraints' con (getIO con) pc
-
-checkConstraints' :: SMTConverter con ast out io => con -> io -> PathConds -> IO Result
-checkConstraints' con io pc = do
+checkConstraints :: SMTConverter con ast out io => con -> PathConds -> IO Result
+checkConstraints con pc = do
     let pc' = unsafeElimCast pc
 
     let headers = toSMTHeaders pc'
     let formula = toSolver con headers
 
-    checkSat con io formula
+    checkSat con (getIO con) formula
 
 -- | checkModel
 -- Checks if the constraints are satisfiable, and returns a model if they are
@@ -133,16 +122,6 @@ checkModel con s is pc = return . fmap liftCasts =<< checkModel' con s is pc
 checkModel' :: SMTConverter con ast out io => con -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
 checkModel' _ s [] _ = do
     return (SAT, Just $ model s)
--- We can't use the ADT solver when we have a Boolean, because the RHS of the
--- DataAlt might be a primitive.
-checkModel' con s@(State {apply_types = at}) (Id n t@(TyConApp tn ts):is) pc
-    | t /= tyBool (known_values s)  =
-    do
-        let (r, s') = addADTs n tn ts s pc
-
-        case r of
-            SAT -> checkModel' con s' is pc
-            r' -> return (r', Nothing)
 checkModel' con s (i:is) pc
     | (idName i) `M.member` (model s) = checkModel' con s is pc
     | otherwise =  do
@@ -180,49 +159,6 @@ checkNumericConstraints con pc = do
     case m' of
         Just m'' -> return $ Just m''
         Nothing -> return Nothing
-
--- | addADTs
--- Determines an ADT based on the path conds.  The path conds form a witness.
--- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: Name -> Name -> [Type] -> State t -> PathConds -> (Result, State t)
-addADTs n tn ts s pc =
-    let
-        dcs = findConsistent (known_values s) (type_env s) pc
-
-        eenv = expr_env s
-
-        dc = case dcs of
-                Just (fdc:_) ->
-                    let
-                        -- We map names over the arguments of a DataCon, to make sure we have the correct
-                        -- number of undefined's.
-                        -- In the case of a PrimCon, we still need one undefined if the primitive is not
-                        -- in the type env
-                        ts'' = case exprInCasts fdc of
-                            Data (DataCon _ _ ts') -> map (const $ Name "a" Nothing 0 Nothing) ts'
-                            _ -> [Name "b" Nothing 0 Nothing]
-
-                        (ns, _) = childrenNames n ts'' (name_gen s)
-
-                        vs = map (\n' -> 
-                                case E.lookup n' eenv of
-                                    Just e -> e
-                                    Nothing -> Prim Undefined TyBottom) ns
-                    in
-                    mkApp $ fdc:vs
-                _ -> error $ "Unusable DataCon in addADTs"
-
-        m = M.insert n dc (model s)
-
-        (bse, av) = arbValue (TyConApp tn ts) (type_env s) (arbValueGen s)
-
-        m' = M.insert n bse m
-    in
-    case PC.null pc of
-        True -> (SAT, s {model = M.union m' (model s), arbValueGen = av})
-        False -> case not . null $ dcs of
-                    True -> (SAT, s {model = M.union m (model s)})
-                    False -> (UNSAT, s)
 
 -- | toSMTHeaders
 -- Here we convert from a State, to an SMTHeader.  This SMTHeader can later

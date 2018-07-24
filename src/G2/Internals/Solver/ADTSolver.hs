@@ -1,22 +1,45 @@
-module G2.Internals.Solver.ADTSolver ( checkConsistency
-                                     , findConsistent, findConsistent'') where
+{-# LANGUAGE OverloadedStrings #-}
+
+module G2.Internals.Solver.ADTSolver ( ADTSolver (..)
+                                     , checkConsistency
+                                     , findConsistent
+                                     , findConsistent'') where
 
 import G2.Internals.Language.Casts
+import G2.Internals.Language.Expr
+import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.Naming
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
-import G2.Internals.Language.PathConds hiding (map)
+import G2.Internals.Language.PathConds hiding (map, null)
+import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.Typing
+import G2.Internals.Solver.Solver
 
+import Data.List
+import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
+
+import Debug.Trace
+
+data ADTSolver = ADTSolver
+
+instance Solver ADTSolver where
+    check _ s = return . checkConsistency (known_values s) (type_env s)
+    -- solve _ _ _ _ = return (Unknown "", Nothing)
+    solve _ s is = solveADTs s (nub is)
 
 -- | checkConsistency
 -- Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
 -- and Nothing if it can't decide.
-checkConsistency :: KnownValues -> TypeEnv -> PathConds -> Maybe Bool
-checkConsistency kv tenv pc = maybe Nothing (Just . not . Pre.null) $ findConsistent kv tenv pc
+checkConsistency :: KnownValues -> TypeEnv -> PathConds -> Result
+checkConsistency kv tenv pc = maybe 
+                                (Unknown "Non-ADT path constraints") 
+                                (\me -> if not (Pre.null me) then SAT else UNSAT) 
+                                $ findConsistent kv tenv pc
 
 -- | findConsistent
 -- Attempts to find expressions (Data d) or (Coercion (Data d), (t1 :~ t2)) consistent with the given path
@@ -43,6 +66,60 @@ findConsistent kv tenv pc =
 head' :: [a] -> Maybe a
 head' (x:_) = Just x
 head' _ = Nothing
+
+solveADTs :: State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
+solveADTs s [Id n t@(TyConApp tn ts)] pc
+    -- We can't use the ADT solver when we have a Boolean, because the RHS of the
+    -- DataAlt might be a primitive.
+    | t /= tyBool (known_values s)  =
+    do
+        let (r, s') = addADTs n tn ts s pc
+
+        case r of
+            SAT -> return (r, Just . liftCasts $ model s')
+            r' -> return (r', Nothing)
+solveADTs _ ts _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
+
+-- | addADTs
+-- Determines an ADT based on the path conds.  The path conds form a witness.
+-- In particular, refer to findConsistent in Solver/ADTSolver.hs
+addADTs :: Name -> Name -> [Type] -> State t -> PathConds -> (Result, State t)
+addADTs n tn ts s pc =
+    let
+        dcs = findConsistent (known_values s) (type_env s) pc
+
+        eenv = expr_env s
+
+        dc = case dcs of
+                Just (fdc:_) ->
+                    let
+                        -- We map names over the arguments of a DataCon, to make sure we have the correct
+                        -- number of undefined's.
+                        ts'' = case exprInCasts fdc of
+                            Data (DataCon _ _ ts') -> map (const $ Name "a" Nothing 0 Nothing) ts'
+                            _ -> [Name "b" Nothing 0 Nothing]
+
+                        (ns, _) = childrenNames n ts'' (name_gen s)
+
+                        vs = map (\n' -> 
+                                case E.lookup n' eenv of
+                                    Just e -> e
+                                    Nothing -> Prim Undefined TyBottom) ns
+                    in
+                    mkApp $ fdc:vs
+                _ -> error $ "Unusable DataCon in addADTs"
+
+        m = M.insert n dc (model s)
+
+        (bse, av) = arbValue (TyConApp tn ts) (type_env s) (arbValueGen s)
+
+        m' = M.insert n bse m
+    in
+    case PC.null pc of
+        True -> (SAT, s {model = M.union m' (model s), arbValueGen = av})
+        False -> case not . Pre.null $ dcs of
+                    True -> (SAT, s {model = M.union m (model s)})
+                    False -> (UNSAT, s)
 
 findConsistent' :: TypeEnv -> [PathCond] -> Maybe [Expr]
 findConsistent' tenv pc =

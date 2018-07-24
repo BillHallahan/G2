@@ -62,9 +62,9 @@ instance Solver solver => Solver (GroupRelated solver) where
 
 -- Allows solvers to be combined, to exploit different solvers abilities
 -- to solve different kinds of constraints
--- a :<? b - Try solver b.  If it fails, try solver a
--- a :>? b - Try solver a.  If it fails, try solver b
-data CombineSolvers a b = a :<? b | a :>? b
+-- a :<? b - Try solver b.  If it returns Unknown, try solver a
+-- a :>? b - Try solver a.  If it returns Unknown, try solver b
+data CombineSolvers a b = a :<? b | a :?> b
 
 checkWithEither :: (Solver a, Solver b) => a -> b -> State t -> PathConds -> IO Result
 checkWithEither a b s pc = do
@@ -92,7 +92,7 @@ solveWithEither a b s is pc = do
 
 instance (Solver a, Solver b) => Solver (CombineSolvers a b) where
     check (a :<? b) = checkWithEither b a
-    check (a :>? b) = checkWithEither a b
+    check (a :?> b) = checkWithEither a b
 
     solve (a :<? b) = solveWithEither b a
-    solve (a :>? b) = solveWithEither a b
+    solve (a :?> b) = solveWithEither a b

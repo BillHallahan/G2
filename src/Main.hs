@@ -106,7 +106,7 @@ runGHC as = do
                                (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
 
     SomeSolver con <- getSMT config
-    let con' = GroupRelated con
+    let con' = GroupRelated (ADTSolver :?> con)
 
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing

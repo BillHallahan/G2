@@ -131,7 +131,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm'} }
 
     SomeSolver con <- getSMT config
-    let con' = GroupRelated con
+    let con' = GroupRelated (ADTSolver :?> con)
 
     let final_state = track_state { known_values = mkv }
 

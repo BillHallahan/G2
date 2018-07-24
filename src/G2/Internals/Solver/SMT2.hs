@@ -44,11 +44,11 @@ data SomeSolver where
     SomeSolver :: forall con . Solver con => con -> SomeSolver
 
 instance Solver Z3 where
-    check = checkConstraints
+    check solver _ pc = checkConstraints solver pc
     solve = checkModel
 
 instance Solver CVC4 where
-    check = checkConstraints
+    check solver _ pc = checkConstraints solver pc
     solve = checkModel
 
 instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
