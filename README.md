@@ -1,12 +1,12 @@
-### G2 Haskell Symbolic Execution Engine
+## G2 Haskell Symbolic Execution Engine
 ---
-##### About
+#### About
 G2 performs lazy symbolic execution of Haskell programs to detect state reachability.
 It is capable of generating assertion failure counterexamples and solving for higher-order functions.
 
 ---
 
-##### Dependencies
+#### Dependencies
 * GHC 8.0.2: https://www.haskell.org/ghc/
 * Custom Haskell Standard Library: https://github.com/AntonXue/base-4.9.1.0
 * Z3 Theorem Prover: https://github.com/Z3Prover/z3
@@ -17,32 +17,39 @@ It is capable of generating assertion failure counterexamples and solving for hi
 2) Install Z3
 3) Pull the Custom Haskell Standard Library (optional)
 4) Add a file to the G2 folder, called g2.cfg that contains:
-		base = [path to Custom Haskell Standard Library] 
+		`base = /path/to/custom/library`
+		
+  Example g2.cfg file:
+  ```
+  base = ../base-4.9.1.0/Control/Exception/Base.hs
+       , ../base-4.9.1.0/Prelude.hs
+       , ../base-4.9.1.0/Data/Map.hs
+
+  n = 1000
+  time = 300
+  ```
 
 ---
 #### Command line:
 
-Reachability:
+###### Reachability:
 
-cabal run G2 ./tests/Samples/ ./tests/Samples/Peano.hs add
+`cabal run G2 ./tests/Samples/ ./tests/Samples/Peano.hs add`
 
-LiquidHaskell:
+###### LiquidHaskell:
 
-cabal run G2 ./tests/Liquid/ -- --liquid ./tests/Liquid/Peano.hs --liquid-func add
+`cabal run G2 ./tests/Liquid/ -- --liquid ./tests/Liquid/Peano.hs --liquid-func add`
 
-Arguments:
+###### Arguments:
 
---n = number of reduction steps to run
-
---max-outputs = number of inputs/results to display
-
---smt = Pass "z3" or "cvc4" to select a solver [Default: Z3]
-
---time = Set a timeout
+* `--n` number of reduction steps to run`
+* `--max-outputs` number of inputs/results to display
+* `--smt` Pass "z3" or "cvc4" to select a solver [Default: Z3]
+* `--time` Set a timeout in seconds
 
 ---
 
-##### Authors
+#### Authors
 * Bill Hallahan (Yale)
 * Anton Xue (Yale)
 * Ranjit Jhala (UCSD)
