@@ -23,4 +23,3 @@ data L a = E
 f :: L (L Int) -> L Int
 f  E        = E
 f  (x :+: xs) = x +:+ E
-

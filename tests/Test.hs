@@ -164,6 +164,8 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "callf" 2000 3 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error1.hs" "f" 600 2 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 500 3 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error3.hs" "z" 500 3 [AtLeast 1]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
