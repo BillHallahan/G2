@@ -23,9 +23,11 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , ZeroHalter (..)
                                       , DiscardIfAcceptedTag (..)
                                       , MaxOutputsHalter (..)
+                                      , SwitchEveryNHalter (..)
 
                                       -- Orderers
                                       , NextOrderer (..)
+                                      , PickLeastUsedOrderer (..)
 
                                       , getState
                                       , getOrderVal
@@ -330,6 +332,14 @@ instance Halter MaxOutputsHalter (Maybe Int) t where
             _ -> Continue
     stepHalter _ hv _ _ = hv
 
+data SwitchEveryNHalter = SwitchEveryNHalter
+
+instance Halter SwitchEveryNHalter (Int, Int) t where
+    initHalt _ config _ = let s = steps config in (s, s)
+    reInitHalt _ hv _ _ = hv
+    stopRed _ (tot, i) _ _ = if i <= 0 then Switch else Continue
+    stepHalter _ (tot, i) _ _ = if i <= 0 then (tot, tot) else (tot, i - 1)
+
 -- | DiscardIfAcceptedTag
 -- If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
 -- matches a Tag in the Accepted State list,
@@ -363,6 +373,22 @@ instance Orderer NextOrderer () () t where
     initOrder _ _ _ = ()
     initPerStateOrder _ _ _ = ()
     orderStates = executeNext
+
+data PickLeastUsedOrderer = PickLeastUsedOrderer
+
+instance Orderer PickLeastUsedOrderer () Int t where
+    initOrder _ _ _ = ()
+    initPerStateOrder _ _ _ = 0
+    orderStates _ _ _ [] = ([], ())
+    orderStates _ _ _ (s:ss) =
+      let (next, rest) =
+            foldl (\(next, acc) cand ->
+                    if order_val cand < order_val next then
+                      (cand, next : acc)
+                    else
+                      (next, cand : acc))
+                  (s, []) ss in
+        ((next { order_val = 1 + order_val next }) : rest, ())
 
 executeNext :: Orderer r () () t => r -> p -> Processed (ExState hv sov t) -> [ExState hv sov t] -> ([ExState hv sov t], ())
 executeNext _ _ _ xs = (xs, ())
