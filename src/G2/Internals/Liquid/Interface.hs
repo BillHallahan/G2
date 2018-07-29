@@ -21,6 +21,7 @@ import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
+import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
 import G2.Internals.Solver hiding (solve)
 
@@ -88,7 +89,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let lh_measures = measureSpecs ghcInfos
 
     let (init_state, ifi) = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
-    let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
+    let cleaned_state = (markAndSweepPreserving (reqNames Nothing init_state) init_state) { type_env = type_env init_state }
 
 
 
@@ -117,7 +118,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     let (merged_state, ifi') = mergeLHSpecState ifi (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
 
     let beta_red_state = simplifyAsserts mkv tcv merged_state {apply_types = apply_types ng2_state}
-    let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
+    let pres_names = reqNames (Just tcv) beta_red_state ++ names tcv ++ names mkv
 
     -- We create annm_gen_state purely to have to generate less annotations
     -- We continue execution with beta_red_state later, because otherwise we might have lost some values for LH TC that we need
@@ -233,8 +234,9 @@ funcSpecs = concatMap (gsTySigs . spec)
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)
 
-reqNames :: State t -> [Name]
-reqNames (State { expr_env = eenv
+reqNames :: Maybe TCValues -> State t -> [Name]
+reqNames tcv
+         (State { expr_env = eenv
                 , type_classes = tc
                 , known_values = kv
                 , apply_types = at }) = 
@@ -261,7 +263,7 @@ reqNames (State { expr_env = eenv
     ++
     Lang.names 
       (M.filterWithKey 
-          (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv) 
+          (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv) -- || maybe False (\tcv' -> k == lhTC tcv') tcv) 
           (coerce tc :: M.Map Name Class)
       )
     ++ Lang.names at

@@ -8,7 +8,7 @@ import G2.Internals.Language.Support
 import G2.Internals.Language.Naming
 import G2.Internals.Language.ExprEnv as E
 
-import qualified Data.Set as S
+import qualified Data.HashSet as S
 import qualified Data.Map as M
 
 markAndSweep :: State t -> State t
@@ -46,7 +46,7 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
 
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
-activeNames :: TypeEnv -> ExprEnv -> S.Set Name -> [Name] -> S.Set Name
+activeNames :: TypeEnv -> ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
 activeNames _ _ explored [] = explored
 activeNames tenv eenv explored (n:ns) =
     if S.member n explored
@@ -60,5 +60,5 @@ activeNames tenv eenv explored (n:ns) =
     eenv_hits = case E.lookup n eenv of
         Nothing -> []
         Just r -> names r
-    ns' = ns ++ tenv_hits ++ eenv_hits
+    ns' = tenv_hits ++ eenv_hits ++ ns
 
