@@ -48,7 +48,7 @@ createStructEqFuncs ts = do
     let types = mapMaybe (tcaName . returnType) $ filter isTyFun ts ++ (nubBy (.::.) $ argTypesTEnv tenv)
     let tenv' = M.filterWithKey (\n _ -> n `elem` types) tenv
 
-    insertT adtn (DataTyCon {bound_names = [], data_cons = [dc]})
+    insertT adtn (DataTyCon {bound_names = [tyvn], data_cons = [dc]})
 
     let (tenvK, tenvV) = unzip $ M.toList tenv'
 

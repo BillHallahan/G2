@@ -4,6 +4,7 @@ module G2.Internals.Liquid.TCGen (createLHTC, genTC) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.KnownValues
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
@@ -170,6 +171,7 @@ createFuncsM' genFrom store namef storef exprf = do
 createLHTCFuncs :: LHStateM ()
 createLHTCFuncs = do
     tenv <- typeEnv
+    kv <- knownValues
 
     let tenv' = M.toList tenv
 
@@ -694,6 +696,7 @@ polyPredLHFunc' true w bnf i
             as' = map (polyPredFunc' true w bnf) ts
         in
         foldl' App (Var f) (as ++ as')
+    | TyForAll _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | TyFun _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | t <- typeOf i
     ,  t == TyLitInt
@@ -703,7 +706,7 @@ polyPredLHFunc' true w bnf i
     | TyVar _ <- typeOf i = polyPredFunc' true w bnf (typeOf i)
     | TyApp _ _ <- typeOf i =
         Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
-    | otherwise = error $ "Unhandled type " ++ show (typeOf i)
+    | otherwise = error $ "Unhandled type in polyPredLHFunc' " ++ show (typeOf i)
 
 polyPredFunc' :: Expr ->  Walkers -> [(Name, Id)] -> Type -> Expr
 polyPredFunc' _ _ bnf (TyVar (Id n _)) 
