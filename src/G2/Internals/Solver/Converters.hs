@@ -30,16 +30,9 @@ import Data.Monoid
 import qualified Data.Text as T
 
 import G2.Internals.Language hiding (Assert, vars)
-import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
-import G2.Internals.Language.Naming
 import qualified G2.Internals.Language.PathConds as PC
-import G2.Internals.Language.Typing
-import G2.Internals.Language.Support
-import G2.Internals.Language.Syntax hiding (Assert)
-import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Language
-import G2.Internals.Solver.Solver
 
 -- This class is used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
@@ -354,9 +347,9 @@ exprToSMT (Data (DataCon n t _)) = V (nameToStr n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
-        args = getArgs a
+        ars = getArgs a
     in
-    funcToSMT f args
+    funcToSMT f ars
     where
         getFunc :: Expr -> Expr
         getFunc v@(Var _) = v
@@ -411,12 +404,6 @@ altToSMT (LitAlt (LitDouble d)) _ = VDouble d
 altToSMT (DataAlt (DataCon (Name "True" _ _ _) _ _) _) _ = VBool True
 altToSMT (DataAlt (DataCon (Name "False" _ _ _) _ _) _) _ = VBool False
 altToSMT am _ = error $ "Unhandled " ++ show am
-
-typeArgs :: Expr -> [Type]
-typeArgs e =
-    case typeOf e of
-        TyConApp _ ts -> ts
-        _ -> []
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []

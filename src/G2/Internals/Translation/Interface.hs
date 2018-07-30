@@ -59,7 +59,9 @@ translateLoadedV proj src libs simpl config = do
   let ns = map (idName . fst) $ concat tgt_prog
 
   -- final injection phase
+  -- let (near_final_prog, final_tys) = primInject (merged_prog, merged_tys)
   let (near_final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys
+
 
   final_prog <- absVarLoc near_final_prog
 

@@ -12,15 +12,10 @@
 module G2.Internals.Solver.SMT2 where
 
 import G2.Internals.Config.Config
-import qualified G2.Internals.Language.ApplyTypes as AT
 import G2.Internals.Language.Expr
-import qualified G2.Internals.Language.ExprEnv as E
-import G2.Internals.Language.Naming
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax hiding (Assert)
-import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Language.Typing
-import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Language
 import G2.Internals.Solver.ParseSMT
 import G2.Internals.Solver.Solver
@@ -30,12 +25,9 @@ import Control.Exception.Base (evaluate)
 import Data.List
 import Data.List.Utils (countElem)
 import qualified Data.Map as M
-import Data.Maybe
 import Data.Ratio
 import System.IO
 import System.Process
-
-import Debug.Trace
 
 data Z3 = Z3 (Handle, Handle, ProcessHandle)
 data CVC4 = CVC4 (Handle, Handle, ProcessHandle)

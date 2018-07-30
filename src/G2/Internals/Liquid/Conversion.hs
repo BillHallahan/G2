@@ -40,8 +40,6 @@ import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
 
-import Debug.Trace
-
 addLHTC :: LHState -> LHState
 addLHTC lh_s@(LHState {state = s, measures = meas, tcvalues = tcv}) = 
     let
@@ -493,7 +491,7 @@ specTypeApps' (RVar {rt_var = (RTV v), rt_reft = r}) tcv s m b =
         re =  convertLHExpr (reftExpr $ ur_reft r) Nothing tcv s m'
     in
     [App (Lam symbId re) (Var b)]
-specTypeApps' (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r }) tcv s@(State { type_env = tenv }) m b =
+specTypeApps' (RFun {rt_bind = rb, rt_in = fin, rt_out = fout }) tcv s@(State { type_env = tenv }) m b =
     -- TODO : rt_reft
     let
         t = unsafeSpecTypeToType tenv fin
@@ -501,15 +499,14 @@ specTypeApps' (RFun {rt_bind = rb, rt_in = fin, rt_out = fout, rt_reft = r }) tc
 
         m' = M.insert (idName i) t m
     in
-    -- trace ("fun\nrt_bind = " ++ show rb ++ "\nrt_in = " ++ show fin ++ "\nrt_out = " ++ show fout ++ "\nrt_reft = " ++ show r ++ "\n")
-    -- If LHS of a RFun has a function type, it is a refinement on a higher order function
+     -- If LHS of a RFun has a function type, it is a refinement on a higher order function
     -- This is dealt with seperately- see [Higher Order Asserts]
     case hasFuncType i of
         True -> specTypeApps' fout tcv s m b
         _ -> specTypeApps' fin tcv s m' i ++ specTypeApps' fout tcv s m' b
 specTypeApps' (RAllT {rt_ty = rty}) tcv s m b =
     specTypeApps' rty tcv s m b
-specTypeApps' rapp@(RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {expr_env = eenv, type_env = tenv, type_classes = tc}) m b =
+specTypeApps' (RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {expr_env = eenv, type_env = tenv, type_classes = tc}) m b =
     let
         symb = reftSymbol $ ur_reft r
         ty = case rTyConType tenv c as of
@@ -642,7 +639,7 @@ convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
                 apps = mkApp $ fw:te ++ [argE]
             in
             apps
-        (e'', _) -> App f argE
+        _ -> App f argE
 convertLHExpr (ENeg e) t tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
     let
         e' = convertLHExpr e t tcv s m

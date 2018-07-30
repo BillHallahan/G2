@@ -50,10 +50,7 @@ import G2.Lib.Printers
 
 import Data.Foldable
 import qualified Data.HashSet as S
-import Data.Maybe
 import System.Directory
-
-import Debug.Trace
 
 -- | ExState
 -- Used when applying execution rules
@@ -173,14 +170,14 @@ instance (Reducer r1 t, Reducer r2 t) => Reducer (RCombiner r1 r2) t where
 
         return (progPrioritizer rr1 rr2, s'', r1' :<~ r2')
     redRules (r1 :<~? r2) s = do
-        rs@(rr2, s', r2') <- redRules r2 s
+        (rr2, s', r2') <- redRules r2 s
         case rr2 of
             NoProgress -> do
                 (rr1, s'', r1') <- redRulesToStates r1 s'
                 return (rr1, s'', r1' :<~? r2')
             _ -> return (rr2, s', r1 :<~? r2')
     redRules (r1 :<~| r2) s = do
-        rs@(rr2, s', r2') <- redRules r2 s
+        (rr2, s', r2') <- redRules r2 s
         case rr2 of
             Finished -> do
                 (rr1, s'', r1') <- redRulesToStates r1 s'
@@ -199,8 +196,8 @@ redRulesToStates r s = do
 data StdRed con = StdRed con Config
 
 instance Solver con => Reducer (StdRed con) () where
-    redRules stdr@(StdRed smt config) s = do
-        (r, s') <- reduce (stdReduce config) smt config s
+    redRules stdr@(StdRed solver config) s = do
+        (r, s') <- reduce (stdReduce config) solver config s
         
         return (if r == RuleIdentity then Finished else InProgress, s', stdr)
 
@@ -210,10 +207,8 @@ data NonRedPCRed = NonRedPCRed Config
 
 instance Reducer NonRedPCRed t where
     redRules nrpr s@(State { expr_env = eenv
-                           , type_env = tenv
                            , curr_expr = cexpr
                            , exec_stack = stck
-                           , known_values = kv
                            , path_conds = pc
                            , non_red_path_conds = nr:nrs
                            , apply_types = at
@@ -221,9 +216,7 @@ instance Reducer NonRedPCRed t where
                            , symbolic_ids = si }) = do
         let stck' = Stck.push (CurrExprFrame cexpr) stck
 
-        let and = mkAnd eenv
-        let true = mkTrue kv tenv
-        let cexpr' = CurrExpr Evaluate nr -- CurrExpr Evaluate $ foldr (\e -> App (App and e)) true re_pc
+        let cexpr' = CurrExpr Evaluate nr
         let cexpr'' = higherOrderToAppTys eenv at cexpr'
 
         let s' = s { curr_expr = cexpr''
@@ -337,7 +330,7 @@ data SwitchEveryNHalter = SwitchEveryNHalter
 instance Halter SwitchEveryNHalter (Int, Int) t where
     initHalt _ config _ = let s = steps config in (s, s)
     reInitHalt _ hv _ _ = hv
-    stopRed _ (tot, i) _ _ = if i <= 0 then Switch else Continue
+    stopRed _ (_, i) _ _ = if i <= 0 then Switch else Continue
     stepHalter _ (tot, i) _ _ = if i <= 0 then (tot, tot) else (tot, i - 1)
 
 -- | DiscardIfAcceptedTag
@@ -382,11 +375,11 @@ instance Orderer PickLeastUsedOrderer () Int t where
     orderStates _ _ _ [] = ([], ())
     orderStates _ _ _ (s:ss) =
       let (next, rest) =
-            foldl (\(next, acc) cand ->
-                    if order_val cand < order_val next then
-                      (cand, next : acc)
+            foldl (\(next', acc) cand ->
+                    if order_val cand < order_val next' then
+                      (cand, next' : acc)
                     else
-                      (next, cand : acc))
+                      (next', cand : acc))
                   (s, []) ss in
         ((next { order_val = 1 + order_val next }) : rest, ())
 
@@ -414,8 +407,8 @@ reduce red con config s = do
 
 -- | runReducer
 -- Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r t, Halter h hv t, Orderer or orv sov t, Solver solver) => r -> h -> or -> solver -> orv -> [State t] -> Config -> IO [([Int], State t)]
-runReducer red hal ord con p states config =
+runReducer :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> [State t] -> Config -> IO [([Int], State t)]
+runReducer red hal ord p states config =
     mapM (\ExState {state = s, cases = c} -> return (c, s))
         =<< (runReducer' red hal ord p (Processed {accepted = [], discarded = []}) $ map (\s -> ExState { state = s
                                                                                                        , halter_val = initHalt hal config s

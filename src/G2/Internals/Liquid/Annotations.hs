@@ -17,7 +17,6 @@ import Language.Haskell.Liquid.Liquid()
 import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
 import Language.Haskell.Liquid.Types hiding (Loc, names)
 import Language.Haskell.Liquid.Types.RefType
-import qualified Language.Haskell.Liquid.UX.Config as LHC
 
 import G2.Internals.Translation.Haskell
 
@@ -43,8 +42,8 @@ lookupAnnotAtLoc (Name _ _ _ (Just (Span {start = l}))) =
     Just . concatMap snd . find (\(Span {start = l'}, _) -> l == l') . HM.toList . unAnnotMap
 lookupAnnotAtLoc _ = const Nothing
 
-getAnnotMap :: LHC.Config -> TCValues -> State t -> ExprEnv -> [LHOutput] -> AnnotMap
-getAnnotMap lh_config tcv s meenv ghci_cg =
+getAnnotMap :: TCValues -> State t -> ExprEnv -> [LHOutput] -> AnnotMap
+getAnnotMap tcv s meenv ghci_cg =
     let
         locM = locLookup $ expr_env s
 

@@ -39,7 +39,6 @@ import Data.Maybe
 import Prelude hiding (map, null)
 import qualified Prelude as P (map)
 
-import Debug.Trace
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
 --
 -- In the implementation:

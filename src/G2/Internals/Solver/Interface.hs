@@ -11,17 +11,11 @@ module G2.Internals.Solver.Interface
 
 import G2.Internals.Execution.NormalForms
 import G2.Internals.Language
-import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
-import qualified G2.Internals.Language.PathConds as PC
-import G2.Internals.Solver.ADTSolver
 import G2.Internals.Solver.Converters
-import G2.Internals.Solver.Language
-import G2.Internals.Solver.SMT2
 import G2.Internals.Solver.Solver
 
 import qualified Data.Map as M
-import Data.Maybe
 
 subModel :: State t -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv

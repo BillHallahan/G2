@@ -196,10 +196,10 @@ data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
 
 
 instance Solver con => Reducer (LHRed con) LHTracker where
-    redRules lhr@(LHRed ns smt config) s = do
-        (r, s) <- reduce (lhReduce ns config) smt config s
+    redRules lhr@(LHRed ns solver config) s = do
+        (r, s') <- reduce (lhReduce ns config) solver config s
 
-        return $ (if r == RuleIdentity then Finished else InProgress, s, lhr)
+        return $ (if r == RuleIdentity then Finished else InProgress, s', lhr)
 
 instance Halter LHHalter Int LHTracker where
     initHalt (LHHalter entry modn eenv) _ _ =

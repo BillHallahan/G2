@@ -37,6 +37,7 @@ primStr FromInteger = "fromInteger"
 primStr ToInteger = "toInteger"
 primStr Error = "error"
 primStr Undefined = "undefined"
+primStr BindFunc = "BindFunc"
 
 strToPrim :: T.Text -> Maybe Primitive
 strToPrim "not" = Just Not

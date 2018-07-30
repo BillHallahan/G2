@@ -8,7 +8,6 @@ module G2.Internals.Initialization.MkCurrExpr ( mkCurrExpr
 import G2.Internals.Config
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
-import qualified G2.Internals.Language.ApplyTypes as AT
 
 import Data.List
 import qualified Data.Text as T

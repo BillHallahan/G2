@@ -9,8 +9,6 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.PathConds as PC
 import qualified Data.Map as M
 
-import Debug.Trace
-
 data Result = SAT
             | UNSAT
             | Unknown String
@@ -28,7 +26,7 @@ checkRelated solver s pc = do
     checkRelated' solver s $ PC.relatedSets (known_values s) pc
 
 checkRelated' :: Solver a => a -> State t -> [PathConds] -> IO Result
-checkRelated' solver s [] = return SAT
+checkRelated' _ _ [] = return SAT
 checkRelated' solver s (p:ps) = do
     c <- check solver s p
     case c of
@@ -40,7 +38,7 @@ solveRelated solver s is pc = do
     solveRelated' solver s M.empty is $ PC.relatedSets (known_values s) pc
 
 solveRelated' :: Solver a => a -> State t -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model)
-solveRelated' solver s m is [] =
+solveRelated' _ s m is [] =
     let 
         is' = filter (\i -> idName i `M.notMember` m) is
         nv = map (\(Id n t) -> (n, fst $ arbValue t (type_env s) (arbValueGen s))) is'

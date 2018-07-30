@@ -7,10 +7,8 @@
 module G2.Internals.Solver.Language
     ( module G2.Internals.Solver.Language
     , module G2.Internals.Language.AST
-    , SMTModel
     , Result (..)) where
 
-import G2.Internals.Language.Support (ExprEnv, CurrExpr, Model)
 import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.AST
 import G2.Internals.Solver.Solver

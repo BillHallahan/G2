@@ -8,7 +8,6 @@ import G2.Internals.Config.Config
 import G2.Internals.Translation
 import G2.Internals.Interface
 import G2.Internals.Language as Lang
-import G2.Internals.Language.Monad
 import qualified G2.Internals.Language.ExprEnv as E
 
 import G2.Internals.Execution
@@ -21,7 +20,6 @@ import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
-import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
 import G2.Internals.Solver hiding (solve)
 
@@ -53,8 +51,6 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
-import Debug.Trace
-
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -76,13 +72,13 @@ findCounterExamples proj fp entry libs lhlibs config = do
     
     tgt_trans <- translateLoaded proj fp libs False config' 
 
-    runLHCore lh_config entry tgt_trans ghc_cg config'
+    runLHCore entry tgt_trans ghc_cg config'
 
-runLHCore :: LHC.Config -> T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
+runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
                     -> [LHOutput]
                     -> Config
                     -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
-runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
+runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let ghcInfos = map ghcI ghci_cg
 
     let specs = funcSpecs ghcInfos
@@ -124,7 +120,7 @@ runLHCore lh_config entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg confi
     -- We continue execution with beta_red_state later, because otherwise we might have lost some values for LH TC that we need
     let annm_gen_state = (markAndSweepPreserving pres_names beta_red_state) { type_env = type_env beta_red_state }
 
-    let annm = getAnnotMap lh_config tcv annm_gen_state meas_eenv ghci_cg
+    let annm = getAnnotMap tcv annm_gen_state meas_eenv ghci_cg
     let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
 
     let spec_assert_state = addSpecialAsserts beta_red_state
@@ -182,7 +178,7 @@ adjustCurrExpr i@(Id n t) s@(State {expr_env = eenv, curr_expr = (CurrExpr ce ce
         (i'@(Id n' _), ng') = freshSeededId n t ng
 
         e = case E.lookup n eenv of
-                Just e' -> e'
+                Just je -> je
                 Nothing -> error "Expr not found in adjustCurrExpr"
 
         funs = filter (\(Var (Id vn _)) -> vn `elem` E.keys eenv) $ vars e
@@ -381,7 +377,7 @@ testLiquidFile proj fp libs lhlibs config = do
 
     fmap concat $ mapM (\e -> do
         putStrLn $ show e
-        runLHCore lh_config e tgt_trans ghci_cg config >>= (return . parseLHOut e))
+        runLHCore e tgt_trans ghci_cg config >>= (return . parseLHOut e))
                        cleaned_tgt_lhs
 
 testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config

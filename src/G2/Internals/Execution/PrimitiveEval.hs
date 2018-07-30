@@ -12,7 +12,7 @@ evalPrims :: ASTContainer m Expr => KnownValues -> TypeEnv -> m -> m
 evalPrims kv tenv = modifyContainedASTs (evalPrims' kv tenv . simplifyCasts)
 
 evalPrim :: KnownValues -> TypeEnv -> Expr -> Expr
-evalPrim kv tenv a@(App x y) =
+evalPrim kv tenv a@(App _ _) =
     case unApp a of
         [p@(Prim _ _), l@(Lit _)] -> evalPrim' kv tenv [p, l]
         [p@(Prim _ _), l1@(Lit _), l2@(Lit _)] -> evalPrim' kv tenv [p, l1, l2]
@@ -56,7 +56,7 @@ evalPrim1 Negate (LitDouble x) = Just . Lit $ LitDouble (-x)
 evalPrim1 SqRt x = evalPrim1Floating (sqrt) x
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
-evalPrim1 p _ = Nothing
+evalPrim1 _ _ = Nothing
 
 evalPrim2 :: KnownValues -> TypeEnv -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv tenv Ge x y = evalPrim2NumBool (>=) kv tenv x y
@@ -70,7 +70,7 @@ evalPrim2 _ _ Mult x y = evalPrim2Num (*) x y
 evalPrim2 _ _ Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
 evalPrim2 _ _ Quot x y = if isZero y then error "Have Quot _ 0" else evalPrim2Integral quot x y
 evalPrim2 _ _ Mod x y = evalPrim2Integral (mod) x y
-evalPrim2 _ _ p _ _ = Nothing
+evalPrim2 _ _ _ _ _ = Nothing
 
 isZero :: Lit -> Bool
 isZero (LitInt 0) = True

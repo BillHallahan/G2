@@ -137,9 +137,7 @@ createStructEqFunc dcn fn tn (DataTyCon {bound_names = ns, data_cons = dc}) = do
     insertE fn e
 createStructEqFunc dcn fn tn (NewTyCon {bound_names = ns, rep_type = rt}) = do
     kv <- knownValues
-    tc <- IT.typeClasses
 
-    ns' <- freshSeededNamesN ns
     let t = TyConApp tn (map (TyVar . flip Id TYPE) ns)
 
     bt <- freshIdsN $ map (const TYPE) ns
@@ -174,54 +172,49 @@ createStructEqFuncDC t bt bd bm dc = do
 
     b1 <- freshIdN t
 
-    alts <- mapM (createStructEqFuncDCAlt (Var b1) (Var lam2I) t bm) dc
+    alts <- mapM (createStructEqFuncDCAlt (Var lam2I) t bm) dc
 
     let e = Lam lam1I $ Lam lam2I $ Case (Var lam1I) b1 alts
     let e' = foldr Lam e bd
     return $ foldr Lam e' bt
 
-createStructEqFuncDCAlt :: Expr -> Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> IT.SimpleStateM Alt
-createStructEqFuncDCAlt e1 e2 t bm dc@(DataCon _ _ ts) = do
-    true <- mkTrueE
+createStructEqFuncDCAlt :: Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> IT.SimpleStateM Alt
+createStructEqFuncDCAlt e2 t bm dc@(DataCon _ _ ts) = do
     false <- mkFalseE
 
-    b <- freshIdN t
     bs <- freshIdsN ts
 
-    b2 <- freshIdN t
+    b <- freshIdN t
     bs2 <- freshIdsN ts
 
-    sEqCheck <- boundChecks t bs bs2 bm
+    sEqCheck <- boundChecks bs bs2 bm
 
     let alt2 = Alt (DataAlt dc bs2) sEqCheck
     let altD = Alt Default false
 
-    return $ Alt (DataAlt dc bs) (Case e2 b2 [alt2, altD])
+    return $ Alt (DataAlt dc bs) (Case e2 b [alt2, altD])
 
-boundChecks :: Type -> [Id] -> [Id] -> [(Name, (Id, Id))] -> IT.SimpleStateM Expr
-boundChecks t is1 is2 bm = do
-    and <- mkAndE
+boundChecks :: [Id] -> [Id] -> [(Name, (Id, Id))] -> IT.SimpleStateM Expr
+boundChecks is1 is2 bm = do
+    andE <- mkAndE
     true <- mkTrueE
 
     bc <- mapM (uncurry (boundCheck bm)) $ zip is1 is2
 
-    return $ foldr (\e -> App (App and e)) true bc
+    return $ foldr (\e -> App (App andE e)) true bc
 
 boundCheck :: [(Name, (Id, Id))] -> Id -> Id -> IT.SimpleStateM Expr
 boundCheck bm i1 i2 = do
     structEqCheck bm (typeOf i1) i1 i2
 
 structEqCheck :: [(Name, (Id, Id))] -> Type -> Id -> Id -> IT.SimpleStateM Expr
-structEqCheck bm t@(TyConApp n ts) i1 i2 = do
+structEqCheck bm t@(TyConApp _ _) i1 i2 = do
     kv <- knownValues
-    tc <- IT.typeClasses
 
     let ex = Var $ Id (structEqFunc kv) TyUnknown
 
     dict <- dictForType bm t
-    -- let dict = case structEqTCDict kv tc t of
-    --                 Just i -> foldr App (Var i) tsD
-    --                 Nothing -> error $ "Required typeclass not found in structEqCheck"
+
     return (App (App (App (App ex (Type t)) dict) (Var i1)) (Var i2))
 structEqCheck bm (TyVar (Id n _)) (Id n' _) (Id n'' _) = do
     kv <- knownValues
@@ -241,7 +234,7 @@ structEqCheck _ (TyFun _ _) i1 i2 = return $ App (App (Prim BindFunc TyUnknown) 
 structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t
 
 dictForType :: [(Name, (Id, Id))] -> Type -> IT.SimpleStateM Expr
-dictForType bm t@(TyConApp n ts) = do
+dictForType bm t@(TyConApp _ ts) = do
     kv <- knownValues
     tc <- IT.typeClasses
 

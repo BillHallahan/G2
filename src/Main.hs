@@ -23,8 +23,6 @@ import G2.Internals.Solver
 
 import G2.Internals.Liquid.Interface
 
-import G2.Internals.Solver.ADTSolver
-
 main :: IO ()
 main = do
   as <- getArgs

@@ -11,10 +11,9 @@ import G2.Internals.Config.Config
 import G2.Internals.Execution.Reducer
 import G2.Internals.Execution.Rules
 import G2.Internals.Language.Support
-import G2.Internals.Solver
 
 {-# INLINE runExecution #-}
-runExecution :: (Reducer r t, Halter h hv t, Orderer or orv sov t, Solver solver) => r -> h -> or -> solver -> orv -> [State t] -> Config -> IO [([Int], State t)]
+runExecution :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> [State t] -> Config -> IO [([Int], State t)]
 runExecution = runReducer
 
 runNDepthNoConstraintChecks :: Config -> [State t] -> Int -> [State t]

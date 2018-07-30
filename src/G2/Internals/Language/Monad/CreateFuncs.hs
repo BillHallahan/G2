@@ -28,6 +28,6 @@ createFuncsM genFrom store namef storef exprf = do
 
     exprfs <- mapM (exprf fullStore) genFrom
 
-    sequence $ map (uncurry insertE) (zip ns exprfs)
+    sequence_ $ map (uncurry insertE) (zip ns exprfs)
 
     return fullStore

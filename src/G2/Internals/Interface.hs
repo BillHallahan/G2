@@ -23,8 +23,6 @@ import G2.Internals.Execution.PrimitiveEval
 import G2.Internals.Execution.Memory
 
 import G2.Internals.Solver.Interface
-import G2.Internals.Solver.Language hiding (Assert)
-import G2.Internals.Solver.Solver
 
 import G2.Internals.Postprocessing.Interface
 
@@ -121,7 +119,7 @@ run red hal ord con pns config (is@State { type_env = tenv
 
     let ior = initOrder ord config preproc_state
 
-    exec_states <- runExecution red hal ord con ior [preproc_state] config
+    exec_states <- runExecution red hal ord ior [preproc_state] config
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states

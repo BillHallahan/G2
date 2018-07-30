@@ -55,6 +55,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import System.Directory
 
+
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
@@ -342,13 +343,21 @@ mkTyCon nm tm t = case dcs of
 
     bv = map (mkName . V.varName) $ tyConTyVars t
 
-    (nm'', tm'', dcs) = case isAlgTyCon t of 
+    (nm'', tm'', dcs, dcsf) = case isAlgTyCon t of 
                             True -> case algTyConRhs t of
-                                            DataTyCon { data_cons = dc } -> (nm', tm', Just $ G2.DataTyCon bv $ map (mkData nm' tm) dc)
+                                            DataTyCon { data_cons = dc } -> 
+                                                ( nm'
+                                                , tm'
+                                                , Just $ G2.DataTyCon bv $ map (mkData nm' tm) dc
+                                                , Just $ map (mkId tm'' . dataConWorkId) dc)
                                             NewTyCon { data_con = dc
-                                                     , nt_rhs = rhst} -> (nm', tm', Just $ G2.NewTyCon { G2.bound_names = bv
-                                                                                                     , G2.data_con = mkData nm' tm dc
-                                                                                                     , G2.rep_type = mkType tm rhst})
+                                                     , nt_rhs = rhst} -> 
+                                                     ( nm'
+                                                     , tm'
+                                                     , Just $ G2.NewTyCon { G2.bound_names = bv
+                                                                          , G2.data_con = mkData nm' tm dc
+                                                                          , G2.rep_type = mkType tm rhst}
+                                                     , Just $ [(mkId tm'' . dataConWorkId) dc])
                                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                                             TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                             False -> case isTypeSynonymTyCon t of
@@ -357,8 +366,8 @@ mkTyCon nm tm t = case dcs of
                                             st = fromJust $ synTyConRhs_maybe t
                                             st' = mkType tm st
                                         in
-                                        (nm, tm, Just $ G2.TypeSynonym {G2.synonym_of = st'})
-                                    False -> (nm, tm, Nothing)
+                                        (nm, tm, Just $ G2.TypeSynonym {G2.synonym_of = st'}, Nothing)
+                                    False -> (nm, tm, Nothing, Nothing)
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
 mkTyConName :: TypeNameMap -> TyCon -> G2.Name

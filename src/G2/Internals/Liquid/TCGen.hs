@@ -4,7 +4,6 @@ module G2.Internals.Liquid.TCGen (createLHTC, genTC) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
-import G2.Internals.Language.KnownValues
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
@@ -58,7 +57,7 @@ genTC tcn ntws = do
     --Create functions to access the TC functions
     access <- sequence $ map (accessFunction tcn dc) [0..length fn]
 
-    sequence $ map (uncurry insertMeasureM) (zip fn access)
+    sequence_ $ map (uncurry insertMeasureM) (zip fn access)
     
     putTypeClasses tc'
 
@@ -164,14 +163,13 @@ createFuncsM' genFrom store namef storef exprf = do
 
     exprfs <- mapM (exprf fullStore) genFrom
 
-    sequence $ map (uncurry insertMeasureM) (zip ns exprfs)
+    sequence_ $ map (uncurry insertMeasureM) (zip ns exprfs)
 
     return fullStore
 
 createLHTCFuncs :: LHStateM ()
 createLHTCFuncs = do
     tenv <- typeEnv
-    kv <- knownValues
 
     let tenv' = M.toList tenv
 
@@ -333,8 +331,8 @@ lhEqCase2Alts lhExN w ti _ _ binds1 dc@(DataCon _ _ ts) = do
 
     ca <- sequence $ map (uncurry (eqLHFuncCall lhExN w ti)) zbinds
 
-    and <- andM
-    let e = foldr (\e' -> App (App and e')) true ca
+    andE <- andM
+    let e = foldr (\e' -> App (App andE e')) true ca
     
     return ([ Alt (DataAlt dc binds2) e, Alt Default false ])
 

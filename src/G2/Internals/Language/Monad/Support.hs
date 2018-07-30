@@ -7,20 +7,15 @@ module G2.Internals.Language.Monad.Support ( StateM
                                            , FullState (..)
                                            , runStateM
                                            , readRecord
-                                           , withNG
-                                           , typeClasses
-                                           , putTypeClasses ) where
+                                           , withNG ) where
 
 import qualified Control.Monad.State.Lazy as SM
-import Data.Functor.Identity
 
-import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Naming
-import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 import G2.Internals.Language.TypeClasses
 
-newtype StateM t a = StateM { unSM :: (SM.State (State t) a) } deriving (Applicative, Functor, Monad)
+newtype StateM t a = StateM (SM.State (State t) a) deriving (Applicative, Functor, Monad)
 
 instance SM.MonadState (State t) (StateM t) where
     state f = StateM (SM.state f)
