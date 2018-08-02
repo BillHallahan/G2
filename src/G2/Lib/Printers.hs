@@ -44,7 +44,7 @@ mkCleanExprHaskell (State {apply_types = af, known_values = kv, type_classes = t
 
 mkCleanExprHaskell' :: AT.ApplyTypes -> KnownValues -> TypeClasses -> Expr -> Expr
 mkCleanExprHaskell' at kv tc e
-    | (App (Data (DataCon n _ _)) e') <- e
+    | (App (Data (DataCon n _)) e') <- e
     , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv = e'
     | (App e' e'') <- e
     , t <- typeOf e'
@@ -69,10 +69,10 @@ mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
         mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
-            | Data (DataCon n _ _) <- appCenter a
+            | Data (DataCon n _) <- appCenter a
             , isTuple n
             , sugar = printTuple kv a
-            | Data (DataCon n1 _ _) <- e1
+            | Data (DataCon n1 _) <- e1
             , nameOcc n1 == ":"
             , sugar =
                 case typeOf e2 of
@@ -106,8 +106,8 @@ mkAltMatchHaskell Default = "_"
 
 mkDataConHaskell :: DataCon -> String
 -- Special casing for Data.Map in the modified base
-mkDataConHaskell (DataCon (Name "Assocs" _ _ _) _ _) = "fromList"
-mkDataConHaskell (DataCon n _ _) = mkNameHaskell n
+mkDataConHaskell (DataCon (Name "Assocs" _ _ _) _) = "fromList"
+mkDataConHaskell (DataCon n _) = mkNameHaskell n
 
 off :: Int -> String
 off i = duplicate "   " i
@@ -139,7 +139,7 @@ printTuple' _ _ = []
 
 
 isInfixable :: Expr -> Bool
-isInfixable (Data (DataCon n _ _)) = not $ T.any isAlphaNum $ nameOcc n
+isInfixable (Data (DataCon n _)) = not $ T.any isAlphaNum $ nameOcc n
 isInfixable _ = False
 
 isApp :: Expr -> Bool

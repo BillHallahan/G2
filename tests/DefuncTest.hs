@@ -8,10 +8,10 @@ import TestUtils
 -- Defunc1
 
 a :: Expr -> Expr
-a = App (Data $ DataCon (Name "A" (Just "Defunc1") 0 Nothing) (TyConApp (Name "A" (Just "Defunc1") 0 Nothing) []) [])
+a = App (Data $ DataCon (Name "A" (Just "Defunc1") 0 Nothing) (TyConApp (Name "A" (Just "Defunc1") 0 Nothing) []))
 
 dataB :: Expr
-dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0 Nothing) (TyConApp (Name "A" (Just "Defunc1") 0 Nothing) []) []
+dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0 Nothing) (TyConApp (Name "A" (Just "Defunc1") 0 Nothing) [])
 
 add1 :: Expr
 add1 = Var (Id (Name "add1" (Just "Defunc1") 0 Nothing) tyIntS) 
@@ -43,16 +43,16 @@ squareD2 :: Expr
 squareD2 = Var (Id (Name "square" (Just "Defunc2") 0 Nothing) tyIntS) 
 
 iListI :: Expr
-iListI = Data $ DataCon (Name "I" (Just "Defunc2") 0 Nothing) (TyConApp (Name "IList" (Just "Defunc2") 0 Nothing) []) []
+iListI = Data $ DataCon (Name "I" (Just "Defunc2") 0 Nothing) (TyConApp (Name "IList" (Just "Defunc2") 0 Nothing) [])
 
 iListNil :: Expr
-iListNil = Data $ DataCon (Name "INil" (Just "Defunc2") 0 Nothing) (TyConApp (Name "IList" (Just "Defunc2") 0 Nothing) []) []
+iListNil = Data $ DataCon (Name "INil" (Just "Defunc2") 0 Nothing) (TyConApp (Name "IList" (Just "Defunc2") 0 Nothing) [])
 
 fListF :: Expr
-fListF = Data $ DataCon (Name "F" (Just "Defunc2") 0 Nothing) (TyConApp (Name "FList" (Just "Defunc2") 0 Nothing) []) []
+fListF = Data $ DataCon (Name "F" (Just "Defunc2") 0 Nothing) (TyConApp (Name "FList" (Just "Defunc2") 0 Nothing) [])
 
 fListNil :: Expr
-fListNil = Data $ DataCon (Name "FNil" (Just "Defunc2") 0 Nothing) (TyConApp (Name "FList" (Just "Defunc2") 0 Nothing) []) []
+fListNil = Data $ DataCon (Name "FNil" (Just "Defunc2") 0 Nothing) (TyConApp (Name "FList" (Just "Defunc2") 0 Nothing) [])
 
 add1Def :: Integer -> Integer
 add1Def x = x + 1

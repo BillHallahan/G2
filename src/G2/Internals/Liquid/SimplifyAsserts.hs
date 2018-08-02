@@ -76,7 +76,7 @@ isRedundantArg _ tcv a@(App _ _) = isNestedLHTC tcv a
 isRedundantArg _ _ _ = False
 
 isIdentity :: KnownValues -> Expr -> Bool
-isIdentity kv (Lam _ (Data (DataCon n _ _))) = n == dcTrue kv
+isIdentity kv (Lam _ (Data (DataCon n _))) = n == dcTrue kv
 isIdentity _ _ = False
 
 -- | elimCalls2

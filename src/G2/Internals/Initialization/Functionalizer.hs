@@ -94,7 +94,7 @@ mkApplyFuncAndTypes' ((t, n):xs) funcT (FuncInterps fi) at = do
     -- Update type environment
     applyCons <- freshSeededNamesN funcs
     
-    let dcs = map (\dcn -> DataCon dcn (TyConApp n []) []) applyCons
+    let dcs = map (\dcn -> DataCon dcn (TyConApp n [])) applyCons
         adt = DataTyCon [] dcs
     insertT n adt
 
@@ -142,7 +142,7 @@ traceTyMap name tymap = case M.lookup name tymap of
 mkApplyTypeMap' :: Type -> Type -> (Name, (Name, Type, M.Map Name Type)) -> Alt
 mkApplyTypeMap' appT funcT (app, (func, fty, tymap)) = 
     let
-        am = DataAlt (DataCon app appT []) []
+        am = DataAlt (DataCon app appT) []
         e = Var $ Id func funcT
         tyForAllIds = fst $ unrollNamedTyForAll fty
         e' = foldr (\i ex -> case traceTyMap (idName i) tymap of

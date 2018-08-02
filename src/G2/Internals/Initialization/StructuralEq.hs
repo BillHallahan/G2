@@ -34,7 +34,7 @@ createStructEqFuncs ts = do
     let tyvn' = TyVar (Id tyvn TYPE)
     tb <- tyBoolT
 
-    let dc = DataCon dcn (TyFun (TyFun tyvn' (TyFun tyvn' tb)) t) [tyvn']
+    let dc = DataCon dcn (TyFun (TyFun tyvn' (TyFun tyvn' tb)) t)
 
     ex <- genExtractor t dc
 
@@ -179,13 +179,13 @@ createStructEqFuncDC t bt bd bm dc = do
     return $ foldr Lam e' bt
 
 createStructEqFuncDCAlt :: Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> IT.SimpleStateM Alt
-createStructEqFuncDCAlt e2 t bm dc@(DataCon _ _ ts) = do
+createStructEqFuncDCAlt e2 t bm dc@(DataCon _ ts) = do
     false <- mkFalseE
 
-    bs <- freshIdsN ts
+    bs <- freshIdsN $ anonArgumentTypes ts
 
     b <- freshIdN t
-    bs2 <- freshIdsN ts
+    bs2 <- freshIdsN $ anonArgumentTypes ts
 
     sEqCheck <- boundChecks bs bs2 bm
 

@@ -123,7 +123,7 @@ altMatchNames (DataAlt dc i) = dataConName dc ++ (map idName i)
 altMatchNames _ = []
 
 dataConName :: DataCon -> [Name]
-dataConName (DataCon n _ _) = [n]
+dataConName (DataCon n _) = [n]
 
 typeNames :: (ASTContainer m Type) => m -> [Name]
 typeNames = evalASTs typeTopNames
@@ -265,7 +265,7 @@ renameExprId :: Name -> Name -> Id -> Id
 renameExprId old new (Id n t) = Id (rename old new n) t
 
 renameExprDataCon :: Name -> Name -> DataCon -> DataCon
-renameExprDataCon old new (DataCon n t ts) = DataCon (rename old new n) t ts
+renameExprDataCon old new (DataCon n t) = DataCon (rename old new n) t
 
 renameExprAlt :: Name -> Name -> Alt -> Alt
 renameExprAlt old new (Alt (DataAlt dc is) e) =
@@ -340,13 +340,13 @@ instance Named Alt where
     renames hm (Alt am e) = Alt (renames hm am) (renames hm e)
 
 instance Named DataCon where
-    names (DataCon n t ts) = n:(names t ++ concatMap names ts)
+    names (DataCon n t) = n:names t
 
-    rename old new (DataCon n t ts) =
-        DataCon (rename old new n) (rename old new t) (rename old new ts)
+    rename old new (DataCon n t) =
+        DataCon (rename old new n) (rename old new t)
 
-    renames hm (DataCon n t ts) =
-        DataCon (renames hm n) (renames hm t) (renames hm ts)
+    renames hm (DataCon n t) =
+        DataCon (renames hm n) (renames hm t)
 
 instance Named AltMatch where
     names (DataAlt dc i) = names dc ++ names i

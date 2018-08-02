@@ -68,7 +68,7 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
 
         as_t = map (\i -> (idName i, typeOf i)) as
 
-        stArgs = nonTyForAllArgumentTypes $ fromJust st
+        stArgs = anonArgumentTypes $ fromJust st
         stRet = fmap returnType st
 
         (lam_i, ng1) = freshId (head stArgs) ng
@@ -84,14 +84,14 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
 convertDefs :: State t -> [Type] -> Maybe Type -> TCValues -> M.Map Name Type -> Def SpecType GHC.DataCon -> Maybe Alt
 convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m (Def { ctor = dc, body = b, binds = bds}) =
     let
-        (DataCon n t _) = mkData HM.empty HM.empty dc
+        (DataCon n t) = mkData HM.empty HM.empty dc
         (TyConApp tn _) = returnType t
         dc' = getDataConNameMod tenv tn n
         
         -- See [1] below, we only evaluate this if Just
-        dc''@(DataCon _ dct _) = fromJust dc'
+        dc''@(DataCon _ dct) = fromJust dc'
         bnds = tyForAllBindings dct
-        dctarg = nonTyForAllArgumentTypes dct
+        dctarg = anonArgumentTypes dct
 
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
         dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds) st_t

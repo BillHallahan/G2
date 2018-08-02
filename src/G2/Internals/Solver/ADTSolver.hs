@@ -94,7 +94,7 @@ addADTs n tn ts s pc =
                         -- We map names over the arguments of a DataCon, to make sure we have the correct
                         -- number of undefined's.
                         ts'' = case exprInCasts fdc of
-                            Data (DataCon _ _ ts') -> map (const $ Name "a" Nothing 0 Nothing) ts'
+                            Data (DataCon _ t) -> map (const $ Name "a" Nothing 0 Nothing) $ anonArgumentTypes t
                             _ -> [Name "b" Nothing 0 Nothing]
 
                         (ns, _) = childrenNames n ts'' (name_gen s)

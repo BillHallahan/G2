@@ -66,7 +66,7 @@ dataCon (NewTyCon {data_con = dc}) = [dc]
 dataCon (TypeSynonym _) = []
 
 dcName :: DataCon -> Name
-dcName (DataCon n _ _) = n
+dcName (DataCon n _) = n
 
 isPolyAlgDataTy :: AlgDataTy -> Bool
 isPolyAlgDataTy = not . null . bound_names
@@ -95,8 +95,7 @@ baseDataCons :: [DataCon] -> [DataCon]
 baseDataCons = filter baseDataCon
 
 baseDataCon :: DataCon -> Bool
-baseDataCon (DataCon _ _ (_:_)) = False
-baseDataCon _ = True
+baseDataCon (DataCon _ t) = not $ hasTyFuns t
 
 getCastedAlgDataTy :: Name -> TypeEnv -> Maybe AlgDataTy
 getCastedAlgDataTy n tenv =
@@ -132,8 +131,10 @@ dataConCanContain :: TypeEnv -> DataCon -> [Type]
 dataConCanContain tenv = nub . dataConCanContain' tenv
 
 dataConCanContain' :: TypeEnv -> DataCon -> [Type]
-dataConCanContain' tenv (DataCon _ _ ts) =
+dataConCanContain' tenv (DataCon _ t) =
     let
+        ts = anonArgumentTypes t
+
         pt = filter (not . isAlgDataTy) $ ts
         dcs = filter isAlgDataTy $ ts
 
@@ -165,21 +166,21 @@ getDataConNameMod' :: TypeEnv -> Name -> Maybe DataCon
 getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ M.elems tenv
 
 dataConArgs :: DataCon -> [Type]
-dataConArgs (DataCon _ _ ts) = ts
+dataConArgs (DataCon _ t) = anonArgumentTypes t
 
 dataConWithName :: AlgDataTy -> Name -> Maybe DataCon
 dataConWithName (DataTyCon _ dcs) n = listToMaybe $ filter (flip dataConHasName n) dcs
 dataConWithName _ _ = Nothing
 
 dataConHasName :: DataCon -> Name -> Bool
-dataConHasName (DataCon n _ _) n' = n == n'
+dataConHasName (DataCon n _) n' = n == n'
 
 dataConWithNameMod :: AlgDataTy -> Name -> Maybe DataCon
 dataConWithNameMod (DataTyCon _ dcs) n = listToMaybe $ filter (flip dataConHasNameMod n) dcs
 dataConWithNameMod _ _ = Nothing
 
 dataConHasNameMod :: DataCon -> Name -> Bool
-dataConHasNameMod (DataCon (Name n m _ _) _ _) (Name n' m' _ _) = n == n' && m == m'
+dataConHasNameMod (DataCon (Name n m _ _) _) (Name n' m' _ _) = n == n' && m == m'
 
 retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
 retypeAlgDataTy ts adt =

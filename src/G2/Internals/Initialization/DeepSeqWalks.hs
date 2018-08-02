@@ -90,8 +90,10 @@ createDeepSeqCase1 _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passe
 
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 createDeepSeqDataConCase1Alts _ _ _ _ _ _ ng [] = ([], ng)
-createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon _ _ ts):xs) =
+createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon _ t):xs) =
     let
+        ts = anonArgumentTypes t
+
         (binds, ng') = freshIds ts ng
 
         dct = bindTypes (Data dc)

@@ -136,7 +136,7 @@ data Lit = LitInt Integer
 instance Hashable Lit
 
 -- | Data constructor.
-data DataCon = DataCon Name Type [Type] deriving (Show, Eq, Read, Generic)
+data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic)
 
 instance Hashable DataCon
 

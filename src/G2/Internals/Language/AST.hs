@@ -174,7 +174,7 @@ instance AST Type where
 
 instance AST DataCon where
     children _ = []
-    modifyChildren _ (DataCon n ty tys) = DataCon n ty tys
+    modifyChildren _ (DataCon n ty) = DataCon n ty
 
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
@@ -242,9 +242,9 @@ instance ASTContainer DataCon Expr where
     modifyContainedASTs _ d = d
 
 instance ASTContainer DataCon Type where
-    containedASTs (DataCon _ t ts) = t:ts
+    containedASTs (DataCon _ t) = [t]
 
-    modifyContainedASTs f (DataCon n t ts) = DataCon n (f t) (map f ts)
+    modifyContainedASTs f (DataCon n t) = DataCon n (f t)
 
 instance ASTContainer AltMatch Expr where
     containedASTs _ = []
