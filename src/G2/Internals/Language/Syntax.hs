@@ -135,7 +135,7 @@ data Lit = LitInt Integer
 
 instance Hashable Lit
 
--- | Data constructor. We have a special ditinction for primitive types.
+-- | Data constructor.
 data DataCon = DataCon Name Type [Type] deriving (Show, Eq, Read, Generic)
 
 instance Hashable DataCon
