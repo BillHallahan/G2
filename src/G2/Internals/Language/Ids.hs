@@ -37,7 +37,7 @@ instance Ided Type where
             go _ = []
 
 instance Ided DataCon where
-    ids (DataCon _ t ts) = ids t ++ concatMap ids ts
+    ids (DataCon _ t) = ids t
 
 instance Ided AltMatch where
     ids (DataAlt dc i) = ids dc ++ i

@@ -33,7 +33,7 @@ specialDC ns tn (n, m, ts) =
         t = foldr (TyFun) (TyConApp tn tv) ts
         t' = foldr (\n' -> TyForAll (NamedTyBndr (Id n' TYPE))) t ns
     in
-    DataCon (Name n m 0 Nothing) t' ts
+    DataCon (Name n m 0 Nothing) t'
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialTypeNames = HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'

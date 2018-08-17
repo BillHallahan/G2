@@ -313,17 +313,17 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "True" _ _ _) _ _) e b) =
+pathConsToSMT (ConsCond (DataCon (Name "True" _ _ _) _) e b) =
     let
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _ _) e b) =
+pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
     let
         exprSMT = exprToSMT e
     in
     Just $ if b then  (:!) $ exprSMT else exprSMT
-pathConsToSMT (ConsCond (DataCon n _ _) e b) =
+pathConsToSMT (ConsCond (DataCon n _) e b) =
     let
         exprSMT = exprToSMT e
     in
@@ -338,12 +338,12 @@ exprToSMT (Lit c) =
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
-exprToSMT (Data (DataCon n (TyConApp (Name "Bool" _ _ _) _) _)) =
+exprToSMT (Data (DataCon n (TyConApp (Name "Bool" _ _ _) _))) =
     case nameOcc n of
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT (Data (DataCon n t _)) = V (nameToStr n) (typeToSMT t)
+exprToSMT (Data (DataCon n t)) = V (nameToStr n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -401,8 +401,8 @@ altToSMT :: AltMatch -> Expr -> SMTAST
 altToSMT (LitAlt (LitInt i)) _ = VInt i
 altToSMT (LitAlt (LitFloat f)) _ = VFloat f
 altToSMT (LitAlt (LitDouble d)) _ = VDouble d
-altToSMT (DataAlt (DataCon (Name "True" _ _ _) _ _) _) _ = VBool True
-altToSMT (DataAlt (DataCon (Name "False" _ _ _) _ _) _) _ = VBool False
+altToSMT (DataAlt (DataCon (Name "True" _ _ _) _) _) _ = VBool True
+altToSMT (DataAlt (DataCon (Name "False" _ _ _) _) _) _ = VBool False
 altToSMT am _ = error $ "Unhandled " ++ show am
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
@@ -506,7 +506,7 @@ smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
-    Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyConApp (Name "Bool" Nothing 0 Nothing) []) [])
+    Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyConApp (Name "Bool" Nothing 0 Nothing) []))
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 

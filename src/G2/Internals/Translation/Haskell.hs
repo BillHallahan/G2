@@ -380,11 +380,10 @@ mkTyConName tm tc =
     Nothing -> n
 
 mkData :: NameMap -> TypeNameMap -> DataCon -> G2.DataCon
-mkData nm tm datacon = G2.DataCon name ty tys
+mkData nm tm datacon = G2.DataCon name ty
   where
     name = mkDataName nm datacon
     ty = (mkType tm . dataConRepType) datacon
-    tys  = map (mkType tm) (dataConOrigArgTys datacon)
 
 mkDataName :: NameMap -> DataCon -> G2.Name
 mkDataName nm datacon = (flip mkNameLookup nm . dataConName) datacon

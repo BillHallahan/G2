@@ -13,6 +13,7 @@ module G2.Internals.Translation.PrimInject
 import G2.Internals.Language.AST
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
+import G2.Internals.Language.Typing
 import G2.Internals.Language.TypeEnv
 
 import Data.List
@@ -41,12 +42,12 @@ dataInject prog progTy =
 dataInject' :: [(Name, [Type])] -> Expr -> Expr
 dataInject' ns v@(Var (Id (Name n m _ _) t)) = 
     case find (\(Name n' m' _ _, _) -> n == n' && m == m') ns of
-        Just (n', ts) -> Data (DataCon n' t ts)
+        Just (n', _) -> Data (DataCon n' t)
         Nothing -> v
 dataInject' _ e = e
 
 conName :: DataCon -> (Name, [Type])
-conName (DataCon n _ ts) = (n, ts)
+conName (DataCon n t) = (n, anonArgumentTypes $ t)
 
 primDefs :: [(T.Text, Expr)]
 primDefs = [ ("==#", Prim Eq TyBottom)

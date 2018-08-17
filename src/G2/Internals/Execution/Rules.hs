@@ -84,8 +84,8 @@ defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
-matchDataAlts (DataCon n _ _) alts =
-  [a | a @ (Alt (DataAlt (DataCon n' _ _) _) _) <- alts, n == n']
+matchDataAlts (DataCon n _) alts =
+  [a | a @ (Alt (DataAlt (DataCon n' _) _) _) <- alts, n == n']
 
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
@@ -555,7 +555,7 @@ reduceCase eenv mexpr bind alts ngen
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  , (DataCon _ _ _) <- dcon
+  , (DataCon _ _) <- dcon
   , ar' <- removeTypes ar eenv
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =

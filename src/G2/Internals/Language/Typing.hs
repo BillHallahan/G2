@@ -27,13 +27,14 @@ module G2.Internals.Language.Typing
     , isTyVar
     , hasTyBottom
     , tyVars
+    , hasTyFuns
     , isPolyFunc
     , numArgs
     , ArgType (..)
     , argumentTypes
     , spArgumentTypes
     , tyForAllBindings
-    , nonTyForAllArgumentTypes
+    , anonArgumentTypes
     , returnType
     , polyIds
     , splitTyForAlls
@@ -111,7 +112,7 @@ instance Typed Lit where
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
-    typeOf' m (DataCon _ ty _) = (ty, m)
+    typeOf' m (DataCon _ ty) = (ty, m)
 
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
@@ -373,6 +374,14 @@ tyVars' :: Type -> [Type]
 tyVars' t@(TyVar _) = [t]
 tyVars' _ = []
 
+-- | hasTyFuns
+hasTyFuns :: ASTContainer m Type => m -> Bool
+hasTyFuns = getAny . evalASTs hasTyFuns'
+
+hasTyFuns' :: Type -> Any
+hasTyFuns' (TyFun _ _) = Any True
+hasTyFuns' _ = Any False
+
 -- hasTyBottom
 hasTyBottom :: ASTContainer m Type => m -> Bool
 hasTyBottom = getAny . evalASTs hasTyBottom'
@@ -380,7 +389,6 @@ hasTyBottom = getAny . evalASTs hasTyBottom'
 hasTyBottom' :: Type -> Any
 hasTyBottom' TyBottom = Any True
 hasTyBottom' _ = Any False
-
 
 -- | numArgs
 numArgs :: Typed t => t -> Int
@@ -417,13 +425,13 @@ tyForAllBindings' (TyForAll _ t) = tyForAllBindings' t
 tyForAllBindings' (TyFun t t') = tyForAllBindings' t ++ tyForAllBindings t'
 tyForAllBindings' _ = []
 
-nonTyForAllArgumentTypes :: Typed t => t -> [Type]
-nonTyForAllArgumentTypes = nonTyForAllArgumentTypes' . typeOf
+anonArgumentTypes :: Typed t => t -> [Type]
+anonArgumentTypes = anonArgumentTypes' . typeOf
 
-nonTyForAllArgumentTypes' :: Type -> [Type]
-nonTyForAllArgumentTypes' (TyForAll _ t) = nonTyForAllArgumentTypes t
-nonTyForAllArgumentTypes' (TyFun t1 t2) = t1:nonTyForAllArgumentTypes' t2
-nonTyForAllArgumentTypes' _ = []
+anonArgumentTypes' :: Type -> [Type]
+anonArgumentTypes' (TyForAll _ t) = anonArgumentTypes t
+anonArgumentTypes' (TyFun t1 t2) = t1:anonArgumentTypes' t2
+anonArgumentTypes' _ = []
 
 -- | returnType
 -- Gives the return type if the given function type is fully saturated

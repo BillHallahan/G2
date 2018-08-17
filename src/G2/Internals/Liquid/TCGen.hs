@@ -36,7 +36,7 @@ genTC tcn ntws = do
 
     dcN <- freshSeededNameN tcn
 
-    let dc = DataCon dcN (mkTyFun (ts ++ [TyConApp dcN []])) ts
+    let dc = DataCon dcN (mkTyFun (ts ++ [TyConApp dcN []]))
 
         adt = DataTyCon { bound_names = []
                         , data_cons = [dc] }
@@ -99,16 +99,16 @@ lhFuncName n = freshSeededStringN ("lh" `T.append` nameOcc n `T.append` "Func")
 -- | accessFunction
 --Create a function to access a TC function from the ADT
 accessFunction :: Name -> DataCon -> Int -> LHStateM Expr
-accessFunction tcn dc@(DataCon _ _ ts) i = do
-    let t = TyConApp tcn []
+accessFunction tcn dc@(DataCon _ t) i = do
+    let t' = TyConApp tcn []
 
         -- This gets bound to the Type (Expr constructor) argument
     tb <- freshIdN TYPE
 
-    lb <- freshIdN t
-    cb <- freshIdN t
+    lb <- freshIdN t'
+    cb <- freshIdN t'
 
-    is <- freshIdsN ts
+    is <- freshIdsN $ anonArgumentTypes t
 
     let
         a = Alt (DataAlt dc is) $ Var (is !! i)
@@ -303,8 +303,8 @@ lhTEnvCase _ _ _ _ _ _ _ = return (Var (Id (Name "BADlhTEnvCase" Nothing 0 Nothi
 
 lhTEnvDataConAlts :: Case2Alts -> Walkers -> [(Name, Id)] -> Name -> Id -> Id -> [Name] -> [DataCon] -> LHStateM [Alt]
 lhTEnvDataConAlts _ _ _ _ _ _ _ [] = return []
-lhTEnvDataConAlts ca w ti n caseB1 i2 bn (dc@(DataCon _ t ts):xs) = do    
-    binds1 <- freshIdsN ts
+lhTEnvDataConAlts ca w ti n caseB1 i2 bn (dc@(DataCon _ t):xs) = do    
+    binds1 <- freshIdsN $ anonArgumentTypes t
     caseB2 <- freshIdN t
 
     cAlts <- ca w ti caseB1 caseB2 binds1 dc
@@ -320,8 +320,8 @@ lhTEnvDataConAlts ca w ti n caseB1 i2 bn (dc@(DataCon _ t ts):xs) = do
 type Case2Alts = Walkers -> [(Name, Id)] -> Id -> Id -> [Id] -> DataCon -> LHStateM [Alt]
 
 lhEqCase2Alts :: Name -> Case2Alts
-lhEqCase2Alts lhExN w ti _ _ binds1 dc@(DataCon _ _ ts) = do
-    binds2 <- freshIdsN ts
+lhEqCase2Alts lhExN w ti _ _ binds1 dc@(DataCon _ t) = do
+    binds2 <- freshIdsN $ anonArgumentTypes t
 
     true <- mkTrueE
     false <- mkFalseE
@@ -404,7 +404,7 @@ lhLtName n = Name ("lhLtName" `T.append` nameOcc n) Nothing 0 Nothing
 
 -- Once we have the first datacon (dc1) selected, we have to branch on all datacons less than dc1
 lhLtCase2Alts :: Name -> Walkers -> [(Name, Id)] -> Id -> Id -> [Id] -> DataCon -> LHStateM [Alt]
-lhLtCase2Alts lhExN w ti caseB1 _ binds1 dc@(DataCon dcn _ _) = do
+lhLtCase2Alts lhExN w ti caseB1 _ binds1 dc@(DataCon dcn _) = do
     tenv <- typeEnv
 
     true <- mkTrueE
@@ -427,8 +427,8 @@ lhLtCase2Alts lhExN w ti caseB1 _ binds1 dc@(DataCon dcn _ _) = do
 
 lhLtDCAlts :: Expr -> [DataCon] -> LHStateM [Alt]
 lhLtDCAlts _ [] = return []
-lhLtDCAlts true (dc@(DataCon _ _ ts):dcs) = do
-    binds2 <- freshIdsN ts
+lhLtDCAlts true (dc@(DataCon _ t):dcs) = do
+    binds2 <- freshIdsN $ anonArgumentTypes t
 
     let alt = Alt (DataAlt dc binds2) true
 
@@ -437,8 +437,8 @@ lhLtDCAlts true (dc@(DataCon _ _ ts):dcs) = do
     return (alt:alts)
 
 lhLtSameAlt :: Name -> Walkers -> [(Name, Id)] -> [Id] -> DataCon -> LHStateM Alt
-lhLtSameAlt lhExN w ti binds1 dc@(DataCon _ _ ts) = do    
-    binds2 <- freshIdsN ts
+lhLtSameAlt lhExN w ti binds1 dc@(DataCon _ t) = do    
+    binds2 <- freshIdsN $ anonArgumentTypes t
 
     let zbinds = zip (map Var binds1) (map Var binds2)
 
@@ -501,8 +501,7 @@ ltLHFuncCall lhExN w _ e e'
     | otherwise = error $ "\nError in ltLHFuncCall" ++ show (typeOf e)
 
 dataConName :: DataCon -> Name
-dataConName (DataCon n _ _) = n
-
+dataConName (DataCon n _) = n
 
 lhLeName :: Name -> Name
 lhLeName n = Name ("lhLeName" `T.append` nameOcc n) Nothing 0 Nothing
@@ -647,8 +646,8 @@ lhPolyPredCase _ _ _ _ _ = error "lhPolyPredCase: Unhandled AlgDataTy"
 
 lhPolyPredAlts :: Walkers -> [DataCon] -> [(Name, Id)] -> LHStateM [Alt]
 lhPolyPredAlts _ [] _ = return []
-lhPolyPredAlts w (dc@(DataCon _ _ ts):dcs) bnf = do
-    binds <- freshIdsN ts
+lhPolyPredAlts w (dc@(DataCon _ t):dcs) bnf = do
+    binds <- freshIdsN $ anonArgumentTypes t
         
     e <- lhPolyPredCaseExpr w binds bnf
 

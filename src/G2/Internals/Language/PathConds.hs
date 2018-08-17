@@ -171,8 +171,8 @@ varIdsInPC :: KV.KnownValues -> PathCond -> [Id]
 -- parents/children can't impose restrictions on it.  We are completely
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
-varIdsInPC kv (AltCond altC@(DataAlt (DataCon _ _ _) _) (Cast e _) b) = varIdsInPC kv $ AltCond altC e b
-varIdsInPC kv (AltCond (DataAlt (DataCon _ _ _) _) (Var i@(Id _ t)) _) 
+varIdsInPC kv (AltCond altC@(DataAlt (DataCon _ _) _) (Cast e _) b) = varIdsInPC kv $ AltCond altC e b
+varIdsInPC kv (AltCond (DataAlt (DataCon _ _) _) (Var i@(Id _ t)) _) 
              | t /= tyBool kv = [i]
 varIdsInPC _ (AltCond a e _) = varIdsInAltMatch a ++ varIds e
 varIdsInPC _ (ExtCond e _) = varIds e

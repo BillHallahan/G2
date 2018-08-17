@@ -10,7 +10,7 @@ undefunctionalize :: ASTContainer m Expr => State t -> m -> m
 undefunctionalize s e = modifyASTs (replaceFuncSLT s) e
 
 replaceFuncSLT :: State t -> Expr -> Expr
-replaceFuncSLT s v@(Data (DataCon n _ _)) =
+replaceFuncSLT s v@(Data (DataCon n _)) =
     let
         n' = lookupFuncInterps n (func_table s)
     in
