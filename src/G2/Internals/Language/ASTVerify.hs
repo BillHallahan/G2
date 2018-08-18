@@ -26,9 +26,16 @@ letsTypeValid :: (ASTContainer m Expr) => m -> [(Expr,Binds)]
 letsTypeValid = evalContainedASTs (letsTypeValid' Nothing)
 
 letsTypeValid' :: Maybe Expr -> Expr -> [(Expr, Binds)]
-letsTypeValid' (Just a) (Let bs e) = case badBinds of
-    [] -> []
-    _  -> (letsTypeValid' (Just a) e) ++ [(a,badBinds)]
+-- May not need to worry about this case, but keeping it
+-- in since it doesn't hurt
+letsTypeValid' Nothing l@(Let bs e) = case badBinds of
+    [] -> (letsTypeValid' (Just l) e)
+    _  -> (letsTypeValid' (Just l) e) ++ [(l,badBinds)]
+    where
+    badBinds = bindsTypeValid bs
+letsTypeValid' maybeApp@(Just app) (Let bs e) = case badBinds of
+    [] -> (letsTypeValid' maybeApp e)
+    _  -> (letsTypeValid' maybeApp e) ++ [(app,badBinds)]
     where
     badBinds = bindsTypeValid bs
 letsTypeValid' _ e@(App e' e'') = letsTypeValid' (Just e) e' ++ letsTypeValid' (Just e) e''
@@ -38,10 +45,12 @@ letsTypeValid' m e = (evalContainedASTs (letsTypeValid' m)) $ children e
 -- | caseTypeValid
 -- In all case expressions, the types of the Expr and Id, should match, and
 -- they should also correspond to either the DataCon or Lit in the AltMatches.
--- caseTypeValid :: m -> Bool
+-- Returns the App under which the case fails to typematch paired with a list of
+-- pairs of expressions under that case which fails
+-- caseTypeValid :: m -> [(Expr, [(Expr, Expr)])]
 -- caseTypeValid = evalASTs caseTypeValid'
---
--- caseTypeValid' :: Expr -> Bool
--- caseTypeValid' c@(Case e i alts) =  foldr ((&&) . (typeMatch i)) (typeMatch i e) (map typeOf alts)
+
+-- caseTypeValid' :: Expr -> [(Expr, ]
+-- caseTypeValid' c@(Case e i alts) = foldr ((&&) . (typeMatch i)) (typeMatch i e) (alts)
 -- caseTypeValid' e = caseTypeValid $ children e
 
