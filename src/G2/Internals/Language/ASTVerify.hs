@@ -2,9 +2,11 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.Language.ASTVerify (letsTypeValid, caseTypeValid) where
+module G2.Internals.Language.ASTVerify (letsTypeValid, caseTypeValid, castTypeValid, checkVarBinds) where
+import Prelude as P
+import G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Syntax
-import G2.Internals.Language.AST
+import G2.Internals.Language.Support
 import G2.Internals.Language.Typing
 
 -- | typeMatch
@@ -19,9 +21,15 @@ letsTypeValid :: (ASTContainer m Expr) => m -> Binds
 letsTypeValid = evalASTs letsTypeValid'
 
 letsTypeValid' :: Expr -> Binds
-letsTypeValid' (Let bs _) = filter (\b -> not $ typeMatch (fst b) (snd b)) bs
+letsTypeValid' (Let bs _) = P.filter (\b -> not $ typeMatch (fst b) (snd b)) bs
 letsTypeValid' _ = []
 
+-- | `AltMatch` instance of `Typed`.
+altMatchType :: AltMatch -> Type
+altMatchType am = case am of
+        (DataAlt con _) -> typeOf con
+        (LitAlt lit) -> typeOf lit
+        Default -> TyBottom
 
 -- | caseTypeValid
 -- In all case expressions, the types of the Expr and Id, should match, and
@@ -33,7 +41,8 @@ caseTypeValid' :: Expr -> [(Id, Either Expr Alt)]
 caseTypeValid' (Case e i alts) = concat [[ (i, Left e) | not $ typeMatch i e ] , altMisMatches]
   where
     -- Filter alts by AltMatch not matching the Id of the case, then pair with Id
-    altMisMatches = map (\a -> (i,(Right a))) (filter (\(Alt am _) -> (not $ typeMatch am i)) alts)
+    nonMatchingAlts = P.filter (\(Alt am _) -> (not $ typeMatch (altMatchType am) i)) alts
+    altMisMatches = P.map (\a -> (i,(Right a))) nonMatchingAlts
 caseTypeValid' _ = []
 
 -- | castTypeValid
@@ -43,10 +52,28 @@ castTypeValid :: (ASTContainer m Expr) => m -> [Expr]
 castTypeValid = evalASTs castTypeValid'
 
 castTypeValid' :: Expr -> [Expr]
-castTypeValid' c@(Cast e (lhs :~ _)) = []
---   | not $ (typeMatch lhs e) = [c]
---   | _ = []
+castTypeValid' c@(Cast e (lhs :~ _))
+   | not $ (typeMatch lhs e) = [c]
+   | otherwise = []
 castTypeValid' _ = []
 
+-- | checkVarBinds
+-- All variables must be bound when used.  Variables may be bound locally,
+-- by a Lam, Let, or Case expression. Or, they may be bound globally, either
+-- in the ExprEnv or as a symbolic variable. Returns list of any unbound Var
+checkVarBinds :: (ASTContainer t Expr) => State t -> [Id]
+checkVarBinds t@(State {expr_env = eenv, symbolic_ids = ssids, input_ids = iids}) =
+   evalASTsM (checkVarBinds' eenv (ssids ++ iids)) t
+
+checkVarBinds' :: E.ExprEnv -> [Id] -> [Id] -> Expr -> ([Id],[Id])
+checkVarBinds' _ _ _ (Let b _) = (P.map fst b, [])
+checkVarBinds' _ _ _ (Lam b _) = ([b], [])
+checkVarBinds' _ _ _ (Case _ i _) = ([i], [])
+checkVarBinds' eenv senv bound (Var i) =
+    if E.member (idName i) eenv || i `elem` senv || i `elem` bound then
+        ([], [])
+    else
+        ([], [i])
+checkVarBinds' _ _ _ _ = ([], [])
 
 

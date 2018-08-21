@@ -118,13 +118,6 @@ instance Typed DataCon where
 instance Typed Alt where
     typeOf' m (Alt _ expr) = typeOf' m expr
 
--- | `AltMatch` instance of `Typed`.
-instance Typed AltMatch where
-    typeOf' m am = case am of
-        (DataAlt con _) -> typeOf' m con
-        (LitAlt lit) -> typeOf' m lit
-        Default -> (TyBottom, m)
-
 -- | `Expr` instance of `Typed`.
 instance Typed Expr where
     typeOf' m (Var v) = typeOf' m v
