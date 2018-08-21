@@ -20,6 +20,7 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , relatedSets
                                        , scc
                                        , varIdsInPC
+                                       , varIdsInAltMatch
                                        , toList) where
 
 import G2.Internals.Language.AST

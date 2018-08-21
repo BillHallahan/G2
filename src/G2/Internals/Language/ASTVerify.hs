@@ -2,12 +2,16 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.Language.ASTVerify (letsTypeValid, caseTypeValid, castTypeValid, checkVarBinds) where
-import Prelude as P
-import G2.Internals.Language.ExprEnv as E
+module G2.Internals.Language.ASTVerify (letsTypeValid
+                                        , caseTypeValid
+                                        , castTypeValid
+                                        , checkVarBinds
+                                        , checkExprEnvTyping) where
+import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 import G2.Internals.Language.Typing
+import qualified G2.Internals.Language.PathConds as PC
 
 -- | typeMatch
 -- Checks if a typed class matches the type of another typed class
@@ -21,10 +25,12 @@ letsTypeValid :: (ASTContainer m Expr) => m -> Binds
 letsTypeValid = evalASTs letsTypeValid'
 
 letsTypeValid' :: Expr -> Binds
-letsTypeValid' (Let bs _) = P.filter (\b -> not $ typeMatch (fst b) (snd b)) bs
+letsTypeValid' (Let bs _) = filter (\b -> not $ typeMatch (fst b) (snd b)) bs
 letsTypeValid' _ = []
 
--- | `AltMatch` instance of `Typed`.
+-- | altMatchType
+-- Grabs out an approximate 'type' for an alternative match of a case statement,
+-- even if one doesn't technically exist.
 altMatchType :: AltMatch -> Type
 altMatchType am = case am of
         (DataAlt con _) -> typeOf con
@@ -41,8 +47,8 @@ caseTypeValid' :: Expr -> [(Id, Either Expr Alt)]
 caseTypeValid' (Case e i alts) = concat [[ (i, Left e) | not $ typeMatch i e ] , altMisMatches]
   where
     -- Filter alts by AltMatch not matching the Id of the case, then pair with Id
-    nonMatchingAlts = P.filter (\(Alt am _) -> (not $ typeMatch (altMatchType am) i)) alts
-    altMisMatches = P.map (\a -> (i,(Right a))) nonMatchingAlts
+    nonMatchingAlts = filter (\(Alt am _) -> (not $ typeMatch (altMatchType am) i)) alts
+    altMisMatches = map (\a -> (i,(Right a))) nonMatchingAlts
 caseTypeValid' _ = []
 
 -- | castTypeValid
@@ -59,22 +65,22 @@ castTypeValid' _ = []
 
 -- | checkVarBinds
 -- All variables must be bound when used.  Variables may be bound locally,
--- by a Lam, Let, or Case expression. Or, they may be bound globally, either
--- in the ExprEnv or as a symbolic variable. Returns list of any unbound Var
+-- by a Lam, Let, or Case expression (in the alts or the Id). Or, they may
+-- be bound globally, either in the ExprEnv or as a symbolic variable.
+-- Returns list of any unbound Vars
 checkVarBinds :: (ASTContainer t Expr) => State t -> [Id]
 checkVarBinds t@(State {expr_env = eenv, symbolic_ids = ssids, input_ids = iids}) =
-   evalASTsM (checkVarBinds' eenv (ssids ++ iids)) t
+   evalContainedASTs (checkVarBinds' eenv (ssids ++ iids)) t
 
-checkVarBinds' :: E.ExprEnv -> [Id] -> [Id] -> Expr -> ([Id],[Id])
-checkVarBinds' _ _ _ (Let b _) = (P.map fst b, [])
-checkVarBinds' _ _ _ (Lam b _) = ([b], [])
-checkVarBinds' _ _ _ (Case _ i _) = ([i], [])
-checkVarBinds' eenv senv bound (Var i) =
-    if E.member (idName i) eenv || i `elem` senv || i `elem` bound then
-        ([], [])
-    else
-        ([], [i])
-checkVarBinds' _ _ _ _ = ([], [])
+checkVarBinds' :: E.ExprEnv -> [Id] -> Expr -> [Id]
+checkVarBinds' eenv bound (Let b e) = checkVarBinds' eenv ((map fst b) ++ bound) e
+checkVarBinds' eenv bound (Lam b e) = checkVarBinds' eenv (b:bound) e
+checkVarBinds' eenv bound (Case e i alts) = (checkVarBinds' eenv bound' e) ++ (concatMap runCheckOnAlt alts)
+    where
+    bound' = i:bound
+    runCheckOnAlt = (\(Alt am expr) -> checkVarBinds' eenv ((PC.varIdsInAltMatch am) ++ bound') expr)
+checkVarBinds' eenv bound (Var i) | not $ (E.member (idName i) eenv || i `elem` bound) = [i]
+checkVarBinds' eenv bound e = evalContainedASTs (checkVarBinds' eenv bound) $ children e
 
 -- | checkExprEnvTyping
 -- For each Var corresponding to an Expr in the ExprEnv, the type in the Var's
