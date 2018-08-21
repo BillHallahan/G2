@@ -76,4 +76,16 @@ checkVarBinds' eenv senv bound (Var i) =
         ([], [i])
 checkVarBinds' _ _ _ _ = ([], [])
 
+-- | checkExprEnvTyping
+-- For each Var corresponding to an Expr in the ExprEnv, the type in the Var's
+-- Id should be the same as the type of the expression bound in the ExprEnv.
+checkExprEnvTyping :: (ASTContainer t Expr) => State t -> Binds
+checkExprEnvTyping t@(State {expr_env = eenv}) =
+   evalASTs (checkExprEnvTyping' eenv) t
 
+checkExprEnvTyping' :: ExprEnv -> Expr -> Binds
+checkExprEnvTyping' eenv (Var i) | E.member (idName i) eenv =
+    let expr = (E.lookup (idName i) eenv) in case expr of
+        Just e | not $ typeMatch i e -> [(i, e)]
+        _ -> []
+checkExprEnvTyping' _ _ = []
