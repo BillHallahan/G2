@@ -19,7 +19,7 @@ letsTypeValidNoError = TestCase (assertBool "Valid Let Failed"
 
 letsTypeValidOneError :: Test
 letsTypeValidOneError = TestCase (assertBool "Invalid Let Passed"
-  ([] == letsTypeValid (
+  ([] != letsTypeValid (
       Let [ 
           ((Id (Name (pack "integerId") (Just (pack "")) 0 Nothing)) TyLitChar, Lit (LitInt 1))
       ]
@@ -32,6 +32,27 @@ main = runTestTT (TestList [
                      (TestLabel "Lets Bindings Char-Int Error" letsTypeValidOneError)
                        ])
 
+-- CASE TEST:
+-- Everything matches
+-- Types of Expr and Id do not match
+-- One of the expressions in a DataCon does not match
+-- One of the expressions in a Lit does not match
+-- Case (Lit (LitChar 'c')) ((Id (Name (pack "integerId") (Just (pack "")) 0 Nothing)) TyLitInt) []
+
+-- CAST TEST:
+-- Type of Expr and LHS do not match
+-- Type of Expr and LHS do match
+
+-- VAR BINDS TEST:
+-- Correct
+  -- With local bindings
+  -- With env bindings
+-- Incorrect
+  -- Non Bound Var
+
+-- ExprEnv Test
+-- With correct type bound in ExprEnv
+-- With incorrect type bound in ExprEnv
   
 -- Let one_error =
 --       letsTypeValid (

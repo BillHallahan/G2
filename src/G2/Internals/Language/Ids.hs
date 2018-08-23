@@ -58,3 +58,7 @@ instance {-# OVERLAPPING #-} (Ided a, Ided b) => Ided (a, b) where
 
 instance {-# OVERLAPPING #-} (Ided a, Ided b, Ided c) => Ided (a, b, c) where
     ids (a, b, c) = ids a ++ ids b ++ ids c
+
+varIdsInAltMatch :: AltMatch -> [Id]
+varIdsInAltMatch (DataAlt _ i) = i
+varIdsInAltMatch _ = []

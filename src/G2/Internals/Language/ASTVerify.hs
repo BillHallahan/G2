@@ -6,12 +6,14 @@ module G2.Internals.Language.ASTVerify (letsTypeValid
                                         , caseTypeValid
                                         , castTypeValid
                                         , checkVarBinds
-                                        , checkExprEnvTyping) where
+                                        , checkExprEnvTyping
+                                        , checkAppTyping) where
 import qualified G2.Internals.Language.ExprEnv as E
+import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 import G2.Internals.Language.Typing
-import qualified G2.Internals.Language.PathConds as PC
+import G2.Internals.Language.Ids
 
 -- | typeMatch
 -- Checks if a typed class matches the type of another typed class
@@ -78,7 +80,7 @@ checkVarBinds' eenv bound (Lam b e) = checkVarBinds' eenv (b:bound) e
 checkVarBinds' eenv bound (Case e i alts) = (checkVarBinds' eenv bound' e) ++ (concatMap runCheckOnAlt alts)
     where
     bound' = i:bound
-    runCheckOnAlt = (\(Alt am expr) -> checkVarBinds' eenv ((PC.varIdsInAltMatch am) ++ bound') expr)
+    runCheckOnAlt = (\(Alt am expr) -> checkVarBinds' eenv ((varIdsInAltMatch am) ++ bound') expr)
 checkVarBinds' eenv bound (Var i) | not $ (E.member (idName i) eenv || i `elem` bound) = [i]
 checkVarBinds' eenv bound e = evalContainedASTs (checkVarBinds' eenv bound) $ children e
 
@@ -95,3 +97,13 @@ checkExprEnvTyping' eenv (Var i) | E.member (idName i) eenv =
         Just e | not $ typeMatch i e -> [(i, e)]
         _ -> []
 checkExprEnvTyping' _ _ = []
+
+
+-- | checkAppTyping
+-- Check that each argument to each function call is of the correct type.
+-- Returns all the Apps for which the type of the center does not match one of the arguments
+checkAppTyping :: (ASTContainer m Expr) => m -> [Expr]
+checkAppTyping m = filter functionMatchesArgs (functionCalls m)
+    where 
+    -- Applicative functor to judge whether a functions arguments match the type
+    functionMatchesArgs = (\a -> and (map (typeMatch (appCenter a)) (passedArgs a)))

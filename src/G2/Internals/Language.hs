@@ -2,6 +2,7 @@
 --   Export module for G2.Internals.Language.
 module G2.Internals.Language
     ( module G2.Internals.Language.AST
+    , module G2.Internals.Language.ASTVerify
     , module G2.Internals.Language.CreateFuncs
     , module G2.Internals.Language.Expr
     , module G2.Internals.Language.Ids
@@ -15,6 +16,7 @@ module G2.Internals.Language
     ) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.ASTVerify
 import G2.Internals.Language.CreateFuncs
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Ids

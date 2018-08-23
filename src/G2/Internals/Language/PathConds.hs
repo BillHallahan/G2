@@ -20,7 +20,6 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , relatedSets
                                        , scc
                                        , varIdsInPC
-                                       , varIdsInAltMatch
                                        , toList) where
 
 import G2.Internals.Language.AST
@@ -179,10 +178,6 @@ varIdsInPC _ (AltCond a e _) = varIdsInAltMatch a ++ varIds e
 varIdsInPC _ (ExtCond e _) = varIds e
 varIdsInPC _ (ConsCond _ e _) = varIds e
 varIdsInPC _ (PCExists _) = []
-
-varIdsInAltMatch :: AltMatch -> [Id]
-varIdsInAltMatch (DataAlt _ i) = i
-varIdsInAltMatch _ = []
 
 varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
 varNamesInPC kv = P.map idName . varIdsInPC kv
