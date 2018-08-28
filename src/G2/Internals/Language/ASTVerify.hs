@@ -7,13 +7,17 @@ module G2.Internals.Language.ASTVerify (letsTypeValid
                                         , castTypeValid
                                         , checkVarBinds
                                         , checkExprEnvTyping
-                                        , checkAppTyping) where
+                                        , checkAppTyping
+                                        , checkPathCond) where
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 import G2.Internals.Language.Typing
 import G2.Internals.Language.Ids
+import qualified G2.Internals.Language.PathConds as PC
+import G2.Internals.Language.KnownValues()
+import qualified Data.Map as M
 
 -- | typeMatch
 -- Checks if a typed class matches the type of another typed class
@@ -38,6 +42,14 @@ altMatchType am = case am of
         (DataAlt con _) -> typeOf con
         (LitAlt lit) -> typeOf lit
         Default -> TyBottom
+
+-- | pathCondExpr
+-- Returns either an empty list or a list with an expr of a PathCond
+pathCondExpr :: PathCond -> Expr
+pathCondExpr (ExtCond e _ )   = e
+pathCondExpr (AltCond _ e _) = e
+pathCondExpr (ConsCond _ e _) = e
+pathCondExpr (PCExists i) = Var i
 
 -- | caseTypeValid
 -- In all case expressions, the types of the Expr and Id, should match, and
@@ -106,4 +118,19 @@ checkAppTyping :: (ASTContainer m Expr) => m -> [Expr]
 checkAppTyping m = filter functionMatchesArgs (functionCalls m)
     where 
     -- Applicative functor to judge whether a functions arguments match the type
-    functionMatchesArgs = (\a -> and (map (typeMatch (appCenter a)) (passedArgs a)))
+    functionMatchesArgs = (\a -> and (map (not . (typeMatch (appCenter a))) (passedArgs a)))
+
+-- | checkPathCond
+-- All expression in the path_conds, non_red_path_conds, and being assumed or
+-- asserted should be of type Bool (you can get a type Bool to compare them to
+-- using tyBool in Language/Typing). Returns the list of expressions which do
+-- no match type bool
+checkPathCond :: State t -> [Expr]
+checkPathCond t@(State {path_conds = pconds, non_red_path_conds = nrpconds, known_values = kv}) =
+    pcFails ++ nrpcFails
+  where
+    pcFails = map pathCondExpr (filter (\pc -> not $ typeMatch (pathCondExpr pc) (tyBool kv)) (PC.toList pconds))
+    -- Check that each expression in the non-reduced path conditions is a bool
+    nrpcFails = filter (\a -> not $ typeMatch a (tyBool kv)) nrpconds
+  
+
