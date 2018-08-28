@@ -8,7 +8,8 @@ module G2.Internals.Language.ASTVerify (letsTypeValid
                                         , checkVarBinds
                                         , checkExprEnvTyping
                                         , checkAppTyping
-                                        , checkPathCond) where
+                                        , checkPathCond
+                                        , checkAssumeAssert) where
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
@@ -16,8 +17,7 @@ import G2.Internals.Language.Support
 import G2.Internals.Language.Typing
 import G2.Internals.Language.Ids
 import qualified G2.Internals.Language.PathConds as PC
-import G2.Internals.Language.KnownValues()
-import qualified Data.Map as M
+import qualified G2.Internals.Language.KnownValues as KV
 
 -- | typeMatch
 -- Checks if a typed class matches the type of another typed class
@@ -121,16 +121,38 @@ checkAppTyping m = filter functionMatchesArgs (functionCalls m)
     functionMatchesArgs = (\a -> and (map (not . (typeMatch (appCenter a))) (passedArgs a)))
 
 -- | checkPathCond
--- All expression in the path_conds, non_red_path_conds, and being assumed or
--- asserted should be of type Bool (you can get a type Bool to compare them to
--- using tyBool in Language/Typing). Returns the list of expressions which do
--- no match type bool
+-- All expression in the path_conds, non_red_path_conds, Returns the list of
+-- expressions which do no match type bool
 checkPathCond :: State t -> [Expr]
-checkPathCond t@(State {path_conds = pconds, non_red_path_conds = nrpconds, known_values = kv}) =
-    pcFails ++ nrpcFails
+checkPathCond (State {path_conds = pconds, non_red_path_conds = nrpconds, known_values = kv}) =
+    pcFailsExpr ++ nrpcFails
   where
-    pcFails = map pathCondExpr (filter (\pc -> not $ typeMatch (pathCondExpr pc) (tyBool kv)) (PC.toList pconds))
+    pcFailsExpr = map pathCondExpr pcFails
+    -- See datatype of PathConds; simply extracts the expressions from the [PathCond] and typechecks
+    pcFails = filter (\pc -> not $ typeMatch (pathCondExpr pc) (tyBool kv)) (PC.toList pconds)
     -- Check that each expression in the non-reduced path conditions is a bool
     nrpcFails = filter (\a -> not $ typeMatch a (tyBool kv)) nrpconds
   
+-- | checkAssumeAssert
+-- All Expr being assumed or asserted should be of type Bool.
+checkAssumeAssert :: (ASTContainer t Expr) => State t -> [Expr]
+checkAssumeAssert t@(State {known_values = kv}) = evalASTs (checkAssumeAssert' kv) t
+
+checkAssumeAssert' :: KV.KnownValues -> Expr -> [Expr]
+checkAssumeAssert' kv (Assume e1 e2)
+   | (bM e1) && (bM e2) = [e1, e2]
+   | bM e1 = [e1]
+   | bM e2 = [e2]
+   | otherwise = []
+   where
+     bM e = not $ (typeMatch (tyBool kv) e)
+checkAssumeAssert' kv (Assert _ e1 e2)
+   | (bM e1) && (bM e2) = [e1, e2]
+   | bM e1 = [e1]
+   | bM e2 = [e2]
+   | otherwise = []
+   where
+     bM e = not $ (typeMatch (tyBool kv) e)
+checkAssumeAssert' _ _ = []
+
 
