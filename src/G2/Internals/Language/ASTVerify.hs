@@ -132,9 +132,9 @@ checkPathCond State {path_conds = pconds, non_red_path_conds = nrpconds, known_v
   where
     pcFailsExpr = map pathCondExpr pcFails
     -- extracts the expressions from the [PathCond] and typechecks
-    pcFails = filter (\pc -> not $ typeMatch (pathCondExpr pc) (tyBool kv)) (PC.toList pconds)
+    pcFails = filter (\pc -> not $ typeMatch (tyBool kv) (pathCondExpr pc)) (PC.toList pconds)
     -- Check that each expression in the non-reduced path conditions is a bool
-    nrpcFails = filter (\a -> not $ typeMatch a (tyBool kv)) nrpconds
+    nrpcFails = filter (\a -> not $ typeMatch (tyBool kv) a) nrpconds
   
 -- | checkAssumeAssert
 -- All Expr being assumed or asserted should be of type Bool.
@@ -143,13 +143,8 @@ checkAssumeAssert State {curr_expr = cexpr, known_values = kv} =
   evalASTs (checkAssumeAssert' kv) cexpr
 
 checkAssumeAssert' :: KV.KnownValues -> Expr -> [Expr]
-checkAssumeAssert' kv (Assume e1 _)
-   | bM e1 = [e1]
-   where
-     bM e = not $ (typeMatch (tyBool kv) e)
-checkAssumeAssert' kv (Assert _ e1 _) | bM e1 = [e1]
-   where
-     bM e = not $ (typeMatch (tyBool kv) e)
+checkAssumeAssert' kv (Assume e1 _) | not $ typeMatch (tyBool kv) e1 = [e1]
+checkAssumeAssert' kv (Assert _ e1 _) | not $ typeMatch (tyBool kv) e1 = [e1]
 checkAssumeAssert' _ _ = []
 
 
