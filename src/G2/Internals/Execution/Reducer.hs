@@ -12,10 +12,10 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , ReducerRes (..)
                                       , HaltC (..)
 
-                                      -- Reducers
+                                     -- Reducers
                                       , RCombiner (..)
                                       , StdRed (..)
-                                      , NonRedPCRed (..)
+                                     , NonRedPCRed (..)
                                       , TaggerRed (..)
 
                                       -- Halters
@@ -198,8 +198,23 @@ data StdRed con = StdRed con Config
 instance Solver con => Reducer (StdRed con) () where
     redRules stdr@(StdRed solver config) s = do
         (r, s') <- reduce (stdReduce config) solver config s
-        
         return (if r == RuleIdentity then Finished else InProgress, s', stdr)
+
+
+-- | TypeVerifier ast out io
+-- Verifies an AST's state, writes any errors to IO, and returns the state
+data TypeVerifier = TypeVerifier Config
+instance Reducer TypeVerifier t where
+    redRules stdr s@(State {curr_expr = cexpr}) = do
+        print $ show $ letsTypeValid cexpr;
+        print $ show $ caseTypeValid cexpr;
+        print $ show $ castTypeValid cexpr;
+        print $ show $ checkVarBinds s;
+        print $ show $ checkExprEnvTyping s;
+        print $ show $ checkAppTyping cexpr;
+        print $ show $ checkPathCond s;
+        print $ show $ checkAssumeAssert s;
+        return (Finished, [s], stdr)
 
 -- | NonRedPCRed ast out io
 -- Removes and reduces the values in a State's non_red_path_conds field. 

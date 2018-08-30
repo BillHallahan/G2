@@ -82,9 +82,12 @@ castTypeValid' _ = []
 -- by a Lam, Let, or Case expression (in the alts or the Id). Or, they may
 -- be bound globally, either in the ExprEnv or as a symbolic variable.
 -- Returns list of any unbound Vars
-checkVarBinds :: (ASTContainer t Expr) => State t -> [Id]
-checkVarBinds t@(State {expr_env = eenv, symbolic_ids = ssids, input_ids = iids}) =
-   evalContainedASTs (checkVarBinds' eenv (ssids ++ iids)) t
+checkVarBinds :: State t -> [Id]
+checkVarBinds State {expr_env = eenv,
+                        curr_expr = cexpr,
+                        symbolic_ids = ssids,
+                        input_ids = iids} =
+   evalContainedASTs (checkVarBinds' eenv (ssids ++ iids)) cexpr
 
 checkVarBinds' :: E.ExprEnv -> [Id] -> Expr -> [Id]
 checkVarBinds' eenv bound (Let b e) = checkVarBinds' eenv ((map fst b) ++ bound) e
@@ -99,9 +102,9 @@ checkVarBinds' eenv bound e = evalContainedASTs (checkVarBinds' eenv bound) $ ch
 -- | checkExprEnvTyping
 -- For each Var corresponding to an Expr in the ExprEnv, the type in the Var's
 -- Id should be the same as the type of the expression bound in the ExprEnv.
-checkExprEnvTyping :: (ASTContainer t Expr) => State t -> Binds
-checkExprEnvTyping t@(State {expr_env = eenv}) =
-   evalASTs (checkExprEnvTyping' eenv) t
+checkExprEnvTyping :: State t -> Binds
+checkExprEnvTyping State {expr_env = eenv, curr_expr = cexpr} =
+   evalASTs (checkExprEnvTyping' eenv) cexpr
 
 checkExprEnvTyping' :: ExprEnv -> Expr -> Binds
 checkExprEnvTyping' eenv (Var i) | E.member (idName i) eenv =
@@ -124,33 +127,27 @@ checkAppTyping m = filter functionMatchesArgs (functionCalls m)
 -- All expression in the path_conds, non_red_path_conds, Returns the list of
 -- expressions which do no match type bool
 checkPathCond :: State t -> [Expr]
-checkPathCond (State {path_conds = pconds, non_red_path_conds = nrpconds, known_values = kv}) =
+checkPathCond State {path_conds = pconds, non_red_path_conds = nrpconds, known_values = kv} =
     pcFailsExpr ++ nrpcFails
   where
     pcFailsExpr = map pathCondExpr pcFails
-    -- See datatype of PathConds; simply extracts the expressions from the [PathCond] and typechecks
+    -- extracts the expressions from the [PathCond] and typechecks
     pcFails = filter (\pc -> not $ typeMatch (pathCondExpr pc) (tyBool kv)) (PC.toList pconds)
     -- Check that each expression in the non-reduced path conditions is a bool
     nrpcFails = filter (\a -> not $ typeMatch a (tyBool kv)) nrpconds
   
 -- | checkAssumeAssert
 -- All Expr being assumed or asserted should be of type Bool.
-checkAssumeAssert :: (ASTContainer t Expr) => State t -> [Expr]
-checkAssumeAssert t@(State {known_values = kv}) = evalASTs (checkAssumeAssert' kv) t
+checkAssumeAssert :: State t -> [Expr]
+checkAssumeAssert State {curr_expr = cexpr, known_values = kv} =
+  evalASTs (checkAssumeAssert' kv) cexpr
 
 checkAssumeAssert' :: KV.KnownValues -> Expr -> [Expr]
-checkAssumeAssert' kv (Assume e1 e2)
-   | (bM e1) && (bM e2) = [e1, e2]
+checkAssumeAssert' kv (Assume e1 _)
    | bM e1 = [e1]
-   | bM e2 = [e2]
-   | otherwise = []
    where
      bM e = not $ (typeMatch (tyBool kv) e)
-checkAssumeAssert' kv (Assert _ e1 e2)
-   | (bM e1) && (bM e2) = [e1, e2]
-   | bM e1 = [e1]
-   | bM e2 = [e2]
-   | otherwise = []
+checkAssumeAssert' kv (Assert _ e1 _) | bM e1 = [e1]
    where
      bM e = not $ (typeMatch (tyBool kv) e)
 checkAssumeAssert' _ _ = []
