@@ -15,7 +15,8 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                      -- Reducers
                                       , RCombiner (..)
                                       , StdRed (..)
-                                     , NonRedPCRed (..)
+                                      , TypeVerifier (..)
+                                      , NonRedPCRed (..)
                                       , TaggerRed (..)
 
                                       -- Halters

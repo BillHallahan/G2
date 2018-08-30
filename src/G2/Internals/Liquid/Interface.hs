@@ -139,17 +139,17 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
 
     ret <- if higherOrderSolver config == AllFuncs
               then run 
-                    (NonRedPCRed config
-                      :<~| LHRed abs_fun con' config) 
+                    (NonRedPCRed config :<~| TypeVerifier config
+                      :<~| LHRed abs_fun con' config :<~| TypeVerifier config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
                     con' (pres_names ++ names annm') config final_state'
               else run 
-                    (NonRedPCRed config
-                      :<~| TaggerRed state_name tr_ng
-                      :<~| LHRed abs_fun con' config) 
+                    (NonRedPCRed config :<~| TypeVerifier config
+                      :<~| TaggerRed state_name tr_ng :<~| TypeVerifier config
+                      :<~| LHRed abs_fun con' config :<~| TypeVerifier config) 
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 

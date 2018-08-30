@@ -111,16 +111,16 @@ runGHC as = do
 
     in_out <- if higherOrderSolver config == AllFuncs
               then run 
-                  (NonRedPCRed config
-                    :<~| StdRed con' config) 
+                  (NonRedPCRed config :<~| TypeVerifier config
+                    :<~| StdRed con' config :<~| TypeVerifier config) 
                   (MaxOutputsHalter 
                     :<~> ZeroHalter)
                   NextOrderer
                   con' [] config init_state
               else run
-                  (NonRedPCRed config
-                    :<~| TaggerRed state_name tr_ng
-                    :<~| StdRed con' config) 
+                  (NonRedPCRed config :<~| TypeVerifier config
+                    :<~| TaggerRed state_name tr_ng :<~| TypeVerifier config
+                    :<~| StdRed con' config :<~| TypeVerifier config) 
                   (DiscardIfAcceptedTag state_name 
                     :<~> MaxOutputsHalter 
                     :<~> ZeroHalter)
