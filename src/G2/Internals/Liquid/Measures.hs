@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Internals.Liquid.Measures (Measures, createMeasures) where
 
@@ -49,7 +50,7 @@ measureTypeMappings tenv tcv (M {name = n, sort = srt}) =
 addLHDictToType :: Name -> Type -> Type
 addLHDictToType lh t =
     let
-        lhD = map (\i -> TyConApp lh [TyVar i]) $ tyForAllBindings t
+        lhD = map (\i -> mkTyConApp lh [TyVar i] TYPE) $ tyForAllBindings t
     in
     foldr TyFun t lhD
 
@@ -63,8 +64,8 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         bnds = tyForAllBindings $ fromJust st
         ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]
         nbnds = zip ds $ map TyVar bnds
-        as = map (\(d, t) -> Id d $ TyConApp (lhTC tcv) [t]) nbnds
-        as' = as ++ bnds
+        as = map (\(d, t) -> Id d $ mkTyConApp (lhTC tcv) [t] TYPE) nbnds
+        as' = map (TermL,) as ++ map (TypeL, ) bnds
 
         as_t = map (\i -> (idName i, typeOf i)) as
 
@@ -75,17 +76,19 @@ convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, so
         (cb, _) = freshId (head stArgs) ng1
         alts = mapMaybe (convertDefs s stArgs stRet tcv (M.union m (M.fromList as_t))) eq
 
-        e = foldr Lam (Lam lam_i $ Case (Var lam_i) cb alts) as'
+        e = mkLams as' (Lam TermL lam_i $ Case (Var lam_i) cb alts) 
     in
     case st of -- [1]
         Just _ -> Just (n', e)
         Nothing -> Nothing
 
 convertDefs :: State t -> [Type] -> Maybe Type -> TCValues -> M.Map Name Type -> Def SpecType GHC.DataCon -> Maybe Alt
-convertDefs s@(State {type_env = tenv}) [TyConApp _ st_t] ret tcv m (Def { ctor = dc, body = b, binds = bds}) =
+convertDefs s@(State {type_env = tenv}) [l_t] ret tcv m (Def { ctor = dc, body = b, binds = bds})
+    | TyConApp _ _ <- tyAppCenter l_t
+    , st_t <- tyAppArgs l_t =
     let
         (DataCon n t) = mkData HM.empty HM.empty dc
-        (TyConApp tn _) = returnType t
+        (TyConApp tn _) = tyAppCenter $ returnType t
         dc' = getDataConNameMod tenv tn n
         
         -- See [1] below, we only evaluate this if Just

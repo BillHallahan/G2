@@ -5,6 +5,7 @@ module G2.Internals.Solver.ADTSolver ( ADTSolver (..)
                                      , findConsistent
                                      , findConsistent'') where
 
+import G2.Internals.Language.ArbValueGen
 import G2.Internals.Language.Casts
 import G2.Internals.Language.Expr
 import qualified G2.Internals.Language.ExprEnv as E
@@ -22,11 +23,12 @@ import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
 
+import Debug.Trace
+
 data ADTSolver = ADTSolver
 
 instance Solver ADTSolver where
     check _ s = return . checkConsistency (known_values s) (type_env s)
-    -- solve _ _ _ _ = return (Unknown "", Nothing)
     solve _ s is = solveADTs s (nub is)
 
 -- | checkConsistency
@@ -66,23 +68,25 @@ head' (x:_) = Just x
 head' _ = Nothing
 
 solveADTs :: State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
-solveADTs s [Id n t@(TyConApp tn ts)] pc
+solveADTs s [Id n t] pc
     -- We can't use the ADT solver when we have a Boolean, because the RHS of the
     -- DataAlt might be a primitive.
-    | t /= tyBool (known_values s)  =
+    | TyConApp tn k <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , t /= tyBool (known_values s)  =
     do
-        let (r, s') = addADTs n tn ts s pc
+        let (r, s') = addADTs n tn ts k s pc
 
         case r of
             SAT -> return (r, Just . liftCasts $ model s')
             r' -> return (r', Nothing)
-solveADTs _ _ _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
+solveADTs _ i _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
 
 -- | addADTs
 -- Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: Name -> Name -> [Type] -> State t -> PathConds -> (Result, State t)
-addADTs n tn ts s pc =
+addADTs :: Name -> Name -> [Type] -> Kind -> State t -> PathConds -> (Result, State t)
+addADTs n tn ts k s pc =
     let
         dcs = findConsistent (known_values s) (type_env s) pc
 
@@ -94,7 +98,7 @@ addADTs n tn ts s pc =
                         -- We map names over the arguments of a DataCon, to make sure we have the correct
                         -- number of undefined's.
                         ts'' = case exprInCasts fdc of
-                            Data (DataCon _ t) -> map (const $ Name "a" Nothing 0 Nothing) $ anonArgumentTypes t
+                            Data (DataCon _ ts') -> map (const $ Name "a" Nothing 0 Nothing) $ anonArgumentTypes $ PresType ts'
                             _ -> [Name "b" Nothing 0 Nothing]
 
                         (ns, _) = childrenNames n ts'' (name_gen s)
@@ -104,12 +108,12 @@ addADTs n tn ts s pc =
                                     Just e -> e
                                     Nothing -> Prim Undefined TyBottom) ns
                     in
-                    mkApp $ fdc:vs
+                    mkApp $ fdc:map Type ts ++ vs
                 _ -> error $ "Unusable DataCon in addADTs"
 
         m = M.insert n dc (model s)
 
-        (bse, av) = arbValue (TyConApp tn ts) (type_env s) (arbValueGen s)
+        (bse, av) = arbValue (mkTyApp (TyConApp tn k:ts)) (type_env s) (arbValueGen s)
 
         m' = M.insert n bse m
     in
@@ -125,7 +129,7 @@ findConsistent' tenv pc =
         n = pcVarType pc
         adt = maybe Nothing (\n' -> getCastedAlgDataTy n' tenv) n
     in
-    maybe Nothing (\(DataTyCon _ dc) -> fmap (map Data) $ findConsistent'' dc pc) adt
+     maybe Nothing (\(DataTyCon _ dc) -> fmap (map Data) $ findConsistent'' dc pc) adt
 
 findConsistent'' :: [DataCon] -> [PathCond] -> Maybe [DataCon]
 findConsistent'' dcs ((AltCond (DataAlt dc _) _ True):pc) =
@@ -147,15 +151,17 @@ isExtCond (ExtCond _ _) = True
 isExtCond _ = False
 
 pcVarType :: [PathCond] -> Maybe Name
-pcVarType (AltCond _ (Var (Id _ (TyConApp n _))) _:pc) = pcVarType' n pc
-pcVarType (ConsCond _ (Var (Id _ (TyConApp n _))) _:pc) = pcVarType' n pc
-pcVarType _ = Nothing
+pcVarType (AltCond _ (Var (Id _ t)) _:pc)
+    | TyConApp n _ <- tyAppCenter t = pcVarType' n pc
+pcVarType (ConsCond _ (Var (Id _ t)) _:pc)
+    | TyConApp n _ <- tyAppCenter t = pcVarType' n pc
+pcVarType p = Nothing
 
 pcVarType' :: Name -> [PathCond] -> Maybe Name
-pcVarType' n (AltCond _ (Var (Id _ (TyConApp n' _))) _:pc) =
-    if n == n' then pcVarType' n pc else Nothing
-pcVarType' n (ConsCond _ (Var (Id _ (TyConApp n' _))) _:pc) =
-    if n == n' then pcVarType' n pc else Nothing
+pcVarType' n (AltCond _ (Var (Id _ t)) _:pc)
+    | TyConApp n' _ <- tyAppCenter t = if n == n' then pcVarType' n pc else Nothing
+pcVarType' n (ConsCond _ (Var (Id _ t)) _:pc)
+    | TyConApp n' _ <- tyAppCenter t = if n == n' then pcVarType' n pc else Nothing
 pcVarType' n [] = Just n
 pcVarType' _ _ = Nothing
 

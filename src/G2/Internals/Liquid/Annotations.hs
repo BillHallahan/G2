@@ -89,16 +89,16 @@ fstSrcSpanToLoc (RealSrcSpan r, b) =
     Just (mkRealSpan r, b)
 fstSrcSpanToLoc _ = Nothing
 
-assertionLamIds :: Expr -> [Id]
+assertionLamIds :: Expr -> [(LamUse, Id)]
 assertionLamIds = assertionLamIds' . inLams
 
-assertionLamIds' :: Expr -> [Id]
-assertionLamIds' (Let _ (Assume _ (Assert _ a _))) = leadingLamIds a
-assertionLamIds' (Let _ (Assert _ a _)) = leadingLamIds a
+assertionLamIds' :: Expr -> [(LamUse, Id)]
+assertionLamIds' (Let _ (Assume _ (Assert _ a _))) = leadingLamUsesIds a
+assertionLamIds' (Let _ (Assert _ a _)) = leadingLamUsesIds a
 assertionLamIds' _ = []
 
-addIds :: Expr -> [Id] -> Expr
-addIds e@(Lam ei _) (i:is) = if i == ei then e else Lam i $ addIds e is
+addIds :: Expr -> [(LamUse, Id)] -> Expr
+addIds e@(Lam _ ei _) ((u, i):is) = if i == ei then e else Lam u i $ addIds e is
 addIds e _ = e
 
 hasAssumeAssert :: Expr -> Bool

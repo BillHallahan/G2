@@ -19,7 +19,7 @@ import G2.Internals.Language.TypeEnv
 import Data.List
 import qualified Data.Text as T
 
-primInject :: (ASTContainer p Expr, ASTContainer p Type) => p -> p
+primInject :: ASTContainer p Type => p -> p
 primInject = modifyASTs primInjectT
 
 primInjectT :: Type -> Type
@@ -49,71 +49,106 @@ dataInject' _ e = e
 conName :: DataCon -> (Name, [Type])
 conName (DataCon n t) = (n, anonArgumentTypes $ t)
 
-primDefs :: [(T.Text, Expr)]
-primDefs = [ ("==#", Prim Eq TyBottom)
-           , ("/=#", Prim Neq TyBottom)
-           , ("+#", Prim Plus TyBottom)
-           , ("*#", Prim Mult TyBottom)
-           , ("-#", Prim Minus TyBottom)
-           , ("negateInt#", Prim Negate TyBottom)
-           , ("<=#", Prim Le TyBottom)
-           , ("<#", Prim Lt TyBottom)
-           , (">#", Prim Gt TyBottom)
-           , (">=#", Prim Ge TyBottom)
-           , ("divInt#", Prim Quot TyBottom)
-           , ("modInt#", Prim Mod TyBottom)
-           , ("quotInt#", Prim Quot TyBottom)
-           , ("remInt#", Prim Mod TyBottom)
+primDefs :: [ProgramType] -> [(T.Text, Expr)]
+primDefs pt = case boolName pt of
+                Just n -> primDefs' n
+                Nothing -> error "Bool type not found"
 
-           , ("==##", Prim Eq TyBottom)
-           , ("/=##", Prim Neq TyBottom)
-           , ("+##", Prim Plus TyBottom)
-           , ("*##", Prim Mult TyBottom)
-           , ("-##", Prim Minus TyBottom)
-           , ("negateDouble#", Prim Negate TyBottom)
-           , ("sqrtDouble#", Prim SqRt TyBottom)
-           , ("<=##", Prim Le TyBottom)
-           , ("<##", Prim Lt TyBottom)
-           , (">##", Prim Gt TyBottom)
-           , (">=##", Prim Ge TyBottom)
+primDefs' :: Name -> [(T.Text, Expr)]
+primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
+              , ("/=#", Prim Neq $ tyIntIntBool b)
+              , ("+#", Prim Plus tyIntIntInt)
+              , ("*#", Prim Mult tyIntIntInt)
+              , ("-#", Prim Minus tyIntIntInt)
+              , ("negateInt#", Prim Negate tyIntInt)
+              , ("<=#", Prim Le $ tyIntIntBool b)
+              , ("<#", Prim Lt $ tyIntIntBool b)
+              , (">#", Prim Gt $ tyIntIntBool b)
+              , (">=#", Prim Ge $ tyIntIntBool b)
+              , ("divInt#", Prim Quot tyIntIntInt)
+              , ("modInt#", Prim Mod tyIntIntInt)
+              , ("quotInt#", Prim Quot tyIntIntInt)
+              , ("remInt#", Prim Mod tyIntIntInt)
 
-           , ("plusFloat#", Prim Plus TyBottom)
-           , ("timesFloat#", Prim Mult TyBottom)
-           , ("minusFloat#", Prim Minus TyBottom)
-           , ("negateFloat#", Prim Negate TyBottom)
-           , ("sqrtFloat#", Prim SqRt TyBottom)
-           , ("/##", Prim Div TyBottom)
-           , ("divideFloat#", Prim Div TyBottom)
-           , ("eqFloat#", Prim Eq TyBottom)
-           , ("neqFloat#", Prim Neq TyBottom)
-           , ("leFloat#", Prim Le TyBottom)
-           , ("ltFloat#", Prim Lt TyBottom)
-           , ("gtFloat#", Prim Gt TyBottom)
-           , ("geFloat#", Prim Ge TyBottom)
+              , ("==##", Prim Eq $ tyDoubleDoubleBool b)
+              , ("/=##", Prim Neq $ tyDoubleDoubleBool b)
+              , ("+##", Prim Plus tyDoubleDoubleDouble)
+              , ("*##", Prim Mult tyDoubleDoubleDouble)
+              , ("-##", Prim Minus tyDoubleDoubleDouble)
+              , ("negateDouble#", Prim Negate tyDoubleDouble)
+              , ("sqrtDouble#", Prim SqRt tyDoubleDoubleDouble)
+              , ("<=##", Prim Le $ tyDoubleDoubleBool b)
+              , ("<##", Prim Lt $ tyDoubleDoubleBool b)
+              , (">##", Prim Gt $ tyDoubleDoubleBool b)
+              , (">=##", Prim Ge $ tyDoubleDoubleBool b)
 
-           , ("quotInteger#", Prim Quot TyBottom)
+              , ("plusFloat#", Prim Plus tyFloatFloatFloat)
+              , ("timesFloat#", Prim Mult tyFloatFloatFloat)
+              , ("minusFloat#", Prim Minus tyFloatFloatFloat)
+              , ("negateFloat#", Prim Negate tyFloatFloat)
+              , ("sqrtFloat#", Prim SqRt tyFloatFloatFloat)
+              , ("/##", Prim Div tyFloatFloatFloat)
+              , ("divideFloat#", Prim Div tyFloatFloatFloat)
+              , ("eqFloat#", Prim Eq $ tyFloatFloatBool b)
+              , ("neqFloat#", Prim Neq $ tyFloatFloatBool b)
+              , ("leFloat#", Prim Le $ tyFloatFloatBool b)
+              , ("ltFloat#", Prim Lt $ tyFloatFloatBool b)
+              , ("gtFloat#", Prim Gt $ tyFloatFloatBool b)
+              , ("geFloat#", Prim Ge $ tyFloatFloatBool b)
 
-           , ("fromIntToFloat", Prim IntToFloat TyBottom)
-           , ("fromIntToDouble", Prim IntToDouble TyBottom)
-           , ("absentErr", Prim Error TyBottom)
-           , ("error", Prim Error TyBottom)
-           , ("errorWithoutStackTrace", Prim Error TyBottom)
-           , ("divZeroError", Prim Error TyBottom)
-           , ("patError", Prim Error TyBottom)
-           , ("succError", Prim Error TyBottom)
-           , ("toEnumError", Prim Error TyBottom)
-           , ("undefined", Prim Error TyBottom)]
+              , ("quotInteger#", Prim Quot TyBottom)
 
-replaceFromPD :: Id -> Expr -> (Id, Expr)
-replaceFromPD i@(Id n _) e =
+              , ("fromIntToFloat", Prim IntToFloat TyBottom)
+              , ("fromIntToDouble", Prim IntToDouble TyBottom)
+              , ("absentErr", Prim Error TyBottom)
+              , ("error", Prim Error TyBottom)
+              , ("errorWithoutStackTrace", Prim Error TyBottom)
+              , ("divZeroError", Prim Error TyBottom)
+              , ("patError", Prim Error TyBottom)
+              , ("succError", Prim Error TyBottom)
+              , ("toEnumError", Prim Error TyBottom)
+              , ("undefined", Prim Error TyBottom)]
+
+tyIntInt :: Type
+tyIntInt = TyFun TyLitInt TyLitInt
+
+tyIntIntBool :: Name -> Type
+tyIntIntBool n = TyFun TyLitInt $ TyFun TyLitInt (TyConApp n TYPE)
+
+tyIntIntInt :: Type
+tyIntIntInt = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
+
+tyDoubleDouble :: Type
+tyDoubleDouble = TyFun TyLitDouble TyLitDouble
+
+tyDoubleDoubleBool :: Name -> Type
+tyDoubleDoubleBool n = TyFun TyLitDouble $ TyFun TyLitDouble (TyConApp n TYPE)
+
+tyDoubleDoubleDouble :: Type
+tyDoubleDoubleDouble = TyFun TyLitDouble $ TyFun TyLitDouble TyLitDouble
+
+tyFloatFloat :: Type
+tyFloatFloat = TyFun TyLitFloat TyLitFloat
+
+tyFloatFloatBool :: Name -> Type
+tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyConApp n TYPE)
+
+tyFloatFloatFloat :: Type
+tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat
+
+boolName :: [ProgramType] -> Maybe Name
+boolName = find ((==) "Bool" . nameOcc) . map fst
+
+replaceFromPD :: [ProgramType] -> Id -> Expr -> (Id, Expr)
+replaceFromPD pt i@(Id n _) e =
     let
-        e' = fmap snd $ find ((==) (nameOcc n) . fst) primDefs
+        e' = fmap snd $ find ((==) (nameOcc n) . fst) (primDefs pt)
     in
     (i, maybe e id e')
 
 
-addPrimsToBase :: Program -> Program
-addPrimsToBase prims = map (map (uncurry replaceFromPD)) prims
+addPrimsToBase :: [ProgramType] -> Program -> Program
+addPrimsToBase pt prims = map (map (uncurry (replaceFromPD pt))) prims
 
 mergeProgs :: Program -> Program -> Program
 mergeProgs prog prims = prog ++ prims
@@ -121,4 +156,4 @@ mergeProgs prog prims = prog ++ prims
 -- The prog is used to change the names of types in the prog' and primTys
 mergeProgTys :: [ProgramType] -> [ProgramType] -> [ProgramType]
 mergeProgTys progTys primTys =
-    progTys ++ primTys
+    progTys ++ primTys  

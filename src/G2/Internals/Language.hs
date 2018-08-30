@@ -1,7 +1,8 @@
 -- | Language
 --   Export module for G2.Internals.Language.
 module G2.Internals.Language
-    ( module G2.Internals.Language.AST
+    ( module G2.Internals.Language.ArbValueGen
+    , module G2.Internals.Language.AST
     , module G2.Internals.Language.CreateFuncs
     , module G2.Internals.Language.Expr
     , module G2.Internals.Language.Ids
@@ -14,6 +15,7 @@ module G2.Internals.Language
     , module G2.Internals.Language.Typing
     ) where
 
+import G2.Internals.Language.ArbValueGen
 import G2.Internals.Language.AST
 import G2.Internals.Language.CreateFuncs
 import G2.Internals.Language.Expr

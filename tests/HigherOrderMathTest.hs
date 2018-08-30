@@ -86,4 +86,4 @@ functionSatisfiesRes (Var (Id (Name "notNegativeAt0" _ _ _) _):Var (Id (Name"add
 functionSatisfiesRes _ = False
 
 tyBoolS :: Type
-tyBoolS = TyConApp (Name "Bool" Nothing 0 Nothing) []
+tyBoolS = TyConApp (Name "Bool" Nothing 0 Nothing) TYPE

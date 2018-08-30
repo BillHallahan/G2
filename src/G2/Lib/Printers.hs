@@ -67,7 +67,7 @@ mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
         mkExprHaskell' (Var ids) _ = mkIdHaskell ids
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
-        mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
+        mkExprHaskell' (Lam _ ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
             | Data (DataCon n _) <- appCenter a
             , isTuple n
@@ -185,7 +185,7 @@ mkPrimHaskell Iff = "undefined"
 mkTypeHaskell :: Type -> String
 mkTypeHaskell (TyVar i) = mkIdHaskell i
 mkTypeHaskell (TyFun t1 t2) = mkTypeHaskell t1 ++ " -> " ++ mkTypeHaskell t2
-mkTypeHaskell (TyConApp n ts) = mkNameHaskell n ++ " " ++ (intercalate " " $ map mkTypeHaskell ts)
+mkTypeHaskell (TyConApp n ts) = mkNameHaskell n ++ " " ++ mkTypeHaskell ts
 mkTypeHaskell _ = "Unsupported type in printer."
 
 duplicate :: String -> Int -> String
@@ -252,6 +252,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     walkers_str = show (deepseq_walkers ex_state)
     appty_str = show (apply_types ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
+    model_str = pprModelStr (model ex_state)
     rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Code] ----------------------"
@@ -282,6 +283,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , appty_str
                , "----- [Cleaned] -------------------"
                , cleaned_str
+               , "----- [Model] -------------------"
+               , model_str
                , "----- [Rules] -------------------"
                , rules_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
@@ -296,6 +299,11 @@ pprTEnvStr :: TypeEnv -> String
 pprTEnvStr tenv = injNewLine kv_strs
   where
     kv_strs = map show $ M.toList tenv
+
+pprModelStr :: Model -> String
+pprModelStr m = injNewLine kv_strs
+  where
+    kv_strs = map show $ M.toList m
 
 pprExecStackStr :: Stack Frame -> String
 pprExecStackStr stk = injNewLine frame_strs

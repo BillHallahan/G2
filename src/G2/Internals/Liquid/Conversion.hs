@@ -147,17 +147,17 @@ modifyLamTops :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
 modifyLamTops f = modifyContainedASTs (modifyLamTops' f)
 
 modifyLamTops' :: (Expr -> Expr) -> Expr -> Expr
-modifyLamTops' f l@(Lam _ e) =
+modifyLamTops' f l@(Lam _ _ e) =
     let
         l' = f l
     in
     case l' of
-        Lam i e' -> Lam i $ modifyAfterLams (modifyLamTops' f) e'
+        Lam u i e' -> Lam u i $ modifyAfterLams (modifyLamTops' f) e'
         _ -> modifyLamTops' f e
 modifyLamTops' f e = modifyChildren (modifyLamTops' f) e
 
 modifyAfterLams :: (Expr -> Expr) -> Expr -> Expr
-modifyAfterLams f (Lam i e) = Lam i $ modifyAfterLams f e
+modifyAfterLams f (Lam u i e) = Lam u i $ modifyAfterLams f e
 modifyAfterLams f e = f e
 
 -- | addLHTCLams
@@ -169,7 +169,7 @@ addLHTCLams lh e =
         
         ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length tva]
 
-        as = map (\(d, i) -> (idName i, Lang.Id d $ TyConApp lh [TyVar i])) (zip ds tva)
+        as = map (\(d, i) -> (idName i, Lang.Id d $ mkTyConApp lh [TyVar i] TYPE)) (zip ds tva)
     in
     if not (hasLHTC lh e) 
         then addLams lh e as 
@@ -177,24 +177,24 @@ addLHTCLams lh e =
 
 addLams :: Name -> Expr -> [(Name, Lang.Id)] -> Expr
 addLams _ e [] = e
-addLams lh l@(Lam i@(Id _ t) e) is =
+addLams lh l@(Lam u i@(Id _ t) e) is =
     if isTYPE t 
         then
             let
                 ts = getTypeNames l
                 dictIds = mapMaybe (flip lookup is) ts
             in
-            pastTYPE (addLHTCLams lh) $ foldr Lam l dictIds
-        else Lam i $ addLams lh e is
+            pastTYPE (addLHTCLams lh) $ foldr (Lam TermL) l dictIds
+        else Lam u i $ addLams lh e is
 addLams _ e _ = e
 
 pastTYPE :: (Expr -> Expr) -> Expr -> Expr
-pastTYPE f le@(Lam i@(Id _ t) e) =
-    if isTYPE t then Lam i $ pastTYPE f e else f le
+pastTYPE f le@(Lam u i@(Id _ t) e) =
+    if isTYPE t then Lam u i $ pastTYPE f e else f le
 pastTYPE _ _ = error "pastTYPE: Applied to non-Lam Expr"
 
 getTypeNames :: Expr -> [Name]
-getTypeNames (Lam (Id n t) e) = if isTYPE t then n:getTypeNames e else []
+getTypeNames (Lam _ (Id n t) e) = if isTYPE t then n:getTypeNames e else []
 getTypeNames _ = []
 
 tYPEOrTyVar :: Lang.Id -> Maybe Lang.Id
@@ -204,8 +204,8 @@ tYPEOrTyVar e
     | otherwise = Nothing
 
 hasLHTC :: Name -> Expr -> Bool
-hasLHTC lh (Lam (Id _ (TyConApp n _)) e) = if n == lh then True else hasLHTC lh e 
-hasLHTC lh (Lam _ e) = hasLHTC lh e 
+hasLHTC lh (Lam _ (Id _ (TyConApp n _)) e) = if n == lh then True else hasLHTC lh e 
+hasLHTC lh (Lam _ _ e) = hasLHTC lh e 
 hasLHTC _ _ = False
 
 modifyAppTops :: (Expr -> Expr) -> Expr -> Expr
@@ -228,7 +228,7 @@ addLHTCCalls eenv tenv tc lh e =
     modifyAppTops (addTCPasses eenv tenv tc lh_dicts lh) e
 
 lhDicts :: Name -> Expr -> [(Type, Lang.Id)]
-lhDicts lh (Lam i@(Lang.Id _ (TyConApp n [t])) e) =
+lhDicts lh (Lam _ i@(Lang.Id _ (TyApp (TyConApp n _) t)) e) =
     if lh == n then (t, i):lhDicts lh e else lhDicts lh e
 lhDicts lh e = evalChildren (lhDicts lh) e
 
@@ -275,20 +275,27 @@ addLHDictArgs _ _ _ _ e _ = e
 
 typeExprType :: TypeEnv -> Expr -> Maybe Type
 typeExprType tenv (Type t) =
-    case t of
-        TyConApp n ts ->
+    let
+        t' = tyAppCenter t
+        ts = tyAppArgs t
+    in
+    case t' of
+        TyConApp n _ ->
             case M.lookup n tenv of
-                Just adt -> if length ts == length (bound_names adt) then Just t else Nothing
+                Just adt -> if length ts == length (bound_ids adt) then Just t else Nothing
                 Nothing -> Just t
         _ -> Just t
 typeExprType _ _ = Nothing
 
 typeToLHTypeClass :: TypeClasses -> [(Type, Lang.Id)] -> Name -> Type -> Expr
 typeToLHTypeClass tc ti lh t =
+    let
+        ts = tyAppArgs t
+    in
     case lookupTCDict tc lh t of
         Just lhD -> 
             case t of 
-                TyConApp _ ts -> mkApp $ Var lhD:map (typeToLHTypeClass tc ti lh) ts ++ map (Type) ts
+                TyConApp _ _ -> mkApp $ Var lhD:map (typeToLHTypeClass tc ti lh) ts ++ map (Type) ts
                 _ -> Var lhD
         Nothing -> case lookup t ti of
             Just lhD -> Var lhD
@@ -384,10 +391,10 @@ convertSpecType tcv s@(State { type_env = tenv }) st ret m =
         nt = convertSpecTypeDict tcv s st
 
         ds = map (\(n, t) -> Id n t) nt
-        dclams = foldr (.) id (map Lam ds) 
+        dclams = foldr (.) id (map (Lam TermL) ds) 
 
         lams = specTypeLams tenv st 
-        lams' = dclams . lams . Lam ret
+        lams' = dclams . lams . Lam TermL ret
 
         m' = maybe (M.fromList nt) id m
         apps = specTypeApps st tcv s m' ret
@@ -403,7 +410,7 @@ convertAssumeSpecType tcv s@(State { type_env = tenv }) st =
         nt = convertSpecTypeDict tcv s st
 
         ds = map (\(n, t) -> Id n t) nt
-        dclams = foldr (.) id (map Lam ds) 
+        dclams = foldr (.) id (map (Lam TermL) ds) 
 
         lams = specTypeLams tenv st 
         lams' = dclams . lams
@@ -418,7 +425,7 @@ convertSpecTypeDict tcv (State {type_env = tenv}) st =
         lh = lhTC tcv
 
         tva = nub . filter isTyVar $ specTypeLamTypes tenv st
-        lhtc = map (\t -> TyConApp lh [t]) tva
+        lhtc = map (\t -> mkTyConApp lh [t] TYPE) tva
 
         dsnames = map (\i -> Name "d" Nothing i Nothing) [0 .. (length tva - 1)]
     in 
@@ -431,12 +438,12 @@ specTypeLams tenv (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) =
         t = unsafeSpecTypeToType tenv fin
         i = convertSymbolT b t
     in
-    Lam i . specTypeLams tenv fout
+    Lam TermL i . specTypeLams tenv fout
 specTypeLams tenv (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) =
     let
         i = mkIdUnsafe v
     in
-    Lam i . specTypeLams tenv rty
+    Lam TypeL i . specTypeLams tenv rty
 specTypeLams _ r@(RAllP {}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
 specTypeLams _ r@(RAllS {}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
 specTypeLams _ (RApp {}) = id
@@ -490,7 +497,7 @@ specTypeApps' (RVar {rt_var = (RTV v), rt_reft = r}) tcv s m b =
 
         re =  convertLHExpr (reftExpr $ ur_reft r) Nothing tcv s m'
     in
-    [App (Lam symbId re) (Var b)]
+    [App (Lam TermL symbId re) (Var b)]
 specTypeApps' (RFun {rt_bind = rb, rt_in = fin, rt_out = fout }) tcv s@(State { type_env = tenv }) m b =
     -- TODO : rt_reft
     let
@@ -522,7 +529,7 @@ specTypeApps' (RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {exp
 
         an = mkAnd eenv
     in
-    [App (App an (App (Lam i re) (Var b))) argsPred]
+    [App (App an (App (Lam TermL i re) (Var b))) argsPred]
 specTypeApps' _ _ _ _ _ = error "specTypeApps': Unhandled case"
 
 
@@ -597,7 +604,7 @@ rTyConType tenv rtc sts =
         ts = map (specTypeToType tenv) sts
     in
     case (not . any isNothing $ ts) of
-        True -> case fmap (\n' -> TyConApp n' (catMaybes ts)) n of
+        True -> case fmap (\n' -> mkTyConApp n' (catMaybes ts) TYPE) n of
                     Nothing -> primType tcn
                     t -> t
         False -> Nothing
@@ -622,12 +629,18 @@ convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
                     (_:_) -> Just $ last at
                     _ -> Nothing
 
+        f_ar_ts = fmap tyAppArgs f_ar_t
+
         argE = convertLHExpr e' f_ar_t tcv s m
+
+        tArgE = typeOf argE
+        ctArgE = tyAppCenter tArgE
+        ts = tyAppArgs tArgE
     in
-    case (typeOf argE, f_ar_t) of
-        (TyConApp _ ts, Just (TyConApp _ f_ar_ts)) -> 
+    case (ctArgE, f_ar_ts) of
+        (TyConApp _ _, Just f_ar_ts') -> 
             let
-                specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts
+                specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts'
                 te = map Type specTo
 
                 lh = lhTC tcv
@@ -807,16 +820,20 @@ bopDict _ = numDict
 lhTCDict :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
 lhTCDict eenv tcv tc t@(TyConApp _ _) m = lhTCDict' eenv tcv tc t m
 lhTCDict eenv tcv tc t@(TyVar _) m = lhTCDict' eenv tcv tc t m
-lhTCDict eenv tcv tc TyLitInt m = lhTCDict' eenv tcv tc (TyConApp (Name "Int#" (Just "GHC.Prims") 0 Nothing) []) m
-lhTCDict eenv tcv tc TyLitDouble m = lhTCDict' eenv tcv tc (TyConApp (Name "Double#" (Just "GHC.Prims") 0 Nothing) []) m
-lhTCDict eenv tcv tc TyLitFloat m = lhTCDict' eenv tcv tc (TyConApp (Name "Float#" (Just "GHC.Prims") 0 Nothing) []) m
+lhTCDict eenv tcv tc TyLitInt m = lhTCDict' eenv tcv tc (TyConApp (Name "Int#" (Just "GHC.Prims") 0 Nothing) TYPE) m
+lhTCDict eenv tcv tc TyLitDouble m = lhTCDict' eenv tcv tc (TyConApp (Name "Double#" (Just "GHC.Prims") 0 Nothing) TYPE) m
+lhTCDict eenv tcv tc TyLitFloat m = lhTCDict' eenv tcv tc (TyConApp (Name "Float#" (Just "GHC.Prims") 0 Nothing) TYPE) m
 lhTCDict _ _ _ _ _ = Nothing
 
 lhTCDict' :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
-lhTCDict' eenv tcv tc t m =
+lhTCDict' eenv tcv tc rt m =
+    let
+        t = tyAppCenter rt
+        ts = tyAppArgs rt
+    in
     case fmap Var $ lookupTCDict tc (lhTC tcv) t of
         Just d -> case t of 
-                TyConApp _ ts -> Just $ mkApp $ d:mapMaybe (\t' -> lhTCDict eenv tcv tc t' m) ts ++ map (Type) ts
+                TyConApp _ _ -> Just $ mkApp $ d:mapMaybe (\t' -> lhTCDict eenv tcv tc t' m) ts ++ map (Type) ts
                 _ -> Just d 
         Nothing -> 
             case find (tyVarInTyAppHasName (lhTC tcv) . snd) (M.toList m) of
@@ -887,13 +904,9 @@ convertBrel Ref.Le tcv = Var $ Id (lhLe tcv) TyUnknown
 convertBrel _ _ = error "convertBrel: Unhandled brel"
 
 tyVarInTyAppHasName :: Name -> Type -> Bool
-tyVarInTyAppHasName n (TyConApp n' (TyVar (Id _ _):_)) = n == n'
+tyVarInTyAppHasName n (TyApp (TyConApp n' _) (TyVar (Id _ _))) = n == n'
 tyVarInTyAppHasName _ _ = False
 
 typeIdList :: TCValues -> M.Map Name Type -> [(Type, Lang.Id)]
 typeIdList tcv =
-    map (\(n, t) -> (head $ tyConAppList t, Id n t)) . M.toList . M.filter (tyVarInTyAppHasName (lhTC tcv))
-
-tyConAppList :: Type -> [Type]
-tyConAppList (TyConApp _ ts) = ts
-tyConAppList _ = []
+    map (\(n, t) -> (head $ tyAppArgs t, Id n t)) . M.toList . M.filter (tyVarInTyAppHasName (lhTC tcv))

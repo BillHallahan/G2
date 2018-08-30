@@ -8,11 +8,11 @@ import TestUtils
 
 zeroPeano :: Expr
 zeroPeano =
-    Data $ DataCon (Name "Zero" (Just "Peano") 0 Nothing) (TyConApp (Name "Peano" (Just "Peano") 0 Nothing) [])
+    Data $ DataCon (Name "Zero" (Just "Peano") 0 Nothing) (TyConApp (Name "Peano" (Just "Peano") 0 Nothing) TYPE)
 
 succPeano :: Expr -> Expr
 succPeano x =
-    App (Data $ DataCon (Name "Succ" (Just "Peano") 0 Nothing) (TyConApp (Name "Peano" (Just "Peano") 0 Nothing) [])) x
+    App (Data $ DataCon (Name "Succ" (Just "Peano") 0 Nothing) (TyConApp (Name "Peano" (Just "Peano") 0 Nothing) TYPE)) x
 
 peano_0_4 :: [Expr] -> Bool
 peano_0_4 [a, b, c] = a `eqIgT` zeroPeano && b `eqIgT` (succPeano . succPeano . succPeano . succPeano $ zeroPeano)

@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-
+{-# LANGUAGE TupleSections #-}
 -- This module generates functions in the expr_env that walk over the whole structure of an ADT.
 -- This forces evaluation of the ADT
 module G2.Internals.Initialization.DeepSeqWalks (createDeepSeqWalks) where
@@ -11,6 +11,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+
+import Debug.Trace
 
 type BoundName = Name
 
@@ -27,13 +29,12 @@ createDeepSeqName n = Name ("walk" `T.append` nameOcc n) Nothing 0 (spanning n)
 createDeepSeqStore :: (Name, AlgDataTy) -> Name -> Walkers -> Walkers
 createDeepSeqStore (n, adt) n' w =
     let
-        bn = bound_names adt
-        bnt = map (TyVar . flip Id TYPE) bn
-        bnf = map (\b -> TyFun b b) bnt
+        bn = map TyVar $ bound_ids adt
+        bnf = map (\b -> TyFun b b) bn
 
-        base = TyFun (TyConApp n []) (TyConApp n [])
+        base = TyFun (TyConApp n TYPE) (TyConApp n TYPE)
 
-        t = foldr TyFun base (bnt ++ bnf)
+        t = foldr TyFun base (bn ++ bnf)
         i = Id n' t
     in
     M.insert n i w
@@ -41,7 +42,7 @@ createDeepSeqStore (n, adt) n' w =
 createDeepSeqExpr :: TypeEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
 createDeepSeqExpr tenv w (n, adt) ng =
     let
-        bn = bound_names adt
+        bn = bound_ids adt
 
         -- Generates fresh names for TYPE variables, and walker function variables
         (bn', ng') = freshNames (length bn) ng
@@ -52,26 +53,26 @@ createDeepSeqExpr tenv w (n, adt) ng =
 
         bfuncs = zip bn' wbni
 
-        adt' = renames (HM.fromList (zip bn bn')) adt
+        adt' = renames (HM.fromList (zip (map idName bn) bn')) adt
 
         (e, ng''') = createDeepSeqCase1 tenv w bfuncs n bn' adt' ng''
     in
-    (foldr Lam e (bni ++ wbni), ng''')
+    (mkLams (map (TypeL,) bn ++ map (TermL,) wbni) e, ng''')
 
 createDeepSeqCase1 :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
 createDeepSeqCase1 tenv w ti n bn (DataTyCon {data_cons = dc}) ng =
     let
-        (i, ng') = freshId (TyConApp n $ map (TyVar . flip Id TYPE) bn) ng
-        (caseB, ng'') = freshId (TyConApp n $ map (TyVar . flip Id TYPE) bn) ng'
+        (i, ng') = freshId (mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE) ng
+        (caseB, ng'') = freshId (mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE) ng'
 
         (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n caseB bn ng'' dc
 
         c = Case (Var i) caseB alts
     in
-    (Lam i c, ng''')
+    (Lam TermL i c, ng''')
 createDeepSeqCase1 _ w ti n bn (NewTyCon {rep_type = t}) ng =
     let
-        t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
+        t' = mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE
 
         (i, ng') = freshId t' ng
         (caseB, ng'') = freshId t ng'
@@ -85,14 +86,14 @@ createDeepSeqCase1 _ w ti n bn (NewTyCon {rep_type = t}) ng =
 
         c = Case cast caseB [alt]
     in
-    (Lam i c, ng'')
+    (Lam TermL i c, ng'')
 createDeepSeqCase1 _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passed"
 
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 createDeepSeqDataConCase1Alts _ _ _ _ _ _ ng [] = ([], ng)
 createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon _ t):xs) =
     let
-        ts = anonArgumentTypes t
+        ts = anonArgumentTypes dc
 
         (binds, ng') = freshIds ts ng
 
@@ -153,7 +154,9 @@ deepSeqFuncCall w ti e =
 
 deepSeqFunc :: Typed t => Walkers -> [(Name, Id)] -> t -> Maybe Expr
 deepSeqFunc w ti e
-    | (TyConApp n ts) <- typeOf e
+    | t <- typeOf e
+    , TyConApp n _ <- tyAppCenter t
+    , ts <- tyAppArgs t
     , Just f <- M.lookup n w =
         let
             as = map Type ts
@@ -169,8 +172,10 @@ walkerFunc :: Walkers -> [(Name, Id)] -> Type -> Expr
 walkerFunc _ ti (TyVar (Id n _)) 
     | Just tyF <- lookup n ti = 
         Var tyF
-walkerFunc w ti (TyConApp n ts)
-    | Just f <- M.lookup n w =
+walkerFunc w ti t
+    | TyConApp n _ <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , Just f <- M.lookup n w =
         let
             as = map Type ts
             ft = mapMaybe (deepSeqFunc w ti . PresType) ts

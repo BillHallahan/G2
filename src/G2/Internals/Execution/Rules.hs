@@ -380,7 +380,7 @@ stdReduceBase redEx con s@State { exec_stack = estk
   , t <- typeOf expr
   , isTyFun idt
   , not (isTyFun t) 
-  , eq_tc <- concreteSatStructEq kv tc t =
+  , Just eq_tc <- concreteSatStructEq kv tc t =
     let
       (new_sym, ngen') = freshSeededString "sym" ngen
       new_sym_id = Id new_sym t
@@ -666,7 +666,7 @@ reduceEReturn eenv cexpr ngen frm kv tc
       , ngen
       , []))
 
-  | (Lam _ _) <- cexpr =
+  | (Lam _ _ _) <- cexpr =
     let
         (r, rr, _) = reduceLam eenv cexpr ngen frm
     in
@@ -713,7 +713,7 @@ isApplyFrame _ = False
 reduceLam :: ExprEnv -> Expr -> NameGen -> Frame -> (Rule, EReturnResult, [Name])
   -- In the event that our Lam parameter is a type variable, we have to handle
 -- it by retyping.
-reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
+reduceLam eenv (Lam _ b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
   | hasTYPE t =
       let aty = case traceIdType i eenv of
                       Just ty -> ty
@@ -728,10 +728,10 @@ reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
            , [])
          , news)
 
-reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
-  | hasTYPE t =
-      let aty = typeOf aexpr
-          binds = [(Id n aty, aexpr)]
+reduceLam eenv (Lam _ b@(Id n t) lexpr) ngen (ApplyFrame taexpr)
+  | Type aexpr <- taexpr =
+      let aty = aexpr
+          binds = [(Id n aty, taexpr)]
           lexpr' = retype b aty lexpr
           (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
       in ( RuleReturnEApplyLamType news
@@ -747,7 +747,7 @@ reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
 -- application, and then go into the expression body.
 -- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
   | otherwise =
-        let binds = [(b, aexpr)]
+        let binds = [(b, taexpr)]
             (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
         in ( RuleReturnEApplyLamExpr news
            , ( eenv'

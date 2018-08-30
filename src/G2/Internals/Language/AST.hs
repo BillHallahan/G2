@@ -134,7 +134,7 @@ instance AST Expr where
     children (Prim _ _) = []
     children (Data _) = []
     children (App f a) = [f, a]
-    children (Lam _ e) = [e]
+    children (Lam _ _ e) = [e]
     children (Let bind e) = e : containedASTs bind
     children (Case m _ as) = m : map (\(Alt _ e) -> e) as
     children (Cast e _) = [e]
@@ -145,7 +145,7 @@ instance AST Expr where
     children (Assert _ e e') = [e, e']
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
-    modifyChildren f (Lam b e) = Lam b (f e)
+    modifyChildren f (Lam u b e) = Lam u b (f e)
     modifyChildren f (Let bind e) = Let (modifyContainedASTs f bind) (f e)
     modifyChildren f (Case m b as) = Case (f m) b (mapAlt f as)
       where
@@ -161,14 +161,14 @@ instance AST Type where
     children (TyVar i) = containedASTs i
     children (TyFun tf ta) = [tf, ta]
     children (TyApp tf ta) = [tf, ta]
-    children (TyConApp _ ts) = ts
+    children (TyConApp _ t) = [t]
     children (TyForAll b t)  = containedASTs b ++ [t]
     children _ = []
 
     modifyChildren f (TyVar i) = TyVar $ modifyContainedASTs f i
     modifyChildren f (TyFun tf ta) = TyFun (f tf) (f ta)
     modifyChildren f (TyApp tf ta) = TyApp (f tf) (f ta)
-    modifyChildren f (TyConApp b ts) = TyConApp b (map f ts)
+    modifyChildren f (TyConApp b ts) = TyConApp b (f ts)
     modifyChildren f (TyForAll b t) = TyForAll (modifyContainedASTs f b) (f t)
     modifyChildren _ t = t
 
@@ -188,7 +188,7 @@ instance ASTContainer Expr Type where
     containedASTs (Var i) = containedASTs i
     containedASTs (Prim _ t) = [t]
     containedASTs (Data dc) = containedASTs dc
-    containedASTs (Lam b e) = containedASTs b ++ containedASTs e
+    containedASTs (Lam _ b e) = containedASTs b ++ containedASTs e
     containedASTs (Let bnd e) = containedASTs bnd ++ containedASTs e
     containedASTs (Case e i as) = containedASTs e ++ containedASTs i ++ containedASTs as
     containedASTs (Cast e c) = containedASTs e ++ containedASTs c
@@ -203,7 +203,7 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (Prim p t) = Prim p (f t)
     modifyContainedASTs f (Data dc) = Data (modifyContainedASTs f dc)
     modifyContainedASTs f (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
-    modifyContainedASTs f (Lam b e) = Lam (modifyContainedASTs f b) (modifyContainedASTs f e)
+    modifyContainedASTs f (Lam u b e) = Lam u (modifyContainedASTs f b)(modifyContainedASTs f e)
     modifyContainedASTs f (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
     modifyContainedASTs f (Case m i as) = Case (modifyContainedASTs f m) (modifyContainedASTs f i) (modifyContainedASTs f as) 
     modifyContainedASTs f (Type t) = Type (f t)

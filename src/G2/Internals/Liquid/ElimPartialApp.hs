@@ -38,17 +38,17 @@ elimPartialApp' ns e =
 
         ad = map (uncurry argTypeToId) $ zip ns (takeEnd diff as)
 
-        e' = insertInLams (\_ _e -> foldr Lam _e ad) e
+        e' = insertInLams (\_ -> mkLams ad) e
     in
-    insertInLams (\_ _e -> foldl' App _e $ map Var ad) e'
+    insertInLams (\_ _e -> foldl' App _e $ map (Var . snd) ad) e'
 
 lamsCount :: Expr -> Int
-lamsCount (Lam _ e) = 1 + lamsCount e
+lamsCount (Lam _ _ e) = 1 + lamsCount e
 lamsCount _ = 0
 
 takeEnd :: Int -> [a] -> [a]
 takeEnd n = reverse . take n . reverse
 
-argTypeToId :: Name -> ArgType -> Id
-argTypeToId n (JustType t) = Id n t
-argTypeToId _ (BindType i) = i
+argTypeToId :: Name -> ArgType -> (LamUse, Id)
+argTypeToId n (JustType t) = (TermL, Id n t)
+argTypeToId _ (BindType i) = (TypeL, i)

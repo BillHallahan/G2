@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-
+{-# LANGUAGE TupleSections #-}
 module G2.Internals.Liquid.TCGen (createLHTC, genTC) where
 
 import G2.Internals.Language
@@ -36,9 +36,9 @@ genTC tcn ntws = do
 
     dcN <- freshSeededNameN tcn
 
-    let dc = DataCon dcN (mkTyFun (ts ++ [TyConApp dcN []]))
+    let dc = DataCon dcN (mkTyFun (ts ++ [TyConApp dcN TYPE]))
 
-        adt = DataTyCon { bound_names = []
+        adt = DataTyCon { bound_ids = []
                         , data_cons = [dc] }
 
     insertT tcn adt
@@ -69,27 +69,26 @@ genTCFuncs lh ti dc (n:ns) ws = do
     t <- lookupT n
 
     let
-        bn = case fmap bound_names t of
+        bn = case fmap bound_ids t of
             Just bn' -> bn'
             Nothing -> error "Bound names not found in genTCFuncs"
 
-        bni = map (flip Id TYPE) bn
-
-        bnv = map TyVar bni
+        bnv = map TyVar bn
+        bnvK = mkTyApp $ map (const TYPE) bnv
         tbnv = map Type bnv
 
         fs = mapMaybe (M.lookup n) ws
         vs = map Var fs
         vs' = map (\v -> mkApp $ v:tbnv) vs
 
-        e = mkLams bni $ mkApp $ Data dc:vs'
+        e = mkLams (map (TypeL,) bn) $ mkApp $ Data dc:vs'
 
     insertMeasureM fn e
 
     let
-        t' = TyConApp lh [TyConApp n bnv]
+        t' = TyApp (TyConApp lh (TyFun TYPE TYPE)) (TyConApp n bnvK)
 
-        ti' = (TyConApp n bnv, Id fn t'):ti
+        ti' = (TyConApp n bnvK, Id fn t'):ti
     
     genTCFuncs lh ti' dc ns ws
 
@@ -100,7 +99,7 @@ lhFuncName n = freshSeededStringN ("lh" `T.append` nameOcc n `T.append` "Func")
 --Create a function to access a TC function from the ADT
 accessFunction :: Name -> DataCon -> Int -> LHStateM Expr
 accessFunction tcn dc@(DataCon _ t) i = do
-    let t' = TyConApp tcn []
+    let t' = TyConApp tcn TYPE
 
         -- This gets bound to the Type (Expr constructor) argument
     tb <- freshIdN TYPE
@@ -115,7 +114,7 @@ accessFunction tcn dc@(DataCon _ t) i = do
 
         c = Case (Var lb) cb [a]
     
-    return (Lam lb (Lam tb c))
+    return (Lam TermL lb (Lam TypeL tb c))
 
 createLHTC :: ExprEnv -> State [FuncCall] -> LHState
 createLHTC meenv s =
@@ -224,11 +223,11 @@ createLHTCFuncs = do
 lhStore :: (Name, AlgDataTy) -> Name -> Walkers -> LHStateM Walkers
 lhStore (n, adt) n' w = do
     let 
-        bn = bound_names adt
-        bnt = map (TyVar . flip Id TYPE) bn
+        bn = bound_ids adt
+        bnt = map (typeOf) bn
         bnf = map (\b -> TyFun b b) bnt
 
-        base = TyFun (TyConApp n []) (TyConApp n [])
+        base = TyFun (TyConApp n TYPE) (TyConApp n TYPE)
 
         t = foldr TyFun base (bnt ++ bnf)
         i = Id n' t
@@ -236,19 +235,19 @@ lhStore (n, adt) n' w = do
     return (M.insert n i w)
 
 -- Returns bindings for TYPE parameters and cooresponding LH typeclasses
-boundNameBindings :: Name -> AlgDataTy -> LHStateM (AlgDataTy, [Id], [Id])
+boundNameBindings :: Name -> AlgDataTy -> LHStateM (AlgDataTy, [(LamUse, Id)], [(LamUse, Id)])
 boundNameBindings lh adt = do
-    let bn = bound_names adt
+    let bn = bound_ids adt
 
         -- Generates fresh names for TYPE variables, and eq function variables
     bn' <- freshNamesN (length bn)
     wbn <- freshNamesN (length bn)
 
     let
-        bni = map (flip Id TYPE) bn'
-        wbni = map (\(b, f) -> Id f (TyConApp lh [TyVar (Id b TYPE)])) $ zip bn' wbn
+        bni = map (\n -> (TypeL, Id n TYPE)) bn'
+        wbni = map (\(b, f) -> (TermL , Id f (TyApp (TyConApp lh (TyFun TYPE TYPE)) (TyVar (Id b TYPE))))) $ zip bn' wbn
 
-        adt' = foldr (uncurry rename) adt (zip bn bn')
+        adt' = foldr (uncurry rename) adt (zip (map idName bn) bn')
     
     return (adt', bni, wbni)
 
@@ -265,17 +264,18 @@ lhTEnvExpr lh ca fc w (n, adt) = do
     (adt', bni, wbni) <- boundNameBindings lh adt
 
     let
-        bn' = (map idName bni)
-        bfuncs = zip bn' wbni
+        bn' = (map (idName . snd) bni)
+        wbni' = map snd wbni
+        bfuncs = zip bn' wbni'
 
     e <- lhTEnvCase ca fc w bfuncs n bn' adt'
 
-    return (foldr Lam e (wbni ++ bni))
+    return (mkLams (wbni ++ bni) e)
 
 
 lhTEnvCase :: Case2Alts -> LHFuncCall -> Walkers -> [(Name, Id)] -> Name -> [Name] -> AlgDataTy -> LHStateM Expr
 lhTEnvCase ca _ w ti n bn (DataTyCon {data_cons = dc}) = do
-    let t = TyConApp n $ map (TyVar . flip Id TYPE) bn
+    let t = mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE
 
     i1 <- freshIdN t
     caseB <- freshIdN t
@@ -285,9 +285,9 @@ lhTEnvCase ca _ w ti n bn (DataTyCon {data_cons = dc}) = do
 
     let c = Case (Var i1) caseB alts
     
-    return (Lam i1 (Lam i2 c))
+    return (Lam TermL i1 (Lam TermL i2 c))
 lhTEnvCase _ fc w ti _ bn (NewTyCon { rep_type = t@(TyConApp n _) }) = do
-    let t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
+    let t' = mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE
 
     i1 <- freshIdN t
     i2 <- freshIdN t
@@ -298,7 +298,7 @@ lhTEnvCase _ fc w ti _ bn (NewTyCon { rep_type = t@(TyConApp n _) }) = do
 
     e <- fc w ti v1 v2
     
-    return (Lam i1 (Lam i2 e))
+    return (Lam TermL i1 (Lam TermL i2 e))
 lhTEnvCase _ _ _ _ _ _ _ = return (Var (Id (Name "BADlhTEnvCase" Nothing 0 Nothing) TyUnknown))
 
 lhTEnvDataConAlts :: Case2Alts -> Walkers -> [(Name, Id)] -> Name -> Id -> Id -> [Name] -> [DataCon] -> LHStateM [Alt]
@@ -340,7 +340,9 @@ type LHFuncCall = Walkers -> [(Name, Id)] -> Expr -> Expr -> LHStateM Expr
 
 eqLHFuncCall :: Name -> LHFuncCall
 eqLHFuncCall lhExN w _ e e'
-    | (TyConApp n ts) <- typeOf e
+    | t <- typeOf e
+    , TyConApp n _ <- tyAppCenter t
+    , ts <- tyAppArgs t
     , Just f <- M.lookup n w =
         let
             as = map Type ts
@@ -378,7 +380,7 @@ lhNeqExpr lh eqW _ (n, _) = do
         fe = case E.lookup (idName f) meenv of
             Just fe' -> fe'
             Nothing -> error "Unknown function def in lhNeqExpr"
-        li = leadingLamIds fe
+        (us, li) = unzip $ leadingLamUsesIds fe
 
     no <- notM
 
@@ -386,11 +388,12 @@ lhNeqExpr lh eqW _ (n, _) = do
         nli = map idName li
     
     li' <- doRenamesN nli li
+    let li'' = zip us li'
 
     let
         fApp = foldl' App (Var f) $ map Var $ filter (not . isTC lh) li'
 
-        e = foldr Lam (App no fApp) li'
+        e = mkLams li'' (App no fApp)
     
     return e
 
@@ -411,7 +414,8 @@ lhLtCase2Alts lhExN w ti caseB1 _ binds1 dc@(DataCon dcn _) = do
     false <- mkFalseE
 
     let
-        t = typeOf caseB1
+        tb = typeOf caseB1
+        t = tyAppCenter tb
 
         adt = case t of
                 (TyConApp n' _) -> M.lookup n' tenv
@@ -476,7 +480,9 @@ lhLtSameAltCases ((lt, eq):xs) = do
 
 ltLHFuncCall :: Name -> LHFuncCall
 ltLHFuncCall lhExN w _ e e'
-    | (TyConApp n ts) <- typeOf e
+    | t <- typeOf e
+    , TyConApp n _ <- tyAppCenter t
+    , ts <- tyAppArgs t
     , Just f <- M.lookup n w =
         let
             as = map Type ts
@@ -520,10 +526,11 @@ lhLeExpr ltW eqW _ (n, _) = do
         fe = case E.lookup (idName eq) eenv of
             Just fe' -> fe'
             Nothing -> error "Unknown function def in lhLeExpr"
-        li = leadingLamIds fe
+        (us, li) = unzip $ leadingLamUsesIds fe
 
     or_ex <- orM
     li' <- freshIdsN (map typeOf li)
+    let li'' = zip us li'
 
     let
         ltApp = foldl' App (Var lt) $ map Var li'
@@ -531,7 +538,7 @@ lhLeExpr ltW eqW _ (n, _) = do
 
         orApp = App (App or_ex ltApp) eqApp
 
-        e = foldr Lam orApp li'
+        e = mkLams li'' orApp
     
     return e
 
@@ -549,14 +556,15 @@ lhGtExpr ltW _ (n, _) = do
         fe = case E.lookup (idName f) eenv of
             Just fe' -> fe'
             Nothing -> error "Unknown function def in lhGtExpr"
-        li = leadingLamIds fe
+        (us, li) = unzip $ leadingLamUsesIds fe
 
     li' <- freshIdsN (map typeOf li)
+    let li'' = zip us li'
 
     let
         fApp = foldl' App (Var f) $ map Var $ flipLastTwo li'
 
-        e = foldr Lam fApp li'
+        e = mkLams li'' fApp
     
     return e
 
@@ -574,14 +582,15 @@ lhGeExpr leW _ (n, _) = do
         fe = case E.lookup (idName f) eenv of
             Just fe' -> fe'
             Nothing -> error "Unknown function def in lhGeExpr"
-        li = leadingLamIds fe
+        (us, li) = unzip $ leadingLamUsesIds fe
 
     li' <- freshIdsN (map typeOf li)
+    let li'' = zip us li'
 
     let
         fApp = foldl' App (Var f) $ map Var $ flipLastTwo li'
 
-        e = foldr Lam fApp li'
+        e = mkLams li'' fApp
     
     return e
 
@@ -600,21 +609,21 @@ lhPolyPred :: Name -> Walkers -> (Name, AlgDataTy) -> LHStateM Expr
 lhPolyPred lh w (n, adt) = do
     (adt', bni, _) <- boundNameBindings lh adt
 
-    let bn = map idName bni
+    let bn = map (idName . snd) bni
     
     tb <- tyBoolT
-    fbi <- freshIdsN (map (\i -> TyFun (TyVar i) tb) bni)
+    fbi <- freshIdsN (map (\(_, i) -> TyFun (TyVar i) tb) bni)
+    let fbi' = map ((,) TermL) fbi
 
     let bnf = zip bn fbi
 
     e <- lhPolyPredCase w n adt' bn bnf
 
-    return (foldr Lam e (bni ++ fbi))
+    return (mkLams (bni ++ fbi') e)
 
 lhPolyPredCase :: Walkers -> Name -> AlgDataTy -> [Name] -> [(Name, Id)] -> LHStateM Expr
 lhPolyPredCase w n (DataTyCon { data_cons = dc }) bn bnf = do
-    let
-        t = TyConApp n $ map (TyVar . flip Id TYPE) bn
+    let t = mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE
 
     i1 <- freshIdN t
     caseB <- freshIdN t
@@ -623,9 +632,9 @@ lhPolyPredCase w n (DataTyCon { data_cons = dc }) bn bnf = do
 
     let c = Case (Var i1) caseB alts
     
-    return (Lam i1 c)
+    return (Lam TermL i1 c)
 lhPolyPredCase w n (NewTyCon { rep_type = t }) bn bnf = do
-    let t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
+    let t' = mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE
 
     i <- freshIdN t'
     caseB <- freshIdN t
@@ -641,7 +650,7 @@ lhPolyPredCase w n (NewTyCon { rep_type = t }) bn bnf = do
 
         c = Case cast caseB [alt]
     
-    return (Lam i c)
+    return (Lam TermL i c)
 lhPolyPredCase _ _ _ _ _ = error "lhPolyPredCase: Unhandled AlgDataTy"
 
 lhPolyPredAlts :: Walkers -> [DataCon] -> [(Name, Id)] -> LHStateM [Alt]
@@ -686,31 +695,35 @@ polyPredLHFuncCall true w bnf i = App (polyPredLHFunc' true w bnf i) i
 
 polyPredLHFunc' :: Typed t => Expr -> Walkers -> [(Name, Id)] -> t -> Expr
 polyPredLHFunc' true w bnf i
-    | TyConApp n ts <- typeOf i
+    | t <- typeOf i
+    , TyConApp n _ <- tyAppCenter t
+    , ts <- tyAppArgs t
     , Just f <- M.lookup n w =
         let
             as = map Type ts
             as' = map (polyPredFunc' true w bnf) ts
         in
         foldl' App (Var f) (as ++ as')
-    | TyForAll _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
-    | TyFun _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
+    | TyForAll _ _ <- typeOf i = Lam TypeL (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
+    | TyFun _ _ <- typeOf i = Lam TermL (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | t <- typeOf i
     ,  t == TyLitInt
     || t == TyLitDouble
     || t == TyLitFloat
-    || t == TyLitChar = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
+    || t == TyLitChar = Lam TermL (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | TyVar _ <- typeOf i = polyPredFunc' true w bnf (typeOf i)
     | TyApp _ _ <- typeOf i =
-        Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
+        Lam TermL (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
     | otherwise = error $ "Unhandled type in polyPredLHFunc' " ++ show (typeOf i)
 
 polyPredFunc' :: Expr ->  Walkers -> [(Name, Id)] -> Type -> Expr
 polyPredFunc' _ _ bnf (TyVar (Id n _)) 
     | Just tyF <- lookup n bnf = 
         Var tyF
-polyPredFunc' true w bnf (TyConApp n ts)
-    | Just f <- M.lookup n w =
+polyPredFunc' true w bnf t
+    | TyConApp n _ <- tyAppCenter t
+    , ts <- tyAppArgs t
+    ,Just f <- M.lookup n w =
         let
             as = map Type ts
             ft = map (polyPredLHFunc' true w bnf . PresType) ts
@@ -748,7 +761,7 @@ createPrimPolyPred w n = do
     f <- freshSeededStringN "primPP"
 
     let i = Id (Name "x" Nothing 0 Nothing) TyBottom
-    let e = Lam i (Var i)
+    let e = Lam TermL i (Var i)
     insertMeasureM f e
 
     let w2 = M.insert n (Id f TyBottom) w

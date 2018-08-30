@@ -19,7 +19,6 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , tcDicts
                                          , concreteSatEq
                                          , concreteSatStructEq
-                                         , concreteSatTC
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
 
@@ -57,7 +56,7 @@ nameIdToTypeId nm (n, i, _) =
     if n == nm then fmap (, i) t else Nothing
 
 affectedType :: Type -> Maybe Type
-affectedType (TyConApp _ [t]) = Just t
+affectedType (TyApp (TyConApp _ _) t) = Just t
 affectedType _ = Nothing
 
 isTypeClassNamed :: Name -> TypeClasses -> Bool
@@ -120,7 +119,7 @@ structEqTCDict kv tc t = lookupTCDict tc (structEqTC kv) t
 lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
 lookupTCDict tc (Name n _ _ _) t =
     case (fmap (insts . snd) $ find (\(Name n' _ _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) of
-        Just c -> fmap snd $ find (\(t', _) -> t .:: t') c
+        Just c -> fmap snd $ find (\(t', _) -> PresType t .:: t') c
         Nothing -> Nothing
 
 lookupEqDicts :: KnownValues -> TypeClasses -> Maybe [(Type, Id)]
@@ -159,11 +158,11 @@ satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
 satisfyTCReq tc ts =
     map (\(i, ts') -> (i, mapMaybe tyConAppName ts'))
     $ mapMaybe toIdTypeTup
-    $ groupBy (\t1 t2 -> tyConAppArg t1 == tyConAppArg t2)
+    $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
     $ filter (typeClassReq tc) ts
 
 toIdTypeTup :: [Type] -> Maybe (Id, [Type])
-toIdTypeTup ts@(TyConApp _ [TyVar i]:_) = Just (i, ts)
+toIdTypeTup ts@(TyApp (TyConApp _ _) (TyVar i):_) = Just (i, ts)
 toIdTypeTup _ = Nothing
 
 typeClassReq :: TypeClasses -> Type -> Bool
@@ -174,29 +173,26 @@ tyConAppName :: Type -> Maybe Name
 tyConAppName (TyConApp n _) = Just n
 tyConAppName _ = Nothing
 
-tyConAppArg :: Type -> [Type]
-tyConAppArg (TyConApp _ ts) = ts
-tyConAppArg _ = []
-
 inter :: Eq a => [[a]] -> [a]
 inter [] = []
 inter xs = foldr1 intersect xs
 
-concreteSatEq :: KnownValues -> TypeClasses -> Type -> Expr
+concreteSatEq :: KnownValues -> TypeClasses -> Type -> Maybe Expr
 concreteSatEq kv tc t = concreteSatTC tc (eqTC kv) t
 
-concreteSatStructEq :: KnownValues -> TypeClasses -> Type -> Expr
+concreteSatStructEq :: KnownValues -> TypeClasses -> Type -> Maybe Expr
 concreteSatStructEq kv tc t = concreteSatTC tc (structEqTC kv) t
 
-concreteSatTC :: TypeClasses -> Name -> Type -> Expr
-concreteSatTC tc tcn t@(TyConApp _ ts) =
+concreteSatTC :: TypeClasses -> Name -> Type -> Maybe Expr
+concreteSatTC tc tcn t
+    | TyConApp _ _ <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , tcs <- map (concreteSatTC tc tcn) ts
+    , all (isJust) tcs =
     case lookupTCDict tc tcn t of
-        Just i -> foldl' App (Var i) $ map Type ts ++  map (concreteSatTC tc tcn) ts
-        Nothing -> error $ "Unknown typeclass in concreteSatTC"
-concreteSatTC tc tcn t =
-    case lookupTCDict tc tcn t of
-        Just i -> Var i
-        Nothing -> error "Unknown typeclass in concreteSatTC"
+        Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
+        Nothing -> Nothing
+concreteSatTC tc tcn t = fmap Var (lookupTCDict tc tcn t)
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments

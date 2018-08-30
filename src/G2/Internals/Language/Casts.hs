@@ -13,6 +13,8 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
+import Debug.Trace
+
 -- | unsafeElimCast
 -- Removes all casts from the expression.  Makes no guarentees about the type
 -- correctness of the resulting expression.  In particular, the expression
@@ -36,7 +38,7 @@ splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
     let
         (i, ng') = freshId t1 ng
 
-        e' = Lam i $ 
+        e' = Lam TermL i $ 
                 (Cast 
                     (App 
                         e
@@ -53,7 +55,7 @@ splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr n
 
         (i, ng') = freshId t1 ng
 
-        e' = Lam i $ 
+        e' = Lam TypeL i $ 
                 (Cast 
                     (App 
                         e
@@ -78,8 +80,9 @@ simplifyCasts' e
     -- , t1 == t2
         = Cast e' (t1 :~ t2)
     | (Cast e' (t1 :~ t2)) <- e
-    , t2 .:: t1
+    , PresType t2 .:: t1
         = e'
+    | Cast e' (t1 :~ t2) <- e = trace (show e) e
     | otherwise = e
 
 -- | liftCasts

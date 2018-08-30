@@ -506,7 +506,7 @@ smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
-    Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyConApp (Name "Bool" Nothing 0 Nothing) []))
+    Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyConApp (Name "Bool" Nothing 0 Nothing) TYPE))
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
@@ -514,7 +514,7 @@ sortToType :: Sort -> Type
 sortToType (SortInt) = TyLitInt
 sortToType (SortFloat) = TyLitFloat
 sortToType (SortDouble) = TyLitDouble
-sortToType (SortBool) = TyConApp (Name "Bool" Nothing 0 Nothing) []
+sortToType (SortBool) = TyConApp (Name "Bool" Nothing 0 Nothing) TYPE
 
 modelAsExpr :: SMTModel -> Model
 modelAsExpr = M.mapKeys strToName . M.map smtastToExpr

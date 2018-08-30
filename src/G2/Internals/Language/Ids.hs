@@ -23,7 +23,7 @@ instance Ided Expr where
             go (Var i) = [i]
             go (Prim _ t) = ids t
             go (Data d) = ids d
-            go (Lam i _) = [i]
+            go (Lam _ i _) = [i]
             go (Let b _) = concatMap (ids . fst) b
             go (Case _ i a) = i:concatMap (ids . altMatch) a
             go (Type t) = ids t

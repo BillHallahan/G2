@@ -123,7 +123,7 @@ instantitateTypes tc kv ts =
         ex = map (Type . snd) tv' ++ map Var vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
     in
-    (ex, modifyContainedASTs typeOf tss)
+    (ex, tss)
 
 -- From the given list, selects the Type to instantiate a TyVar with
 pickForTyVar :: KnownValues -> [Type] -> Type

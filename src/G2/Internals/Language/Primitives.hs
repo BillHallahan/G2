@@ -70,7 +70,7 @@ findPrim prim (p@(Name occ _ _ _, _):ps) =
 mkRawPrim :: [(Name, Type)] -> Name -> Expr
 mkRawPrim primtys name@(Name occ _ _ _) = 
         case prim of
-            Just _ -> foldr Lam cases ids
+            Just _ -> foldr (Lam TypeL) cases ids
             Nothing -> Prim Undefined TyBottom
   where
     prim = strToPrim occ
@@ -96,7 +96,7 @@ mkRawPrim primtys name@(Name occ _ _ _) =
 -- | Primitive lookup helpers
 
 mkPrim :: Primitive -> E.ExprEnv -> Expr
-mkPrim p eenv = case(inClasses, inNum, inPrelude, inClasses2, inBase2, inReal) of
+mkPrim p eenv = case (inClasses, inNum, inPrelude, inClasses2, inBase2, inReal) of
     (Just e, _, _, _, _, _) -> e
     (_, Just e, _, _, _, _) -> e
     (_, _, Just e, _, _, _) -> e

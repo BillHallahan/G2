@@ -94,7 +94,7 @@ mkApplyFuncAndTypes' ((t, n):xs) funcT (FuncInterps fi) at = do
     -- Update type environment
     applyCons <- freshSeededNamesN funcs
     
-    let dcs = map (\dcn -> DataCon dcn (TyConApp n [])) applyCons
+    let dcs = map (\dcn -> DataCon dcn (TyConApp n TYPE)) applyCons
         adt = DataTyCon [] dcs
     insertT n adt
 
@@ -106,11 +106,11 @@ mkApplyFuncAndTypes' ((t, n):xs) funcT (FuncInterps fi) at = do
     applyFuncN <- freshSeededStringN "applyFunc"
 
     -- Update Apply Types
-    let applyFunc = Id applyFuncN (TyFun (TyConApp n []) t)
+    let applyFunc = Id applyFuncN (TyFun (TyConApp n TYPE) t)
         at2 = AT.insert t n applyFunc at
 
     -- Update expression enviroment
-    expr <- mkApplyTypeMap (zip applyCons funcFolds) (TyConApp n []) t
+    expr <- mkApplyTypeMap (zip applyCons funcFolds) (TyConApp n TYPE) t
 
     insertE applyFuncN expr
 
@@ -124,7 +124,7 @@ mkApplyTypeMap appToFunc appT funcT = do
 
     let c = Case (Var lamId) caseId $ map (mkApplyTypeMap' appT funcT) appToFunc
 
-    return $ Lam lamId c
+    return $ Lam TermL lamId c
 
 unrollNamedTyForAll :: Type -> ([Id], Type)
 unrollNamedTyForAll (TyForAll (NamedTyBndr i) ty) =

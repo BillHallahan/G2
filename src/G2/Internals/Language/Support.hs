@@ -3,8 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module G2.Internals.Language.Support
-    ( module G2.Internals.Language.ArbValueGen
-    , module G2.Internals.Language.AST
+    ( module G2.Internals.Language.AST
     , module G2.Internals.Language.Support
     , module G2.Internals.Language.TypeEnv
     , AT.ApplyTypes
@@ -18,7 +17,6 @@ module G2.Internals.Language.Support
     ) where
 
 import qualified G2.Internals.Language.ApplyTypes as AT
-import G2.Internals.Language.ArbValueGen
 import G2.Internals.Language.AST
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.KnownValues
@@ -100,6 +98,12 @@ type Walkers = M.Map Name Id
 
 -- Map new names to old ones
 type CleanedNames = M.Map Name Name
+
+data ArbValueGen = ArbValueGen { intGen :: Integer
+                               , floatGen :: Rational
+                               , doubleGen :: Rational
+                               , boolGen :: Bool
+                               } deriving (Show, Eq, Read)
 
 -- | Naive expression lookup by only the occurrence name string.
 naiveLookup :: T.Text -> E.ExprEnv -> [(Name, Expr)]

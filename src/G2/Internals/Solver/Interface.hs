@@ -38,19 +38,25 @@ subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc []) . filterTC tc
 
 subVar' :: Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
 subVar' em eenv tc is v@(Var i@(Id n _))
-    | i `notElem` is =
-    case M.lookup n em of
-        Just e -> subVar' em eenv tc (i:is) $ filterTC tc e
-        Nothing -> case E.lookup n eenv of
-            Just e -> if (isExprValueForm e eenv && notLam e) || isApp e || isVar e
-                        then subVar' em eenv tc (i:is) $ filterTC tc e
-                        else v
-            Nothing -> v
+    | i `notElem` is
+    , Just e <- M.lookup n em =
+        subVar' em eenv tc (i:is) $ filterTC tc e
+    | i `notElem` is
+    , Just e <- E.lookup n eenv
+    , (isExprValueForm e eenv && notLam e) || isApp e || isVar e =
+        subVar' em eenv tc (i:is) $ filterTC tc e
+    -- case M.lookup n em of
+    --     Just e -> trace ("e1 = " ++ show e) subVar' em eenv tc (i:is) $ filterTC tc e
+    --     Nothing -> case E.lookup n eenv of
+    --         Just e -> if (isExprValueForm e eenv && notLam e) || isApp e || isVar e
+    --                     then trace ("e2 = " ++ show e) subVar' em eenv tc (i:is) $ filterTC tc e
+    --                     else trace ("e3 = " ++ show e) v
+    --         Nothing -> trace ("v1 = " ++ show v) v
     | otherwise = v
 subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 
 notLam :: Expr -> Bool
-notLam (Lam _ _) = False
+notLam (Lam _ _ _) = False
 notLam _ = True
 
 isApp :: Expr -> Bool

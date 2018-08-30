@@ -111,7 +111,7 @@ exprNames = evalASTs exprTopNames
 
 exprTopNames :: Expr -> [Name]
 exprTopNames (Var var) = [idName var]
-exprTopNames (Lam b _) = [idName b]
+exprTopNames (Lam _ b _) = [idName b]
 exprTopNames (Let kvs _) = map (idName . fst) kvs
 exprTopNames (Case _ cvar as) = idName cvar :
                                 concatMap (\(Alt am _) -> altMatchNames am)
@@ -186,7 +186,7 @@ instance Named Expr where
             go (Var i) = names i
             go (Prim _ t) = names t
             go (Data d) = names d
-            go (Lam i _) = names i
+            go (Lam _ i _) = names i
             go (Let b _) = concatMap (names . fst) b
             go (Case _ i a) = names i ++ concatMap (names . altMatch) a
             go (Type t) = names t
@@ -200,7 +200,7 @@ instance Named Expr where
         go :: Expr -> Expr
         go (Var i) = Var (rename old new i)
         go (Data d) = Data (rename old new d)
-        go (Lam i e) = Lam (rename old new i) e
+        go (Lam u i e) = Lam u (rename old new i) e
         go (Let b e) =
             let b' = map (\(n, e') -> (rename old new n, e')) b
             in Let b' e
@@ -220,7 +220,7 @@ instance Named Expr where
             go :: Expr -> Expr
             go (Var i) = Var (renames hm i)
             go (Data d) = Data (renames hm d)
-            go (Lam i e) = Lam (renames hm i) e
+            go (Lam u i e) = Lam u (renames hm i) e
             go (Let b e) = 
                 let b' = map (\(n, e') -> (renames hm n, e')) b
                 in Let b' e
@@ -242,7 +242,7 @@ renameExpr old new = modifyASTs (renameExpr' old new)
 renameExpr' :: Name -> Name -> Expr -> Expr
 renameExpr' old new (Var i) = Var (renameExprId old new i)
 renameExpr' old new (Data d) = Data (renameExprDataCon old new d)
-renameExpr' old new (Lam i e) = Lam (renameExprId old new i) e
+renameExpr' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
 renameExpr' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAlt old new) a
 renameExpr' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
@@ -254,7 +254,7 @@ renameVars old new = modifyASTs (renameVars' old new)
 
 renameVars' :: Name -> Name -> Expr -> Expr
 renameVars' old new (Var i) = Var (renameExprId old new i)
-renameVars' old new (Lam i e) = Lam (renameExprId old new i) e
+renameVars' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameVars' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
 renameVars' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAltIds old new) a
 renameVars' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
@@ -384,8 +384,8 @@ instance Named FuncCall where
 
 
 instance Named AlgDataTy where
-    names (DataTyCon ns dc) = ns ++ names dc
-    names (NewTyCon ns dc rt) = ns ++ names dc ++ names rt
+    names (DataTyCon ns dc) = names ns ++ names dc
+    names (NewTyCon ns dc rt) = names ns ++ names dc ++ names rt
     names (TypeSynonym st) = names st
 
     rename old new (DataTyCon n dc) = DataTyCon (rename old new n) (rename old new dc)

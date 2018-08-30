@@ -58,6 +58,11 @@ data Id = Id Name Type deriving (Show, Eq, Read, Generic)
 
 instance Hashable Id
 
+-- | Term lambdas bind variables in Expr's, Type lambdas bind variables in Type's
+data LamUse = TermL | TypeL deriving (Show, Eq, Read, Generic)
+
+instance Hashable LamUse
+
 idName :: Id -> Name
 idName (Id name _) = name
  
@@ -76,7 +81,7 @@ data Expr = Var Id
           | Prim Primitive Type
           | Data DataCon
           | App Expr Expr
-          | Lam Id Expr
+          | Lam LamUse Id Expr
           | Let Binds Expr
           | Case Expr Id [Alt]
           | Type Type
@@ -193,12 +198,14 @@ data Type = TyVar Id
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
           | TyFun Type Type
           | TyApp Type Type
-          | TyConApp Name [Type]
+          | TyConApp Name Kind
           | TyForAll TyBinder Type
           | TyBottom
           | TYPE
           | TyUnknown
           deriving (Show, Eq, Read, Generic)
+
+type Kind = Type
 
 instance Hashable Type
 

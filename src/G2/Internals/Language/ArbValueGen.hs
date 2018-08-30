@@ -3,21 +3,21 @@ module G2.Internals.Language.ArbValueGen ( ArbValueGen
                                          , arbValue) where
 
 import G2.Internals.Language.AST
+import G2.Internals.Language.Expr
+import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeEnv
+import G2.Internals.Language.Typing
 
 import Data.Coerce
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
+import Data.Ord
 import Data.Tuple
 
-data ArbValueGen = ArbValueGen { intGen :: Integer
-                               , floatGen :: Rational
-                               , doubleGen :: Rational
-                               , boolGen :: Bool
-                               } deriving (Show, Eq, Read)
+import Debug.Trace
 
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
@@ -31,10 +31,18 @@ arbValueInit = ArbValueGen { intGen = 0
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue (TyConApp n ts) tenv av =
-  maybe (Prim Undefined TyBottom, av) 
-          (\adt -> getADT tenv adt ts av)
+arbValue t tenv av
+  | TyConApp n _ <- tyAppCenter t
+  , ts <- tyAppArgs t =
+    maybe (Prim Undefined TyBottom, av) 
+          (\adt -> getFiniteADT tenv av adt ts)
           (M.lookup n tenv)
+arbValue (TyApp t1 t2) tenv av =
+  let
+      (e1, av') = arbValue t1 tenv av
+      (e2, av'') = arbValue t2 tenv av'
+  in
+  (App e1 e2, av'')
 arbValue TyLitInt _ av =
     let
         i = intGen av
@@ -52,82 +60,37 @@ arbValue TyLitDouble _ av =
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
 arbValue _ _ av = (Prim Undefined TyBottom, av)-- error $ "Bad type in arbValue: " ++ show t
 
--- | numArgs
-numArgs :: DataCon -> Int
-numArgs = length . dataConArgs
-
-minArgLen :: [DataCon] -> DataCon
-minArgLen [] = error "Empty list in minArgLen"
-minArgLen xs = minimumBy (\dc dc' -> numArgs dc `compare` numArgs dc') xs
-
-minArgLenADT :: AlgDataTy -> DataCon
-minArgLenADT = minArgLen . dataCon
-
--- | numRecArgs
--- Just the minimum number of constructors that must exist below the current DataCon
--- or Nothing if there is no such number (the number of constructors must be infinite)
-numRecArgsADT :: TypeEnv -> AlgDataTy -> Maybe Int
-numRecArgsADT = coerce . numRecArgsADT' []
-
-numRecArgsADT' :: [Name] -> TypeEnv -> AlgDataTy -> Maybe (Sum Int)
-numRecArgsADT' ns tenv adt 
-    | dc <- minArgLenADT adt
-    , numArgs dc == 0 = Just $ Sum 0
-    | dcs <- filter ( noTyConsNamed ns . dataConArgs) $ dataCon adt
-    , re <- mapMaybe ( mconcat 
-                     . mapMaybe (\n -> fmap (numRecArgsADT' (n:ns) tenv) $ M.lookup n tenv)
-                     . mapMaybe tyConAppName
-                     . dataConArgs) dcs
-    , length re /= 0 =
-        Just $ minimum re
-    | otherwise = Nothing
-
-tyConAppName :: Type -> Maybe Name
-tyConAppName (TyConApp n _) = Just n
-tyConAppName _ = Nothing
-
-getADT :: TypeEnv -> AlgDataTy -> [Type] -> ArbValueGen -> (Expr, ArbValueGen)
-getADT = getADT' []
-
-getADT' :: [Name] -> TypeEnv -> AlgDataTy -> [Type] -> ArbValueGen -> (Expr, ArbValueGen)
-getADT' ns tenv adt ts av
-    | dc <- minArgLenADT adt
-    , numArgs dc == 0
-        = (Data dc, av)
-    | dcs <- filter (noTyConsNamed ns . dataConArgs) $ dataCon adt
-    , Just dc <- minimumByMaybe (\x y -> snd x ` compare` snd y) $ map (scoreTuple tenv) dcs
-        =
-        let
-            tv = map (TyVar . flip Id TYPE) $ bound_names adt
-            dca = dataConArgs $ fst dc
-            (av', es) = mapAccumR (\av'' t -> swap $ arbValue t tenv av'') av $ foldr (uncurry replaceASTs) dca $ zip tv ts
-            e = foldl' App (Data $ fst dc) es
-        in
-        (e, av')
-    | otherwise = (Prim Undefined TyBottom, av)
-
-minimumByMaybe :: (a -> a -> Ordering) -> [a] -> Maybe a
-minimumByMaybe _ [] = Nothing
-minimumByMaybe f xs = Just $ minimumBy f xs
-
-noTyConsNamed :: [Name] -> [Type] -> Bool
-noTyConsNamed ns = not . any (flip elem ns) . mapMaybe tyConAppName
-
--- minConsTyCon :: TypeEnv -> [DataCon] -> DataCon
--- minConsTyCon tenv dc =
---     let
---         scored = mapMaybe (scoreTuple tenv) dc
---     in
---     undefined
-
-scoreTuple :: TypeEnv -> DataCon -> (DataCon, Int)
-scoreTuple tenv dc = 
+-- Generates an arbitrary value of the given ADT,
+-- but will return Undefined instead of an infinite Expr
+getFiniteADT :: TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getFiniteADT tenv av adt ts =
     let
-        score = mconcat
-              . catMaybes
-              . (coerce :: ([Maybe Int] -> [Maybe (Sum Int)]))
-              . mapMaybe (\n -> fmap (numRecArgsADT tenv) $ M.lookup n tenv) 
-              . mapMaybe tyConAppName
-              . dataConArgs $ dc
+        (e, av') = getADT tenv av adt ts
     in
-    (dc, coerce score)
+    (cutOff [] e, av')
+
+cutOff :: [Name] -> Expr -> Expr
+cutOff ns a@(App _ _)
+    | Data (DataCon n _) <- appCenter a =
+        case n `elem` ns of
+            True -> Prim Undefined TyBottom
+            False -> mapArgs (cutOff (n:ns)) a
+cutOff ns e = e
+
+-- | Generates an arbitrary value of the given AlgDataTy
+-- If there is no such finite value, this may return an infinite Expr
+getADT :: TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getADT tenv av adt ts =
+    let
+        dcs = dataCon adt
+        ids = boundIds adt
+
+        -- Finds the DataCon for adt with the least arguments
+        min_dc = minimumBy (comparing (length . dataConArgs)) dcs
+
+        tyVIds = map TyVar ids
+        min_dc' = foldr (uncurry replaceASTs) min_dc $ zip tyVIds ts
+
+        (es, _) = unzip $ map (\t -> arbValue t tenv av) $ dataConArgs min_dc 
+    in
+    (mkApp $ Data min_dc':es, av)

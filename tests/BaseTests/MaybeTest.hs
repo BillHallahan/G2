@@ -6,6 +6,10 @@ import Data.Maybe
 -- averageF :: [Float] -> Float
 -- averageF xs = sumN xs / lengthF xs
 
+head :: [a] -> a
+head (x:xs) = x
+head _ = error "head"
+
 sumN :: Num a => [a] -> a
 sumN (x:xs) = x + sumN xs
 sumN _ = 0

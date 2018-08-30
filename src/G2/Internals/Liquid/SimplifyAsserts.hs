@@ -71,12 +71,12 @@ isRedundantNestedArg' _ _ _ = False
 isRedundantArg :: KnownValues -> TCValues -> Expr -> Bool
 isRedundantArg _ _ (Type _) = True
 isRedundantArg _ tcv (Var (Id _ (TyConApp n _))) = n == lhTC tcv
-isRedundantArg kv _ l@(Lam _ _) = isIdentity kv l
+isRedundantArg kv _ l@(Lam _ _ _) = isIdentity kv l
 isRedundantArg _ tcv a@(App _ _) = isNestedLHTC tcv a
 isRedundantArg _ _ _ = False
 
 isIdentity :: KnownValues -> Expr -> Bool
-isIdentity kv (Lam _ (Data (DataCon n _))) = n == dcTrue kv
+isIdentity kv (Lam _ _ (Data (DataCon n _))) = n == dcTrue kv
 isIdentity _ _ = False
 
 -- | elimCalls2

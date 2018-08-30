@@ -23,14 +23,14 @@ specialTypes' (n, m, ns) dcn =
         tn = Name n m 0 Nothing
         dc = map (specialDC ns tn) dcn
     in
-    (tn, DataTyCon {bound_names = ns, data_cons = dc})
+    (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc})
 
 specialDC :: [Name] -> Name -> (T.Text, Maybe T.Text, [Type]) -> DataCon
 specialDC ns tn (n, m, ts) = 
     let
         tv = map (TyVar . flip Id TYPE) ns
 
-        t = foldr (TyFun) (TyConApp tn tv) ts
+        t = foldr (TyFun) (mkTyConApp tn tv TYPE) ts
         t' = foldr (\n' -> TyForAll (NamedTyBndr (Id n' TYPE))) t ns
     in
     DataCon (Name n m 0 Nothing) t'
@@ -61,7 +61,7 @@ specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
 specials = [ (( "[]"
               , Just "GHC.Types", [aName])
               , [ ("[]", Just "GHC.Types", [])
-                , (":", Just "GHC.Types", [aTyVar, TyConApp listName [aTyVar]])]
+                , (":", Just "GHC.Types", [aTyVar, mkTyConApp listName [aTyVar] TYPE])]
              )
 
            -- , (("Int", Just "GHC.Types"), [("I#", Just "GHC.Types", [TyLitInt])])

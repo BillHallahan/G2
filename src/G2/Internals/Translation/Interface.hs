@@ -45,8 +45,8 @@ translateLoadedV proj src libs simpl config = do
 
   (lib_transs, lib_nm, lib_tnm, lib_exp) <- translateLibs b_nm b_tnm simpl (Just HscInterpreted) libs
 
-  let base_prog' = addPrimsToBase base_prog
   let base_tys' = base_tys ++ specialTypes
+  let base_prog' = addPrimsToBase base_tys' base_prog
   let base_trans' = (base_prog', base_tys', base_cls)
 
   let merged_lib = mergeTranslates ([base_trans', lib_transs])
@@ -62,8 +62,10 @@ translateLoadedV proj src libs simpl config = do
   -- let (near_final_prog, final_tys) = primInject (merged_prog, merged_tys)
   let (near_final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys
 
+  let final_merged_cls = primInject merged_cls
+
 
   final_prog <- absVarLoc near_final_prog
 
-  return (fmap T.pack mb_modname, final_prog, final_tys, merged_cls, map T.pack tgt_lhs, ns, b_exp ++ lib_exp ++ h_exp)
+  return (fmap T.pack mb_modname, final_prog, final_tys, final_merged_cls, map T.pack tgt_lhs, ns, b_exp ++ lib_exp ++ h_exp)
 

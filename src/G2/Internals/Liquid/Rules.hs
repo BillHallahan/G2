@@ -107,7 +107,7 @@ symbState ns eenv
         cexprT = returnType cexpr
 
         (t, atf) = case AT.lookup cexprT at of
-                        Just (t', f) -> (TyConApp t' [], App (Var f))
+                        Just (t', f) -> (TyConApp t' TYPE, App (Var f))
                         Nothing -> (cexprT, id)
 
         (i, ng') = freshId t ng
@@ -142,7 +142,7 @@ initialTrack eenv (Var (Id n _)) =
         Just _ -> 1
         Nothing -> 0
 initialTrack eenv (App e e') = initialTrack eenv e + initialTrack eenv e'
-initialTrack eenv (Lam _ e) = initialTrack eenv e
+initialTrack eenv (Lam _ _ e) = initialTrack eenv e
 initialTrack eenv (Let b e) = initialTrack eenv e + (getSum $ evalContainedASTs (Sum . initialTrack eenv) b)
 initialTrack eenv (Case e _ a) = initialTrack eenv e + (getMax $ evalContainedASTs (Max . initialTrack eenv) a)
 initialTrack eenv (Cast e _) = initialTrack eenv e
@@ -164,7 +164,7 @@ mkInferredAssumptions' ret_ars (e:es) =
     (mkApp app):mkInferredAssumptions' ret_ars es
 
 countLams :: Expr -> Int
-countLams (Lam _ e) = 1 + countLams e
+countLams (Lam _ _ e) = 1 + countLams e
 countLams _ = 0
 
 data LHTracker = LHTracker { abstract_calls :: [FuncCall]
