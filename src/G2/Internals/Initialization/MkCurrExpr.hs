@@ -12,9 +12,11 @@ import qualified G2.Internals.Language.ExprEnv as E
 import Data.List
 import qualified Data.Text as T
 
+import Debug.Trace
+
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text
            -> TypeClasses -> NameGen -> ExprEnv -> Walkers
-           -> KnownValues -> Config -> (Expr, [Id], NameGen)
+           -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
 mkCurrExpr m_assume m_assert s m_mod tc ng eenv walkers kv config =
     case findFunc s m_mod eenv of
         Left (f, ex) -> 
@@ -42,7 +44,7 @@ mkCurrExpr m_assume m_assert s m_mod tc ng eenv walkers kv config =
                 
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
-            (let_ex, is, ng'')
+            (let_ex, is, typsE, ng'')
         Right s' -> error s'
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
@@ -110,7 +112,7 @@ instantitateTypes tc kv ts =
         ts' = map typeTBType $ filter (not . typeB) ts
         tcSat = satisfyingTCTypes tc ts'
 
-        -- If a type has not type class constraints, it will not be returned by satisfyingTCTypes.
+        -- If a type has no type class constraints, it will not be returned by satisfyingTCTypes.
         -- So we re-add it here
         tcSat' = reAddNoCons kv tcSat tv
 

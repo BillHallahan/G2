@@ -51,6 +51,7 @@ data State t = State { expr_env :: E.ExprEnv
                      , type_classes :: TypeClasses
                      , sym_links :: SymLinks
                      , input_ids :: InputIds
+                     , fixed_inputs :: [Expr]
                      , symbolic_ids :: SymbolicIds
                      , func_table :: FuncInterps
                      , deepseq_walkers :: Walkers
@@ -167,6 +168,7 @@ renameState old new_seed s =
              , assert_ids = rename old new (assert_ids s)
              , type_classes = rename old new (type_classes s)
              , input_ids = rename old new (input_ids s)
+             , fixed_inputs = rename old new (fixed_inputs s)
              , symbolic_ids = rename old new (symbolic_ids s)
              , sym_links = rename old new (sym_links s)
              , func_table = rename old new (func_table s)
@@ -189,6 +191,7 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
             ++ names (assert_ids s)
             ++ names (type_classes s)
             ++ names (input_ids s)
+            ++ names (fixed_inputs s)
             ++ names (symbolic_ids s)
             ++ names (sym_links s)
             ++ names (func_table s)
@@ -213,6 +216,7 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
                , input_ids = rename old new (input_ids s)
+               , fixed_inputs = rename old new (fixed_inputs s)
                , symbolic_ids = rename old new (symbolic_ids s)
                , sym_links = rename old new (sym_links s)
                , func_table = rename old new (func_table s)
@@ -240,6 +244,7 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
                , input_ids = renames hm (input_ids s)
+               , fixed_inputs = renames hm (fixed_inputs s)
                , symbolic_ids = renames hm (symbolic_ids s)
                , sym_links = renames hm (sym_links s)
                , func_table = renames hm (func_table s)
@@ -263,6 +268,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr 
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ sym_links s) ++
                       (containedASTs $ input_ids s) ++
+                      (containedASTs $ fixed_inputs s) ++
                       (containedASTs $ symbolic_ids s) ++
                       (containedASTs $ exec_stack s) ++
                       (containedASTs $ track s)
@@ -274,6 +280,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr 
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , sym_links = modifyContainedASTs f $ sym_links s
                                 , input_ids = modifyContainedASTs f $ input_ids s
+                                , fixed_inputs = modifyContainedASTs f $ fixed_inputs s
                                 , symbolic_ids = modifyContainedASTs f $ symbolic_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s }
@@ -287,6 +294,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Type => ASTContainer (State t) Type 
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . sym_links) s) ++
                       ((containedASTs . input_ids) s) ++
+                      ((containedASTs . fixed_inputs) s) ++
                       ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . exec_stack) s) ++
                       (containedASTs $ track s)
@@ -299,6 +307,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Type => ASTContainer (State t) Type 
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , sym_links = (modifyContainedASTs f . sym_links) s
                                 , input_ids = (modifyContainedASTs f . input_ids) s
+                                , fixed_inputs = (modifyContainedASTs f . fixed_inputs) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s }

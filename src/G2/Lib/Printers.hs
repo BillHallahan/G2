@@ -48,12 +48,10 @@ mkCleanExprHaskell' at kv tc e
     , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv = e'
     | (App e' e'') <- e
     , t <- typeOf e'
-    , TyConApp n _ <- t
-    , isTypeClassNamed n tc = e''
+    , isTypeClass tc t = e''
     | (App e' e'') <- e
     , t <- typeOf e''
-    , TyConApp n _ <- t
-    , isTypeClassNamed n tc = e'
+    , isTypeClass tc t = e'
     | App e' (Type _) <- e = e'
     | App _ e'' <- e
     , (Var (Id n _)) <- appCenter e

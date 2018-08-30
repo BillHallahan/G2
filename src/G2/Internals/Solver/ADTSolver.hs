@@ -23,8 +23,6 @@ import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
 
-import Debug.Trace
-
 data ADTSolver = ADTSolver
 
 instance Solver ADTSolver where
@@ -80,7 +78,7 @@ solveADTs s [Id n t] pc
         case r of
             SAT -> return (r, Just . liftCasts $ model s')
             r' -> return (r', Nothing)
-solveADTs _ i _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
+solveADTs _ _ _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
 
 -- | addADTs
 -- Determines an ADT based on the path conds.  The path conds form a witness.
@@ -155,7 +153,7 @@ pcVarType (AltCond _ (Var (Id _ t)) _:pc)
     | TyConApp n _ <- tyAppCenter t = pcVarType' n pc
 pcVarType (ConsCond _ (Var (Id _ t)) _:pc)
     | TyConApp n _ <- tyAppCenter t = pcVarType' n pc
-pcVarType p = Nothing
+pcVarType _ = Nothing
 
 pcVarType' :: Name -> [PathCond] -> Maybe Name
 pcVarType' n (AltCond _ (Var (Id _ t)) _:pc)

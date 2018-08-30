@@ -60,7 +60,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
-        (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc ng' eenv' ds_walkers kv config
+        (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert f m_mod tc ng' eenv' ds_walkers kv config
 
         eenv'' = checkReaches eenv' tenv' kv m_reaches m_mod
     in
@@ -75,6 +75,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , assert_ids = Nothing
     , type_classes = tc'
     , input_ids = is
+    , fixed_inputs = f_i
     , symbolic_ids = is
     , sym_links = Sym.empty
     , func_table = ft
@@ -136,6 +137,6 @@ run red hal ord con pns config (is@State { type_env = tenv
 
     let sm' = map (\sm''@(s, _, _, _) -> runPostprocessing s sm'') sm
 
-    let sm'' = map (\(s, es, e, ais) -> (s, es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
+    let sm'' = map (\(s, es, e, ais) -> (s, fixed_inputs s ++ es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
 
     return sm''

@@ -64,6 +64,7 @@ isTypeClassNamed n = M.member n . (coerce :: TypeClasses -> TCType)
 
 isTypeClass :: TypeClasses -> Type -> Bool
 isTypeClass tc (TyConApp n _) = isTypeClassNamed n tc 
+isTypeClass tc (TyApp t _) = isTypeClass tc t
 isTypeClass _ _ = False
 
 instance ASTContainer TypeClasses Expr where
@@ -156,18 +157,14 @@ satisfyingTCTypes tc ts =
 -- See satisfyingTCTypes
 satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
 satisfyTCReq tc ts =
-    map (\(i, ts') -> (i, mapMaybe tyConAppName ts'))
+    map (\(i, ts') -> (i, mapMaybe (tyConAppName . tyAppCenter) ts'))
     $ mapMaybe toIdTypeTup
     $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
-    $ filter (typeClassReq tc) ts
+    $ filter (isTypeClass tc) ts
 
 toIdTypeTup :: [Type] -> Maybe (Id, [Type])
 toIdTypeTup ts@(TyApp (TyConApp _ _) (TyVar i):_) = Just (i, ts)
 toIdTypeTup _ = Nothing
-
-typeClassReq :: TypeClasses -> Type -> Bool
-typeClassReq tc (TyConApp n _) = isTypeClassNamed n tc
-typeClassReq _ _ = False
 
 tyConAppName :: Type -> Maybe Name
 tyConAppName (TyConApp n _) = Just n
