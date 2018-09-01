@@ -31,8 +31,6 @@ import G2.Internals.Solver.Language hiding (Assert)
 import Control.Monad
 import Data.Maybe
 
-import Debug.Trace
-
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
 

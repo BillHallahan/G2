@@ -15,8 +15,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import Debug.Trace
-
 -- | createStructEqFuncs
 -- Creates a typeclass to compare two ADTs based on there structural equality-
 -- that is, compare if they have exactly the same (possibly recursive) constructors.

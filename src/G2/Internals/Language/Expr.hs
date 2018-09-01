@@ -61,8 +61,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
 
-import Debug.Trace
-
 replaceVar :: (ASTContainer m Expr) => Name -> Expr -> m -> m
 replaceVar n re = modifyASTs (replaceVar' n re)
 

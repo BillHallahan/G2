@@ -17,8 +17,6 @@ import Data.Monoid
 import Data.Ord
 import Data.Tuple
 
-import Debug.Trace
-
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
                            , floatGen = 0

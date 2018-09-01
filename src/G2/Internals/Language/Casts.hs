@@ -13,8 +13,6 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
-import Debug.Trace
-
 -- | unsafeElimCast
 -- Removes all casts from the expression.  Makes no guarentees about the type
 -- correctness of the resulting expression.  In particular, the expression
@@ -82,7 +80,7 @@ simplifyCasts' e
     | (Cast e' (t1 :~ t2)) <- e
     , PresType t2 .:: t1
         = e'
-    | Cast e' (t1 :~ t2) <- e = trace (show e) e
+    | Cast e' (t1 :~ t2) <- e = e
     | otherwise = e
 
 -- | liftCasts
