@@ -184,10 +184,10 @@ createStructEqFuncDCAlt :: Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> IT.
 createStructEqFuncDCAlt e2 t bm dc@(DataCon _ ts) = do
     false <- mkFalseE
 
-    bs <- freshIdsN $ anonArgumentTypes ts
+    bs <- freshIdsN $ anonArgumentTypes dc
 
     b <- freshIdN t
-    bs2 <- freshIdsN $ anonArgumentTypes ts
+    bs2 <- freshIdsN $ anonArgumentTypes dc
 
     sEqCheck <- boundChecks bs bs2 bm
 
@@ -227,10 +227,18 @@ structEqCheck bm (TyVar (Id n _)) (Id n' _) (Id n'' _) = do
 
             return (App (App (App (App ex (Var ty)) (Var dict)) (Var (Id n' (TyVar ty)))) (Var (Id n'' (TyVar ty))))
         Nothing -> error "Unaccounted for TyVar in structEqCheck"
-structEqCheck _ TyLitInt i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
-structEqCheck _ TyLitFloat i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
-structEqCheck _ TyLitDouble i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
-structEqCheck _ TyLitChar i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
+structEqCheck _ TyLitInt i1 i2 = do
+    eq <- mkEqPrimIntE
+    return $ App (App eq (Var i1)) (Var i2)
+structEqCheck _ TyLitFloat i1 i2 = do
+    eq <- mkEqPrimFloatE
+    return $ App (App eq (Var i1)) (Var i2)
+structEqCheck _ TyLitDouble i1 i2 = do
+    eq <- mkEqPrimDoubleE
+    return $ App (App eq (Var i1)) (Var i2)
+structEqCheck _ TyLitChar i1 i2 = do
+    eq <- mkEqPrimCharE
+    return $ App (App eq (Var i1)) (Var i2)
 structEqCheck _ (TyForAll _ _) _ _ = mkTrueE
 structEqCheck _ (TyFun _ _) i1 i2 = return $ App (App (Prim BindFunc TyUnknown) (Var i1)) (Var i2) -- mkTrueE
 structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t

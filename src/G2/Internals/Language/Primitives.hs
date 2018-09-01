@@ -3,7 +3,7 @@
 module G2.Internals.Language.Primitives where
 
 import qualified G2.Internals.Language.ExprEnv as E
-import G2.Internals.Language.KnownValues 
+import G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
@@ -171,3 +171,20 @@ mkFromInteger = mkPrim FromInteger
 
 mkToInteger :: E.ExprEnv -> Expr
 mkToInteger = mkPrim ToInteger
+
+-- Primitives on primitive types
+mkEqPrimType :: Type -> KnownValues -> Expr
+mkEqPrimType t kv =
+    Prim Eq $ TyFun t (TyFun t (TyConApp (KV.tyBool kv) TYPE))
+
+mkEqPrimInt :: KnownValues -> Expr
+mkEqPrimInt = mkEqPrimType TyLitInt
+
+mkEqPrimFloat :: KnownValues -> Expr
+mkEqPrimFloat = mkEqPrimType TyLitFloat
+
+mkEqPrimDouble :: KnownValues -> Expr
+mkEqPrimDouble = mkEqPrimType TyLitDouble
+
+mkEqPrimChar :: KnownValues -> Expr
+mkEqPrimChar = mkEqPrimType TyLitChar

@@ -16,7 +16,11 @@ module G2.Internals.Language.Monad.Primitives ( mkGeE
                                               , mkImpliesE
                                               , mkIffE
                                               , mkFromIntegerE
-                                              , mkToIntegerE ) where
+                                              , mkToIntegerE
+                                              , mkEqPrimIntE
+                                              , mkEqPrimFloatE
+                                              , mkEqPrimDoubleE
+                                              , mkEqPrimCharE ) where
 
 import G2.Internals.Language.Primitives
 import G2.Internals.Language.Syntax
@@ -83,3 +87,18 @@ mkFromIntegerE = appExpr mkFromInteger
 
 mkToIntegerE :: ExState s m => m Expr
 mkToIntegerE = appExpr mkToInteger
+
+appKV :: ExState s m => (KnownValues -> Expr) -> m Expr
+appKV f = return . f =<< knownValues
+
+mkEqPrimIntE :: ExState s m => m Expr
+mkEqPrimIntE = appKV mkEqPrimInt
+
+mkEqPrimFloatE :: ExState s m => m Expr
+mkEqPrimFloatE = appKV mkEqPrimFloat
+
+mkEqPrimDoubleE :: ExState s m => m Expr
+mkEqPrimDoubleE = appKV mkEqPrimDouble
+
+mkEqPrimCharE :: ExState s m => m Expr
+mkEqPrimCharE = appKV mkEqPrimChar
