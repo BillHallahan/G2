@@ -91,8 +91,8 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUses.hs" 1600 Nothing Nothing "sum" 2 [AtLeast 3]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUses.hs" 1000 Nothing Nothing "dotProd" 3 [AtLeast 3]
 
-                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 600 Nothing Nothing "sumMinAndMax" 2 [AtLeast 10]
-                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "maxes" 3 [AtLeast 10]
+                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 600 Nothing Nothing "sumMinAndMax" 5 [AtLeast 10]
+                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "maxes" 7 [AtLeast 10]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchInt" 2 [AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "getInInt" 2 [AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchP" 2 [AtLeast 1]
@@ -208,9 +208,9 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 1 && y > 100), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 1 && (dcInAppHasName "J" y 2 || isError y)), AtLeast 2]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 4 && y > 100), Exactly 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 2 && (dcInAppHasName "J" y 2 || isError y)), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[App _ (Lit (LitInt x)), y] -> x < 0 && dcHasName "A" y)
                                                                                                               , RExists (\[App _ (Lit (LitInt x)), y] -> x >= 0 && dcHasName "C" y), Exactly 2]
