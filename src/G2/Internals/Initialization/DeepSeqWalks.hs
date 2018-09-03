@@ -74,14 +74,15 @@ createDeepSeqCase1 tenv w ti n rm bn (DataTyCon {data_cons = dc}) ng =
 createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
     let
         t' = mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE
+        t'' = renames rm t
 
         (i, ng') = freshId t' ng
-        (caseB, ng'') = freshId t ng'
+        (caseB, ng'') = freshId t'' ng'
 
-        cast = Cast (Var i) (t' :~ t)
+        cast = Cast (Var i) (t' :~ t'')
 
         e = deepSeqFuncCall w ti rm (Var caseB)
-        e' = Cast e (t :~ t')
+        e' = Cast e (t'' :~ t')
 
         alt = Alt Default e'
 

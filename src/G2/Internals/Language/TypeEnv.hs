@@ -102,13 +102,27 @@ baseDataCons = filter baseDataCon
 baseDataCon :: DataCon -> Bool
 baseDataCon (DataCon _ t) = not $ hasTyFuns t
 
-getCastedAlgDataTy :: Name -> TypeEnv -> Maybe AlgDataTy
-getCastedAlgDataTy n tenv =
-    case M.lookup n tenv of
-        Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy n' tenv
-        Just (NewTyCon {}) -> Nothing
-        dc@(Just (DataTyCon {})) -> dc
-        _ -> Nothing
+-- If the Type is a TyCon, (optionally) wrapped with TyApps,
+-- returns the AlgDataTy of the Cast type, along with mappings from
+-- the bound names of the cast type, to the types bound by the TyApps.
+getCastedAlgDataTy :: Type -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
+getCastedAlgDataTy t tenv
+    | TyConApp n _ <- tyAppCenter t
+    , ts <- tyAppArgs t =
+        case M.lookup n tenv of
+            Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy' n' ts tenv
+            Just (NewTyCon {}) -> Nothing
+            (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
+            _ -> Nothing
+    | otherwise = Nothing
+
+getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
+getCastedAlgDataTy' n ts tenv =
+        case M.lookup n tenv of
+            Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy' n' ts tenv
+            Just (NewTyCon {}) -> Nothing
+            (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
+            _ -> Nothing
 
 -- | selfRecursive
 -- Given a DataCon dc of type t, checks if one of the descendents of dc could

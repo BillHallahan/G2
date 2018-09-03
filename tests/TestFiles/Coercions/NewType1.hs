@@ -34,6 +34,9 @@ h = N X
 
 newtype W a = W a
 
+addW :: W Int -> W Int
+addW (W x) = W x
+
 mapW :: (a -> a) -> W a -> W a
 mapW f (W x) = W (f x)
 

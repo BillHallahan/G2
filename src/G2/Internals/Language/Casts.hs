@@ -64,7 +64,7 @@ splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr n
     in
     (e', ng')
 splitCast ng c@(Cast e (t1 :~ t2)) =
-    if hasFuncType t1 || hasFuncType t2 then (e, ng) else (c, ng)
+    if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
 splitCast ng e = (e, ng)
 
 -- | simplfyCasts
@@ -94,8 +94,6 @@ liftCasts' a@(App _ _) = liftCasts'' a
 liftCasts' e = e
 
 liftCasts'' :: Expr -> Expr
--- liftCasts'' (App (Cast f ((TyFun t1 t2) :~ (TyFun t1' t2'))) e) = 
---     Cast (App f e) (t2 :~ t2')
 liftCasts'' (App (Cast f (t1 :~ t2)) e)
     | (TyFun _ t1'') <- inTyForAlls t1
     , (TyFun _ t2'') <- inTyForAlls t2

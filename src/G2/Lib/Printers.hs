@@ -183,7 +183,8 @@ mkPrimHaskell Iff = "undefined"
 mkTypeHaskell :: Type -> String
 mkTypeHaskell (TyVar i) = mkIdHaskell i
 mkTypeHaskell (TyFun t1 t2) = mkTypeHaskell t1 ++ " -> " ++ mkTypeHaskell t2
-mkTypeHaskell (TyConApp n ts) = mkNameHaskell n ++ " " ++ mkTypeHaskell ts
+mkTypeHaskell (TyConApp n ts) = mkNameHaskell n
+mkTypeHaskell (TyApp t1 t2) = "(" ++ mkTypeHaskell t1 ++ " " ++ mkTypeHaskell t2 ++ ")"
 mkTypeHaskell _ = "Unsupported type in printer."
 
 duplicate :: String -> Int -> String

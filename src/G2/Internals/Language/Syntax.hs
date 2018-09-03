@@ -43,7 +43,7 @@ instance Hashable Span
 data Name = Name T.Text (Maybe T.Text) Int (Maybe Span) deriving (Show, Read, Generic)
 
 instance Eq Name where
-    Name n m i _ == Name n' m' i' _ = n ==n' && m == m' && i == i'
+    Name n m i _ == Name n' m' i' _ = n == n' && m == m' && i == i'
 
 instance Ord Name where
     Name n m i _ `compare` Name n' m' i' _ = (n, m, i) `compare` (n', m', i')
