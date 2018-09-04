@@ -17,6 +17,8 @@ import Data.Monoid
 import Data.Ord
 import Data.Tuple
 
+import Debug.Trace
+
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
                            , floatGen = 0
@@ -56,7 +58,7 @@ arbValue TyLitDouble _ av =
         d = doubleGen av
     in
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
-arbValue _ _ av = (Prim Undefined TyBottom, av)-- error $ "Bad type in arbValue: " ++ show t
+arbValue _ _ av = (Prim Undefined TyBottom, av)
 
 -- Generates an arbitrary value of the given ADT,
 -- but will return Undefined instead of an infinite Expr

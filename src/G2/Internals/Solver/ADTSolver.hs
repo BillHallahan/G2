@@ -89,15 +89,15 @@ addADTs n tn ts k s pc
         -- We map names over the arguments of a DataCon, to make sure we have the correct
         -- number of undefined's.
         ts'' = case exprInCasts fdc of
-            Data (DataCon _ ts') -> map (const $ Name "a" Nothing 0 Nothing) $ anonArgumentTypes $ PresType ts'
-            _ -> [Name "b" Nothing 0 Nothing]
+            Data (DataCon _ ts') -> anonArgumentTypes $ PresType ts'
+            _ -> [] -- [Name "b" Nothing 0 Nothing]
 
-        (ns, _) = childrenNames n ts'' (name_gen s)
+        (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) ts'') (name_gen s)
 
-        vs = map (\n' -> 
+        vs = map (\(n', t') -> 
                 case E.lookup n' eenv of
                     Just e -> e
-                    Nothing -> Prim Undefined TyBottom) ns
+                    Nothing -> fst $ arbValue t' (type_env s) (arbValueGen s)) $ zip ns ts''
         
         dc = mkApp $ fdc:map Type ts2 ++ vs
 
