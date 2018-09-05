@@ -70,6 +70,7 @@ createStructEqFuncs ts = do
 
 tcaName :: Type -> Maybe Name
 tcaName (TyConApp n _) = Just n
+tcaName (TyApp t _) = tcaName t
 tcaName _ = Nothing
 
 genExtractor :: Type -> DataCon  -> IT.SimpleStateM Name
@@ -210,7 +211,8 @@ boundCheck bm i1 i2 = do
     structEqCheck bm (typeOf i1) i1 i2
 
 structEqCheck :: [(Name, (Id, Id))] -> Type -> Id -> Id -> IT.SimpleStateM Expr
-structEqCheck bm t@(TyConApp _ _) i1 i2 = do
+structEqCheck bm t i1 i2
+    | TyConApp _ _ <- tyAppCenter t = do
     kv <- knownValues
 
     let ex = Var $ Id (structEqFunc kv) TyUnknown
