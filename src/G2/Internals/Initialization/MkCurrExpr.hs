@@ -12,6 +12,8 @@ import qualified G2.Internals.Language.ExprEnv as E
 import Data.List
 import qualified Data.Text as T
 
+import Debug.Trace
+
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text
            -> TypeClasses -> NameGen -> ExprEnv -> Walkers
            -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)

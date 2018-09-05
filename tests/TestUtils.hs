@@ -26,6 +26,7 @@ eqIgNames (Name n m _ _) (Name n' m' _ _) = n == n' && m == m'
 
 typeNameIs :: Type -> T.Text -> Bool
 typeNameIs (TyConApp n _) s = s == nameOcc n
+typeNameIs (TyApp t _) s = typeNameIs t s
 typeNameIs _ _ = False
 
 dcHasName :: T.Text -> Expr -> Bool

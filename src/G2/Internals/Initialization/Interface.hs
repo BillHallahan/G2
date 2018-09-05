@@ -12,6 +12,8 @@ import G2.Internals.Initialization.InitVarLocs
 import G2.Internals.Initialization.StructuralEq
 import G2.Internals.Initialization.Types
 
+import Debug.Trace
+
 runInitialization :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> TypeClasses -> [Type] -> [Name] ->
     (SimpleState, FuncInterps, ApplyTypes, Walkers)
 runInitialization eenv tenv ng kv tc ts tgtNames =

@@ -152,13 +152,13 @@ createStructEqFunc dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
     lam2I <- freshIdN t'
 
     let rt' = foldr (\(i, rt_) -> retype i rt_) rt $ zip ns (map TyVar bt)
+    d <- dictForType bm rt'
 
-    let ex = Var $ Id (structEqFunc kv) TyUnknown
+    let ex = Var $ Id (structEqFunc kv) $ TyFun (typeOf (Type rt')) $ TyFun (typeOf d) $ TyFun t' $ TyFun t' t
     let c = t' :~ rt'
     let cLam1I = Cast (Var lam1I) c
     let cLam2I = Cast (Var lam2I) c
 
-    d <- dictForType bm rt'
 
     let e = Lam TermL lam1I $ Lam TermL lam2I $ App (App (App (App ex (Type rt')) d) cLam1I) cLam2I
     let e' = mkLams (map (TypeL,) bd) e
