@@ -32,6 +32,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 type ProgramType = (Name, AlgDataTy)
 
 -- | Type environments map names of types to their appropriate types. However
@@ -108,18 +110,13 @@ baseDataCon (DataCon _ t) = not $ hasTyFuns t
 getCastedAlgDataTy :: Type -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy t tenv
     | TyConApp n _ <- tyAppCenter t
-    , ts <- tyAppArgs t =
-        case M.lookup n tenv of
-            Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy' n' ts tenv
-            Just (NewTyCon {}) -> Nothing
-            (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
-            _ -> Nothing
+    , ts <- tyAppArgs t = getCastedAlgDataTy' n ts tenv
     | otherwise = Nothing
 
 getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy' n ts tenv =
         case M.lookup n tenv of
-            Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy' n' ts tenv
+            Just (NewTyCon {bound_ids = ids, rep_type = TyConApp n' _}) -> getCastedAlgDataTy' n' ts tenv
             Just (NewTyCon {}) -> Nothing
             (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
             _ -> Nothing

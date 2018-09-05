@@ -95,7 +95,7 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "maxes" 7 [AtLeast 10]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchInt" 2 [AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "getInInt" 2 [AtLeast 1]
-                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchP" 2 [AtLeast 1]
+                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchP" 6 [AtLeast 1]
         ]
 
 liquidTests :: IO TestTree

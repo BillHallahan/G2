@@ -140,7 +140,7 @@ tcDicts :: TypeClasses -> [Id]
 tcDicts = map snd . concatMap insts . M.elems . coerce
 
 -- satisfyingTCTypes
--- Finds all types/dict paurs that satisfy the given TC requirements for each polymorphic argument
+-- Finds all types/dict pairs that satisfy the given TC requirements for each polymorphic argument
 -- returns a list of tuples, where each tuple (i, t) corresponds to a TyVar Id i,
 -- and a list of acceptable types
 satisfyingTCTypes :: TypeClasses -> [Type] -> [(Id, [Type])]
@@ -150,7 +150,16 @@ satisfyingTCTypes tc ts =
 
         tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDictsTypes tc) ns)) tcReq
     in
-    map (\(i, ts') -> (i, inter ts')) tcReqTS
+    map (uncurry substKind) $ map (\(i, ts') -> (i, inter ts')) tcReqTS
+
+substKind :: Id -> [Type] -> (Id, [Type])
+substKind i@(Id _ t) ts = (i, map (\t' -> case t' of 
+                                            TyConApp n _ -> TyConApp n (tyFunToTyApp t)
+                                            t'' -> t'') ts)
+
+tyFunToTyApp :: Type -> Type
+tyFunToTyApp (TyFun t1 (TyFun t2 t3)) = TyApp (TyApp (tyFunToTyApp t1) (tyFunToTyApp t2)) (tyFunToTyApp t3)
+tyFunToTyApp t = modifyChildren tyFunToTyApp t
 
 -- satisfyingTCReq
 -- Finds the names of the required typeclasses for each TyVar Id
