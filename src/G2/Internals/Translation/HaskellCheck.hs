@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import Text.Regex
 import Unsafe.Coerce
 
+import G2.Internals.Initialization.MkCurrExpr
 import G2.Internals.Language
 import G2.Internals.Translation.Haskell
 import G2.Lib.Printers
@@ -54,7 +55,9 @@ runCheck' proj src modN entry chAll gflags s ars out = do
 
         setContext [IIDecl prImD, IIDecl exImD, IIDecl imD]
 
-        let arsStr = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
+        let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
+        let e = mkApp $ Var v:ars
+        let arsStr = mkCleanExprHaskell s e
         let outStr = mkCleanExprHaskell s out
         let chck = case outStr == "error" of
                         False -> "try (evaluate (" ++ arsStr ++ " == " ++ outStr ++ ")) :: IO (Either SomeException Bool)"

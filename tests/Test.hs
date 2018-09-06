@@ -39,9 +39,9 @@ tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
         -- , liquidTests
-        , testFileTests
-        -- , baseTests
-        -- , primTests
+        -- , testFileTests
+        , baseTests
+        , primTests
         , typingTests
         ]
 
@@ -319,11 +319,11 @@ baseTests =
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/ListTests.hs" "ListTests" "foldrTest2" 1000 2 [AtLeast 1]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/Tuples.hs" "Tuples" "addTupleElems" 1000 2 [AtLeast 2]
 
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "sumN" 1000 2 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "lengthN" 1000 2 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 2000 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "sumN" 1000 4 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "lengthN" 1000 5 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 2000 5 [AtLeast 6]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "averageF" 2000 2 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 4 [AtLeast 6]
 
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/Other.hs" "Other" "check4VeryEasy2" 600 1 [AtLeast 1]
         ]
