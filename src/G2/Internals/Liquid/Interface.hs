@@ -88,7 +88,6 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
 
 
-
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
 
     let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
@@ -105,8 +104,6 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let tcv = tcvalues lhtc_state1
     let lhtc_state = state lhtc_state1
 
-    -- let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
-    -- let meenv''' = replaceVarTy meenvT meenv''
     let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
 
     let ng2_state = lhtc_state {name_gen = meas_ng}

@@ -159,7 +159,7 @@ instance Typed Expr where
             as = passedArgs a
             t = typeOf' m $ appCenter a
         in
-        appTypeOf m t as
+        appTypeOf M.empty t as
     typeOf' m (Lam u b e) =
         case u of
             TypeL -> TyForAll (NamedTyBndr b) (typeOf' m e)
@@ -177,12 +177,27 @@ instance Typed Expr where
 appTypeOf :: M.Map Name Type -> Type -> [Expr] -> Type
 appTypeOf m (TyForAll (NamedTyBndr i) t) (Type t':e) =
     let
-        m' = M.insert (idName i) t' m
+        m' = M.insert (idName i) (tyVarRename m t') m
     in
-    appTypeOf m (tyVarRename m' t) e
-appTypeOf m' (TyFun _ t) (e:es) = appTypeOf m' t es
-appTypeOf _ t [] = t
+    appTypeOf m' t e
+appTypeOf m (TyFun _ t) (e:es) = appTypeOf m t es
+appTypeOf m t [] = tyVarRename m t
+appTypeOf m (TyVar (Id n _)) es =
+    case M.lookup n m of
+        Just t -> appTypeOf m t es
+        Nothing -> error ("appTypeOf: Unknown TyVar")
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
+
+-- appTypeOf :: M.Map Name Type -> Type -> [Expr] -> Type
+-- appTypeOf m (TyForAll (NamedTyBndr i) t) (Type t':e) =
+--     let
+--         m' = M.insert (idName i) t' m
+--     in
+--     appTypeOf m (tyVarRename m' t) e
+-- appTypeOf m' (TyFun _ t) (e:es) = appTypeOf m' t es
+-- appTypeOf _ t [] = t
+-- appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
+
 
 instance Typed Type where
     typeOf' m v@(TyVar (Id _ t)) = t
@@ -221,7 +236,7 @@ retype' key new (TyForAll (NamedTyBndr nid) ty) =
 retype' key new ty = modifyChildren (retype' key new) ty
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
-tyVarRename m = modifyASTsFix (tyVarRename' m)
+tyVarRename m = modifyASTs (tyVarRename' m)
 
 tyVarRename' :: M.Map Name Type -> Type -> Type
 tyVarRename' m t@(TyVar (Id n _)) = M.findWithDefault t n m
