@@ -39,7 +39,7 @@ tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
         -- , liquidTests
-        -- , testFileTests
+        , testFileTests
         , baseTests
         , primTests
         , typingTests
