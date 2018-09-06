@@ -120,13 +120,13 @@ unTyApp t = [t]
 -- | Typed typeclass.
 class Typed a where
     typeOf :: a -> Type
-    typeOf = fst . typeOf' M.empty
+    typeOf = typeOf' M.empty
 
-    typeOf' :: M.Map Name Type -> a -> (Type, M.Map Name Type)
+    typeOf' :: M.Map Name Type -> a -> Type
 
 -- | `Id` instance of `Typed`.
 instance Typed Id where
-    typeOf' m (Id _ ty) = (tyVarRename m ty, m)
+    typeOf' m (Id _ ty) = tyVarRename m ty
 
 -- | `Primitive` instance of `Typed`
 -- | `Lit` instance of `Typed`.
@@ -138,11 +138,11 @@ instance Typed Lit where
     typeOf (LitString _) = TyLitString
     typeOf (LitInteger _) = TyLitInt
 
-    typeOf' m t = (typeOf t, m)
+    typeOf' m t = typeOf t
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
-    typeOf' m (DataCon _ ty) = (ty, m)
+    typeOf' m (DataCon _ ty) = ty
 
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
@@ -152,24 +152,24 @@ instance Typed Alt where
 instance Typed Expr where
     typeOf' m (Var v) = typeOf' m v
     typeOf' m (Lit lit) = typeOf' m lit
-    typeOf' m (Prim _ ty) = (ty, m)
+    typeOf' _ (Prim _ ty) = ty
     typeOf' m (Data dcon) = typeOf' m dcon
     typeOf' m a@(App _ _) =
         let
             as = passedArgs a
-            (t, _) = typeOf' m $ appCenter a
+            t = typeOf' m $ appCenter a
         in
-        (appTypeOf m t as, m)
+        appTypeOf m t as
     typeOf' m (Lam u b e) =
         case u of
-            TypeL -> (TyForAll (NamedTyBndr b) (fst $ typeOf' m e), m)
-            TermL -> (TyFun (fst $ typeOf' m b) (fst $ typeOf' m e), m)
+            TypeL -> TyForAll (NamedTyBndr b) (typeOf' m e)
+            TermL -> TyFun (typeOf' m b) (typeOf' m e)
     typeOf' m (Let _ expr) = typeOf' m expr
     typeOf' m (Case _ _ (a:_)) = typeOf' m a
-    typeOf' m (Case _ _ []) = (TyBottom, m)
-    typeOf' m (Type ty) = (TYPE, m)
-    typeOf' m (Cast _ (_ :~ t')) = (t', m)
-    typeOf' m (Coercion (_ :~ t')) = (t', m)
+    typeOf' m (Case _ _ []) = TyBottom
+    typeOf' m (Type ty) = TYPE
+    typeOf' m (Cast _ (_ :~ t')) = t'
+    typeOf' m (Coercion (_ :~ t')) = t'
     typeOf' m (Tick _ e) = typeOf' m e
     typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
@@ -185,26 +185,26 @@ appTypeOf _ t [] = t
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 instance Typed Type where
-    typeOf' m v@(TyVar (Id _ t)) = (t, m)
-    typeOf' m (TyFun t1 t2) = (TYPE, m)
+    typeOf' m v@(TyVar (Id _ t)) = t
+    typeOf' m (TyFun t1 t2) = TYPE
     typeOf' m (TyApp t1 t2) =
         let
-            (ft, _) = typeOf' m t1
-            (at, _) = typeOf' m t2
+            ft = typeOf' m t1
+            at = typeOf' m t2
         in
         case (ft, at) of
-            (ta@(TyFun _ t2'), _) -> (t2', m)
-            (ta@(TyApp t1' _), _) -> (t1', m)
+            (ta@(TyFun _ t2'), _) -> t2'
+            (ta@(TyApp t1' _), _) -> t1'
             (t, _) -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
-    typeOf' m (TyConApp n t) = (t, m)
-    typeOf' m (TyForAll (NamedTyBndr b) t) = (TyApp (typeOf b) (fst $ typeOf' m t), m)
+    typeOf' m (TyConApp n t) = t
+    typeOf' m (TyForAll (NamedTyBndr b) t) = TyApp (typeOf b) (typeOf' m t)
     typeOf' m (TyForAll _ t) = typeOf' m t
-    typeOf' m t = (t, m)
+    typeOf' m t = t
 
 newtype PresType = PresType Type
 
 instance Typed PresType where
-    typeOf' m (PresType t) = (t, m)
+    typeOf' m (PresType t) = t
 
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a
