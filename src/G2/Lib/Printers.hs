@@ -28,6 +28,8 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 
+import Debug.Trace
+
 mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 
@@ -46,16 +48,21 @@ mkCleanExprHaskell' :: AT.ApplyTypes -> KnownValues -> TypeClasses -> Expr -> Ex
 mkCleanExprHaskell' at kv tc e
     | (App (Data (DataCon n _)) e') <- e
     , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv = e'
+
     | (App e' e'') <- e
     , t <- typeOf e'
     , isTypeClass tc t = e''
+
     | (App e' e'') <- e
     , t <- typeOf e''
     , isTypeClass tc t = e'
+
     | App e' (Type _) <- e = e'
+
     | App _ e'' <- e
     , (Var (Id n _)) <- appCenter e
     , n `elem` map idName (AT.applyFuncs at) = e''
+
     | otherwise = e
 
 mkExprHaskell :: Bool -> KnownValues -> Expr -> String
@@ -66,24 +73,27 @@ mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
         mkExprHaskell' (Lam _ ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
+
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
             | Data (DataCon n _) <- appCenter a
             , isTuple n
             , sugar = printTuple kv a
+
             | Data (DataCon n1 _) <- e1
             , nameOcc n1 == ":"
             , sugar =
-                case typeOf e2 of
-                    TyLitChar -> printString a
-                    _ -> printList kv a
+                if isLitChar e2 then printString a else printList kv a
+
             | isInfixable e1 =
                 let
                     e2P = if isApp e2 then "(" ++ mkExprHaskell' e2 i ++ ")" else mkExprHaskell' e2 i
                     e3P = if isApp e3 then "(" ++ mkExprHaskell' e3 i ++ ")" else mkExprHaskell' e3 i
                 in
                 e2P ++ " " ++ mkExprHaskell' e1 i ++ " " ++ e3P
+
             | App _ _ <- e3 = mkExprHaskell' ea i ++ " (" ++ mkExprHaskell' e3 i ++ ")"
             | otherwise = mkExprHaskell' ea i ++ " " ++ mkExprHaskell' e3 i
+
         mkExprHaskell' (App e1 ea@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' ea i ++ ")"
         mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
         mkExprHaskell' (Data d) _ = mkDataConHaskell d
@@ -143,6 +153,10 @@ isInfixable _ = False
 isApp :: Expr -> Bool
 isApp (App _ _) = True
 isApp _ = False
+
+isLitChar :: Expr -> Bool
+isLitChar (Lit (LitChar _)) = True
+isLitChar _ = False
 
 mkLitHaskell :: Lit -> String
 mkLitHaskell (LitInt i) = if i < 0 then "(" ++ show i ++ ")" else show i

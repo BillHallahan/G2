@@ -41,3 +41,15 @@ integerToFloatList = [ fromInteger x | x <- [1..500] :: [Integer]]
 
 sqrtList :: [Float]
 sqrtList = [ x + 1 | x <- [1.0..150.0] :: [Float]]
+
+
+
+p2' :: Int -> (Bool, Bool)
+p2' x = (False, True)
+
+p2List2 :: [(Bool, Bool)]
+p2List2 = [p2' x | x <- [1]]
+
+
+p2List3 :: [(Bool, Bool)]
+p2List3 = [(False, True)]
