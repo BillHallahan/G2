@@ -253,6 +253,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     appty_str = show (apply_types ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
+    type_errors_str = injNewLine (type_errors ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Code] ----------------------"
                , code_str
@@ -284,6 +285,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , cleaned_str
                , "----- [Rules] -------------------"
                , rules_str
+               , "----- [Type Errors] -------------------"
+               , type_errors_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
                ]
 
@@ -353,4 +356,3 @@ pprPathCondStr (PCExists p) = show p
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . M.toList
-

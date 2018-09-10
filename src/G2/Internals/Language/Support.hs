@@ -65,6 +65,7 @@ data State t = State { expr_env :: E.ExprEnv
                      , rules :: [Rule]
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
                      , track :: t
+                     , type_errors :: [String]
                      } deriving (Show, Eq, Read)
 
 -- | The InputIds are a list of the variable names passed as input to the
@@ -175,7 +176,8 @@ renameState old new_seed s =
              , cleaned_names = M.insert new old (cleaned_names s)
              , rules = rules s
              , track = rename old new (track s)
-             , tags = tags s }
+             , tags = tags s
+             , type_errors = type_errors s }
 
 instance {-# OVERLAPPING #-} Named t => Named (State t) where
     names s = names (expr_env s)
@@ -221,7 +223,8 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
                , cleaned_names = M.insert new old (cleaned_names s)
                , rules = rules s
                , track = rename old new (track s)
-               , tags = tags s }
+               , tags = tags s
+               , type_errors = type_errors s }
 
     renames hm s =
         State { expr_env = renames hm (expr_env s)
@@ -248,7 +251,8 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
                , cleaned_names = foldr (uncurry M.insert) (cleaned_names s) (HM.toList hm)
                , rules = rules s
                , track = renames hm (track s)
-               , tags = tags s }
+               , tags = tags s
+               , type_errors = type_errors s }
 
 -- | TypeClass definitions
 instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr where

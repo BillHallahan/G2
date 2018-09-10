@@ -207,15 +207,23 @@ instance Solver con => Reducer (StdRed con) () where
 data TypeVerifier = TypeVerifier Config
 instance Reducer TypeVerifier t where
     redRules stdr s@(State {curr_expr = cexpr}) = do
-        print $ show $ letsTypeValid cexpr;
-        print $ show $ caseTypeValid cexpr;
-        print $ show $ castTypeValid cexpr;
-        print $ show $ checkVarBinds s;
-        print $ show $ checkExprEnvTyping s;
-        print $ show $ checkAppTyping cexpr;
-        print $ show $ checkPathCond s;
-        print $ show $ checkAssumeAssert s;
-        return (Finished, [s], stdr)
+        let errors = ["Let Type Errors:",
+                      show $ letsTypeValid cexpr,
+                      "Case Type Errors:",
+                      show $ caseTypeValid cexpr,
+                      "Cast Type Errors:",
+                      show $ castTypeValid cexpr,
+                      "Var Bind Type Errors:",
+                      show $ checkVarBinds s,
+                      "Expr Env Type Errors:",
+                      show $ checkExprEnvTyping s,
+                      "App Type Errors:",
+                      show $ checkAppTyping cexpr,
+                      "Path Cond Type Errors:",
+                      show $ checkPathCond s,
+                      "Assumer Assert Type Errors:",
+                      show $ checkAssumeAssert s];
+        return (Finished, [s { type_errors = errors }], stdr)
 
 -- | NonRedPCRed ast out io
 -- Removes and reduces the values in a State's non_red_path_conds field. 

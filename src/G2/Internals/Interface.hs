@@ -88,6 +88,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , rules = []
     , track = ()
     , tags = S.empty
+    , type_errors = []
  }
  , ie)
 
