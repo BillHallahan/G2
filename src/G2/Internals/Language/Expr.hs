@@ -18,6 +18,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkCons
                                   , mkEmpty
                                   , mkIdentity
+                                  , modifyAppTop
                                   , modifyAppLHS
                                   , modifyAppRHS
                                   , modifyInLHS
@@ -121,6 +122,17 @@ mkIdentity t =
     in
     Lam TermL x (Var x)
 
+modifyAppTop :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
+modifyAppTop f = modifyContainedASTs (modifyAppTop' f)
+
+modifyAppTop' :: (Expr -> Expr) -> Expr -> Expr
+modifyAppTop' f e@(App _ _) =
+    let
+        e' = f e
+    in
+    modifyAppRHS (modifyAppTop' f) e' 
+modifyAppTop' f e = modifyChildren f e
+
 -- | modifyAppLHS
 modifyAppLHS :: (Expr -> Expr) -> Expr -> Expr
 modifyAppLHS f (App e e') = App (f e) (modifyAppLHS f e')
@@ -222,8 +234,11 @@ args (Lam _ i e) = i:args e
 args _ = []
 
 passedArgs :: Expr -> [Expr]
-passedArgs (App e e') = e':passedArgs e
-passedArgs _ = []
+passedArgs = reverse . passedArgs'
+
+passedArgs' :: Expr -> [Expr]
+passedArgs' (App e e') = e':passedArgs e
+passedArgs' _ = []
 
 nthArg :: Expr -> Int -> Id
 nthArg e i = args e !! (i - 1)
@@ -251,7 +266,7 @@ symbVars' _ _ = False
 -- | freeVars
 -- Returns the free (unbound by a Lambda, Let, or the Expr Env) variables of an expr
 freeVars :: ASTContainer m Expr => E.ExprEnv -> m -> [Id]
-freeVars eenv = evalASTsM (freeVars' eenv)
+freeVars eenv = evalASTsMonoid (freeVars' eenv)
 
 freeVars' :: E.ExprEnv -> [Id] -> Expr -> ([Id], [Id])
 freeVars' _ _ (Let b _) = (map fst b, [])
@@ -264,7 +279,7 @@ freeVars' eenv bound (Var i) =
 freeVars' _ _ _ = ([], [])
 
 alphaReduction :: ASTContainer m Expr => m -> m
-alphaReduction = modifyASTsM alphaReduction'
+alphaReduction = modifyASTsMonoid alphaReduction'
 
 alphaReduction' :: Max Int -> Expr -> (Expr, Max Int)
 alphaReduction' mi l@(Lam u i@(Id (Name n m ii lo) t) e) =

@@ -5,11 +5,14 @@ module G2.Internals.Liquid.Measures (Measures, createMeasures) where
 
 import G2.Internals.Language
 import qualified  G2.Internals.Language.ExprEnv as E
-import G2.Internals.Liquid.Conversion
+import G2.Internals.Language.Monad
+import G2.Internals.Liquid.Conversion2
 import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
 import Language.Haskell.Liquid.Types
 import G2.Internals.Translation.Haskell
+
+import Control.Monad.Extra
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -17,35 +20,39 @@ import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
 
+import Debug.Trace
+
 -- Creates measures from LH measure specifications
 -- We need this to support measures witten in comments
-createMeasures :: [Measure SpecType GHC.DataCon] -> TCValues -> State t -> (ExprEnv, NameGen)
-createMeasures meas tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = ng}) = 
-    let
-        nt = M.fromList $ mapMaybe (measureTypeMappings tenv tcv) meas
-
-        meas' = mapMaybe (convertMeasure s tcv nt) $ filter (allTypesKnown tenv) meas
-
-        eenvk = E.keys eenv
+createMeasures :: [Measure SpecType GHC.DataCon] -> LHStateM ()
+createMeasures meas = do
+    nt <- return . M.fromList =<< mapMaybeM measureTypeMappings meas
+    meas' <- mapMaybeM (convertMeasure nt) =<< filterM allTypesKnown meas
+    
+    meenv <- measuresM
+    let eenvk = E.keys meenv
         mvNames = filter (flip notElem eenvk) $ varNames meas'
 
-        eenv' = foldr (uncurry E.insert) eenv meas'
-        (eenv'', ng') = doRenames mvNames ng eenv'
-    in
-    (eenv'', ng')
+    meenv' <- mapM (uncurry insertMeasureM) meas'
+    meenv'' <- doRenamesN mvNames meenv'
 
-allTypesKnown :: TypeEnv -> Measure SpecType GHC.DataCon -> Bool
-allTypesKnown tenv (M {sort = srt}) = isJust $ specTypeToType tenv srt
+    return ()
 
-measureTypeMappings :: TypeEnv -> TCValues  -> Measure SpecType GHC.DataCon -> Maybe (Name, Type)
-measureTypeMappings tenv tcv (M {name = n, sort = srt}) =
-    let
-        lh = lhTC tcv
-        t = fmap (addLHDictToType lh) $ specTypeToType tenv srt
-    in
+allTypesKnown :: Measure SpecType GHC.DataCon -> LHStateM Bool
+allTypesKnown (M {sort = srt}) = do
+    st <- specTypeToType srt
+    return $ isJust st
+
+measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Type))
+measureTypeMappings (M {name = n, sort = srt}) = do
+    st <- specTypeToType srt
+    lh <- lhTCM
+
+    let t = fmap (addLHDictToType lh) st
+    
     case t of
-        Just t' -> Just (symbolName $ val n, t')
-        _ -> Nothing
+        Just t' -> return $ Just (symbolName $ val n, t')
+        _ -> return  Nothing
 
 addLHDictToType :: Name -> Type -> Type
 addLHDictToType lh t =
@@ -54,41 +61,42 @@ addLHDictToType lh t =
     in
     foldr TyFun t lhD
 
-convertMeasure :: State t -> TCValues -> M.Map Name Type -> Measure SpecType GHC.DataCon -> Maybe (Name, Expr)
-convertMeasure s@(State {type_env = tenv, name_gen = ng}) tcv m (M {name = n, sort = srt, eqns = eq}) =
-    let
-        n' = symbolName $ val n
+convertMeasure :: M.Map Name Type -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
+convertMeasure m (M {name = n, sort = srt, eqns = eq}) = do
+    let n' = symbolName $ val n
 
-        st = specTypeToType tenv srt
+    st <- specTypeToType srt
+    lh_tc <- lhTCM
         
-        bnds = tyForAllBindings $ fromJust st
+    let bnds = tyForAllBindings $ PresType $ fromJust st
         ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]
         nbnds = zip ds $ map TyVar bnds
-        as = map (\(d, t) -> Id d $ mkTyConApp (lhTC tcv) [t] TYPE) nbnds
-        as' = map (TermL,) as ++ map (TypeL, ) bnds
+        as = map (\(d, t) -> Id d $ mkTyConApp lh_tc [t] TYPE) nbnds
+        as' = map (TypeL, ) bnds ++ map (TermL,) as
 
         as_t = map (\i -> (idName i, typeOf i)) as
 
-        stArgs = anonArgumentTypes $ fromJust st
+        stArgs = anonArgumentTypes . PresType $ fromJust st
         stRet = fmap returnType st
 
-        (lam_i, ng1) = freshId (head stArgs) ng
-        (cb, _) = freshId (head stArgs) ng1
-        alts = mapMaybe (convertDefs s stArgs stRet tcv (M.union m (M.fromList as_t))) eq
+    lam_i <- freshIdN (head stArgs)
+    cb <- freshIdN (head stArgs)
+    
+    alts <- mapMaybeM (convertDefs stArgs stRet (M.union m (M.fromList as_t))) eq
 
-        e = mkLams as' (Lam TermL lam_i $ Case (Var lam_i) cb alts) 
-    in
+    let e = mkLams as' (Lam TermL lam_i $ Case (Var lam_i) cb alts) 
+    
     case st of -- [1]
-        Just _ -> Just (n', e)
-        Nothing -> Nothing
+        Just _ -> return $ Just (n', e)
+        Nothing -> return Nothing
 
-convertDefs :: State t -> [Type] -> Maybe Type -> TCValues -> M.Map Name Type -> Def SpecType GHC.DataCon -> Maybe Alt
-convertDefs s@(State {type_env = tenv}) [l_t] ret tcv m (Def { ctor = dc, body = b, binds = bds})
+convertDefs :: [Type] -> Maybe Type -> M.Map Name Type -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
+convertDefs [l_t] ret m (Def { ctor = dc, body = b, binds = bds})
     | TyConApp _ _ <- tyAppCenter l_t
-    , st_t <- tyAppArgs l_t =
-    let
-        (DataCon n t) = mkData HM.empty HM.empty dc
-        (TyConApp tn _) = tyAppCenter $ returnType t
+    , st_t <- tyAppArgs l_t = do
+    tenv <- typeEnv
+    let (DataCon n t) = mkData HM.empty HM.empty dc
+        (TyConApp tn _) = tyAppCenter $ returnType $ PresType t
         dc' = getDataConNameMod tenv tn n
         
         -- See [1] below, we only evaluate this if Just
@@ -99,18 +107,20 @@ convertDefs s@(State {type_env = tenv}) [l_t] ret tcv m (Def { ctor = dc, body =
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
         dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds) st_t
 
-        nt = map (\((sym, t'), t'') -> (symbolName sym, maybe t'' (unsafeSpecTypeToType tenv) t')) $ zip bds dctarg'
+    nt <- mapM (\((sym, t'), t'') -> do
+                    t''' <- maybeM (return t'') unsafeSpecTypeToType (return t')
+                    return (symbolName sym, t''')) $ zip bds dctarg'
 
-        is = map (uncurry Id) nt
+    let is = map (uncurry Id) nt
 
-        e = mkExprFromBody s ret tcv (M.union m $ M.fromList nt) b
-    in
+    e <- mkExprFromBody ret (M.union m $ M.fromList nt) b
+    
     case dc' of
-        Just _ -> Just $ Alt (DataAlt dc'' is) e -- [1]
-        Nothing -> Nothing
-convertDefs _ _ _ _ _ _ = error "convertDefs: Unhandled Type List"
+        Just _ -> return $ Just $ Alt (DataAlt dc'' is) e -- [1]
+        Nothing -> return Nothing
+convertDefs _ _ _ _ = error "convertDefs: Unhandled Type List"
 
-mkExprFromBody :: State t -> Maybe Type -> TCValues  -> M.Map Name Type -> Body -> Expr
-mkExprFromBody s ret tcv m (E e) = convertLHExpr e ret tcv s m
-mkExprFromBody s ret tcv m (P e) = convertLHExpr e ret tcv s m
-mkExprFromBody _ _ _ _ _ = error "mkExprFromBody: Unhandled Body"
+mkExprFromBody :: Maybe Type -> M.Map Name Type -> Body -> LHStateM Expr
+mkExprFromBody ret m (E e) = convertLHExpr m ret e
+mkExprFromBody ret m (P e) = convertLHExpr m ret e
+mkExprFromBody _ _ _ = error "mkExprFromBody: Unhandled Body"

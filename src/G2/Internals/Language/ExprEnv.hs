@@ -25,6 +25,7 @@ module G2.Internals.Language.ExprEnv
     , mapWithKey
     , mapWithKey'
     , mapKeys
+    , mapM
     , filter
     , filterWithKey
     , filterToSymbolic
@@ -48,7 +49,9 @@ import G2.Internals.Language.Typing
 import Prelude hiding( filter
                      , lookup
                      , map
+                     , mapM
                      , null)
+import qualified Prelude as Pre
 import Data.Coerce
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -178,6 +181,17 @@ mapWithKey' f = M.mapWithKey f . toExprMap
 
 mapKeys :: (Name -> Name) -> ExprEnv -> ExprEnv
 mapKeys f = coerce . M.mapKeys f . unwrapExprEnv
+
+mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
+mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
+    where
+        f' (ExprObj e) = return . ExprObj =<< f e
+        f' s@(SymbObj i) = do
+            e' <- f (Var i)
+            case e' of
+                Var i' -> return $ SymbObj i'
+                _ -> return s
+        f' n = return n
 
 filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
 filter p = filterWithKey (\_ -> p) 

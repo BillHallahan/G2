@@ -5,6 +5,7 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , Measures
                                  , LHState (..)
                                  , LHStateM (..)
+                                 , ExState (..)
                                  , consLHState
                                  , deconsLHState
                                  , measuresM

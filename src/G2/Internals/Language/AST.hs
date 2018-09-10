@@ -1,6 +1,7 @@
 -- | Defines typeclasses and functions for ease of AST manipulation.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Internals.Language.AST
@@ -36,8 +37,8 @@ modify f t = modifyChildren (modify f) (f t)
 -- | Similar to modify. Also passes a Monoid instance to the modify function. 
 -- Children have access to the mconcated results from higher in the tree
 -- As exposed by modifyM, the head of the tree is given mempty.
-modifyM :: (AST t, Monoid a) => (a -> t -> (t, a)) -> t -> t
-modifyM f = go f mempty
+modifyMonoid :: (AST t, Monoid a) => (a -> t -> (t, a)) -> t -> t
+modifyMonoid f = go f mempty
   where
     go :: (AST t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
     go g m t = let (t', m') = g m t
@@ -62,8 +63,8 @@ modifyContainedFix f t = let t' = f t
 -- | Combines the methods of modifyM and modifyFix.
 -- Runs until t == t', but does not consider the Monoid's value. However, the
 -- mappend still occurs each time an iteration is performed on a given AST.
-modifyFixM :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> t -> t
-modifyFixM f = go f mempty
+modifyFixMonoid :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> t -> t
+modifyFixMonoid f = go f mempty
   where
     go :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
     go g m t =  let (t', m') = g m t
@@ -77,8 +78,8 @@ modifyFixM f = go f mempty
 eval :: (AST t, Monoid a) => (t -> a) -> t -> a
 eval f t = (f t) `mappend` (evalChildren (eval f) t)
 
-evalM :: (AST t, Monoid a, Monoid b) => (b -> t -> (b, a)) -> t -> a
-evalM f = go f mempty
+evalMonoid :: (AST t, Monoid a, Monoid b) => (b -> t -> (b, a)) -> t -> a
+evalMonoid f = go f mempty
     where
         go :: (AST t, Monoid a, Monoid b) => (b -> t -> (b, a)) -> b -> t -> a
         go g b t = let
@@ -104,8 +105,8 @@ modifyASTs :: ASTContainer t e => (e -> e) -> t -> t
 modifyASTs f = modifyContainedASTs (modify f)
 
 -- | Runs modifyM on all the ASTs in the container.
-modifyASTsM :: (ASTContainer t e, Monoid a) => (a -> e -> (e,a)) -> t -> t
-modifyASTsM f = modifyContainedASTs (modifyM f)
+modifyASTsMonoid :: (ASTContainer t e, Monoid a) => (a -> e -> (e,a)) -> t -> t
+modifyASTsMonoid f = modifyContainedASTs (modifyMonoid f)
 
 -- | Runs modifyFix on all the ASTs in the container.
 modifyASTsFix :: (ASTContainer t e, Eq e) => (e -> e) -> t -> t
@@ -119,8 +120,8 @@ modifyContainedASTsFix f = modifyContainedASTs (modifyContainedFix f)
 evalASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
 evalASTs f = evalContainedASTs (eval f)
 
-evalASTsM :: (ASTContainer t e, Monoid a, Monoid b) => (b -> e -> (b, a)) -> t -> a
-evalASTsM f = evalContainedASTs (evalM f)
+evalASTsMonoid :: (ASTContainer t e, Monoid a, Monoid b) => (b -> e -> (b, a)) -> t -> a
+evalASTsMonoid f = evalContainedASTs (evalMonoid f)
 
 -- | Runs a function on all the ASTs in the container, and uses mappend to
 -- combine the results.

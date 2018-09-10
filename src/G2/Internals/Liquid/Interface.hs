@@ -12,6 +12,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 
 import G2.Internals.Execution
 
+import G2.Internals.Liquid.AddLHTC
 import G2.Internals.Liquid.Annotations
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ElimPartialApp
@@ -99,16 +100,32 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
 
     let lh_state = createLHTC meenv ng_state'
 
-    let lhtc_state1 = addLHTC lh_state
-    let meenv''' = measures lhtc_state1
-    let tcv = tcvalues lhtc_state1
-    let lhtc_state = state lhtc_state1
 
-    let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
+    let lhtc_state1 = execLHStateM addLHTC lh_state
+    let meas_state = execLHStateM (createMeasures lh_measures) lhtc_state1
 
-    let ng2_state = lhtc_state {name_gen = meas_ng}
+    let meas_eenv = measures meas_state
+    let tcv = tcvalues meas_state
+    let lhtc_state = state meas_state
+
+    putStrLn $ pprExecStateStr lhtc_state
+
+    putStrLn "Here"
+    putStrLn undefined
+
+    -- let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
+
+    let ng2_state = lhtc_state -- {name_gen = meas_ng}
 
     let (merged_state, ifi') = mergeLHSpecState ifi (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
+    -- (merged_state, ifi') <- mergeLHSpecState ifi ng2_state specs
+
+    -- let merged_state' = state merged_state
+
+    -- putStrLn $ pprExecStateStr merged_state'
+
+    putStrLn "Here"
+    putStrLn undefined
 
     let beta_red_state = simplifyAsserts mkv tcv merged_state {apply_types = apply_types ng2_state}
     let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv

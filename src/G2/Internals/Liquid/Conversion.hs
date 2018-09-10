@@ -1,9 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.Liquid.Conversion ( addLHTC
-                                      , addLHTCExprEnv
-                                      , replaceVarTy
+module G2.Internals.Liquid.Conversion ( replaceVarTy
                                       , mergeLHSpecState
                                       , convertSpecType
                                       , convertSpecTypeDict
@@ -40,14 +38,14 @@ import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
 
-addLHTC :: LHState -> LHState
-addLHTC lh_s@(LHState {state = s, measures = meas, tcvalues = tcv}) = 
-    let
-        s' = addLHTCState s tcv
-        (meas', meenvT) = addLHTCExprEnv meas (type_env s) (type_classes s) tcv
-        meas'' = replaceVarTy meenvT meas'
-    in
-    lh_s {state = s', measures = meas''}
+-- addLHTC :: LHState -> LHState
+-- addLHTC lh_s@(LHState {state = s, measures = meas, tcvalues = tcv}) = 
+--     let
+--         s' = addLHTCState s tcv
+--         (meas', meenvT) = addLHTCExprEnv meas (type_env s) (type_classes s) tcv
+--         meas'' = replaceVarTy meenvT meas'
+--     in
+--     lh_s -- lh_s {state = s', measures = meas''}
 
 
 addLHTCState :: ASTContainer t Expr => State t -> TCValues -> State t
