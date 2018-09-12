@@ -23,7 +23,7 @@ import qualified Data.HashMap.Lazy as HM
 import Debug.Trace
 
 -- Creates measures from LH measure specifications
--- We need this to support measures witten in comments
+-- We need this to support measures written in comments
 createMeasures :: [Measure SpecType GHC.DataCon] -> LHStateM ()
 createMeasures meas = do
     nt <- return . M.fromList =<< mapMaybeM measureTypeMappings meas
@@ -43,15 +43,17 @@ allTypesKnown (M {sort = srt}) = do
     st <- specTypeToType srt
     return $ isJust st
 
-measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Type))
+measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Id))
 measureTypeMappings (M {name = n, sort = srt}) = do
     st <- specTypeToType srt
     lh <- lhTCM
 
     let t = fmap (addLHDictToType lh) st
+
+    let n' = symbolName $ val n
     
     case t of
-        Just t' -> return $ Just (symbolName $ val n, t')
+        Just t' -> return $ Just (n', Id n' t')
         _ -> return  Nothing
 
 addLHDictToType :: Name -> Type -> Type
@@ -61,7 +63,7 @@ addLHDictToType lh t =
     in
     foldr TyFun t lhD
 
-convertMeasure :: M.Map Name Type -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
+convertMeasure :: M.Map Name Id -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
 convertMeasure m (M {name = n, sort = srt, eqns = eq}) = do
     let n' = symbolName $ val n
 
@@ -74,7 +76,7 @@ convertMeasure m (M {name = n, sort = srt, eqns = eq}) = do
         as = map (\(d, t) -> Id d $ mkTyConApp lh_tc [t] TYPE) nbnds
         as' = map (TypeL, ) bnds ++ map (TermL,) as
 
-        as_t = map (\i -> (idName i, typeOf i)) as
+        as_t = map (\i -> (idName i, i)) as
 
         stArgs = anonArgumentTypes . PresType $ fromJust st
         stRet = fmap returnType st
@@ -90,7 +92,7 @@ convertMeasure m (M {name = n, sort = srt, eqns = eq}) = do
         Just _ -> return $ Just (n', e)
         Nothing -> return Nothing
 
-convertDefs :: [Type] -> Maybe Type -> M.Map Name Type -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
+convertDefs :: [Type] -> Maybe Type -> M.Map Name Id -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
 convertDefs [l_t] ret m (Def { ctor = dc, body = b, binds = bds})
     | TyConApp _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t = do
@@ -109,9 +111,9 @@ convertDefs [l_t] ret m (Def { ctor = dc, body = b, binds = bds})
 
     nt <- mapM (\((sym, t'), t'') -> do
                     t''' <- maybeM (return t'') unsafeSpecTypeToType (return t')
-                    return (symbolName sym, t''')) $ zip bds dctarg'
+                    return (symbolName sym, Id (symbolName sym) t''')) $ zip bds dctarg'
 
-    let is = map (uncurry Id) nt
+    let is = map snd nt
 
     e <- mkExprFromBody ret (M.union m $ M.fromList nt) b
     
@@ -120,7 +122,7 @@ convertDefs [l_t] ret m (Def { ctor = dc, body = b, binds = bds})
         Nothing -> return Nothing
 convertDefs _ _ _ _ = error "convertDefs: Unhandled Type List"
 
-mkExprFromBody :: Maybe Type -> M.Map Name Type -> Body -> LHStateM Expr
+mkExprFromBody :: Maybe Type -> M.Map Name Id -> Body -> LHStateM Expr
 mkExprFromBody ret m (E e) = convertLHExpr m ret e
 mkExprFromBody ret m (P e) = convertLHExpr m ret e
 mkExprFromBody _ _ _ = error "mkExprFromBody: Unhandled Body"

@@ -19,8 +19,6 @@ import G2.Internals.Language.Support
 import G2.Internals.Language.Monad.AST
 import G2.Internals.Language.Monad.Support
 
-import Debug.Trace
-
 appKVTEnv :: ExState s m => (KnownValues -> TypeEnv -> a) -> m a
 appKVTEnv f = do
     kv <- knownValues
@@ -61,8 +59,8 @@ modifyAppTopE :: (Monad m, ASTContainerM c Expr) => (Expr -> m Expr) -> c -> m c
 modifyAppTopE f = modifyContainedASTsM (modifyAppTopE' f)
 
 modifyAppTopE' :: Monad m => (Expr -> m Expr) -> Expr -> m Expr
-modifyAppTopE' f e@(App _ _) = modifyAppRHSE (modifyAppTopE f) =<< trace ("app = " ++ show e) f e
-modifyAppTopE' f e = trace ("going into = " ++ show e) modifyChildrenM (modifyAppTopE' f) e
+modifyAppTopE' f e@(App _ _) = modifyAppRHSE (modifyAppTopE f) =<< f e
+modifyAppTopE' f e = modifyChildrenM (modifyAppTopE' f) e
 
 modifyAppRHSE :: Monad m => (Expr -> m Expr) -> Expr -> m Expr
 modifyAppRHSE f (App e1 e2) = do

@@ -107,14 +107,15 @@ accessFunction tcn dc@(DataCon _ t) i = do
     lb <- freshIdN t'
     cb <- freshIdN t'
 
-    is <- freshIdsN $ anonArgumentTypes t
+    is <- freshIdsN $ anonArgumentTypes $ PresType t
 
     let
         a = Alt (DataAlt dc is) $ Var (is !! i)
 
         c = Case (Var lb) cb [a]
     
-    return (Lam TermL lb (Lam TypeL tb c))
+    return (Lam TypeL tb (Lam TermL lb c))
+    -- return (Lam TermL lb (Lam TypeL tb c))
 
 createLHTC :: ExprEnv -> State [FuncCall] -> LHState
 createLHTC meenv s =

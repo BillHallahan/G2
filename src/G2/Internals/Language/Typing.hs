@@ -36,6 +36,8 @@ module G2.Internals.Language.Typing
     , numArgs
     , ArgType (..)
     , argumentTypes
+    , argTypeToType
+    , argTypeToLamUse
     , spArgumentTypes
     , tyForAllBindings
     , anonArgumentTypes
@@ -175,11 +177,12 @@ instance Typed Expr where
     typeOf' m (Assume _ e) = typeOf' m e
 
 appTypeOf :: M.Map Name Type -> Type -> [Expr] -> Type
-appTypeOf m (TyForAll (NamedTyBndr i) t) (Type t':e) =
+appTypeOf m (TyForAll (NamedTyBndr i) t) (Type t':es) =
     let
         m' = M.insert (idName i) (tyVarRename m t') m
     in
-    appTypeOf m' t e
+    appTypeOf m' t es
+appTypeOf m (TyForAll (NamedTyBndr i) t) (_:es) = appTypeOf m t es
 appTypeOf m (TyFun _ t) (e:es) = appTypeOf m t es
 appTypeOf m t [] = tyVarRename m t
 appTypeOf m (TyVar (Id n _)) es =
@@ -405,7 +408,7 @@ numArgs = length . argumentTypes
 
 -- | argumentTypes
 -- Gives the types of the arguments of the functions
-data ArgType = JustType Type | BindType Id
+data ArgType = AnonType Type | NamedType Id
 
 argumentTypes :: Typed t => t -> [Type]
 argumentTypes = argumentTypes' . typeOf
@@ -416,13 +419,21 @@ argumentTypes' (TyForAll (NamedTyBndr _) t2) = TYPE:argumentTypes' t2
 argumentTypes' (TyFun t1 t2) = t1:argumentTypes' t2
 argumentTypes' _ = []
 
+argTypeToType :: ArgType -> Type
+argTypeToType (AnonType t) = t
+argTypeToType (NamedType i) = TyVar i
+
+argTypeToLamUse :: ArgType -> LamUse
+argTypeToLamUse (AnonType _) = TermL
+argTypeToLamUse (NamedType _) = TypeL
+
 spArgumentTypes :: Typed t => t -> [ArgType]
 spArgumentTypes = spArgumentTypes' . typeOf
 
 spArgumentTypes' :: Type -> [ArgType]
-spArgumentTypes' (TyForAll (AnonTyBndr t1) t2) = JustType t1:spArgumentTypes' t2
-spArgumentTypes' (TyForAll (NamedTyBndr i) t2) = BindType i:spArgumentTypes' t2
-spArgumentTypes' (TyFun t1 t2) = JustType t1:spArgumentTypes' t2
+spArgumentTypes' (TyForAll (AnonTyBndr t1) t2) = AnonType t1:spArgumentTypes' t2
+spArgumentTypes' (TyForAll (NamedTyBndr i) t2) = NamedType i:spArgumentTypes' t2
+spArgumentTypes' (TyFun t1 t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' _ = []
 
 tyForAllBindings :: Typed t => t -> [Id]

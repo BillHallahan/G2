@@ -50,5 +50,5 @@ takeEnd :: Int -> [a] -> [a]
 takeEnd n = reverse . take n . reverse
 
 argTypeToId :: Name -> ArgType -> (LamUse, Id)
-argTypeToId n (JustType t) = (TermL, Id n t)
-argTypeToId _ (BindType i) = (TypeL, i)
+argTypeToId n (AnonType t) = (TermL, Id n t)
+argTypeToId _ (NamedType i) = (TypeL, i)

@@ -19,6 +19,7 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , tcDicts
                                          , concreteSatEq
                                          , concreteSatStructEq
+                                         , typeClassInst
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
 
@@ -199,6 +200,21 @@ concreteSatTC tc tcn t
         Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
         Nothing -> Nothing
 concreteSatTC tc tcn t = fmap Var (lookupTCDict tc tcn t)
+
+-- Given a TypeClass name, a type that you want an instance of that typeclass
+-- for, and a mapping of TyVar name's to Id's for those types instances of
+-- the typeclass, returns an instance of the typeclass, if possible 
+typeClassInst :: TypeClasses -> M.Map Name Id -> Name -> Type -> Maybe Expr 
+typeClassInst tc m tcn t
+    | TyConApp _ _ <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , tcs <- map (typeClassInst tc m tcn) ts
+    , all (isJust) tcs =
+        case lookupTCDict tc tcn t of
+            Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
+            Nothing -> Nothing
+typeClassInst _ m _ (TyVar (Id n _)) = fmap Var $ M.lookup n m
+typeClassInst _ _ _ _ = Nothing
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments

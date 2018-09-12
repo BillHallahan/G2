@@ -1,19 +1,29 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Internals.Liquid.Conversion2 where
+module G2.Internals.Liquid.Conversion2 ( mergeLHSpecState
+                                       , convertLHExpr
+                                       , specTypeToType
+                                       , unsafeSpecTypeToType
+                                       , symbolName
+                                       , addLHDictToTypes) where
 
 import G2.Internals.Language
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Monad
 import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Liquid.Types
 import G2.Internals.Translation.Haskell
+
+import qualified Var as Var
 
 import Language.Fixpoint.Types.Names
 import qualified Language.Fixpoint.Types.Refinements as Ref
 import Language.Fixpoint.Types.Refinements hiding (Expr, I)
 import Language.Haskell.Liquid.Types
 
+import Data.Coerce
+import Data.Foldable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
@@ -21,8 +31,108 @@ import qualified Data.Text as T
 
 import Debug.Trace
 
--- convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State t -> M.Map Name Type -> Expr
-convertLHExpr :: M.Map Name Type -> Maybe Type -> Ref.Expr -> LHStateM Expr
+mergeLHSpecState :: Id -> [(Var.Var, LocSpecType)] -> LHStateM Id
+mergeLHSpecState i sp = do
+    mapM (uncurry mergeLHSpecState') sp
+    return i
+
+mergeLHSpecState' :: Var.Var -> LocSpecType -> LHStateM ()
+mergeLHSpecState' v lst = do
+    eenv <- exprEnv
+    let
+        (Id (Name n m _ _) _) = mkIdUnsafe v
+        g2N = E.lookupNameMod n m eenv
+
+    case g2N of
+        Just (n', e) -> do
+            e' <- mergeSpecType (val lst) n' e
+            insertE n' e'
+        Nothing -> return ()
+
+mergeSpecType :: SpecType -> Name -> Expr -> LHStateM Expr
+mergeSpecType st fn e = do
+    -- Create new lambda bindings to use in the Ref. Type
+    let argT = spArgumentTypes e
+    is <- freshIdsN $ map argTypeToType argT
+    let lu = map argTypeToLamUse argT
+
+    let e' = foldl' (\e_ -> App e_ . Var) e is
+
+    --Create a variable for the returned value
+    r <- freshIdN (typeOf e')
+    assert <- convertSpecType M.empty is r st
+
+    let fc = FuncCall { funcName = fn 
+                      , arguments = map Var is
+                      , returns = Var r }
+    let rLet = Let [(r, e')] $ Assert (Just fc) assert (Var r)
+    
+    let e''' = foldr (uncurry Lam) rLet $ zip lu is
+
+    return e'''
+
+convertSpecType :: M.Map Name Id -> [Id] -> Id -> SpecType -> LHStateM Expr
+convertSpecType m is r (RVar {rt_var = (RTV v), rt_reft = reft}) = do
+    let symb = reftSymbol $ ur_reft reft
+    let i = mkIdUnsafe v
+
+    let symbId = convertSymbolT symb (TyVar i)
+        m' = M.insert (idName symbId) i m 
+
+    re <- convertLHExpr m' Nothing (reftExpr $ ur_reft reft)
+
+    return $ App (Lam TermL symbId re) (Var r)
+convertSpecType m (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) = do
+    t <- unsafeSpecTypeToType fin
+    let i' = convertSymbolT b t
+
+    let m' = M.insert (idName i') i' m
+
+    e <- convertSpecType m' [] i' fin
+    e' <- convertSpecType m' is r fout
+
+    an <- mkAndE
+    let e'' = App (App an e) e'
+    
+    return $ App (Lam TermL i' e'') (Var i)
+convertSpecType m (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
+    let i' = mkIdUnsafe v
+
+    let m' = M.insert (idName i') i' m
+
+    e <- convertSpecType m' is r rty
+    return $ App (Lam TypeL i' e) (Var i)
+convertSpecType m is r (RApp {rt_tycon = c, rt_reft = reft, rt_args = as}) = do
+    let symb = reftSymbol $ ur_reft reft
+    ty <- return . maybe (error "Error in convertSpecType") id =<< rTyConType c as
+    let i = convertSymbolT symb ty
+
+    let m' = M.insert (idName i) i m
+
+    argsPred <- polyPredFunc as ty m r
+    re <- convertLHExpr m' Nothing (reftExpr $ ur_reft reft)
+
+    an <- mkAndE
+
+    return $ App (App an (App (Lam TermL i re) (Var r))) argsPred
+
+polyPredFunc :: [SpecType] -> Type -> M.Map Name Id -> Id -> LHStateM Expr
+polyPredFunc as ty m b = do
+    dict <- lhTCDict m ty
+    as' <- mapM (polyPredLam m) as
+
+    lhPP <- lhPPM
+    
+    return $ mkApp $ [Var $ Id lhPP TyUnknown, Type (typeOf b), dict] ++ as' ++ [Var b]
+
+polyPredLam :: M.Map Name Id -> SpecType -> LHStateM Expr
+polyPredLam m rapp  = do
+    t <- unsafeSpecTypeToType rapp
+    i <- freshIdN t
+    
+    convertSpecType m undefined i rapp
+
+convertLHExpr :: M.Map Name Id -> Maybe Type -> Ref.Expr -> LHStateM Expr
 convertLHExpr _ t (ECon c) = convertCon t c
 convertLHExpr m t (EVar s) = convertEVar (symbolName s) m t
 convertLHExpr m t (EApp e e') = do
@@ -55,6 +165,19 @@ convertLHExpr m t (EApp e e') = do
             
             return apps
         _ -> return $ App f argE
+convertLHExpr m t (ENeg e) = do
+    e' <- convertLHExpr m t e
+    let t' = typeOf e'
+
+    negate <- mkNegateE
+    lhDict <- lhTCDict m t'
+    nDict <- numDict m t'
+
+    return $ mkApp [ negate
+                   , Type t'
+                   , lhDict
+                   , nDict
+                   , e' ]
 convertLHExpr m t (EBin b e e') = do
     (e2, e2') <- correctTypes m t e e'
     b' <- convertBop b
@@ -90,6 +213,15 @@ convertLHExpr m t (POr es) = do
         [] -> return false
         [e] -> return e
         _ -> return $ foldr (\e -> App (App or e)) false es'
+convertLHExpr m t (PIff e1 e2) = do
+    e1' <- convertLHExpr m t e1
+    e2' <- convertLHExpr m t e2
+    iff <- mkIffE
+    return $ mkApp [iff, e1', e2']
+convertLHExpr m t (PAtom brel e1 e2) = do
+    (e1', e2') <- correctTypes m t e1 e2
+    brel' <- convertBrel brel
+    return $ mkApp [brel', e1', e2']
 convertLHExpr _ _ e = error $ "Untranslated LH Expr " ++ (show e)
 
 convertBop :: Bop -> LHStateM Expr
@@ -101,12 +233,14 @@ convertBop Ref.Mod = mkModE
 convertBop Ref.RTimes = mkMultE
 convertBop Ref.RDiv = mkDivE
 
-lhExprType :: M.Map Name Type -> Ref.Expr -> LHStateM Type
+lhExprType :: M.Map Name Id -> Ref.Expr -> LHStateM Type
 lhExprType m (ECon c) =
     case c of
         Ref.I _ -> tyIntT
         Ref.R _ -> tyDoubleT
-lhExprType m (EVar s) = return $ maybe TyUnknown id $ M.lookup (symbolName s) m
+lhExprType m (EVar s) =
+    return $ maybe TyUnknown id (fmap typeOf (M.lookup (symbolName s) m))
+lhExprType m (ENeg e) = lhExprType m e
 lhExprType m (EApp e _) = do
     t <- lhExprType m e
     
@@ -116,7 +250,7 @@ lhExprType m (EApp e _) = do
         _ -> error $ "Non-function type in EApp" ++ show t
 lhExprType _ e = error $ "Unhandled in lhExprType " ++ (show e)
 
-correctTypes :: M.Map Name Type -> Maybe Type -> Ref.Expr -> Ref.Expr -> LHStateM (Expr, Expr)
+correctTypes :: M.Map Name Id -> Maybe Type -> Ref.Expr -> Ref.Expr -> LHStateM (Expr, Expr)
 correctTypes m mt re re' = do
     t <- lhExprType m re
     t' <- lhExprType m re'
@@ -135,7 +269,7 @@ correctTypes m mt re re' = do
 
             return (e3, e3')
 
-callFromInteger :: M.Map Name Type -> Type -> Expr -> LHStateM (Maybe Expr)
+callFromInteger :: M.Map Name Id -> Type -> Expr -> LHStateM (Maybe Expr)
 callFromInteger m t e = do
     let retT = returnType e
 
@@ -156,6 +290,18 @@ callFromInteger m t e = do
                               , e]
 
 callFromInteger _ _ _ = error "Nothing in callFromInteger"
+
+convertSymbolT :: Symbol -> Type -> Id
+convertSymbolT s = Id (symbolName s)
+
+reftSymbol :: Reft -> Symbol
+reftSymbol = fst . unpackReft
+
+reftExpr :: Reft -> Ref.Expr
+reftExpr = snd . unpackReft
+
+unpackReft :: Reft -> (Symbol, Ref.Expr) 
+unpackReft = coerce
 
 -- If possible, we split symbols at the last "." not in parenthesis, to
 -- correctly set module names 
@@ -178,10 +324,10 @@ symbolName s =
         (n', "") -> Name n' Nothing 0 Nothing
         _ -> Name n (Just m') 0 Nothing
 
-convertEVar :: Name -> M.Map Name Type -> Maybe Type -> LHStateM Expr
+convertEVar :: Name -> M.Map Name Id -> Maybe Type -> LHStateM Expr
 convertEVar nm@(Name n md _ _) m mt = do
     let mt' = maybe TyUnknown id mt
-    let t = maybe mt' id $ M.lookup nm m
+    let d = maybe (Id nm mt') id $ M.lookup nm m
 
     eenv <- exprEnv
     tenv <- typeEnv
@@ -189,7 +335,7 @@ convertEVar nm@(Name n md _ _) m mt = do
     case (E.lookupNameMod n md eenv, getDataConNameMod' tenv nm) of
         (Just (n', e), _) -> return $ Var $ Id n' (typeOf e)
         (_, Just dc) -> return $ Data dc 
-        _ -> return $ Var $ Id nm t
+        _ -> return $ Var d
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyConApp n _)) (Ref.I i) = do
@@ -268,14 +414,14 @@ convertBrel' f = do
     n <- f
     return $ Var $ Id n TyUnknown
 
-addLHDictToTypes :: ASTContainerM e Type => M.Map Name Type -> e -> LHStateM e
+addLHDictToTypes :: ASTContainerM e Type => M.Map Name Id -> e -> LHStateM e
 addLHDictToTypes m = modifyContainedASTsM (addLHDictToTypes' m)
 
-addLHDictToTypes' :: M.Map Name Type -> Type -> LHStateM Type
+addLHDictToTypes' :: M.Map Name Id -> Type -> LHStateM Type
 addLHDictToTypes' m t@(TyForAll (NamedTyBndr _) _) = addLHDictToTypes'' m [] t
 addLHDictToTypes' m t = modifyChildrenM (addLHDictToTypes' m) t
 
-addLHDictToTypes'' :: M.Map Name Type -> [Id] -> Type -> LHStateM Type
+addLHDictToTypes'' :: M.Map Name Id -> [Id] -> Type -> LHStateM Type
 addLHDictToTypes'' m is (TyForAll (NamedTyBndr b) t) =
     return . TyForAll (NamedTyBndr b) =<< addLHDictToTypes'' m (b:is) t
 addLHDictToTypes'' m is t = do
@@ -285,32 +431,18 @@ addLHDictToTypes'' m is t = do
 
     return $ foldr TyFun t dictT'
 
-lhTCDict :: M.Map Name Type -> Type -> LHStateM Expr
+lhTCDict :: M.Map Name Id -> Type -> LHStateM Expr
 lhTCDict m t = do
-    ti <- typeIdList m
     lh <- lhTCM
-    tc <- typeClasses
-    let ts = tyAppArgs t
-    
-    case lookupTCDict tc lh t of
-        Just lhD -> 
-            case t of 
-                TyConApp _ _ -> do
-                    lhs <- mapM (lhTCDict m) ts
-                    return $ mkApp $ Var lhD:lhs ++ map (Type) ts
-                _ -> return $ Var lhD
-        Nothing -> case lookup t ti of
-            Just lhD -> return $ Var lhD
-            Nothing -> return $ Var (Id (Name "BAD" Nothing 0 Nothing) TyUnknown)
+    tc <- typeClassInstTC m lh t
+    case tc of
+        Just e -> return e
+        Nothing -> return $ Var (Id (Name "BAD" Nothing 0 Nothing) TyUnknown) -- error $ "No lh dict " ++ show t ++ "\n" ++ show m
 
-numDict :: M.Map Name Type -> Type -> LHStateM Expr
-numDict m t = return $ Var (Id (Name "BAD" Nothing 0 Nothing) TyUnknown)
-
-typeIdList :: M.Map Name Type -> LHStateM [(Type, Id)]
-typeIdList m = do
-    lh_tc <- lhTCM
-    return . map (\(n, t) -> (head $ tyAppArgs t, Id n t)) . M.toList . M.filter (tyVarInTyAppHasName lh_tc) $ m
-    where
-        tyVarInTyAppHasName :: Name -> Type -> Bool
-        tyVarInTyAppHasName n (TyApp (TyConApp n' _) (TyVar (Id _ _))) = n == n'
-        tyVarInTyAppHasName _ _ = False
+numDict :: M.Map Name Id -> Type -> LHStateM Expr
+numDict m t = do
+    num <- return . KV.numTC =<< knownValues
+    tc <- typeClassInstTC m num t
+    case tc of
+        Just e -> return e
+        Nothing -> return $ Var (Id (Name "BAD" Nothing 0 Nothing) TyUnknown) -- error $ "No lh dict " ++ show t ++ "\n" ++ show m

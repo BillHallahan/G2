@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module G2.Internals.Liquid.Conversion ( replaceVarTy
-                                      , mergeLHSpecState
+                                      -- , mergeLHSpecState
                                       , convertSpecType
                                       , convertSpecTypeDict
                                       , convertLHExpr
@@ -74,30 +74,30 @@ replaceVarTy' _ e = e
 -- reference expressions in E'.  This prevents infinite chains of Assumes/Asserts.  
 -- Finally, the two expression environments are merged, before the whole state
 -- is returned.
-mergeLHSpecState :: Lang.Id -> [Maybe T.Text] -> [(Var, LocSpecType)] -> State t -> ExprEnv -> TCValues -> (State t, Lang.Id)
-mergeLHSpecState i ns xs s@(State {expr_env = eenv, curr_expr = cexpr }) meenv tcv =
-    let
-        s' = addTrueAsserts ns $ mergeLHSpecState' (addAssertSpecType meenv tcv) xs s
+-- mergeLHSpecState :: Lang.Id -> [Maybe T.Text] -> [(Var, LocSpecType)] -> State t -> ExprEnv -> TCValues -> (State t, Lang.Id)
+-- mergeLHSpecState i ns xs s@(State {expr_env = eenv, curr_expr = cexpr }) meenv tcv =
+--     let
+--         s' = addTrueAsserts ns $ mergeLHSpecState' (addAssertSpecType meenv tcv) xs s
 
-        ng = name_gen s'
+--         ng = name_gen s'
 
-        usedCexpr = filter (not . flip E.isSymbolic eenv) $ varNames cexpr
-        eenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) eenv
-        meenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) meenv
-        ((usedCexpr', app_tys), ng') = renameAll (usedCexpr, apply_types s') ng
+--         usedCexpr = filter (not . flip E.isSymbolic eenv) $ varNames cexpr
+--         eenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) eenv
+--         meenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) meenv
+--         ((usedCexpr', app_tys), ng') = renameAll (usedCexpr, apply_types s') ng
 
-        usedZ = zip usedCexpr usedCexpr'
+--         usedZ = zip usedCexpr usedCexpr'
 
-        cexpr' = foldr (uncurry rename) cexpr usedZ
-        i' = foldr (uncurry rename) i usedZ
-        eenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) eenvC
-        meenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) meenvC
+--         cexpr' = foldr (uncurry rename) cexpr usedZ
+--         i' = foldr (uncurry rename) i usedZ
+--         eenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) eenvC
+--         meenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) meenvC
 
-        s'' = mergeLHSpecState' (addAssumeAssertSpecType meenv tcv) xs (s { expr_env = eenvC', name_gen = ng' })
-    in
-    (s'' { expr_env = E.union (E.union (E.union meenvC' meenv) (expr_env s')) $ expr_env s''
-        , curr_expr = cexpr'
-        , apply_types = app_tys }, i')
+--         s'' = mergeLHSpecState' (addAssumeAssertSpecType meenv tcv) xs (s { expr_env = eenvC', name_gen = ng' })
+--     in
+--     (s'' { expr_env = E.union (E.union (E.union meenvC' meenv) (expr_env s')) $ expr_env s''
+--         , curr_expr = cexpr'
+--         , apply_types = app_tys }, i')
 
 -- | mergeLHSpecState'
 -- Merges a list of Vars and SpecTypes with a State, by finding

@@ -21,7 +21,7 @@ addLHTCExprEnv e = do
     addLHTCExprEnvPasses m e'
 
 -- Updates a function definition with Lambdas to take the LH TC for each type argument.
-addLHTCExprEnvLams :: [Id] -> Expr -> LHStateM (Expr, M.Map Name Expr)
+addLHTCExprEnvLams :: [Id] -> Expr -> LHStateM (Expr, M.Map Name Id)
 addLHTCExprEnvLams is (Lam TypeL i e) = do
     (e', m) <- addLHTCExprEnvLams (i:is) e
     return (Lam TypeL i e', m)
@@ -34,7 +34,7 @@ addLHTCExprEnvLams is e = do
 
     let e' = foldr (Lam TermL) e is'''
 
-    let m = M.fromList $ zip (map idName is') (map Var is''')
+    let m = M.fromList $ zip (map idName is') is'''
 
     return (e', m)
 
@@ -42,12 +42,11 @@ addLHTCExprEnvLams is e = do
 -- This requires both:
 -- (1) Modify the expression, to pass the appropriate arguments
 -- (2) Modifying the type of the function variable
-addLHTCExprEnvPasses :: M.Map Name Expr -> Expr -> LHStateM Expr
+addLHTCExprEnvPasses :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprEnvPasses m e =
-    trace (show $ M.elems $ M.map (\e -> (e, typeOf e)) m)
-    modifyAppTopE (addLHTCExprEnvPasses' m) =<< addLHDictToTypes (M.map typeOf m) e
+    modifyAppTopE (addLHTCExprEnvPasses' m) =<< addLHDictToTypes m e
 
-addLHTCExprEnvPasses' :: M.Map Name Expr -> Expr -> LHStateM Expr
+addLHTCExprEnvPasses' :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprEnvPasses' m a@(App _ _) = do
     let a' = unApp a
     
@@ -55,7 +54,7 @@ addLHTCExprEnvPasses' m a@(App _ _) = do
     return $ mkApp a''
 addLHTCExprEnvPasses' _ e = return e
 
-addLHTCExprEnvPasses'' :: M.Map Name Expr -> [Expr] -> [Expr] -> LHStateM [Expr]
+addLHTCExprEnvPasses'' :: M.Map Name Id -> [Expr] -> [Expr] -> LHStateM [Expr]
 addLHTCExprEnvPasses'' _ es [] = return $ reverse es
 addLHTCExprEnvPasses'' m es (te@(Type t):es') = do
     dict <- lookupLHDict m t
@@ -65,10 +64,10 @@ addLHTCExprEnvPasses'' m es (e:es') = do
     as <- addLHTCExprEnvPasses'' m [] es'
     return $ reverse es ++ e:as
 
-lookupLHDict :: M.Map Name Expr -> Type -> LHStateM Expr
+lookupLHDict :: M.Map Name Id -> Type -> LHStateM Expr
 lookupLHDict m (TyVar (Id n _)) =
     case M.lookup n m of 
-        Just e -> return e
+        Just e -> return $ Var e
         Nothing -> return $ Var (Id (Name "BAD" Nothing 0 Nothing) TyUnknown) -- error "No LH Dict in lookupLHDict 1"
 lookupLHDict _ t = do
         lh <- lhTCM
