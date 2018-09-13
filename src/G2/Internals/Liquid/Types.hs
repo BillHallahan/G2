@@ -99,10 +99,6 @@ evalLHStateM s = fst . runLHStateM s
 execLHStateM :: LHStateM a -> LHState -> LHState
 execLHStateM s = snd . runLHStateM s
 
-lhStateToState :: LHState -> L.State [L.FuncCall]
-lhStateToState (LHState {state = s, measures = meas}) =
-    s { L.expr_env = L.expr_env s `E.union` meas }
-
 liftState :: (L.State [L.FuncCall] -> a) -> LHState -> a
 liftState f = f . state
 

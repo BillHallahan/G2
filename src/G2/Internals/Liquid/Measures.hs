@@ -43,7 +43,7 @@ allTypesKnown (M {sort = srt}) = do
     st <- specTypeToType srt
     return $ isJust st
 
-measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Id))
+measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Type))
 measureTypeMappings (M {name = n, sort = srt}) = do
     st <- specTypeToType srt
     lh <- lhTCM
@@ -53,7 +53,7 @@ measureTypeMappings (M {name = n, sort = srt}) = do
     let n' = symbolName $ val n
     
     case t of
-        Just t' -> return $ Just (n', Id n' t')
+        Just t' -> return $ Just (n', t')
         _ -> return  Nothing
 
 addLHDictToType :: Name -> Type -> Type
@@ -63,8 +63,8 @@ addLHDictToType lh t =
     in
     foldr TyFun t lhD
 
-convertMeasure :: M.Map Name Id -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
-convertMeasure m (M {name = n, sort = srt, eqns = eq}) = do
+convertMeasure :: BoundTypes -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
+convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
     let n' = symbolName $ val n
 
     st <- specTypeToType srt
@@ -76,7 +76,7 @@ convertMeasure m (M {name = n, sort = srt, eqns = eq}) = do
         as = map (\(d, t) -> Id d $ mkTyConApp lh_tc [t] TYPE) nbnds
         as' = map (TypeL, ) bnds ++ map (TermL,) as
 
-        as_t = map (\i -> (idName i, i)) as
+        as_t = map (\i -> (forType $ typeOf i, i)) as
 
         stArgs = anonArgumentTypes . PresType $ fromJust st
         stRet = fmap returnType st
@@ -84,16 +84,19 @@ convertMeasure m (M {name = n, sort = srt, eqns = eq}) = do
     lam_i <- freshIdN (head stArgs)
     cb <- freshIdN (head stArgs)
     
-    alts <- mapMaybeM (convertDefs stArgs stRet (M.union m (M.fromList as_t))) eq
+    alts <- mapMaybeM (convertDefs stArgs stRet (M.fromList as_t) bt) eq
 
     let e = mkLams as' (Lam TermL lam_i $ Case (Var lam_i) cb alts) 
     
     case st of -- [1]
         Just _ -> return $ Just (n', e)
         Nothing -> return Nothing
+    where
+        forType :: Type -> Name
+        forType (TyApp _ (TyVar (Id n _))) = n
 
-convertDefs :: [Type] -> Maybe Type -> M.Map Name Id -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
-convertDefs [l_t] ret m (Def { ctor = dc, body = b, binds = bds})
+convertDefs :: [Type] -> Maybe Type -> LHDict -> BoundTypes -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
+convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | TyConApp _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t = do
     tenv <- typeEnv
@@ -111,18 +114,18 @@ convertDefs [l_t] ret m (Def { ctor = dc, body = b, binds = bds})
 
     nt <- mapM (\((sym, t'), t'') -> do
                     t''' <- maybeM (return t'') unsafeSpecTypeToType (return t')
-                    return (symbolName sym, Id (symbolName sym) t''')) $ zip bds dctarg'
+                    return (symbolName sym, t''')) $ zip bds dctarg'
 
-    let is = map snd nt
+    let is = map (uncurry Id) nt
 
-    e <- mkExprFromBody ret (M.union m $ M.fromList nt) b
+    e <- mkExprFromBody ret m (M.union bt $ M.fromList nt) b
     
     case dc' of
         Just _ -> return $ Just $ Alt (DataAlt dc'' is) e -- [1]
         Nothing -> return Nothing
-convertDefs _ _ _ _ = error "convertDefs: Unhandled Type List"
+convertDefs _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
-mkExprFromBody :: Maybe Type -> M.Map Name Id -> Body -> LHStateM Expr
-mkExprFromBody ret m (E e) = convertLHExpr m ret e
-mkExprFromBody ret m (P e) = convertLHExpr m ret e
-mkExprFromBody _ _ _ = error "mkExprFromBody: Unhandled Body"
+mkExprFromBody :: Maybe Type -> LHDict -> BoundTypes -> Body -> LHStateM Expr
+mkExprFromBody ret m bt (E e) = convertLHExpr m bt ret e
+mkExprFromBody ret m bt (P e) = convertLHExpr m bt ret e
+mkExprFromBody _ _ _ _ = error "mkExprFromBody: Unhandled Body"

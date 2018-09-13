@@ -68,10 +68,10 @@ lookupLHDict :: M.Map Name Id -> Type -> LHStateM Expr
 lookupLHDict m (TyVar (Id n _)) =
     case M.lookup n m of 
         Just e -> return $ Var e
-        Nothing -> return $ Var (Id (Name "BAD" Nothing 0 Nothing) TyUnknown) -- error "No LH Dict in lookupLHDict 1"
+        Nothing -> return $ Var (Id (Name "BAD 1" Nothing 0 Nothing) TyUnknown) -- error "No LH Dict in lookupLHDict 1"
 lookupLHDict _ t = do
         lh <- lhTCM
         dict <- lookupTCDictTC lh t
         case dict of
             Just i -> return $ Var i
-            Nothing -> return $ Var (Id (Name "BAD" Nothing 0 Nothing) TyUnknown) -- error $ "No LH Dict in lookupLHDict 2" ++ show t
+            Nothing -> return $ Var (Id (Name "BAD 2" Nothing 0 Nothing) TyUnknown) -- error $ "No LH Dict in lookupLHDict 2" ++ show t

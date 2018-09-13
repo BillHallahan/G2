@@ -162,8 +162,8 @@ createStructEqFunc dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
 
 
     let e = Lam TermL lam1I $ Lam TermL lam2I $ App (App (App (App ex (Type rt')) d) cLam1I) cLam2I
-    let e' = mkLams (map (TypeL,) bd) e
-    let e'' = mkLams (map (TermL,) bt) e'
+    let e' = mkLams (map (TermL,) bd) e
+    let e'' = mkLams (map (TypeL,) bt) e'
 
     insertE fn e''
 createStructEqFunc _ _ _ (TypeSynonym {}) = error "Type synonym in createStructEqFunc"
@@ -178,8 +178,8 @@ createStructEqFuncDC t bt bd bm dc = do
     alts <- mapM (createStructEqFuncDCAlt (Var lam2I) t bm) dc
 
     let e = Lam TermL lam1I $ Lam TermL lam2I $ Case (Var lam1I) b1 alts
-    let e' = mkLams (map (TypeL,) bd) e
-    return $ mkLams (map (TermL,) bt) e'
+    let e' = mkLams (map (TermL,) bd) e
+    return $ mkLams (map (TypeL,) bt) e'
 
 createStructEqFuncDCAlt :: Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> IT.SimpleStateM Alt
 createStructEqFuncDCAlt e2 t bm dc@(DataCon _ ts) = do

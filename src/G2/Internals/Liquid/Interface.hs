@@ -102,6 +102,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let lh_state = createLHTC meenv ng_state'
 
     let lhtc_state1 = execLHStateM addLHTC lh_state
+
     let meas_state = execLHStateM (createMeasures lh_measures) lhtc_state1
 
     -- let meas_eenv = measures meas_state
@@ -127,7 +128,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
 
     -- let merged_state' = state merged_state
 
-    let beta_red_state = simplifyAsserts mkv tcv merged_state' {apply_types = apply_types ng2_state}
+    let beta_red_state = merged_state' -- simplifyAsserts mkv tcv merged_state' {apply_types = apply_types ng2_state}
     let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
 
     -- We create annm_gen_state purely to have to generate less annotations

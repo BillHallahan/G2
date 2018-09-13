@@ -34,6 +34,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace
+
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id]} deriving (Show, Eq, Read)
 
 type TCType = M.Map Name Class
@@ -206,11 +208,11 @@ concreteSatTC tc tcn t = fmap Var (lookupTCDict tc tcn t)
 -- the typeclass, returns an instance of the typeclass, if possible 
 typeClassInst :: TypeClasses -> M.Map Name Id -> Name -> Type -> Maybe Expr 
 typeClassInst tc m tcn t
-    | TyConApp _ _ <- tyAppCenter t
+    | tca@(TyConApp _ _) <- tyAppCenter t
     , ts <- tyAppArgs t
     , tcs <- map (typeClassInst tc m tcn) ts
     , all (isJust) tcs =
-        case lookupTCDict tc tcn t of
+        case lookupTCDict tc tcn tca of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
 typeClassInst _ m _ (TyVar (Id n _)) = fmap Var $ M.lookup n m

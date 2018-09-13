@@ -262,11 +262,7 @@ specializes m (TyApp t1 t2) (TyApp t1' t2') =
         (b2, m'') = specializes m' t2 t2'
     in
     (b1 && b2, m'')
-specializes m (TyConApp n ts) (TyConApp n' ts') =
-    let
-        (b, m') = specializes m ts ts'
-    in
-    (n == n' && b, m')
+specializes m (TyConApp n ts) (TyConApp n' ts') = (n == n', m)
 -- specializes m (TyConApp n ts) app@(TyApp _ _) =
 --     let
 --         appts = unTyApp app
