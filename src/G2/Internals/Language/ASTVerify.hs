@@ -1,7 +1,6 @@
 -- | Defines various functions for verifying the types in an AST
 
 {-# LANGUAGE FlexibleContexts #-}
-
 module G2.Internals.Language.ASTVerify (letsTypeValid
                                         , caseTypeValid
                                         , castTypeValid
@@ -50,6 +49,12 @@ pathCondExpr (ExtCond e _ )   = e
 pathCondExpr (AltCond _ e _) = e
 pathCondExpr (ConsCond _ e _) = e
 pathCondExpr (PCExists i) = Var i
+
+-- | isExtCond
+-- Determines whether a given PathCond is of the ExtCond Type
+isExtCond :: PathCond -> Bool
+isExtCond (ExtCond _ _) = True
+isExtCond _ = False
 
 -- | caseTypeValid
 -- In all case expressions, the types of the Expr and Id, should match, and
@@ -113,15 +118,21 @@ checkExprEnvTyping' eenv (Var i) | E.member (idName i) eenv =
         _ -> []
 checkExprEnvTyping' _ _ = []
 
+-- | getFunTypeList
+-- Tears apart a function type and returns a list of types that function type stores
+getFunTypeList :: Type -> [Type]
+getFunTypeList (TyFun t t2) = getFunTypeList t ++ getFunTypeList t2
+getFunTypeList t = [t]
 
 -- | checkAppTyping
 -- Check that each argument to each function call is of the correct type.
 -- Returns all the Apps for which the type of the center does not match one of the arguments
 checkAppTyping :: (ASTContainer m Expr) => m -> [Expr]
-checkAppTyping m = filter functionMatchesArgs (functionCalls m)
+checkAppTyping m = filter typeCheck (functionCalls m)
     where 
     -- Applicative functor to judge whether a functions arguments match the type
-    functionMatchesArgs = (\a -> and (map (not . (typeMatch (appCenter a))) (passedArgs a)))
+    typeCheck = \a -> or (map (\ts -> not $ (typeMatch (fst ts) (snd ts))) (parameterZippedWithActual a))
+    parameterZippedWithActual = (\a@(App _ _) -> zip (getFunTypeList $ typeOf $ appCenter a) (passedArgs a))
 
 -- | checkPathCond
 -- All expression in the path_conds, non_red_path_conds, Returns the list of
@@ -132,7 +143,7 @@ checkPathCond State {path_conds = pconds, non_red_path_conds = nrpconds, known_v
   where
     pcFailsExpr = map pathCondExpr pcFails
     -- extracts the expressions from the [PathCond] and typechecks
-    pcFails = filter (\pc -> not $ typeMatch (tyBool kv) (pathCondExpr pc)) (PC.toList pconds)
+    pcFails = filter (\pc -> (isExtCond pc) && (not $ typeMatch (tyBool kv) (pathCondExpr pc))) (PC.toList pconds)
     -- Check that each expression in the non-reduced path conditions is a bool
     nrpcFails = filter (\a -> not $ typeMatch (tyBool kv) a) nrpconds
   
