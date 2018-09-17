@@ -45,6 +45,19 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
 
 type Measures = L.ExprEnv
 
+
+-- [LHState]
+-- measures is an extra expression environment, used to build Assertions.
+-- This distinction between functions for code, and functions for asserts is important because
+-- Assertions should not themselves contain assertions.  A measure function
+-- may be used both in code and in an assertion, but should only have it's
+-- refinement type added in the code
+--  
+-- Invariant: Internally, functions in the State ExprEnv need to have LH Dict arguments added,
+-- (see addLHTCExprEnv) whereas functions in the measures should be created with the LH Dicts
+-- already accounted for.
+
+
 -- | LHState
 -- Wraps a State, along with the other information needed to parse
 -- LiquidHaskell ASTs

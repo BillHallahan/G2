@@ -95,7 +95,7 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
         forType :: Type -> Name
         forType (TyApp _ (TyVar (Id n _))) = n
 
-convertDefs :: [Type] -> Maybe Type -> LHDict -> BoundTypes -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
+convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
 convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | TyConApp _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t = do
@@ -125,7 +125,7 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
         Nothing -> return Nothing
 convertDefs _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
-mkExprFromBody :: Maybe Type -> LHDict -> BoundTypes -> Body -> LHStateM Expr
+mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
 mkExprFromBody ret m bt (E e) = convertLHExpr m bt ret e
 mkExprFromBody ret m bt (P e) = convertLHExpr m bt ret e
 mkExprFromBody _ _ _ _ = error "mkExprFromBody: Unhandled Body"
