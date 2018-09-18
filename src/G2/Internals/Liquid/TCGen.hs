@@ -14,9 +14,12 @@ import Control.Monad.Extra (maybeM)
 
 import Data.Coerce
 import Data.Foldable
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+
+import Debug.Trace
 
 ---------------------------------------
 -- LH TypeClass Gen
@@ -174,15 +177,27 @@ type PredFunc = LHDictMap -> AlgDataTy -> DataCon -> [Id] -> LHStateM [Alt]
 
 createLHTCFuncs :: LHStateM ()
 createLHTCFuncs = do
-    lhm <- return . M.fromList =<< mapM (uncurry initalizeLHTC) . M.toList =<< typeEnv
+    lhm <- mapM (uncurry initalizeLHTC) . M.toList =<< typeEnv
+    let lhm' = M.fromList lhm
 
+    -- createLHTCFuncs' relies on the standard TypeClass lookup functions to get access to
+    -- LH Dicts.  So it is important that, before calling it, we set up the TypeClass correctly
+    lhtc <- mapM (\(n, f) -> do
+                                adt <- lookupT n
+                                case adt of
+                                    Just adt' -> do
+                                        let bnvK = mkTyApp $ map (const TYPE) $ bound_ids adt'
+                                        return (TyConApp n bnvK, f)
+                                    Nothing -> error $ "No LH Dict name for " ++ show n) lhm
 
     tc <- typeClasses
     tcn <- lhTCM
-    lhtc <- mapM (uncurry (createLHTCFuncs' lhm)) . M.toList =<< typeEnv
     tci <- freshIdN TYPE
     let tc' = coerce . M.insert tcn (Class { insts = lhtc, typ_ids = [tci] }) $ coerce tc
     putTypeClasses tc'
+
+    -- Now, we do the work of actually generating all the code/functions for the typeclass
+    mapM_ (uncurry (createLHTCFuncs' lhm')) . M.toList =<< typeEnv
 
 initalizeLHTC :: Name -> AlgDataTy -> LHStateM (Name, Id)
 initalizeLHTC n adt = do
@@ -192,7 +207,7 @@ initalizeLHTC n adt = do
 lhName :: T.Text -> Name -> LHStateM Name
 lhName t (Name n m _ _) = freshSeededNameN $ Name (t `T.append` n) m 0 Nothing
 
-createLHTCFuncs' :: LHDictMap -> Name -> AlgDataTy -> LHStateM (Type, Id)
+createLHTCFuncs' :: LHDictMap -> Name -> AlgDataTy -> LHStateM ()
 createLHTCFuncs' lhm n adt = do
     eqN <- lhName "lhEq" n
     eq <- createFunc lhEqFunc n adt
@@ -244,8 +259,8 @@ createLHTCFuncs' lhm n adt = do
     case fn of
         Just fn' -> do
             insertMeasureM (idName fn') e''
-            let bnvK = mkTyApp $ map (const TYPE) bi
-            return (TyConApp n bnvK, fn')
+            -- let bnvK = mkTyApp $ map (const TYPE) bi
+            return () -- return (TyConApp n bnvK, fn')
         Nothing -> error $ "No LH Dict name for " ++ show n
 
 createFunc :: PredFunc -> Name -> AlgDataTy -> LHStateM Expr 
@@ -395,18 +410,16 @@ lhPPAlt lhm fnm dc = do
     return $ Alt (DataAlt dc ba) pr'
 
 lhPPCall :: LHDictMap -> PPFuncMap -> Id -> LHStateM Expr
-lhPPCall lhm fnm i 
+lhPPCall lhm fnm i@(Id _ t)
     | TyConApp n _ <- tyAppCenter t
     , ts <- tyAppArgs t  = do
         lhpp <- lhPPM
 
-        i <- freshIdN TYPE
-        b <- tyBoolT
+        let lhv = Var $ Id lhpp TyUnknown
+        dict <- lhTCDict'' lhm t
+        let undefs = map (const $ Prim Undefined TyBottom) $ typeArgs dict
 
-        let lhv = Var $ Id lhpp TyUnknown-- (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b)))
-        let as = map Type ts
-        
-        return $ App lhv (Var i)
+        return . mkApp $ lhv:[Type t, dict] ++ undefs ++ [Var i]
 
     | TyVar _ <- tyAppCenter t
     , ts <- tyAppArgs t = do
@@ -421,8 +434,23 @@ lhPPCall lhm fnm i
     || t == TyLitFloat
     || t == TyLitChar = mkTrueE
     | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm
-    where
-        t = typeOf i
+
+typeArgs :: Expr -> [Type]
+typeArgs = mapMaybe typeOfTypeExpr . unApp
+
+typeOfTypeExpr :: Expr -> Maybe Type
+typeOfTypeExpr (Type t) = Just t
+typeOfTypeExpr _ = Nothing
+
+-- | t <- typeOf i
+--     , TyConApp n _ <- tyAppCenter t
+--     , ts <- tyAppArgs t
+--     , Just f <- M.lookup n w =
+--         let
+--             as = map Type ts
+--             as' = map (polyPredFunc' true w bnf) ts
+--         in
+--         foldl' App (Var f) (as ++ as')
 
 createExtractors :: LHStateM ()
 createExtractors = do
@@ -453,7 +481,7 @@ createExtractors'' lh i j n = do
     b <- freshIdN TYPE
     let d = DataCon lh (TyForAll 
                             (NamedTyBndr b) 
-                            (TyFun 
+                            (TyFun
                                 (TyVar b) 
                                 (TyApp (TyConApp lh (TyApp TYPE TYPE)) (TyVar b))
                             )

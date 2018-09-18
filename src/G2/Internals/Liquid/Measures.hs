@@ -126,6 +126,11 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
 convertDefs _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
 mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
-mkExprFromBody ret m bt (E e) = convertLHExpr m bt ret e
-mkExprFromBody ret m bt (P e) = convertLHExpr m bt ret e
+mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m ) bt ret e
+mkExprFromBody ret m bt (P e) = convertLHExpr (mkDictMaps m) bt ret e
 mkExprFromBody _ _ _ _ = error "mkExprFromBody: Unhandled Body"
+
+mkDictMaps :: LHDictMap -> DictMaps
+mkDictMaps ldm = DictMaps { lh_dicts = ldm
+                          , num_dicts = M.empty
+                          , ord_dicts = M.empty}
