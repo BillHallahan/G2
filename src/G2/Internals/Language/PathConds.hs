@@ -20,7 +20,8 @@ module G2.Internals.Language.PathConds ( PathCond (..)
                                        , relatedSets
                                        , scc
                                        , varIdsInPC
-                                       , toList) where
+                                       , toList
+                                       , isExtCond ) where
 
 import G2.Internals.Language.AST
 import G2.Internals.Language.Ids
@@ -278,3 +279,9 @@ instance Ided PathCond where
     ids (ExtCond e _) = ids e
     ids (ConsCond d e _) = ids d ++  ids e
     ids (PCExists i) = [i]
+
+-- | isExtCond
+-- Determines whether a given PathCond is an instance of ExtCond or not
+isExtCond :: PathCond -> Bool
+isExtCond (ExtCond _ _) = True
+isExtCond _ = False

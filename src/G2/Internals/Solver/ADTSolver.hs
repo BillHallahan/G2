@@ -142,10 +142,6 @@ findConsistent'' _ _ = Nothing
 
 -- Various helper functions
 
-isExtCond :: PathCond -> Bool
-isExtCond (ExtCond _ _) = True
-isExtCond _ = False
-
 pcVarType :: [PathCond] -> Maybe Name
 pcVarType (AltCond _ (Var (Id _ (TyConApp n _))) _:pc) = pcVarType' n pc
 pcVarType (ConsCond _ (Var (Id _ (TyConApp n _))) _:pc) = pcVarType' n pc

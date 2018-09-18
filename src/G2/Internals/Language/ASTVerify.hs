@@ -21,7 +21,13 @@ import qualified G2.Internals.Language.KnownValues as KV
 -- | typeMatch
 -- Checks if a typed class matches the type of another typed class
 typeMatch :: (Typed a, Typed b) => a -> b -> Bool
-typeMatch x y = typeOf x .::. typeOf y
+typeMatch x y = case bottom of
+  False -> typeX .::. typeY
+  _ -> True
+  where
+    bottom = typeX .::. TyBottom || typeY .::. TyBottom
+    typeY = typeOf y
+    typeX = typeOf x
 
 -- | letsTypeValid
 -- Takes an ASTContainer and returns a list of all Binds inside lets for which
@@ -30,7 +36,7 @@ letsTypeValid :: (ASTContainer m Expr) => m -> Binds
 letsTypeValid = evalASTs letsTypeValid'
 
 letsTypeValid' :: Expr -> Binds
-letsTypeValid' (Let bs _) = filter (\b -> not $ typeMatch (fst b) (snd b)) bs
+letsTypeValid' (Let bs _) = filter (\b -> not (typeMatch (fst b) (snd b))) bs
 letsTypeValid' _ = []
 
 -- | altMatchType
@@ -38,6 +44,7 @@ letsTypeValid' _ = []
 -- even if one doesn't technically exist.
 altMatchType :: AltMatch -> Type
 altMatchType am = case am of
+        (DataAlt (DataCon _ (TyFun _ t)) _) -> typeOf t
         (DataAlt con _) -> typeOf con
         (LitAlt lit) -> typeOf lit
         Default -> TyBottom
@@ -49,12 +56,6 @@ pathCondExpr (ExtCond e _ )   = e
 pathCondExpr (AltCond _ e _) = e
 pathCondExpr (ConsCond _ e _) = e
 pathCondExpr (PCExists i) = Var i
-
--- | isExtCond
--- Determines whether a given PathCond is of the ExtCond Type
-isExtCond :: PathCond -> Bool
-isExtCond (ExtCond _ _) = True
-isExtCond _ = False
 
 -- | caseTypeValid
 -- In all case expressions, the types of the Expr and Id, should match, and
@@ -143,7 +144,7 @@ checkPathCond State {path_conds = pconds, non_red_path_conds = nrpconds, known_v
   where
     pcFailsExpr = map pathCondExpr pcFails
     -- extracts the expressions from the [PathCond] and typechecks
-    pcFails = filter (\pc -> (isExtCond pc) && (not $ typeMatch (tyBool kv) (pathCondExpr pc))) (PC.toList pconds)
+    pcFails = filter (\pc -> (PC.isExtCond pc) && (not $ typeMatch (tyBool kv) (pathCondExpr pc))) (PC.toList pconds)
     -- Check that each expression in the non-reduced path conditions is a bool
     nrpcFails = filter (\a -> not $ typeMatch (tyBool kv) a) nrpconds
   
