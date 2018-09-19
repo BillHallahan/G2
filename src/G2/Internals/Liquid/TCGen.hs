@@ -4,6 +4,7 @@ module G2.Internals.Liquid.TCGen (createLHTC) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.Conversion2
 import G2.Internals.Liquid.TCValues
@@ -121,10 +122,10 @@ import Debug.Trace
 --     return (Lam TypeL tb (Lam TermL lb c))
     -- return (Lam TermL lb (Lam TypeL tb c))
 
-createLHTC :: ExprEnv -> State [FuncCall] -> LHState
-createLHTC meenv s =
+createLHTC :: Measures -> KnownValues -> State [FuncCall] -> LHState
+createLHTC meenv mkv s =
     let
-        (tcv, s') = runStateM createTCValues s
+        (tcv, s') = runStateM (createTCValues mkv) s
 
         lh_s = consLHState s' meenv tcv
     in
@@ -133,8 +134,8 @@ createLHTC meenv s =
                     createExtractors) lh_s
     
 
-createTCValues :: StateM [FuncCall] TCValues
-createTCValues = do
+createTCValues :: KnownValues -> StateM [FuncCall] TCValues
+createTCValues kv = do
     lhTCN <- freshSeededStringN "lh"
     lhEqN <- freshSeededStringN "lhEq"
     lhNeN <- freshSeededStringN "lhNe"
@@ -145,12 +146,22 @@ createTCValues = do
     lhPPN <- freshSeededStringN "lhPP"
 
     return (TCValues { lhTC = lhTCN
+                     , lhOrdTC = KV.ordTC kv 
+
                      , lhEq = lhEqN
                      , lhNe = lhNeN
-                     , lhLt = lhLtN
-                     , lhLe = lhLeN
-                     , lhGt = lhGtN
-                     , lhGe = lhGeN
+                     , lhLt = KV.ltFunc kv
+                     , lhLe = KV.leFunc kv
+                     , lhGt = KV.gtFunc kv
+                     , lhGe = KV.geFunc kv
+
+                     , lhPlus = KV.plusFunc kv
+                     , lhMinus = KV.minusFunc kv
+                     , lhTimes = KV.timesFunc kv
+                     , lhDiv = KV.divFunc kv
+                     , lhNegate = KV.negateFunc kv
+                     , lhMod = KV.modFunc kv
+
                      , lhPP = lhPPN })
 
 -- TODO: very similar to createFuncsM in Language/CreateFuncs.hs
@@ -218,20 +229,20 @@ createLHTCFuncs' lhm n adt = do
     insertMeasureM neN ne
 
     ltN <- lhName "lhLt" n
-    lt <- createFunc lhLtFunc n adt
-    insertMeasureM ltN lt
+    -- lt <- createFunc lhLtFunc n adt
+    -- insertMeasureM ltN lt
 
     leN <- lhName "lhLe" n
-    le <- createFunc lhLeFunc n adt
-    insertMeasureM leN le
+    -- le <- createFunc lhLeFunc n adt
+    -- insertMeasureM leN le
 
     gtN <- lhName "lhGt" n
-    gt <- createFunc lhGtFunc n adt
-    insertMeasureM gtN gt
+    -- gt <- createFunc lhGtFunc n adt
+    -- insertMeasureM gtN gt
 
     geN <- lhName "lhGe" n
-    ge <- createFunc lhGeFunc n adt
-    insertMeasureM geN ge
+    -- ge <- createFunc lhGeFunc n adt
+    -- insertMeasureM geN ge
 
     ppN <- lhName "lhPP" n
     pp <- lhPPFunc n adt
@@ -247,7 +258,7 @@ createLHTCFuncs' lhm n adt = do
     lhd <- freshIdsN (map (TyApp (TyConApp lh (TyApp TYPE TYPE)) . TyVar) bi)
     let lhdv = map Var lhd
 
-    let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ltN, leN, gtN, geN, ppN]
+    let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ppN]
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs
 
     let e = mkApp $ Data (DataCon lh TyUnknown):fs'
@@ -457,13 +468,13 @@ createExtractors = do
     lh <- lhTCM
     eq <- lhEqM
     ne <- lhNeM
-    lt <- lhLtM
-    le <- lhLeM
-    gt <- lhGtM
-    ge <- lhGeM
+    -- lt <- lhLtM
+    -- le <- lhLeM
+    -- gt <- lhGtM
+    -- ge <- lhGeM
     pp <- lhPPM
 
-    createExtractors' lh [eq, ne, lt, le, gt, ge, pp]
+    createExtractors' lh [eq, ne, pp]
 
 createExtractors' :: Name -> [Name] -> LHStateM ()
 createExtractors' lh ns = mapM_ (uncurry (createExtractors'' lh (length ns))) $ zip [0..] ns

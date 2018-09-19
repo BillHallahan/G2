@@ -38,7 +38,7 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
-        -- , liquidTests
+        , liquidTests
         , testFileTests
         , baseTests
         , primTests
@@ -103,71 +103,71 @@ liquidTests =
     return . testGroup "Liquid"
         =<< sequence [
                   checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "abs2" 2000 2 [RForAll (\[x, y] -> isDouble x ((==) 0) && isDouble y ((==) 0)), Exactly 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 800 3 
-                    [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > z' || y' > z'), AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 1000 3 
-                    [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > 0 && x' >= y' && z' <= 0), AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 4000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 6000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "xSqPlusYSq" 1000 3 
-                    [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' + y' >= z'), AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "add" 800 3 
+                --     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > z' || y' > z'), AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 1000 3 
+                --     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > 0 && x' >= y' && z' <= 0), AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 4000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 6000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "xSqPlusYSq" 1000 3 
+                --     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' + y' >= z'), AtLeast 1]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 800 3 [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' /= y' && y' == z'), Exactly 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 800 2 [AtLeast 1, RForAll (\[App (App _ x) y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' ->  x' > z' || y' > z')]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 800 3 [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' /= y' && y' == z'), Exactly 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 800 2 [AtLeast 1, RForAll (\[App (App _ x) y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' ->  x' > z' || y' > z')]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 1000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
-                , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "fromInt" 600 2 [RForAll (\[x, y] -> isInt x (\x' -> x' == 0)  && y `eqIgT` zeroPeano), AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 1000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "fromInt" 600 2 [RForAll (\[x, y] -> isInt x (\x' -> x' == 0)  && y `eqIgT` zeroPeano), AtLeast 1]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 4000 3 [AtLeast 3, RForAll getNthErrors]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 1500 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 3 [AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 2 [AtLeast 3]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 4000 3 [AtLeast 3, RForAll getNthErrors]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 1500 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 3 [AtLeast 3]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 2 [AtLeast 3]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
-                    [AtLeast 2, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe2" 2000 3 
-                    [AtLeast 2, RForAll (\[x, _, _] -> appNthArgIs x (\x' -> isInt x' $ \x'' -> x'' >= 0) 1)
-                              , RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "getLeftInts" 2000 2 
-                    [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 1)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sumSameInts" 2000 3 
-                    [AtLeast 1, RForAll (\[x, y, _] -> dcInAppHasName "Right" x 1 && dcInAppHasName "Left" y 1)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1200 2 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
+                --     [AtLeast 2, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe2" 2000 3 
+                --     [AtLeast 2, RForAll (\[x, _, _] -> appNthArgIs x (\x' -> isInt x' $ \x'' -> x'' >= 0) 1)
+                --               , RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "getLeftInts" 2000 2 
+                --     [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 1)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sumSameInts" 2000 3 
+                --     [AtLeast 1, RForAll (\[x, y, _] -> dcInAppHasName "Right" x 1 && dcInAppHasName "Left" y 1)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1200 2 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "d" 1000 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 1000 2 [Exactly 0]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackBool" 1000 2 [AtLeast 1, RForAll (\[_, r] -> getBoolB r (== False))]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 1000 3 [Exactly 0]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As" 1000 3 
-                    [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "B" y)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As'" 1000 3 
-                    [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "A" x && buriedDCName "B" y)
-                              , RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "A" y)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "ge4gt5" 1000 2 
-                    [AtLeast 1, RForAll (\[x, y] -> appNth x 1 $ \x' -> isInt x' $ \x'' -> isInt y $ \y' ->  x'' == 4 && y' == 5)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "d" 1000 2 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 1000 2 [Exactly 0]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackBool" 1000 2 [AtLeast 1, RForAll (\[_, r] -> getBoolB r (== False))]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 1000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As" 1000 3 
+                --     [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "B" y)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As'" 1000 3 
+                --     [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "A" x && buriedDCName "B" y)
+                --               , RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "A" y)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "ge4gt5" 1000 2 
+                --     [AtLeast 1, RForAll (\[x, y] -> appNth x 1 $ \x' -> isInt x' $ \x'' -> isInt y $ \y' ->  x'' == 4 && y' == 5)]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat2" 500 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 500 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1000 2 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat2" 500 2 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 500 2 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1000 2 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f1" 2000 3 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f2" 2000 3 [AtLeast 4, RForAll (\[_, x, y] -> x == y)]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f3" 2000 3 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f4" 2000 3 [AtLeast 4, RForAll (\[_, x, _] -> isInt x $ \x' -> x' == 0)]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f5" 2000 3 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f6" 2000 3 [AtLeast 10]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f7" 2000 3 [AtLeast 10, RForAll (\[x, _, y] -> isInt x $ \x' -> isInt y $ \y' -> x' == y')]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f8" 2000 3 [AtLeast 10]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "callf" 2000 3 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f1" 2000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f2" 2000 3 [AtLeast 4, RForAll (\[_, x, y] -> x == y)]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f3" 2000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f4" 2000 3 [AtLeast 4, RForAll (\[_, x, _] -> isInt x $ \x' -> x' == 0)]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f5" 2000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f6" 2000 3 [AtLeast 10]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f7" 2000 3 [AtLeast 10, RForAll (\[x, _, y] -> isInt x $ \x' -> isInt y $ \y' -> x' == y')]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f8" 2000 3 [AtLeast 10]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "callf" 2000 3 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error1.hs" "f" 600 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 3 [AtLeast 1]
-                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error3.hs" "z" 2000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error1.hs" "f" 600 2 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 3 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error3.hs" "z" 2000 3 [Exactly 0]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

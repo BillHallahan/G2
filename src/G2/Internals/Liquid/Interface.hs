@@ -99,7 +99,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
 
     let ng_state' = ng_state {track = []}
 
-    let lh_state = createLHTC meenv ng_state'
+    let lh_state = createLHTC meenv mkv ng_state'
 
     let lhtc_state1 = execLHStateM addLHTC lh_state
 

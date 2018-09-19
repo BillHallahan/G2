@@ -110,19 +110,19 @@ mergeSpecType st fn e = do
     num <- return . KV.numTC =<< knownValues
     ord <- return . KV.ordTC =<< knownValues
 
-    -- Gather up LH TC's to use in Assertion
-    let lhm = tcWithNameMap lh
-    let nm = tcWithNameMap num
-    let om = tcWithNameMap ord
-
-    let dm = DictMaps { lh_dicts = lhm
-                      , num_dicts = nm
-                      , ord_dicts = om }
-
     -- Create new bindings to use in the Ref. Type
     let argT = spArgumentTypes e
     is <- mapM argsFromArgT argT
     let lu = map argTypeToLamUse argT
+
+    -- Gather up LH TC's to use in Assertion
+    let lhm = tcWithNameMap lh is
+    let nm = tcWithNameMap num is
+    let om = tcWithNameMap ord is
+
+    let dm = DictMaps { lh_dicts = lhm
+                      , num_dicts = nm
+                      , ord_dicts = om }
 
     let e' = foldl' (\e_ -> App e_ . Var) e is
 
@@ -142,11 +142,11 @@ mergeSpecType st fn e = do
 
     return e'''
     where
-        tcWithNameMap :: Name -> M.Map Name Id
+        tcWithNameMap :: Name -> [Id] -> M.Map Name Id
         tcWithNameMap n =
             M.fromList
                 . map (\i -> (forType $ typeOf i, i))
-                . filter (isTC n . typeOf) $ leadingLamIds e
+                . filter (isTC n . typeOf)
 
         isTC :: Name -> Type -> Bool
         isTC n t = case tyAppCenter t of
@@ -199,7 +199,7 @@ convertSpecType m bt is r (RApp {rt_tycon = c, rt_reft = reft, rt_args = as}) = 
 
     let bt' = M.insert (idName i) ty bt
 
-    argsPred <- mkTrueE -- polyPredFunc as ty m bt' r
+    argsPred <- polyPredFunc as ty m bt' r
     re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
 
     an <- mkAndE
@@ -259,13 +259,27 @@ convertLHExpr m bt t (ENeg e) = do
     e' <- convertLHExpr m bt t e
     let t' = typeOf e'
 
-    negate <- mkNegateE
+    negate <- lhNegateM
+    lh <- lhTCM
+    num <- return . KV.numTC =<< knownValues
+    a <- freshIdN TYPE
+    let tva = TyVar a
+    let negate' = Var $ Id negate 
+                        (TyForAll (NamedTyBndr a)
+                            (TyFun
+                                (TyApp (TyConApp num (TyApp TYPE TYPE)) tva)
+                                (TyFun
+                                    tva
+                                    tva
+                                )
+                            )
+                        )
+
     lhDict <- lhTCDict m t'
     nDict <- numDict m t'
 
-    return $ mkApp [ negate
+    return $ mkApp [ negate'
                    , Type t'
-                   , lhDict
                    , nDict
                    , e' ]
 convertLHExpr m bt t (EBin b e e') = do
@@ -279,7 +293,6 @@ convertLHExpr m bt t (EBin b e e') = do
 
     return $ mkApp [ b'
                    , Type t'
-                   , lhDict
                    , nDict
                    , e2
                    , e2' ]
@@ -317,19 +330,40 @@ convertLHExpr m bt t (PAtom brel e1 e2) = do
     dict <- brelTCDict brel m t'
     lhDict <- lhTCDict m t'
 
-    if lhFunc brel
-        then return $ mkApp [brel', Type t', dict, e1', e2']
-        else return $ mkApp [brel', Type t', lhDict,  dict, e1', e2']
+    case dict of
+        Nothing -> return $ mkApp [brel', Type t', lhDict, e1', e2']
+        Just dict' -> return $ mkApp [brel', Type t', dict', e1', e2']
 convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
 
 convertBop :: Bop -> LHStateM Expr
-convertBop Ref.Plus = mkPlusE
-convertBop Ref.Minus = mkMinusE
-convertBop Ref.Times = mkMultE
-convertBop Ref.Div = mkDivE
-convertBop Ref.Mod = mkModE
-convertBop Ref.RTimes = mkMultE
-convertBop Ref.RDiv = mkDivE
+convertBop Ref.Plus = convertBop' lhPlusM
+convertBop Ref.Minus = convertBop' lhMinusM
+convertBop Ref.Times = convertBop' lhTimesM
+convertBop Ref.Div = convertBop' lhDivM
+convertBop Ref.Mod = convertBop' lhModM
+convertBop Ref.RTimes = convertBop' lhTimesM
+convertBop Ref.RDiv = convertBop' lhDivM
+
+convertBop' :: LHStateM Name -> LHStateM Expr
+convertBop' f = do
+    lh <- lhTCM
+    num <- return . KV.numTC =<< knownValues
+    n <- f
+    a <- freshIdN TYPE
+    let tva = TyVar a
+    return $ Var $ Id n (TyForAll (NamedTyBndr a)
+                            (TyFun
+                                (TyApp (TyConApp num (TyApp TYPE TYPE)) tva)
+                                (TyFun
+                                    tva
+                                    (TyFun 
+                                        tva 
+                                        tva
+                                    )
+                                )
+                            )
+                            
+                        )
 
 lhExprType :: BoundTypes -> Ref.Expr -> LHStateM Type
 lhExprType m (ECon c) =
@@ -501,10 +535,10 @@ convertBrel :: Brel -> LHStateM Expr
 convertBrel Ref.Eq = convertBrel' lhEqM
 convertBrel Ref.Ueq = convertBrel' lhEqM
 convertBrel Ref.Ne = convertBrel' lhNeM
-convertBrel Ref.Gt = mkGtE
-convertBrel Ref.Ge = mkGeE
-convertBrel Ref.Lt = mkLtE
-convertBrel Ref.Le = mkLeE
+convertBrel Ref.Gt = convertBrel' lhGtM
+convertBrel Ref.Ge = convertBrel' lhGeM
+convertBrel Ref.Lt = convertBrel' lhLtM
+convertBrel Ref.Le = convertBrel' lhLeM
 convertBrel _ = error "convertBrel: Unhandled brel"
 
 convertBrel' :: LHStateM Name -> LHStateM Expr
@@ -512,8 +546,9 @@ convertBrel' f = do
     n <- f
     return $ Var $ Id n TyUnknown
 
-brelTCDict :: Brel -> DictMaps -> Type -> LHStateM Expr
-brelTCDict b = if lhFunc b then lhTCDict else ordDict
+brelTCDict :: Brel -> DictMaps -> Type -> LHStateM (Maybe Expr)
+brelTCDict b dm t =
+    if lhFunc b then return Nothing else fmap Just (ordDict dm t)
 
 lhFunc :: Brel -> Bool
 lhFunc Ref.Eq = True

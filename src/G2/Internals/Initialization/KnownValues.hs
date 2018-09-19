@@ -40,6 +40,14 @@ initKnownValues eenv tenv =
 
     , eqFunc = exprWithStrName eenv "=="
     , neqFunc = exprWithStrName eenv "/="
+
+    , plusFunc = exprWithStrName eenv "+"
+    , minusFunc = exprWithStrName eenv "-"
+    , timesFunc = exprWithStrName eenv "*"
+    , divFunc = exprWithStrName eenv "/"
+    , negateFunc = exprWithStrName eenv "negate"
+    , modFunc = exprWithStrName eenv "mod"
+
     , geFunc = exprWithStrName eenv ">="
     , gtFunc = exprWithStrName eenv ">"
     , ltFunc = exprWithStrName eenv "<"

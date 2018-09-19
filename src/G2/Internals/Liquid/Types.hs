@@ -19,12 +19,21 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , orM
                                  , notM
                                  , lhTCM
+                                 , lhOrdTCM
                                  , lhEqM
                                  , lhNeM
                                  , lhLtM
                                  , lhLeM
                                  , lhGtM
                                  , lhGeM
+
+                                 , lhPlusM
+                                 , lhMinusM
+                                 , lhTimesM
+                                 , lhDivM
+                                 , lhNegateM
+                                 , lhModM
+                                 
                                  , lhPPM ) where
 
 import qualified Control.Monad.State.Lazy as SM
@@ -201,6 +210,9 @@ liftTCValues f = return . f . tcvalues =<< SM.get
 lhTCM :: LHStateM L.Name
 lhTCM = liftTCValues lhTC
 
+lhOrdTCM :: LHStateM L.Name
+lhOrdTCM = liftTCValues lhOrdTC 
+
 lhEqM :: LHStateM L.Name
 lhEqM = liftTCValues lhEq
 
@@ -218,6 +230,24 @@ lhGtM = liftTCValues lhGt
 
 lhGeM :: LHStateM L.Name
 lhGeM = liftTCValues lhGe
+
+lhPlusM :: LHStateM L.Name
+lhPlusM = liftTCValues lhPlus
+
+lhMinusM :: LHStateM L.Name
+lhMinusM = liftTCValues lhMinus
+
+lhTimesM :: LHStateM L.Name
+lhTimesM = liftTCValues lhTimes
+
+lhDivM :: LHStateM L.Name
+lhDivM = liftTCValues lhDiv
+
+lhNegateM :: LHStateM L.Name
+lhNegateM = liftTCValues lhNegate
+
+lhModM :: LHStateM L.Name
+lhModM = liftTCValues lhMod
 
 lhPPM :: LHStateM L.Name
 lhPPM = liftTCValues lhPP
