@@ -85,7 +85,7 @@ checkInputOutputLH' proj src md entry i req config = try (checkInputOutputLH'' p
 
 checkInputOutputLH'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO Bool
 checkInputOutputLH'' proj src md entry i req config = do
-    r <- findCounterExamples proj src (T.pack entry) [] [] config
+    (r, _) <- findCounterExamples proj src (T.pack entry) [] [] config
 
     let chAll = checkExprAll req
 

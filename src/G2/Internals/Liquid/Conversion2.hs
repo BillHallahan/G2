@@ -365,30 +365,13 @@ convertBop' f = do
                             
                         )
 
-lhExprType :: BoundTypes -> Ref.Expr -> LHStateM Type
-lhExprType m (ECon c) =
-    case c of
-        Ref.I _ -> tyIntT
-        Ref.R _ -> tyDoubleT
-lhExprType m (EVar s) =
-    return $ maybe TyUnknown id (M.lookup (symbolName s) m)
-lhExprType m (ENeg e) = lhExprType m e
-lhExprType m (EApp e _) = do
-    t <- lhExprType m e
-    
-    case t of
-        TyForAll _ t' -> return t'
-        TyFun _ t' -> return t'
-        _ -> error $ "Non-function type in EApp"  ++ show e ++ "\n" ++ show t
-lhExprType _ e = error $ "Unhandled in lhExprType " ++ (show e)
-
 correctTypes :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> Ref.Expr -> LHStateM (Expr, Expr)
 correctTypes m bt mt re re' = do
-    t <- lhExprType bt re
-    t' <- lhExprType bt re'
-
     e <- convertLHExpr m bt mt re
     e' <- convertLHExpr m bt mt re'
+
+    let t = typeOf e
+    let t' = typeOf e'
 
     if t == t'
         then return (e, e')

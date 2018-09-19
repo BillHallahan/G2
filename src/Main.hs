@@ -74,8 +74,8 @@ runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> 
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   doTimeout (timeLimit config) $ do
-    in_out <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
-    printLHOut (T.pack lhfun) in_out
+    (in_out, entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
+    printLHOut entry in_out
 
 runGHC :: [String] -> IO ()
 runGHC as = do

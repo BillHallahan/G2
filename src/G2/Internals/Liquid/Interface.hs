@@ -64,7 +64,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
+findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO ([(State [FuncCall], [Expr], Expr, Maybe FuncCall)], Lang.Id)
 findCounterExamples proj fp entry libs lhlibs config = do
     let config' = config { mode = Liquid }
 
@@ -79,7 +79,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
                     -> [LHOutput]
                     -> Config
-                    -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
+                    -> IO ([(State [FuncCall], [Expr], Expr, Maybe FuncCall)], Lang.Id)
 runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let ghcInfos = map ghcI ghci_cg
 
@@ -184,8 +184,9 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let states = map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}, es, e, ais)) ret'
 
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
+    -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
 
-    return states
+    return (states, ifi)
 
 adjustCurrExpr :: Lang.Id -> State t -> (State t, [Name])
 adjustCurrExpr i@(Id n t) s@(State {expr_env = eenv, curr_expr = (CurrExpr ce cexpr), name_gen = ng}) =
@@ -286,7 +287,7 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
+printLHOut :: Lang.Id -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [LHReturn] -> IO ()
@@ -296,7 +297,7 @@ printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, f
                            , abstracted = abstr} : xs) = do
     putStrLn "The call"
     TI.putStrLn $ call `T.append` " = " `T.append` output
-    TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
+    TI.putStrLn $ "violates " `T.append` f `T.append` "'s refinement type"
     printAbs abstr
     putStrLn ""
     printParsedLHOut xs
@@ -333,17 +334,16 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
-           -> [LHReturn]
+parseLHOut :: Lang.Id -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> [LHReturn]
 parseLHOut _ [] = []
 parseLHOut entry ((s, inArg, ex, ais):xs) =
   let 
       tl = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell s 
-               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0 Nothing) TyUnknown) $ inArg
+               . foldl (\a a' -> App a a') (Var entry) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell s $ ex
 
-      called = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
+      called = FuncInfo {func = nameOcc $ idName entry, funcArgs = funcCall, funcReturn = funcOut}
       viFunc = fmap (parseLHFuncTuple s) ais
 
       abstr = map (parseLHFuncTuple s) $ track s
@@ -358,8 +358,13 @@ sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = 
 
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
+    let
+        t = case fmap typeOf $ E.lookup n (expr_env s) of
+                  Just t' -> t'
+                  Nothing -> error "Unknown type for abstracted function"
+    in
     FuncInfo { func = nameOcc n
-             , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n TyUnknown)) ars)
+             , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n t)) ars)
              , funcReturn = T.pack $ mkCleanExprHaskell s out }
 
 testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
@@ -392,7 +397,7 @@ testLiquidFile proj fp libs lhlibs config = do
 
     fmap concat $ mapM (\e -> do
         putStrLn $ show e
-        runLHCore e tgt_trans ghci_cg config >>= (return . parseLHOut e))
+        runLHCore e tgt_trans ghci_cg config >>= (return . uncurry (flip parseLHOut) ))
                        cleaned_tgt_lhs
 
 testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
