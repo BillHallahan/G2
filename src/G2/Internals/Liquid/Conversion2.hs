@@ -444,7 +444,7 @@ convertEVar nm@(Name n md _ _) bt mt = do
     let mt' = maybe TyUnknown id mt
     let t = maybe mt' id $ M.lookup nm bt
 
-    eenv <- exprEnv
+    eenv <- measuresM
     tenv <- typeEnv
     
     case (E.lookupNameMod n md eenv, getDataConNameMod' tenv nm) of

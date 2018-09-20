@@ -79,7 +79,7 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
         as_t = map (\i -> (forType $ typeOf i, i)) as
 
         stArgs = anonArgumentTypes . PresType $ fromJust st
-        stRet = fmap returnType st
+        stRet = fmap (returnType . PresType) st
 
     lam_i <- freshIdN (head stArgs)
     cb <- freshIdN (head stArgs)
@@ -106,8 +106,8 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
         
         -- See [1] below, we only evaluate this if Just
         dc''@(DataCon _ dct) = fromJust dc'
-        bnds = tyForAllBindings dct
-        dctarg = anonArgumentTypes dct
+        bnds = tyForAllBindings $ PresType dct
+        dctarg = anonArgumentTypes $ PresType dct
 
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
         dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds) st_t
@@ -126,7 +126,7 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
 convertDefs _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
 mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
-mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m ) bt ret e
+mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m) bt ret e
 mkExprFromBody ret m bt (P e) = convertLHExpr (mkDictMaps m) bt ret e
 mkExprFromBody _ _ _ _ = error "mkExprFromBody: Unhandled Body"
 
