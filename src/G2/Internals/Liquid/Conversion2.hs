@@ -141,24 +141,24 @@ mergeSpecType st fn e = do
     let e''' = foldr (uncurry Lam) rLet $ zip lu is
 
     return e'''
-    where
-        tcWithNameMap :: Name -> [Id] -> M.Map Name Id
-        tcWithNameMap n =
-            M.fromList
-                . map (\i -> (forType $ typeOf i, i))
-                . filter (isTC n . typeOf)
 
-        isTC :: Name -> Type -> Bool
-        isTC n t = case tyAppCenter t of
-                        TyConApp n' _ -> n == n'
-                        _ -> False
+tcWithNameMap :: Name -> [Id] -> M.Map Name Id
+tcWithNameMap n =
+    M.fromList
+        . map (\i -> (forType $ typeOf i, i))
+        . filter (isTC n . typeOf)
 
-        forType :: Type -> Name
-        forType (TyApp _ (TyVar (Id n _))) = n
+isTC :: Name -> Type -> Bool
+isTC n t = case tyAppCenter t of
+                TyConApp n' _ -> n == n'
+                _ -> False
 
-        argsFromArgT :: ArgType -> LHStateM Id
-        argsFromArgT (AnonType t) = freshIdN t
-        argsFromArgT (NamedType i) = return i
+forType :: Type -> Name
+forType (TyApp _ (TyVar (Id n _))) = n
+
+argsFromArgT :: ArgType -> LHStateM Id
+argsFromArgT (AnonType t) = freshIdN t
+argsFromArgT (NamedType i) = return i
 
 convertSpecType :: DictMaps -> BoundTypes -> [Id] -> Id -> SpecType -> LHStateM Expr
 convertSpecType m bt is r (RVar {rt_var = (RTV v), rt_reft = reft}) = do
@@ -167,7 +167,9 @@ convertSpecType m bt is r (RVar {rt_var = (RTV v), rt_reft = reft}) = do
 
     let symbId = convertSymbolT symb (TyVar i)
 
-    re <- convertLHExpr m bt Nothing (reftExpr $ ur_reft reft)
+    let bt' = M.insert (idName symbId) (typeOf symbId) bt
+
+    re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
 
     return $ App (Lam TermL symbId re) (Var r)
 convertSpecType m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) = do
@@ -218,9 +220,13 @@ polyPredFunc as ty m bt b = do
 polyPredLam :: DictMaps -> BoundTypes -> SpecType -> LHStateM Expr
 polyPredLam m bt rapp  = do
     t <- unsafeSpecTypeToType rapp
-    i <- freshIdN t
+
+    let argT = spArgumentTypes $ PresType t
+    is <- mapM argsFromArgT argT
+
+    i <- freshIdN . returnType $ PresType t
     
-    convertSpecType m bt undefined i rapp
+    convertSpecType m bt is i rapp
 
 convertLHExpr :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM Expr
 convertLHExpr _ _ t (ECon c) = convertCon t c
@@ -602,4 +608,4 @@ ordDict m t = do
     tc <- typeClassInstTC (ord_dicts m) ord t
     case tc of
         Just e -> return e
-        Nothing -> error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m
+        Nothing -> return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown) -- error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m
