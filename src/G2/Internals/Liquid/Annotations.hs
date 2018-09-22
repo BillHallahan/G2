@@ -54,7 +54,7 @@ getAnnotMap tcv s meenv ghci_cg =
 
 lhCleanAnnotMaps :: LHOutput -> AnnInfo SpecType
 lhCleanAnnotMaps (LHOutput {cgI = cgi, solution = sol}) =
-    applySolution sol $ {- coerce $ HM.map (mapMaybe annotExprSpecType) $ -} closeAnnots $ annotMap cgi
+    applySolution sol $ closeAnnots $ annotMap cgi
 
 -- From https://github.com/ucsd-progsys/liquidhaskell/blob/75184064eed475289648ead76e3e9d370b168e66/src/Language/Haskell/Liquid/Types.hs
 -- newtype AnnInfo a = AI (M.HashMap SrcSpan [(Maybe Text, a)])

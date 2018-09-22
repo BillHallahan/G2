@@ -142,12 +142,16 @@ createAssumption st e = do
     lh <- lhTCM
 
     -- Create new bindings to use in the Ref. Type
-    is <- mapM argsFromArgT $ spArgumentTypes e
+    let argT = spArgumentTypes e
+    is <- mapM argsFromArgT argT
+    let lu = map argTypeToLamUse argT
 
     let is' = filter (not . isTC lh . typeOf) is
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    convertAssumeSpecType dm (M.map typeOf lhm) is' st
+    assume <- convertAssumeSpecType dm (M.map typeOf lhm) is' st
+
+    return . foldr (uncurry Lam) assume $ zip lu is
 
 
 dictMapFromIds :: [Id] -> LHStateM DictMaps

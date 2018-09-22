@@ -122,8 +122,13 @@ instance ExState LHState LHStateM where
     knownValues = return . known_values =<< SM.get
 
 instance FullState LHState LHStateM where
+    currExpr = return . curr_expr =<< SM.get
+    putCurrExpr = rep_curr_exprM
+
     typeClasses = return . type_classes =<< SM.get
     putTypeClasses = rep_type_classesM
+
+    inputIds = return . input_ids =<< SM.get
 
 runLHStateM :: LHStateM a -> LHState -> (a, LHState)
 runLHStateM (LHStateM s) s' = SM.runState s s'
@@ -170,6 +175,16 @@ rep_name_genM ng = do
 known_values :: LHState -> L.KnownValues
 known_values = liftState L.known_values
 
+curr_expr :: LHState -> L.CurrExpr
+curr_expr = liftState L.curr_expr
+
+rep_curr_exprM :: L.CurrExpr -> LHStateM ()
+rep_curr_exprM ce = do
+    lh_s <- SM.get
+    let s = state lh_s
+    let s' = s {L.curr_expr = ce}
+    SM.put $ lh_s {state = s'}
+
 type_classes :: LHState -> L.TypeClasses
 type_classes = liftState L.type_classes
 
@@ -179,6 +194,9 @@ rep_type_classesM tc = do
     let s = state lh_s
     let s' = s {L.type_classes = tc}
     SM.put $ lh_s {state = s'}
+
+input_ids :: LHState -> L.InputIds
+input_ids = liftState L.input_ids
 
 liftLHState :: (LHState -> a) -> LHStateM a
 liftLHState f = return . f =<< SM.get

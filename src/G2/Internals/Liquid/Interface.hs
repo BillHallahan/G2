@@ -14,8 +14,8 @@ import G2.Internals.Execution
 
 import G2.Internals.Liquid.AddLHTC
 import G2.Internals.Liquid.Annotations
-import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.Conversion2
+import G2.Internals.Liquid.ConvertCurrExpr
 import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.Measures
 import G2.Internals.Liquid.Rules
@@ -55,6 +55,8 @@ import G2.Internals.Language.KnownValues
 
 import G2.Lib.Printers
 
+import Debug.Trace
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -83,11 +85,6 @@ runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [
                     -> Config
                     -> IO ([(State [FuncCall], [Expr], Expr, Maybe FuncCall)], Lang.Id)
 runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
-    let ghcInfos = map ghcI ghci_cg
-
-    let specs = funcSpecs ghcInfos
-    let lh_measures = measureSpecs ghcInfos
-
     let (init_state, ifi) = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
 
@@ -102,32 +99,11 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let ng_state' = ng_state {track = []}
 
     let lh_state = createLHTC meenv mkv ng_state'
-
-    let lhtc_state1 = execLHStateM addLHTC lh_state
-
-    let meas_state = execLHStateM (createMeasures lh_measures) lhtc_state1
-
-    -- let meas_eenv = measures meas_state
-    -- let tcv = tcvalues meas_state
-    let lhtc_state = state meas_state
-
-    -- putStrLn $ pprExecStateStr lhtc_state
-
-    -- putStrLn "Here"
-    -- putStrLn undefined
-
-    -- let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
-
-    let ng2_state = lhtc_state -- {name_gen = meas_ng}
-
-    -- let (merged_state, ifi') = mergeLHSpecState ifi (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
-    let (ifi', merged_state) = runLHStateM (mergeLHSpecState ifi specs) meas_state
+    let (ifi', merged_state) = runLHStateM (initializeLH ghci_cg ifi) lh_state
 
     let meas_eenv = measures merged_state
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
-
-    -- let merged_state' = state merged_state
 
     let beta_red_state = merged_state' -- simplifyAsserts mkv tcv merged_state' {apply_types = apply_types ng2_state}
     let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
@@ -188,6 +164,24 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
 
     return (states, ifi)
+
+initializeLH :: [LHOutput] -> Lang.Id -> LHStateM Lang.Id
+initializeLH ghci_cg ifi = do
+    let ghcInfos = map ghcI ghci_cg
+
+    addLHTC
+
+    let lh_measures = measureSpecs ghcInfos
+    createMeasures lh_measures
+
+    let specs = funcSpecs ghcInfos
+    ifi' <- mergeLHSpecState ifi specs
+
+    a <- assumptionsM
+
+    addCurrExprAssumption ifi
+
+    return ifi'
 
 adjustCurrExpr :: Lang.Id -> State t -> (State t, [Name])
 adjustCurrExpr i@(Id n t) s@(State {expr_env = eenv, curr_expr = (CurrExpr ce cexpr), name_gen = ng}) =

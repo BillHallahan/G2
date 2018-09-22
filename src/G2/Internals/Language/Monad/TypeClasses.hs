@@ -1,5 +1,5 @@
 module G2.Internals.Language.Monad.TypeClasses ( lookupTCDictTC
-											   , typeClassInstTC) where
+                                               , typeClassInstTC) where
 
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.TypeClasses
@@ -14,5 +14,5 @@ lookupTCDictTC n t = do
 
 typeClassInstTC :: FullState s m => M.Map Name Id -> Name -> Type -> m (Maybe Expr)
 typeClassInstTC m n t = do
-	tc <- typeClasses
-	return $ typeClassInst tc m n t
+    tc <- typeClasses
+    return $ typeClassInst tc m n t
