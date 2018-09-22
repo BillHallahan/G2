@@ -9,12 +9,15 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , consLHState
                                  , deconsLHState
                                  , measuresM
+                                 , assumptionsM
                                  , runLHStateM
                                  , evalLHStateM
                                  , execLHStateM
                                  , lookupMeasure
                                  , lookupMeasureM
                                  , insertMeasureM
+                                 , lookupAssumptionM
+                                 , insertAssumptionM
                                  , andM
                                  , orM
                                  , notM
@@ -36,6 +39,7 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  
                                  , lhPPM ) where
 
+import qualified Data.Map as M
 import qualified Control.Monad.State.Lazy as SM
 
 import qualified G2.Internals.Language as L
@@ -54,6 +58,7 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
 
 type Measures = L.ExprEnv
 
+type Assumptions = M.Map L.Name L.Expr
 
 -- [LHState]
 -- measures is an extra expression environment, used to build Assertions.
@@ -73,13 +78,15 @@ type Measures = L.ExprEnv
 data LHState = LHState { state :: L.State [L.FuncCall]
                        , measures :: Measures
                        , tcvalues :: TCValues
-} deriving (Eq, Show, Read)
+                       , assumptions :: Assumptions
+                       } deriving (Eq, Show, Read)
 
 consLHState :: L.State [L.FuncCall] -> Measures -> TCValues -> LHState
 consLHState s meas tcv =
     LHState { state = s
             , measures = meas
-            , tcvalues = tcv }
+            , tcvalues = tcv
+            , assumptions = M.empty }
 
 deconsLHState :: LHState -> L.State [L.FuncCall]
 deconsLHState (LHState { state = s
@@ -90,6 +97,12 @@ measuresM :: LHStateM Measures
 measuresM = do
     lh_s <- SM.get
     return $ measures lh_s
+
+assumptionsM :: LHStateM Assumptions
+assumptionsM = do
+    lh_s <- SM.get
+    return $ assumptions lh_s
+
 
 newtype LHStateM a = LHStateM { unSM :: (SM.State LHState a) } deriving (Applicative, Functor, Monad)
 
@@ -182,6 +195,16 @@ insertMeasureM n e = do
     let meas = measures lh_s
     let meas' = E.insert n e meas
     SM.put $ lh_s {measures = meas'}
+
+lookupAssumptionM :: L.Name -> LHStateM (Maybe L.Expr)
+lookupAssumptionM n = liftLHState (M.lookup n . assumptions)
+
+insertAssumptionM :: L.Name -> L.Expr -> LHStateM ()
+insertAssumptionM n e = do
+    lh_s <- SM.get
+    let assumpt = assumptions lh_s
+    let assumpt' = M.insert n e assumpt
+    SM.put $ lh_s {assumptions = assumpt'}
 
 -- | andM
 -- The version of 'and' in the measures

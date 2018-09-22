@@ -53,6 +53,8 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
+import G2.Lib.Printers
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -124,7 +126,6 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let meas_eenv = measures merged_state
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
-
 
     -- let merged_state' = state merged_state
 

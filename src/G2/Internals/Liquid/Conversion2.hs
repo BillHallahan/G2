@@ -102,13 +102,14 @@ mergeLHSpecState' v lst = do
         Just (n', e) -> do
             e' <- mergeSpecType (val lst) n' e
             insertE n' e'
+
+            assumpt <- createAssumption (val lst) e
+            insertAssumptionM n' assumpt
         Nothing -> return ()
 
 mergeSpecType :: SpecType -> Name -> Expr -> LHStateM Expr
 mergeSpecType st fn e = do
     lh <- lhTCM
-    num <- return . KV.numTC =<< knownValues
-    ord <- return . KV.ordTC =<< knownValues
 
     -- Create new bindings to use in the Ref. Type
     let argT = spArgumentTypes e
@@ -116,22 +117,16 @@ mergeSpecType st fn e = do
     let lu = map argTypeToLamUse argT
 
     -- Gather up LH TC's to use in Assertion
-    let lhm = tcWithNameMap lh is
-    let nm = tcWithNameMap num is
-    let om = tcWithNameMap ord is
-
-    let dm = DictMaps { lh_dicts = lhm
-                      , num_dicts = nm
-                      , ord_dicts = om }
+    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
     let e' = foldl' (\e_ -> App e_ . Var) e is
 
-    --Create a variable for the returned value
+    -- Create a variable for the returned value
     -- We do not pass the LH TC to the assertion, since there is no matching
     -- lambda for it in the LH Spec
     r <- freshIdN (typeOf e')
     let is' = filter (not . isTC lh . typeOf) is
-    assert <- convertSpecType dm (M.map typeOf lhm) is' r st
+    assert <- convertAssertSpecType dm (M.map typeOf lhm) is' r st
 
     let fc = FuncCall { funcName = fn 
                       , arguments = map Var is
@@ -142,43 +137,86 @@ mergeSpecType st fn e = do
 
     return e'''
 
+createAssumption :: SpecType -> Expr -> LHStateM Expr
+createAssumption st e = do
+    lh <- lhTCM
+
+    -- Create new bindings to use in the Ref. Type
+    is <- mapM argsFromArgT $ spArgumentTypes e
+
+    let is' = filter (not . isTC lh . typeOf) is
+    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
+
+    convertAssumeSpecType dm (M.map typeOf lhm) is' st
+
+
+dictMapFromIds :: [Id] -> LHStateM DictMaps
+dictMapFromIds is = do
+    lh <- lhTCM
+    num <- return . KV.numTC =<< knownValues
+    ord <- return . KV.ordTC =<< knownValues
+
+    let lhm = tcWithNameMap lh is
+    let nm = tcWithNameMap num is
+    let om = tcWithNameMap ord is
+
+    return $ DictMaps { lh_dicts = lhm
+                      , num_dicts = nm
+                      , ord_dicts = om }
+
 tcWithNameMap :: Name -> [Id] -> M.Map Name Id
 tcWithNameMap n =
     M.fromList
         . map (\i -> (forType $ typeOf i, i))
         . filter (isTC n . typeOf)
+    where
+        forType :: Type -> Name
+        forType (TyApp _ (TyVar (Id n _))) = n
+
 
 isTC :: Name -> Type -> Bool
 isTC n t = case tyAppCenter t of
                 TyConApp n' _ -> n == n'
                 _ -> False
 
-forType :: Type -> Name
-forType (TyApp _ (TyVar (Id n _))) = n
-
 argsFromArgT :: ArgType -> LHStateM Id
 argsFromArgT (AnonType t) = freshIdN t
 argsFromArgT (NamedType i) = return i
 
-convertSpecType :: DictMaps -> BoundTypes -> [Id] -> Id -> SpecType -> LHStateM Expr
-convertSpecType m bt is r (RVar {rt_var = (RTV v), rt_reft = reft}) = do
-    let symb = reftSymbol $ ur_reft reft
-    let i = mkIdUnsafe v
+convertAssumeSpecType :: DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM Expr
+convertAssumeSpecType m bt is st = do
+    convertSpecType m bt is Nothing st
 
-    let symbId = convertSymbolT symb (TyVar i)
+convertAssertSpecType :: DictMaps -> BoundTypes -> [Id] -> Id -> SpecType -> LHStateM Expr
+convertAssertSpecType m bt is r st = do
+    convertSpecType m bt is (Just r) st
 
-    let bt' = M.insert (idName symbId) (typeOf symbId) bt
+-- | See also: convertAssumeSpecType, convertAssertSpecType
+-- We can maybe pass an Id for the value returned by the function
+-- If we do, our Expr includes the Refinement on the return value,
+-- otherwise it does not.  This allows us to use this same function to
+-- translate both for assumptions and assertions
+convertSpecType :: DictMaps -> BoundTypes -> [Id] -> Maybe Id -> SpecType -> LHStateM Expr
+convertSpecType m bt is r (RVar {rt_var = (RTV v), rt_reft = reft})
+    | Just r' <- r = do
+        let symb = reftSymbol $ ur_reft reft
+        let i = mkIdUnsafe v
 
-    re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
+        let symbId = convertSymbolT symb (TyVar i)
 
-    return $ App (Lam TermL symbId re) (Var r)
+        let bt' = M.insert (idName symbId) (typeOf symbId) bt
+
+        re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
+
+        return $ App (Lam TermL symbId re) (Var r')
+    | otherwise = mkTrueE
 convertSpecType m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) = do
     t <- unsafeSpecTypeToType fin
     let i' = convertSymbolT b t
 
     let bt' = M.insert (idName i') t bt
 
-    e <- convertSpecType m bt' [] i' fin
+    e <- convertSpecType m bt' [] (Just i') fin
     e' <- convertSpecType m bt' is r fout
 
     an <- mkAndE
@@ -194,19 +232,21 @@ convertSpecType m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty})
 
     e <- convertSpecType m' bt' is r rty
     return $ App (Lam TypeL i' e) (Var i)
-convertSpecType m bt is r (RApp {rt_tycon = c, rt_reft = reft, rt_args = as}) = do
-    let symb = reftSymbol $ ur_reft reft
-    ty <- return . maybe (error "Error in convertSpecType") id =<< rTyConType c as
-    let i = convertSymbolT symb ty
+convertSpecType m bt is r (RApp {rt_tycon = c, rt_reft = reft, rt_args = as})
+    | Just r' <- r = do
+        let symb = reftSymbol $ ur_reft reft
+        ty <- return . maybe (error "Error in convertSpecType") id =<< rTyConType c as
+        let i = convertSymbolT symb ty
 
-    let bt' = M.insert (idName i) ty bt
+        let bt' = M.insert (idName i) ty bt
 
-    argsPred <- polyPredFunc as ty m bt' r
-    re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
+        argsPred <- polyPredFunc as ty m bt' r'
+        re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
 
-    an <- mkAndE
+        an <- mkAndE
 
-    return $ App (App an (App (Lam TermL i re) (Var r))) argsPred
+        return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
+    | otherwise = mkTrueE
 
 polyPredFunc :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc as ty m bt b = do
@@ -226,7 +266,7 @@ polyPredLam m bt rapp  = do
 
     i <- freshIdN . returnType $ PresType t
     
-    convertSpecType m bt is i rapp
+    convertSpecType m bt is (Just i) rapp
 
 convertLHExpr :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM Expr
 convertLHExpr _ _ t (ECon c) = convertCon t c

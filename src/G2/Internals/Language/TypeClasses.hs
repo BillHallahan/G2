@@ -215,7 +215,13 @@ typeClassInst tc m tcn t
         case lookupTCDict tc tcn tca of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
-typeClassInst _ m _ (TyVar (Id n _)) = fmap Var $ M.lookup n m
+    | tca@(TyVar (Id n _)) <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , tcs <- map (typeClassInst tc m tcn) ts
+    , all (isJust) tcs =
+        case M.lookup n m of
+            Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
+            Nothing -> Nothing
 typeClassInst _ _ _ _ = Nothing
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types

@@ -28,6 +28,8 @@ instance Named TCValues where
                 , lhOrdTC tcv
                 , lhEq tcv
                 , lhNe tcv
+
+                , lhLe tcv
                 , lhLt tcv
                 , lhGt tcv
                 , lhGe tcv
