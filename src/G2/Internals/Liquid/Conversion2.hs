@@ -366,13 +366,17 @@ convertLHExpr m bt t (POr es) = do
         [] -> return false
         [e] -> return e
         _ -> return $ foldr (\e -> App (App or e)) false es'
+convertLHExpr m bt t (PNot e) = do
+    e <- convertLHExpr m bt Nothing e
+    not <- mkNotE
+    return (App not e) 
 convertLHExpr m bt t (PIff e1 e2) = do
     e1' <- convertLHExpr m bt t e1
     e2' <- convertLHExpr m bt t e2
     iff <- mkIffE
     return $ mkApp [iff, e1', e2']
 convertLHExpr m bt t (PAtom brel e1 e2) = do
-    (e1', e2') <- correctTypes m bt t e1 e2
+    (e1', e2') <- correctTypes m bt Nothing e1 e2
     brel' <- convertBrel brel
 
     let t' = typeOf e2'
@@ -508,7 +512,7 @@ convertCon (Just (TyConApp n _)) (Ref.I i) = do
     dc <- mkDCIntE
     if n == ti
         then return $ App dc (Lit . LitInt $ fromIntegral i)
-        else error "Unknown Con"
+        else error $ "Unknown Con" ++ show n
 convertCon _ (Ref.I i) = do
     dc <- mkDCIntegerE
     return $ App dc (Lit . LitInt $ fromIntegral i)
