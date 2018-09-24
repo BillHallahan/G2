@@ -116,7 +116,8 @@ createLHTCFuncs' lhm n adt = do
     let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ppN]
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs
 
-    let e = mkApp $ Data (DataCon lh TyUnknown):fs'
+    lhdct <- lhDCType
+    let e = mkApp $ Data (DataCon lh lhdct):fs'
     let e' = foldr (Lam TermL) e lhd
     let e'' = foldr (Lam TypeL) e' bi
 
@@ -128,6 +129,25 @@ createLHTCFuncs' lhm n adt = do
             -- let bnvK = mkTyApp $ map (const TYPE) bi
             return () -- return (TyConApp n bnvK, fn')
         Nothing -> error $ "No LH Dict name for " ++ show n
+
+lhDCType :: LHStateM Type
+lhDCType = do
+    lh <- lhTCM
+    n <-freshIdN TYPE
+
+    return $ (TyFun
+                TyUnknown
+                (TyFun
+                    TyUnknown
+                    (TyFun
+                        TyUnknown
+                        (TyApp 
+                            (TyConApp lh TYPE) 
+                            (TyVar n)
+                        )
+                    )
+                )
+            )
 
 createFunc :: PredFunc -> Name -> AlgDataTy -> LHStateM Expr 
 createFunc cf n adt = do
