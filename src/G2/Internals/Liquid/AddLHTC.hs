@@ -13,7 +13,12 @@ import qualified Data.Map as M
 import Debug.Trace
 
 addLHTC :: LHStateM ()
-addLHTC = mapME addLHTCExprEnv
+addLHTC = do
+    mapME addLHTCExprEnv
+
+    (CurrExpr er ce) <- currExpr
+    ce' <- addLHTCExprPasses M.empty ce
+    putCurrExpr (CurrExpr er ce')
 
 addLHTCExprEnv :: Expr -> LHStateM Expr
 addLHTCExprEnv e = do
@@ -44,28 +49,31 @@ addLHTCExprEnvLams is e = do
 -- (2) Modifying the type of the function variable
 addLHTCExprEnvPasses :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprEnvPasses m e =
-    modifyAppTopE (addLHTCExprEnvPasses' m) =<< addLHDictToTypes m e
+    addLHTCExprPasses m =<< addLHDictToTypes m e
 
 -- We only want to pass the LH TC to Var's (aka function calls)
 -- We DO NOT want to put it in DataCons
-addLHTCExprEnvPasses' :: M.Map Name Id -> Expr -> LHStateM Expr
-addLHTCExprEnvPasses' m a@(App _ _)
+addLHTCExprPasses :: M.Map Name Id -> Expr -> LHStateM Expr
+addLHTCExprPasses m = modifyAppTopE (addLHTCExprPasses' m)
+
+addLHTCExprPasses' :: M.Map Name Id -> Expr -> LHStateM Expr
+addLHTCExprPasses' m a@(App _ _)
     | (Var _:_) <- a' = do
-        a'' <- addLHTCExprEnvPasses'' m [] a'
+        a'' <- addLHTCExprPasses'' m [] a'
         return $ mkApp a''
     | otherwise = return a
     where
         a' = unApp a
-addLHTCExprEnvPasses' _ e = return e
+addLHTCExprPasses' _ e = return e
 
-addLHTCExprEnvPasses'' :: M.Map Name Id -> [Expr] -> [Expr] -> LHStateM [Expr]
-addLHTCExprEnvPasses'' _ es [] = return $ reverse es
-addLHTCExprEnvPasses'' m es (te@(Type t):es') = do
+addLHTCExprPasses'' :: M.Map Name Id -> [Expr] -> [Expr] -> LHStateM [Expr]
+addLHTCExprPasses'' _ es [] = return $ reverse es
+addLHTCExprPasses'' m es (te@(Type t):es') = do
     dict <- lookupLHDict m t
-    as <- addLHTCExprEnvPasses'' m (dict:es) es'
+    as <- addLHTCExprPasses'' m (dict:es) es'
     return $ te:as
-addLHTCExprEnvPasses'' m es (e:es') = do
-    as <- addLHTCExprEnvPasses'' m [] es'
+addLHTCExprPasses'' m es (e:es') = do
+    as <- addLHTCExprPasses'' m [] es'
     return $ reverse es ++ e:as
 
 lookupLHDict :: M.Map Name Id -> Type -> LHStateM Expr

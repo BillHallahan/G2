@@ -81,8 +81,6 @@ simplifyCasts' e
     | (Cast e' (t1 :~ t2)) <- e
     , PresType t2 .:: t1
         = e'
-    -- | Cast e' (t1 :~ t2) <- e
-    -- , t1 == t2 = e'
     | Cast e' (t1 :~ t2) <- e = e
     | otherwise = e
 
@@ -111,19 +109,6 @@ liftCasts'' a@(App e e') =
     in
     if a == a' then a else liftCasts'' a'
 liftCasts'' e = e
--- liftCasts'' :: Expr -> Expr
--- liftCasts'' (App (Cast f (t1 :~ t2)) e)
---     | (TyFun _ t1'') <- inTyForAlls t1
---     , (TyFun _ t2'') <- inTyForAlls t2
---     , nt1 <- nestTyForAlls t1
---     , nt2 <- nestTyForAlls t2 =
---         Cast (App f e) ((nt1 t1'') :~ (nt2 t2''))
--- liftCasts'' a@(App e e') =
---     let
---         lifted = App (liftCasts'' e) (liftCasts'' e')
---     in
---     if a == lifted then a else liftCasts'' lifted
--- liftCasts'' e = e
 
 exprInCasts :: Expr -> Expr
 exprInCasts (Cast e _) = exprInCasts e

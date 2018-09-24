@@ -299,7 +299,7 @@ convertLHExpr m bt t (EApp e e') = do
             tcs <- mapM (lhTCDict' m) ts
 
             f' <- addLHDictToTypes (lh_dicts m) f
-            let fw = mkApp $ f':te
+            let fw = mkApp $ f:te
 
                 apps = mkApp $ fw:tcs ++ [argE]
             
@@ -494,10 +494,10 @@ convertEVar nm@(Name n md _ _) bt mt = do
     let mt' = maybe TyUnknown id mt
     let t = maybe mt' id $ M.lookup nm bt
 
-    eenv <- measuresM
+    meas <- measuresM
     tenv <- typeEnv
     
-    case (E.lookupNameMod n md eenv, getDataConNameMod' tenv nm) of
+    case (E.lookupNameMod n md meas, getDataConNameMod' tenv nm) of
         (Just (n', e), _) -> return $ Var $ Id n' (typeOf e)
         (_, Just dc) -> return $ Data dc 
         _ -> return $ Var (Id nm t)

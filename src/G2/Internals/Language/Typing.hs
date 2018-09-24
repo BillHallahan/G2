@@ -46,7 +46,7 @@ module G2.Internals.Language.Typing
     , splitTyForAlls
     , splitTyFuns
     , retype
-    , nestTyForAlls
+    , mapInTyForAlls
     , inTyForAlls
     ) where
 
@@ -482,9 +482,9 @@ splitTyFuns t = [t]
 
 -- | tyForAlls
 -- Nests a new type in TyForAlls
-nestTyForAlls :: Type -> (Type -> Type)
-nestTyForAlls (TyForAll b t) = TyForAll b . nestTyForAlls t
-nestTyForAlls _ = id
+mapInTyForAlls :: (Type -> Type) -> Type -> Type
+mapInTyForAlls f (TyForAll b t) = TyForAll b $ mapInTyForAlls f t
+mapInTyForAlls f t = f t
 
 inTyForAlls :: Type -> Type
 inTyForAlls (TyForAll _ t) = inTyForAlls t

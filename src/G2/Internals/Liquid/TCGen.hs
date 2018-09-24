@@ -225,7 +225,25 @@ eqLHFuncCall ldm i1 i2
         t = typeOf i1
 
 lhNeFunc :: PredFunc
-lhNeFunc ldm adt dc ba1 = return []
+lhNeFunc ldm adt dc ba1 = do
+    ba2 <- freshIdsN $ anonArgumentTypes dc
+
+    an <- mkAndE
+    true <- mkTrueE
+    false <- mkFalseE
+
+    trueDC <- mkDCTrueM
+    falseDC <- mkDCFalseM
+
+    pr <- mapM (uncurry (eqLHFuncCall ldm)) $ zip ba1 ba2
+    let pr' = foldr (\e -> App (App an e)) true pr
+
+    b <- freshIdN =<< tyBoolT
+    let pr'' = Case pr' b [ Alt (DataAlt trueDC []) false
+                          , Alt (DataAlt falseDC []) true ]
+
+    return [ Alt Default false
+           , Alt (DataAlt dc ba2) pr''] 
 
 lhPPFunc :: Name -> AlgDataTy -> LHStateM Expr
 lhPPFunc n adt = do

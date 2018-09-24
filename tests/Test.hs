@@ -112,7 +112,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "xSqPlusYSq" 1000 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' + y' >= z'), AtLeast 1]
 
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 800 3 [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' /= y' && y' == z'), Exactly 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 800 3 [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' /= y' && y' == z'), Exactly 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 800 2 [AtLeast 1, RForAll (\[App (App _ x) y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' ->  x' > z' || y' > z')]
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
 

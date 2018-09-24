@@ -27,13 +27,15 @@ createDeepSeqName n = Name ("walk" `T.append` nameOcc n) Nothing 0 (spanning n)
 createDeepSeqStore :: (Name, AlgDataTy) -> Name -> Walkers -> Walkers
 createDeepSeqStore (n, adt) n' w =
     let
+        bi = bound_ids adt
         bn = map TyVar $ bound_ids adt
         bnf = map (\b -> TyFun b b) bn
 
         base = TyFun (TyConApp n TYPE) (TyConApp n TYPE)
 
         t = foldr TyFun base (bn ++ bnf)
-        i = Id n' t
+        t' = foldr TyForAll t $ map NamedTyBndr bi
+        i = Id n' t'
     in
     M.insert n i w
 

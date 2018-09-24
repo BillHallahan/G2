@@ -17,11 +17,11 @@ addCurrExprAssumption ifi = do
     fi <- fixedInputs
     is <- inputIds
 
-    lh <- mapM (lhTCDict'' M.empty) $ mapMaybe typeType fi
+    -- lh <- mapM (lhTCDict'' M.empty) $ mapMaybe typeType fi
 
     case assumpt of
         Just assumpt' -> do
-            let appAssumpt = mkApp $ assumpt':fi ++ lh ++ map Var is
+            let appAssumpt = mkApp $ assumpt':fi {- ++ lh -} ++ map Var is
             let ce' = Assume appAssumpt ce
             putCurrExpr (CurrExpr er ce')
         Nothing -> return ()

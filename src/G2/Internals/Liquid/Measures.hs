@@ -59,9 +59,9 @@ measureTypeMappings (M {name = n, sort = srt}) = do
 addLHDictToType :: Name -> Type -> Type
 addLHDictToType lh t =
     let
-        lhD = map (\i -> mkTyConApp lh [TyVar i] TYPE) $ tyForAllBindings t
+        lhD = map (\i -> mkTyConApp lh [TyVar i] TYPE) $ tyForAllBindings $ PresType t
     in
-    foldr TyFun t lhD
+    mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
 convertMeasure :: BoundTypes -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
 convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
