@@ -3,6 +3,11 @@ module G2.Internals.Liquid.TCValues where
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
+-- Stores variable names that are used in the LH encoding.
+-- There are two reasons a name might exist:
+--   (1) It corresponds to something that only makes sense in the context of LH
+--       (i.e. the LH typeclass)
+--   (2) It is a copy of a function that normally exists, but that copy has no assertion added. 
 data TCValues = TCValues { lhTC :: Name
                          , lhOrdTC :: Name
 
@@ -20,6 +25,9 @@ data TCValues = TCValues { lhTC :: Name
                          , lhDiv :: Name
                          , lhNegate :: Name
                          , lhMod :: Name
+
+                         , lhAnd :: Name
+                         , lhOr :: Name
 
                          , lhPP :: Name } deriving (Eq, Show, Read)
 
@@ -41,7 +49,11 @@ instance Named TCValues where
                 , lhNegate tcv
                 , lhMod tcv
 
+                , lhAnd tcv
+                , lhOr tcv
+
                 , lhPP tcv]
+                
     rename old new tcv = TCValues { lhTC = rename old new $ lhTC tcv
                                   , lhOrdTC = rename old new $ lhOrdTC tcv
                                   , lhEq = rename old new $ lhEq tcv
@@ -58,5 +70,8 @@ instance Named TCValues where
                                   , lhDiv = rename old new $ lhDiv tcv
                                   , lhNegate = rename old new $ lhNegate tcv
                                   , lhMod = rename old new $ lhMod tcv
+
+                                  , lhAnd = rename old new $ lhAnd tcv
+                                  , lhOr = rename old new $ lhOr tcv
 
                                   , lhPP = rename old new $ lhPP tcv }

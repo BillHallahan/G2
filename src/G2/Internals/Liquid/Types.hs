@@ -36,6 +36,9 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , lhDivM
                                  , lhNegateM
                                  , lhModM
+
+                                 , lhAndE
+                                 , lhOrE
                                  
                                  , lhPPM ) where
 
@@ -296,3 +299,17 @@ lhModM = liftTCValues lhMod
 
 lhPPM :: LHStateM L.Name
 lhPPM = liftTCValues lhPP
+
+lhAndE :: LHStateM L.Expr
+lhAndE = do
+    b <- tyBoolT
+
+    n <- liftTCValues lhAnd
+    return $ L.Var (L.Id n (L.TyFun b (L.TyFun b b)))
+
+lhOrE :: LHStateM L.Expr
+lhOrE = do
+    b <- tyBoolT
+
+    n <- liftTCValues lhAnd
+    return $ L.Var (L.Id n (L.TyFun b (L.TyFun b b)))

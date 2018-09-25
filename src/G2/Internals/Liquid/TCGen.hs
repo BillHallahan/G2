@@ -3,6 +3,7 @@
 module G2.Internals.Liquid.TCGen (createLHTC) where
 
 import G2.Internals.Language
+import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.Conversion2
@@ -36,24 +37,29 @@ createTCValues kv = do
     lhNeN <- freshSeededStringN "lhNe"
     lhPPN <- freshSeededStringN "lhPP"
 
-    return (TCValues { lhTC = lhTCN
-                     , lhOrdTC = KV.ordTC kv 
+    let tcv = (TCValues { lhTC = lhTCN
+                        , lhOrdTC = KV.ordTC kv 
 
-                     , lhEq = lhEqN
-                     , lhNe = lhNeN
-                     , lhLt = KV.ltFunc kv
-                     , lhLe = KV.leFunc kv
-                     , lhGt = KV.gtFunc kv
-                     , lhGe = KV.geFunc kv
+                        , lhEq = lhEqN
+                        , lhNe = lhNeN
+                        , lhLt = KV.ltFunc kv
+                        , lhLe = KV.leFunc kv
+                        , lhGt = KV.gtFunc kv
+                        , lhGe = KV.geFunc kv
 
-                     , lhPlus = KV.plusFunc kv
-                     , lhMinus = KV.minusFunc kv
-                     , lhTimes = KV.timesFunc kv
-                     , lhDiv = KV.divFunc kv
-                     , lhNegate = KV.negateFunc kv
-                     , lhMod = KV.modFunc kv
+                        , lhPlus = KV.plusFunc kv
+                        , lhMinus = KV.minusFunc kv
+                        , lhTimes = KV.timesFunc kv
+                        , lhDiv = KV.divFunc kv
+                        , lhNegate = KV.negateFunc kv
+                        , lhMod = KV.modFunc kv
 
-                     , lhPP = lhPPN })
+                        , lhAnd = KV.andFunc kv
+                        , lhOr = KV.orFunc kv
+
+                        , lhPP = lhPPN })
+
+    return tcv
 
 type PredFunc = LHDictMap -> AlgDataTy -> DataCon -> [Id] -> LHStateM [Alt]
 
@@ -300,36 +306,43 @@ lhPPAlt lhm fnm dc = do
     an <- mkAndE
     true <- mkTrueE
 
-    pr <- mapM (lhPPCall lhm fnm) ba
+    pr <- mapM (\i -> do
+                pp <- lhPPCall lhm fnm (typeOf i)
+                return $ App pp (Var i)) ba
     let pr' = foldr (\e -> App (App an e)) true pr
 
     return $ Alt (DataAlt dc ba) pr'
 
-lhPPCall :: LHDictMap -> PPFuncMap -> Id -> LHStateM Expr
-lhPPCall lhm fnm i@(Id _ t)
+-- This returns an Expr with a function type, of the given Type to Bool.
+lhPPCall :: LHDictMap -> PPFuncMap -> Type -> LHStateM Expr
+lhPPCall lhm fnm t
     | TyConApp n _ <- tyAppCenter t
     , ts <- tyAppArgs t  = do
         lhpp <- lhPPM
 
         let lhv = Var $ Id lhpp TyUnknown
         dict <- lhTCDict'' lhm t
-        let undefs = map (const $ Prim Undefined TyBottom) $ typeArgs dict
+        undefs <- mapM (lhPPCall lhm fnm) ts
 
-        return . mkApp $ lhv:[Type t, dict] ++ undefs ++ [Var i]
+        return . mkApp $ lhv:[Type t, dict] ++ undefs -- ++ [Var i]
 
-    | TyVar _ <- tyAppCenter t
-    , ts <- tyAppArgs t = do
-        lhpp <- lhPPM
-        dict <- lhTCDict'' lhm t
-        let undefs = map (const $ Prim Undefined TyBottom) $ typeArgs dict
-        return . mkApp $ [Var (Id lhpp TyUnknown), Type t, dict] ++ undefs ++ [Var i]
-
-    | TyFun _ _ <- t = mkTrueE
-    | TyForAll _ _ <- t = mkTrueE
+    | TyVar (Id n _) <- t
+    , Just f <- M.lookup n fnm = return $ Var f -- App (Var f) (Var i)
+    | TyVar _ <- tyAppCenter t = do
+        i <- freshIdN t
+        return . Lam TermL i =<< mkTrueE
+    | TyFun _ _ <- t = do
+        i <- freshIdN t
+        return . Lam TermL i =<< mkTrueE
+    | TyForAll _ _ <- t = do
+        i <- freshIdN t
+        return . Lam TermL i =<< mkTrueE
     |  t == TyLitInt
     || t == TyLitDouble
     || t == TyLitFloat
-    || t == TyLitChar = mkTrueE
+    || t == TyLitChar = do
+        i <- freshIdN t
+        return . Lam TermL i =<< mkTrueE
     | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm
 
 typeArgs :: Expr -> [Type]

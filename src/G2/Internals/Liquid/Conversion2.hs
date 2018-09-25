@@ -223,7 +223,7 @@ convertSpecType m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) 
     e <- convertSpecType m bt' [] (Just i') fin
     e' <- convertSpecType m bt' is r fout
 
-    an <- mkAndE
+    an <- lhAndE
     let e'' = App (App an e) e'
     
     return $ App (Lam TermL i' e'') (Var i)
@@ -247,7 +247,7 @@ convertSpecType m bt is r (RApp {rt_tycon = c, rt_reft = reft, rt_args = as})
         argsPred <- polyPredFunc as ty m bt' r'
         re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
 
-        an <- mkAndE
+        an <- lhAndE
 
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
@@ -270,7 +270,8 @@ polyPredLam m bt rapp  = do
 
     i <- freshIdN . returnType $ PresType t
     
-    convertSpecType m bt is (Just i) rapp
+    st <- convertSpecType m bt is (Just i) rapp
+    return $ Lam TermL i st
 
 convertLHExpr :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM Expr
 convertLHExpr _ _ t (ECon c) = convertCon t c
@@ -350,7 +351,7 @@ convertLHExpr m bt t (PAnd es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
     true <- mkTrueE
-    an <- mkAndE
+    an <- lhAndE
 
     case es' of
         [] -> return $ true
@@ -360,7 +361,7 @@ convertLHExpr m bt t (POr es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
     false <- mkFalseE
-    or <- mkOrE
+    or <- lhOrE
 
     case es' of
         [] -> return false
