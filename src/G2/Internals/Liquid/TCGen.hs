@@ -201,7 +201,7 @@ lhEqFunc :: PredFunc
 lhEqFunc ldm adt dc ba1 = do
     ba2 <- freshIdsN $ anonArgumentTypes dc
 
-    an <- mkAndE
+    an <- lhAndE
     true <- mkTrueE
     false <- mkFalseE
 
@@ -254,7 +254,7 @@ lhNeFunc :: PredFunc
 lhNeFunc ldm adt dc ba1 = do
     ba2 <- freshIdsN $ anonArgumentTypes dc
 
-    an <- mkAndE
+    an <- lhAndE
     true <- mkTrueE
     false <- mkFalseE
 
@@ -303,7 +303,7 @@ lhPPAlt :: LHDictMap -> PPFuncMap -> DataCon -> LHStateM Alt
 lhPPAlt lhm fnm dc = do
     ba <- freshIdsN $ anonArgumentTypes dc
 
-    an <- mkAndE
+    an <- lhAndE
     true <- mkTrueE
 
     pr <- mapM (\i -> do

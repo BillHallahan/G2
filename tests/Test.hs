@@ -124,21 +124,21 @@ liquidTests =
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 3 [AtLeast 3]
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 2 [AtLeast 3]
 
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
-                --     [AtLeast 2, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
+                    [AtLeast 1, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe2" 2000 3 
                 --     [AtLeast 2, RForAll (\[x, _, _] -> appNthArgIs x (\x' -> isInt x' $ \x'' -> x'' >= 0) 1)
                 --               , RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "getLeftInts" 2000 2 
-                --     [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 1)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "getLeftInts" 2000 2 
+                    [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 3)]
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sumSameInts" 2000 3 
                 --     [AtLeast 1, RForAll (\[x, y, _] -> dcInAppHasName "Right" x 1 && dcInAppHasName "Left" y 1)]
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1200 2 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "d" 1000 2 [AtLeast 1]
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 1000 2 [Exactly 0]
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 100000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackBool" 1000 2 [AtLeast 1, RForAll (\[_, r] -> getBoolB r (== False))]
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 1000 3 [Exactly 0]
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 100000 3 [Exactly 0]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As" 2000 3 
                     [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "B" y)]
                 -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As'" 1000 3 
