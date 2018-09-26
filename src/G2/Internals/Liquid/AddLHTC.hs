@@ -69,21 +69,25 @@ addLHTCExprPasses' _ e = return e
 addLHTCExprPasses'' :: M.Map Name Id -> [Expr] -> [Expr] -> LHStateM [Expr]
 addLHTCExprPasses'' _ es [] = return $ reverse es
 addLHTCExprPasses'' m es (te@(Type t):es') = do
-    dict <- lookupLHDict m t
+    dict <- lhTCDict m t
     as <- addLHTCExprPasses'' m (dict:es) es'
     return $ te:as
 addLHTCExprPasses'' m es (e:es') = do
     as <- addLHTCExprPasses'' m [] es'
     return $ reverse es ++ e:as
 
-lookupLHDict :: M.Map Name Id -> Type -> LHStateM Expr
-lookupLHDict m (TyVar (Id n _)) =
-    case M.lookup n m of 
-        Just e -> return $ Var e
-        Nothing -> return $ Var (Id (Name "BAD 1" Nothing 0 Nothing) TyUnknown) -- error "No LH Dict in lookupLHDict 1"
-lookupLHDict _ t = do
-        lh <- lhTCM
-        dict <- lookupTCDictTC lh t
-        case dict of
-            Just i -> return $ Var i
-            Nothing -> return $ Var (Id (Name "BAD 2" Nothing 0 Nothing) TyUnknown) -- error $ "No LH Dict in lookupLHDict 2" ++ show t
+lhTCDict :: M.Map Name Id -> Type -> LHStateM Expr
+lhTCDict m t = do
+    lh <- lhTCM
+    tc <- typeClassInstTC m lh t
+    case tc of
+        Just e -> return $ dropAppedLH e
+        Nothing -> return $ Var (Id (Name "BAD 2" Nothing 0 Nothing) TyUnknown)
+    where
+        -- typeClassInstTC adds any needed LH Dict arguments for us.
+        -- Unfortunately, the LH Dicts are then added AGAIN, by addLHTCExprEnvPasses
+        -- So we just drop the LH Dicts added by typeClassInstTC, and everything works out
+        dropAppedLH :: Expr -> Expr
+        dropAppedLH (App e t@(Type _)) = App (dropAppedLH e) t
+        dropAppedLH (App e _) = dropAppedLH e
+        dropAppedLH e = e

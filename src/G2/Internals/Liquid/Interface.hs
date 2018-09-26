@@ -99,6 +99,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let ng_state' = ng_state {track = []}
 
     let lh_state = createLHTC meenv mkv ng_state'
+
     let (ifi', merged_state) = runLHStateM (initializeLH ghci_cg ifi) lh_state
 
     let meas_eenv = measures merged_state

@@ -222,7 +222,7 @@ typeClassInst tc m tcn t
         case M.lookup n m of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
-typeClassInst _ _ _ _ = Nothing
+typeClassInst _ _ _ t = Nothing
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments

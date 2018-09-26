@@ -25,10 +25,10 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , lhOrdTCM
                                  , lhEqM
                                  , lhNeM
-                                 , lhLtM
-                                 , lhLeM
-                                 , lhGtM
-                                 , lhGeM
+                                 , lhLtE
+                                 , lhLeE
+                                 , lhGtE
+                                 , lhGeE
 
                                  , lhPlusM
                                  , lhMinusM
@@ -267,17 +267,51 @@ lhEqM = liftTCValues lhEq
 lhNeM :: LHStateM L.Name
 lhNeM = liftTCValues lhNe
 
-lhLtM :: LHStateM L.Name
-lhLtM = liftTCValues lhLt
+binT :: LHStateM L.Type
+binT = do
+    a <- freshIdN L.TYPE
+    let tva = L.TyVar a
+    ord <- lhOrdTCM
+    lh <- lhTCM
+    bool <- tyBoolT
 
-lhLeM :: LHStateM L.Name
-lhLeM = liftTCValues lhLe
+    let ord' = L.TyConApp ord L.TYPE
+    let lh' = L.TyConApp lh L.TYPE
 
-lhGtM :: LHStateM L.Name
-lhGtM = liftTCValues lhGt
+    return $ L.TyForAll (L.NamedTyBndr a) 
+                    (L.TyFun
+                        ord'
+                        (L.TyFun
+                            lh'
+                            (L.TyFun
+                                tva
+                                (L.TyFun
+                                    tva
+                                    bool
+                                )
+                            )
+                        )
+                    )
 
-lhGeM :: LHStateM L.Name
-lhGeM = liftTCValues lhGe
+lhLtE :: LHStateM L.Id
+lhLtE = do
+    n <- liftTCValues lhLt
+    return . L.Id n =<< binT 
+
+lhLeE :: LHStateM L.Id
+lhLeE = do
+    n <- liftTCValues lhLe
+    return . L.Id n =<< binT 
+
+lhGtE :: LHStateM L.Id
+lhGtE = do
+    n <- liftTCValues lhGt
+    return . L.Id n =<< binT 
+
+lhGeE :: LHStateM L.Id
+lhGeE = do
+    n <- liftTCValues lhGe
+    return . L.Id n =<< binT 
 
 lhPlusM :: LHStateM L.Name
 lhPlusM = liftTCValues lhPlus

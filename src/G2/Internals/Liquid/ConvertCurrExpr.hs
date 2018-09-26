@@ -1,11 +1,11 @@
-module G2.Internals.Liquid.ConvertCurrExpr where
+module G2.Internals.Liquid.ConvertCurrExpr (addCurrExprAssumption) where
 
 import G2.Internals.Language
 import G2.Internals.Language.Monad
 
 import G2.Internals.Liquid.Conversion2
 import G2.Internals.Liquid.Types
-
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -19,12 +19,18 @@ addCurrExprAssumption ifi = do
 
     lh <- mapM (lhTCDict'' M.empty) $ mapMaybe typeType fi
 
+    let (typs, args) = span isType $ fi ++ map Var is
+
     case assumpt of
         Just assumpt' -> do
-            let appAssumpt = mkApp $ assumpt':fi ++ lh ++ map Var is
+            let appAssumpt = mkApp $ assumpt':typs ++ lh ++ args
             let ce' = Assume appAssumpt ce
             putCurrExpr (CurrExpr er ce')
         Nothing -> return ()
+
+isType :: Expr -> Bool
+isType (Type _) = True
+isType _ = False
 
 typeType :: Expr -> Maybe Type
 typeType (Type t) = Just t

@@ -371,6 +371,11 @@ convertLHExpr m bt t (PNot e) = do
     e <- convertLHExpr m bt Nothing e
     not <- mkNotE
     return (App not e) 
+convertLHExpr m bt t (PImp e1 e2) = do
+    e1' <- convertLHExpr m bt t e1
+    e2' <- convertLHExpr m bt t e2
+    imp <- mkImpliesE
+    return $ mkApp [imp, e1', e2']
 convertLHExpr m bt t (PIff e1 e2) = do
     e1' <- convertLHExpr m bt t e1
     e2' <- convertLHExpr m bt t e2
@@ -573,10 +578,10 @@ convertBrel :: Brel -> LHStateM Expr
 convertBrel Ref.Eq = convertBrel' lhEqM
 convertBrel Ref.Ueq = convertBrel' lhEqM
 convertBrel Ref.Ne = convertBrel' lhNeM
-convertBrel Ref.Gt = convertBrel' lhGtM
-convertBrel Ref.Ge = convertBrel' lhGeM
-convertBrel Ref.Lt = convertBrel' lhLtM
-convertBrel Ref.Le = convertBrel' lhLeM
+convertBrel Ref.Gt = return . Var =<< lhGtE
+convertBrel Ref.Ge = return . Var =<< lhGeE
+convertBrel Ref.Lt = return . Var =<< lhLtE
+convertBrel Ref.Le = return . Var =<<  lhLeE
 convertBrel _ = error "convertBrel: Unhandled brel"
 
 convertBrel' :: LHStateM Name -> LHStateM Expr
@@ -657,4 +662,4 @@ ordDict m t = do
     tc <- typeClassInstTC (ord_dicts m) ord t
     case tc of
         Just e -> return e
-        Nothing -> return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown) -- error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m
+        Nothing -> trace ("t = " ++ show t) return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown) -- error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m

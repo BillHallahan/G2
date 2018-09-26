@@ -90,7 +90,23 @@ createLHTCFuncs = do
 initalizeLHTC :: Name -> AlgDataTy -> LHStateM (Name, Id)
 initalizeLHTC n adt = do
     lhf <- lhName "lh" n
-    return (n, Id lhf TyUnknown)
+    t <- lhtcT n adt
+    return (n, Id lhf t)
+
+lhtcT :: Name -> AlgDataTy -> LHStateM Type
+lhtcT n adt = do
+    lh <- lhTCM
+    let bi = bound_ids adt
+    let ct = foldl' TyApp (TyConApp n TYPE) $ map TyVar bi
+
+    let t = (TyApp 
+                (TyConApp lh TYPE) 
+                ct
+            )
+
+    let t' = foldr TyFun t $ map (TyApp (TyConApp lh (TyFun TYPE TYPE)) . TyVar) bi
+    let t'' = foldr TyForAll t' $ map NamedTyBndr bi
+    return t''
 
 lhName :: T.Text -> Name -> LHStateM Name
 lhName t (Name n m _ _) = freshSeededNameN $ Name (t `T.append` n) m 0 Nothing
@@ -139,7 +155,7 @@ createLHTCFuncs' lhm n adt = do
 lhDCType :: LHStateM Type
 lhDCType = do
     lh <- lhTCM
-    n <-freshIdN TYPE
+    n <- freshIdN TYPE
 
     return $ (TyFun
                 TyUnknown
