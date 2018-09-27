@@ -12,6 +12,13 @@ class AST t => ASTM t where
 modifyM :: (ASTM t, Monad m) => (t -> m t) -> t -> m t
 modifyM f t = modifyChildrenM (modifyM f) =<< f t
 
+modifyFixM :: (ASTM t, Monad m, Eq t) => (t -> m t) -> t -> m t
+modifyFixM f e = do
+    e' <- f e
+    if e == e'
+        then modifyChildrenM (modifyFixM f) e'
+        else modifyFixM f e'
+
 class (ASTM t, ASTContainer c t) => ASTContainerM c t where
     modifyContainedASTsM :: Monad m => (t -> m t) -> c -> m c
 
@@ -47,6 +54,10 @@ instance ASTM Expr where
         e1' <- f e1
         e2' <- f e2
         return $ Assume e1' e2'
+    modifyChildrenM f (Assert is e1 e2) = do
+        e1' <- f e1
+        e2' <- f e2
+        return $ Assert is e1' e2'
     modifyChildrenM _ e = return e
 
 instance ASTM Type where

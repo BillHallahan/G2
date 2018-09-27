@@ -19,6 +19,7 @@ import G2.Internals.Liquid.ConvertCurrExpr
 import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.Measures
 import G2.Internals.Liquid.Rules
+import G2.Internals.Liquid.Simplify
 import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
@@ -37,7 +38,7 @@ import qualified Language.Haskell.Liquid.UX.Config as LHC
 
 import Language.Fixpoint.Solver
 import qualified Language.Fixpoint.Types as F
-import Language.Fixpoint.Types.PrettyPrint as FPP
+import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.Coerce
 import Data.List
@@ -180,6 +181,8 @@ initializeLH ghci_cg ifi = do
 
     addCurrExprAssumption ifi
 
+    simplify
+
     return ifi'
 
 adjustCurrExpr :: Lang.Id -> State t -> (State t, [Name])
@@ -194,7 +197,7 @@ adjustCurrExpr i@(Id n t) s@(State {expr_env = eenv, curr_expr = (CurrExpr ce ce
         funs = filter (\(Var (Id vn _)) -> vn `elem` E.keys eenv) $ vars e
         funN = varNames funs
         (funs', ng'') = doRenames funN ng' funs
-        
+
         e' = foldr (uncurry replaceASTs) e $ zip funs funs'
         eenv' = E.insert n' e' eenv
 
@@ -277,7 +280,7 @@ pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do
     let i = mkIdUnsafe v
 
-    let doc = PPR.rtypeDoc Full $ val r
+    let doc = PPR.rtypeDoc FPP.Full $ val r
     putStrLn $ show i
     putStrLn $ show doc
 
