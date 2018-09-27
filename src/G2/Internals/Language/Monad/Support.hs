@@ -7,7 +7,8 @@ module G2.Internals.Language.Monad.Support ( StateM
                                            , FullState (..)
                                            , runStateM
                                            , readRecord
-                                           , withNG ) where
+                                           , withNG
+                                           , mapCurrExpr ) where
 
 import qualified Control.Monad.State.Lazy as SM
 
@@ -102,3 +103,9 @@ rep_curr_exprM :: CurrExpr -> StateM t ()
 rep_curr_exprM ce = do
     s <- SM.get
     SM.put $ s {curr_expr = ce}
+
+mapCurrExpr :: FullState s m => (Expr -> m Expr) -> m ()
+mapCurrExpr f = do
+    (CurrExpr er e) <- currExpr
+    e' <- f e
+    putCurrExpr (CurrExpr er e') 
