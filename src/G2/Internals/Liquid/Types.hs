@@ -36,6 +36,7 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , lhDivM
                                  , lhNegateM
                                  , lhModM
+                                 , lhFromIntegerM
 
                                  , lhAndE
                                  , lhOrE
@@ -258,6 +259,9 @@ liftTCValues f = return . f . tcvalues =<< SM.get
 lhTCM :: LHStateM L.Name
 lhTCM = liftTCValues lhTC
 
+lhNumTCM :: LHStateM L.Name
+lhNumTCM = liftTCValues lhNumTC 
+
 lhOrdTCM :: LHStateM L.Name
 lhOrdTCM = liftTCValues lhOrdTC 
 
@@ -313,6 +317,26 @@ lhGeE = do
     n <- liftTCValues lhGe
     return . L.Id n =<< binT 
 
+
+numT :: LHStateM L.Type
+numT = do
+    a <- freshIdN L.TYPE
+    let tva = L.TyVar a
+    num <- lhNumTCM
+    lh <- lhTCM
+
+    let num' = L.TyConApp num L.TYPE
+    let lh' = L.TyConApp lh L.TYPE
+
+    return $ L.TyForAll (L.NamedTyBndr a) 
+                    (L.TyFun
+                        num'
+                        (L.TyFun
+                            tva
+                            tva
+                        )
+                    )
+
 lhPlusM :: LHStateM L.Name
 lhPlusM = liftTCValues lhPlus
 
@@ -330,6 +354,11 @@ lhNegateM = liftTCValues lhNegate
 
 lhModM :: LHStateM L.Name
 lhModM = liftTCValues lhMod
+
+lhFromIntegerM :: LHStateM L.Id
+lhFromIntegerM = do
+    n <- liftTCValues lhFromInteger
+    return . L.Id n =<< numT 
 
 lhPPM :: LHStateM L.Name
 lhPPM = liftTCValues lhPP

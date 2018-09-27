@@ -451,16 +451,15 @@ callFromInteger m t e = do
     lhDict <- lhTCDict m t
     nDict <- numDict m t
     
-    fIntgr <- mkFromIntegerE
+    fIntgr <- lhFromIntegerM
 
     tyI <- tyIntegerT
 
     if retT /= tyI then
         return $ Just e
     else
-        return $ Just $ mkApp [ fIntgr
+        return $ Just $ mkApp [ Var fIntgr
                               , Type t
-                              , lhDict
                               , nDict
                               , e]
 

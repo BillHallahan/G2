@@ -41,6 +41,7 @@ data KnownValues = KnownValues {
                  , divFunc :: Name
                  , negateFunc :: Name
                  , modFunc :: Name
+                 , fromIntegerFunc :: Name
 
                  , geFunc :: Name
                  , gtFunc :: Name

@@ -47,6 +47,7 @@ initKnownValues eenv tenv =
     , divFunc = exprWithStrName eenv "/"
     , negateFunc = exprWithStrName eenv "negate"
     , modFunc = exprWithStrName eenv "mod"
+    , fromIntegerFunc = exprWithStrName eenv "fromInteger"
 
     , geFunc = exprWithStrName eenv ">="
     , gtFunc = exprWithStrName eenv ">"

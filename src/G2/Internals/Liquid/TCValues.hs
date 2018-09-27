@@ -9,6 +9,7 @@ import G2.Internals.Language.Syntax
 --       (i.e. the LH typeclass)
 --   (2) It is a copy of a function that normally exists, but that copy has no assertion added. 
 data TCValues = TCValues { lhTC :: Name
+                         , lhNumTC :: Name
                          , lhOrdTC :: Name
 
                          , lhEq :: Name
@@ -25,6 +26,7 @@ data TCValues = TCValues { lhTC :: Name
                          , lhDiv :: Name
                          , lhNegate :: Name
                          , lhMod :: Name
+                         , lhFromInteger :: Name
 
                          , lhAnd :: Name
                          , lhOr :: Name
@@ -33,6 +35,7 @@ data TCValues = TCValues { lhTC :: Name
 
 instance Named TCValues where
     names tcv = [ lhTC tcv
+                , lhNumTC tcv
                 , lhOrdTC tcv
                 , lhEq tcv
                 , lhNe tcv
@@ -48,13 +51,15 @@ instance Named TCValues where
                 , lhDiv tcv
                 , lhNegate tcv
                 , lhMod tcv
+                , lhFromInteger tcv
 
                 , lhAnd tcv
                 , lhOr tcv
 
                 , lhPP tcv]
-                
+
     rename old new tcv = TCValues { lhTC = rename old new $ lhTC tcv
+                                  , lhNumTC = rename old new $ lhNumTC tcv
                                   , lhOrdTC = rename old new $ lhOrdTC tcv
                                   , lhEq = rename old new $ lhEq tcv
                                   , lhNe = rename old new $ lhNe tcv
@@ -70,6 +75,7 @@ instance Named TCValues where
                                   , lhDiv = rename old new $ lhDiv tcv
                                   , lhNegate = rename old new $ lhNegate tcv
                                   , lhMod = rename old new $ lhMod tcv
+                                  , lhFromInteger = rename old new $ lhFromInteger tcv
 
                                   , lhAnd = rename old new $ lhAnd tcv
                                   , lhOr = rename old new $ lhOr tcv

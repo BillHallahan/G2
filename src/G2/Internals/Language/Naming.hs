@@ -430,6 +430,7 @@ instance Named KnownValues where
             , divFunc = divF
             , negateFunc = negF
             , modFunc = modF
+            , fromIntegerFunc = fromIntegerF
 
             , geFunc = geF
             , gtFunc = gtF
@@ -445,7 +446,8 @@ instance Named KnownValues where
             , patErrorFunc = patE
             }) =
             [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF, tList, tCons, tEmp
-            , eqT, numT, ordT, integralT, eqF, neqF, plF, minusF, tmsF, divF, negF, modF, geF, gtF, ltF, leF, seT, seF
+            , eqT, numT, ordT, integralT, eqF, neqF, plF, minusF, tmsF, divF, negF, modF, fromIntegerF
+            , geF, gtF, ltF, leF, seT, seF
             , andF, orF, patE]
 
     rename old new (KnownValues {
@@ -481,6 +483,7 @@ instance Named KnownValues where
                    , divFunc = divF
                    , negateFunc = negF
                    , modFunc = modF
+                   , fromIntegerFunc = fromIntegerF
 
                    , geFunc = geF
                    , gtFunc = gtF
@@ -527,6 +530,7 @@ instance Named KnownValues where
                         , divFunc = rename old new divF
                         , negateFunc = rename old new negF
                         , modFunc = rename old new modF
+                        , fromIntegerFunc = rename old new fromIntegerF
 
                         , geFunc = rename old new geF
                         , gtFunc = rename old new gtF

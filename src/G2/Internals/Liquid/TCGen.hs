@@ -38,6 +38,7 @@ createTCValues kv = do
     lhPPN <- freshSeededStringN "lhPP"
 
     let tcv = (TCValues { lhTC = lhTCN
+                        , lhNumTC = KV.numTC kv 
                         , lhOrdTC = KV.ordTC kv 
 
                         , lhEq = lhEqN
@@ -53,6 +54,7 @@ createTCValues kv = do
                         , lhDiv = KV.divFunc kv
                         , lhNegate = KV.negateFunc kv
                         , lhMod = KV.modFunc kv
+                        , lhFromInteger = KV.fromIntegerFunc kv
 
                         , lhAnd = KV.andFunc kv
                         , lhOr = KV.orFunc kv
