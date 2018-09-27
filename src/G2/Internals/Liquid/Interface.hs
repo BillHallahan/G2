@@ -178,8 +178,6 @@ initializeLH ghci_cg ifi = do
     let specs = funcSpecs ghcInfos
     ifi' <- mergeLHSpecState ifi specs
 
-    a <- assumptionsM
-
     addCurrExprAssumption ifi
 
     return ifi'
@@ -195,8 +193,8 @@ adjustCurrExpr i@(Id n t) s@(State {expr_env = eenv, curr_expr = (CurrExpr ce ce
 
         funs = filter (\(Var (Id vn _)) -> vn `elem` E.keys eenv) $ vars e
         funN = varNames funs
-        (funs', ng'') = renameAll funs ng'
-
+        (funs', ng'') = doRenames funN ng' funs
+        
         e' = foldr (uncurry replaceASTs) e $ zip funs funs'
         eenv' = E.insert n' e' eenv
 

@@ -147,9 +147,9 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "ge4gt5" 1000 2 
                     [AtLeast 1, RForAll (\[x, y] -> appNth x 1 $ \x' -> isInt x' $ \x'' -> isInt y $ \y' ->  x'' == 4 && y' == 5)]
 
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat2" 500 2 [AtLeast 1]
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 500 2 [AtLeast 1]
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1000 2 [AtLeast 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat2" 800 3 [AtLeast 2]
+                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 800 3 [AtLeast 2]
+                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1600 3 [AtLeast 1]
 
                 -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
 
