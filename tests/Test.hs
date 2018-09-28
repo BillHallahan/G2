@@ -153,7 +153,7 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
 
-                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
 
                 -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f1" 2000 3 [Exactly 0]
                 -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f2" 2000 3 [AtLeast 4, RForAll (\[_, x, y] -> x == y)]
@@ -166,7 +166,7 @@ liquidTests =
                 -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "callf" 2000 3 [AtLeast 1]
 
                 -- , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error1.hs" "f" 600 2 [AtLeast 1]
-                -- , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 3 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 4 [AtLeast 1]
                 -- , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error3.hs" "z" 2000 3 [Exactly 0]
         ]
 

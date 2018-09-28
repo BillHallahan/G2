@@ -58,12 +58,16 @@ addLHTCExprPasses m = modifyAppTopE (addLHTCExprPasses' m)
 
 addLHTCExprPasses' :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprPasses' m a@(App _ _)
-    | (Var _:_) <- a' = do
+    | a'@(Var (Id (Name "-" _ _ _) _):_) <- unApp a = do
         a'' <- addLHTCExprPasses'' m [] a'
         return $ mkApp a''
+
+    | a'@(Var _:_) <- unApp a = do
+        a'' <- addLHTCExprPasses'' m [] a'
+        return $ mkApp a''
+
     | otherwise = return a
-    where
-        a' = unApp a
+
 addLHTCExprPasses' _ e = return e
 
 addLHTCExprPasses'' :: M.Map Name Id -> [Expr] -> [Expr] -> LHStateM [Expr]

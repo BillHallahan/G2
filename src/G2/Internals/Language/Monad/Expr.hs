@@ -67,4 +67,4 @@ modifyAppRHSE f (App e1 e2) = do
     e1' <- modifyAppRHSE f e1
     e2' <- f e2
     return $ App e1' e2'
-modifyAppRHSE f e = modifyChildrenM (modifyAppTopE' f) e -- return e
+modifyAppRHSE f e = modifyChildrenM f e -- return e

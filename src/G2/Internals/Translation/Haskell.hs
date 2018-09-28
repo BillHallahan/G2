@@ -122,11 +122,10 @@ loadProj hsc proj src gflags simpl = do
                                                 Just hsc' -> hsc'
                                                 _ -> hscTarget beta_flags'
                              , importPaths = [proj]
-                             , ufCreationThreshold = if simpl then ufCreationThreshold beta_flags' else -100000
-                             , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -100000
-                             , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -100000
-                             , ufDictDiscount = if simpl then ufDictDiscount beta_flags' else -100000
-                             , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -100000
+
+                             , simplPhases = if simpl then simplPhases beta_flags' else 0
+                             , maxSimplIterations = if simpl then maxSimplIterations beta_flags' else 0
+
                              , hpcDir = proj}
 
     
