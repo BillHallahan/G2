@@ -220,13 +220,16 @@ convertSpecType m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) 
 
     let bt' = M.insert (idName i') t bt
 
-    e <- convertSpecType m bt' [] (Just i') fin
-    e' <- convertSpecType m bt' is r fout
+    e <- convertSpecType m bt' is r fout
 
-    an <- lhAndE
-    let e'' = App (App an e) e'
-    
-    return $ App (Lam TermL i' e'') (Var i)
+    case hasFuncType i of
+        True -> return $ App (Lam TermL i' e) (Var i)
+        False -> do
+            e' <- convertSpecType m bt' [] (Just i') fin
+            an <- lhAndE
+            let e'' = App (App an e) e'
+            
+            return $ App (Lam TermL i' e'') (Var i)
 convertSpecType m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     let i' = mkIdUnsafe v
 
