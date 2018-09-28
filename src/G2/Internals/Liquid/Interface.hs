@@ -16,7 +16,6 @@ import G2.Internals.Liquid.AddLHTC
 import G2.Internals.Liquid.Annotations
 import G2.Internals.Liquid.Conversion2
 import G2.Internals.Liquid.ConvertCurrExpr
-import G2.Internals.Liquid.ElimPartialApp
 import G2.Internals.Liquid.Measures
 import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.Simplify
@@ -90,7 +89,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
 
 
-    let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
+    let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = cleaned_state
 
     let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
     let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
@@ -107,17 +106,16 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
 
-    let beta_red_state = merged_state' -- simplifyAsserts mkv tcv merged_state' {apply_types = apply_types ng2_state}
-    let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
+    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
 
     -- We create annm_gen_state purely to have to generate less annotations
-    -- We continue execution with beta_red_state later, because otherwise we might have lost some values for LH TC that we need
-    let annm_gen_state = (markAndSweepPreserving pres_names beta_red_state) { type_env = type_env beta_red_state }
+    -- We continue execution with merged_state' later, because otherwise we might have lost some values for LH TC that we need
+    let annm_gen_state = (markAndSweepPreserving pres_names merged_state') { type_env = type_env merged_state' }
 
     let annm = getAnnotMap tcv annm_gen_state meas_eenv ghci_cg
     let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
 
-    let spec_assert_state = addSpecialAsserts beta_red_state
+    let spec_assert_state = addSpecialAsserts merged_state'
 
     let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm'} }
 
