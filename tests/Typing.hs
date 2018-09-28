@@ -65,7 +65,7 @@ funcTest :: Bool
 funcTest = idDef .:: (TyForAll (NamedTyBndr aid) (TyFun a a))
 
 tyAppKindTest :: Bool
-tyAppKindTest = typeOf (TyApp either a) == TyApp TYPE TYPE
+tyAppKindTest = typeOf (TyApp either a) == TyFun TYPE TYPE
 
 -- Typed Expr's
 x1 :: Expr
@@ -114,10 +114,10 @@ float :: Type
 float = TyConApp (Name "Float" Nothing 0 Nothing) TYPE
 
 maybe :: Type
-maybe = TyConApp (Name "Maybe" Nothing 0 Nothing) (TyApp TYPE TYPE)
+maybe = TyConApp (Name "Maybe" Nothing 0 Nothing) (TyFun TYPE TYPE)
 
 either :: Type
-either = TyConApp (Name "Either" Nothing 0 Nothing) (TyApp TYPE (TyApp TYPE TYPE))
+either = TyConApp (Name "Either" Nothing 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))
 
 a :: Type
 a = TyVar aid

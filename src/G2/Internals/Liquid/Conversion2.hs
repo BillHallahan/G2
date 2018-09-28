@@ -661,4 +661,4 @@ ordDict m t = do
     tc <- typeClassInstTC (ord_dicts m) ord t
     case tc of
         Just e -> return e
-        Nothing -> trace ("t = " ++ show t) return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown) -- error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m
+        Nothing -> return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown) -- error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m

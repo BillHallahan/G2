@@ -72,9 +72,14 @@ addLHTCExprPasses'' m es (te@(Type t):es') = do
     dict <- lhTCDict m t
     as <- addLHTCExprPasses'' m (dict:es) es'
     return $ te:as
-addLHTCExprPasses'' m es (e:es') = do
-    as <- addLHTCExprPasses'' m [] es'
-    return $ reverse es ++ e:as
+addLHTCExprPasses'' m es (e:es')
+    | Var (Id n _) <- e
+    , Just dict <- M.lookup n m = do
+        as <- addLHTCExprPasses'' m (Var dict:es) es'
+        return $ e:as
+    | otherwise = do
+        as <- addLHTCExprPasses'' m [] es'
+        return $ reverse es ++ e:as
 
 lhTCDict :: M.Map Name Id -> Type -> LHStateM Expr
 lhTCDict m t = do

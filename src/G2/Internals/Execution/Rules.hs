@@ -386,13 +386,8 @@ stdReduceBase redEx con s@State { exec_stack = estk
       s_eq_f = KV.structEqFunc kv
 
       nrpc_e = mkApp $ 
-                     [ Var (Id s_eq_f TyUnknown)]
-                     ++
-                     (if mode con == Liquid
-                        then [ Var (Id (Name "" Nothing 0 Nothing) TyBottom) ]
-                        else [])
-                     ++
-                     [ Type t
+                     [ Var (Id s_eq_f TyUnknown)
+                     , Type t
                      , eq_tc
                      , Var new_sym_id
                      , expr ]

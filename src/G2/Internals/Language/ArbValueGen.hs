@@ -91,6 +91,6 @@ getADT tenv av adt ts =
         tyVIds = map TyVar ids
         min_dc' = foldr (uncurry replaceASTs) min_dc $ zip tyVIds ts
 
-        (es, _) = unzip $ map (\t -> arbValue t tenv av) $ dataConArgs min_dc 
+        (es, _) = unzip $ map (\t -> arbValue t tenv av) $ dataConArgs min_dc'
     in
     (mkApp $ Data min_dc':es, av)

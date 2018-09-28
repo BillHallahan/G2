@@ -141,9 +141,9 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 100000 3 [Exactly 0]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As" 2000 3 
                     [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "B" y)]
-                -- , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As'" 1000 3 
-                --     [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "A" x && buriedDCName "B" y)
-                --               , RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "A" y)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As'" 1000 3 
+                    [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "A" x && buriedDCName "B" y)
+                              , RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "A" y)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "ge4gt5" 1000 2 
                     [AtLeast 1, RForAll (\[x, y] -> appNth x 1 $ \x' -> isInt x' $ \x'' -> isInt y $ \y' ->  x'' == 4 && y' == 5)]
 
@@ -151,7 +151,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 800 3 [AtLeast 2]
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1600 3 [AtLeast 1]
 
-                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
 
                 -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
 
