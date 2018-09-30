@@ -6,18 +6,11 @@ import G2.Internals.Language.AST
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Support
 import G2.Internals.Language.Syntax
-import G2.Internals.Language.TypeEnv
 import G2.Internals.Language.Typing
 
-import Data.Coerce
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
-import Data.Monoid
 import Data.Ord
-import Data.Tuple
-
-import Debug.Trace
 
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
@@ -75,7 +68,7 @@ cutOff ns a@(App _ _)
         case n `elem` ns of
             True -> Prim Undefined TyBottom
             False -> mapArgs (cutOff (n:ns)) a
-cutOff ns e = e
+cutOff _ e = e
 
 -- | Generates an arbitrary value of the given AlgDataTy
 -- If there is no such finite value, this may return an infinite Expr

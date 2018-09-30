@@ -32,8 +32,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 type ProgramType = (Name, AlgDataTy)
 
 -- | Type environments map names of types to their appropriate types. However
@@ -70,7 +68,7 @@ dataCon (TypeSynonym _) = []
 boundIds :: AlgDataTy -> [Id]
 boundIds dc@(DataTyCon {}) = bound_ids dc
 boundIds dc@(NewTyCon {}) = bound_ids dc
-boundIds dc@(TypeSynonym {}) = []
+boundIds (TypeSynonym {}) = []
 
 dcName :: DataCon -> Name
 dcName (DataCon n _) = n
@@ -116,7 +114,7 @@ getCastedAlgDataTy t tenv
 getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy' n ts tenv =
         case M.lookup n tenv of
-            Just (NewTyCon {bound_ids = ids, rep_type = TyConApp n' _}) -> getCastedAlgDataTy' n' ts tenv
+            Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy' n' ts tenv
             Just (NewTyCon {}) -> Nothing
             (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
             _ -> Nothing

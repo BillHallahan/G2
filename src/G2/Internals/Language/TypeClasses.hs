@@ -34,8 +34,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id]} deriving (Show, Eq, Read)
 
 type TCType = M.Map Name Class
@@ -215,14 +213,14 @@ typeClassInst tc m tcn t
         case lookupTCDict tc tcn tca of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
-    | tca@(TyVar (Id n _)) <- tyAppCenter t
+    | (TyVar (Id n _)) <- tyAppCenter t
     , ts <- tyAppArgs t
     , tcs <- map (typeClassInst tc m tcn) ts
     , all (isJust) tcs =
         case M.lookup n m of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
-typeClassInst _ _ _ t = Nothing
+typeClassInst _ _ _ _ = Nothing
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments

@@ -10,8 +10,6 @@ import G2.Internals.Liquid.Conversion2
 
 import qualified Data.Map as M
 
-import Debug.Trace
-
 addLHTC :: LHStateM ()
 addLHTC = do
     mapME addLHTCExprEnv
@@ -97,6 +95,6 @@ lhTCDict m t = do
         -- Unfortunately, the LH Dicts are then added AGAIN, by addLHTCExprEnvPasses
         -- So we just drop the LH Dicts added by typeClassInstTC, and everything works out
         dropAppedLH :: Expr -> Expr
-        dropAppedLH (App e t@(Type _)) = App (dropAppedLH e) t
+        dropAppedLH (App e t'@(Type _)) = App (dropAppedLH e) t'
         dropAppedLH (App e _) = dropAppedLH e
         dropAppedLH e = e

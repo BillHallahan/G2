@@ -57,8 +57,6 @@ import G2.Internals.Language.Syntax
 import qualified Data.Map as M
 import Data.Monoid hiding (Alt)
 
-import Debug.Trace
-
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyConApp (KV.tyInt kv) (tyTYPE kv)
 
@@ -77,10 +75,6 @@ tyBool kv = TyConApp (KV.tyBool kv) (tyTYPE kv)
 tyTYPE :: KV.KnownValues -> Type
 tyTYPE _ = TYPE
 
-mkTyApp' :: Type -> Type -> Type
-mkTyApp' (TyFun _ t2) _ = t2
-mkTyApp' t1 t2 = TyApp t1 t2
-
 -- | mkTyFun
 -- Turns the Expr list into an application spine
 mkTyFun :: [Type] -> Type
@@ -96,7 +90,7 @@ tyAppCenter t = t
 
 tyAppArgs :: Type -> [Type]
 tyAppArgs (TyApp t t') = tyAppArgs t ++ [t']
-tyAppArgs t = []
+tyAppArgs _ = []
 
 mkTyApp :: [Type] -> Type
 mkTyApp [] = TYPE
@@ -140,11 +134,11 @@ instance Typed Lit where
     typeOf (LitString _) = TyLitString
     typeOf (LitInteger _) = TyLitInt
 
-    typeOf' m t = typeOf t
+    typeOf' _ t = typeOf t
 
 -- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
-    typeOf' m (DataCon _ ty) = ty
+    typeOf' _ (DataCon _ ty) = ty
 
 -- | `Alt` instance of `Typed`.
 instance Typed Alt where
@@ -168,8 +162,8 @@ instance Typed Expr where
             TermL -> TyFun (typeOf' m b) (typeOf' m e)
     typeOf' m (Let _ expr) = typeOf' m expr
     typeOf' m (Case _ _ (a:_)) = typeOf' m a
-    typeOf' m (Case _ _ []) = TyBottom
-    typeOf' m (Type ty) = TYPE
+    typeOf' _ (Case _ _ []) = TyBottom
+    typeOf' _ (Type _) = TYPE
     typeOf' m (Cast _ (_ :~ t')) = tyVarRename m t'
     typeOf' m (Coercion (_ :~ t')) = tyVarRename m t'
     typeOf' m (Tick _ e) = typeOf' m e
@@ -182,8 +176,8 @@ appTypeOf m (TyForAll (NamedTyBndr i) t) (Type t':es) =
         m' = M.insert (idName i) (tyVarRename m t') m
     in
     appTypeOf m' t es
-appTypeOf m (TyForAll (NamedTyBndr i) t) (_:es) = appTypeOf m t es
-appTypeOf m (TyFun _ t) (e:es) = appTypeOf m t es
+appTypeOf m (TyForAll (NamedTyBndr _) t) (_:es) = appTypeOf m t es
+appTypeOf m (TyFun _ t) (_:es) = appTypeOf m t es
 appTypeOf m t [] = tyVarRename m t
 appTypeOf m (TyVar (Id n _)) es =
     case M.lookup n m of
@@ -192,26 +186,33 @@ appTypeOf m (TyVar (Id n _)) es =
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 instance Typed Type where
-    typeOf' m v@(TyVar (Id _ t)) = t
-    typeOf' m (TyFun t1 t2) = TYPE
+    typeOf' _ (TyVar (Id _ t)) = t
+    typeOf' _ (TyFun _ _) = TYPE
     typeOf' m (TyApp t1 t2) =
         let
             ft = typeOf' m t1
             at = typeOf' m t2
         in
         case (ft, at) of
-            (ta@(TyFun _ t2'), _) -> t2'
-            (ta@(TyApp t1' _), _) -> t1'
-            (t, _) -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
-    typeOf' m (TyConApp n t) = t
+            ((TyFun _ t2'), _) -> t2'
+            ((TyApp t1' _), _) -> t1'
+            _ -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
+    typeOf' _ (TyConApp _ t) = t
     typeOf' m (TyForAll (NamedTyBndr b) t) = TyApp (typeOf b) (typeOf' m t)
     typeOf' m (TyForAll _ t) = typeOf' m t
-    typeOf' m t = t
+    typeOf' _ TyLitInt = TYPE
+    typeOf' _ TyLitFloat = TYPE
+    typeOf' _ TyLitDouble = TYPE
+    typeOf' _ TyLitChar = TYPE
+    typeOf' _ TyLitString = TYPE
+    typeOf' _ TYPE = TYPE
+    typeOf' _ TyBottom = TyBottom
+    typeOf' _ TyUnknown = TyUnknown
 
 newtype PresType = PresType Type
 
 instance Typed PresType where
-    typeOf' m (PresType t) = t
+    typeOf' _ (PresType t) = t
 
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a
@@ -262,7 +263,7 @@ specializes m (TyApp t1 t2) (TyApp t1' t2') =
         (b2, m'') = specializes m' t2 t2'
     in
     (b1 && b2, m'')
-specializes m (TyConApp n ts) (TyConApp n' ts') = (n == n', m)
+specializes m (TyConApp n _) (TyConApp n' _) = (n == n', m)
 -- specializes m (TyConApp n ts) app@(TyApp _ _) =
 --     let
 --         appts = unTyApp app

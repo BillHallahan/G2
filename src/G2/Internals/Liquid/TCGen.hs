@@ -3,7 +3,6 @@
 module G2.Internals.Liquid.TCGen (createLHTC) where
 
 import G2.Internals.Language
-import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.Conversion2
@@ -13,10 +12,7 @@ import G2.Internals.Liquid.Types
 import Data.Coerce
 import Data.Foldable
 import qualified Data.Map as M
-import Data.Maybe
 import qualified Data.Text as T
-
-import Debug.Trace
 
 createLHTC :: Measures -> KnownValues -> State [FuncCall] -> LHState
 createLHTC meenv mkv s =
@@ -189,17 +185,17 @@ createFunc cf n adt = do
     d2 <- freshIdN (TyConApp n TYPE)
 
     let m = M.fromList $ zip (map idName bi) lhbi
-    e <- mkFirstCase cf m n d1 d2 adt
+    e <- mkFirstCase cf m d1 d2 adt
 
     let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ [(TermL, d1), (TermL, d2)]) e
 
     return e'
 
-mkFirstCase :: PredFunc -> LHDictMap -> Name -> Id -> Id -> AlgDataTy -> LHStateM Expr
-mkFirstCase f ldm n d1 d2 adt@(DataTyCon { data_cons = dcs, bound_ids = bi}) = do
+mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> AlgDataTy -> LHStateM Expr
+mkFirstCase f ldm d1 d2 adt@(DataTyCon { data_cons = dcs }) = do
     caseB <- freshIdN (typeOf d1)
     return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 adt) dcs
-mkFirstCase _ _ _ _ _ _ = return $ Var (Id (Name "Bad mkFirstCase" Nothing 0 Nothing) TyUnknown)
+mkFirstCase _ _ _ _ _ = return $ Var (Id (Name "Bad mkFirstCase" Nothing 0 Nothing) TyUnknown)
 
 mkFirstCase' :: PredFunc -> LHDictMap -> Id -> AlgDataTy -> DataCon -> LHStateM Alt
 mkFirstCase' f ldm d2 adt dc = do
@@ -216,7 +212,7 @@ mkSecondCase f ldm d2 adt dc ba1 = do
     return $ Case (Var d2) caseB alts
 
 lhEqFunc :: PredFunc
-lhEqFunc ldm adt dc ba1 = do
+lhEqFunc ldm _ dc ba1 = do
     ba2 <- freshIdsN $ anonArgumentTypes dc
 
     an <- lhAndE
@@ -231,7 +227,7 @@ lhEqFunc ldm adt dc ba1 = do
 
 eqLHFuncCall :: LHDictMap -> Id -> Id -> LHStateM Expr
 eqLHFuncCall ldm i1 i2
-    | TyConApp n _ <- tyAppCenter t
+    | TyConApp _ _ <- tyAppCenter t
     , ts <- tyAppArgs t  = do
         lhe <- lhEqM
 
@@ -239,7 +235,6 @@ eqLHFuncCall ldm i1 i2
         b <- tyBoolT
 
         let lhv = Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b)))
-        let as = map Type ts
         
         return $ foldl' App lhv [Var i1, Var i2]
 
@@ -269,7 +264,7 @@ eqLHFuncCall ldm i1 i2
         t = typeOf i1
 
 lhNeFunc :: PredFunc
-lhNeFunc ldm adt dc ba1 = do
+lhNeFunc ldm _ dc ba1 = do
     ba2 <- freshIdsN $ anonArgumentTypes dc
 
     an <- lhAndE
@@ -334,7 +329,7 @@ lhPPAlt lhm fnm dc = do
 -- This returns an Expr with a function type, of the given Type to Bool.
 lhPPCall :: LHDictMap -> PPFuncMap -> Type -> LHStateM Expr
 lhPPCall lhm fnm t
-    | TyConApp n _ <- tyAppCenter t
+    | TyConApp _ _ <- tyAppCenter t
     , ts <- tyAppArgs t  = do
         lhpp <- lhPPM
 
@@ -363,13 +358,6 @@ lhPPCall lhm fnm t
         return . Lam TermL i =<< mkTrueE
     | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm
 
-typeArgs :: Expr -> [Type]
-typeArgs = mapMaybe typeOfTypeExpr . unApp
-
-typeOfTypeExpr :: Expr -> Maybe Type
-typeOfTypeExpr (Type t) = Just t
-typeOfTypeExpr _ = Nothing
-
 createExtractors :: LHStateM ()
 createExtractors = do
     lh <- lhTCM
@@ -385,7 +373,6 @@ createExtractors' lh ns = mapM_ (uncurry (createExtractors'' lh (length ns))) $ 
 createExtractors'' :: Name -> Int -> Int -> Name -> LHStateM ()
 createExtractors'' lh i j n = do
     a <- freshIdN TYPE
-    let tva = TyVar a
 
     bi <- freshIdsN $ replicate i TyUnknown
 

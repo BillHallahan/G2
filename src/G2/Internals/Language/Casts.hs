@@ -81,7 +81,6 @@ simplifyCasts' e
     | (Cast e' (t1 :~ t2)) <- e
     , PresType t2 .:: t1
         = e'
-    | Cast e' (t1 :~ t2) <- e = e
     | otherwise = e
 
 -- | liftCasts

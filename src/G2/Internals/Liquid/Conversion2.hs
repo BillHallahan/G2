@@ -33,8 +33,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import Debug.Trace
-
 -- A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
 
@@ -52,32 +50,8 @@ data DictMaps = DictMaps { lh_dicts :: LHDictMap
                          , integral_dicts :: IntegralDictMap
                          , ord_dicts :: OrdDictMap } deriving (Eq, Show, Read)
 
-insertLHDict :: Name -> Id -> DictMaps -> DictMaps
-insertLHDict n i dm@(DictMaps { lh_dicts = lh }) = dm { lh_dicts = M.insert n i lh}
-
-lookupLHDict :: Name -> DictMaps -> Maybe Id
-lookupLHDict n = M.lookup n . lh_dicts
-
-insertNumDict :: Name -> Id -> DictMaps -> DictMaps
-insertNumDict n i dm@(DictMaps { num_dicts = num }) = dm { num_dicts = M.insert n i num}
-
-lookupNumDict :: Name -> DictMaps -> Maybe Id
-lookupNumDict n = M.lookup n . num_dicts
-
-insertIntegralDict :: Name -> Id -> DictMaps -> DictMaps
-insertIntegralDict n i dm@(DictMaps { integral_dicts = int }) = dm { integral_dicts = M.insert n i int}
-
-lookupIntegralDict :: Name -> DictMaps -> Maybe Id
-lookupIntegralDict n = M.lookup n . integral_dicts
-
-insertOrdDict :: Name -> Id -> DictMaps -> DictMaps
-insertOrdDict n i dm@(DictMaps { ord_dicts = ord }) = dm { ord_dicts = M.insert n i ord}
-
-lookupOrdDict :: Name -> DictMaps -> Maybe Id
-lookupOrdDict n = M.lookup n . ord_dicts
-
 copyIds :: Name -> Name -> DictMaps -> DictMaps
-copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = id, ord_dicts = od }) =
+copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = ind, ord_dicts = od }) =
     let
         dm2 = case M.lookup n1 lhd of
                 Just lh -> dm { lh_dicts = M.insert n2 lh lhd }
@@ -87,8 +61,8 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = id
                 Just num -> dm2 { num_dicts = M.insert n2 num nd }
                 Nothing -> dm2
 
-        dm4 = case M.lookup n1 id of
-                Just int -> dm3 { integral_dicts = M.insert n2 int id }
+        dm4 = case M.lookup n1 ind of
+                Just int -> dm3 { integral_dicts = M.insert n2 int ind }
                 Nothing -> dm3
 
         dm5 = case M.lookup n1 od of
@@ -102,7 +76,7 @@ type BoundTypes = M.Map Name Type
 
 mergeLHSpecState :: Id -> [(Var.Var, LocSpecType)] -> LHStateM Id
 mergeLHSpecState i sp = do
-    mapM (uncurry mergeLHSpecState') sp
+    mapM_ (uncurry mergeLHSpecState') sp
     return i
 
 mergeLHSpecState' :: Var.Var -> LocSpecType -> LHStateM ()
@@ -192,8 +166,8 @@ tcWithNameMap n =
         . filter (isTC n . typeOf)
     where
         forType :: Type -> Name
-        forType (TyApp _ (TyVar (Id n _))) = n
-
+        forType (TyApp _ (TyVar (Id n' _))) = n'
+        forType _ = error "Bad type in forType"
 
 isTC :: Name -> Type -> Bool
 isTC n t = case tyAppCenter t of
@@ -218,16 +192,16 @@ convertAssertSpecType m bt is r st = do
 -- otherwise it does not.  This allows us to use this same function to
 -- translate both for assumptions and assertions
 convertSpecType :: DictMaps -> BoundTypes -> [Id] -> Maybe Id -> SpecType -> LHStateM Expr
-convertSpecType m bt is r (RVar {rt_var = (RTV v), rt_reft = reft})
+convertSpecType m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
     | Just r' <- r = do
-        let symb = reftSymbol $ ur_reft reft
+        let symb = reftSymbol $ ur_reft ref
         let i = mkIdUnsafe v
 
         let symbId = convertSymbolT symb (TyVar i)
 
         let bt' = M.insert (idName symbId) (typeOf symbId) bt
 
-        re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
+        re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
 
         return $ App (Lam TermL symbId re) (Var r')
     | otherwise = mkTrueE
@@ -256,16 +230,16 @@ convertSpecType m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty})
 
     e <- convertSpecType m' bt' is r rty
     return $ App (Lam TypeL i' e) (Var i)
-convertSpecType m bt is r (RApp {rt_tycon = c, rt_reft = reft, rt_args = as})
+convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
     | Just r' <- r = do
-        let symb = reftSymbol $ ur_reft reft
+        let symb = reftSymbol $ ur_reft ref
         ty <- return . maybe (error "Error in convertSpecType") id =<< rTyConType c as
         let i = convertSymbolT symb ty
 
         let bt' = M.insert (idName i) ty bt
 
         argsPred <- polyPredFunc as ty m bt' r'
-        re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft reft)
+        re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
 
         an <- lhAndE
 
@@ -296,7 +270,7 @@ polyPredLam m bt rapp  = do
 convertLHExpr :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM Expr
 convertLHExpr _ _ t (ECon c) = convertCon t c
 convertLHExpr _ bt t (EVar s) = convertEVar (symbolName s) bt t
-convertLHExpr m bt t (EApp e e') = do
+convertLHExpr m bt _ (EApp e e') = do
     f <- convertLHExpr m bt Nothing e
 
     let at = argumentTypes f
@@ -319,7 +293,6 @@ convertLHExpr m bt t (EApp e e') = do
 
             tcs <- mapM (lhTCDict' m) ts
 
-            f' <- addLHDictToTypes (lh_dicts m) f
             let fw = mkApp $ f:te
 
                 apps = mkApp $ fw:tcs ++ [argE]
@@ -330,12 +303,11 @@ convertLHExpr m bt t (ENeg e) = do
     e' <- convertLHExpr m bt t e
     let t' = typeOf e'
 
-    negate <- lhNegateM
-    lh <- lhTCM
+    neg <- lhNegateM
     num <- return . KV.numTC =<< knownValues
     a <- freshIdN TYPE
     let tva = TyVar a
-    let negate' = Var $ Id negate 
+    let negate' = Var $ Id neg 
                         (TyForAll (NamedTyBndr a)
                             (TyFun
                                 (TyApp (TyConApp num (TyApp TYPE TYPE)) tva)
@@ -346,7 +318,6 @@ convertLHExpr m bt t (ENeg e) = do
                             )
                         )
 
-    lhDict <- lhTCDict m t'
     nDict <- numDict m t'
 
     return $ mkApp [ negate'
@@ -359,7 +330,6 @@ convertLHExpr m bt t (EBin b e e') = do
 
     let t' = typeOf e2
 
-    lhDict <- lhTCDict m t'
     nDict <- bopTCDict b m t' -- numDict m t'
 
     return $ mkApp [ b'
@@ -367,7 +337,7 @@ convertLHExpr m bt t (EBin b e e') = do
                    , nDict
                    , e2
                    , e2' ]
-convertLHExpr m bt t (PAnd es) = do
+convertLHExpr m bt _ (PAnd es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
     true <- mkTrueE
@@ -377,20 +347,20 @@ convertLHExpr m bt t (PAnd es) = do
         [] -> return $ true
         [e] -> return e
         _ -> return $ foldr (\e -> App (App an e)) true es'
-convertLHExpr m bt t (POr es) = do
+convertLHExpr m bt _ (POr es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
     false <- mkFalseE
-    or <- lhOrE
+    orE <- lhOrE
 
     case es' of
         [] -> return false
         [e] -> return e
-        _ -> return $ foldr (\e -> App (App or e)) false es'
-convertLHExpr m bt t (PNot e) = do
-    e <- convertLHExpr m bt Nothing e
-    not <- mkNotE
-    return (App not e) 
+        _ -> return $ foldr (\e -> App (App orE e)) false es'
+convertLHExpr m bt _ (PNot e) = do
+    e' <- convertLHExpr m bt Nothing e
+    no <- mkNotE
+    return (App no e') 
 convertLHExpr m bt t (PImp e1 e2) = do
     e1' <- convertLHExpr m bt t e1
     e2' <- convertLHExpr m bt t e2
@@ -401,14 +371,13 @@ convertLHExpr m bt t (PIff e1 e2) = do
     e2' <- convertLHExpr m bt t e2
     iff <- mkIffE
     return $ mkApp [iff, e1', e2']
-convertLHExpr m bt t (PAtom brel e1 e2) = do
+convertLHExpr m bt _ (PAtom brel e1 e2) = do
     (e1', e2') <- correctTypes m bt Nothing e1 e2
     brel' <- convertBrel brel
 
     let t' = typeOf e2'
 
     dict <- brelTCDict brel m t'
-    lhDict <- lhTCDict m t'
 
     return $ mkApp [brel', Type t', dict, e1', e2']
 convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
@@ -424,7 +393,6 @@ convertBop Ref.RDiv = convertBop' lhDivM
 
 convertBop' :: LHStateM Name -> LHStateM Expr
 convertBop' f = do
-    lh <- lhTCM
     num <- return . KV.numTC =<< knownValues
     n <- f
     a <- freshIdN TYPE
@@ -466,7 +434,6 @@ callFromInteger :: DictMaps -> Type -> Expr -> LHStateM (Maybe Expr)
 callFromInteger m t e = do
     let retT = returnType e
 
-    lhDict <- lhTCDict m t
     nDict <- numDict m t
     
     fIntgr <- lhFromIntegerM
@@ -480,8 +447,6 @@ callFromInteger m t e = do
                               , Type t
                               , nDict
                               , e]
-
-callFromInteger _ _ _ = error "Nothing in callFromInteger"
 
 convertSymbolT :: Symbol -> Type -> Id
 convertSymbolT s = Id (symbolName s)
@@ -637,7 +602,7 @@ addLHDictToTypes'' m t = modifyChildrenM (addLHDictToTypes'' m) t
 addLHDictToTypes''' :: M.Map Name Id -> [Id] -> Type -> LHStateM Type
 addLHDictToTypes''' m is (TyForAll (NamedTyBndr b) t) =
     return . TyForAll (NamedTyBndr b) =<< addLHDictToTypes''' m (b:is) t
-addLHDictToTypes''' m is t = do
+addLHDictToTypes''' _ is t = do
     lh <- lhTCM
     let is' = reverse is
     let dictT = map (TyApp (TyConApp lh (TyApp TYPE TYPE)) . TyVar) is'
