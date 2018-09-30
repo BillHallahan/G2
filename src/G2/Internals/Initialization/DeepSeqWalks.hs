@@ -95,7 +95,7 @@ createDeepSeqCase1 _ _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument pas
 
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> RenameMap -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 createDeepSeqDataConCase1Alts _ _ _ _ _ _ _ ng [] = ([], ng)
-createDeepSeqDataConCase1Alts tenv w ti n i rm bn ng (dc@(DataCon _ t):xs) =
+createDeepSeqDataConCase1Alts tenv w ti n i rm bn ng (dc@(DataCon _ _):xs) =
     let
         ts = renames rm $ anonArgumentTypes dc
 
@@ -173,7 +173,7 @@ deepSeqFunc w ti rm e
     | otherwise = Nothing
 
 walkerFunc :: Walkers -> [(Name, Id)] -> RenameMap -> Type -> Expr
-walkerFunc _ ti rm (TyVar (Id n _))
+walkerFunc _ ti _ (TyVar (Id n _))
     | Just tyF <- lookup n ti = 
         Var tyF
 walkerFunc w ti rm t

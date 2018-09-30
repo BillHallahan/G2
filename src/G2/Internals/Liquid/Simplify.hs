@@ -3,12 +3,8 @@
 module G2.Internals.Liquid.Simplify ( simplify ) where
 
 import G2.Internals.Language
-import G2.Internals.Language.KnownValues
 import G2.Internals.Language.Monad
-import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
-
-import Debug.Trace
 
 -- The LH translation generates certain redundant Expr's over and over again.
 -- Here we stamp them out.
@@ -65,19 +61,19 @@ redundantLHPPArg _ _ = True
 -- simplifyAnds
 simplifyAnds :: Expr -> LHStateM Expr
 simplifyAnds e = do
-    and <- lhAndE
+    andE <- lhAndE
     true <- mkTrueE
-    modifyAppTopE (simplifyAnds' and true) e
+    modifyAppTopE (simplifyAnds' andE true) e
 
 simplifyAnds' :: Expr -> Expr -> Expr -> LHStateM Expr
-simplifyAnds' and true e = do
+simplifyAnds' andE true e = do
     let a = unApp e
 
     case a of
         [e1, e2, e3]
-            | e1 == and
+            | e1 == andE
             , e2 == true -> return e3
-            | e1 == and
+            | e1 == andE
             , e3 == true -> return e2
             | otherwise -> return e
         _ -> return e

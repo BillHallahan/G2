@@ -13,8 +13,6 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
-import Debug.Trace
-
 -- | unsafeElimCast
 -- Removes all casts from the expression.  Makes no guarantees about the type
 -- correctness of the resulting expression.  In particular, the expression

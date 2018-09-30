@@ -24,8 +24,6 @@ import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
 
-import Debug.Trace
-
 data ADTSolver = ADTSolver
 
 instance Solver ADTSolver where

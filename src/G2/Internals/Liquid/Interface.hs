@@ -44,7 +44,6 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
-import Data.Maybe
 
 import System.Directory
 
@@ -52,10 +51,6 @@ import qualified GHC as GHC
 import Var
 
 import G2.Internals.Language.KnownValues
-
-import G2.Lib.Printers
-
-import Debug.Trace
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -84,7 +79,7 @@ runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [
                     -> [LHOutput]
                     -> Config
                     -> IO ([(State [FuncCall], [Expr], Expr, Maybe FuncCall)], Lang.Id)
-runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
+runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let (init_state, ifi) = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
 

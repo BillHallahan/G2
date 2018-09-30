@@ -272,7 +272,7 @@ resultsToState con config rule s@(State {known_values = kv}) (red@(_, _, pc, ass
 
 {-# INLINE resultToState #-}
 resultToState :: Config -> State t -> Rule -> ReduceResult t -> State t
-resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
+resultToState _ s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
@@ -290,15 +290,15 @@ stdReduce :: Config -> State t -> (Rule, [ReduceResult t])
 stdReduce = stdReduceBase (const Nothing)
 
 stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> Config -> State t -> (Rule, [ReduceResult t])
-stdReduceBase redEx con s@State { exec_stack = estk
-                               , expr_env = eenv
-                               , type_env = tenv
-                               , curr_expr = cexpr
-                               , name_gen = ngen
-                               , known_values = kv
-                               , type_classes = tc
-                               , track = tr
-                               }
+stdReduceBase redEx _ s@State { exec_stack = estk
+                              , expr_env = eenv
+                              , type_env = tenv
+                              , curr_expr = cexpr
+                              , name_gen = ngen
+                              , known_values = kv
+                              , type_classes = tc
+                              , track = tr
+                              }
   | isExecValueFormDisNonRedPC s=
       (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk, [], [], tr)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
@@ -406,7 +406,7 @@ stdReduceBase redEx con s@State { exec_stack = estk
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- S.pop estk =
-      let (rule, (eenv', cexpr', ngen', nr_pc)) = reduceEReturn eenv expr ngen f kv tc
+      let (rule, (eenv', cexpr', ngen', nr_pc)) = reduceEReturn eenv expr ngen f
       in
         (rule, [(eenv', cexpr', [], [], Nothing, ngen', estk', [], nr_pc, tr)])
 
@@ -616,8 +616,8 @@ reduceCase eenv mexpr bind alts ngen
 type EReturnResult = (E.ExprEnv, CurrExpr, NameGen, [Expr])
 
 -- | Handle the Return states.
-reduceEReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> KnownValues -> TypeClasses -> (Rule, EReturnResult)
-reduceEReturn eenv cexpr ngen frm kv tc
+reduceEReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, EReturnResult)
+reduceEReturn eenv cexpr ngen frm
 -- We are returning something and the first thing that we have on the stack
 -- is an `UpdateFrame`, this means that we add a redirection pointer to the
 -- `ExecExprEnv`, and continue with execution. This is the equivalent of
@@ -721,7 +721,7 @@ reduceLam eenv (Lam _ b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
            , [])
          , news)
 
-reduceLam eenv (Lam _ b@(Id n t) lexpr) ngen (ApplyFrame taexpr)
+reduceLam eenv (Lam _ b@(Id n _) lexpr) ngen (ApplyFrame taexpr)
   | Type aexpr <- taexpr =
       let aty = aexpr
           binds = [(Id n aty, taexpr)]

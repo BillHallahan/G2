@@ -28,8 +28,6 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-import Debug.Trace
-
 mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 
@@ -193,11 +191,12 @@ mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
 mkPrimHaskell Iff = "undefined"
+mkPrimHaskell BindFunc = "undefined"
 
 mkTypeHaskell :: Type -> String
 mkTypeHaskell (TyVar i) = mkIdHaskell i
 mkTypeHaskell (TyFun t1 t2) = mkTypeHaskell t1 ++ " -> " ++ mkTypeHaskell t2
-mkTypeHaskell (TyConApp n ts) = mkNameHaskell n
+mkTypeHaskell (TyConApp n _) = mkNameHaskell n
 mkTypeHaskell (TyApp t1 t2) = "(" ++ mkTypeHaskell t1 ++ " " ++ mkTypeHaskell t2 ++ ")"
 mkTypeHaskell _ = "Unsupported type in printer."
 

@@ -43,8 +43,6 @@ import G2.Internals.Language.Monad
 import Data.List
 import qualified Data.Map as M
 
-import Debug.Trace
-
 functionalize :: [Type] -> [Name] -> SimpleStateM (FuncInterps, AT.ApplyTypes)
 functionalize ts tgtNames = do
     -- Get names for all need apply type

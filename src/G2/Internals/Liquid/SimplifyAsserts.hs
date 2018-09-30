@@ -31,53 +31,11 @@ simplifyIn tenv kv mkv tcv e =
     if e == e' then e else simplifyIn tenv kv mkv tcv e'
 
 simplifyIn' :: TypeEnv -> KnownValues -> ModifiedKnownValues -> TCValues -> Expr -> Expr
--- simplifyIn' tenv kv mkv tcv = elimAnds tenv kv mkv . elimLHPP tenv kv tcv . varBetaReduction
-simplifyIn' tenv kv mkv tcv = elimAnds tenv kv mkv . varBetaReduction
+simplifyIn' tenv kv mkv _ = elimAnds tenv kv mkv . varBetaReduction
 
 
 elimAnds :: TypeEnv -> KnownValues -> ModifiedKnownValues -> Expr -> Expr
 elimAnds tenv kv mkv = elimCalls2 (andFunc mkv) (mkTrue kv tenv)
-
-elimLHPP :: TypeEnv -> KnownValues -> TCValues -> Expr -> Expr
-elimLHPP tenv kv tcv a@(App e e') =
-    case isNestedLPP tcv a of
-        True -> case isRedundantNestedArg kv tcv a of
-                    True -> mkTrue kv tenv
-                    False -> App (modifyAppRHS (elimLHPP tenv kv tcv) e) (elimLHPP tenv kv tcv e')
-        False -> modifyChildren (elimLHPP tenv kv tcv) a
-elimLHPP tenv kv tcv e = modifyChildren (elimLHPP tenv kv tcv) e
-
-isNestedLPP :: TCValues -> Expr -> Bool
-isNestedLPP tcv (Var (Id n _)) = n == lhPP tcv 
-isNestedLPP tcv (App e _) = isNestedLPP tcv e
-isNestedLPP _ _ = False
-
-isNestedLHTC :: TCValues -> Expr -> Bool
-isNestedLHTC tcv (Var (Id _ (TyConApp n _))) = n == lhTC tcv 
-isNestedLHTC tcv (App e _) = isNestedLHTC tcv e
-isNestedLHTC _ _ = False
-
--- We skip checking the outermost arg, which is always the type the lhPP
--- function is walking over
-isRedundantNestedArg :: KnownValues -> TCValues -> Expr -> Bool
-isRedundantNestedArg kv tcv (App e _) = isRedundantNestedArg' kv tcv e
-isRedundantNestedArg _ _ _ = False
-
-isRedundantNestedArg' :: KnownValues -> TCValues -> Expr -> Bool
-isRedundantNestedArg' _ tcv (Var (Id n _)) = n == lhPP tcv 
-isRedundantNestedArg' kv tcv (App e e') = isRedundantNestedArg' kv tcv e && isRedundantArg kv tcv e'
-isRedundantNestedArg' _ _ _ = False
-
-isRedundantArg :: KnownValues -> TCValues -> Expr -> Bool
-isRedundantArg _ _ (Type _) = True
-isRedundantArg _ tcv (Var (Id _ (TyConApp n _))) = n == lhTC tcv
-isRedundantArg kv _ l@(Lam _ _ _) = isIdentity kv l
-isRedundantArg _ tcv a@(App _ _) = isNestedLHTC tcv a
-isRedundantArg _ _ _ = False
-
-isIdentity :: KnownValues -> Expr -> Bool
-isIdentity kv (Lam _ _ (Data (DataCon n _))) = n == dcTrue kv
-isIdentity _ _ = False
 
 -- | elimCalls2
 -- If one of the arguments to a function with name f with 2 arguments is a,

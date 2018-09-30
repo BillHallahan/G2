@@ -182,7 +182,7 @@ createStructEqFuncDC t bt bd bm dc = do
     return $ mkLams (map (TypeL,) bt) e'
 
 createStructEqFuncDCAlt :: Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> IT.SimpleStateM Alt
-createStructEqFuncDCAlt e2 t bm dc@(DataCon _ ts) = do
+createStructEqFuncDCAlt e2 t bm dc@(DataCon _ _) = do
     false <- mkFalseE
 
     bs <- freshIdsN $ anonArgumentTypes dc
