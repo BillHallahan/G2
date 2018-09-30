@@ -41,11 +41,15 @@ type LHDictMap = M.Map Name Id
 -- A mapping of TyVar Name's, to Id's for the Num dict's
 type NumDictMap = M.Map Name Id
 
+-- A mapping of TyVar Name's, to Id's for the Integral dict's
+type IntegralDictMap = M.Map Name Id
+
 -- A mapping of TyVar Name's, to Id's for the Ord dict's
 type OrdDictMap = M.Map Name Id
 
 data DictMaps = DictMaps { lh_dicts :: LHDictMap
                          , num_dicts :: NumDictMap
+                         , integral_dicts :: IntegralDictMap
                          , ord_dicts :: OrdDictMap } deriving (Eq, Show, Read)
 
 insertLHDict :: Name -> Id -> DictMaps -> DictMaps
@@ -60,6 +64,12 @@ insertNumDict n i dm@(DictMaps { num_dicts = num }) = dm { num_dicts = M.insert 
 lookupNumDict :: Name -> DictMaps -> Maybe Id
 lookupNumDict n = M.lookup n . num_dicts
 
+insertIntegralDict :: Name -> Id -> DictMaps -> DictMaps
+insertIntegralDict n i dm@(DictMaps { integral_dicts = int }) = dm { integral_dicts = M.insert n i int}
+
+lookupIntegralDict :: Name -> DictMaps -> Maybe Id
+lookupIntegralDict n = M.lookup n . integral_dicts
+
 insertOrdDict :: Name -> Id -> DictMaps -> DictMaps
 insertOrdDict n i dm@(DictMaps { ord_dicts = ord }) = dm { ord_dicts = M.insert n i ord}
 
@@ -67,21 +77,25 @@ lookupOrdDict :: Name -> DictMaps -> Maybe Id
 lookupOrdDict n = M.lookup n . ord_dicts
 
 copyIds :: Name -> Name -> DictMaps -> DictMaps
-copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, ord_dicts = od }) =
+copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = id, ord_dicts = od }) =
     let
-        dm' = case M.lookup n1 lhd of
+        dm2 = case M.lookup n1 lhd of
                 Just lh -> dm { lh_dicts = M.insert n2 lh lhd }
                 Nothing -> dm
 
-        dm'' = case M.lookup n1 nd of
-                Just num -> dm' { num_dicts = M.insert n2 num nd }
-                Nothing -> dm'
+        dm3 = case M.lookup n1 nd of
+                Just num -> dm2 { num_dicts = M.insert n2 num nd }
+                Nothing -> dm2
 
-        dm''' = case M.lookup n1 od of
-                Just ord -> dm'' { ord_dicts = M.insert n2 ord od }
-                Nothing -> dm''
+        dm4 = case M.lookup n1 id of
+                Just int -> dm3 { integral_dicts = M.insert n2 int id }
+                Nothing -> dm3
+
+        dm5 = case M.lookup n1 od of
+                Just ord -> dm4 { ord_dicts = M.insert n2 ord od }
+                Nothing -> dm4
     in
-    dm'''
+    dm5
 
 -- A mapping of variable names to the corresponding types
 type BoundTypes = M.Map Name Type
@@ -158,14 +172,17 @@ dictMapFromIds :: [Id] -> LHStateM DictMaps
 dictMapFromIds is = do
     lh <- lhTCM
     num <- return . KV.numTC =<< knownValues
+    int <- return . KV.integralTC =<< knownValues
     ord <- return . KV.ordTC =<< knownValues
 
     let lhm = tcWithNameMap lh is
     let nm = tcWithNameMap num is
+    let im = tcWithNameMap int is
     let om = tcWithNameMap ord is
 
     return $ DictMaps { lh_dicts = lhm
                       , num_dicts = nm
+                      , integral_dicts = im
                       , ord_dicts = om }
 
 tcWithNameMap :: Name -> [Id] -> M.Map Name Id
@@ -343,7 +360,7 @@ convertLHExpr m bt t (EBin b e e') = do
     let t' = typeOf e2
 
     lhDict <- lhTCDict m t'
-    nDict <- numDict m t'
+    nDict <- bopTCDict b m t' -- numDict m t'
 
     return $ mkApp [ b'
                    , Type t'
@@ -393,9 +410,7 @@ convertLHExpr m bt t (PAtom brel e1 e2) = do
     dict <- brelTCDict brel m t'
     lhDict <- lhTCDict m t'
 
-    case dict of
-        Nothing -> return $ mkApp [brel', Type t', lhDict, e1', e2']
-        Just dict' -> return $ mkApp [brel', Type t', dict', e1', e2']
+    return $ mkApp [brel', Type t', dict, e1', e2']
 convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
 
 convertBop :: Bop -> LHStateM Expr
@@ -591,15 +606,19 @@ convertBrel' f = do
     n <- f
     return $ Var $ Id n TyUnknown
 
-brelTCDict :: Brel -> DictMaps -> Type -> LHStateM (Maybe Expr)
-brelTCDict b dm t =
-    if lhFunc b then return Nothing else fmap Just (ordDict dm t)
+brelTCDict :: Brel -> DictMaps -> Type -> LHStateM Expr
+brelTCDict b =
+    if lhFunc b then lhTCDict else ordDict
 
 lhFunc :: Brel -> Bool
 lhFunc Ref.Eq = True
 lhFunc Ref.Ueq = True
 lhFunc Ref.Ne = True
 lhFunc _ = False
+
+bopTCDict :: Bop -> DictMaps -> Type -> LHStateM Expr
+bopTCDict Ref.Mod = integralDict
+bopTCDict _ = numDict
 
 -- We want to add a LH Dict Type argument to Var's, but not DataCons or Lambdas.
 -- That is: function calls need to be passed the LH Dict but it
@@ -658,10 +677,18 @@ numDict m t = do
         Just e -> return e
         Nothing -> return $ Var (Id (Name "BAD 4" Nothing 0 Nothing) TyUnknown)
 
+integralDict :: DictMaps -> Type -> LHStateM Expr
+integralDict m t = do
+    num <- return . KV.integralTC =<< knownValues
+    tc <- typeClassInstTC (integral_dicts m) num t
+    case tc of
+        Just e -> return e
+        Nothing -> return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown)
+
 ordDict :: DictMaps -> Type -> LHStateM Expr
 ordDict m t = do
     ord <- return . KV.ordTC =<< knownValues
     tc <- typeClassInstTC (ord_dicts m) ord t
     case tc of
         Just e -> return e
-        Nothing -> return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown) -- error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m
+        Nothing -> return $ Var (Id (Name "BAD 6" Nothing 0 Nothing) TyUnknown) -- error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m

@@ -34,3 +34,12 @@ zipWith f _          _          = die  "Bad call to zipWith"
 
 {-@ die :: {v:String | false} -> a @-}
 die str = error ("Oops, I died!" ++ str)
+
+
+{-@ f2 :: {x:Int | x == 0} @-}
+f2 :: Int
+f2 = g2
+
+{-@ g2 :: Int @-}
+g2 :: Int
+g2 = 0

@@ -170,8 +170,8 @@ instance Typed Expr where
     typeOf' m (Case _ _ (a:_)) = typeOf' m a
     typeOf' m (Case _ _ []) = TyBottom
     typeOf' m (Type ty) = TYPE
-    typeOf' m (Cast _ (_ :~ t')) = t'
-    typeOf' m (Coercion (_ :~ t')) = t'
+    typeOf' m (Cast _ (_ :~ t')) = tyVarRename m t'
+    typeOf' m (Coercion (_ :~ t')) = tyVarRename m t'
     typeOf' m (Tick _ e) = typeOf' m e
     typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
