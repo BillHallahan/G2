@@ -5,7 +5,6 @@ import G2.Internals.Language.Monad
 
 import G2.Internals.Liquid.Conversion2
 import G2.Internals.Liquid.Types
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -19,11 +18,11 @@ addCurrExprAssumption ifi = do
 
     lh <- mapM (lhTCDict'' M.empty) $ mapMaybe typeType fi
 
-    let (typs, args) = span isType $ fi ++ map Var is
+    let (typs, ars) = span isType $ fi ++ map Var is
 
     case assumpt of
         Just assumpt' -> do
-            let appAssumpt = mkApp $ assumpt':typs ++ lh ++ args
+            let appAssumpt = mkApp $ assumpt':typs ++ lh ++ ars
             let ce' = Assume appAssumpt ce
             putCurrExpr (CurrExpr er ce')
         Nothing -> return ()

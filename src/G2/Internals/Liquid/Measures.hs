@@ -7,7 +7,6 @@ import G2.Internals.Language
 import qualified  G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.Conversion2
-import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
 import Language.Haskell.Liquid.Types
 import G2.Internals.Translation.Haskell
@@ -19,8 +18,6 @@ import Data.Maybe
 import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
-
-import Debug.Trace
 
 -- Creates measures from LH measure specifications
 -- We need this to support measures written in comments
@@ -93,7 +90,8 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
         Nothing -> return Nothing
     where
         forType :: Type -> Name
-        forType (TyApp _ (TyVar (Id n _))) = n
+        forType (TyApp _ (TyVar (Id n' _))) = n'
+        forType _ = error "Bad type in forType"
 
 convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
 convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})

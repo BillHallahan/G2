@@ -63,7 +63,7 @@ runCheck' proj src modN entry chAll gflags s ars out = do
                         False -> "try (evaluate (" ++ arsStr ++ " == " ++ outStr ++ ")) :: IO (Either SomeException Bool)"
                         True -> "try (evaluate (" ++ arsStr ++ " == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
 
-        v <- compileExpr chck
+        v' <- compileExpr chck
 
         let chArgs = ars ++ [out] 
         let chAllStr = map (\f -> mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
@@ -71,7 +71,7 @@ runCheck' proj src modN entry chAll gflags s ars out = do
 
         chAllR <- mapM compileExpr chAllStr'
 
-        return $ (v, chAllR)
+        return $ (v', chAllR)
 
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)

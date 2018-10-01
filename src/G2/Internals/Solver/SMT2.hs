@@ -60,7 +60,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula headers vs = do
+    checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
         setUpFormulaZ3 h_in formula
         -- putStrLn "\n\n checkSatGetModel"
         -- putStrLn formula
@@ -70,14 +70,14 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             mdl <- getModelZ3 h_in h_out vs
             -- putStrLn "======"
             -- putStrLn (show mdl)
-            let m = parseModel headers mdl
+            let m = parseModel mdl
             -- putStrLn $ "m = " ++ show m
             -- putStrLn "======"
             return (r, Just m)
         else do
             return (r, Nothing)
 
-    checkSatGetModelGetExpr con (h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) = do
+    checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaZ3 h_in formula
         -- putStrLn "\n\n checkSatGetModelGetExpr"
         -- putStrLn formula
@@ -90,9 +90,9 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             -- putStrLn ""
             -- putStrLn (show mdl)
             -- putStrLn "======"
-            let m = parseModel headers mdl
+            let m = parseModel mdl
 
-            expr <- solveExpr h_in h_out con headers eenv e
+            expr <- solveExpr h_in h_out con eenv e
             -- putStrLn (show expr)
             return (r, Just m, Just expr)
         else do
@@ -181,7 +181,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula headers vs = do
+    checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
         setUpFormulaCVC4 h_in formula
         -- putStrLn "\n\n checkSatGetModel"
         -- putStrLn formula
@@ -191,14 +191,14 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
             mdl <- getModelCVC4 h_in h_out vs
             -- putStrLn "======"
             -- putStrLn (show mdl)
-            let m = parseModel headers mdl
+            let m = parseModel mdl
             -- putStrLn $ "m = " ++ show m
             -- putStrLn "======"
             return (r, Just m)
         else do
             return (r, Nothing)
 
-    checkSatGetModelGetExpr con (h_in, h_out, _) formula headers vs eenv (CurrExpr _ e) = do
+    checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaCVC4 h_in formula
         -- putStrLn "\n\n checkSatGetModelGetExpr"
         -- putStrLn formula
@@ -211,9 +211,9 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
             -- putStrLn ""
             -- putStrLn (show mdl)
             -- putStrLn "======"
-            let m = parseModel headers mdl
+            let m = parseModel mdl
 
-            expr <- solveExpr h_in h_out con headers eenv e
+            expr <- solveExpr h_in h_out con eenv e
             -- putStrLn (show expr)
             return (r, Just m, Just expr)
         else do
@@ -365,12 +365,12 @@ checkSat' h_in h_out = do
     else do
         return (Unknown "")
 
-parseModel :: [SMTHeader] -> [(SMTName, String, Sort)] -> SMTModel
-parseModel headers = foldr (\(n, s) -> M.insert n s) M.empty
-    . map (\(n, str, s) -> (n, parseToSMTAST headers str s))
+parseModel :: [(SMTName, String, Sort)] -> SMTModel
+parseModel = foldr (\(n, s) -> M.insert n s) M.empty
+    . map (\(n, str, s) -> (n, parseToSMTAST str s))
 
-parseToSMTAST :: [SMTHeader] -> String -> Sort -> SMTAST
-parseToSMTAST headers str s = correctTypes s . parseGetValues $ str
+parseToSMTAST :: String -> Sort -> SMTAST
+parseToSMTAST str s = correctTypes s . parseGetValues $ str
     where
         correctTypes :: Sort -> SMTAST -> SMTAST
         correctTypes (SortFloat) (VDouble r) = VFloat r
@@ -422,26 +422,26 @@ getLinesMatchParens' h_out n = do
         out' <- getLinesMatchParens' h_out n'
         return $ out ++ out'
 
-solveExpr :: SMTConverter con [Char] out io => Handle -> Handle -> con -> [SMTHeader] -> ExprEnv -> Expr -> IO Expr
-solveExpr h_in h_out con headers eenv e = do
+solveExpr :: SMTConverter con [Char] out io => Handle -> Handle -> con -> ExprEnv -> Expr -> IO Expr
+solveExpr h_in h_out con eenv e = do
     let vs = symbVars eenv e
-    vs' <- solveExpr' h_in h_out con headers vs
+    vs' <- solveExpr' h_in h_out con vs
     let vs'' = map smtastToExpr vs'
     
     return $ foldr (uncurry replaceASTs) e (zip vs vs'')
 
-solveExpr'  :: SMTConverter con [Char] out io => Handle -> Handle -> con -> [SMTHeader] -> [Expr] -> IO [SMTAST]
-solveExpr' _ _ _ _ [] = return []
-solveExpr' h_in h_out con headers (v:vs) = do
-    v' <- solveExpr'' h_in h_out con headers v
-    vs' <- solveExpr' h_in h_out con headers vs
+solveExpr'  :: SMTConverter con [Char] out io => Handle -> Handle -> con -> [Expr] -> IO [SMTAST]
+solveExpr' _ _ _ [] = return []
+solveExpr' h_in h_out con (v:vs) = do
+    v' <- solveExpr'' h_in h_out con v
+    vs' <- solveExpr' h_in h_out con vs
     return (v':vs')
 
-solveExpr'' :: SMTConverter con [Char] out io => Handle -> Handle -> con -> [SMTHeader] -> Expr -> IO SMTAST
-solveExpr'' h_in h_out con headers e = do
+solveExpr'' :: SMTConverter con [Char] out io => Handle -> Handle -> con -> Expr -> IO SMTAST
+solveExpr'' h_in h_out con e = do
     let smte = toSolverAST con $ exprToSMT e
     hPutStr h_in ("(eval " ++ smte ++ " :completion)\n")
     out <- getLinesMatchParens h_out
     _ <- evaluate (length out)
 
-    return $ parseToSMTAST headers out (typeToSMT . typeOf $ e)
+    return $ parseToSMTAST out (typeToSMT . typeOf $ e)

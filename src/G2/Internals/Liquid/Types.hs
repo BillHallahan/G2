@@ -323,10 +323,8 @@ numT = do
     a <- freshIdN L.TYPE
     let tva = L.TyVar a
     num <- lhNumTCM
-    lh <- lhTCM
 
     let num' = L.TyConApp num L.TYPE
-    let lh' = L.TyConApp lh L.TYPE
 
     return $ L.TyForAll (L.NamedTyBndr a) 
                     (L.TyFun
