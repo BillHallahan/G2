@@ -412,7 +412,7 @@ lhOrE :: LHStateM L.Expr
 lhOrE = do
     b <- tyBoolT
 
-    n <- liftTCValues lhAnd
+    n <- liftTCValues lhOr
     return $ L.Var (L.Id n (L.TyFun b (L.TyFun b b)))
 
 instance L.ASTContainer AnnotMap L.Expr where
