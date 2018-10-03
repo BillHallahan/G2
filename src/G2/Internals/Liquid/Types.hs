@@ -6,10 +6,12 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , LHState (..)
                                  , LHStateM (..)
                                  , ExState (..)
+                                 , AnnotMap (..)
                                  , consLHState
                                  , deconsLHState
                                  , measuresM
                                  , assumptionsM
+                                 , annotsM
                                  , runLHStateM
                                  , evalLHStateM
                                  , execLHStateM
@@ -18,6 +20,9 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , insertMeasureM
                                  , lookupAssumptionM
                                  , insertAssumptionM
+                                 , mapAssumptionsM
+                                 , lookupAnnotM
+                                 , insertAnnotM
                                  , andM
                                  , orM
                                  , notM
@@ -43,7 +48,11 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  
                                  , lhPPM ) where
 
+import Data.Coerce
+import qualified Data.HashMap.Lazy as HM
+import Data.List
 import qualified Data.Map as M
+import qualified Data.Text as T
 import qualified Control.Monad.State.Lazy as SM
 
 import qualified G2.Internals.Language as L
@@ -64,6 +73,10 @@ type Measures = L.ExprEnv
 
 type Assumptions = M.Map L.Name L.Expr
 
+newtype AnnotMap =
+    AM { unAnnotMap :: HM.HashMap L.Span [(Maybe T.Text, L.Expr)] }
+    deriving (Eq, Show, Read)
+
 -- [LHState]
 -- measures is an extra expression environment, used to build Assertions.
 -- This distinction between functions for code, and functions for asserts is important because
@@ -83,6 +96,7 @@ data LHState = LHState { state :: L.State [L.FuncCall]
                        , measures :: Measures
                        , tcvalues :: TCValues
                        , assumptions :: Assumptions
+                       , annots :: AnnotMap
                        } deriving (Eq, Show, Read)
 
 consLHState :: L.State [L.FuncCall] -> Measures -> TCValues -> LHState
@@ -90,7 +104,8 @@ consLHState s meas tcv =
     LHState { state = s
             , measures = meas
             , tcvalues = tcv
-            , assumptions = M.empty }
+            , assumptions = M.empty
+            , annots = AM HM.empty }
 
 deconsLHState :: LHState -> L.State [L.FuncCall]
 deconsLHState (LHState { state = s
@@ -107,6 +122,10 @@ assumptionsM = do
     lh_s <- SM.get
     return $ assumptions lh_s
 
+annotsM :: LHStateM AnnotMap
+annotsM = do
+    lh_s <- SM.get
+    return $ annots lh_s
 
 newtype LHStateM a = LHStateM { unSM :: (SM.State LHState a) } deriving (Applicative, Functor, Monad)
 
@@ -232,6 +251,27 @@ insertAssumptionM n e = do
     let assumpt' = M.insert n e assumpt
     SM.put $ lh_s {assumptions = assumpt'}
 
+mapAssumptionsM :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
+mapAssumptionsM f = do
+    s@(LHState { assumptions = assumpt }) <- SM.get
+    assumpt' <- mapM f assumpt
+    SM.put $ s { assumptions = assumpt' }
+
+insertAnnotM :: L.Span -> Maybe T.Text -> L.Expr -> LHStateM ()
+insertAnnotM spn t e = do
+    s@(LHState { annots = an }) <- SM.get
+    let an' = AM . HM.insertWith (++) spn [(t, e)] . unAnnotMap $ an
+    SM.put $ s {annots = an'}
+
+lookupAnnotM :: L.Name -> LHStateM (Maybe [(Maybe T.Text, L.Expr)])
+lookupAnnotM (L.Name _ _ _ (Just (L.Span {L.start = l}))) =
+    return . Just
+           . concatMap snd 
+           . find (\(L.Span {L.start = l'}, _) -> l == l')
+           . HM.toList
+           . unAnnotMap
+           =<< annotsM
+lookupAnnotM _ = return Nothing
 -- | andM
 -- The version of 'and' in the measures
 andM :: LHStateM L.Expr
@@ -374,3 +414,16 @@ lhOrE = do
 
     n <- liftTCValues lhAnd
     return $ L.Var (L.Id n (L.TyFun b (L.TyFun b b)))
+
+instance L.ASTContainer AnnotMap L.Expr where
+    containedASTs =  map snd . concat . HM.elems . unAnnotMap
+    modifyContainedASTs f = AM . HM.map (L.modifyContainedASTs f) . coerce
+
+instance L.ASTContainer AnnotMap L.Type where
+    containedASTs = L.containedASTs . map snd . concat . HM.elems . unAnnotMap
+    modifyContainedASTs f = AM . HM.map (L.modifyContainedASTs f) . coerce
+
+instance L.Named AnnotMap where
+    names = L.names . unAnnotMap
+    rename old new = coerce . L.rename old new . unAnnotMap
+    renames hm = coerce . L.renames hm . unAnnotMap

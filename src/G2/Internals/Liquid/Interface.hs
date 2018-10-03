@@ -107,8 +107,10 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     -- We continue execution with merged_state' later, because otherwise we might have lost some values for LH TC that we need
     let annm_gen_state = (markAndSweepPreserving pres_names merged_state') { type_env = type_env merged_state' }
 
-    let annm = getAnnotMap tcv annm_gen_state meas_eenv ghci_cg
-    let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
+    -- let annm = getAnnotMap tcv annm_gen_state meas_eenv ghci_cg
+    -- let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
+    let annm = annots merged_state
+    let annm' = annm
 
     let spec_assert_state = addSpecialAsserts merged_state'
 
@@ -173,6 +175,8 @@ initializeLH ghci_cg ifi = do
     ifi' <- mergeLHSpecState ifi specs
 
     addCurrExprAssumption ifi
+
+    getAnnotations ghci_cg
 
     simplify
 

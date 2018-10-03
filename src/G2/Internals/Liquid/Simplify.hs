@@ -1,6 +1,7 @@
 {-# Language FlexibleContexts #-}
 
-module G2.Internals.Liquid.Simplify ( simplify ) where
+module G2.Internals.Liquid.Simplify ( simplify
+                                    , simplifyExpr ) where
 
 import G2.Internals.Language
 import G2.Internals.Language.Monad

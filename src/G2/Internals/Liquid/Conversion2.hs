@@ -5,6 +5,8 @@ module G2.Internals.Liquid.Conversion2 ( LHDictMap
                                        , DictMaps (..)
                                        , BoundTypes
                                        , mergeLHSpecState
+                                       , convertSpecType
+                                       , dictMapFromIds
                                        , convertLHExpr
                                        , specTypeToType
                                        , unsafeSpecTypeToType
@@ -32,6 +34,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+
+import Debug.Trace
 
 -- A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
@@ -514,7 +518,7 @@ unsafeSpecTypeToType st = do
     t' <- specTypeToType st
     case t' of
         Just t'' -> return t''
-        Nothing -> error "Unhandled SpecType"
+        Nothing -> error $ "Unhandled SpecType" ++ show st
 
 specTypeToType :: SpecType -> LHStateM (Maybe Type)
 specTypeToType (RVar {rt_var = (RTV v)}) = do
