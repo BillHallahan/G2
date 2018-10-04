@@ -190,6 +190,7 @@ convertAssertSpecType :: DictMaps -> BoundTypes -> [Id] -> Id -> SpecType -> LHS
 convertAssertSpecType m bt is r st = do
     convertSpecType m bt is (Just r) st
 
+
 -- | See also: convertAssumeSpecType, convertAssertSpecType
 -- We can maybe pass an Id for the value returned by the function
 -- If we do, our Expr includes the Refinement on the return value,
@@ -249,6 +250,8 @@ convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
 
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
+convertSpecType _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
+convertSpecType _ _ _ _ st = error $ "Bad st = " ++ show st
 
 polyPredFunc :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc as ty m bt b = do
@@ -379,7 +382,7 @@ convertLHExpr m bt _ (PAtom brel e1 e2) = do
     (e1', e2') <- correctTypes m bt Nothing e1 e2
     brel' <- convertBrel brel
 
-    let t' = typeOf e2'
+    let t' = typeOf e1'
 
     dict <- brelTCDict brel m t'
 

@@ -23,6 +23,7 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , mapAssumptionsM
                                  , lookupAnnotM
                                  , insertAnnotM
+                                 , mapAnnotsExpr
                                  , andM
                                  , orM
                                  , notM
@@ -272,6 +273,13 @@ lookupAnnotM (L.Name _ _ _ (Just (L.Span {L.start = l}))) =
            . unAnnotMap
            =<< annotsM
 lookupAnnotM _ = return Nothing
+
+mapAnnotsExpr :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
+mapAnnotsExpr f = do
+    lh_s <- SM.get
+    annots' <- modifyContainedASTsM f (annots lh_s)
+    SM.put $ lh_s {annots = annots'}
+
 -- | andM
 -- The version of 'and' in the measures
 andM :: LHStateM L.Expr
@@ -422,6 +430,11 @@ instance L.ASTContainer AnnotMap L.Expr where
 instance L.ASTContainer AnnotMap L.Type where
     containedASTs = L.containedASTs . map snd . concat . HM.elems . unAnnotMap
     modifyContainedASTs f = AM . HM.map (L.modifyContainedASTs f) . coerce
+
+instance ASTContainerM AnnotMap L.Expr where
+    modifyContainedASTsM f (AM am) = do
+        am' <- mapM (modifyContainedASTsM f) am
+        return (AM am')
 
 instance L.Named AnnotMap where
     names = L.names . unAnnotMap

@@ -52,6 +52,10 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
+import qualified Data.HashMap.Lazy as HM
+
+import qualified Language.Haskell.Liquid.Constraint.Types as LHT
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -107,14 +111,11 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     -- We continue execution with merged_state' later, because otherwise we might have lost some values for LH TC that we need
     let annm_gen_state = (markAndSweepPreserving pres_names merged_state') { type_env = type_env merged_state' }
 
-    -- let annm = getAnnotMap tcv annm_gen_state meas_eenv ghci_cg
-    -- let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
     let annm = annots merged_state
-    let annm' = annm
 
     let spec_assert_state = addSpecialAsserts merged_state'
 
-    let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm'} }
+    let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm} }
 
     SomeSolver con <- getSMT config
     let con' = GroupRelated (ADTSolver :?> con)
@@ -122,6 +123,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let final_state = track_state { known_values = mkv }
 
     let (final_state', abs_fun) = adjustCurrExpr ifi' final_state
+    let abs_fun' = abs_fun
 
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing
@@ -129,22 +131,22 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     ret <- if higherOrderSolver config == AllFuncs
               then run 
                     (NonRedPCRed config
-                      :<~| LHRed abs_fun con' config) 
+                      :<~| LHRed abs_fun' con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
-                    con' (pres_names ++ names annm') config final_state'
+                    con' (pres_names ++ names annm) config final_state'
               else run 
                     (NonRedPCRed config
                       :<~| TaggerRed state_name tr_ng
-                      :<~| LHRed abs_fun con' config) 
+                      :<~| LHRed abs_fun' con' config) 
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
-                    con' (pres_names ++ names annm') config final_state'
+                    con' (pres_names ++ names annm) config final_state'
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of

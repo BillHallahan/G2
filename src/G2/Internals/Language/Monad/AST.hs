@@ -6,6 +6,8 @@ module G2.Internals.Language.Monad.AST where
 import G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
+import qualified Data.Text as T
+
 class AST t => ASTM t where
     modifyChildrenM :: Monad m => (t -> m t) -> t -> m t
 
@@ -163,3 +165,9 @@ instance ASTContainerM FuncCall Type where
         as' <- modifyContainedASTsM f as
         r' <- modifyContainedASTsM f r
         return $ fc { arguments = as', returns = r' }
+
+instance ASTContainerM T.Text Expr where
+    modifyContainedASTsM _ = return
+
+instance ASTContainerM T.Text Type where
+    modifyContainedASTsM _ = return

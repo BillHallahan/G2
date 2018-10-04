@@ -1,7 +1,6 @@
 {-# Language FlexibleContexts #-}
 
-module G2.Internals.Liquid.Simplify ( simplify
-                                    , simplifyExpr ) where
+module G2.Internals.Liquid.Simplify ( simplify ) where
 
 import G2.Internals.Language
 import G2.Internals.Language.Monad
@@ -13,6 +12,7 @@ simplify :: LHStateM ()
 simplify = do
     simplifyExprEnv
     mapCurrExpr simplifyExpr
+    mapAnnotsExpr simplifyExpr
 
 simplifyExprEnv :: LHStateM ()
 simplifyExprEnv = mapME simplifyExpr

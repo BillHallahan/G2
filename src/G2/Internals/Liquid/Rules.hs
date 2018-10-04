@@ -24,6 +24,8 @@ import Data.Monoid
 import Data.Semigroup
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
 -- Var f can potentially split into two states.
