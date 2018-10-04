@@ -8,7 +8,7 @@ module G2.Internals.Liquid.Annotations ( AnnotMap
 
 import G2.Internals.Language
 import G2.Internals.Language.Monad
-import G2.Internals.Liquid.Conversion2
+import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.Types
 
 import Language.Haskell.Liquid.Liquid()
@@ -42,19 +42,19 @@ getAnnotations ghci_cg = do
     locM <- return . locLookup =<< exprEnv
 
     let anna = map lhCleanAnnotMaps ghci_cg
-    mapM_ (annotMapToExpr2 locM) anna
+    mapM_ (annotMapToExpr locM) anna
 
-annotMapToExpr2 :: M.Map Loc Name -> AnnInfo SpecType ->  LHStateM ()
-annotMapToExpr2 locM (AI st) = mapM_ (uncurry (valToExpr2 locM)) (HM.toList st)
+annotMapToExpr :: M.Map Loc Name -> AnnInfo SpecType ->  LHStateM ()
+annotMapToExpr locM (AI st) = mapM_ (uncurry (valToExpr locM)) (HM.toList st)
 
-valToExpr2 :: M.Map Loc Name -> SrcSpan -> [(Maybe T.Text, SpecType)] -> LHStateM ()
-valToExpr2 locM srcspn =
+valToExpr :: M.Map Loc Name -> SrcSpan -> [(Maybe T.Text, SpecType)] -> LHStateM ()
+valToExpr locM srcspn =
     case mkSpan srcspn of
-        Just spn -> mapM_ (valToExpr2' locM spn)
+        Just spn -> mapM_ (valToExpr' locM spn)
         Nothing -> return . const ()
 
-valToExpr2' :: M.Map Loc Name -> Span -> (Maybe T.Text, SpecType) -> LHStateM ()
-valToExpr2' locM spn@(Span {start = stloc}) (n, ast) = do
+valToExpr' :: M.Map Loc Name -> Span -> (Maybe T.Text, SpecType) -> LHStateM ()
+valToExpr' locM spn@(Span {start = stloc}) (n, ast) = do
     e <- case M.lookup stloc locM of
             Just n' -> lookupE n'
             Nothing -> return Nothing

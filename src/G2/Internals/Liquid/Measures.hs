@@ -6,7 +6,7 @@ module G2.Internals.Liquid.Measures (Measures, createMeasures) where
 import G2.Internals.Language
 import qualified  G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Monad
-import G2.Internals.Liquid.Conversion2
+import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.Types
 import Language.Haskell.Liquid.Types
 import G2.Internals.Translation.Haskell

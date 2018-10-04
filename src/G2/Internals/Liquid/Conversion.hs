@@ -1,588 +1,462 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-module G2.Internals.Liquid.Conversion ( replaceVarTy
-                                      -- , mergeLHSpecState
-                                      , convertSpecType
-                                      , convertSpecTypeDict
-                                      , convertLHExpr
-                                      , specTypeToType
-                                      , unsafeSpecTypeToType
-                                      , symbolName
-                                      , lhTCDict
-                                      , numDict) where
+module G2.Internals.Liquid.Conversion ( LHDictMap
+                                       , DictMaps (..)
+                                       , BoundTypes
+                                       , mergeLHSpecState
+                                       , convertSpecType
+                                       , dictMapFromIds
+                                       , convertLHExpr
+                                       , specTypeToType
+                                       , unsafeSpecTypeToType
+                                       , symbolName
+                                       , addLHDictToTypes
+                                       , lhTCDict'') where
 
-import G2.Internals.Translation
-import G2.Internals.Language as Lang
-import qualified G2.Internals.Language.ExprEnv as E
-import G2.Internals.Language.KnownValues
+import G2.Internals.Language
 import qualified G2.Internals.Language.KnownValues as KV
-import G2.Internals.Liquid.TCValues
+import G2.Internals.Language.Monad
+import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Liquid.Types
+import G2.Internals.Translation.Haskell
 
-import Language.Haskell.Liquid.Types
-import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
-import Language.Haskell.Liquid.UX.CmdLine ()
-import Language.Fixpoint.Types.PrettyPrint
-import Language.Fixpoint.Types.Refinements hiding (Expr, I)
-import  Language.Fixpoint.Types.Names
+import qualified Var as Var
+
+import Language.Fixpoint.Types.Names
 import qualified Language.Fixpoint.Types.Refinements as Ref
-
-import Var hiding (tyVarName, isTyVar)
+import Language.Fixpoint.Types.Refinements hiding (Expr, I)
+import Language.Haskell.Liquid.Types
 
 import Data.Coerce
+import Data.Foldable
 import qualified Data.HashMap.Lazy as HM
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Monoid
 import qualified Data.Text as T
 
--- addLHTC :: LHState -> LHState
--- addLHTC lh_s@(LHState {state = s, measures = meas, tcvalues = tcv}) = 
---     let
---         s' = addLHTCState s tcv
---         (meas', meenvT) = addLHTCExprEnv meas (type_env s) (type_classes s) tcv
---         meas'' = replaceVarTy meenvT meas'
---     in
---     lh_s -- lh_s {state = s', measures = meas''}
+import Debug.Trace
 
+-- A mapping of TyVar Name's, to Id's for the LH dict's
+type LHDictMap = M.Map Name Id
 
-addLHTCState :: ASTContainer t Expr => State t -> TCValues -> State t
-addLHTCState s@(State {expr_env = eenv, type_env = tenv, curr_expr = cexpr, type_classes = tc}) tcv =
+-- A mapping of TyVar Name's, to Id's for the Num dict's
+type NumDictMap = M.Map Name Id
+
+-- A mapping of TyVar Name's, to Id's for the Integral dict's
+type IntegralDictMap = M.Map Name Id
+
+-- A mapping of TyVar Name's, to Id's for the Ord dict's
+type OrdDictMap = M.Map Name Id
+
+data DictMaps = DictMaps { lh_dicts :: LHDictMap
+                         , num_dicts :: NumDictMap
+                         , integral_dicts :: IntegralDictMap
+                         , ord_dicts :: OrdDictMap } deriving (Eq, Show, Read)
+
+copyIds :: Name -> Name -> DictMaps -> DictMaps
+copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = ind, ord_dicts = od }) =
     let
-        (eenv', eenvT) = addLHTCExprEnv eenv tenv tc tcv
-        cexpr' = addLHTCCurrExpr eenv tenv cexpr tc tcv
+        dm2 = case M.lookup n1 lhd of
+                Just lh -> dm { lh_dicts = M.insert n2 lh lhd }
+                Nothing -> dm
+
+        dm3 = case M.lookup n1 nd of
+                Just num -> dm2 { num_dicts = M.insert n2 num nd }
+                Nothing -> dm2
+
+        dm4 = case M.lookup n1 ind of
+                Just int -> dm3 { integral_dicts = M.insert n2 int ind }
+                Nothing -> dm3
+
+        dm5 = case M.lookup n1 od of
+                Just ord -> dm4 { ord_dicts = M.insert n2 ord od }
+                Nothing -> dm4
     in
-    replaceVarTy eenvT $ s { expr_env = eenv', curr_expr = cexpr' }
+    dm5
 
-replaceVarTy :: ASTContainer m Expr => M.Map Name Type -> m -> m
-replaceVarTy eenvT = modifyASTs (replaceVarTy' eenvT)
+-- A mapping of variable names to the corresponding types
+type BoundTypes = M.Map Name Type
 
-replaceVarTy' :: M.Map Name Type -> Expr -> Expr
-replaceVarTy' eenvT v@(Var (Id n _))
-    | Just t <- M.lookup n eenvT = Var (Id n t)
-    | otherwise = v
-replaceVarTy' _ e = e
+mergeLHSpecState :: Id -> [(Var.Var, LocSpecType)] -> LHStateM Id
+mergeLHSpecState i sp = do
+    mapM_ (uncurry mergeLHSpecState') sp
+    return i
 
--- | mergeLHSpecState
--- From the existing expression environement E, we  generate a new expression
--- environment E', with renamed copies of all expressions used in the LH
--- Specifications.
--- Then, we modify E by adding Assume/Asserts
--- based on the annotations.  However, these Assume/Asserts are only allowed to
--- reference expressions in E'.  This prevents infinite chains of Assumes/Asserts.  
--- Finally, the two expression environments are merged, before the whole state
--- is returned.
--- mergeLHSpecState :: Lang.Id -> [Maybe T.Text] -> [(Var, LocSpecType)] -> State t -> ExprEnv -> TCValues -> (State t, Lang.Id)
--- mergeLHSpecState i ns xs s@(State {expr_env = eenv, curr_expr = cexpr }) meenv tcv =
---     let
---         s' = addTrueAsserts ns $ mergeLHSpecState' (addAssertSpecType meenv tcv) xs s
-
---         ng = name_gen s'
-
---         usedCexpr = filter (not . flip E.isSymbolic eenv) $ varNames cexpr
---         eenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) eenv
---         meenvC = E.filterWithKey (\n _ -> n `elem` usedCexpr) meenv
---         ((usedCexpr', app_tys), ng') = renameAll (usedCexpr, apply_types s') ng
-
---         usedZ = zip usedCexpr usedCexpr'
-
---         cexpr' = foldr (uncurry rename) cexpr usedZ
---         i' = foldr (uncurry rename) i usedZ
---         eenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) eenvC
---         meenvC' = E.mapKeys (\n -> fromJust $ lookup n usedZ) meenvC
-
---         s'' = mergeLHSpecState' (addAssumeAssertSpecType meenv tcv) xs (s { expr_env = eenvC', name_gen = ng' })
---     in
---     (s'' { expr_env = E.union (E.union (E.union meenvC' meenv) (expr_env s')) $ expr_env s''
---         , curr_expr = cexpr'
---         , apply_types = app_tys }, i')
-
--- | mergeLHSpecState'
--- Merges a list of Vars and SpecTypes with a State, by finding
--- cooresponding vars between the list and the state, and calling
--- mergeLHSpecState on the corresponding exprs and specs
-mergeLHSpecState' :: SpecTypeFunc t -> [(Var, LocSpecType)] -> State t -> State t
-mergeLHSpecState' _ [] s = s
-mergeLHSpecState' f ((v,lst):xs) s =
+mergeLHSpecState' :: Var.Var -> LocSpecType -> LHStateM ()
+mergeLHSpecState' v lst = do
+    eenv <- exprEnv
     let
         (Id (Name n m _ _) _) = mkIdUnsafe v
+        g2N = E.lookupNameMod n m eenv
 
-        g2N = E.lookupNameMod n m (expr_env s)
-    in
     case g2N of
-        Just (n', e) ->
-            mergeLHSpecState' f xs $ f n' e (val lst) s
-        -- We hit a Nothing for certain functions we consider primitives but which
-        -- LH has LT assumptions for. E.g. True, False...
-        _ -> mergeLHSpecState' f xs s
+        Just (n', e) -> do
+            e' <- mergeSpecType (val lst) n' e
+            insertE n' e'
 
--- addLHTCExprEnv
--- We add a LH type class dict for all polymorphic variables in all function
--- definitions.
-addLHTCExprEnv :: ExprEnv -> TypeEnv -> TypeClasses -> TCValues -> (ExprEnv, M.Map Name Type)
-addLHTCExprEnv eenv tenv tc tcv = 
-    let
-        lh = lhTC tcv
+            assumpt <- createAssumption (val lst) e
+            insertAssumptionM n' assumpt
+        Nothing -> return ()
 
-        eenv' = modifyLamTops (addLHTCLams lh) eenv
-        eenvT = E.map' typeOf eenv'
-        eenv'' = modifyContainedASTs (addLHTCCalls eenv tenv tc lh) eenv'
-    in
-    (eenv'', eenvT)
+mergeSpecType :: SpecType -> Name -> Expr -> LHStateM Expr
+mergeSpecType st fn e = do
+    lh <- lhTCM
 
-addLHTCCurrExpr :: ExprEnv -> TypeEnv -> CurrExpr -> TypeClasses -> TCValues -> CurrExpr
-addLHTCCurrExpr eenv tenv cexpr tc tcv = 
-    let
-        lh = lhTC tcv
+    -- Create new bindings to use in the Ref. Type
+    let argT = spArgumentTypes e
+    is <- mapM argsFromArgT argT
+    let lu = map argTypeToLamUse argT
 
-        cexpr' = modifyContainedASTs (addLHTCCalls eenv tenv tc lh) cexpr
-    in
-    cexpr'
+    -- Gather up LH TC's to use in Assertion
+    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-modifyLamTops :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
-modifyLamTops f = modifyContainedASTs (modifyLamTops' f)
+    let e' = foldl' (\e_ -> App e_ . Var) e is
 
-modifyLamTops' :: (Expr -> Expr) -> Expr -> Expr
-modifyLamTops' f l@(Lam _ _ e) =
-    let
-        l' = f l
-    in
-    case l' of
-        Lam u i e' -> Lam u i $ modifyAfterLams (modifyLamTops' f) e'
-        _ -> modifyLamTops' f e
-modifyLamTops' f e = modifyChildren (modifyLamTops' f) e
+    -- Create a variable for the returned value
+    -- We do not pass the LH TC to the assertion, since there is no matching
+    -- lambda for it in the LH Spec
+    r <- freshIdN (typeOf e')
+    let is' = filter (not . isTC lh . typeOf) is
+    assert <- convertAssertSpecType dm (M.map typeOf lhm) is' r st
 
-modifyAfterLams :: (Expr -> Expr) -> Expr -> Expr
-modifyAfterLams f (Lam u i e) = Lam u i $ modifyAfterLams f e
-modifyAfterLams f e = f e
-
--- | addLHTCLams
--- Adds lambdas to Expr to pass in the LH TC
-addLHTCLams :: Name -> Expr -> Expr
-addLHTCLams lh e =
-    let
-        tva = nub . mapMaybe (tYPEOrTyVar) $ args e
-        
-        ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length tva]
-
-        as = map (\(d, i) -> (idName i, Lang.Id d $ mkTyConApp lh [TyVar i] TYPE)) (zip ds tva)
-    in
-    if not (hasLHTC lh e) 
-        then addLams lh e as 
-        else e
-
-addLams :: Name -> Expr -> [(Name, Lang.Id)] -> Expr
-addLams _ e [] = e
-addLams lh l@(Lam u i@(Id _ t) e) is =
-    if isTYPE t 
-        then
-            let
-                ts = getTypeNames l
-                dictIds = mapMaybe (flip lookup is) ts
-            in
-            pastTYPE (addLHTCLams lh) $ foldr (Lam TermL) l dictIds
-        else Lam u i $ addLams lh e is
-addLams _ e _ = e
-
-pastTYPE :: (Expr -> Expr) -> Expr -> Expr
-pastTYPE f le@(Lam u i@(Id _ t) e) =
-    if isTYPE t then Lam u i $ pastTYPE f e else f le
-pastTYPE _ _ = error "pastTYPE: Applied to non-Lam Expr"
-
-getTypeNames :: Expr -> [Name]
-getTypeNames (Lam _ (Id n t) e) = if isTYPE t then n:getTypeNames e else []
-getTypeNames _ = []
-
-tYPEOrTyVar :: Lang.Id -> Maybe Lang.Id
-tYPEOrTyVar e
-    | isTYPE $ typeOf e = Just e
-    | (TyVar i@(Id _ TYPE)) <- typeOf e = Just i
-    | otherwise = Nothing
-
-hasLHTC :: Name -> Expr -> Bool
-hasLHTC lh (Lam _ (Id _ (TyConApp n _)) e) = if n == lh then True else hasLHTC lh e 
-hasLHTC lh (Lam _ _ e) = hasLHTC lh e 
-hasLHTC _ _ = False
-
-modifyAppTops :: (Expr -> Expr) -> Expr -> Expr
-modifyAppTops f a@(App _ _) =
-    let
-        a' = f a
-    in
-    case a' of
-        App e e' -> modifyAppRHS (modifyAppTops f) (App e e')
-        e -> modifyAppTops f e
-modifyAppTops f e = modifyChildren (modifyAppTops f) e
-
--- | addLHTCCalls
--- Adds App's to function calls to pass the LH TC
-addLHTCCalls :: ExprEnv -> TypeEnv -> TypeClasses -> Name -> Expr -> Expr
-addLHTCCalls eenv tenv tc lh e =
-    let
-        lh_dicts = lhDicts lh e
-    in
-    modifyAppTops (addTCPasses eenv tenv tc lh_dicts lh) e
-
-lhDicts :: Name -> Expr -> [(Type, Lang.Id)]
-lhDicts lh (Lam _ i@(Lang.Id _ (TyApp (TyConApp n _) t)) e) =
-    if lh == n then (t, i):lhDicts lh e else lhDicts lh e
-lhDicts lh e = evalChildren (lhDicts lh) e
-
-addTCPasses :: ExprEnv -> TypeEnv -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> Expr
-addTCPasses eenv tenv tc ti lh e =
-    let
-        as = reverse $ passedArgs e
-        e' = appCenter e
-
-        e'' = addArgs tenv tc ti lh e' as 
-    in
-    case e' of
-        Var _ -> e''
-        Data _ -> e
-        _ -> inAppCenter (addLHTCCalls eenv tenv tc lh) e''
-
-inAppCenter :: (Expr -> Expr) -> Expr -> Expr
-inAppCenter f (App e e') = App (inAppCenter f e) e'
-inAppCenter f e = f e
-
-addArgs :: TypeEnv -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> [Expr] -> Expr
-addArgs _ _ _ _ e [] = e
-addArgs tenv tc ti lh e as@(e':es)
-    | isType e' =
-        let
-            (ts, as') = span isType as
-        in
-        addArgs tenv tc ti lh (mkApp (addLHDictArgs tenv tc ti lh e ts:ts)) as'
-    | otherwise = addArgs tenv tc ti lh (App e e') es
-
-isType :: Expr -> Bool
-isType (Var (Id _ t)) = isTYPE t
-isType (Type _) = True
-isType _ = False
-
-addLHDictArgs :: TypeEnv -> TypeClasses -> [(Type, Lang.Id)] -> Name -> Expr -> [Expr] -> Expr
-addLHDictArgs tenv tc ti lh e (t@(Type _):ts) =
-    case typeExprType tenv t of
-        Just t' -> addLHDictArgs tenv tc ti lh (App e (typeToLHTypeClass tc ti lh t')) ts
-        Nothing -> addLHDictArgs tenv tc ti lh e ts
-addLHDictArgs tenv tc ti lh e ((Var i):ts) =
-    addLHDictArgs tenv tc ti lh (App e (typeToLHTypeClass tc ti lh (TyVar i))) ts
-addLHDictArgs _ _ _ _ e _ = e
-
-typeExprType :: TypeEnv -> Expr -> Maybe Type
-typeExprType tenv (Type t) =
-    let
-        t' = tyAppCenter t
-        ts = tyAppArgs t
-    in
-    case t' of
-        TyConApp n _ ->
-            case M.lookup n tenv of
-                Just adt -> if length ts == length (bound_ids adt) then Just t else Nothing
-                Nothing -> Just t
-        _ -> Just t
-typeExprType _ _ = Nothing
-
-typeToLHTypeClass :: TypeClasses -> [(Type, Lang.Id)] -> Name -> Type -> Expr
-typeToLHTypeClass tc ti lh t =
-    let
-        ts = tyAppArgs t
-    in
-    case lookupTCDict tc lh t of
-        Just lhD -> 
-            case t of 
-                TyConApp _ _ -> mkApp $ Var lhD:map (typeToLHTypeClass tc ti lh) ts ++ map (Type) ts
-                _ -> Var lhD
-        Nothing -> case lookup t ti of
-            Just lhD -> Var lhD
-            Nothing -> Var (Lang.Id (Name "BAD" Nothing 0 Nothing) TyUnknown)-- TODO : Can hit this when have TyFun... -- error $ "Typeclass not found in typeToLHTypeClass" ++ show t
-
-type SpecTypeFunc t = Name -> Expr -> SpecType -> State t -> State t
-
-addAssertSpecType :: ExprEnv -> TCValues -> SpecTypeFunc t
-addAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
-                                            , name_gen = ng }) =
-    let
-        (b, ng') = freshId (returnType e) ng
-
-        (b', ng'') = freshId (returnType e) ng'
-
-        st' = convertAssertSpecType tcv (s { expr_env = meenv }) st b' Nothing
-
-        newE = 
-            insertInLams 
-                (\is e' ->
-                    let 
-                        fc = FuncCall {funcName = n, arguments = map Var is, returns = Var b}
-                    in
-                    Let [(b, e')] $ Lang.Assert (Just fc) (mkApp $ st':map Var is ++ [Var b]) (Var b))
-                e
-    in
-    s { expr_env = E.insert n newE eenv
-      , name_gen = ng''}
-
-addAssumeAssertSpecType :: ExprEnv -> TCValues -> SpecTypeFunc t
-addAssumeAssertSpecType meenv tcv n e st (s@State { expr_env = eenv
-                                                  , name_gen = ng }) =
-    let
-        (b, ng') = freshId (returnType e) ng
-
-        (b', ng'') = freshId (returnType e) ng'
-
-        assumest' = convertAssumeSpecType tcv (s { expr_env = meenv }) st
-        assertst' = convertAssertSpecType tcv (s { expr_env = meenv }) st b' Nothing
-
-        newE =
-            insertInLams 
-                (\is e' -> 
-                    let
-                        fc = FuncCall {funcName = n, arguments = map Var is, returns = Var b}
-                    in
-                    Let [(b, e')] $ Lang.Assume (mkApp $ assumest':map Var is)
-                                  $ Lang.Assert (Just fc) (mkApp $ assertst':map Var is ++ [Var b]) (Var b))
-                e
-    in
-    s { expr_env = E.insert n newE eenv
-      , name_gen = ng''}
-
--- | addTrueAsserts
--- adds an assertion of True to all functions without an assertion
-addTrueAsserts :: [Maybe T.Text] -> State t -> State t
-addTrueAsserts mn s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = knv, type_classes = tc}) =
-    let
-        (b, ng') = freshName ng
-    in
-    s {expr_env = E.mapWithKey (addTrueAsserts' mn knv tenv (map idName $ tcDicts tc) b) eenv, name_gen = ng'}
-
-addTrueAsserts' :: [Maybe T.Text] -> KnownValues -> TypeEnv -> [Name] -> Name -> Name -> Expr -> Expr
-addTrueAsserts' mn knv tenv tcn bn n e =
-    let
-        t = returnType e
-        b = Id bn t
+    let fc = FuncCall { funcName = fn 
+                      , arguments = map Var is
+                      , returns = Var r }
+    let rLet = Let [(r, e')] $ Assert (Just fc) assert (Var r)
     
-        ee = insertInLams 
-                (\is e' ->
-                    let
-                        fc = FuncCall {funcName = n, arguments = map Var is, returns = Var b}
-                    in
-                    Let [(b, e')] $ Lang.Assert (Just fc) (mkTrue knv tenv) (Var b))
-                e
-    in
-    if not (hasAssert e) && not (n `elem` tcn) && nameModule n `elem` mn then ee else e
+    let e''' = foldr (uncurry Lam) rLet $ zip lu is
 
-hasAssert :: Expr -> Bool
-hasAssert = getAny . eval hasAssert'
+    return e'''
 
-hasAssert' :: Expr -> Any
-hasAssert' (Assert _ _ _) = Any True
-hasAssert' _ = Any False
+createAssumption :: SpecType -> Expr -> LHStateM Expr
+createAssumption st e = do
+    lh <- lhTCM
 
--- | convertSpecType
--- We create an Expr from a SpecType in two phases.  First, we create outer
--- lambda expressions, then we create a conjunction of m boolean expressions
--- describing allowed  values of the bound variables
-convertSpecType :: TCValues -> State t -> SpecType -> Lang.Id -> Maybe (M.Map Name Type) -> Expr
-convertSpecType tcv s@(State { type_env = tenv }) st ret m =
-    let
-        nt = convertSpecTypeDict tcv s st
+    -- Create new bindings to use in the Ref. Type
+    let argT = spArgumentTypes e
+    is <- mapM argsFromArgT argT
+    let lu = map argTypeToLamUse argT
 
-        ds = map (\(n, t) -> Id n t) nt
-        dclams = foldr (.) id (map (Lam TermL) ds) 
+    let is' = filter (not . isTC lh . typeOf) is
+    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-        lams = specTypeLams tenv st 
-        lams' = dclams . lams . Lam TermL ret
+    assume <- convertAssumeSpecType dm (M.map typeOf lhm) is' st
 
-        m' = maybe (M.fromList nt) id m
-        apps = specTypeApps st tcv s m' ret
-    in
-    primInject $ lams' apps
-
-convertAssertSpecType :: TCValues -> State t -> SpecType -> Lang.Id -> Maybe (M.Map Name Type) -> Expr
-convertAssertSpecType = convertSpecType
-
-convertAssumeSpecType :: TCValues -> State t -> SpecType -> Expr
-convertAssumeSpecType tcv s@(State { type_env = tenv }) st =
-    let
-        nt = convertSpecTypeDict tcv s st
-
-        ds = map (\(n, t) -> Id n t) nt
-        dclams = foldr (.) id (map (Lam TermL) ds) 
-
-        lams = specTypeLams tenv st 
-        lams' = dclams . lams
-
-        apps = assumeSpecTypeApps st tcv s (M.fromList nt)
-    in
-    primInject $ lams' apps
-
-convertSpecTypeDict :: TCValues -> State t -> SpecType -> [(Name, Type)]
-convertSpecTypeDict tcv (State {type_env = tenv}) st =
-    let
-        lh = lhTC tcv
-
-        tva = nub . filter isTyVar $ specTypeLamTypes tenv st
-        lhtc = map (\t -> mkTyConApp lh [t] TYPE) tva
-
-        dsnames = map (\i -> Name "d" Nothing i Nothing) [0 .. (length tva - 1)]
-    in 
-    zip dsnames lhtc
-
-specTypeLams :: TypeEnv -> SpecType -> (Expr -> Expr)
-specTypeLams _ (RVar {}) = id
-specTypeLams tenv (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) =
-    let
-        t = unsafeSpecTypeToType tenv fin
-        i = convertSymbolT b t
-    in
-    Lam TermL i . specTypeLams tenv fout
-specTypeLams tenv (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) =
-    let
-        i = mkIdUnsafe v
-    in
-    Lam TypeL i . specTypeLams tenv rty
-specTypeLams _ r@(RAllP {}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
-specTypeLams _ r@(RAllS {}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
-specTypeLams _ (RApp {}) = id
-specTypeLams _ r = error ("Error in specTypeLams " ++ (show $ PPR.rtypeDoc Full r))
-
-specTypeLamTypes :: TypeEnv -> SpecType -> [Type]
-specTypeLamTypes _ (RVar {}) = []
-specTypeLamTypes tenv (RFun {rt_bind = b, rt_in = fin, rt_out = fout}) =
-    let
-        t = unsafeSpecTypeToType tenv fin
-        i = convertSymbolT b t
-    in
-    typeOf i:specTypeLamTypes tenv fout
-specTypeLamTypes tenv (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) =
-    let
-        i = mkIdUnsafe v
-    in
-    (TyVar i):specTypeLamTypes tenv rty
-specTypeLamTypes _ r@(RAllP {}) = error $ "RAllP " ++ (show $ PPR.rtypeDoc Full r)
-specTypeLamTypes _ r@(RAllS {}) = error $ "RAllS " ++ (show $ PPR.rtypeDoc Full r)
-specTypeLamTypes _ (RApp {}) = []
-specTypeLamTypes _ r = error ("Error in specTypeLamTypes " ++ (show $ PPR.rtypeDoc Full r))
-
-specTypeApps :: SpecType -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> Expr
-specTypeApps st tcv s@(State {expr_env = eenv}) m b =
-    let
-        ste = specTypeApps' st tcv s m b
-    in
-    foldl1' (\e -> App (App (mkAnd eenv) e)) $ ste
-
-assumeSpecTypeApps :: SpecType -> TCValues -> State t -> M.Map Name Type -> Expr
-assumeSpecTypeApps st tcv s@(State {expr_env = eenv, type_env = tenv, name_gen = ng, known_values = knv}) m =
-    let
-        (i, _) = freshId TyUnknown ng
-    in
-    case init $ specTypeApps' st tcv s m i of
-        xs@(_:_) -> foldl1' (\e -> App (App (mkAnd eenv) e)) xs
-        _ -> mkTrue knv tenv
+    return . foldr (uncurry Lam) assume $ zip lu is
 
 
-specTypeApps' :: SpecType -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> [Expr]
-specTypeApps' (RVar {rt_var = (RTV v), rt_reft = r}) tcv s m b =
-    let
-        symb = reftSymbol $ ur_reft r
+dictMapFromIds :: [Id] -> LHStateM DictMaps
+dictMapFromIds is = do
+    lh <- lhTCM
+    num <- return . KV.numTC =<< knownValues
+    int <- return . KV.integralTC =<< knownValues
+    ord <- return . KV.ordTC =<< knownValues
 
-        i = mkIdUnsafe v
+    let lhm = tcWithNameMap lh is
+    let nm = tcWithNameMap num is
+    let im = tcWithNameMap int is
+    let om = tcWithNameMap ord is
 
-        symbId = convertSymbolT symb (TyVar i)
+    return $ DictMaps { lh_dicts = lhm
+                      , num_dicts = nm
+                      , integral_dicts = im
+                      , ord_dicts = om }
 
-        m' = M.insert (idName symbId) (TyVar i) m 
+tcWithNameMap :: Name -> [Id] -> M.Map Name Id
+tcWithNameMap n =
+    M.fromList
+        . map (\i -> (forType $ typeOf i, i))
+        . filter (isTC n . typeOf)
+    where
+        forType :: Type -> Name
+        forType (TyApp _ (TyVar (Id n' _))) = n'
+        forType _ = error "Bad type in forType"
 
-        re =  convertLHExpr (reftExpr $ ur_reft r) Nothing tcv s m'
-    in
-    [App (Lam TermL symbId re) (Var b)]
-specTypeApps' (RFun {rt_bind = rb, rt_in = fin, rt_out = fout }) tcv s@(State { type_env = tenv }) m b =
-    -- TODO : rt_reft
-    let
-        t = unsafeSpecTypeToType tenv fin
-        i = convertSymbolT rb t
+isTC :: Name -> Type -> Bool
+isTC n t = case tyAppCenter t of
+                TyConApp n' _ -> n == n'
+                _ -> False
 
-        m' = M.insert (idName i) t m
-    in
-     -- If LHS of a RFun has a function type, it is a refinement on a higher order function
-    -- This is dealt with seperately- see [Higher Order Asserts]
+argsFromArgT :: ArgType -> LHStateM Id
+argsFromArgT (AnonType t) = freshIdN t
+argsFromArgT (NamedType i) = return i
+
+convertAssumeSpecType :: DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM Expr
+convertAssumeSpecType m bt is st = do
+    convertSpecType m bt is Nothing st
+
+convertAssertSpecType :: DictMaps -> BoundTypes -> [Id] -> Id -> SpecType -> LHStateM Expr
+convertAssertSpecType m bt is r st = do
+    convertSpecType m bt is (Just r) st
+
+
+-- | See also: convertAssumeSpecType, convertAssertSpecType
+-- We can maybe pass an Id for the value returned by the function
+-- If we do, our Expr includes the Refinement on the return value,
+-- otherwise it does not.  This allows us to use this same function to
+-- translate both for assumptions and assertions
+convertSpecType :: DictMaps -> BoundTypes -> [Id] -> Maybe Id -> SpecType -> LHStateM Expr
+convertSpecType m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
+    | Just r' <- r = do
+        let symb = reftSymbol $ ur_reft ref
+        let i = mkIdUnsafe v
+
+        let symbId = convertSymbolT symb (TyVar i)
+
+        let bt' = M.insert (idName symbId) (typeOf symbId) bt
+
+        re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
+
+        return $ App (Lam TermL symbId re) (Var r')
+    | otherwise = mkTrueE
+convertSpecType m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) = do
+    t <- unsafeSpecTypeToType fin
+    let i' = convertSymbolT b t
+
+    let bt' = M.insert (idName i') t bt
+
+    e <- convertSpecType m bt' is r fout
+
     case hasFuncType i of
-        True -> specTypeApps' fout tcv s m b
-        _ -> specTypeApps' fin tcv s m' i ++ specTypeApps' fout tcv s m' b
-specTypeApps' (RAllT {rt_ty = rty}) tcv s m b =
-    specTypeApps' rty tcv s m b
-specTypeApps' (RApp {rt_tycon = c, rt_reft = r, rt_args = as}) tcv s@(State {expr_env = eenv, type_env = tenv, type_classes = tc}) m b =
-    let
-        symb = reftSymbol $ ur_reft r
-        ty = case rTyConType tenv c as of
-            Just ty' -> ty'
-            Nothing -> error "Error in specTypeApps'"
-        i = convertSymbolT symb ty
-
-        argsPred = polyPredFunc as eenv tc ty tcv s m b
-
-        m' = M.insert (idName i) ty m
-
-        re = convertLHExpr (reftExpr $ ur_reft r) Nothing tcv s m'
-
-        an = mkAnd eenv
-    in
-    [App (App an (App (Lam TermL i re) (Var b))) argsPred]
-specTypeApps' _ _ _ _ _ = error "specTypeApps': Unhandled case"
+        True -> return $ App (Lam TermL i' e) (Var i)
+        False -> do
+            e' <- convertSpecType m bt' [] (Just i') fin
+            an <- lhAndE
+            let e'' = App (App an e) e'
+            
+            return $ App (Lam TermL i' e'') (Var i)
+convertSpecType m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
+    let i' = mkIdUnsafe v
 
 
--- [Higher Order Asserts]
--- higherOrderRefs
--- We search for the LHS of RFuns
--- These coorespond to refinements on higher order functions
-higherOrderRefs :: SpecType -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> [Expr]
-higherOrderRefs (RAllT {rt_ty = rty}) tcv s m b = higherOrderRefs rty tcv s m b
-higherOrderRefs _ _ _ _ _ = []
+    let m' = copyIds (idName i) (idName i') m
+    let bt' = M.insert (idName i') (typeOf i) bt
 
-polyPredFunc :: [SpecType] -> ExprEnv -> TypeClasses -> Type -> TCValues -> State t -> M.Map Name Type -> Lang.Id -> Expr
-polyPredFunc as eenv tc ty tcv s m b =
-    let
-        dict = fromJustErr ("No lhDict in polyPredFunc " ++ show ty) $ lhTCDict eenv tcv tc ty m
-        as' = map (\a -> polyPredLam a tcv s m) as
-    in
-    mkApp $ [Var $ Id (lhPP tcv) TyUnknown, dict, Type (typeOf b)] ++ as' ++ [Var b]
+    e <- convertSpecType m' bt' is r rty
+    return $ App (Lam TypeL i' e) (Var i)
+convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
+    | Just r' <- r = do
+        let symb = reftSymbol $ ur_reft ref
+        ty <- return . maybe (error "Error in convertSpecType") id =<< rTyConType c as
+        let i = convertSymbolT symb ty
 
-polyPredLam :: SpecType -> TCValues -> State t -> M.Map Name Type -> Expr
-polyPredLam rapp tcv s@(State {type_env = tenv, name_gen = ng}) m =
-    let
-        t = unsafeSpecTypeToType tenv rapp
+        let bt' = M.insert (idName i) ty bt
 
-        (i, _) = freshId t ng
-    in
-    convertAssertSpecType tcv s rapp i (Just m)
+        argsPred <- polyPredFunc as ty m bt' r'
+        re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
 
-unsafeSpecTypeToType :: TypeEnv -> SpecType -> Type
-unsafeSpecTypeToType tenv st =
-    case specTypeToType tenv st of
-        Just t -> t
-        Nothing -> error $ "Error in unsafeSpecTypeToType " ++ show (pprint $ st)
+        an <- lhAndE
 
-specTypeToType :: TypeEnv -> SpecType -> Maybe Type
-specTypeToType _ (RVar {rt_var = (RTV v)}) =
-    let
-        i = mkIdUnsafe v
-    in
-    Just $ TyVar i
-specTypeToType tenv (RFun {rt_in = fin, rt_out = fout}) =
-    let
-        t = specTypeToType tenv fin
-        t2 = specTypeToType tenv fout
-    in
-    case (t, t2) of
-        (Just t', Just t2') -> Just $ TyFun t' t2'
-        _ -> Nothing
-specTypeToType tenv (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) =
-    let
-        i = mkIdUnsafe v
-    in
-    fmap (TyForAll (NamedTyBndr i)) $ specTypeToType tenv rty
-specTypeToType tenv (RApp {rt_tycon = c, rt_args = as}) = rTyConType tenv c as
-specTypeToType _ rty = error $ "Unmatched pattern in specTypeToType " ++ show (pprint rty)
+        return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
+    | otherwise = mkTrueE
+convertSpecType _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
+convertSpecType _ _ _ _ st = error $ "Bad st = " ++ show st
+
+polyPredFunc :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
+polyPredFunc as ty m bt b = do
+    dict <- lhTCDict' m ty
+    as' <- mapM (polyPredLam m bt) as
+
+    lhPP <- lhPPM
+    
+    return $ mkApp $ [Var $ Id lhPP TyUnknown, Type (typeOf b), dict] ++ as' ++ [Var b]
+
+polyPredLam :: DictMaps -> BoundTypes -> SpecType -> LHStateM Expr
+polyPredLam m bt rapp  = do
+    t <- unsafeSpecTypeToType rapp
+
+    let argT = spArgumentTypes $ PresType t
+    is <- mapM argsFromArgT argT
+
+    i <- freshIdN . returnType $ PresType t
+    
+    st <- convertSpecType m bt is (Just i) rapp
+    return $ Lam TermL i st
+
+convertLHExpr :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM Expr
+convertLHExpr _ _ t (ECon c) = convertCon t c
+convertLHExpr _ bt t (EVar s) = convertEVar (symbolName s) bt t
+convertLHExpr m bt _ (EApp e e') = do
+    f <- convertLHExpr m bt Nothing e
+
+    let at = argumentTypes f
+        f_ar_t = case at of
+                    (_:_) -> Just $ last at
+                    _ -> Nothing
+
+        f_ar_ts = fmap tyAppArgs f_ar_t
+
+    argE <- convertLHExpr m bt f_ar_t e'
+
+    let tArgE = typeOf argE
+        ctArgE = tyAppCenter tArgE
+        ts = tyAppArgs tArgE
+    
+    case (ctArgE, f_ar_ts) of
+        (TyConApp _ _, Just f_ar_ts') -> do
+            let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts'
+                te = map Type specTo
+
+            tcs <- mapM (lhTCDict' m) ts
+
+            let fw = mkApp $ f:te
+
+                apps = mkApp $ fw:tcs ++ [argE]
+            
+            return apps
+        _ -> return $ App f argE
+convertLHExpr m bt t (ENeg e) = do
+    e' <- convertLHExpr m bt t e
+    let t' = typeOf e'
+
+    neg <- lhNegateM
+    num <- return . KV.numTC =<< knownValues
+    a <- freshIdN TYPE
+    let tva = TyVar a
+    let negate' = Var $ Id neg 
+                        (TyForAll (NamedTyBndr a)
+                            (TyFun
+                                (TyApp (TyConApp num (TyApp TYPE TYPE)) tva)
+                                (TyFun
+                                    tva
+                                    tva
+                                )
+                            )
+                        )
+
+    nDict <- numDict m t'
+
+    return $ mkApp [ negate'
+                   , Type t'
+                   , nDict
+                   , e' ]
+convertLHExpr m bt t (EBin b e e') = do
+    (e2, e2') <- correctTypes m bt t e e'
+    b' <- convertBop b
+
+    let t' = typeOf e2
+
+    nDict <- bopTCDict b m t' -- numDict m t'
+
+    return $ mkApp [ b'
+                   , Type t'
+                   , nDict
+                   , e2
+                   , e2' ]
+convertLHExpr m bt _ (PAnd es) = do
+    es' <- mapM (convertLHExpr m bt Nothing) es
+
+    true <- mkTrueE
+    an <- lhAndE
+
+    case es' of
+        [] -> return $ true
+        [e] -> return e
+        _ -> return $ foldr (\e -> App (App an e)) true es'
+convertLHExpr m bt _ (POr es) = do
+    es' <- mapM (convertLHExpr m bt Nothing) es
+
+    false <- mkFalseE
+    orE <- lhOrE
+
+    case es' of
+        [] -> return false
+        [e] -> return e
+        _ -> return $ foldr (\e -> App (App orE e)) false es'
+convertLHExpr m bt _ (PNot e) = do
+    e' <- convertLHExpr m bt Nothing e
+    no <- mkNotE
+    return (App no e') 
+convertLHExpr m bt t (PImp e1 e2) = do
+    e1' <- convertLHExpr m bt t e1
+    e2' <- convertLHExpr m bt t e2
+    imp <- mkImpliesE
+    return $ mkApp [imp, e1', e2']
+convertLHExpr m bt t (PIff e1 e2) = do
+    e1' <- convertLHExpr m bt t e1
+    e2' <- convertLHExpr m bt t e2
+    iff <- mkIffE
+    return $ mkApp [iff, e1', e2']
+convertLHExpr m bt _ (PAtom brel e1 e2) = do
+    (e1', e2') <- correctTypes m bt Nothing e1 e2
+    brel' <- convertBrel brel
+
+    let t' = typeOf e1'
+
+    dict <- brelTCDict brel m t'
+
+    return $ mkApp [brel', Type t', dict, e1', e2']
+convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
+
+convertBop :: Bop -> LHStateM Expr
+convertBop Ref.Plus = convertBop' lhPlusM
+convertBop Ref.Minus = convertBop' lhMinusM
+convertBop Ref.Times = convertBop' lhTimesM
+convertBop Ref.Div = convertBop' lhDivM
+convertBop Ref.Mod = convertBop' lhModM
+convertBop Ref.RTimes = convertBop' lhTimesM
+convertBop Ref.RDiv = convertBop' lhDivM
+
+convertBop' :: LHStateM Name -> LHStateM Expr
+convertBop' f = do
+    num <- return . KV.numTC =<< knownValues
+    n <- f
+    a <- freshIdN TYPE
+    let tva = TyVar a
+    return $ Var $ Id n (TyForAll (NamedTyBndr a)
+                            (TyFun
+                                (TyApp (TyConApp num (TyApp TYPE TYPE)) tva)
+                                (TyFun
+                                    tva
+                                    (TyFun 
+                                        tva 
+                                        tva
+                                    )
+                                )
+                            )
+                            
+                        )
+
+correctTypes :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> Ref.Expr -> LHStateM (Expr, Expr)
+correctTypes m bt mt re re' = do
+    e <- convertLHExpr m bt mt re
+    e' <- convertLHExpr m bt mt re'
+
+    let t = typeOf e
+    let t' = typeOf e'
+
+    if t == t'
+        then return (e, e')
+        else do
+            e2 <- callFromInteger m t' e
+            e2' <- callFromInteger m t e'
+
+            let e3 = maybe e id e2
+            let e3' = maybe e' id e2'
+
+            return (e3, e3')
+
+callFromInteger :: DictMaps -> Type -> Expr -> LHStateM (Maybe Expr)
+callFromInteger m t e = do
+    let retT = returnType e
+
+    nDict <- numDict m t
+    
+    fIntgr <- lhFromIntegerM
+
+    tyI <- tyIntegerT
+
+    if retT /= tyI then
+        return $ Just e
+    else
+        return $ Just $ mkApp [ Var fIntgr
+                              , Type t
+                              , nDict
+                              , e]
+
+convertSymbolT :: Symbol -> Type -> Id
+convertSymbolT s = Id (symbolName s)
 
 reftSymbol :: Reft -> Symbol
 reftSymbol = fst . unpackReft
@@ -592,187 +466,6 @@ reftExpr = snd . unpackReft
 
 unpackReft :: Reft -> (Symbol, Ref.Expr) 
 unpackReft = coerce
-
-rTyConType :: TypeEnv -> RTyCon -> [SpecType]-> Maybe Type
-rTyConType tenv rtc sts = 
-    let
-        tcn = mkTyConName HM.empty . rtc_tc $ rtc
-        n = nameModMatch tcn tenv
-
-        ts = map (specTypeToType tenv) sts
-    in
-    case (not . any isNothing $ ts) of
-        True -> case fmap (\n' -> mkTyConApp n' (catMaybes ts) TYPE) n of
-                    Nothing -> primType tcn
-                    t -> t
-        False -> Nothing
-
-primType :: Name -> Maybe Type
-primType (Name "Int#" _ _ _) = Just TyLitInt
-primType (Name "Float#" _ _ _) = Just TyLitFloat
-primType (Name "Double#" _ _ _) = Just TyLitDouble
-primType (Name "Word#" _ _ _) = Just TyLitInt
-primType _ = Nothing
-
-convertLHExpr :: Ref.Expr -> Maybe Type -> TCValues -> State t -> M.Map Name Type -> Expr
-convertLHExpr (ESym (SL n)) _ _ _ _ = Var $ Id (Name n Nothing 0 Nothing) TyUnknown
-convertLHExpr (ECon c)  t _ (State {known_values = knv, type_env = tenv}) _ = convertCon t knv tenv c
-convertLHExpr (EVar s) _ _ (State { expr_env = eenv, type_env = tenv }) m = convertEVar (symbolName s) eenv tenv m
-convertLHExpr (EApp e e') _ tcv s@(State {type_classes = tc}) m =
-    let
-        f = convertLHExpr e Nothing tcv s m
-
-        at = argumentTypes f
-        f_ar_t = case at of
-                    (_:_) -> Just $ last at
-                    _ -> Nothing
-
-        f_ar_ts = fmap tyAppArgs f_ar_t
-
-        argE = convertLHExpr e' f_ar_t tcv s m
-
-        tArgE = typeOf argE
-        ctArgE = tyAppCenter tArgE
-        ts = tyAppArgs tArgE
-    in
-    case (ctArgE, f_ar_ts) of
-        (TyConApp _ _, Just f_ar_ts') -> 
-            let
-                specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts'
-                te = map Type specTo
-
-                lh = lhTC tcv
-                ti = typeIdList tcv m
-                tcs = map (typeToLHTypeClass tc ti lh) ts
-
-                fw = mkApp $ f:tcs
-
-                apps = mkApp $ fw:te ++ [argE]
-            in
-            apps
-        _ -> App f argE
-convertLHExpr (ENeg e) t tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
-    let
-        e' = convertLHExpr e t tcv s m
-
-        t' = typeOf e'
-
-        ndict = fromJustErr "No lnumDict for ENeg" $ numDict eenv knv tc t' m
-
-        lhdict = fromJustErr "No lhDict for ENeg" $ lhTCDict eenv tcv tc t' m
-    in
-    mkApp [ mkPrim Negate eenv
-          , lhdict
-          , Type t'
-          , ndict
-          , e']
-convertLHExpr (EBin b e e') pt tcv s@(State { expr_env = eenv, type_classes = tc, known_values = knv }) m =
-    let
-        lhe = convertLHExpr e pt tcv s m
-        lhe' = convertLHExpr e' pt tcv s m
-
-        t = typeOf lhe
-        t' = typeOf lhe'
-
-        (lhe2, lhe2') = if t == t' then (Just lhe, Just lhe') 
-                          else (callFromInteger eenv knv tcv tc lhe t' m, callFromInteger eenv knv tcv tc lhe' t m)
-
-        lhe3 = maybe lhe id lhe2
-        lhe3' = maybe lhe' id lhe2'
-
-        t2 = favorNonTyInteger knv t t'
-
-        ndict = fromJustErr ("No numDict for EBin\n"  ++ show b ++ "\n" ++ show lhe ++ "\n" ++ show lhe' ++ "\n" ++ show t ++ "\n" ++ show t') $ bopDict b eenv knv tc t2 m
-
-        lhdict = fromJustErr "No lhDict for EBin" $ lhTCDict eenv tcv tc t2 m
-    in
-    mkApp [ convertBop b eenv
-          , lhdict
-          , Type t2
-          , ndict
-          , lhe3
-          , lhe3']
-convertLHExpr (EIte b e1 e2) t tcv s@(State { type_env = tenv, name_gen = ng, known_values = knv }) m =
-    let
-        tr = mkDCTrue knv tenv
-        fs = mkDCFalse knv tenv
-        boolT = Lang.tyBool knv
-
-        (cb, ng2) = freshId boolT ng
-        s' = s {name_gen = ng2}
-
-        bE = convertLHExpr b Nothing tcv s' m
-        e1' = convertLHExpr e1 t tcv s' m
-        e2' = convertLHExpr e2 t tcv s' m
-
-        a1 = Lang.Alt (DataAlt tr []) e1'
-        a2 = Lang.Alt (DataAlt fs []) e2'
-    in
-    Case bE cb [a1, a2]
-convertLHExpr (ECst e _) t tcv st m =
-    convertLHExpr e t tcv st m
-convertLHExpr (PAnd es) _ tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
-    case map (\e -> convertLHExpr e Nothing tcv s m) es of
-        [] -> mkTrue knv tenv
-        [e] -> e
-        es' -> foldr (\e -> App (App (mkAnd eenv) e)) (mkTrue knv tenv) es'
-convertLHExpr (POr es) _ tcv s@(State { known_values = knv, expr_env = eenv, type_env = tenv }) m = 
-    case map (\e -> convertLHExpr e Nothing tcv s m) es of
-        [] -> mkFalse knv tenv
-        [e] -> e
-        es' -> foldr (\e -> App (App (mkOr eenv) e)) (mkFalse knv tenv) es'
-convertLHExpr (PNot e) _ tcv s@(State {expr_env = eenv }) m =
-    App (mkNot eenv) $ convertLHExpr e Nothing tcv s m
-convertLHExpr (PImp e e') _ tcv s@(State { expr_env = eenv }) m =
-    mkApp [mkImplies eenv, convertLHExpr e Nothing tcv s m, convertLHExpr e' Nothing tcv s m]
-convertLHExpr (PIff e e') _ tcv s@(State { expr_env = eenv }) m =
-    mkApp [mkIff eenv, convertLHExpr e Nothing tcv s m, convertLHExpr e' Nothing tcv s m]
-convertLHExpr (PAtom brel e e') pt tcv s@(State {expr_env = eenv, known_values = knv, type_classes = tc}) m =
-    let
-        brel' = convertBrel brel tcv
-
-        ec = convertLHExpr e pt tcv s m
-        ec' = convertLHExpr e' pt tcv s m
-
-        t = returnType ec
-        t' = returnType ec'
-
-        (ec2, ec2') = if t == t' then (Just ec, Just ec') 
-                          else (callFromInteger eenv knv tcv tc ec t' m, callFromInteger eenv knv tcv tc ec' t m)
-
-        ec3 = maybe ec id ec2
-        ec3' = maybe ec' id ec2'
-
-        t2 = favorNonTyInteger knv t t'
-
-        dict = fromJustErr ("No lhDict for PAtom ec = " ++ show ec ++ "\nec' = " 
-                            ++ show ec' ++ "\nt2 = " ++ show t2 ++ "\nm = " ++ show m) $ lhTCDict eenv tcv tc t2 m
-    in
-    mkApp [brel', dict, Type t2, ec3, ec3']
-convertLHExpr (PKVar (KV {kv = s}) su)  _ _ _ _ = error $ "PKVar s = " ++ show (symbolName s) ++ "\nsu = " ++ show su ++ " End"
-convertLHExpr e _ _ _ _ = error $ "Unrecognized in convertLHExpr " ++ show e
-
-convertSymbol :: Name -> ExprEnv -> M.Map Name Type -> Lang.Id
-convertSymbol nm@(Name n md _ _) eenv m =
-    let
-        t = maybe TyUnknown id $ M.lookup nm m
-    in
-    case E.lookupNameMod n md eenv of
-        Just (n', e) -> Id n' (typeOf e)
-        _ -> Id nm t
-
-convertEVar :: Name -> ExprEnv -> TypeEnv -> M.Map Name Type -> Lang.Expr
-convertEVar nm@(Name n md _ _) eenv tenv m =
-    let
-        t = maybe TyUnknown id $ M.lookup nm m
-    in
-    case (E.lookupNameMod n md eenv, getDataConNameMod' tenv nm) of
-        (Just (n', e), _) -> Var $ Id n' (typeOf e)
-        (_, Just dc) -> Data dc 
-        _ -> Var $ Id nm t
-
-convertSymbolT :: Symbol -> Type -> Lang.Id
-convertSymbolT s = Id (symbolName s)
 
 -- If possible, we split symbols at the last "." not in parenthesis, to
 -- correctly set module names 
@@ -795,116 +488,179 @@ symbolName s =
         (n', "") -> Name n' Nothing 0 Nothing
         _ -> Name n (Just m') 0 Nothing
 
-convertCon :: Maybe Type -> KnownValues -> TypeEnv -> Constant -> Expr
-convertCon (Just (TyConApp n _)) knv tenv (Ref.I i)
-    | n == KV.tyInt knv = App (mkDCInt knv tenv) (Lit . LitInt $ fromIntegral i)
-convertCon _ knv tenv (Ref.I i) = App (mkDCInteger knv tenv) (Lit . LitInt $ fromIntegral i)
-convertCon _ knv tenv (Ref.R d) = App (mkDCDouble knv tenv) (Lit . LitDouble $ toRational d)
-convertCon _ _ _ _ = error "convertCon: Unhandled case"
+convertEVar :: Name -> BoundTypes -> Maybe Type -> LHStateM Expr
+convertEVar nm@(Name n md _ _) bt mt = do
+    let mt' = maybe TyUnknown id mt
+    let t = maybe mt' id $ M.lookup nm bt
 
-convertBop :: Bop -> ExprEnv -> Expr
-convertBop Ref.Plus = mkPlus
-convertBop Ref.Minus = mkMinus
-convertBop Ref.Times = mkMult
-convertBop Ref.Div = mkDiv
-convertBop Ref.Mod = mkMod
-convertBop Ref.RTimes = mkMult
-convertBop Ref.RDiv = mkDiv
+    meas <- measuresM
+    tenv <- typeEnv
+    
+    case (E.lookupNameMod n md meas, getDataConNameMod' tenv nm) of
+        (Just (n', e), _) -> return $ Var $ Id n' (typeOf e)
+        (_, Just dc) -> return $ Data dc 
+        _ -> return $ Var (Id nm t)
 
-bopDict :: Bop -> ExprEnv -> KnownValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
-bopDict Ref.Mod = integralDict
-bopDict _ = numDict
+convertCon :: Maybe Type -> Constant -> LHStateM Expr
+convertCon (Just (TyConApp n _)) (Ref.I i) = do
+    (TyConApp ti _) <- tyIntT
+    dc <- mkDCIntE
+    if n == ti
+        then return $ App dc (Lit . LitInt $ fromIntegral i)
+        else error $ "Unknown Con" ++ show n
+convertCon _ (Ref.I i) = do
+    dc <- mkDCIntegerE
+    return $ App dc (Lit . LitInt $ fromIntegral i)
+convertCon _ (Ref.R d) = do
+    dc <- mkDCDoubleE
+    return $ App dc (Lit . LitDouble $ toRational d)
+convertCon _ _ = error "convertCon: Unhandled case"
 
-lhTCDict :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
-lhTCDict eenv tcv tc t@(TyConApp _ _) m = lhTCDict' eenv tcv tc t m
-lhTCDict eenv tcv tc t@(TyVar _) m = lhTCDict' eenv tcv tc t m
-lhTCDict eenv tcv tc TyLitInt m = lhTCDict' eenv tcv tc (TyConApp (Name "Int#" (Just "GHC.Prims") 0 Nothing) TYPE) m
-lhTCDict eenv tcv tc TyLitDouble m = lhTCDict' eenv tcv tc (TyConApp (Name "Double#" (Just "GHC.Prims") 0 Nothing) TYPE) m
-lhTCDict eenv tcv tc TyLitFloat m = lhTCDict' eenv tcv tc (TyConApp (Name "Float#" (Just "GHC.Prims") 0 Nothing) TYPE) m
-lhTCDict _ _ _ _ _ = Nothing
+unsafeSpecTypeToType :: SpecType -> LHStateM Type
+unsafeSpecTypeToType st = do
+    t' <- specTypeToType st
+    case t' of
+        Just t'' -> return t''
+        Nothing -> error $ "Unhandled SpecType" ++ show st
 
-lhTCDict' :: ExprEnv -> TCValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
-lhTCDict' eenv tcv tc rt m =
-    let
-        t = tyAppCenter rt
-        ts = tyAppArgs rt
-    in
-    case fmap Var $ lookupTCDict tc (lhTC tcv) t of
-        Just d -> case t of 
-                TyConApp _ _ -> Just $ mkApp $ d:mapMaybe (\t' -> lhTCDict eenv tcv tc t' m) ts ++ map (Type) ts
-                _ -> Just d 
-        Nothing -> 
-            case find (tyVarInTyAppHasName (lhTC tcv) . snd) (M.toList m) of
-                Just (s, _) -> Just . Var $ convertSymbol s eenv m
-                Nothing -> Nothing
+specTypeToType :: SpecType -> LHStateM (Maybe Type)
+specTypeToType (RVar {rt_var = (RTV v)}) = do
+    let i = mkIdUnsafe v
+    return $ Just (TyVar i)
+specTypeToType (RFun {rt_in = fin, rt_out = fout}) = do
+    t <- specTypeToType fin
+    t2 <- specTypeToType fout
+    
+    case (t, t2) of
+        (Just t', Just t2') -> return $ Just (TyFun t' t2')
+        _ -> return Nothing
+specTypeToType (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
+    let i = mkIdUnsafe v
+    t <- specTypeToType rty
+    return $ fmap (TyForAll (NamedTyBndr i)) t
+specTypeToType (RApp {rt_tycon = c, rt_args = as}) = rTyConType c as
+specTypeToType rty = error $ "Unmatched pattern in specTypeToType " ++ show (pprint rty)
 
-numDict :: ExprEnv -> KnownValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
-numDict eenv knv tc t m =
-    case numTCDict knv tc t of
-        Just d -> Just . Var $ d
-        Nothing ->
-            case find (tyVarInTyAppHasName (numTC knv) . snd) (M.toList m) of
-                Just (s, _) -> Just . Var $ convertSymbol s eenv m
-                Nothing -> Nothing
+rTyConType :: RTyCon -> [SpecType]-> LHStateM (Maybe Type)
+rTyConType rtc sts = do
+    tenv <- typeEnv
 
-integralDict :: ExprEnv -> KnownValues -> TypeClasses -> Type -> M.Map Name Type -> Maybe Expr
-integralDict eenv knv tc t m =
-    case integralTCDict knv tc t of
-        Just d -> Just . Var $ d
-        Nothing ->
-            case find (tyVarInTyAppHasName (numTC knv) . snd) (M.toList m) of
-                Just (s, _) -> Just . Var $ convertSymbol s eenv m
-                Nothing -> Nothing
+    let tcn = mkTyConName HM.empty . rtc_tc $ rtc
+        n = nameModMatch tcn tenv
 
-callFromInteger :: ExprEnv -> KnownValues -> TCValues -> TypeClasses ->  Expr -> Type -> M.Map Name Type -> Maybe Expr
-callFromInteger eenv knv tcv tc e t m =
-    let
-        retT = returnType e
+    ts <- mapM specTypeToType sts
+    
+    case (not . any isNothing $ ts) of
+        True -> case fmap (\n' -> mkTyConApp n' (catMaybes ts) TYPE) n of
+                    Nothing -> return $ primType tcn
+                    t -> return t
+        False -> return Nothing
 
-        lhdict = lhTCDict eenv tcv tc t m
-        ndict = numDict eenv knv tc t m
+primType :: Name -> Maybe Type
+primType (Name "Int#" _ _ _) = Just TyLitInt
+primType (Name "Float#" _ _ _) = Just TyLitFloat
+primType (Name "Double#" _ _ _) = Just TyLitDouble
+primType (Name "Word#" _ _ _) = Just TyLitInt
+primType _ = Nothing
 
-        fIntgr = mkFromInteger eenv
-    in
-    if retT /= Lang.tyInteger knv then
-        Just e
-    else
-        case (lhdict, ndict) of
-            (Just lhdict', Just ndict') -> 
-                Just $ mkApp [ fIntgr
-                             , lhdict'
-                             , Type t
-                             , ndict'
-                             , e]
-            _ -> Nothing
+convertBrel :: Brel -> LHStateM Expr
+convertBrel Ref.Eq = convertBrel' lhEqM
+convertBrel Ref.Ueq = convertBrel' lhEqM
+convertBrel Ref.Ne = convertBrel' lhNeM
+convertBrel Ref.Gt = return . Var =<< lhGtE
+convertBrel Ref.Ge = return . Var =<< lhGeE
+convertBrel Ref.Lt = return . Var =<< lhLtE
+convertBrel Ref.Le = return . Var =<<  lhLeE
+convertBrel _ = error "convertBrel: Unhandled brel"
 
-favorNonTyInteger :: KnownValues -> Type -> Type -> Type
-favorNonTyInteger _ t TyUnknown = t
-favorNonTyInteger _ TyUnknown t' = t'
-favorNonTyInteger knv t t' =
-    if t /= Lang.tyInteger knv then
-        t
-    else
-        t'
+convertBrel' :: LHStateM Name -> LHStateM Expr
+convertBrel' f = do
+    n <- f
+    return $ Var $ Id n TyUnknown
 
-fromJustErr :: String -> Maybe a -> a
-fromJustErr _ (Just x) = x
-fromJustErr s _ = error s
+brelTCDict :: Brel -> DictMaps -> Type -> LHStateM Expr
+brelTCDict b =
+    if lhFunc b then lhTCDict else ordDict
 
-convertBrel :: Brel -> TCValues -> Expr
-convertBrel Ref.Eq tcv = Var $ Id (lhEq tcv) TyUnknown
-convertBrel Ref.Ueq tcv = Var $ Id (lhEq tcv) TyUnknown
-convertBrel Ref.Ne tcv = Var $ Id (lhNe tcv) TyUnknown
-convertBrel Ref.Gt tcv = Var $ Id (lhGt tcv) TyUnknown
-convertBrel Ref.Ge tcv = Var $ Id (lhGe tcv) TyUnknown
-convertBrel Ref.Lt tcv = Var $ Id (lhLt tcv) TyUnknown
-convertBrel Ref.Le tcv = Var $ Id (lhLe tcv) TyUnknown
-convertBrel _ _ = error "convertBrel: Unhandled brel"
+lhFunc :: Brel -> Bool
+lhFunc Ref.Eq = True
+lhFunc Ref.Ueq = True
+lhFunc Ref.Ne = True
+lhFunc _ = False
 
-tyVarInTyAppHasName :: Name -> Type -> Bool
-tyVarInTyAppHasName n (TyApp (TyConApp n' _) (TyVar (Id _ _))) = n == n'
-tyVarInTyAppHasName _ _ = False
+bopTCDict :: Bop -> DictMaps -> Type -> LHStateM Expr
+bopTCDict Ref.Mod = integralDict
+bopTCDict _ = numDict
 
-typeIdList :: TCValues -> M.Map Name Type -> [(Type, Lang.Id)]
-typeIdList tcv =
-    map (\(n, t) -> (head $ tyAppArgs t, Id n t)) . M.toList . M.filter (tyVarInTyAppHasName (lhTC tcv))
+-- We want to add a LH Dict Type argument to Var's, but not DataCons or Lambdas.
+-- That is: function calls need to be passed the LH Dict but it
+-- doesn't need to be passed around in DataCons
+addLHDictToTypes :: ASTContainerM e Expr => M.Map Name Id -> e -> LHStateM e
+addLHDictToTypes m = modifyASTsM (addLHDictToTypes' m)
+
+addLHDictToTypes' :: M.Map Name Id -> Expr -> LHStateM Expr
+addLHDictToTypes' m (Var (Id n t)) = return . Var . Id n =<< addLHDictToTypes'' m t
+addLHDictToTypes' _ e = return e
+
+addLHDictToTypes'' :: M.Map Name Id -> Type -> LHStateM Type
+addLHDictToTypes'' m t@(TyForAll (NamedTyBndr _) _) = addLHDictToTypes''' m [] t
+addLHDictToTypes'' m t = modifyChildrenM (addLHDictToTypes'' m) t
+
+addLHDictToTypes''' :: M.Map Name Id -> [Id] -> Type -> LHStateM Type
+addLHDictToTypes''' m is (TyForAll (NamedTyBndr b) t) =
+    return . TyForAll (NamedTyBndr b) =<< addLHDictToTypes''' m (b:is) t
+addLHDictToTypes''' _ is t = do
+    lh <- lhTCM
+    let is' = reverse is
+    let dictT = map (TyApp (TyConApp lh (TyApp TYPE TYPE)) . TyVar) is'
+
+    return $ foldr TyFun t dictT
+
+lhTCDict :: DictMaps -> Type -> LHStateM Expr
+lhTCDict m t = do
+    lh <- lhTCM
+    tc <- typeClassInstTC (lh_dicts m) lh t
+    case tc of
+        Just e -> return e
+        Nothing -> return $ Var (Id (Name "BAD 3" Nothing 0 Nothing) TyUnknown)
+
+lhTCDict' :: DictMaps -> Type -> LHStateM Expr
+lhTCDict' m t = do
+    lh <- lhTCM
+    tc <- typeClassInstTC (lh_dicts m) lh t
+    case tc of
+        Just e -> return e
+        Nothing -> error $ "No lh dict " ++ show lh ++ "\n" ++ show t ++ "\n" ++ show m
+
+lhTCDict'' :: LHDictMap -> Type -> LHStateM Expr
+lhTCDict'' m t = do
+    lh <- lhTCM
+    tc <- typeClassInstTC m lh t
+    case tc of
+        Just e -> return e
+        Nothing -> error $ "No lh dict " ++ show lh ++ "\n" ++ show t ++ "\n" ++ show m
+
+
+numDict :: DictMaps -> Type -> LHStateM Expr
+numDict m t = do
+    num <- return . KV.numTC =<< knownValues
+    tc <- typeClassInstTC (num_dicts m) num t
+    case tc of
+        Just e -> return e
+        Nothing -> return $ Var (Id (Name "BAD 4" Nothing 0 Nothing) TyUnknown)
+
+integralDict :: DictMaps -> Type -> LHStateM Expr
+integralDict m t = do
+    num <- return . KV.integralTC =<< knownValues
+    tc <- typeClassInstTC (integral_dicts m) num t
+    case tc of
+        Just e -> return e
+        Nothing -> return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown)
+
+ordDict :: DictMaps -> Type -> LHStateM Expr
+ordDict m t = do
+    ord <- return . KV.ordTC =<< knownValues
+    tc <- typeClassInstTC (ord_dicts m) ord t
+    case tc of
+        Just e -> return e
+        Nothing -> return $ Var (Id (Name "BAD 6" Nothing 0 Nothing) TyUnknown) -- error $ "No ord dict " ++ show ord ++ "\n" ++ show t ++ "\n" ++ show m

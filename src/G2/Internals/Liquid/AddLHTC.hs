@@ -6,7 +6,7 @@ import G2.Internals.Language
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.Types
 
-import G2.Internals.Liquid.Conversion2
+import G2.Internals.Liquid.Conversion
 
 import qualified Data.Map as M
 

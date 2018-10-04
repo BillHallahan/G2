@@ -5,7 +5,7 @@ module G2.Internals.Liquid.TCGen (createLHTC) where
 import G2.Internals.Language
 import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Monad
-import G2.Internals.Liquid.Conversion2
+import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
 

@@ -3,7 +3,7 @@ module G2.Internals.Liquid.ConvertCurrExpr (addCurrExprAssumption) where
 import G2.Internals.Language
 import G2.Internals.Language.Monad
 
-import G2.Internals.Liquid.Conversion2
+import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.Types
 import qualified Data.Map as M
 import Data.Maybe

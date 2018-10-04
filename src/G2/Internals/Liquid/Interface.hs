@@ -14,12 +14,11 @@ import G2.Internals.Execution
 
 import G2.Internals.Liquid.AddLHTC
 import G2.Internals.Liquid.Annotations
-import G2.Internals.Liquid.Conversion2
+import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ConvertCurrExpr
 import G2.Internals.Liquid.Measures
 import G2.Internals.Liquid.Rules
 import G2.Internals.Liquid.Simplify
-import G2.Internals.Liquid.SimplifyAsserts
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Liquid.Types
