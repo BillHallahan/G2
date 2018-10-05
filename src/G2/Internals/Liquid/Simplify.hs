@@ -12,6 +12,7 @@ simplify :: LHStateM ()
 simplify = do
     simplifyExprEnv
     mapCurrExpr simplifyExpr
+    mapAssumptionsM simplifyExpr
     mapAnnotsExpr simplifyExpr
 
 simplifyExprEnv :: LHStateM ()

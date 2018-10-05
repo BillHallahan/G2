@@ -8,6 +8,7 @@ module G2.Internals.Language.Monad.Naming ( doRenameN
                                           , freshNameN
                                           , freshNamesN
                                           , freshIdN
+                                          , freshSeededIdN
                                           , freshIdsN ) where
 
 import G2.Internals.Language
@@ -45,6 +46,9 @@ freshNamesN i = withNG (freshNames i)
 
 freshIdN :: ExState s m => Type -> m Id
 freshIdN t = withNG (freshId t)
+
+freshSeededIdN :: (Named n, ExState s m) => n -> Type -> m Id
+freshSeededIdN n t = withNG (freshSeededId n t)
 
 freshIdsN :: ExState s m => [Type] -> m [Id]
 freshIdsN ts = withNG (freshIds ts)

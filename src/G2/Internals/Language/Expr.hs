@@ -18,15 +18,17 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkCons
                                   , mkEmpty
                                   , mkIdentity
+                                  , getFuncCalls
+                                  , getFuncCallsRHS
                                   , modifyAppTop
                                   , modifyAppLHS
                                   , modifyAppRHS
                                   , modifyInLHS
-                                  , functionCalls
                                   , nonDataFunctionCalls
                                   , appCenter
                                   , mapArgs
                                   , mkLams
+                                  , elimAsserts
                                   -- , mkLamBindings
                                   -- , mkMappedLamBindings
                                   , leadingLamUsesIds
@@ -122,6 +124,19 @@ mkIdentity t =
     in
     Lam TermL x (Var x)
 
+getFuncCalls :: ASTContainer m Expr => m -> [Expr]
+getFuncCalls = evalContainedASTs getFuncCalls'
+
+getFuncCalls' :: Expr -> [Expr]
+getFuncCalls' a@(App e1 e2) = a:getFuncCallsRHS e1 ++ getFuncCalls' e2
+getFuncCalls' v@(Var _) = [v]
+getFuncCalls' e = evalChildren getFuncCalls' e
+
+getFuncCallsRHS :: Expr -> [Expr]
+getFuncCallsRHS (App e1 e2) = getFuncCallsRHS e1 ++ getFuncCalls' e2
+getFuncCallsRHS (Var _) = []
+getFuncCallsRHS e = getFuncCalls' e
+
 modifyAppTop :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
 modifyAppTop f = modifyContainedASTs (modifyAppTop' f)
 
@@ -147,23 +162,10 @@ modifyInLHS :: (Expr -> Expr) -> Expr -> Expr
 modifyInLHS f (App e _) = modifyInLHS f e
 modifyInLHS f e = f e
 
--- | functionCalls
--- Returns all function calls with all arguments
-functionCalls :: ASTContainer m Expr => m -> [Expr]
-functionCalls = evalContainedASTs functionCalls'
-
-functionCalls' :: Expr -> [Expr]
-functionCalls' e@(App e' e'') = e:functionCallsApp e' ++ functionCalls' e''
-functionCalls' e = functionCalls $ children e
-
-functionCallsApp :: Expr -> [Expr]
-functionCallsApp (App e e') = functionCallsApp e ++ functionCalls' e'
-functionCallsApp _ = []
-
 -- | nonDataFunctionCalls
 -- Returns all function calls to Vars with all arguments
 nonDataFunctionCalls :: ASTContainer m Expr => m -> [Expr]
-nonDataFunctionCalls = filter (not . centerIsData) . functionCalls
+nonDataFunctionCalls = filter (not . centerIsData) . getFuncCalls
 
 centerIsData :: Expr -> Bool
 centerIsData (App e _) = centerIsData e
@@ -180,6 +182,13 @@ mapArgs _ e = e
 
 mkLams :: [(LamUse, Id)] ->  Expr -> Expr
 mkLams =  flip (foldr (\(u, i) -> Lam u i))
+
+elimAsserts :: ASTContainer m Expr => m -> m
+elimAsserts = modifyASTs elimAsserts'
+
+elimAsserts' :: Expr -> Expr
+elimAsserts' (Assert _ _ e) = e
+elimAsserts' e = e
 
 -- Generates a lambda binding for each a in the provided list
 -- Takes a function to generate the inner expression
@@ -237,7 +246,7 @@ passedArgs :: Expr -> [Expr]
 passedArgs = reverse . passedArgs'
 
 passedArgs' :: Expr -> [Expr]
-passedArgs' (App e e') = e':passedArgs e
+passedArgs' (App e e') = e':passedArgs' e
 passedArgs' _ = []
 
 nthArg :: Expr -> Int -> Id

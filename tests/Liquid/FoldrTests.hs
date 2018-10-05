@@ -34,9 +34,9 @@ m x = C (f x)
 f :: b -> b
 f b = b
 
--- {-@ m2 :: {x:Int | x > 0} -> C { y:Int | y > 0 } @-}
--- m2 :: Int -> C Int
--- m2 x = C (f2 x)
+{-@ m2 :: {x:Int | x > 0} -> C { y:Int | y > 0 } @-}
+m2 :: Int -> C Int
+m2 x = C (f2 x)
 
 {-@  f2 :: Int -> Int @-}
 f2 :: Int -> Int

@@ -188,7 +188,7 @@ appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 instance Typed Type where
     typeOf' _ (TyVar (Id _ t)) = t
     typeOf' _ (TyFun _ _) = TYPE
-    typeOf' m (TyApp t1 t2) =
+    typeOf' m ta@(TyApp t1 t2) =
         let
             ft = typeOf' m t1
             at = typeOf' m t2

@@ -78,10 +78,8 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = in
 -- A mapping of variable names to the corresponding types
 type BoundTypes = M.Map Name Type
 
-mergeLHSpecState :: Id -> [(Var.Var, LocSpecType)] -> LHStateM Id
-mergeLHSpecState i sp = do
-    mapM_ (uncurry mergeLHSpecState') sp
-    return i
+mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()
+mergeLHSpecState sp = mapM_ (uncurry mergeLHSpecState') sp
 
 mergeLHSpecState' :: Var.Var -> LocSpecType -> LHStateM ()
 mergeLHSpecState' v lst = do
@@ -258,9 +256,15 @@ polyPredFunc as ty m bt b = do
     dict <- lhTCDict' m ty
     as' <- mapM (polyPredLam m bt) as
 
+    bool <- tyBoolT
+
+    let ar1 = Type (typeOf b)
+        ars = [dict] ++ as' ++ [Var b]
+        t = TyForAll (NamedTyBndr b) $ foldr1 TyFun $ map typeOf ars ++ [bool]
+
     lhPP <- lhPPM
     
-    return $ mkApp $ [Var $ Id lhPP TyUnknown, Type (typeOf b), dict] ++ as' ++ [Var b]
+    return $ mkApp $ Var (Id lhPP t):ar1:ars
 
 polyPredLam :: DictMaps -> BoundTypes -> SpecType -> LHStateM Expr
 polyPredLam m bt rapp  = do
@@ -576,7 +580,22 @@ convertBrel _ = error "convertBrel: Unhandled brel"
 convertBrel' :: LHStateM Name -> LHStateM Expr
 convertBrel' f = do
     n <- f
-    return $ Var $ Id n TyUnknown
+
+    a <- freshIdN TYPE
+    lh <- lhTCM
+    b <- tyBoolT
+    let tva = TyVar a
+        t = TyForAll 
+                (NamedTyBndr a)
+                (TyFun
+                    (TyConApp lh TYPE)
+                    (TyFun 
+                        tva 
+                        (TyFun tva b)
+                    )
+                )
+
+    return $ Var $ Id n t
 
 brelTCDict :: Brel -> DictMaps -> Type -> LHStateM Expr
 brelTCDict b =
