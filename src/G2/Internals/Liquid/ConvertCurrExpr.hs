@@ -1,19 +1,21 @@
-{-# LANGUAGE LambdaCase#-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Internals.Liquid.ConvertCurrExpr (convertCurrExpr) where
 
 import G2.Internals.Language
-import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Language.Monad
 
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.Types
+
+import Control.Monad.Extra
 import qualified Data.Map as M
 import Data.Maybe
 
 import Debug.Trace
 
-convertCurrExpr :: Id -> LHStateM Id
+convertCurrExpr :: Id -> LHStateM [Name]
 convertCurrExpr ifi = do
     ifi' <- modifyInputExpr ifi
     addCurrExprAssumption ifi
@@ -32,34 +34,48 @@ convertCurrExpr ifi = do
 --      it'll only be computed once.  This is NOT just for efficiency.
 --      Since the choice is nondeterministic, this is the only way to ensure that
 --      we don't make two different choices, and get two different values.
-modifyInputExpr :: Id -> LHStateM Id
+modifyInputExpr :: Id -> LHStateM [Name]
 modifyInputExpr i@(Id n _) = do
     (CurrExpr er ce) <- currExpr
 
     e <- lookupE n
     case e of
         Just je -> do
-            newI <- modifyInputExpr' i je
+            (newI, ns) <- modifyInputExpr' i je
 
             let ce' = replaceASTs (Var i) (Var newI) ce
 
             putCurrExpr (CurrExpr er ce')
-            return newI
-        Nothing -> error "Nothing" -- return ()
+            return ns
+        Nothing -> return []
 
 -- Actually does the work of modify the function for modifyInputExpr
 -- Inserts the new function in the ExprEnv, and returns the Id
-modifyInputExpr' :: Id -> Expr -> LHStateM Id
+modifyInputExpr' :: Id -> Expr -> LHStateM (Id, [Name])
 modifyInputExpr' i e = do
-    e' <- letLiftFuncs =<< rebindFuncs e
+    (e', ns) <- rebindFuncs e
+    e'' <- letLiftFuncs e'
 
     newI <- freshSeededIdN (idName i) (typeOf i)
-    insertE (idName newI) e'
+    insertE (idName newI) e''
 
-    return newI
+    return (newI, ns)
 
-rebindFuncs :: Expr -> LHStateM Expr
-rebindFuncs e = return e
+rebindFuncs :: Expr -> LHStateM (Expr, [Name])
+rebindFuncs e = do
+    vs <- mapMaybeM (\i -> fmap (i,) <$> lookupE (idName i)) $ varIds e
+    nvs <- mapM (\(Id n t, _) -> freshSeededIdN n t) vs
+    
+    mapM_ (\(n, e) -> insertE n (rewriteAssertName n e)) $ zip (map idName nvs) (map snd vs)
+
+    let e' = foldr (uncurry replaceASTs) e $ zip (map (Var . fst) vs) (map Var nvs)
+
+    return (e', map idName nvs)
+    where
+        rewriteAssertName :: Name -> Expr -> Expr
+        rewriteAssertName n (Assert (Just fc) e e') = Assert (Just $ fc {funcName = n}) e e'
+        rewriteAssertName n e = modifyChildren (rewriteAssertName n) e
+
 
 -- We want to get all function calls into Let Bindings.
 -- This is a bit tricky- we can't just get all calls at once,

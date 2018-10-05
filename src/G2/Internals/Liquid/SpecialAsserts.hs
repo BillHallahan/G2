@@ -1,21 +1,22 @@
 module G2.Internals.Liquid.SpecialAsserts (addSpecialAsserts) where
 
 import G2.Internals.Language
-import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.KnownValues as KV
+import G2.Internals.Language.Monad
+import G2.Internals.Liquid.Types
 
-addSpecialAsserts :: State t -> State t
-addSpecialAsserts s@(State { expr_env = eenv
-                           , type_env = tenv
-                           , known_values = kv}) =
-    let
-        pe = KV.patErrorFunc kv
-        e = case E.lookup pe eenv of
+addSpecialAsserts :: LHStateM ()
+addSpecialAsserts = do
+    pen <- KV.patErrorFunc <$> knownValues
+    pe <- lookupE pen
+
+    let e = case pe  of
             Just e2 -> e2
             Nothing -> Prim Undefined TyBottom
 
-        fc = FuncCall {funcName = pe, arguments = [], returns = Prim Undefined TyBottom}
-        false = mkFalse kv tenv
-        e' = Assert (Just fc) false e
-    in
-    s {expr_env = E.insert pe e' eenv}
+    let fc = FuncCall {funcName = pen, arguments = [], returns = Prim Undefined TyBottom}
+    
+    false <- mkFalseE
+    let e' = Assert (Just fc) false e
+    
+    insertE pen e'
