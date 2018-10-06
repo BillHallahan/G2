@@ -169,8 +169,8 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 4 [AtLeast 1]
                 , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error3.hs" "z" 100000 3 [Exactly 0]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 10000 2 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 10000 2 [Exactly 0]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 1000 2 [Exactly 0]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

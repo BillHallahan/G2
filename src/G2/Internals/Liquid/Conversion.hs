@@ -380,7 +380,7 @@ convertLHExpr m bt t (PImp e1 e2) = do
 convertLHExpr m bt t (PIff e1 e2) = do
     e1' <- convertLHExpr m bt t e1
     e2' <- convertLHExpr m bt t e2
-    iff <- mkIffE
+    iff <- iffM
     return $ mkApp [iff, e1', e2']
 convertLHExpr m bt _ (PAtom brel e1 e2) = do
     (e1', e2') <- correctTypes m bt Nothing e1 e2
