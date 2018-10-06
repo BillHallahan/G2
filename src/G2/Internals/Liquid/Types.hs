@@ -27,6 +27,7 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , andM
                                  , orM
                                  , notM
+                                 , iffM
                                  , lhTCM
                                  , lhOrdTCM
                                  , lhEqM
@@ -300,6 +301,13 @@ notM :: LHStateM L.Expr
 notM = do
     m <- measuresM
     return (L.mkNot m)
+
+-- | iffM
+-- The version of 'iff' in the measures
+iffM :: LHStateM L.Expr
+iffM = do
+    m <- measuresM
+    return (L.mkIff m)
 
 liftTCValues :: (TCValues -> a) -> LHStateM a
 liftTCValues f = return . f . tcvalues =<< SM.get

@@ -37,7 +37,7 @@ zipWith f _          _          = die  "Bad call to zipWith"
 die str = error ("Oops, I died!" ++ str)
 
 
-{-@ f2 :: {x:Int | x == 0} @-}
+{-@ f2 :: {x:Int | x mod 2 = 0} @-}
 f2 :: Int
 f2 = g2
 
