@@ -44,3 +44,12 @@ f2 = g2
 {-@ g2 :: Int @-}
 g2 :: Int
 g2 = 0
+
+{-@ f3 :: Int -> Even @-}
+f3 :: Int -> Int
+f3 x = x + g3 x
+
+-- Without the below refinement type for g, this file can not be verified
+{-@ g3 :: Int -> Int @-}
+g3 :: Int -> Int
+g3 x = x

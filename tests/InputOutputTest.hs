@@ -17,10 +17,10 @@ import G2.Internals.Solver
 
 import Reqs
 
-checkInputOutput :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String String] ->  IO TestTree
+checkInputOutput :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
 checkInputOutput proj src md entry stps i req = checkInputOutputWithConfig proj src md entry i req (mkConfigDef {steps = stps})
 
-checkInputOutputWithConfig :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO TestTree
+checkInputOutputWithConfig :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
 checkInputOutputWithConfig proj src md entry i req config = do
     r <- checkInputOutput' proj src md entry i req config
 
@@ -30,10 +30,10 @@ checkInputOutputWithConfig proj src md entry i req config = do
 
     return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b 
 
-checkInputOutput' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO (Either SomeException Bool)
+checkInputOutput' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO (Either SomeException Bool)
 checkInputOutput' proj src md entry i req config = try (checkInputOutput'' proj src md entry i req config)
 
-checkInputOutput'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO Bool
+checkInputOutput'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String ] -> Config -> IO Bool
 checkInputOutput'' proj src md entry i req config = do
     (mb_modname, binds, tycons, cls, _, ex) <- translateLoaded proj src [] False config
 
@@ -67,10 +67,10 @@ checkInputOutput'' proj src md entry i req config = do
 
 ------------
 
-checkInputOutputLH :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String String] ->  IO TestTree
+checkInputOutputLH :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
 checkInputOutputLH proj src md entry stps i req = checkInputOutputLHWithConfig proj src md entry i req (mkConfigDef {steps = stps})
 
-checkInputOutputLHWithConfig :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO TestTree
+checkInputOutputLHWithConfig :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
 checkInputOutputLHWithConfig proj src md entry i req config = do
     r <- checkInputOutputLH' proj src md entry i req config
 
@@ -80,10 +80,10 @@ checkInputOutputLHWithConfig proj src md entry i req config = do
 
     return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b 
 
-checkInputOutputLH' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO (Either SomeException Bool)
+checkInputOutputLH' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO (Either SomeException Bool)
 checkInputOutputLH' proj src md entry i req config = try (checkInputOutputLH'' proj src md entry i req config)
 
-checkInputOutputLH'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String String] -> Config -> IO Bool
+checkInputOutputLH'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO Bool
 checkInputOutputLH'' proj src md entry i req config = do
     (r, _) <- findCounterExamples proj src (T.pack entry) [] [] config
 
@@ -98,13 +98,13 @@ checkInputOutputLH'' proj src md entry i req config = do
 ------------
 
 -- | Checks conditions on given expressions
-checkExprAll :: [Reqs String String] -> [String]
+checkExprAll :: [Reqs String] -> [String]
 checkExprAll reqList = [f | RForAll f <- reqList]
 
-checkExprExists :: [Reqs String String] -> [String]
+checkExprExists :: [Reqs String] -> [String]
 checkExprExists reqList = [f | RExists f <- reqList]
 
-checkExprInOutCount :: [[Expr]] -> Int -> [Reqs c t] -> Bool
+checkExprInOutCount :: [[Expr]] -> Int -> [Reqs c] -> Bool
 checkExprInOutCount exprs i reqList =
     let
         checkAtLeast = and . map ((>=) (length exprs)) $ [x | AtLeast x <- reqList]

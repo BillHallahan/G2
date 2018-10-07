@@ -171,6 +171,11 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
+
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AddToEven.hs" "f" 2000 1
+                    [ AtLeast 1
+                    , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
+                                    -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -346,15 +351,15 @@ primTests =
             , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
         ]
 
-checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkExpr proj src stps m_assume m_assert entry i reqList =
     checkExprReaches proj src stps m_assume m_assert Nothing entry i reqList
 
-checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkExprReaches proj src stps m_assume m_assert m_reaches entry i reqList = do
     checkExprWithConfig proj src m_assume m_assert m_reaches entry i (mkConfigTest {steps = stps}) reqList
 
-checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkExprWithConfig proj src m_assume m_assert m_reaches entry i config reqList = do
     res <- testFile proj src m_assume m_assert m_reaches entry config
     
@@ -389,10 +394,10 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 
-checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps}) reqList
 
-checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquidWithConfig proj fp entry i config reqList = do
     res <- findCounterExamples' proj fp (T.pack entry) [] [] config
 
@@ -403,6 +408,22 @@ checkLiquidWithConfig proj fp entry i config reqList = do
     return . testCase fp
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n" ++ show r) ch
+
+checkAbsLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> IO TestTree
+checkAbsLiquid proj fp entry stps i reqList = checkAbsLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps}) reqList
+
+checkAbsLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> IO TestTree
+checkAbsLiquidWithConfig proj fp entry i config reqList = do
+    res <- findCounterExamples' proj fp (T.pack entry) [] [] config
+
+    let (ch, r) = case res of
+                Left e -> (False, Left e)
+                Right exprs -> (checkAbsLHExprGen (map (\(s, inp, out, _) -> (s, inp, out)) exprs) i reqList, Right ())
+
+    return . testCase fp
+        $ assertBool ("Liquid test for file " ++ fp ++ 
+                      " with function " ++ entry ++ " failed.\n" ++ show r) ch
+
 
 findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [FuncCall], [Expr], Expr, Maybe FuncCall)])
 findCounterExamples' proj fp entry libs lhlibs config = try (return . fst =<< findCounterExamples proj fp entry libs lhlibs config)
