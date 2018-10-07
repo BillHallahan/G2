@@ -23,6 +23,13 @@ typingTests' =
     , testCase "Polymorphic Function application 3" $ assertBool "Polymorphic Function application 3 failed" funcAppTest
     , testCase "Polymorphic Function" $ assertBool "Polymorphic Function failed" funcTest
     , testCase "Kind application" $ assertBool "Kind application failed" tyAppKindTest
+
+    , testCase "Specializes test 1" $ assertBool ".:: failed" specTest1
+    , testCase "Specializes test 2" $ assertBool ".:: failed" specTest2
+    , testCase "Specializes test 3" $ assertBool ".:: failed" specTest3
+
+    , testCase "Specializes false test 1" $ assertBool ".:: failed" specFalseTest1
+    , testCase "Specializes false test 2" $ assertBool ".:: failed" specFalseTest2
     ]
 
 test1 :: Bool
@@ -66,6 +73,21 @@ funcTest = idDef .:: (TyForAll (NamedTyBndr aid) (TyFun a a))
 
 tyAppKindTest :: Bool
 tyAppKindTest = typeOf (TyApp either a) == TyFun TYPE TYPE
+
+specTest1 :: Bool
+specTest1 = x1 .:: int
+
+specTest2 :: Bool
+specTest2 = x1 .:: a
+
+specTest3 :: Bool
+specTest3 = f2 .:: typeOf f3
+
+specFalseTest1 :: Bool
+specFalseTest1 = not $ Var (Id (Name "x1" Nothing 0 Nothing) a) .:: int
+
+specFalseTest2 :: Bool
+specFalseTest2 = not $ f3 .:: typeOf f2
 
 -- Typed Expr's
 x1 :: Expr
