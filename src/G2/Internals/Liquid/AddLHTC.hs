@@ -32,7 +32,7 @@ addLHTCExprEnvLams is e = do
     lh <- lhTCM
 
     let is' = reverse is
-    let is'' = map (TyApp (TyConApp lh (TyApp TYPE TYPE)) . TyVar) $ is'
+    let is'' = map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) $ is'
     is''' <- freshIdsN is''
 
     let e' = foldr (Lam TermL) e is'''

@@ -109,7 +109,7 @@ symbState ns eenv
         cexprT = returnType cexpr
 
         (t, atf) = case AT.lookup cexprT at of
-                        Just (t', f) -> (TyConApp t' TYPE, App (Var f))
+                        Just (t', f) -> (TyCon t' TYPE, App (Var f))
                         Nothing -> (cexprT, id)
 
         (i, ng') = freshId t ng

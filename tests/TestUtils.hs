@@ -25,7 +25,7 @@ eqIgNames :: Name -> Name -> Bool
 eqIgNames (Name n m _ _) (Name n' m' _ _) = n == n' && m == m'
 
 typeNameIs :: Type -> T.Text -> Bool
-typeNameIs (TyConApp n _) s = s == nameOcc n
+typeNameIs (TyCon n _) s = s == nameOcc n
 typeNameIs (TyApp t _) s = typeNameIs t s
 typeNameIs _ _ = False
 
@@ -34,7 +34,7 @@ dcHasName s (Data (DataCon n _)) = s == nameOcc n
 dcHasName _ _ = False
 
 isBool :: Expr -> Bool
-isBool (Data (DataCon _ (TyConApp (Name "Bool" _ _ _) _))) = True
+isBool (Data (DataCon _ (TyCon (Name "Bool" _ _ _) _))) = True
 isBool _ = False
 
 dcInAppHasName :: T.Text -> Expr -> Int -> Bool
@@ -67,7 +67,7 @@ appNth (App _ e) i p = appNth e (i - 1) p
 appNth _ _ _ = False
 
 isIntT :: Type -> Bool
-isIntT (TyConApp (Name "Int" _ _ _) _) = True
+isIntT (TyCon (Name "Int" _ _ _) _) = True
 isIntT _ = False
 
 isDouble :: Expr -> (Rational -> Bool) -> Bool

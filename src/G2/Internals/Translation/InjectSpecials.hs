@@ -30,7 +30,7 @@ specialDC ns tn (n, m, ts) =
     let
         tv = map (TyVar . flip Id TYPE) ns
 
-        t = foldr (TyFun) (mkTyConApp tn tv TYPE) ts
+        t = foldr (TyFun) (mkTyCon tn tv TYPE) ts
         t' = foldr (\n' -> TyForAll (NamedTyBndr (Id n' TYPE))) t ns
     in
     DataCon (Name n m 0 Nothing) t'
@@ -61,7 +61,7 @@ specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
 specials = [ (( "[]"
               , Just "GHC.Types", [aName])
               , [ ("[]", Just "GHC.Types", [])
-                , (":", Just "GHC.Types", [aTyVar, mkTyConApp listName [aTyVar] TYPE])]
+                , (":", Just "GHC.Types", [aTyVar, mkTyCon listName [aTyVar] TYPE])]
              )
 
            -- , (("Int", Just "GHC.Types"), [("I#", Just "GHC.Types", [TyLitInt])])

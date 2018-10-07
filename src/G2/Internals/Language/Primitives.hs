@@ -175,7 +175,7 @@ mkToInteger = mkPrim ToInteger
 -- Primitives on primitive types
 mkEqPrimType :: Type -> KnownValues -> Expr
 mkEqPrimType t kv =
-    Prim Eq $ TyFun t (TyFun t (TyConApp (KV.tyBool kv) TYPE))
+    Prim Eq $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
 
 mkEqPrimInt :: KnownValues -> Expr
 mkEqPrimInt = mkEqPrimType TyLitInt

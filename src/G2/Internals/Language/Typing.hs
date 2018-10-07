@@ -17,7 +17,7 @@ module G2.Internals.Language.Typing
     , tyAppCenter
     , tyAppArgs
     , unTyApp
-    , mkTyConApp
+    , mkTyCon
     , (.::)
     , (.::.)
     , specializes
@@ -58,19 +58,19 @@ import qualified Data.Map as M
 import Data.Monoid hiding (Alt)
 
 tyInt :: KV.KnownValues -> Type
-tyInt kv = TyConApp (KV.tyInt kv) (tyTYPE kv)
+tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
 
 tyInteger :: KV.KnownValues -> Type
-tyInteger kv = TyConApp (KV.tyInteger kv) (tyTYPE kv)
+tyInteger kv = TyCon (KV.tyInteger kv) (tyTYPE kv)
 
 tyDouble :: KV.KnownValues -> Type
-tyDouble kv = TyConApp (KV.tyDouble kv) (tyTYPE kv)
+tyDouble kv = TyCon (KV.tyDouble kv) (tyTYPE kv)
 
 tyFloat :: KV.KnownValues -> Type
-tyFloat kv = TyConApp (KV.tyFloat kv) (tyTYPE kv)
+tyFloat kv = TyCon (KV.tyFloat kv) (tyTYPE kv)
 
 tyBool :: KV.KnownValues -> Type
-tyBool kv = TyConApp (KV.tyBool kv) (tyTYPE kv)
+tyBool kv = TyCon (KV.tyBool kv) (tyTYPE kv)
 
 tyTYPE :: KV.KnownValues -> Type
 tyTYPE _ = TYPE
@@ -97,15 +97,15 @@ mkTyApp [] = TYPE
 mkTyApp (t:[]) = t
 mkTyApp (t1:t2:ts) = mkTyApp (TyApp t1 t2 : ts)
 
-mkTyConApp :: Name
+mkTyCon :: Name
            -> [Type] -- ^ Type arguments
            -> Kind -- ^ Result kind
            -> Type
-mkTyConApp n ts k =
+mkTyCon n ts k =
     let
         tsk = mkTyApp $ map typeOf ts ++ [k]
     in
-    mkTyApp $ TyConApp n tsk:ts
+    mkTyApp $ TyCon n tsk:ts
 
 -- | unTyApp
 -- Unravels the application spine.
@@ -197,7 +197,7 @@ instance Typed Type where
             ((TyFun _ t2'), _) -> t2'
             ((TyApp t1' _), _) -> t1'
             _ -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
-    typeOf' _ (TyConApp _ t) = t
+    typeOf' _ (TyCon _ t) = t
     typeOf' m (TyForAll (NamedTyBndr b) t) = TyApp (typeOf b) (typeOf' m t)
     typeOf' m (TyForAll _ t) = typeOf' m t
     typeOf' _ TyLitInt = TYPE
@@ -263,20 +263,20 @@ specializes m (TyApp t1 t2) (TyApp t1' t2') =
         (b2, m'') = specializes m' t2 t2'
     in
     (b1 && b2, m'')
-specializes m (TyConApp n _) (TyConApp n' _) = (n == n', m)
--- specializes m (TyConApp n ts) app@(TyApp _ _) =
+specializes m (TyCon n _) (TyCon n' _) = (n == n', m)
+-- specializes m (TyCon n ts) app@(TyApp _ _) =
 --     let
 --         appts = unTyApp app
 --     in
 --     case appts of
---         TyConApp n' ts':ts'' -> specializes m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
+--         TyCon n' ts':ts'' -> specializes m (TyCon n ts) (TyCon n' $ ts' ++ ts'')
 --         _ -> (False, m)
--- specializes m app@(TyApp _ _) (TyConApp n ts) =
+-- specializes m app@(TyApp _ _) (TyCon n ts) =
 --     let
 --         appts = unTyApp app
 --     in
 --     case appts of
---         TyConApp n' ts':ts'' -> specializes m (TyConApp n ts) (TyConApp n' $ ts' ++ ts'')
+--         TyCon n' ts':ts'' -> specializes m (TyCon n ts) (TyCon n' $ ts' ++ ts'')
 --         _ -> (False, m)
 
 specializes m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
@@ -342,17 +342,17 @@ isAlgDataTy :: Typed t => t -> Bool
 isAlgDataTy = isAlgDataTy' . typeOf
 
 isAlgDataTy' :: Type -> Bool
-isAlgDataTy' (TyConApp _ _) = True
+isAlgDataTy' (TyCon _ _) = True
 isAlgDataTy' _ = False
 
 isTYPE :: Type -> Bool
 isTYPE TYPE = True
-isTYPE (TyConApp (Name "TYPE" _ _ _) _) = True
+isTYPE (TyCon (Name "TYPE" _ _ _) _) = True
 isTYPE _ = False
 
 hasTYPE :: Type -> Bool
 hasTYPE TYPE = True
-hasTYPE (TyConApp (Name "TYPE" _ _ _) _) = True
+hasTYPE (TyCon (Name "TYPE" _ _ _) _) = True
 hasTYPE (TyFun t t') = hasTYPE t || hasTYPE t'
 hasTYPE (TyApp t t') = hasTYPE t || hasTYPE t'
 hasTYPE _ = False

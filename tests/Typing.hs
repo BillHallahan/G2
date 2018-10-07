@@ -108,16 +108,16 @@ idDef = Lam TypeL aid
 
 -- Types
 int :: Type
-int = TyConApp (Name "Int" Nothing 0 Nothing) TYPE
+int = TyCon (Name "Int" Nothing 0 Nothing) TYPE
 
 float :: Type
-float = TyConApp (Name "Float" Nothing 0 Nothing) TYPE
+float = TyCon (Name "Float" Nothing 0 Nothing) TYPE
 
 maybe :: Type
-maybe = TyConApp (Name "Maybe" Nothing 0 Nothing) (TyFun TYPE TYPE)
+maybe = TyCon (Name "Maybe" Nothing 0 Nothing) (TyFun TYPE TYPE)
 
 either :: Type
-either = TyConApp (Name "Either" Nothing 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))
+either = TyCon (Name "Either" Nothing 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))
 
 a :: Type
 a = TyVar aid

@@ -93,7 +93,7 @@ getDataCons n tenv =
     case M.lookup n tenv of
         Just (DataTyCon _ dc) -> Just dc
         Just (NewTyCon _ dc _) -> Just [dc]
-        Just (TypeSynonym (TyConApp n' _)) -> getDataCons n' tenv
+        Just (TypeSynonym (TyCon n' _)) -> getDataCons n' tenv
         _ -> Nothing
 
 baseDataCons :: [DataCon] -> [DataCon]
@@ -107,14 +107,14 @@ baseDataCon (DataCon _ t) = not $ hasTyFuns t
 -- the bound names of the cast type, to the types bound by the TyApps.
 getCastedAlgDataTy :: Type -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy t tenv
-    | TyConApp n _ <- tyAppCenter t
+    | TyCon n _ <- tyAppCenter t
     , ts <- tyAppArgs t = getCastedAlgDataTy' n ts tenv
     | otherwise = Nothing
 
 getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy' n ts tenv =
         case M.lookup n tenv of
-            Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy' n' ts tenv
+            Just (NewTyCon {rep_type = TyCon n' _}) -> getCastedAlgDataTy' n' ts tenv
             Just (NewTyCon {}) -> Nothing
             (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
             _ -> Nothing
@@ -151,8 +151,8 @@ dataConCanContain' tenv (DataCon _ t) =
     pt ++ (map typeOf dcs) ++ recT
 
 tyConAppName :: Type -> Name
-tyConAppName (TyConApp n _) = n
-tyConAppName _ = error "tyConAppName: Type other than TyConApp"
+tyConAppName (TyCon n _) = n
+tyConAppName _ = error "tyConAppName: Type other than TyCon"
 
 getDataCon :: TypeEnv -> Name -> Name -> Maybe DataCon
 getDataCon tenv adt dc =

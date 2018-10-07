@@ -29,7 +29,7 @@ wrapInteger' _ e = e
 --      (Var 
 --          (Id 
 --              (Name "$unpackCString" (Just "GHC.CString") 0) 
---              (TyFun (TyConApp (Name "Addr#" (Just "GHC.Prim") 3674937295934324738) []) (TyConApp (Name "$" (Just "GHC.Types") 0) [TyConApp (Name "Char" (Just "GHC.Types") 8214565720323798834) []]))
+--              (TyFun (TyCon (Name "Addr#" (Just "GHC.Prim") 3674937295934324738) []) (TyCon (Name "$" (Just "GHC.Types") 0) [TyCon (Name "Char" (Just "GHC.Types") 8214565720323798834) []]))
 --          )
 --      ) 
 --      (Lit (LitString "\"HERE\""))

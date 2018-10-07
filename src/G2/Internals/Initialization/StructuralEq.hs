@@ -29,7 +29,7 @@ createStructEqFuncs ts = do
     adtn <- freshSeededStringN "structEq"
     dcn <- freshSeededStringN "structEq"
 
-    let t = TyConApp tcn TYPE
+    let t = TyCon tcn TYPE
 
     tyvn <- freshSeededStringN "a"
     let tyvn' = TyVar (Id tyvn TYPE)
@@ -56,7 +56,7 @@ createStructEqFuncs ts = do
     -- Create names for the new functions
     let ns = map (\(Name n _ _ _) -> Name ("structEq" `T.append` n) Nothing 0 Nothing) tenvK
     ns' <- freshSeededNamesN ns
-    let nsT = zip tenvK $ map (flip Id (TyConApp tcn TYPE)) ns'
+    let nsT = zip tenvK $ map (flip Id (TyCon tcn TYPE)) ns'
 
     tc <- IT.typeClasses
     tci <- freshIdN TYPE
@@ -69,7 +69,7 @@ createStructEqFuncs ts = do
     F.mapM_ (\(n, n', adt) -> createStructEqFunc dcn n n' adt) $ zip3 ns' tenvK tenvV
 
 tcaName :: Type -> Maybe Name
-tcaName (TyConApp n _) = Just n
+tcaName (TyCon n _) = Just n
 tcaName (TyApp t _) = tcaName t
 tcaName _ = Nothing
 
@@ -100,7 +100,7 @@ genInsts tcn nsT t dc ((n@(Name n' _ _ _), adt):xs) = do
     bn' <- freshSeededNamesN bn
 
     let bni = map (flip Id TYPE) bn
-        bnid = map (\(dni, i) -> Id dni (TyApp (TyConApp tcn (TyFun TYPE TYPE)) (TyVar i))) $ zip bn' bni
+        bnid = map (\(dni, i) -> Id dni (TyApp (TyCon tcn (TyFun TYPE TYPE)) (TyVar i))) $ zip bn' bni
         
         -- Make the expressions
         bnv = map TyVar bni
@@ -121,16 +121,16 @@ genInsts tcn nsT t dc ((n@(Name n' _ _ _), adt):xs) = do
 
     xs' <- genInsts tcn nsT t dc xs
 
-    return $ (mkTyApp (TyConApp n bnvK:bnv), Id dn t):xs'
+    return $ (mkTyApp (TyCon n bnvK:bnv), Id dn t):xs'
 
 
 createStructEqFunc :: Name -> Name -> Name -> AlgDataTy -> IT.SimpleStateM ()
 createStructEqFunc dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
     ns' <- freshSeededNamesN $ map idName ns
-    let t = mkTyConApp tn (map (TyVar . flip Id TYPE) ns') TYPE
+    let t = mkTyCon tn (map (TyVar . flip Id TYPE) ns') TYPE
 
     bt <- freshIdsN $ map (const TYPE) ns
-    bd <- freshIdsN $ map (\i -> TyApp (TyConApp dcn (TyFun TYPE TYPE)) (TyVar i)) bt
+    bd <- freshIdsN $ map (\i -> TyApp (TyCon dcn (TyFun TYPE TYPE)) (TyVar i)) bt
 
     let bm = zip (map idName bt) $ zip bt bd
 
@@ -141,10 +141,10 @@ createStructEqFunc dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
 createStructEqFunc dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
     kv <- knownValues
 
-    let t = mkTyConApp tn (map TyVar ns) TYPE
+    let t = mkTyCon tn (map TyVar ns) TYPE
 
     bt <- freshIdsN $ map typeOf ns
-    bd <- freshIdsN $ map (\i -> TyApp (TyConApp dcn (TyFun TYPE TYPE)) (TyVar i)) bt
+    bd <- freshIdsN $ map (\i -> TyApp (TyCon dcn (TyFun TYPE TYPE)) (TyVar i)) bt
     let bm = zip (map idName bt) $ zip bt bd
 
     let t' = foldr (\(i, t_) -> retype i t_) t $ zip ns (map TyVar bt)
@@ -212,7 +212,7 @@ boundCheck bm i1 i2 = do
 
 structEqCheck :: [(Name, (Id, Id))] -> Type -> Id -> Id -> IT.SimpleStateM Expr
 structEqCheck bm t i1 i2
-    | TyConApp _ _ <- tyAppCenter t = do
+    | TyCon _ _ <- tyAppCenter t = do
     kv <- knownValues
 
     let ex = Var $ Id (structEqFunc kv) TyUnknown
@@ -247,7 +247,7 @@ structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t
 
 dictForType :: [(Name, (Id, Id))] -> Type -> IT.SimpleStateM Expr
 dictForType bm t
-    | TyConApp _ _ <- tyAppCenter t
+    | TyCon _ _ <- tyAppCenter t
     , ts <- tyAppArgs t = do
     kv <- knownValues
     tc <- IT.typeClasses

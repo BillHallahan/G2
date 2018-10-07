@@ -335,8 +335,8 @@ binT = do
     lh <- lhTCM
     bool <- tyBoolT
 
-    let ord' = L.TyConApp ord L.TYPE
-    let lh' = L.TyConApp lh L.TYPE
+    let ord' = L.TyCon ord L.TYPE
+    let lh' = L.TyCon lh L.TYPE
 
     return $ L.TyForAll (L.NamedTyBndr a) 
                     (L.TyFun
@@ -380,7 +380,7 @@ numT = do
     let tva = L.TyVar a
     num <- lhNumTCM
 
-    let num' = L.TyConApp num L.TYPE
+    let num' = L.TyCon num L.TYPE
 
     return $ L.TyForAll (L.NamedTyBndr a) 
                     (L.TyFun

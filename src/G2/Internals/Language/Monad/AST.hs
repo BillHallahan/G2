@@ -72,8 +72,8 @@ instance ASTM Type where
         tf' <- f tf
         ta' <- f ta
         return $ TyApp tf' ta'
-    modifyChildrenM f (TyConApp b ts) =
-        return . TyConApp b =<< f ts
+    modifyChildrenM f (TyCon b ts) =
+        return . TyCon b =<< f ts
     modifyChildrenM f (TyForAll b t) = do
         b' <- modifyContainedASTsM f b
         return . TyForAll b' =<< modifyChildrenM f t

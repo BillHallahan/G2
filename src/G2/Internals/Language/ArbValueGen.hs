@@ -25,7 +25,7 @@ arbValueInit = ArbValueGen { intGen = 0
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 arbValue t tenv av
-  | TyConApp n _ <- tyAppCenter t
+  | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
     maybe (Prim Undefined TyBottom, av) 
           (\adt -> getFiniteADT tenv av adt ts)

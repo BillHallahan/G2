@@ -78,10 +78,10 @@ filterTC' tc a@(App e e') =
 filterTC' _ e = e
 
 tcCenter :: TypeClasses -> Type -> Bool
-tcCenter tc (TyConApp n _) = isTypeClassNamed n tc
+tcCenter tc (TyCon n _) = isTypeClassNamed n tc
 tcCenter tc (TyFun t _) = tcCenter tc t
 tcCenter _ _ = False
 
 isTC :: TypeClasses -> Expr -> Bool
-isTC tc (Var (Id _ (TyConApp n _))) = isTypeClassNamed n tc
+isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc
 isTC _ _ = False

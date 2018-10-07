@@ -31,7 +31,7 @@ createDeepSeqStore (n, adt) n' w =
         bn = map TyVar $ bound_ids adt
         bnf = map (\b -> TyFun b b) bn
 
-        base = TyFun (TyConApp n TYPE) (TyConApp n TYPE)
+        base = TyFun (TyCon n TYPE) (TyCon n TYPE)
 
         t = foldr TyFun base (bn ++ bnf)
         t' = foldr TyForAll t $ map NamedTyBndr bi
@@ -65,8 +65,8 @@ createDeepSeqExpr tenv w (n, adt) ng =
 createDeepSeqCase1 :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> RenameMap-> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
 createDeepSeqCase1 tenv w ti n rm bn (DataTyCon {data_cons = dc}) ng =
     let
-        (i, ng') = freshId (mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE) ng
-        (caseB, ng'') = freshId (mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE) ng'
+        (i, ng') = freshId (mkTyCon n (map (TyVar . flip Id TYPE) bn) TYPE) ng
+        (caseB, ng'') = freshId (mkTyCon n (map (TyVar . flip Id TYPE) bn) TYPE) ng'
 
         (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n caseB rm bn ng'' dc
 
@@ -75,7 +75,7 @@ createDeepSeqCase1 tenv w ti n rm bn (DataTyCon {data_cons = dc}) ng =
     (Lam TermL i c, ng''')
 createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
     let
-        t' = mkTyConApp n (map (TyVar . flip Id TYPE) bn) TYPE
+        t' = mkTyCon n (map (TyVar . flip Id TYPE) bn) TYPE
         t'' = renames rm t
 
         (i, ng') = freshId t' ng
@@ -125,7 +125,7 @@ tyForAllIds _ = []
 createDeepSeqDataConCase2 :: TypeEnv -> Walkers -> [(Name, Id)] -> RenameMap -> [Id] -> NameGen -> Expr -> (Expr, NameGen)
 createDeepSeqDataConCase2 _ _ _ _ [] ng e = (e, ng)
 createDeepSeqDataConCase2 tenv w ti rm (i:is) ng e
-    | t@(TyConApp n _) <- typeOf i 
+    | t@(TyCon n _) <- typeOf i 
     , Just (NewTyCon {rep_type = rt}) <- M.lookup n tenv =
     let
         (i', ng') = freshId rt ng
@@ -159,7 +159,7 @@ deepSeqFuncCall w ti rm e =
 deepSeqFunc :: Typed t => Walkers -> [(Name, Id)] -> RenameMap -> t -> Maybe Expr
 deepSeqFunc w ti rm e
     | t <- typeOf e
-    , TyConApp n _ <- tyAppCenter t
+    , TyCon n _ <- tyAppCenter t
     , ts <- tyAppArgs t
     , Just f <- M.lookup n w =
         let
@@ -177,7 +177,7 @@ walkerFunc _ ti _ (TyVar (Id n _))
     | Just tyF <- lookup n ti = 
         Var tyF
 walkerFunc w ti rm t
-    | TyConApp n _ <- tyAppCenter t
+    | TyCon n _ <- tyAppCenter t
     , ts <- tyAppArgs t
     , Just f <- M.lookup n w =
         let

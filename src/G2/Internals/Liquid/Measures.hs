@@ -56,7 +56,7 @@ measureTypeMappings (M {name = n, sort = srt}) = do
 addLHDictToType :: Name -> Type -> Type
 addLHDictToType lh t =
     let
-        lhD = map (\i -> mkTyConApp lh [TyVar i] TYPE) $ tyForAllBindings $ PresType t
+        lhD = map (\i -> mkTyCon lh [TyVar i] TYPE) $ tyForAllBindings $ PresType t
     in
     mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
@@ -70,7 +70,7 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
     let bnds = tyForAllBindings $ PresType $ fromJust st
         ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]
         nbnds = zip ds $ map TyVar bnds
-        as = map (\(d, t) -> Id d $ mkTyConApp lh_tc [t] TYPE) nbnds
+        as = map (\(d, t) -> Id d $ mkTyCon lh_tc [t] TYPE) nbnds
         as' = map (TypeL, ) bnds ++ map (TermL,) as
 
         as_t = map (\i -> (forType $ typeOf i, i)) as
@@ -95,11 +95,11 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
 
 convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
 convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
-    | TyConApp _ _ <- tyAppCenter l_t
+    | TyCon _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t = do
     tenv <- typeEnv
     let (DataCon n t) = mkData HM.empty HM.empty dc
-        (TyConApp tn _) = tyAppCenter $ returnType $ PresType t
+        (TyCon tn _) = tyAppCenter $ returnType $ PresType t
         dc' = getDataConNameMod tenv tn n
         
         -- See [1] below, we only evaluate this if Just

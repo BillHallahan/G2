@@ -130,7 +130,7 @@ typeNames = evalASTs typeTopNames
 
 typeTopNames :: Type -> [Name]
 typeTopNames (TyVar i) = [idName i]
-typeTopNames (TyConApp n _) = [n]
+typeTopNames (TyCon n _) = [n]
 typeTopNames (TyForAll (NamedTyBndr v) _) = [idName v]
 typeTopNames _ = []
 
@@ -289,7 +289,7 @@ instance Named Type where
     names = eval go
         where
             go (TyVar i) = idNamesInType i
-            go (TyConApp n _) = [n]
+            go (TyCon n _) = [n]
             go (TyForAll b _) = tyBinderNamesInType b
             go _ = []
 
@@ -297,7 +297,7 @@ instance Named Type where
       where
         go :: Type -> Type
         go (TyVar i) = TyVar (renameIdInType old new i)
-        go (TyConApp n ts) = TyConApp (rename old new n) ts
+        go (TyCon n ts) = TyCon (rename old new n) ts
         go (TyForAll tb t) = TyForAll (renameTyBinderInType old new tb) t
         go t = t
 
@@ -305,7 +305,7 @@ instance Named Type where
       where
         go :: Type -> Type
         go (TyVar i) = TyVar (renamesIdInType hm i)
-        go (TyConApp n ts) = TyConApp (renames hm n) ts
+        go (TyCon n ts) = TyCon (renames hm n) ts
         go (TyForAll tb t) = TyForAll (renamesTyBinderInType hm tb) t
         go t = t
 

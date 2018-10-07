@@ -93,7 +93,7 @@ mkApplyFuncAndTypes' ((t, n):xs) funcT (FuncInterps fi) at = do
     -- Update type environment
     applyCons <- freshSeededNamesN funcs
     
-    let dcs = map (\dcn -> DataCon dcn (TyConApp n TYPE)) applyCons
+    let dcs = map (\dcn -> DataCon dcn (TyCon n TYPE)) applyCons
         adt = DataTyCon [] dcs
     insertT n adt
 
@@ -105,11 +105,11 @@ mkApplyFuncAndTypes' ((t, n):xs) funcT (FuncInterps fi) at = do
     applyFuncN <- freshSeededStringN "applyFunc"
 
     -- Update Apply Types
-    let applyFunc = Id applyFuncN (TyFun (TyConApp n TYPE) t)
+    let applyFunc = Id applyFuncN (TyFun (TyCon n TYPE) t)
         at2 = AT.insert t n applyFunc at
 
     -- Update expression enviroment
-    expr <- mkApplyTypeMap (zip applyCons funcFolds) (TyConApp n TYPE) t
+    expr <- mkApplyTypeMap (zip applyCons funcFolds) (TyCon n TYPE) t
 
     insertE applyFuncN expr
 

@@ -162,14 +162,14 @@ instance AST Type where
     children (TyVar i) = containedASTs i
     children (TyFun tf ta) = [tf, ta]
     children (TyApp tf ta) = [tf, ta]
-    children (TyConApp _ t) = [t]
+    children (TyCon _ t) = [t]
     children (TyForAll b t)  = containedASTs b ++ [t]
     children _ = []
 
     modifyChildren f (TyVar i) = TyVar $ modifyContainedASTs f i
     modifyChildren f (TyFun tf ta) = TyFun (f tf) (f ta)
     modifyChildren f (TyApp tf ta) = TyApp (f tf) (f ta)
-    modifyChildren f (TyConApp b ts) = TyConApp b (f ts)
+    modifyChildren f (TyCon b ts) = TyCon b (f ts)
     modifyChildren f (TyForAll b t) = TyForAll (modifyContainedASTs f b) (f t)
     modifyChildren _ t = t
 

@@ -57,14 +57,14 @@ nameIdToTypeId nm (n, i, _) =
     if n == nm then fmap (, i) t else Nothing
 
 affectedType :: Type -> Maybe Type
-affectedType (TyApp (TyConApp _ _) t) = Just t
+affectedType (TyApp (TyCon _ _) t) = Just t
 affectedType _ = Nothing
 
 isTypeClassNamed :: Name -> TypeClasses -> Bool
 isTypeClassNamed n = M.member n . (coerce :: TypeClasses -> TCType)
 
 isTypeClass :: TypeClasses -> Type -> Bool
-isTypeClass tc (TyConApp n _) = isTypeClassNamed n tc 
+isTypeClass tc (TyCon n _) = isTypeClassNamed n tc 
 isTypeClass tc (TyApp t _) = isTypeClass tc t
 isTypeClass _ _ = False
 
@@ -155,7 +155,7 @@ satisfyingTCTypes tc ts =
 
 substKind :: Id -> [Type] -> (Id, [Type])
 substKind i@(Id _ t) ts = (i, map (\t' -> case t' of 
-                                            TyConApp n _ -> TyConApp n (tyFunToTyApp t)
+                                            TyCon n _ -> TyCon n (tyFunToTyApp t)
                                             t'' -> t'') ts)
 
 tyFunToTyApp :: Type -> Type
@@ -173,11 +173,11 @@ satisfyTCReq tc ts =
     $ filter (isTypeClass tc) ts
 
 toIdTypeTup :: [Type] -> Maybe (Id, [Type])
-toIdTypeTup ts@(TyApp (TyConApp _ _) (TyVar i):_) = Just (i, ts)
+toIdTypeTup ts@(TyApp (TyCon _ _) (TyVar i):_) = Just (i, ts)
 toIdTypeTup _ = Nothing
 
 tyConAppName :: Type -> Maybe Name
-tyConAppName (TyConApp n _) = Just n
+tyConAppName (TyCon n _) = Just n
 tyConAppName _ = Nothing
 
 inter :: Eq a => [[a]] -> [a]
@@ -192,7 +192,7 @@ concreteSatStructEq kv tc t = concreteSatTC tc (structEqTC kv) t
 
 concreteSatTC :: TypeClasses -> Name -> Type -> Maybe Expr
 concreteSatTC tc tcn t
-    | TyConApp _ _ <- tyAppCenter t
+    | TyCon _ _ <- tyAppCenter t
     , ts <- tyAppArgs t
     , tcs <- map (concreteSatTC tc tcn) ts
     , all (isJust) tcs =
@@ -206,7 +206,7 @@ concreteSatTC tc tcn t = fmap Var (lookupTCDict tc tcn t)
 -- the typeclass, returns an instance of the typeclass, if possible 
 typeClassInst :: TypeClasses -> M.Map Name Id -> Name -> Type -> Maybe Expr 
 typeClassInst tc m tcn t
-    | tca@(TyConApp _ _) <- tyAppCenter t
+    | tca@(TyCon _ _) <- tyAppCenter t
     , ts <- tyAppArgs t
     , tcs <- map (typeClassInst tc m tcn) ts
     , all (isJust) tcs =

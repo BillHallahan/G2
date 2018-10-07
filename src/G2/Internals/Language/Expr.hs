@@ -330,14 +330,14 @@ mkStrict' w e =
         ts = tyAppArgs rt
     in
     case t of
-        (TyConApp n _) -> case M.lookup n w of
+        (TyCon n _) -> case M.lookup n w of
             Just i -> App (foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)) e
             Nothing -> error $ "mkStrict: failed to find walker with type: " ++ show n
         _ -> error $ "No walker found in mkStrict\n e = " ++ show e ++ "\nt = " ++ show (typeOf e) ++ "\nret = " ++ show (returnType e)
 
 typeToWalker :: Walkers -> Type -> Expr
 typeToWalker w t
-  | TyConApp n _ <- tyAppCenter t
+  | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
   case M.lookup n w of
     Just i -> foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)

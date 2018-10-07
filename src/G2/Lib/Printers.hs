@@ -196,7 +196,7 @@ mkPrimHaskell BindFunc = "undefined"
 mkTypeHaskell :: Type -> String
 mkTypeHaskell (TyVar i) = mkIdHaskell i
 mkTypeHaskell (TyFun t1 t2) = mkTypeHaskell t1 ++ " -> " ++ mkTypeHaskell t2
-mkTypeHaskell (TyConApp n _) = mkNameHaskell n
+mkTypeHaskell (TyCon n _) = mkNameHaskell n
 mkTypeHaskell (TyApp t1 t2) = "(" ++ mkTypeHaskell t1 ++ " " ++ mkTypeHaskell t2 ++ ")"
 mkTypeHaskell _ = "Unsupported type in printer."
 

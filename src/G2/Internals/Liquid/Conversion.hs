@@ -173,7 +173,7 @@ tcWithNameMap n =
 
 isTC :: Name -> Type -> Bool
 isTC n t = case tyAppCenter t of
-                TyConApp n' _ -> n == n'
+                TyCon n' _ -> n == n'
                 _ -> False
 
 argsFromArgT :: ArgType -> LHStateM Id
@@ -298,7 +298,7 @@ convertLHExpr m bt _ (EApp e e') = do
         ts = tyAppArgs tArgE
     
     case (ctArgE, f_ar_ts) of
-        (TyConApp _ _, Just f_ar_ts') -> do
+        (TyCon _ _, Just f_ar_ts') -> do
             let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts'
                 te = map Type specTo
 
@@ -321,7 +321,7 @@ convertLHExpr m bt t (ENeg e) = do
     let negate' = Var $ Id neg 
                         (TyForAll (NamedTyBndr a)
                             (TyFun
-                                (TyApp (TyConApp num (TyApp TYPE TYPE)) tva)
+                                (TyApp (TyCon num (TyApp TYPE TYPE)) tva)
                                 (TyFun
                                     tva
                                     tva
@@ -410,7 +410,7 @@ convertBop' f = do
     let tva = TyVar a
     return $ Var $ Id n (TyForAll (NamedTyBndr a)
                             (TyFun
-                                (TyApp (TyConApp num (TyApp TYPE TYPE)) tva)
+                                (TyApp (TyCon num (TyApp TYPE TYPE)) tva)
                                 (TyFun
                                     tva
                                     (TyFun 
@@ -506,8 +506,8 @@ convertEVar nm@(Name n md _ _) bt mt = do
         _ -> return $ Var (Id nm t)
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
-convertCon (Just (TyConApp n _)) (Ref.I i) = do
-    (TyConApp ti _) <- tyIntT
+convertCon (Just (TyCon n _)) (Ref.I i) = do
+    (TyCon ti _) <- tyIntT
     dc <- mkDCIntE
     if n == ti
         then return $ App dc (Lit . LitInt $ fromIntegral i)
@@ -555,7 +555,7 @@ rTyConType rtc sts = do
     ts <- mapM specTypeToType sts
     
     case (not . any isNothing $ ts) of
-        True -> case fmap (\n' -> mkTyConApp n' (catMaybes ts) TYPE) n of
+        True -> case fmap (\n' -> mkTyCon n' (catMaybes ts) TYPE) n of
                     Nothing -> return $ primType tcn
                     t -> return t
         False -> return Nothing
@@ -588,7 +588,7 @@ convertBrel' f = do
         t = TyForAll 
                 (NamedTyBndr a)
                 (TyFun
-                    (TyConApp lh TYPE)
+                    (TyCon lh TYPE)
                     (TyFun 
                         tva 
                         (TyFun tva b)
@@ -631,7 +631,7 @@ addLHDictToTypes''' m is (TyForAll (NamedTyBndr b) t) =
 addLHDictToTypes''' _ is t = do
     lh <- lhTCM
     let is' = reverse is
-    let dictT = map (TyApp (TyConApp lh (TyApp TYPE TYPE)) . TyVar) is'
+    let dictT = map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) is'
 
     return $ foldr TyFun t dictT
 

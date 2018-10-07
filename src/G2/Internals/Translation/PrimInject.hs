@@ -23,12 +23,12 @@ primInject :: ASTContainer p Type => p -> p
 primInject = modifyASTs primInjectT
 
 primInjectT :: Type -> Type
-primInjectT (TyConApp (Name "TYPE" (Just "GHC.Prim") _ _) _) = TYPE
-primInjectT (TyConApp (Name "Int#" _ _ _) _) = TyLitInt
-primInjectT (TyConApp (Name "Word#" _ _ _) _) = TyLitInt
-primInjectT (TyConApp (Name "Float#" _ _ _) _) = TyLitFloat
-primInjectT (TyConApp (Name "Double#" _ _ _) _) = TyLitDouble
-primInjectT (TyConApp (Name "Char#" _ _ _) _) = TyLitChar
+primInjectT (TyCon (Name "TYPE" (Just "GHC.Prim") _ _) _) = TYPE
+primInjectT (TyCon (Name "Int#" _ _ _) _) = TyLitInt
+primInjectT (TyCon (Name "Word#" _ _ _) _) = TyLitInt
+primInjectT (TyCon (Name "Float#" _ _ _) _) = TyLitFloat
+primInjectT (TyCon (Name "Double#" _ _ _) _) = TyLitDouble
+primInjectT (TyCon (Name "Char#" _ _ _) _) = TyLitChar
 primInjectT t = t
 
 dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
@@ -113,7 +113,7 @@ tyIntInt :: Type
 tyIntInt = TyFun TyLitInt TyLitInt
 
 tyIntIntBool :: Name -> Type
-tyIntIntBool n = TyFun TyLitInt $ TyFun TyLitInt (TyConApp n TYPE)
+tyIntIntBool n = TyFun TyLitInt $ TyFun TyLitInt (TyCon n TYPE)
 
 tyIntIntInt :: Type
 tyIntIntInt = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
@@ -122,7 +122,7 @@ tyDoubleDouble :: Type
 tyDoubleDouble = TyFun TyLitDouble TyLitDouble
 
 tyDoubleDoubleBool :: Name -> Type
-tyDoubleDoubleBool n = TyFun TyLitDouble $ TyFun TyLitDouble (TyConApp n TYPE)
+tyDoubleDoubleBool n = TyFun TyLitDouble $ TyFun TyLitDouble (TyCon n TYPE)
 
 tyDoubleDoubleDouble :: Type
 tyDoubleDoubleDouble = TyFun TyLitDouble $ TyFun TyLitDouble TyLitDouble
@@ -131,7 +131,7 @@ tyFloatFloat :: Type
 tyFloatFloat = TyFun TyLitFloat TyLitFloat
 
 tyFloatFloatBool :: Name -> Type
-tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyConApp n TYPE)
+tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)
 
 tyFloatFloatFloat :: Type
 tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat

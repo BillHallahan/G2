@@ -58,7 +58,7 @@ solveADTs :: State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
 solveADTs s [Id n t] pc
     -- We can't use the ADT solver when we have a Boolean, because the RHS of the
     -- DataAlt might be a primitive.
-    | TyConApp tn k <- tyAppCenter t
+    | TyCon tn k <- tyAppCenter t
     , ts <- tyAppArgs t
     , t /= tyBool (known_values s)  =
     do
@@ -76,7 +76,7 @@ addADTs :: Name -> Name -> [Type] -> Kind -> State t -> PathConds -> (Result, St
 addADTs n tn ts k s pc
     | PC.null pc =
         let
-            (bse, av) = arbValue (mkTyApp (TyConApp tn k:ts)) (type_env s) (arbValueGen s)
+            (bse, av) = arbValue (mkTyApp (TyCon tn k:ts)) (type_env s) (arbValueGen s)
             m' = M.singleton n bse
         in
         (SAT, s {model = M.union m' (model s), arbValueGen = av})

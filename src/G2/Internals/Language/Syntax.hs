@@ -198,7 +198,7 @@ data Type = TyVar Id
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
           | TyFun Type Type
           | TyApp Type Type
-          | TyConApp Name Kind
+          | TyCon Name Kind
           | TyForAll TyBinder Type
           | TyBottom
           | TYPE

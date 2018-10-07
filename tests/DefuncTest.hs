@@ -8,10 +8,10 @@ import TestUtils
 -- Defunc1
 
 a :: Expr -> Expr
-a = App (Data $ DataCon (Name "A" (Just "Defunc1") 0 Nothing) (TyConApp (Name "A" (Just "Defunc1") 0 Nothing) TYPE))
+a = App (Data $ DataCon (Name "A" (Just "Defunc1") 0 Nothing) (TyCon (Name "A" (Just "Defunc1") 0 Nothing) TYPE))
 
 dataB :: Expr
-dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0 Nothing) (TyConApp (Name "A" (Just "Defunc1") 0 Nothing) TYPE)
+dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0 Nothing) (TyCon (Name "A" (Just "Defunc1") 0 Nothing) TYPE)
 
 add1 :: Expr
 add1 = Var (Id (Name "add1" (Just "Defunc1") 0 Nothing) tyIntS) 
@@ -43,16 +43,16 @@ squareD2 :: Expr
 squareD2 = Var (Id (Name "square" (Just "Defunc2") 0 Nothing) tyIntS) 
 
 iListI :: Expr
-iListI = Data $ DataCon (Name "I" (Just "Defunc2") 0 Nothing) (TyConApp (Name "IList" (Just "Defunc2") 0 Nothing) TYPE)
+iListI = Data $ DataCon (Name "I" (Just "Defunc2") 0 Nothing) (TyCon (Name "IList" (Just "Defunc2") 0 Nothing) TYPE)
 
 iListNil :: Expr
-iListNil = Data $ DataCon (Name "INil" (Just "Defunc2") 0 Nothing) (TyConApp (Name "IList" (Just "Defunc2") 0 Nothing) TYPE)
+iListNil = Data $ DataCon (Name "INil" (Just "Defunc2") 0 Nothing) (TyCon (Name "IList" (Just "Defunc2") 0 Nothing) TYPE)
 
 fListF :: Expr
-fListF = Data $ DataCon (Name "F" (Just "Defunc2") 0 Nothing) (TyConApp (Name "FList" (Just "Defunc2") 0 Nothing) TYPE)
+fListF = Data $ DataCon (Name "F" (Just "Defunc2") 0 Nothing) (TyCon (Name "FList" (Just "Defunc2") 0 Nothing) TYPE)
 
 fListNil :: Expr
-fListNil = Data $ DataCon (Name "FNil" (Just "Defunc2") 0 Nothing) (TyConApp (Name "FList" (Just "Defunc2") 0 Nothing) TYPE)
+fListNil = Data $ DataCon (Name "FNil" (Just "Defunc2") 0 Nothing) (TyCon (Name "FList" (Just "Defunc2") 0 Nothing) TYPE)
 
 add1Def :: Integer -> Integer
 add1Def x = x + 1
@@ -80,4 +80,4 @@ defunc2Check'' (Var (Id (Name "square" _ _ _) _)) i i' = squareDef i == i'
 defunc2Check'' _ _ _ = False
 
 tyIntS :: Type
-tyIntS = TyConApp (Name "Int" Nothing 0 Nothing) TYPE
+tyIntS = TyCon (Name "Int" Nothing 0 Nothing) TYPE

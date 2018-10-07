@@ -73,7 +73,7 @@ createLHTCFuncs = do
                                 case adt of
                                     Just adt' -> do
                                         let bnvK = mkTyApp $ map (const TYPE) $ bound_ids adt'
-                                        return (TyConApp n bnvK, f)
+                                        return (TyCon n bnvK, f)
                                     Nothing -> error $ "No LH Dict name for " ++ show n) lhm
 
     tc <- typeClasses
@@ -95,14 +95,14 @@ lhtcT :: Name -> AlgDataTy -> LHStateM Type
 lhtcT n adt = do
     lh <- lhTCM
     let bi = bound_ids adt
-    let ct = foldl' TyApp (TyConApp n TYPE) $ map TyVar bi
+    let ct = foldl' TyApp (TyCon n TYPE) $ map TyVar bi
 
     let t = (TyApp 
-                (TyConApp lh TYPE) 
+                (TyCon lh TYPE) 
                 ct
             )
 
-    let t' = foldr TyFun t $ map (TyApp (TyConApp lh (TyFun TYPE TYPE)) . TyVar) bi
+    let t' = foldr TyFun t $ map (TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
     let t'' = foldr TyForAll t' $ map NamedTyBndr bi
     return t''
 
@@ -130,7 +130,7 @@ createLHTCFuncs' lhm n adt = do
 
     let bi = bound_ids adt
     let bt = map (Type . TyVar) bi
-    lhd <- freshIdsN (map (TyApp (TyConApp lh (TyApp TYPE TYPE)) . TyVar) bi)
+    lhd <- freshIdsN (map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) bi)
     let lhdv = map Var lhd
 
     let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ppN]
@@ -147,7 +147,7 @@ createLHTCFuncs' lhm n adt = do
         Just fn' -> do
             insertMeasureM (idName fn') e''
             -- let bnvK = mkTyApp $ map (const TYPE) bi
-            return () -- return (TyConApp n bnvK, fn')
+            return () -- return (TyCon n bnvK, fn')
         Nothing -> error $ "No LH Dict name for " ++ show n
 
 lhDCType :: LHStateM Type
@@ -162,7 +162,7 @@ lhDCType = do
                     (TyFun
                         TyUnknown
                         (TyApp 
-                            (TyConApp lh TYPE) 
+                            (TyCon lh TYPE) 
                             (TyVar n)
                         )
                     )
@@ -179,10 +179,10 @@ createFunc cf n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
-    lhbi <- mapM (freshIdN . TyApp (TyConApp lh TYPE) . TyVar) bi
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
 
-    d1 <- freshIdN (TyConApp n TYPE)
-    d2 <- freshIdN (TyConApp n TYPE)
+    d1 <- freshIdN (TyCon n TYPE)
+    d2 <- freshIdN (TyCon n TYPE)
 
     let m = M.fromList $ zip (map idName bi) lhbi
     e <- mkFirstCase cf m d1 d2 adt
@@ -227,7 +227,7 @@ lhEqFunc ldm _ dc ba1 = do
 
 eqLHFuncCall :: LHDictMap -> Id -> Id -> LHStateM Expr
 eqLHFuncCall ldm i1 i2
-    | TyConApp _ _ <- tyAppCenter t
+    | TyCon _ _ <- tyAppCenter t
     , ts <- tyAppArgs t  = do
         lhe <- lhEqM
 
@@ -289,12 +289,12 @@ lhPPFunc n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
-    lhbi <- mapM (freshIdN . TyApp (TyConApp lh TYPE) . TyVar) bi
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
 
     b <- tyBoolT
     fs <- mapM (\v -> freshIdN (TyFun (TyVar v) b)) bi
 
-    d <- freshIdN (TyConApp n TYPE)
+    d <- freshIdN (TyCon n TYPE)
 
     let lhm = M.fromList $ zip (map idName bi) lhbi
     let fnm = M.fromList $ zip (map idName bi) fs
@@ -329,7 +329,7 @@ lhPPAlt lhm fnm dc = do
 -- This returns an Expr with a function type, of the given Type to Bool.
 lhPPCall :: LHDictMap -> PPFuncMap -> Type -> LHStateM Expr
 lhPPCall lhm fnm t
-    | TyConApp _ _ <- tyAppCenter t
+    | TyCon _ _ <- tyAppCenter t
     , ts <- tyAppArgs t  = do
         lhpp <- lhPPM
 
@@ -376,15 +376,15 @@ createExtractors'' lh i j n = do
 
     bi <- freshIdsN $ replicate i TyUnknown
 
-    li <- freshIdN (TyConApp lh (TyApp TYPE TYPE)) 
-    ci <- freshIdN (TyConApp lh (TyApp TYPE TYPE))
+    li <- freshIdN (TyCon lh (TyApp TYPE TYPE)) 
+    ci <- freshIdN (TyCon lh (TyApp TYPE TYPE))
 
     b <- freshIdN TYPE
     let d = DataCon lh (TyForAll 
                             (NamedTyBndr b) 
                             (TyFun
                                 (TyVar b) 
-                                (TyApp (TyConApp lh (TyApp TYPE TYPE)) (TyVar b))
+                                (TyApp (TyCon lh (TyApp TYPE TYPE)) (TyVar b))
                             )
                         )
     let c = Case (Var li) ci [Alt (DataAlt d bi) (Var $ bi !! j)]

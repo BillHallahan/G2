@@ -237,7 +237,7 @@ higherOrderToAppTys' eenv at v@(Var (Id n t))
     | E.isSymbolic n eenv
     , isTyFun t
     , Just (tn, f) <- AT.lookup t at =
-        App (Var f) (Var (Id n (TyConApp tn TYPE)))
+        App (Var f) (Var (Id n (TyCon tn TYPE)))
     | otherwise = v
 higherOrderToAppTys' _ _ e = e
 
