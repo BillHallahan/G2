@@ -188,7 +188,7 @@ appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 instance Typed Type where
     typeOf' _ (TyVar (Id _ t)) = t
     typeOf' _ (TyFun _ _) = TYPE
-    typeOf' m ta@(TyApp t1 t2) =
+    typeOf' m (TyApp t1 t2) =
         let
             ft = typeOf' m t1
             at = typeOf' m t2
@@ -240,9 +240,11 @@ tyVarRename' _ t = t
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> Type -> Bool
 t1 .:: t2 = fst $ specializes M.empty (typeOf t1) t2
+{-# INLINE (.::) #-}
 
 (.::.) :: Type -> Type -> Bool
-t1 .::. t2 = fst (specializes M.empty t1 t2) && fst (specializes M.empty t2 t1)
+t1 .::. t2 = PresType t1 .:: t2 && PresType t2 .:: t1
+{-# INLINE (.::.) #-}
 
 specializes :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
 specializes m _ TYPE = (True, m)
@@ -264,21 +266,6 @@ specializes m (TyApp t1 t2) (TyApp t1' t2') =
     in
     (b1 && b2, m'')
 specializes m (TyCon n _) (TyCon n' _) = (n == n', m)
--- specializes m (TyCon n ts) app@(TyApp _ _) =
---     let
---         appts = unTyApp app
---     in
---     case appts of
---         TyCon n' ts':ts'' -> specializes m (TyCon n ts) (TyCon n' $ ts' ++ ts'')
---         _ -> (False, m)
--- specializes m app@(TyApp _ _) (TyCon n ts) =
---     let
---         appts = unTyApp app
---     in
---     case appts of
---         TyCon n' ts':ts'' -> specializes m (TyCon n ts) (TyCon n' $ ts' ++ ts'')
---         _ -> (False, m)
-
 specializes m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
   let
       (b1, m') = specializes m t1 t1'
