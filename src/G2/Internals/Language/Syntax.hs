@@ -43,7 +43,7 @@ instance Hashable Span
 data Name = Name T.Text (Maybe T.Text) Int (Maybe Span) deriving (Show, Read, Generic)
 
 instance Eq Name where
-    Name n m i _ == Name n' m' i' _ = n ==n' && m == m' && i == i'
+    Name n m i _ == Name n' m' i' _ = n == n' && m == m' && i == i'
 
 instance Ord Name where
     Name n m i _ `compare` Name n' m' i' _ = (n, m, i) `compare` (n', m', i')
@@ -57,6 +57,11 @@ instance Hashable Name where
 data Id = Id Name Type deriving (Show, Eq, Read, Generic)
 
 instance Hashable Id
+
+-- | Term lambdas bind variables in Expr's, Type lambdas bind variables in Type's
+data LamUse = TermL | TypeL deriving (Show, Eq, Read, Generic)
+
+instance Hashable LamUse
 
 idName :: Id -> Name
 idName (Id name _) = name
@@ -76,7 +81,7 @@ data Expr = Var Id
           | Prim Primitive Type
           | Data DataCon
           | App Expr Expr
-          | Lam Id Expr
+          | Lam LamUse Id Expr
           | Let Binds Expr
           | Case Expr Id [Alt]
           | Type Type
@@ -193,12 +198,14 @@ data Type = TyVar Id
           | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitString
           | TyFun Type Type
           | TyApp Type Type
-          | TyConApp Name [Type]
+          | TyCon Name Kind
           | TyForAll TyBinder Type
           | TyBottom
           | TYPE
           | TyUnknown
           deriving (Show, Eq, Read, Generic)
+
+type Kind = Type
 
 instance Hashable Type
 

@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import Text.Regex
 import Unsafe.Coerce
 
+import G2.Internals.Initialization.MkCurrExpr
 import G2.Internals.Language
 import G2.Internals.Translation.Haskell
 import G2.Lib.Printers
@@ -54,13 +55,15 @@ runCheck' proj src modN entry chAll gflags s ars out = do
 
         setContext [IIDecl prImD, IIDecl exImD, IIDecl imD]
 
-        let arsStr = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
+        let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
+        let e = mkApp $ Var v:ars
+        let arsStr = mkCleanExprHaskell s e
         let outStr = mkCleanExprHaskell s out
         let chck = case outStr == "error" of
                         False -> "try (evaluate (" ++ arsStr ++ " == " ++ outStr ++ ")) :: IO (Either SomeException Bool)"
                         True -> "try (evaluate (" ++ arsStr ++ " == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
 
-        v <- compileExpr chck
+        v' <- compileExpr chck
 
         let chArgs = ars ++ [out] 
         let chAllStr = map (\f -> mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
@@ -68,7 +71,7 @@ runCheck' proj src modN entry chAll gflags s ars out = do
 
         chAllR <- mapM compileExpr chAllStr'
 
-        return $ (v, chAllR)
+        return $ (v', chAllR)
 
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)

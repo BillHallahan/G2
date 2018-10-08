@@ -31,8 +31,6 @@ import G2.Internals.Solver.Language hiding (Assert)
 import Control.Monad
 import Data.Maybe
 
-import Debug.Trace
-
 exprRenames :: ASTContainer m Expr => [(Name, Name)] -> m -> m
 exprRenames n a = foldr (\(old, new) -> renameExpr old new) a n
 
@@ -274,7 +272,7 @@ resultsToState con config rule s@(State {known_values = kv}) (red@(_, _, pc, ass
 
 {-# INLINE resultToState #-}
 resultToState :: Config -> State t -> Rule -> ReduceResult t -> State t
-resultToState config s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
+resultToState _ s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
@@ -292,15 +290,15 @@ stdReduce :: Config -> State t -> (Rule, [ReduceResult t])
 stdReduce = stdReduceBase (const Nothing)
 
 stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> Config -> State t -> (Rule, [ReduceResult t])
-stdReduceBase redEx con s@State { exec_stack = estk
-                               , expr_env = eenv
-                               , type_env = tenv
-                               , curr_expr = cexpr
-                               , name_gen = ngen
-                               , known_values = kv
-                               , type_classes = tc
-                               , track = tr
-                               }
+stdReduceBase redEx _ s@State { exec_stack = estk
+                              , expr_env = eenv
+                              , type_env = tenv
+                              , curr_expr = cexpr
+                              , name_gen = ngen
+                              , known_values = kv
+                              , type_classes = tc
+                              , track = tr
+                              }
   | isExecValueFormDisNonRedPC s=
       (RuleIdentity, [(eenv, cexpr, [], [], Nothing, ngen, estk, [], [], tr)])
       -- (RuleIdentity, [(eenv, cexpr, [], [], ngen, estk)])
@@ -380,7 +378,7 @@ stdReduceBase redEx con s@State { exec_stack = estk
   , t <- typeOf expr
   , isTyFun idt
   , not (isTyFun t) 
-  , eq_tc <- concreteSatStructEq kv tc t =
+  , Just eq_tc <- concreteSatStructEq kv tc t =
     let
       (new_sym, ngen') = freshSeededString "sym" ngen
       new_sym_id = Id new_sym t
@@ -388,13 +386,8 @@ stdReduceBase redEx con s@State { exec_stack = estk
       s_eq_f = KV.structEqFunc kv
 
       nrpc_e = mkApp $ 
-                     [ Var (Id s_eq_f TyUnknown)]
-                     ++
-                     (if mode con == Liquid
-                        then [ Var (Id (Name "" Nothing 0 Nothing) TyBottom) ]
-                        else [])
-                     ++
-                     [ Type t
+                     [ Var (Id s_eq_f TyUnknown)
+                     , Type t
                      , eq_tc
                      , Var new_sym_id
                      , expr ]
@@ -413,7 +406,7 @@ stdReduceBase redEx con s@State { exec_stack = estk
 
   | CurrExpr Return expr <- cexpr
   , Just (f, estk') <- S.pop estk =
-      let (rule, (eenv', cexpr', ngen', nr_pc)) = reduceEReturn eenv expr ngen f kv tc
+      let (rule, (eenv', cexpr', ngen', nr_pc)) = reduceEReturn eenv expr ngen f
       in
         (rule, [(eenv', cexpr', [], [], Nothing, ngen', estk', [], nr_pc, tr)])
 
@@ -623,8 +616,8 @@ reduceCase eenv mexpr bind alts ngen
 type EReturnResult = (E.ExprEnv, CurrExpr, NameGen, [Expr])
 
 -- | Handle the Return states.
-reduceEReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> KnownValues -> TypeClasses -> (Rule, EReturnResult)
-reduceEReturn eenv cexpr ngen frm kv tc
+reduceEReturn :: E.ExprEnv -> Expr -> NameGen -> Frame -> (Rule, EReturnResult)
+reduceEReturn eenv cexpr ngen frm
 -- We are returning something and the first thing that we have on the stack
 -- is an `UpdateFrame`, this means that we add a redirection pointer to the
 -- `ExecExprEnv`, and continue with execution. This is the equivalent of
@@ -666,7 +659,7 @@ reduceEReturn eenv cexpr ngen frm kv tc
       , ngen
       , []))
 
-  | (Lam _ _) <- cexpr =
+  | (Lam _ _ _) <- cexpr =
     let
         (r, rr, _) = reduceLam eenv cexpr ngen frm
     in
@@ -713,7 +706,7 @@ isApplyFrame _ = False
 reduceLam :: ExprEnv -> Expr -> NameGen -> Frame -> (Rule, EReturnResult, [Name])
   -- In the event that our Lam parameter is a type variable, we have to handle
 -- it by retyping.
-reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
+reduceLam eenv (Lam _ b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
   | hasTYPE t =
       let aty = case traceIdType i eenv of
                       Just ty -> ty
@@ -728,10 +721,10 @@ reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame (Var i@(Id n' TYPE)))
            , [])
          , news)
 
-reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
-  | hasTYPE t =
-      let aty = typeOf aexpr
-          binds = [(Id n aty, aexpr)]
+reduceLam eenv (Lam _ b@(Id n _) lexpr) ngen (ApplyFrame taexpr)
+  | Type aexpr <- taexpr =
+      let aty = aexpr
+          binds = [(Id n aty, taexpr)]
           lexpr' = retype b aty lexpr
           (eenv', lexpr'', ngen', news) = liftBinds binds eenv lexpr' ngen
       in ( RuleReturnEApplyLamType news
@@ -747,7 +740,7 @@ reduceLam eenv (Lam b@(Id n t) lexpr) ngen (ApplyFrame aexpr)
 -- application, and then go into the expression body.
 -- reduceEReturn eenv (Lam b lexpr) ngen (ApplyFrame aexpr) =
   | otherwise =
-        let binds = [(b, aexpr)]
+        let binds = [(b, taexpr)]
             (eenv', lexpr', ngen', news) = liftBinds binds eenv lexpr ngen
         in ( RuleReturnEApplyLamExpr news
            , ( eenv'

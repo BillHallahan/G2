@@ -6,6 +6,8 @@ module GetNthTest where
 import G2.Internals.Language
 import TestUtils
 
+import Debug.Trace
+
 data CList a = Cons a (CList a) | Nil
 
 data Peano = Succ Peano | Zero
@@ -21,19 +23,23 @@ getNthErr (Cons _ xs) n = getNthErr xs (n - 1)
 getNthErr _      _ = Nothing
 
 toCList :: Expr -> CList Integer
-toCList (App (App (Data (DataCon (Name "Cons" _ _ _) _)) x) y) = getInt x Nil $ \x' -> Cons x' (toCList y)
+toCList (App (App (Data (DataCon (Name "Cons" _ _ _) _)) x) y) =
+    getInt x Nil $ \x' -> Cons x' (toCList y)
 toCList _ = Nil
 
 toCListGen :: Expr -> CList Expr
-toCListGen (App (App (Data (DataCon (Name "Cons" _ _ _) _)) e) y) = Cons e (toCListGen y)
+toCListGen (App (App (Data (DataCon (Name "Cons" _ _ _) _)) e) y) =
+    Cons e (toCListGen y)
 toCListGen _ = Nil
 
 toCListType :: Expr -> CList Integer
-toCListType (App (App (App (Data (DataCon (Name "Cons" _ _ _) _)) (Type _)) x) y) = getInt x Nil $ \x' -> Cons x' (toCListType y)
+toCListType (App (App (App (Data (DataCon (Name "Cons" _ _ _) _)) (Type _)) x) y) =
+    getInt x Nil $ \x' -> Cons x' (toCListType y)
 toCListType _ = Nil
 
 toCListGenType :: Expr -> CList Expr
-toCListGenType (App (App (App (Data (DataCon (Name "Cons" _ _ _) _)) (Type _)) e) y) = Cons e (toCListGenType y)
+toCListGenType (App (App (App (Data (DataCon (Name "Cons" _ _ _) _)) (Type _)) e) y) =
+    Cons e (toCListGenType y)
 toCListGenType _ = Nil
 
 cListLength :: CList a -> Integer
@@ -45,39 +51,39 @@ getNthTest [cl, i, a] = getIntB i $ \i' -> getIntB a $ \a' -> getNth (toCList cl
 getNthTest _ = False
 
 getNthErrTest :: [Expr] -> Bool
-getNthErrTest [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCList cl) i' == Nothing
-getNthErrTest [cl, i, a] = getIntB i $ \i' -> getIntB a $ \a' -> getNthErr (toCList cl) i' == Just a'
+getNthErrTest [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListType cl) i' == Nothing
+getNthErrTest [cl, i, a] = getIntB i $ \i' -> getIntB a $ \a' -> getNthErr (toCListType cl) i' == Just a'
 getNthErrTest _ = False
 
 getNthErrGenTest :: [Expr] -> Bool
-getNthErrGenTest [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
+getNthErrGenTest [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGenType cl) i' == Nothing
 getNthErrGenTest [cl, i, e] =
-    case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
+    case getInt i Nothing $ \i' -> getNthErr (toCListGenType cl) i' of
         Just e' -> e' `eqIgT` e
         Nothing -> False
 getNthErrGenTest _ = False
 
 getNthErrGenTest' :: [Expr] -> Bool
-getNthErrGenTest' [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
+getNthErrGenTest' [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGenType cl) i' == Nothing
 getNthErrGenTest' [cl, i, e] =
-    case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
+    case getInt i Nothing $ \i' -> getNthErr (toCListGenType cl) i' of
         Just e' -> e' `eqIgT` e
         Nothing -> False
 getNthErrGenTest' _ = False
 
 getNthErrGenTest2 :: [Expr] -> Bool
-getNthErrGenTest2 [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
+getNthErrGenTest2 [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGenType cl) i' == Nothing
 getNthErrGenTest2 [cl, i, e] =
-    case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
-        Just e' -> e' `eqIgT` elimType e
+    case getInt i Nothing $ \i' -> getNthErr (toCListGenType cl) i' of
+        Just e' -> e' `eqIgT` e
         Nothing -> False
 getNthErrGenTest2 _ = False
 
 getNthErrGenTest2' :: [Expr] -> Bool
-getNthErrGenTest2' [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGen cl) i' == Nothing
+getNthErrGenTest2' [cl, i, Prim Error _] = getIntB i $ \i' -> getNthErr (toCListGenType cl) i' == Nothing
 getNthErrGenTest2' [cl, i, e] =
-    case getInt i Nothing $ \i' -> getNthErr (toCListGen cl) i' of
-        Just e' -> e' `eqIgT` elimType e
+    case getInt i Nothing $ \i' -> getNthErr (toCListGenType cl) i' of
+        Just e' -> e' `eqIgT` e
         Nothing -> False
 getNthErrGenTest2' _ = False
 
@@ -93,5 +99,5 @@ getNthErrors [cl, App _ (Lit (LitInt i)), Prim Error _] = getNthErr (toCListGen 
 getNthErrors _ = False
 
 cfmapTest :: [Expr] -> Bool
-cfmapTest [_, e, e'] = cListLength (toCListGen e) == cListLength (toCListGenType e') || isError e'
+cfmapTest [_, e, e'] = cListLength (toCListGenType e) == cListLength (toCListGenType e') || isError e'
 cfmapTest _ = False

@@ -12,12 +12,13 @@ import qualified G2.Internals.Language.ExprEnv as E
 
 import G2.Internals.Execution
 
+import G2.Internals.Liquid.AddLHTC
 import G2.Internals.Liquid.Annotations
 import G2.Internals.Liquid.Conversion
-import G2.Internals.Liquid.ElimPartialApp
+import G2.Internals.Liquid.ConvertCurrExpr
 import G2.Internals.Liquid.Measures
 import G2.Internals.Liquid.Rules
-import G2.Internals.Liquid.SimplifyAsserts
+import G2.Internals.Liquid.Simplify
 import G2.Internals.Liquid.SpecialAsserts
 import G2.Internals.Liquid.TCGen
 import G2.Internals.Liquid.Types
@@ -35,14 +36,13 @@ import qualified Language.Haskell.Liquid.UX.Config as LHC
 
 import Language.Fixpoint.Solver
 import qualified Language.Fixpoint.Types as F
-import Language.Fixpoint.Types.PrettyPrint as FPP
+import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.Coerce
 import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
-import Data.Maybe
 
 import System.Directory
 
@@ -62,7 +62,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
+findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO ([(State [FuncCall], [Expr], Expr, Maybe FuncCall)], Lang.Id)
 findCounterExamples proj fp entry libs lhlibs config = do
     let config' = config { mode = Liquid }
 
@@ -77,62 +77,37 @@ findCounterExamples proj fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
                     -> [LHOutput]
                     -> Config
-                    -> IO [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
-runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
-    let ghcInfos = map ghcI ghci_cg
-
-    let specs = funcSpecs ghcInfos
-    let lh_measures = measureSpecs ghcInfos
-
+                    -> IO ([(State [FuncCall], [Expr], Expr, Maybe FuncCall)], Lang.Id)
+runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let (init_state, ifi) = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
 
-
-
-    let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = elimPartialApp cleaned_state
+    let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = cleaned_state
 
     let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
     let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
     let ng_state = no_part_state {name_gen = ng'}
-    
 
     let ng_state' = ng_state {track = []}
 
-    let lh_state = createLHTC meenv ng_state'
+    let lh_state = createLHTC meenv mkv ng_state'
 
-    let lhtc_state1 = addLHTC lh_state
-    let meenv''' = measures lhtc_state1
-    let tcv = tcvalues lhtc_state1
-    let lhtc_state = state lhtc_state1
+    let (abs_fun, merged_state) = runLHStateM (initializeLH ghci_cg ifi) lh_state
 
-    -- let (meenv'', meenvT) = addLHTCExprEnv meenv' (type_env lhtc_state) (type_classes lhtc_state) tcv
-    -- let meenv''' = replaceVarTy meenvT meenv''
-    let (meas_eenv, meas_ng) = createMeasures lh_measures tcv (lhtc_state {expr_env = meenv'''})
+    let tcv = tcvalues merged_state
+    let merged_state' = deconsLHState merged_state
 
-    let ng2_state = lhtc_state {name_gen = meas_ng}
+    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
 
-    let (merged_state, ifi') = mergeLHSpecState ifi (filter isJust $ nub $ map nameModule tgt_ns) specs ng2_state meas_eenv tcv
+    let annm = annots merged_state
 
-    let beta_red_state = simplifyAsserts mkv tcv merged_state {apply_types = apply_types ng2_state}
-    let pres_names = reqNames beta_red_state ++ names tcv ++ names mkv
-
-    -- We create annm_gen_state purely to have to generate less annotations
-    -- We continue execution with beta_red_state later, because otherwise we might have lost some values for LH TC that we need
-    let annm_gen_state = (markAndSweepPreserving pres_names beta_red_state) { type_env = type_env beta_red_state }
-
-    let annm = getAnnotMap tcv annm_gen_state meas_eenv ghci_cg
-    let annm' = simplifyAssertsG mkv tcv (type_env annm_gen_state) (known_values annm_gen_state) annm
-
-    let spec_assert_state = addSpecialAsserts beta_red_state
-
-    let track_state = spec_assert_state {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm'} }
+    let track_state = merged_state' {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm} }
 
     SomeSolver con <- getSMT config
     let con' = GroupRelated (ADTSolver :?> con)
 
     let final_state = track_state { known_values = mkv }
 
-    let (final_state', abs_fun) = adjustCurrExpr ifi' final_state
 
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing
@@ -145,7 +120,7 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
-                    con' (pres_names ++ names annm') config final_state'
+                    con' (pres_names ++ names annm) config final_state
               else run 
                     (NonRedPCRed config :<~| TypeVerifier config
                       :<~| TaggerRed state_name tr_ng :<~| TypeVerifier config
@@ -155,52 +130,44 @@ runLHCore entry (mb_modname, prog, tys, cls, tgt_ns, ex) ghci_cg config = do
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
                     NextOrderer 
-                    con' (pres_names ++ names annm') config final_state'
+                    con' (pres_names ++ names annm) config final_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
                   0 -> 0
                   _ -> minimum $ map (\(s, _, _, _) -> length $ abstract_calls $ track s) ret
     let ret' = filter (\(s, _, _, _) -> mi == (length $ abstract_calls $ track s)) ret
-    -- let ret' = ret
-
-
 
     let states = map (\(s, es, e, ais) -> (s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}, es, e, ais)) ret'
 
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
+    -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
 
-    return states
+    return (states, ifi)
 
-adjustCurrExpr :: Lang.Id -> State t -> (State t, [Name])
-adjustCurrExpr i@(Id n t) s@(State {expr_env = eenv, curr_expr = (CurrExpr ce cexpr), name_gen = ng}) =
-    let
-        (i'@(Id n' _), ng') = freshSeededId n t ng
+initializeLH :: [LHOutput] -> Lang.Id -> LHStateM [Lang.Name]
+initializeLH ghci_cg ifi = do
+    let ghcInfos = map ghcI ghci_cg
 
-        e = case E.lookup n eenv of
-                Just je -> je
-                Nothing -> error "Expr not found in adjustCurrExpr"
+    addLHTC
 
-        funs = filter (\(Var (Id vn _)) -> vn `elem` E.keys eenv) $ vars e
-        funN = varNames funs
-        (funs', ng'') = renameAll funs ng'
+    let lh_measures = measureSpecs ghcInfos
+    createMeasures lh_measures
 
-        e' = foldr (uncurry replaceASTs) e $ zip funs funs'
-        eenv' = E.insert n' e' eenv
+    let specs = funcSpecs ghcInfos
+    mergeLHSpecState specs
 
-        cexpr' = replaceVarByName (idName i) (Var i') cexpr
+    addSpecialAsserts
 
-        eenv'' = flip E.insertExprs eenv' . map (\(Var (Id f _), orig) -> (f, rewriteAssertName f $ eenv E.! orig)) $ zip funs' funN
-    in
-    (s {expr_env = eenv'', curr_expr = CurrExpr ce cexpr', name_gen = ng''}, varNames funs')
+    getAnnotations ghci_cg
 
-rewriteAssertName :: Name -> Expr -> Expr
-rewriteAssertName n (Lang.Assert (Just fc) e e') = Lang.Assert (Just $ fc {funcName = n}) e e'
-rewriteAssertName n e = modifyChildren (rewriteAssertName n) e
+    -- The simplification works less well on some of the Core generated by convertCurrExpr,
+    -- so we apply it first
+    simplify
 
-replaceVarByName :: Name -> Expr -> Expr -> Expr
-replaceVarByName n e v@(Var (Id n' _)) = if n == n' then e else v
-replaceVarByName n e e' = modifyChildren (replaceVarByName n e) e'
+    ns <- convertCurrExpr ifi
+
+    return ns
 
 getGHCInfos :: LHC.Config -> FilePath -> [FilePath] -> [FilePath] -> IO [LHOutput]
 getGHCInfos config proj fp lhlibs = do
@@ -267,11 +234,11 @@ pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do
     let i = mkIdUnsafe v
 
-    let doc = PPR.rtypeDoc Full $ val r
+    let doc = PPR.rtypeDoc FPP.Full $ val r
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
+printLHOut :: Lang.Id -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [LHReturn] -> IO ()
@@ -281,7 +248,7 @@ printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, f
                            , abstracted = abstr} : xs) = do
     putStrLn "The call"
     TI.putStrLn $ call `T.append` " = " `T.append` output
-    TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
+    TI.putStrLn $ "violates " `T.append` f `T.append` "'s refinement type"
     printAbs abstr
     putStrLn ""
     printParsedLHOut xs
@@ -318,17 +285,16 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: T.Text -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]
-           -> [LHReturn]
+parseLHOut :: Lang.Id -> [(State [FuncCall], [Expr], Expr, Maybe FuncCall)] -> [LHReturn]
 parseLHOut _ [] = []
 parseLHOut entry ((s, inArg, ex, ais):xs) =
   let 
       tl = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell s 
-               . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0 Nothing) TyUnknown) $ inArg
+               . foldl (\a a' -> App a a') (Var entry) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell s $ ex
 
-      called = FuncInfo {func = entry, funcArgs = funcCall, funcReturn = funcOut}
+      called = FuncInfo {func = nameOcc $ idName entry, funcArgs = funcCall, funcReturn = funcOut}
       viFunc = fmap (parseLHFuncTuple s) ais
 
       abstr = map (parseLHFuncTuple s) $ track s
@@ -343,8 +309,13 @@ sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = 
 
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
+    let
+        t = case fmap typeOf $ E.lookup n (expr_env s) of
+                  Just t' -> t'
+                  Nothing -> error "Unknown type for abstracted function"
+    in
     FuncInfo { func = nameOcc n
-             , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n TyUnknown)) ars)
+             , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n t)) ars)
              , funcReturn = T.pack $ mkCleanExprHaskell s out }
 
 testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
@@ -377,7 +348,7 @@ testLiquidFile proj fp libs lhlibs config = do
 
     fmap concat $ mapM (\e -> do
         putStrLn $ show e
-        runLHCore e tgt_trans ghci_cg config >>= (return . parseLHOut e))
+        runLHCore e tgt_trans ghci_cg config >>= (return . uncurry (flip parseLHOut) ))
                        cleaned_tgt_lhs
 
 testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config

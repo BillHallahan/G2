@@ -136,15 +136,11 @@ class Halter h hv t | h -> hv where
 -- The type parameter or is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as or.
 -- Law: Given
---    (exs', _) = orderStates or orv proc exs
+--    exs' = orderStates or orv proc exs
 -- it must be the case that length exs' == length exs
 -- An Orderer should never eliminate a state, only reorder the states
 -- To not evaluate certain states, use a Halter
-class Orderer or orv sov t | or -> orv, or -> sov where
-    -- | initOrdering
-    -- Initializing the overall ordering value 
-    initOrder :: or -> Config -> State t -> orv
-
+class Orderer or sov t | or -> sov where
     -- | initPerStateOrdering
     -- Initializing the per state ordering value 
     initPerStateOrder :: or -> Config -> State t -> sov
@@ -154,8 +150,7 @@ class Orderer or orv sov t | or -> orv, or -> sov where
     -- and states that still have to be run through reduction rules.
     -- Reorders the latter list, to set the priority of each state
     -- The State at the head of the list is the next executed.
-    -- Takes and returns some extra data that it can use however it wants
-    orderStates :: or -> orv -> Processed (ExState hv sov t) -> [ExState hv sov t] -> ([ExState hv sov t], orv)    
+    orderStates :: or -> Processed (ExState hv sov t) -> [ExState hv sov t] -> [ExState hv sov t]    
 
 -- | RCombiner r1 r2
 -- Combines reducers in various ways
@@ -261,7 +256,7 @@ higherOrderToAppTys' eenv at v@(Var (Id n t))
     | E.isSymbolic n eenv
     , isTyFun t
     , Just (tn, f) <- AT.lookup t at =
-        App (Var f) (Var (Id n (TyConApp tn [])))
+        App (Var f) (Var (Id n (TyCon tn TYPE)))
     | otherwise = v
 higherOrderToAppTys' _ _ e = e
 
@@ -288,15 +283,15 @@ data HCombiner h1 h2 = h1 :<~> h2 deriving (Eq, Show, Read)
 -- because this could lead to undecidable instances
 data C a b = C a b
 
-instance {-# OVERLAPPING #-} (ASTContainer a Expr, ASTContainer b Expr) => ASTContainer (C a b) Expr where
+instance (ASTContainer a Expr, ASTContainer b Expr) => ASTContainer (C a b) Expr where
     containedASTs (C a b) = containedASTs a ++ containedASTs b
     modifyContainedASTs f (C a b) = C (modifyContainedASTs f a) (modifyContainedASTs f b)
 
-instance {-# OVERLAPPING #-} (ASTContainer a Type, ASTContainer b Type) => ASTContainer (C a b) Type where
+instance (ASTContainer a Type, ASTContainer b Type) => ASTContainer (C a b) Type where
     containedASTs (C a b) = containedASTs a ++ containedASTs b
     modifyContainedASTs f (C a b) = C (modifyContainedASTs f a) (modifyContainedASTs f b)
 
-instance {-# OVERLAPPING #-} (Named a, Named b) => Named (C a b) where
+instance (Named a, Named b) => Named (C a b) where
     names (C a b) = names a ++ names b
     rename old new (C a b) = C (rename old new a) (rename old new b)
     renames hm (C a b) = C (renames hm a) (renames hm b)
@@ -386,18 +381,17 @@ instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
 
 data NextOrderer = NextOrderer
 
-instance Orderer NextOrderer () () t where
-    initOrder _ _ _ = ()
+instance Orderer NextOrderer () t where
     initPerStateOrder _ _ _ = ()
     orderStates = executeNext
 
 data PickLeastUsedOrderer = PickLeastUsedOrderer
 
-instance Orderer PickLeastUsedOrderer () Int t where
-    initOrder _ _ _ = ()
+instance Orderer PickLeastUsedOrderer Int t where
     initPerStateOrder _ _ _ = 0
-    orderStates _ _ _ [] = ([], ())
-    orderStates _ _ _ (s:ss) =
+
+    orderStates _ _ [] = []
+    orderStates _ _ (s:ss) =
       let (next, rest) =
             foldl (\(next', acc) cand ->
                     if order_val cand < order_val next' then
@@ -405,10 +399,10 @@ instance Orderer PickLeastUsedOrderer () Int t where
                     else
                       (next', cand : acc))
                   (s, []) ss in
-        ((next { order_val = 1 + order_val next }) : rest, ())
+        (next { order_val = 1 + order_val next }) : rest
 
-executeNext :: Orderer r () () t => r -> p -> Processed (ExState hv sov t) -> [ExState hv sov t] -> ([ExState hv sov t], ())
-executeNext _ _ _ xs = (xs, ())
+executeNext :: Orderer r () t => r -> Processed (ExState hv sov t) -> [ExState hv sov t] -> [ExState hv sov t]
+executeNext _ _ xs = xs
 
 halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> Int
 halterSub1 _ h _ _ = h - 1
@@ -431,34 +425,34 @@ reduce red con config s = do
 
 -- | runReducer
 -- Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> [State t] -> Config -> IO [([Int], State t)]
-runReducer red hal ord p states config =
+runReducer :: (Reducer r t, Halter h hv t, Orderer or sov t) => r -> h -> or -> [State t] -> Config -> IO [([Int], State t)]
+runReducer red hal ord states config =
     mapM (\ExState {state = s, cases = c} -> return (c, s))
-        =<< (runReducer' red hal ord p (Processed {accepted = [], discarded = []}) $ map (\s -> ExState { state = s
-                                                                                                       , halter_val = initHalt hal config s
-                                                                                                       , order_val = initPerStateOrder ord config s
-                                                                                                       , cases = []}) states)
+        =<< (runReducer' red hal ord (Processed {accepted = [], discarded = []}) $ map (\s -> ExState { state = s
+                                                                                                      , halter_val = initHalt hal config s
+                                                                                                      , order_val = initPerStateOrder ord config s
+                                                                                                      , cases = []}) states)
   where
-    runReducer' :: (Reducer r t, Halter h hv t, Orderer or orv sov t) => r -> h -> or -> orv -> Processed (ExState hv sov t) -> [ExState hv sov t] -> IO [ExState hv sov t]
-    runReducer' _ _ _ _ _ [] = return []
-    runReducer' red' hal' ord' p' fnsh (rss@(ExState {state = s, halter_val = h_val, cases = is}):xs)
+    runReducer' :: (Reducer r t, Halter h hv t, Orderer or sov t) => r -> h -> or -> Processed (ExState hv sov t) -> [ExState hv sov t] -> IO [ExState hv sov t]
+    runReducer' _ _ _ _ [] = return []
+    runReducer' red' hal' ord' fnsh (rss@(ExState {state = s, halter_val = h_val, cases = is}):xs)
         | hc == Accept =
             let
                 fnsh' = fnsh {accepted = rss:accepted fnsh}
-                (xs', p'') = orderStates ord' p' fnsh' xs
+                xs' = orderStates ord' fnsh' xs
             in
-            return . (:) rss =<< runReducer' red' hal' ord' p'' fnsh' (reInitFirstHalter hal' fnsh' xs')
+            return . (:) rss =<< runReducer' red' hal' ord' fnsh' (reInitFirstHalter hal' fnsh' xs')
         | hc == Discard =
             let
                 fnsh' = fnsh {discarded = rss:discarded fnsh}
-                (xs', p'') = orderStates ord' p' fnsh' xs
+                xs' = orderStates ord' fnsh' xs
             in
-            runReducer' red' hal' ord' p'' fnsh' (reInitFirstHalter hal' fnsh' xs')
+            runReducer' red' hal' ord' fnsh' (reInitFirstHalter hal' fnsh' xs')
         | hc == Switch =
             let
-                (xs', p'') = orderStates ord' p' fnsh (rss:xs)
+                xs' = orderStates ord' fnsh (rss:xs)
             in
-            runReducer' red' hal' ord' p'' fnsh (reInitFirstHalter hal' fnsh xs')
+            runReducer' red' hal' ord' fnsh (reInitFirstHalter hal' fnsh xs')
         | otherwise = do
             case logStates config of
                 Just f -> outputState f is s
@@ -470,7 +464,7 @@ runReducer red hal ord p states config =
             
             let mod_info = map (\(i, s') -> rss {state = s', halter_val = stepHalter hal' h_val (processedToState fnsh) s', cases = is ++ maybe [] (\i' -> [i']) i}) isred
             
-            runReducer' red'' hal' ord' p' fnsh (mod_info ++ xs)
+            runReducer' red'' hal' ord' fnsh (mod_info ++ xs)
         where
             hc = stopRed hal' h_val (processedToState fnsh) s
 

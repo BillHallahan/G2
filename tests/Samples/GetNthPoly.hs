@@ -12,6 +12,9 @@ data Peano = Succ Peano | Zero
 
 -- data E a b = L a | B a
 
+singleton :: a -> CList a
+singleton x = Cons x Nil
+
 getNthX :: CList X -> Int -> X
 getNthX x y = getNth x y
 

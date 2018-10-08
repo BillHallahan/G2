@@ -25,7 +25,7 @@ createEqPreds' :: ExprEnv -> TypeEnv -> [(Name, AlgDataTy)] -> NameGen -> KnownV
 createEqPreds' eenv _ [] ng _ w = (eenv, ng, w)
 createEqPreds' eenv tenv ((n, DataTyCon ns dc):xs) ng kv w =
     let
-        (e, ng') = createEqPred eenv tenv (TyConApp n []) ns dc ng kv w
+        (e, ng') = createEqPred eenv tenv (TyCon n []) ns dc ng kv w
     
         en = M.lookup n w
 
@@ -79,7 +79,7 @@ createEqPredBranching eenv w i1 i2 =
         t = typeOf i1
     in
     case t of
-        TyConApp n _ -> App (App (Var $ fromJust $ M.lookup n w) (Var i1)) $ Var i2 
+        TyCon n _ -> App (App (Var $ fromJust $ M.lookup n w) (Var i1)) $ Var i2 
         _ -> mkLHEq (Var i1) (Var i2) 
 
 -- | createEqWalkers
@@ -100,6 +100,6 @@ eqWalkerId :: KnownValues -> Name -> [Name] -> NameGen -> (Id, NameGen)
 eqWalkerId kv n ns ng =
     let
         (n', ng') = freshSeededName n ng
-        t = TyFun (TyConApp n []) $ TyFun (TyConApp n []) (tyBool kv)
+        t = TyFun (TyCon n []) $ TyFun (TyCon n []) (tyBool kv)
     in
     (Id n' t, ng')

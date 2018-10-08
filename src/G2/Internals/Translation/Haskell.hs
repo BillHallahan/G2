@@ -122,11 +122,10 @@ loadProj hsc proj src gflags simpl = do
                                                 Just hsc' -> hsc'
                                                 _ -> hscTarget beta_flags'
                              , importPaths = [proj]
-                             , ufCreationThreshold = if simpl then ufCreationThreshold beta_flags' else -5000
-                             , ufUseThreshold = if simpl then ufUseThreshold beta_flags' else -5000
-                             , ufFunAppDiscount = if simpl then ufFunAppDiscount beta_flags' else -5000
-                             , ufDictDiscount = if simpl then ufDictDiscount beta_flags' else -5000
-                             , ufKeenessFactor = if simpl then ufKeenessFactor beta_flags' else -5000
+
+                             , simplPhases = if simpl then simplPhases beta_flags' else 0
+                             , maxSimplIterations = if simpl then maxSimplIterations beta_flags' else 0
+
                              , hpcDir = proj}
 
     
@@ -190,7 +189,7 @@ mkExpr :: NameMap -> TypeNameMap -> Maybe ModBreaks -> CoreExpr -> G2.Expr
 mkExpr nm tm _ (Var var) = G2.Var (mkIdLookup var nm tm)
 mkExpr _ _ _ (Lit lit) = G2.Lit (mkLit lit)
 mkExpr nm tm mb (App fxpr axpr) = G2.App (mkExpr nm tm mb fxpr) (mkExpr nm tm mb axpr)
-mkExpr nm tm mb (Lam var expr) = G2.Lam (mkId tm var) (mkExpr nm tm mb expr)
+mkExpr nm tm mb (Lam var expr) = G2.Lam (mkLamUse var) (mkId tm var) (mkExpr nm tm mb expr)
 mkExpr nm tm mb (Let bnd expr) = G2.Let (mkBind nm tm mb bnd) (mkExpr nm tm mb expr)
 mkExpr nm tm mb (Case mxpr var _ alts) = G2.Case (mkExpr nm tm mb mxpr) (mkId tm var) (mkAlts nm tm mb alts)
 mkExpr nm tm mb (Cast expr c) =  G2.Cast (mkExpr nm tm mb expr) (mkCoercion tm c)
@@ -207,6 +206,11 @@ createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
         Just s -> Just $ G2.Breakpoint $ s
         Nothing -> Nothing
 createTickish _ _ = Nothing
+
+mkLamUse :: Id -> G2.LamUse
+mkLamUse v
+    | isTyVar v = G2.TypeL
+    | otherwise = G2.TermL
 
 mkId :: TypeNameMap -> Id -> G2.Id
 mkId tm vid = G2.Id ((mkName . V.varName) vid) ((mkType tm . varType) vid)
@@ -323,11 +327,15 @@ mkType tm (ForAllTy b ty) = G2.TyForAll (mkTyBinder tm b) (mkType tm ty)
 mkType _ (LitTy _) = G2.TyBottom
 mkType _ (CastTy _ _) = error "mkType: CastTy"
 mkType _ (CoercionTy _) = error "mkType: Coercion"
-mkType tm (TyConApp tc ts) = if not (isFunTyCon tc) || (length ts /= 2)
-    then G2.TyConApp (mkTyConName tm tc) (map (mkType tm) ts)
-    else case ts of
-        (t1:t2:[]) -> G2.TyFun (mkType tm t1) (mkType tm t2)
-        _ -> error "mkType: non-arity 2 FunTyCon from GHC"
+mkType tm (TyConApp tc ts)
+    | isFunTyCon tc
+    , length ts == 2 =
+        case ts of
+            (t1:t2:[]) -> G2.TyFun (mkType tm t1) (mkType tm t2)
+            _ -> error "mkType: non-arity 2 FunTyCon from GHC"
+    | G2.Name n _ _ _ <- mkName $ tyConName tc
+    , n == "TYPE" = G2.TYPE
+    | otherwise = G2.mkTyCon (mkTyConName tm tc) (map (mkType tm) ts) (mkType tm $ tyConResKind tc) 
 
 mkTyCon :: NameMap -> TypeNameMap -> TyCon -> ((NameMap, TypeNameMap), Maybe G2.ProgramType)
 mkTyCon nm tm t = case dcs of
@@ -341,7 +349,7 @@ mkTyCon nm tm t = case dcs of
             $ map (\n_@(G2.Name n'_ m_ _ _) -> ((n'_, m_), n_)) 
             $ map (flip mkNameLookup nm . dataConName) $ visibleDataCons (algTyConRhs t)
 
-    bv = map (mkName . V.varName) $ tyConTyVars t
+    bv = map (mkId tm) $ tyConTyVars t
 
     (nm'', tm'', dcs, dcsf) = case isAlgTyCon t of 
                             True -> case algTyConRhs t of
@@ -354,7 +362,7 @@ mkTyCon nm tm t = case dcs of
                                                      , nt_rhs = rhst} -> 
                                                      ( nm'
                                                      , tm'
-                                                     , Just $ G2.NewTyCon { G2.bound_names = bv
+                                                     , Just $ G2.NewTyCon { G2.bound_ids = bv
                                                                           , G2.data_con = mkData nm' tm dc
                                                                           , G2.rep_type = mkType tm rhst}
                                                      , Just $ [(mkId tm'' . dataConWorkId) dc])
@@ -435,7 +443,7 @@ absVarLoc' (G2.App e1 e2) = do
     e1' <- absVarLoc' e1
     e2' <- absVarLoc' e2
     return $ G2.App e1' e2'
-absVarLoc' (G2.Lam i e) = return . G2.Lam i =<< absVarLoc' e
+absVarLoc' (G2.Lam u i e) = return . G2.Lam u i =<< absVarLoc' e
 absVarLoc' (G2.Let b e) = do
     b' <- mapM (\(i, be) -> do
                     be' <- absVarLoc' be

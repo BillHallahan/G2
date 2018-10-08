@@ -24,6 +24,7 @@ import HigherOrderMathTest
 import GetNthTest
 import DefuncTest
 import CaseTest
+import Typing
 
 import InputOutputTest
 import Reqs
@@ -41,6 +42,7 @@ tests = return . testGroup "Tests"
         , testFileTests
         , baseTests
         , primTests
+        , typingTests
         ]
 
 timeout :: Timeout
@@ -78,7 +80,7 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthPeano" 3 [AtLeast 10, RForAll getNthErrGenTest] -- 533
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListInt" 3 [AtLeast 10, RForAll getNthErrGenTest2']
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "getNthCListX" 3 [AtLeast 10, RForAll getNthErrGenTest2]
-                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "getNth" 3 [AtLeast 10]
+                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "getNth" 4 [AtLeast 10]
 
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1600 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
@@ -89,11 +91,11 @@ sampleTests =
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUses.hs" 1600 Nothing Nothing "sum" 2 [AtLeast 3]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUses.hs" 1000 Nothing Nothing "dotProd" 3 [AtLeast 3]
 
-                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 600 Nothing Nothing "sumMinAndMax" 2 [AtLeast 10]
-                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "maxes" 3 [AtLeast 10]
+                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 600 Nothing Nothing "sumMinAndMax" 5 [AtLeast 10]
+                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "maxes" 7 [AtLeast 10]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchInt" 2 [AtLeast 1]
                 , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "getInInt" 2 [AtLeast 1]
-                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchP" 2 [AtLeast 1]
+                , checkExpr "tests/Samples/" "tests/Samples/FoldlUsesPoly.hs" 400 Nothing Nothing "switchP" 6 [AtLeast 1]
         ]
 
 liquidTests :: IO TestTree
@@ -112,32 +114,32 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "snd2Int" 800 3 [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' /= y' && y' == z'), Exactly 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "sumPair" 800 2 [AtLeast 1, RForAll (\[App (App _ x) y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' ->  x' > z' || y' > z')]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 400 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
+                , checkLiquid "tests/Liquid" "tests/Liquid/SimplePoly.hs" "switchInt" 600 2 [Exactly 1, RForAll (\[App (App _ x) _, App (App _ _) y] -> getIntB x $ \ x' -> getIntB y $ \ y' -> x' == y')]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 1000 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
+                , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 1400 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "fromInt" 600 2 [RForAll (\[x, y] -> isInt x (\x' -> x' == 0)  && y `eqIgT` zeroPeano), AtLeast 1]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 4000 3 [AtLeast 3, RForAll getNthErrors]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 1500 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 3 [AtLeast 3]
+                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 2000 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 4 [AtLeast 3]
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 2 [AtLeast 3]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
-                    [AtLeast 2, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe2" 2000 3 
-                    [AtLeast 2, RForAll (\[x, _, _] -> appNthArgIs x (\x' -> isInt x' $ \x'' -> x'' >= 0) 1)
+                    [AtLeast 1, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
+                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe2" 2000 3
+                    [AtLeast 1, RForAll (\[x, _, _] -> appNthArgIs x (\x' -> isInt x' $ \x'' -> x'' >= 0) 2)
                               , RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "getLeftInts" 2000 2 
-                    [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 1)]
+                    [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 3)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sumSameInts" 2000 3 
-                    [AtLeast 1, RForAll (\[x, y, _] -> dcInAppHasName "Right" x 1 && dcInAppHasName "Left" y 1)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1200 2 [AtLeast 1]
+                    [AtLeast 1, RForAll (\[x, y, _] -> dcInAppHasName "Right" x 3 && dcInAppHasName "Left" y 3)]
+                -- , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1200 2 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "d" 1000 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 1000 2 [Exactly 0]
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 100000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackBool" 1000 2 [AtLeast 1, RForAll (\[_, r] -> getBoolB r (== False))]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 1000 3 [Exactly 0]
-                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As" 1000 3 
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "sumSameOneOfs" 100000 3 [Exactly 0]
+                , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As" 2000 3 
                     [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "B" x && buriedDCName "B" y)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "gets2As'" 1000 3 
                     [AtLeast 1, RExists (\[x, y, _] -> buriedDCName "A" x && buriedDCName "B" y)
@@ -145,27 +147,35 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "ge4gt5" 1000 2 
                     [AtLeast 1, RForAll (\[x, y] -> appNth x 1 $ \x' -> isInt x' $ \x'' -> isInt y $ \y' ->  x'' == 4 && y' == 5)]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat2" 500 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 500 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1000 2 [AtLeast 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat2" 800 3 [AtLeast 2]
+                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 800 3 [AtLeast 2]
+                , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1600 3 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f1" 2000 3 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f2" 2000 3 [AtLeast 4, RForAll (\[_, x, y] -> x == y)]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f3" 2000 3 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f4" 2000 3 [AtLeast 4, RForAll (\[_, x, _] -> isInt x $ \x' -> x' == 0)]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f5" 2000 3 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f6" 2000 3 [AtLeast 10]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f7" 2000 3 [AtLeast 10, RForAll (\[x, _, y] -> isInt x $ \x' -> isInt y $ \y' -> x' == y')]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f8" 2000 3 [AtLeast 10]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "callf" 2000 3 [AtLeast 1]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f1" 2000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f2" 2000 3 [AtLeast 4, RForAll (\[_, x, y] -> x == y)]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f3" 2000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f4" 2000 3 [AtLeast 4, RForAll (\[_, x, _] -> isInt x $ \x' -> x' == 0)]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f5" 2000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f6" 2000 3 [AtLeast 10]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f7" 2000 3 [AtLeast 10, RForAll (\[x, _, y] -> isInt x $ \x' -> isInt y $ \y' -> x' == y')]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "f8" 2000 3 [AtLeast 10]
+                -- , checkLiquid "tests/Liquid/Tests" "tests/Liquid/HigherOrderRef.hs" "callf" 2000 3 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error1.hs" "f" 600 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 3 [AtLeast 1]
-                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error3.hs" "z" 2000 3 [Exactly 0]
+                -- , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error1.hs" "f" 600 2 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 4 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error3.hs" "z" 100000 3 [Exactly 0]
+
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 1000 2 [Exactly 0]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
+
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AddToEven.hs" "f" 2000 1
+                    [ AtLeast 1
+                    , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
+                                    -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -206,9 +216,9 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 1 && y > 100), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 1 && (dcInAppHasName "J" y 2 || isError y)), AtLeast 2]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 4 && y > 100), Exactly 1]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 2 && (dcInAppHasName "J" y 2 || isError y)), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[App _ (Lit (LitInt x)), y] -> x < 0 && dcHasName "A" y)
                                                                                                               , RExists (\[App _ (Lit (LitInt x)), y] -> x >= 0 && dcHasName "C" y), Exactly 2]
@@ -278,9 +288,9 @@ testFileTests =
                                                                                                                                     , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
 
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "mapWInt" 3 [ AtLeast 2
-                                                                                                                                          , RForAll (\[_, x, y] -> isError y
-                                                                                                                                                                || (inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W") &&
-                                                                                                                                                                    inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W"))) ]
+                                                                                                                                , RForAll (\[_, x, y] -> isError y
+                                                                                                                                                      || (inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W") &&
+                                                                                                                                                          inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W"))) ]
 
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "appLeftFloat" 3 [ AtLeast 2
                                                                                                                                                , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "L" y' 3) (const True))
@@ -295,10 +305,10 @@ testFileTests =
                                                                                                                                                      , RExists (\[_, y] -> isFloat y (const True))
                                                                                                                                                      , RExists (\[_, y] -> isError y)]
                 , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/NewType1.hs" 400 Nothing Nothing "getRIntFloatX'" 2 [ AtLeast 2
-                                                                                                                                                 , RExists (\[x, y] -> inCast x (\x' -> dcInAppHasName "TR" x' 1) (const True)
-                                                                                                                                                                    && isInt y (const True))
-                                                                                                                                                 , RExists (\[_, y] -> isError y)]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/Expr.hs" 400 Nothing Nothing "leadingLam" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
+                                                                                                                                       , RExists (\[x, y] -> inCast x (\x' -> dcInAppHasName "TR" x' 4) (const True)
+                                                                                                                                                          && isInt y (const True))
+                                                                                                                                       , RExists (\[_, y] -> isError y)]
+                , checkExpr "tests/TestFiles/" "tests/TestFiles/Expr.hs" 400 Nothing Nothing "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
                 -- , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
                 --                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
                 --                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]
@@ -317,11 +327,11 @@ baseTests =
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/ListTests.hs" "ListTests" "foldrTest2" 1000 2 [AtLeast 1]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/Tuples.hs" "Tuples" "addTupleElems" 1000 2 [AtLeast 2]
 
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "sumN" 1000 2 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "lengthN" 1000 2 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 2000 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "sumN" 1000 4 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "lengthN" 1000 5 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 2000 5 [AtLeast 6]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "averageF" 2000 2 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 4 [AtLeast 6]
 
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/Other.hs" "Other" "check4VeryEasy2" 600 1 [AtLeast 1]
         ]
@@ -341,15 +351,15 @@ primTests =
             , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
         ]
 
-checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkExpr proj src stps m_assume m_assert entry i reqList =
     checkExprReaches proj src stps m_assume m_assert Nothing entry i reqList
 
-checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkExprReaches :: String -> String -> Int -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkExprReaches proj src stps m_assume m_assert m_reaches entry i reqList = do
     checkExprWithConfig proj src m_assume m_assert m_reaches entry i (mkConfigTest {steps = stps}) reqList
 
-checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkExprWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Int -> Config -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkExprWithConfig proj src m_assume m_assert m_reaches entry i config reqList = do
     res <- testFile proj src m_assume m_assert m_reaches entry config
     
@@ -384,10 +394,10 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
 
     return $ map (\(_, i, o, _) -> (i, o)) r
 
-checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps}) reqList
 
-checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool) ()] -> IO TestTree
+checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquidWithConfig proj fp entry i config reqList = do
     res <- findCounterExamples' proj fp (T.pack entry) [] [] config
 
@@ -399,8 +409,24 @@ checkLiquidWithConfig proj fp entry i config reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n" ++ show r) ch
 
+checkAbsLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> IO TestTree
+checkAbsLiquid proj fp entry stps i reqList = checkAbsLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps}) reqList
+
+checkAbsLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> IO TestTree
+checkAbsLiquidWithConfig proj fp entry i config reqList = do
+    res <- findCounterExamples' proj fp (T.pack entry) [] [] config
+
+    let (ch, r) = case res of
+                Left e -> (False, Left e)
+                Right exprs -> (checkAbsLHExprGen (map (\(s, inp, out, _) -> (s, inp, out)) exprs) i reqList, Right ())
+
+    return . testCase fp
+        $ assertBool ("Liquid test for file " ++ fp ++ 
+                      " with function " ++ entry ++ " failed.\n" ++ show r) ch
+
+
 findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [FuncCall], [Expr], Expr, Maybe FuncCall)])
-findCounterExamples' proj fp entry libs lhlibs config = try (findCounterExamples proj fp entry libs lhlibs config)
+findCounterExamples' proj fp entry libs lhlibs config = try (return . fst =<< findCounterExamples proj fp entry libs lhlibs config)
 
 errors :: [Expr] -> Bool
 errors e =

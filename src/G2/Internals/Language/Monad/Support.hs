@@ -7,11 +7,13 @@ module G2.Internals.Language.Monad.Support ( StateM
                                            , FullState (..)
                                            , runStateM
                                            , readRecord
-                                           , withNG ) where
+                                           , withNG
+                                           , mapCurrExpr ) where
 
 import qualified Control.Monad.State.Lazy as SM
 
 import G2.Internals.Language.Naming
+import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 import G2.Internals.Language.TypeClasses
 
@@ -33,8 +35,14 @@ class SM.MonadState s m => ExState s m | m -> s where
     knownValues :: m KnownValues
 
 class ExState s m => FullState s m | m -> s where
+    currExpr :: m CurrExpr
+    putCurrExpr :: CurrExpr -> m ()
+
     typeClasses :: m TypeClasses
     putTypeClasses :: TypeClasses -> m ()
+
+    inputIds :: m InputIds
+    fixedInputs :: m [Expr]
 
 instance ExState (State t) (StateM t) where
     exprEnv = readRecord expr_env
@@ -49,8 +57,14 @@ instance ExState (State t) (StateM t) where
     knownValues = readRecord known_values
 
 instance FullState (State t) (StateM t) where
+    currExpr = readRecord curr_expr
+    putCurrExpr = rep_curr_exprM
+
     typeClasses = readRecord type_classes
     putTypeClasses = rep_type_classesM
+
+    inputIds = readRecord input_ids
+    fixedInputs = readRecord fixed_inputs
 
 runStateM :: StateM t a -> State t -> (a, State t)
 runStateM (StateM s) s' = SM.runState s s'
@@ -84,3 +98,14 @@ rep_type_classesM :: TypeClasses -> StateM t ()
 rep_type_classesM tc = do
     s <- SM.get
     SM.put $ s {type_classes = tc}
+
+rep_curr_exprM :: CurrExpr -> StateM t ()
+rep_curr_exprM ce = do
+    s <- SM.get
+    SM.put $ s {curr_expr = ce}
+
+mapCurrExpr :: FullState s m => (Expr -> m Expr) -> m ()
+mapCurrExpr f = do
+    (CurrExpr er e) <- currExpr
+    e' <- f e
+    putCurrExpr (CurrExpr er e') 

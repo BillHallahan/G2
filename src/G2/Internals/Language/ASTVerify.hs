@@ -97,7 +97,7 @@ checkVarBinds State {expr_env = eenv,
 
 checkVarBinds' :: E.ExprEnv -> [Id] -> Expr -> [Id]
 checkVarBinds' eenv bound (Let b e) = checkVarBinds' eenv ((map fst b) ++ bound) e
-checkVarBinds' eenv bound (Lam b e) = checkVarBinds' eenv (b:bound) e
+checkVarBinds' eenv bound (Lam _ b e) = checkVarBinds' eenv (b:bound) e
 checkVarBinds' eenv bound (Case e i alts) = (checkVarBinds' eenv bound' e) ++ (concatMap runCheckOnAlt alts)
     where
     bound' = i:bound
@@ -129,7 +129,7 @@ getFunTypeList t = [t]
 -- Check that each argument to each function call is of the correct type.
 -- Returns all the Apps for which the type of the center does not match one of the arguments
 checkAppTyping :: (ASTContainer m Expr) => m -> [Expr]
-checkAppTyping m = filter typeCheck (functionCalls m)
+checkAppTyping m = filter typeCheck (getFuncCalls m)
     where 
     -- Applicative functor to judge whether a functions arguments match the type
     typeCheck = \a -> or (map (\ts -> not $ (typeMatch (fst ts) (snd ts))) (parameterZippedWithActual a))

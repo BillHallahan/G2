@@ -50,6 +50,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.List.Utils
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 nameOcc :: Name -> T.Text
@@ -111,7 +112,7 @@ exprNames = evalASTs exprTopNames
 
 exprTopNames :: Expr -> [Name]
 exprTopNames (Var var) = [idName var]
-exprTopNames (Lam b _) = [idName b]
+exprTopNames (Lam _ b _) = [idName b]
 exprTopNames (Let kvs _) = map (idName . fst) kvs
 exprTopNames (Case _ cvar as) = idName cvar :
                                 concatMap (\(Alt am _) -> altMatchNames am)
@@ -130,7 +131,7 @@ typeNames = evalASTs typeTopNames
 
 typeTopNames :: Type -> [Name]
 typeTopNames (TyVar i) = [idName i]
-typeTopNames (TyConApp n _) = [n]
+typeTopNames (TyCon n _) = [n]
 typeTopNames (TyForAll (NamedTyBndr v) _) = [idName v]
 typeTopNames _ = []
 
@@ -186,7 +187,7 @@ instance Named Expr where
             go (Var i) = names i
             go (Prim _ t) = names t
             go (Data d) = names d
-            go (Lam i _) = names i
+            go (Lam _ i _) = names i
             go (Let b _) = concatMap (names . fst) b
             go (Case _ i a) = names i ++ concatMap (names . altMatch) a
             go (Type t) = names t
@@ -200,7 +201,7 @@ instance Named Expr where
         go :: Expr -> Expr
         go (Var i) = Var (rename old new i)
         go (Data d) = Data (rename old new d)
-        go (Lam i e) = Lam (rename old new i) e
+        go (Lam u i e) = Lam u (rename old new i) e
         go (Let b e) =
             let b' = map (\(n, e') -> (rename old new n, e')) b
             in Let b' e
@@ -220,7 +221,7 @@ instance Named Expr where
             go :: Expr -> Expr
             go (Var i) = Var (renames hm i)
             go (Data d) = Data (renames hm d)
-            go (Lam i e) = Lam (renames hm i) e
+            go (Lam u i e) = Lam u (renames hm i) e
             go (Let b e) = 
                 let b' = map (\(n, e') -> (renames hm n, e')) b
                 in Let b' e
@@ -242,7 +243,7 @@ renameExpr old new = modifyASTs (renameExpr' old new)
 renameExpr' :: Name -> Name -> Expr -> Expr
 renameExpr' old new (Var i) = Var (renameExprId old new i)
 renameExpr' old new (Data d) = Data (renameExprDataCon old new d)
-renameExpr' old new (Lam i e) = Lam (renameExprId old new i) e
+renameExpr' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
 renameExpr' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAlt old new) a
 renameExpr' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
@@ -254,7 +255,7 @@ renameVars old new = modifyASTs (renameVars' old new)
 
 renameVars' :: Name -> Name -> Expr -> Expr
 renameVars' old new (Var i) = Var (renameExprId old new i)
-renameVars' old new (Lam i e) = Lam (renameExprId old new i) e
+renameVars' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameVars' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
 renameVars' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAltIds old new) a
 renameVars' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
@@ -289,7 +290,7 @@ instance Named Type where
     names = eval go
         where
             go (TyVar i) = idNamesInType i
-            go (TyConApp n _) = [n]
+            go (TyCon n _) = [n]
             go (TyForAll b _) = tyBinderNamesInType b
             go _ = []
 
@@ -297,7 +298,7 @@ instance Named Type where
       where
         go :: Type -> Type
         go (TyVar i) = TyVar (renameIdInType old new i)
-        go (TyConApp n ts) = TyConApp (rename old new n) ts
+        go (TyCon n ts) = TyCon (rename old new n) ts
         go (TyForAll tb t) = TyForAll (renameTyBinderInType old new tb) t
         go t = t
 
@@ -305,7 +306,7 @@ instance Named Type where
       where
         go :: Type -> Type
         go (TyVar i) = TyVar (renamesIdInType hm i)
-        go (TyConApp n ts) = TyConApp (renames hm n) ts
+        go (TyCon n ts) = TyCon (renames hm n) ts
         go (TyForAll tb t) = TyForAll (renamesTyBinderInType hm tb) t
         go t = t
 
@@ -384,8 +385,8 @@ instance Named FuncCall where
 
 
 instance Named AlgDataTy where
-    names (DataTyCon ns dc) = ns ++ names dc
-    names (NewTyCon ns dc rt) = ns ++ names dc ++ names rt
+    names (DataTyCon ns dc) = names ns ++ names dc
+    names (NewTyCon ns dc rt) = names ns ++ names dc ++ names rt
     names (TypeSynonym st) = names st
 
     rename old new (DataTyCon n dc) = DataTyCon (rename old new n) (rename old new dc)
@@ -423,6 +424,15 @@ instance Named KnownValues where
 
             , eqFunc = eqF
             , neqFunc = neqF
+
+            , plusFunc = plF
+            , minusFunc = minusF
+            , timesFunc = tmsF
+            , divFunc = divF
+            , negateFunc = negF
+            , modFunc = modF
+            , fromIntegerFunc = fromIntegerF
+
             , geFunc = geF
             , gtFunc = gtF
             , ltFunc = ltF
@@ -437,7 +447,8 @@ instance Named KnownValues where
             , patErrorFunc = patE
             }) =
             [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF, tList, tCons, tEmp
-            , eqT, numT, ordT, integralT, eqF, neqF, geF, gtF, ltF, leF, seT, seF
+            , eqT, numT, ordT, integralT, eqF, neqF, plF, minusF, tmsF, divF, negF, modF, fromIntegerF
+            , geF, gtF, ltF, leF, seT, seF
             , andF, orF, patE]
 
     rename old new (KnownValues {
@@ -466,6 +477,15 @@ instance Named KnownValues where
 
                    , eqFunc = eqF
                    , neqFunc = neqF
+
+                   , plusFunc = plF
+                   , minusFunc = minusF
+                   , timesFunc = tmsF
+                   , divFunc = divF
+                   , negateFunc = negF
+                   , modFunc = modF
+                   , fromIntegerFunc = fromIntegerF
+
                    , geFunc = geF
                    , gtFunc = gtF
                    , ltFunc = ltF
@@ -504,6 +524,15 @@ instance Named KnownValues where
 
                         , eqFunc = rename old new eqF
                         , neqFunc = rename old new neqF
+
+                        , plusFunc = rename old new plF
+                        , minusFunc = rename old new minusF
+                        , timesFunc = rename old new tmsF
+                        , divFunc = rename old new divF
+                        , negateFunc = rename old new negF
+                        , modFunc = rename old new modF
+                        , fromIntegerFunc = rename old new fromIntegerF
+
                         , geFunc = rename old new geF
                         , gtFunc = rename old new gtF
                         , ltFunc = rename old new ltF
@@ -518,7 +547,23 @@ instance Named KnownValues where
                         , patErrorFunc = rename old new patE
                         })
 
-instance (Foldable f, Functor f, Named a) => Named (f a) where
+instance Named a => Named [a] where
+    names = foldMap names
+    rename old new = fmap (rename old new)
+    renames hm = fmap (renames hm)
+
+
+instance Named a => Named (Maybe a) where
+    names = foldMap names
+    rename old new = fmap (rename old new)
+    renames hm = fmap (renames hm)
+
+instance Named a => Named (M.Map k a) where
+    names = foldMap names
+    rename old new = fmap (rename old new)
+    renames hm = fmap (renames hm)
+
+instance Named a => Named (HM.HashMap k a) where
     names = foldMap names
     rename old new = fmap (rename old new)
     renames hm = fmap (renames hm)
@@ -528,27 +573,27 @@ instance Named () where
     rename _ _ = id
     renames _ = id
 
-instance {-# OVERLAPPING #-}  (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
+instance (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
     names = names . HS.toList 
     rename old new = HS.map (rename old new)
     renames hm = HS.map (renames hm)
 
-instance {-# OVERLAPPING #-} (Named a, Named b) => Named (a, b) where
+instance (Named a, Named b) => Named (a, b) where
     names (a, b) = names a ++ names b
     rename old new (a, b) = (rename old new a, rename old new b)
     renames hm (a, b) = (renames hm a, renames hm b)
 
-instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) where
+instance (Named a, Named b, Named c) => Named (a, b, c) where
     names (a, b, c) = names a ++ names b ++ names c
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
     renames hm (a, b, c) = (renames hm a, renames hm b, renames hm c)
 
-instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d) => Named (a, b, c, d) where
+instance (Named a, Named b, Named c, Named d) => Named (a, b, c, d) where
     names (a, b, c, d) = names a ++ names b ++ names c ++ names d
     rename old new (a, b, c, d) = (rename old new a, rename old new b, rename old new c, rename old new d)
     renames hm (a, b, c, d) = (renames hm a, renames hm b, renames hm c, renames hm d)
 
-instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) where
+instance (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) where
     names (a, b, c, d, e) = names a ++ names b ++ names c ++ names d ++ names e
     rename old new (a, b, c, d, e) = (rename old new a, rename old new b, rename old new c, rename old new d, rename old new e)
     renames hm (a, b, c, d, e) = (renames hm a, renames hm b, renames hm c, renames hm d, renames hm e)

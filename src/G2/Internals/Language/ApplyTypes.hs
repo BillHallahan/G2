@@ -45,7 +45,7 @@ typeToAppType at = modifyContainedASTs (typeToAppType' at)
 typeToAppType' :: ApplyTypes -> Type -> Type
 typeToAppType' at t =
     case applyTypeName t at of
-        Just tn -> TyConApp tn []
+        Just tn -> TyCon tn TYPE
         Nothing -> t
 
 insert :: Type -> Name -> Id -> ApplyTypes -> ApplyTypes

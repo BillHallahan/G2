@@ -60,7 +60,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
-        (ce, is, ng'') = mkCurrExpr m_assume m_assert f m_mod tc ng' eenv' ds_walkers kv config
+        (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert f m_mod tc ng' eenv' ds_walkers kv config
 
         eenv'' = checkReaches eenv' tenv' kv m_reaches m_mod
     in
@@ -75,6 +75,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , assert_ids = Nothing
     , type_classes = tc'
     , input_ids = is
+    , fixed_inputs = f_i
     , symbolic_ids = is
     , sym_links = Sym.empty
     , func_table = ft
@@ -107,7 +108,7 @@ run :: (Named hv, Show t
        , ASTContainer t Type
        , Reducer r t
        , Halter h hv t
-       , Orderer or orv sov t
+       , Orderer or sov t
        , Solver solver) => r -> h -> or ->
     solver -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
 run red hal ord con pns config (is@State { type_env = tenv
@@ -118,9 +119,7 @@ run red hal ord con pns config (is@State { type_env = tenv
 
     let preproc_state = runPreprocessing swept
 
-    let ior = initOrder ord config preproc_state
-
-    exec_states <- runExecution red hal ord ior [preproc_state] config
+    exec_states <- runExecution red hal ord [preproc_state] config
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states
@@ -136,6 +135,7 @@ run red hal ord con pns config (is@State { type_env = tenv
     let sm = map (\s -> let (es, e, ais) = subModel s in (s, es, e, ais)) $ ident_states'''
 
     let sm' = map (\sm''@(s, _, _, _) -> runPostprocessing s sm'') sm
-    let sm'' = map (\(s, es, e, ais) -> (s, es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
+
+    let sm'' = map (\(s, es, e, ais) -> (s, fixed_inputs s ++ es, evalPrims kv tenv e, evalPrims kv tenv ais)) sm'
 
     return sm''

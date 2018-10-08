@@ -7,6 +7,7 @@ module G2.Internals.Language.TypeEnv ( ProgramType
                                      , nameModMatch
                                      , argTypesTEnv
                                      , dataCon
+                                     , boundIds
                                      , isPolyAlgDataTy
                                      , isDataTyCon
                                      , isNewTyCon
@@ -14,7 +15,6 @@ module G2.Internals.Language.TypeEnv ( ProgramType
                                      , getDataCons
                                      , baseDataCons
                                      , getCastedAlgDataTy
-                                     , getCasted
                                      , selfRecursive
                                      , dataConCanContain
                                      , getDataCon
@@ -41,9 +41,9 @@ type TypeEnv = M.Map Name AlgDataTy
 
 -- | Algebraic data types are types constructed with parametrization of some
 -- names over types, and a list of data constructors for said type.
-data AlgDataTy = DataTyCon { bound_names :: [Name]
+data AlgDataTy = DataTyCon { bound_ids :: [Id]
                            , data_cons :: [DataCon] }
-               | NewTyCon { bound_names :: [Name]
+               | NewTyCon { bound_ids :: [Id]
                           , data_con :: DataCon
                           , rep_type :: Type }
                | TypeSynonym { synonym_of :: Type
@@ -65,11 +65,16 @@ dataCon (DataTyCon {data_cons = dc}) = dc
 dataCon (NewTyCon {data_con = dc}) = [dc]
 dataCon (TypeSynonym _) = []
 
+boundIds :: AlgDataTy -> [Id]
+boundIds dc@(DataTyCon {}) = bound_ids dc
+boundIds dc@(NewTyCon {}) = bound_ids dc
+boundIds (TypeSynonym {}) = []
+
 dcName :: DataCon -> Name
 dcName (DataCon n _) = n
 
 isPolyAlgDataTy :: AlgDataTy -> Bool
-isPolyAlgDataTy = not . null . bound_names
+isPolyAlgDataTy = not . null . bound_ids
 
 isDataTyCon :: AlgDataTy -> Bool
 isDataTyCon (DataTyCon {}) = True
@@ -88,7 +93,7 @@ getDataCons n tenv =
     case M.lookup n tenv of
         Just (DataTyCon _ dc) -> Just dc
         Just (NewTyCon _ dc _) -> Just [dc]
-        Just (TypeSynonym (TyConApp n' _)) -> getDataCons n' tenv
+        Just (TypeSynonym (TyCon n' _)) -> getDataCons n' tenv
         _ -> Nothing
 
 baseDataCons :: [DataCon] -> [DataCon]
@@ -97,21 +102,22 @@ baseDataCons = filter baseDataCon
 baseDataCon :: DataCon -> Bool
 baseDataCon (DataCon _ t) = not $ hasTyFuns t
 
-getCastedAlgDataTy :: Name -> TypeEnv -> Maybe AlgDataTy
-getCastedAlgDataTy n tenv =
-    case M.lookup n tenv of
-        Just (NewTyCon {rep_type = TyConApp n' _}) -> getCastedAlgDataTy n' tenv
-        Just (NewTyCon {}) -> Nothing
-        dc@(Just (DataTyCon {})) -> dc
-        _ -> Nothing
+-- If the Type is a TyCon, (optionally) wrapped with TyApps,
+-- returns the AlgDataTy of the Cast type, along with mappings from
+-- the bound names of the cast type, to the types bound by the TyApps.
+getCastedAlgDataTy :: Type -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
+getCastedAlgDataTy t tenv
+    | TyCon n _ <- tyAppCenter t
+    , ts <- tyAppArgs t = getCastedAlgDataTy' n ts tenv
+    | otherwise = Nothing
 
-getCasted :: Name -> TypeEnv -> Maybe Type
-getCasted n tenv =
-    case M.lookup n tenv of
-        Just (NewTyCon {rep_type = TyConApp n' _}) -> getCasted n' tenv
-        Just (NewTyCon {rep_type = t}) -> Just t
-        Just (DataTyCon {bound_names = bn}) -> Just $ TyConApp n (map (\n' -> TyVar (Id n' TYPE)) bn)
-        _ -> Nothing
+getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
+getCastedAlgDataTy' n ts tenv =
+        case M.lookup n tenv of
+            Just (NewTyCon {rep_type = TyCon n' _}) -> getCastedAlgDataTy' n' ts tenv
+            Just (NewTyCon {}) -> Nothing
+            (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
+            _ -> Nothing
 
 -- | selfRecursive
 -- Given a DataCon dc of type t, checks if one of the descendents of dc could
@@ -145,8 +151,8 @@ dataConCanContain' tenv (DataCon _ t) =
     pt ++ (map typeOf dcs) ++ recT
 
 tyConAppName :: Type -> Name
-tyConAppName (TyConApp n _) = n
-tyConAppName _ = error "tyConAppName: Type other than TyConApp"
+tyConAppName (TyCon n _) = n
+tyConAppName _ = error "tyConAppName: Type other than TyCon"
 
 getDataCon :: TypeEnv -> Name -> Name -> Maybe DataCon
 getDataCon tenv adt dc =
@@ -166,7 +172,7 @@ getDataConNameMod' :: TypeEnv -> Name -> Maybe DataCon
 getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ M.elems tenv
 
 dataConArgs :: DataCon -> [Type]
-dataConArgs (DataCon _ t) = anonArgumentTypes t
+dataConArgs dc = anonArgumentTypes dc
 
 dataConWithName :: AlgDataTy -> Name -> Maybe DataCon
 dataConWithName (DataTyCon _ dcs) n = listToMaybe $ filter (flip dataConHasName n) dcs
@@ -184,10 +190,7 @@ dataConHasNameMod (DataCon (Name n m _ _) _) (Name n' m' _ _) = n == n' && m == 
 
 retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
 retypeAlgDataTy ts adt =
-    let
-        ns = map (flip Id TYPE) $ bound_names adt
-    in
-    foldr (uncurry retype) adt $ zip ns ts
+    foldr (uncurry retype) adt $ zip (bound_ids adt) ts
 
 instance ASTContainer AlgDataTy Expr where
     containedASTs _ = []
@@ -195,12 +198,12 @@ instance ASTContainer AlgDataTy Expr where
     modifyContainedASTs _ a = a
 
 instance ASTContainer AlgDataTy Type where
-    containedASTs (DataTyCon _ dcs) = containedASTs dcs
-    containedASTs (NewTyCon _ dcs r) = containedASTs dcs ++ containedASTs r
+    containedASTs (DataTyCon ns dcs) = containedASTs ns ++ containedASTs dcs
+    containedASTs (NewTyCon ns dcs r) = containedASTs ns ++ containedASTs dcs ++ containedASTs r
     containedASTs (TypeSynonym st) = containedASTs st
 
-    modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon ns (modifyContainedASTs f dcs)
-    modifyContainedASTs f (NewTyCon ns dcs rt) = NewTyCon ns (modifyContainedASTs f dcs) (modifyContainedASTs f rt)
+    modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs)
+    modifyContainedASTs f (NewTyCon ns dcs rt) = NewTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) (modifyContainedASTs f rt)
     modifyContainedASTs f (TypeSynonym st) = TypeSynonym (modifyContainedASTs f st)
 
 instance ASTContainer AlgDataTy DataCon where

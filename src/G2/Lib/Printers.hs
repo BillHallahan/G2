@@ -46,18 +46,21 @@ mkCleanExprHaskell' :: AT.ApplyTypes -> KnownValues -> TypeClasses -> Expr -> Ex
 mkCleanExprHaskell' at kv tc e
     | (App (Data (DataCon n _)) e') <- e
     , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv = e'
+
     | (App e' e'') <- e
     , t <- typeOf e'
-    , TyConApp n _ <- t
-    , isTypeClassNamed n tc = e''
+    , isTypeClass tc t = e''
+
     | (App e' e'') <- e
     , t <- typeOf e''
-    , TyConApp n _ <- t
-    , isTypeClassNamed n tc = e'
+    , isTypeClass tc t = e'
+
     | App e' (Type _) <- e = e'
+
     | App _ e'' <- e
     , (Var (Id n _)) <- appCenter e
     , n `elem` map idName (AT.applyFuncs at) = e''
+
     | otherwise = e
 
 mkExprHaskell :: Bool -> KnownValues -> Expr -> String
@@ -67,25 +70,28 @@ mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
         mkExprHaskell' (Var ids) _ = mkIdHaskell ids
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
-        mkExprHaskell' (Lam ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
+        mkExprHaskell' (Lam _ ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
+
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
             | Data (DataCon n _) <- appCenter a
             , isTuple n
             , sugar = printTuple kv a
+
             | Data (DataCon n1 _) <- e1
             , nameOcc n1 == ":"
             , sugar =
-                case typeOf e2 of
-                    TyLitChar -> printString a
-                    _ -> printList kv a
+                if isLitChar e2 then printString a else printList kv a
+
             | isInfixable e1 =
                 let
                     e2P = if isApp e2 then "(" ++ mkExprHaskell' e2 i ++ ")" else mkExprHaskell' e2 i
                     e3P = if isApp e3 then "(" ++ mkExprHaskell' e3 i ++ ")" else mkExprHaskell' e3 i
                 in
                 e2P ++ " " ++ mkExprHaskell' e1 i ++ " " ++ e3P
+
             | App _ _ <- e3 = mkExprHaskell' ea i ++ " (" ++ mkExprHaskell' e3 i ++ ")"
             | otherwise = mkExprHaskell' ea i ++ " " ++ mkExprHaskell' e3 i
+
         mkExprHaskell' (App e1 ea@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' ea i ++ ")"
         mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
         mkExprHaskell' (Data d) _ = mkDataConHaskell d
@@ -146,6 +152,10 @@ isApp :: Expr -> Bool
 isApp (App _ _) = True
 isApp _ = False
 
+isLitChar :: Expr -> Bool
+isLitChar (Lit (LitChar _)) = True
+isLitChar _ = False
+
 mkLitHaskell :: Lit -> String
 mkLitHaskell (LitInt i) = if i < 0 then "(" ++ show i ++ ")" else show i
 mkLitHaskell (LitInteger i) = if i < 0 then "(" ++ show i ++ ")" else show i
@@ -181,11 +191,13 @@ mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
 mkPrimHaskell Iff = "undefined"
+mkPrimHaskell BindFunc = "undefined"
 
 mkTypeHaskell :: Type -> String
 mkTypeHaskell (TyVar i) = mkIdHaskell i
 mkTypeHaskell (TyFun t1 t2) = mkTypeHaskell t1 ++ " -> " ++ mkTypeHaskell t2
-mkTypeHaskell (TyConApp n ts) = mkNameHaskell n ++ " " ++ (intercalate " " $ map mkTypeHaskell ts)
+mkTypeHaskell (TyCon n _) = mkNameHaskell n
+mkTypeHaskell (TyApp t1 t2) = "(" ++ mkTypeHaskell t1 ++ " " ++ mkTypeHaskell t2 ++ ")"
 mkTypeHaskell _ = "Unsupported type in printer."
 
 duplicate :: String -> Int -> String
@@ -252,6 +264,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     walkers_str = show (deepseq_walkers ex_state)
     appty_str = show (apply_types ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
+    model_str = pprModelStr (model ex_state)
     rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
     type_errors_str = injNewLine (type_errors ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
@@ -283,6 +296,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , appty_str
                , "----- [Cleaned] -------------------"
                , cleaned_str
+               , "----- [Model] -------------------"
+               , model_str
                , "----- [Rules] -------------------"
                , rules_str
                , "----- [Type Errors] -------------------"
@@ -299,6 +314,11 @@ pprTEnvStr :: TypeEnv -> String
 pprTEnvStr tenv = injNewLine kv_strs
   where
     kv_strs = map show $ M.toList tenv
+
+pprModelStr :: Model -> String
+pprModelStr m = injNewLine kv_strs
+  where
+    kv_strs = map show $ M.toList m
 
 pprExecStackStr :: Stack Frame -> String
 pprExecStackStr stk = injNewLine frame_strs

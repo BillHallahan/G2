@@ -67,3 +67,8 @@ concat56 ((x :+: Emp) :+: Emp) = x :+: Emp
 concat56 (Emp :+: xss)         = concat56 xss
 concat56 ((x :+: xs) :+: xss)  = x :+: concat56 (xs :+: xss)
 concat56 _ = die "Die"
+
+
+{-@ concat22 :: xss : List (List a) -> xs : List a @-}
+concat22 :: List (List a) -> List a
+concat22 (x :+: xss)  = Emp

@@ -1,6 +1,7 @@
 -- | Defines typeclasses and functions for ease of AST manipulation.
 
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Internals.Language.AST
@@ -10,7 +11,9 @@ module G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
 import Data.Hashable
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 -- | Describes the data types that can be represented in a tree format.
@@ -36,8 +39,8 @@ modify f t = modifyChildren (modify f) (f t)
 -- | Similar to modify. Also passes a Monoid instance to the modify function. 
 -- Children have access to the mconcated results from higher in the tree
 -- As exposed by modifyM, the head of the tree is given mempty.
-modifyM :: (AST t, Monoid a) => (a -> t -> (t, a)) -> t -> t
-modifyM f = go f mempty
+modifyMonoid :: (AST t, Monoid a) => (a -> t -> (t, a)) -> t -> t
+modifyMonoid f = go f mempty
   where
     go :: (AST t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
     go g m t = let (t', m') = g m t
@@ -62,8 +65,8 @@ modifyContainedFix f t = let t' = f t
 -- | Combines the methods of modifyM and modifyFix.
 -- Runs until t == t', but does not consider the Monoid's value. However, the
 -- mappend still occurs each time an iteration is performed on a given AST.
-modifyFixM :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> t -> t
-modifyFixM f = go f mempty
+modifyFixMonoid :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> t -> t
+modifyFixMonoid f = go f mempty
   where
     go :: (AST t, Eq t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
     go g m t =  let (t', m') = g m t
@@ -77,8 +80,8 @@ modifyFixM f = go f mempty
 eval :: (AST t, Monoid a) => (t -> a) -> t -> a
 eval f t = (f t) `mappend` (evalChildren (eval f) t)
 
-evalM :: (AST t, Monoid a, Monoid b) => (b -> t -> (b, a)) -> t -> a
-evalM f = go f mempty
+evalMonoid :: (AST t, Monoid a, Monoid b) => (b -> t -> (b, a)) -> t -> a
+evalMonoid f = go f mempty
     where
         go :: (AST t, Monoid a, Monoid b) => (b -> t -> (b, a)) -> b -> t -> a
         go g b t = let
@@ -104,8 +107,8 @@ modifyASTs :: ASTContainer t e => (e -> e) -> t -> t
 modifyASTs f = modifyContainedASTs (modify f)
 
 -- | Runs modifyM on all the ASTs in the container.
-modifyASTsM :: (ASTContainer t e, Monoid a) => (a -> e -> (e,a)) -> t -> t
-modifyASTsM f = modifyContainedASTs (modifyM f)
+modifyASTsMonoid :: (ASTContainer t e, Monoid a) => (a -> e -> (e,a)) -> t -> t
+modifyASTsMonoid f = modifyContainedASTs (modifyMonoid f)
 
 -- | Runs modifyFix on all the ASTs in the container.
 modifyASTsFix :: (ASTContainer t e, Eq e) => (e -> e) -> t -> t
@@ -119,8 +122,8 @@ modifyContainedASTsFix f = modifyContainedASTs (modifyContainedFix f)
 evalASTs :: (ASTContainer t e, Monoid a) => (e -> a) -> t -> a
 evalASTs f = evalContainedASTs (eval f)
 
-evalASTsM :: (ASTContainer t e, Monoid a, Monoid b) => (b -> e -> (b, a)) -> t -> a
-evalASTsM f = evalContainedASTs (evalM f)
+evalASTsMonoid :: (ASTContainer t e, Monoid a, Monoid b) => (b -> e -> (b, a)) -> t -> a
+evalASTsMonoid f = evalContainedASTs (evalMonoid f)
 
 -- | Runs a function on all the ASTs in the container, and uses mappend to
 -- combine the results.
@@ -134,7 +137,7 @@ instance AST Expr where
     children (Prim _ _) = []
     children (Data _) = []
     children (App f a) = [f, a]
-    children (Lam _ e) = [e]
+    children (Lam _ _ e) = [e]
     children (Let bind e) = e : containedASTs bind
     children (Case m _ as) = m : map (\(Alt _ e) -> e) as
     children (Cast e _) = [e]
@@ -145,7 +148,7 @@ instance AST Expr where
     children (Assert _ e e') = [e, e']
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
-    modifyChildren f (Lam b e) = Lam b (f e)
+    modifyChildren f (Lam u b e) = Lam u b (f e)
     modifyChildren f (Let bind e) = Let (modifyContainedASTs f bind) (f e)
     modifyChildren f (Case m b as) = Case (f m) b (mapAlt f as)
       where
@@ -161,14 +164,14 @@ instance AST Type where
     children (TyVar i) = containedASTs i
     children (TyFun tf ta) = [tf, ta]
     children (TyApp tf ta) = [tf, ta]
-    children (TyConApp _ ts) = ts
+    children (TyCon _ t) = [t]
     children (TyForAll b t)  = containedASTs b ++ [t]
     children _ = []
 
     modifyChildren f (TyVar i) = TyVar $ modifyContainedASTs f i
     modifyChildren f (TyFun tf ta) = TyFun (f tf) (f ta)
     modifyChildren f (TyApp tf ta) = TyApp (f tf) (f ta)
-    modifyChildren f (TyConApp b ts) = TyConApp b (map f ts)
+    modifyChildren f (TyCon b ts) = TyCon b (f ts)
     modifyChildren f (TyForAll b t) = TyForAll (modifyContainedASTs f b) (f t)
     modifyChildren _ t = t
 
@@ -188,7 +191,7 @@ instance ASTContainer Expr Type where
     containedASTs (Var i) = containedASTs i
     containedASTs (Prim _ t) = [t]
     containedASTs (Data dc) = containedASTs dc
-    containedASTs (Lam b e) = containedASTs b ++ containedASTs e
+    containedASTs (Lam _ b e) = containedASTs b ++ containedASTs e
     containedASTs (Let bnd e) = containedASTs bnd ++ containedASTs e
     containedASTs (Case e i as) = containedASTs e ++ containedASTs i ++ containedASTs as
     containedASTs (Cast e c) = containedASTs e ++ containedASTs c
@@ -203,7 +206,7 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (Prim p t) = Prim p (f t)
     modifyContainedASTs f (Data dc) = Data (modifyContainedASTs f dc)
     modifyContainedASTs f (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
-    modifyContainedASTs f (Lam b e) = Lam (modifyContainedASTs f b) (modifyContainedASTs f e)
+    modifyContainedASTs f (Lam u b e) = Lam u (modifyContainedASTs f b)(modifyContainedASTs f e)
     modifyContainedASTs f (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
     modifyContainedASTs f (Case m i as) = Case (modifyContainedASTs f m) (modifyContainedASTs f i) (modifyContainedASTs f as) 
     modifyContainedASTs f (Type t) = Type (f t)
@@ -295,42 +298,63 @@ instance ASTContainer FuncCall Type where
     modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) = 
         fc {arguments = modifyContainedASTs f as, returns = modifyContainedASTs f r}
 
-instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
+-- instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
+--     containedASTs = foldMap (containedASTs)
+
+--     modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance ASTContainer c t => ASTContainer [c] t where
     containedASTs = foldMap (containedASTs)
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
 
-instance {-# OVERLAPPING #-} (ASTContainer s t, Hashable s, Eq s) => ASTContainer (HS.HashSet s) t where
+instance ASTContainer c t => ASTContainer (Maybe c) t where
+    containedASTs = foldMap (containedASTs)
+
+    modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+
+instance ASTContainer c t => ASTContainer (HM.HashMap k c) t where
+    containedASTs = foldMap (containedASTs)
+
+    modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance ASTContainer c t => ASTContainer (M.Map k c) t where
+    containedASTs = foldMap (containedASTs)
+
+    modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance (ASTContainer s t, Hashable s, Eq s) => ASTContainer (HS.HashSet s) t where
     containedASTs = containedASTs . HS.toList 
 
     modifyContainedASTs f = HS.map (modifyContainedASTs f)
 
-instance {-# OVERLAPPING #-} ASTContainer () Expr where
+instance ASTContainer () Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance {-# OVERLAPPING #-} ASTContainer () Type where
+instance ASTContainer () Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance {-# OVERLAPPING #-} (ASTContainer c t, ASTContainer d t) => ASTContainer (c, d) t where
+instance (ASTContainer c t, ASTContainer d t) => ASTContainer (c, d) t where
     containedASTs (x, y) = containedASTs x ++ containedASTs y
 
     modifyContainedASTs f (x, y) = (modifyContainedASTs f x, modifyContainedASTs f y)
 
-instance {-# OVERLAPPING #-} 
+instance
     (ASTContainer c t, ASTContainer d t, ASTContainer e t) => ASTContainer (c, d, e) t where
         containedASTs (x, y, z) = containedASTs x ++ containedASTs y ++ containedASTs z
 
         modifyContainedASTs f (x, y, z) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z)
 
-instance {-# OVERLAPPING #-} 
+instance
     (ASTContainer c t, ASTContainer d t, ASTContainer e t, ASTContainer g t) => ASTContainer (c, d, e, g) t where
         containedASTs (x, y, z, w) = containedASTs x ++ containedASTs y ++ containedASTs z ++ containedASTs w
 
         modifyContainedASTs f (x, y, z, w) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z, modifyContainedASTs f w)
 
-instance {-# OVERLAPPING #-} 
+instance
     (ASTContainer c t, ASTContainer d t, ASTContainer e t, ASTContainer g t, ASTContainer h t) => ASTContainer (c, d, e, g, h) t where
         containedASTs (x, y, z, w, a) = containedASTs x ++ containedASTs y ++ containedASTs z ++ containedASTs w ++ containedASTs a
 

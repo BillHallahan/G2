@@ -14,7 +14,7 @@ import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
 -- | unsafeElimCast
--- Removes all casts from the expression.  Makes no guarentees about the type
+-- Removes all casts from the expression.  Makes no guarantees about the type
 -- correctness of the resulting expression.  In particular, the expression
 -- is likely to not actually type correctly if it contains variables that
 -- are mapped in the Expression Environment
@@ -36,7 +36,7 @@ splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
     let
         (i, ng') = freshId t1 ng
 
-        e' = Lam i $ 
+        e' = Lam TermL i $ 
                 (Cast 
                     (App 
                         e
@@ -53,8 +53,8 @@ splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr n
 
         (i, ng') = freshId t1 ng
 
-        e' = Lam i $ 
-                (Cast 
+        e' = Lam TypeL i $ 
+                (Cast
                     (App 
                         e
                         (Cast (Var i) (t1 :~ t1'))
@@ -64,21 +64,20 @@ splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr n
     in
     (e', ng')
 splitCast ng c@(Cast e (t1 :~ t2)) =
-    if hasFuncType t1 || hasFuncType t2 then (e, ng) else (c, ng)
+    if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
 splitCast ng e = (e, ng)
 
 -- | simplfyCasts
--- Eliminates redundant casts 
+-- Eliminates redundant casts
 simplifyCasts :: ASTContainer m Expr => m -> m
 simplifyCasts = modifyASTsFix simplifyCasts'
 
 simplifyCasts' :: Expr -> Expr
 simplifyCasts' e
     | (Cast (Cast e' (t1 :~ _)) (_ :~ t2)) <- e
-    -- , t1 == t2
         = Cast e' (t1 :~ t2)
     | (Cast e' (t1 :~ t2)) <- e
-    , t2 .:: t1
+    , PresType t2 .:: t1
         = e'
     | otherwise = e
 
@@ -86,26 +85,26 @@ simplifyCasts' e
 -- Changes casts on functions to casts on non-functional values
 -- (As much as possible)
 liftCasts :: ASTContainer m Expr => m -> m 
-liftCasts = modifyASTsFix liftCasts'
+liftCasts = simplifyCasts . modifyASTsFix liftCasts'
 
 liftCasts' :: Expr -> Expr
-liftCasts' a@(App _ _) = liftCasts'' a
+liftCasts' a@(App _ _) =  liftCasts'' a
 liftCasts' e = e
 
-liftCasts'' :: Expr -> Expr
--- liftCasts'' (App (Cast f ((TyFun t1 t2) :~ (TyFun t1' t2'))) e) = 
---     Cast (App f e) (t2 :~ t2')
-liftCasts'' (App (Cast f (t1 :~ t2)) e)
-    | (TyFun _ t1'') <- inTyForAlls t1
-    , (TyFun _ t2'') <- inTyForAlls t2
-    , nt1 <- nestTyForAlls t1
-    , nt2 <- nestTyForAlls t2 =
-        Cast (App f e) ((nt1 t1'') :~ (nt2 t2''))
+liftCasts'' :: Expr-> Expr
+liftCasts'' (App (Cast f (TyForAll (NamedTyBndr b1) t1 :~ TyForAll (NamedTyBndr b2) t2)) e@(Type t)) =
+    let
+        t1' = retype b1 t t1
+        t2' = retype b2 t t2
+    in
+    Cast (App f e) (t1' :~ t2')
+liftCasts'' (App (Cast f (TyFun _ t2 :~ TyFun _ t2')) e) =
+    Cast (App f e) (t2 :~ t2')
 liftCasts'' a@(App e e') =
     let
-        lifted = App (liftCasts'' e) (liftCasts'' e')
+        a' = App (liftCasts'' e) (liftCasts'' e')
     in
-    if a == lifted then a else liftCasts'' lifted
+    if a == a' then a else liftCasts'' a'
 liftCasts'' e = e
 
 exprInCasts :: Expr -> Expr

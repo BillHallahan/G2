@@ -19,7 +19,7 @@ module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , tcDicts
                                          , concreteSatEq
                                          , concreteSatStructEq
-                                         , concreteSatTC
+                                         , typeClassInst
                                          , satisfyingTCTypes
                                          , satisfyingTC) where
 
@@ -57,14 +57,15 @@ nameIdToTypeId nm (n, i, _) =
     if n == nm then fmap (, i) t else Nothing
 
 affectedType :: Type -> Maybe Type
-affectedType (TyConApp _ [t]) = Just t
+affectedType (TyApp (TyCon _ _) t) = Just t
 affectedType _ = Nothing
 
 isTypeClassNamed :: Name -> TypeClasses -> Bool
 isTypeClassNamed n = M.member n . (coerce :: TypeClasses -> TCType)
 
 isTypeClass :: TypeClasses -> Type -> Bool
-isTypeClass tc (TyConApp n _) = isTypeClassNamed n tc 
+isTypeClass tc (TyCon n _) = isTypeClassNamed n tc 
+isTypeClass tc (TyApp t _) = isTypeClass tc t
 isTypeClass _ _ = False
 
 instance ASTContainer TypeClasses Expr where
@@ -120,7 +121,7 @@ structEqTCDict kv tc t = lookupTCDict tc (structEqTC kv) t
 lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
 lookupTCDict tc (Name n _ _ _) t =
     case (fmap (insts . snd) $ find (\(Name n' _ _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) of
-        Just c -> fmap snd $ find (\(t', _) -> t .:: t') c
+        Just c -> fmap snd $ find (\(t', _) -> PresType t .:: t') c
         Nothing -> Nothing
 
 lookupEqDicts :: KnownValues -> TypeClasses -> Maybe [(Type, Id)]
@@ -140,7 +141,7 @@ tcDicts :: TypeClasses -> [Id]
 tcDicts = map snd . concatMap insts . M.elems . coerce
 
 -- satisfyingTCTypes
--- Finds all types/dict paurs that satisfy the given TC requirements for each polymorphic argument
+-- Finds all types/dict pairs that satisfy the given TC requirements for each polymorphic argument
 -- returns a list of tuples, where each tuple (i, t) corresponds to a TyVar Id i,
 -- and a list of acceptable types
 satisfyingTCTypes :: TypeClasses -> [Type] -> [(Id, [Type])]
@@ -150,53 +151,76 @@ satisfyingTCTypes tc ts =
 
         tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDictsTypes tc) ns)) tcReq
     in
-    map (\(i, ts') -> (i, inter ts')) tcReqTS
+    map (uncurry substKind) $ map (\(i, ts') -> (i, inter ts')) tcReqTS
+
+substKind :: Id -> [Type] -> (Id, [Type])
+substKind i@(Id _ t) ts = (i, map (\t' -> case t' of 
+                                            TyCon n _ -> TyCon n (tyFunToTyApp t)
+                                            t'' -> t'') ts)
+
+tyFunToTyApp :: Type -> Type
+tyFunToTyApp (TyFun t1 (TyFun t2 t3)) = TyApp (TyApp (tyFunToTyApp t1) (tyFunToTyApp t2)) (tyFunToTyApp t3)
+tyFunToTyApp t = modifyChildren tyFunToTyApp t
 
 -- satisfyingTCReq
 -- Finds the names of the required typeclasses for each TyVar Id
 -- See satisfyingTCTypes
 satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
 satisfyTCReq tc ts =
-    map (\(i, ts') -> (i, mapMaybe tyConAppName ts'))
+    map (\(i, ts') -> (i, mapMaybe (tyConAppName . tyAppCenter) ts'))
     $ mapMaybe toIdTypeTup
-    $ groupBy (\t1 t2 -> tyConAppArg t1 == tyConAppArg t2)
-    $ filter (typeClassReq tc) ts
+    $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
+    $ filter (isTypeClass tc) ts
 
 toIdTypeTup :: [Type] -> Maybe (Id, [Type])
-toIdTypeTup ts@(TyConApp _ [TyVar i]:_) = Just (i, ts)
+toIdTypeTup ts@(TyApp (TyCon _ _) (TyVar i):_) = Just (i, ts)
 toIdTypeTup _ = Nothing
 
-typeClassReq :: TypeClasses -> Type -> Bool
-typeClassReq tc (TyConApp n _) = isTypeClassNamed n tc
-typeClassReq _ _ = False
-
 tyConAppName :: Type -> Maybe Name
-tyConAppName (TyConApp n _) = Just n
+tyConAppName (TyCon n _) = Just n
 tyConAppName _ = Nothing
-
-tyConAppArg :: Type -> [Type]
-tyConAppArg (TyConApp _ ts) = ts
-tyConAppArg _ = []
 
 inter :: Eq a => [[a]] -> [a]
 inter [] = []
 inter xs = foldr1 intersect xs
 
-concreteSatEq :: KnownValues -> TypeClasses -> Type -> Expr
+concreteSatEq :: KnownValues -> TypeClasses -> Type -> Maybe Expr
 concreteSatEq kv tc t = concreteSatTC tc (eqTC kv) t
 
-concreteSatStructEq :: KnownValues -> TypeClasses -> Type -> Expr
+concreteSatStructEq :: KnownValues -> TypeClasses -> Type -> Maybe Expr
 concreteSatStructEq kv tc t = concreteSatTC tc (structEqTC kv) t
 
-concreteSatTC :: TypeClasses -> Name -> Type -> Expr
-concreteSatTC tc tcn t@(TyConApp _ ts) =
+concreteSatTC :: TypeClasses -> Name -> Type -> Maybe Expr
+concreteSatTC tc tcn t
+    | TyCon _ _ <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , tcs <- map (concreteSatTC tc tcn) ts
+    , all (isJust) tcs =
     case lookupTCDict tc tcn t of
-        Just i -> foldl' App (Var i) $ map Type ts ++  map (concreteSatTC tc tcn) ts
-        Nothing -> error $ "Unknown typeclass in concreteSatTC"
-concreteSatTC tc tcn t =
-    case lookupTCDict tc tcn t of
-        Just i -> Var i
-        Nothing -> error "Unknown typeclass in concreteSatTC"
+        Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
+        Nothing -> Nothing
+concreteSatTC tc tcn t = fmap Var (lookupTCDict tc tcn t)
+
+-- Given a TypeClass name, a type that you want an instance of that typeclass
+-- for, and a mapping of TyVar name's to Id's for those types instances of
+-- the typeclass, returns an instance of the typeclass, if possible 
+typeClassInst :: TypeClasses -> M.Map Name Id -> Name -> Type -> Maybe Expr 
+typeClassInst tc m tcn t
+    | tca@(TyCon _ _) <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , tcs <- map (typeClassInst tc m tcn) ts
+    , all (isJust) tcs =
+        case lookupTCDict tc tcn tca of
+            Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
+            Nothing -> Nothing
+    | (TyVar (Id n _)) <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , tcs <- map (typeClassInst tc m tcn) ts
+    , all (isJust) tcs =
+        case M.lookup n m of
+            Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
+            Nothing -> Nothing
+typeClassInst _ _ _ _ = Nothing
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments

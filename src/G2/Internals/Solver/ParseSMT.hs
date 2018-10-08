@@ -81,6 +81,7 @@ boolExpr = do
     case n of
         "true" -> return (VBool True)
         "false" -> return (VBool False)
+        _ -> error "Bad bool expr"
 
 parensConsName :: Parsec String st String
 parensConsName = parens parensConsName <|> consName

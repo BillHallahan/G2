@@ -18,15 +18,20 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , mkCons
                                   , mkEmpty
                                   , mkIdentity
+                                  , getFuncCalls
+                                  , getFuncCallsRHS
+                                  , modifyAppTop
                                   , modifyAppLHS
                                   , modifyAppRHS
                                   , modifyInLHS
-                                  , functionCalls
                                   , nonDataFunctionCalls
                                   , appCenter
+                                  , mapArgs
                                   , mkLams
-                                  , mkLamBindings
-                                  , mkMappedLamBindings
+                                  , elimAsserts
+                                  -- , mkLamBindings
+                                  -- , mkMappedLamBindings
+                                  , leadingLamUsesIds
                                   , leadingLamIds
                                   , insertInLams
                                   , maybeInsertInLams
@@ -116,7 +121,31 @@ mkIdentity t =
     let
         x = Id (Name "x" Nothing 0 Nothing) t
     in
-    Lam x (Var x)
+    Lam TermL x (Var x)
+
+getFuncCalls :: ASTContainer m Expr => m -> [Expr]
+getFuncCalls = evalContainedASTs getFuncCalls'
+
+getFuncCalls' :: Expr -> [Expr]
+getFuncCalls' a@(App e1 e2) = a:getFuncCallsRHS e1 ++ getFuncCalls' e2
+getFuncCalls' v@(Var _) = [v]
+getFuncCalls' e = evalChildren getFuncCalls' e
+
+getFuncCallsRHS :: Expr -> [Expr]
+getFuncCallsRHS (App e1 e2) = getFuncCallsRHS e1 ++ getFuncCalls' e2
+getFuncCallsRHS (Var _) = []
+getFuncCallsRHS e = getFuncCalls' e
+
+modifyAppTop :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
+modifyAppTop f = modifyContainedASTs (modifyAppTop' f)
+
+modifyAppTop' :: (Expr -> Expr) -> Expr -> Expr
+modifyAppTop' f e@(App _ _) =
+    let
+        e' = f e
+    in
+    modifyAppRHS (modifyAppTop' f) e' 
+modifyAppTop' f e = modifyChildren f e
 
 -- | modifyAppLHS
 modifyAppLHS :: (Expr -> Expr) -> Expr -> Expr
@@ -132,23 +161,10 @@ modifyInLHS :: (Expr -> Expr) -> Expr -> Expr
 modifyInLHS f (App e _) = modifyInLHS f e
 modifyInLHS f e = f e
 
--- | functionCalls
--- Returns all function calls with all arguments
-functionCalls :: ASTContainer m Expr => m -> [Expr]
-functionCalls = evalContainedASTs functionCalls'
-
-functionCalls' :: Expr -> [Expr]
-functionCalls' e@(App e' e'') = e:functionCallsApp e' ++ functionCalls' e''
-functionCalls' e = functionCalls $ children e
-
-functionCallsApp :: Expr -> [Expr]
-functionCallsApp (App e e') = functionCallsApp e ++ functionCalls' e'
-functionCallsApp _ = []
-
 -- | nonDataFunctionCalls
 -- Returns all function calls to Vars with all arguments
 nonDataFunctionCalls :: ASTContainer m Expr => m -> [Expr]
-nonDataFunctionCalls = filter (not . centerIsData) . functionCalls
+nonDataFunctionCalls = filter (not . centerIsData) . getFuncCalls
 
 centerIsData :: Expr -> Bool
 centerIsData (App e _) = centerIsData e
@@ -159,26 +175,19 @@ appCenter :: Expr -> Expr
 appCenter (App a _) = appCenter a
 appCenter e = e
 
-mkLams :: [Id] ->  Expr -> Expr
-mkLams = flip (foldr Lam)
+mapArgs :: (Expr -> Expr) -> Expr -> Expr
+mapArgs f (App e e') = App (mapArgs f e) (f e')
+mapArgs _ e = e
 
--- Generates a lambda binding for each a in the provided list
--- Takes a function to generate the inner expression
-mkLamBindings :: NameGen -> [Type] -> (NameGen -> [Id] -> (Expr, NameGen)) -> (Expr, NameGen)
-mkLamBindings ng ts f =
-    let
-        (is, ng') = freshIds ts ng
+mkLams :: [(LamUse, Id)] ->  Expr -> Expr
+mkLams =  flip (foldr (\(u, i) -> Lam u i))
 
-        (e, ng'') = f ng' is
-    in
-    (foldr Lam e is, ng'')
+elimAsserts :: ASTContainer m Expr => m -> m
+elimAsserts = modifyASTs elimAsserts'
 
-mkMappedLamBindings :: NameGen -> [(a, Type)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen)) -> (Expr, NameGen)
-mkMappedLamBindings ng at f =
-    let
-        (as, _) = unzip at
-    in
-    mkLamBindings ng (map snd at) (\ng' ns -> f ng' (zip as ns))
+elimAsserts' :: Expr -> Expr
+elimAsserts' (Assert _ _ e) = e
+elimAsserts' e = e
 
 -- Runs the given function f on the expression nested in the lambdas, and
 -- rewraps the new expression with the Lambdas
@@ -186,33 +195,40 @@ insertInLams :: ([Id] -> Expr -> Expr) -> Expr -> Expr
 insertInLams f = insertInLams' f []
 
 insertInLams' :: ([Id] -> Expr -> Expr) -> [Id] -> Expr -> Expr
-insertInLams' f xs (Lam i e)  = Lam i $ insertInLams' f (i:xs) e
+insertInLams' f xs (Lam u i e)  = Lam u i $ insertInLams' f (i:xs) e
 insertInLams' f xs e = f (reverse xs) e
 
 maybeInsertInLams :: ([Id] -> Expr -> Maybe Expr) -> Expr -> Maybe Expr
 maybeInsertInLams f = maybeInsertInLams' f []
 
 maybeInsertInLams' :: ([Id] -> Expr -> Maybe Expr) -> [Id] -> Expr -> Maybe Expr
-maybeInsertInLams' f xs (Lam i e)  = fmap (Lam i) $ maybeInsertInLams' f (i:xs) e
+maybeInsertInLams' f xs (Lam u i e)  = fmap (Lam u i) $ maybeInsertInLams' f (i:xs) e
 maybeInsertInLams' f xs e = f (reverse xs) e
 
 -- | inLams
 -- Returns the Expr in nested Lams
 inLams :: Expr -> Expr
-inLams (Lam _ e) = inLams e
+inLams (Lam _ _ e) = inLams e
 inLams e = e
 
+leadingLamUsesIds :: Expr -> [(LamUse, Id)]
+leadingLamUsesIds (Lam u i e) = (u, i):leadingLamUsesIds e
+leadingLamUsesIds _ = []
+
 leadingLamIds :: Expr -> [Id]
-leadingLamIds (Lam i e) = i:leadingLamIds e
+leadingLamIds (Lam _ i e) = i:leadingLamIds e
 leadingLamIds _ = []
 
 args :: Expr -> [Id]
-args (Lam i e) = i:args e
+args (Lam _ i e) = i:args e
 args _ = []
 
 passedArgs :: Expr -> [Expr]
-passedArgs (App e e') = e':passedArgs e
-passedArgs _ = []
+passedArgs = reverse . passedArgs'
+
+passedArgs' :: Expr -> [Expr]
+passedArgs' (App e e') = e':passedArgs' e
+passedArgs' _ = []
 
 nthArg :: Expr -> Int -> Id
 nthArg e i = args e !! (i - 1)
@@ -238,10 +254,10 @@ symbVars' eenv (Var (Id n _)) = E.isSymbolic n eenv
 symbVars' _ _ = False
 
 alphaReduction :: ASTContainer m Expr => m -> m
-alphaReduction = modifyASTsM alphaReduction'
+alphaReduction = modifyASTsMonoid alphaReduction'
 
 alphaReduction' :: Max Int -> Expr -> (Expr, Max Int)
-alphaReduction' mi l@(Lam i@(Id (Name n m ii lo) t) e) =
+alphaReduction' mi l@(Lam u i@(Id (Name n m ii lo) t) e) =
     let
         mi' = mi + 1
         n' = Name n m (getMax mi') lo
@@ -249,7 +265,7 @@ alphaReduction' mi l@(Lam i@(Id (Name n m ii lo) t) e) =
 
         e' = replaceASTs (Var i) (Var i') e
     in
-    if ii > getMax mi then (l, mi') else (Lam i' e', mi')
+    if ii > getMax mi then (l, mi') else (Lam u i' e', mi')
 alphaReduction' m e = (e, m)
 
 -- | varBetaReduction
@@ -258,13 +274,13 @@ varBetaReduction :: ASTContainer m Expr => m -> m
 varBetaReduction = modifyASTs varBetaReduction'
 
 varBetaReduction' :: Expr -> Expr
-varBetaReduction' a@(App (Lam i e) (Var v)) = 
+varBetaReduction' a@(App (Lam _ i e) (Var v)) = 
     if not (isTYPE . typeOf $ i) then replaceLamIds i v e else a
 varBetaReduction' e = e
 
 replaceLamIds :: Id -> Id -> Expr -> Expr
 replaceLamIds i i' v@(Var v') = if i == v' then Var i' else v
-replaceLamIds i i' l@(Lam l' e) = if i == l' then l else Lam l' (replaceLamIds i i' e)
+replaceLamIds i i' l@(Lam u l' e) = if i == l' then l else Lam u l' (replaceLamIds i i' e)
 replaceLamIds i i' e = modifyChildren (replaceLamIds i i') e
 
 -- | mkStrict
@@ -274,14 +290,21 @@ mkStrict w = modifyContainedASTs (mkStrict' w)
 
 mkStrict' :: Walkers -> Expr -> Expr
 mkStrict' w e =
-    case returnType e of
-        (TyConApp n ts) -> case M.lookup n w of
+    let
+        rt = returnType e
+        t = tyAppCenter rt
+        ts = tyAppArgs rt
+    in
+    case t of
+        (TyCon n _) -> case M.lookup n w of
             Just i -> App (foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)) e
             Nothing -> error $ "mkStrict: failed to find walker with type: " ++ show n
-        _ -> error $ "No walker found in mkStrict\n e = " ++ show e ++ "\nret = " ++ show (returnType e) ++ "\nw = " ++ show w
+        _ -> error $ "No walker found in mkStrict\n e = " ++ show e ++ "\nt = " ++ show (typeOf e) ++ "\nret = " ++ show (returnType e)
 
 typeToWalker :: Walkers -> Type -> Expr
-typeToWalker w (TyConApp n ts) =
+typeToWalker w t
+  | TyCon n _ <- tyAppCenter t
+  , ts <- tyAppArgs t =
   case M.lookup n w of
     Just i -> foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)
     Nothing -> error $ "typeToWalker: failed to find type: " ++ show n

@@ -19,7 +19,7 @@ letsTypeValidNoError = TestCase (assertBool "Valid Let Failed"
 
 letsTypeValidOneError :: Test
 letsTypeValidOneError = TestCase (assertBool "Invalid Let Passed"
-  ([] != letsTypeValid (
+  ([] /= letsTypeValid (
       Let [ 
           ((Id (Name (pack "integerId") (Just (pack "")) 0 Nothing)) TyLitChar, Lit (LitInt 1))
       ]

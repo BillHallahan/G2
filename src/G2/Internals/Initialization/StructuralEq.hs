@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Internals.Initialization.StructuralEq (createStructEqFuncs) where
 
@@ -28,7 +29,7 @@ createStructEqFuncs ts = do
     adtn <- freshSeededStringN "structEq"
     dcn <- freshSeededStringN "structEq"
 
-    let t = TyConApp tcn []
+    let t = TyCon tcn TYPE
 
     tyvn <- freshSeededStringN "a"
     let tyvn' = TyVar (Id tyvn TYPE)
@@ -45,17 +46,17 @@ createStructEqFuncs ts = do
 
     tenv <- typeEnv
     -- For efficiency, we only generate structural equality when it's needed
-    let types = mapMaybe (tcaName . returnType) $ filter isTyFun ts ++ (nubBy (.::.) $ argTypesTEnv tenv)
+    let types = mapMaybe (tcaName . returnType . PresType) $ filter isTyFun ts ++ (nubBy (.::.) $ argTypesTEnv tenv)
     let tenv' = M.filterWithKey (\n _ -> n `elem` types) tenv
 
-    insertT adtn (DataTyCon {bound_names = [tyvn], data_cons = [dc]})
+    insertT adtn (DataTyCon {bound_ids = [Id tyvn TYPE], data_cons = [dc]})
 
     let (tenvK, tenvV) = unzip $ M.toList tenv'
 
     -- Create names for the new functions
     let ns = map (\(Name n _ _ _) -> Name ("structEq" `T.append` n) Nothing 0 Nothing) tenvK
     ns' <- freshSeededNamesN ns
-    let nsT = zip tenvK $ map (flip Id (TyConApp tcn [])) ns'
+    let nsT = zip tenvK $ map (flip Id (TyCon tcn TYPE)) ns'
 
     tc <- IT.typeClasses
     tci <- freshIdN TYPE
@@ -68,7 +69,8 @@ createStructEqFuncs ts = do
     F.mapM_ (\(n, n', adt) -> createStructEqFunc dcn n n' adt) $ zip3 ns' tenvK tenvV
 
 tcaName :: Type -> Maybe Name
-tcaName (TyConApp n _) = Just n
+tcaName (TyCon n _) = Just n
+tcaName (TyApp t _) = tcaName t
 tcaName _ = Nothing
 
 genExtractor :: Type -> DataCon  -> IT.SimpleStateM Name
@@ -82,7 +84,7 @@ genExtractor t dc = do
     fi <- freshIdN $ TyFun tyvn' (TyFun tyvn' tb)
 
     let alt = Alt (DataAlt dc [fi]) $ Var fi
-    let e = Lam (Id tyvn TYPE) $ Lam lami $ Case (Var lami) ci $ [alt]
+    let e = Lam TypeL (Id tyvn TYPE) $ Lam TermL lami $ Case (Var lami) ci $ [alt]
 
     extractN <- freshSeededStringN "structEq"
 
@@ -94,14 +96,15 @@ genExtractor t dc = do
 genInsts :: Name -> [(Name, Id)] -> Type -> DataCon -> [(Name, AlgDataTy)] -> IT.SimpleStateM [(Type, Id)]
 genInsts _ _ _ _ [] = return []
 genInsts tcn nsT t dc ((n@(Name n' _ _ _), adt):xs) = do
-    let bn = bound_names adt
+    let bn = map idName $ bound_ids adt
     bn' <- freshSeededNamesN bn
 
     let bni = map (flip Id TYPE) bn
-        bnid = map (\(dni, i) -> Id dni (TyConApp tcn [TyVar i])) $ zip bn' bni
+        bnid = map (\(dni, i) -> Id dni (TyApp (TyCon tcn (TyFun TYPE TYPE)) (TyVar i))) $ zip bn' bni
         
         -- Make the expressions
         bnv = map TyVar bni
+        bnvK = mkTyApp $ map (const TYPE) bnv
         tbnv = map Type bnv
         dv = map Var bnid
 
@@ -111,56 +114,56 @@ genInsts tcn nsT t dc ((n@(Name n' _ _ _), adt):xs) = do
 
         vs = mkApp (Var eqfn:tbnv ++ dv)
 
-        e = mkLams (bni ++ bnid) $ App (Data dc) vs
+        e = mkLams (map (TypeL,) bni ++ map (TermL,) bnid) $ App (Data dc) vs
 
     dn <- freshSeededNameN (Name ("structEqDict" `T.append` n') Nothing 0 Nothing)
     insertE dn e
 
     xs' <- genInsts tcn nsT t dc xs
 
-    return $ (TyConApp n bnv, Id dn t):xs'
+    return $ (mkTyApp (TyCon n bnvK:bnv), Id dn t):xs'
 
 
 createStructEqFunc :: Name -> Name -> Name -> AlgDataTy -> IT.SimpleStateM ()
-createStructEqFunc dcn fn tn (DataTyCon {bound_names = ns, data_cons = dc}) = do
-    ns' <- freshSeededNamesN ns
-    let t = TyConApp tn (map (TyVar . flip Id TYPE) ns')
+createStructEqFunc dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
+    ns' <- freshSeededNamesN $ map idName ns
+    let t = mkTyCon tn (map (TyVar . flip Id TYPE) ns') TYPE
 
     bt <- freshIdsN $ map (const TYPE) ns
-    bd <- freshIdsN $ map (\i -> TyConApp dcn [TyVar i]) bt
+    bd <- freshIdsN $ map (\i -> TyApp (TyCon dcn (TyFun TYPE TYPE)) (TyVar i)) bt
 
     let bm = zip (map idName bt) $ zip bt bd
 
-    let dc' = foldr (\(n, rt) -> retype (Id n TYPE) rt) dc $ zip ns (map TyVar bt)
+    let dc' = foldr (\(i, rt) -> retype i rt) dc $ zip ns (map TyVar bt)
 
     e <- createStructEqFuncDC t bt bd bm dc'
     insertE fn e
-createStructEqFunc dcn fn tn (NewTyCon {bound_names = ns, rep_type = rt}) = do
+createStructEqFunc dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
     kv <- knownValues
 
-    let t = TyConApp tn (map (TyVar . flip Id TYPE) ns)
+    let t = mkTyCon tn (map TyVar ns) TYPE
 
-    bt <- freshIdsN $ map (const TYPE) ns
-    bd <- freshIdsN $ map (\i -> TyConApp dcn [TyVar i]) bt
+    bt <- freshIdsN $ map typeOf ns
+    bd <- freshIdsN $ map (\i -> TyApp (TyCon dcn (TyFun TYPE TYPE)) (TyVar i)) bt
     let bm = zip (map idName bt) $ zip bt bd
 
-    let t' = foldr (\(n, t_) -> retype (Id n TYPE) t_) t $ zip ns (map TyVar bt)
+    let t' = foldr (\(i, t_) -> retype i t_) t $ zip ns (map TyVar bt)
 
     lam1I <- freshIdN t'
     lam2I <- freshIdN t'
 
-    let rt' = foldr (\(n, rt_) -> retype (Id n TYPE) rt_) rt $ zip ns (map TyVar bt)
+    let rt' = foldr (\(i, rt_) -> retype i rt_) rt $ zip ns (map TyVar bt)
+    d <- dictForType bm rt'
 
-    let ex = Var $ Id (structEqFunc kv) TyUnknown
+    let ex = Var $ Id (structEqFunc kv) $ TyFun (typeOf (Type rt')) $ TyFun (typeOf d) $ TyFun t' $ TyFun t' t
     let c = t' :~ rt'
     let cLam1I = Cast (Var lam1I) c
     let cLam2I = Cast (Var lam2I) c
 
-    d <- dictForType bm rt'
 
-    let e = Lam lam1I $ Lam lam2I $ App (App (App (App ex (Type rt')) d) cLam1I) cLam2I
-    let e' = foldr Lam e bd
-    let e'' = foldr Lam e' bt
+    let e = Lam TermL lam1I $ Lam TermL lam2I $ App (App (App (App ex (Type rt')) d) cLam1I) cLam2I
+    let e' = mkLams (map (TermL,) bd) e
+    let e'' = mkLams (map (TypeL,) bt) e'
 
     insertE fn e''
 createStructEqFunc _ _ _ (TypeSynonym {}) = error "Type synonym in createStructEqFunc"
@@ -174,18 +177,18 @@ createStructEqFuncDC t bt bd bm dc = do
 
     alts <- mapM (createStructEqFuncDCAlt (Var lam2I) t bm) dc
 
-    let e = Lam lam1I $ Lam lam2I $ Case (Var lam1I) b1 alts
-    let e' = foldr Lam e bd
-    return $ foldr Lam e' bt
+    let e = Lam TermL lam1I $ Lam TermL lam2I $ Case (Var lam1I) b1 alts
+    let e' = mkLams (map (TermL,) bd) e
+    return $ mkLams (map (TypeL,) bt) e'
 
 createStructEqFuncDCAlt :: Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> IT.SimpleStateM Alt
-createStructEqFuncDCAlt e2 t bm dc@(DataCon _ ts) = do
+createStructEqFuncDCAlt e2 t bm dc@(DataCon _ _) = do
     false <- mkFalseE
 
-    bs <- freshIdsN $ anonArgumentTypes ts
+    bs <- freshIdsN $ anonArgumentTypes dc
 
     b <- freshIdN t
-    bs2 <- freshIdsN $ anonArgumentTypes ts
+    bs2 <- freshIdsN $ anonArgumentTypes dc
 
     sEqCheck <- boundChecks bs bs2 bm
 
@@ -208,7 +211,8 @@ boundCheck bm i1 i2 = do
     structEqCheck bm (typeOf i1) i1 i2
 
 structEqCheck :: [(Name, (Id, Id))] -> Type -> Id -> Id -> IT.SimpleStateM Expr
-structEqCheck bm t@(TyConApp _ _) i1 i2 = do
+structEqCheck bm t i1 i2
+    | TyCon _ _ <- tyAppCenter t = do
     kv <- knownValues
 
     let ex = Var $ Id (structEqFunc kv) TyUnknown
@@ -225,16 +229,26 @@ structEqCheck bm (TyVar (Id n _)) (Id n' _) (Id n'' _) = do
 
             return (App (App (App (App ex (Var ty)) (Var dict)) (Var (Id n' (TyVar ty)))) (Var (Id n'' (TyVar ty))))
         Nothing -> error "Unaccounted for TyVar in structEqCheck"
-structEqCheck _ TyLitInt i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
-structEqCheck _ TyLitFloat i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
-structEqCheck _ TyLitDouble i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
-structEqCheck _ TyLitChar i1 i2 = return $ App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)
+structEqCheck _ TyLitInt i1 i2 = do
+    eq <- mkEqPrimIntE
+    return $ App (App eq (Var i1)) (Var i2)
+structEqCheck _ TyLitFloat i1 i2 = do
+    eq <- mkEqPrimFloatE
+    return $ App (App eq (Var i1)) (Var i2)
+structEqCheck _ TyLitDouble i1 i2 = do
+    eq <- mkEqPrimDoubleE
+    return $ App (App eq (Var i1)) (Var i2)
+structEqCheck _ TyLitChar i1 i2 = do
+    eq <- mkEqPrimCharE
+    return $ App (App eq (Var i1)) (Var i2)
 structEqCheck _ (TyForAll _ _) _ _ = mkTrueE
 structEqCheck _ (TyFun _ _) i1 i2 = return $ App (App (Prim BindFunc TyUnknown) (Var i1)) (Var i2) -- mkTrueE
 structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t
 
 dictForType :: [(Name, (Id, Id))] -> Type -> IT.SimpleStateM Expr
-dictForType bm t@(TyConApp _ ts) = do
+dictForType bm t
+    | TyCon _ _ <- tyAppCenter t
+    , ts <- tyAppArgs t = do
     kv <- knownValues
     tc <- IT.typeClasses
 

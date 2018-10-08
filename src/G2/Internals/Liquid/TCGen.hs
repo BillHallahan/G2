@@ -1,756 +1,393 @@
 {-# LANGUAGE OverloadedStrings #-}
-
-module G2.Internals.Liquid.TCGen (createLHTC, genTC) where
+{-# LANGUAGE TupleSections #-}
+module G2.Internals.Liquid.TCGen (createLHTC) where
 
 import G2.Internals.Language
-import qualified G2.Internals.Language.ExprEnv as E
+import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Monad
+import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.TCValues
 import G2.Internals.Liquid.Types
-
-import Control.Monad
-import Control.Monad.Extra (maybeM)
 
 import Data.Coerce
 import Data.Foldable
 import qualified Data.Map as M
-import Data.Maybe
 import qualified Data.Text as T
 
----------------------------------------
--- LH TypeClass Gen
----------------------------------------
-
--- genTC
--- The [(Name, Type, Walkers)] is
---  1) The name of a TC function
---  2) The type of the function
---  3) The instance of that function for all Types
--- We first generate a new dictionary type Dict for the TC.  Then we generate new functions
--- to get that Dict for each type.
-genTC :: Name -> [(Name, Type, Walkers)] -> LHStateM ()
-genTC tcn ntws = do
-    tc <- typeClasses    
-
-    let (fn, ts, ws) = unzip3 ntws
-
-    dcN <- freshSeededNameN tcn
-
-    let dc = DataCon dcN (mkTyFun (ts ++ [TyConApp dcN []]))
-
-        adt = DataTyCon { bound_names = []
-                        , data_cons = [dc] }
-
-    insertT tcn adt
-
-    tenv <- typeEnv
-
-    -- Get type names
-    let ns = M.keys tenv
-
-    ti <- genTCFuncs tcn [] dc ns ws
-
-    tci <- freshIdN TYPE
-
-    let tc' = coerce . M.insert tcn (Class { insts = ti, typ_ids = [tci] }) $ coerce tc
-
-    --Create functions to access the TC functions
-    access <- sequence $ map (accessFunction tcn dc) [0..length fn]
-
-    sequence_ $ map (uncurry insertMeasureM) (zip fn access)
-    
-    putTypeClasses tc'
-
-genTCFuncs :: Name -> [(Type, Id)] -> DataCon -> [Name] -> [Walkers] -> LHStateM [(Type, Id)]
-genTCFuncs _ ti _ [] _ = return ti
-genTCFuncs lh ti dc (n:ns) ws = do
-    fn <- lhFuncName n
-
-    t <- lookupT n
-
+createLHTC :: Measures -> KnownValues -> State [FuncCall] -> LHState
+createLHTC meenv mkv s =
     let
-        bn = case fmap bound_names t of
-            Just bn' -> bn'
-            Nothing -> error "Bound names not found in genTCFuncs"
-
-        bni = map (flip Id TYPE) bn
-
-        bnv = map TyVar bni
-        tbnv = map Type bnv
-
-        fs = mapMaybe (M.lookup n) ws
-        vs = map Var fs
-        vs' = map (\v -> mkApp $ v:tbnv) vs
-
-        e = mkLams bni $ mkApp $ Data dc:vs'
-
-    insertMeasureM fn e
-
-    let
-        t' = TyConApp lh [TyConApp n bnv]
-
-        ti' = (TyConApp n bnv, Id fn t'):ti
-    
-    genTCFuncs lh ti' dc ns ws
-
-lhFuncName :: Name -> LHStateM Name
-lhFuncName n = freshSeededStringN ("lh" `T.append` nameOcc n `T.append` "Func")
-
--- | accessFunction
---Create a function to access a TC function from the ADT
-accessFunction :: Name -> DataCon -> Int -> LHStateM Expr
-accessFunction tcn dc@(DataCon _ t) i = do
-    let t' = TyConApp tcn []
-
-        -- This gets bound to the Type (Expr constructor) argument
-    tb <- freshIdN TYPE
-
-    lb <- freshIdN t'
-    cb <- freshIdN t'
-
-    is <- freshIdsN $ anonArgumentTypes t
-
-    let
-        a = Alt (DataAlt dc is) $ Var (is !! i)
-
-        c = Case (Var lb) cb [a]
-    
-    return (Lam lb (Lam tb c))
-
-createLHTC :: ExprEnv -> State [FuncCall] -> LHState
-createLHTC meenv s =
-    let
-        (tcv, s') = runStateM createTCValues s
+        (tcv, s') = runStateM (createTCValues mkv) s
 
         lh_s = consLHState s' meenv tcv
     in
-    execLHStateM createLHTCFuncs lh_s
+    execLHStateM (do
+                    createLHTCFuncs
+                    createExtractors) lh_s
     
 
-createTCValues :: StateM [FuncCall] TCValues
-createTCValues = do
-    lhTCN <- freshSeededStringN "LH"
-    lhEqN <- freshSeededStringN "LHEq"
-    lhNeN <- freshSeededStringN "LHNe"
-    lhLtN <- freshSeededStringN "LHLt"
-    lhLeN <- freshSeededStringN "LHLe"
-    lhGtN <- freshSeededStringN "LHGt"
-    lhGeN <- freshSeededStringN "LHGe"
-    lhPPN <- freshSeededStringN "LHPP"
+createTCValues :: KnownValues -> StateM [FuncCall] TCValues
+createTCValues kv = do
+    lhTCN <- freshSeededStringN "lh"
+    lhEqN <- freshSeededStringN "lhEq"
+    lhNeN <- freshSeededStringN "lhNe"
+    lhPPN <- freshSeededStringN "lhPP"
 
-    return (TCValues { lhTC = lhTCN
-                     , lhEq = lhEqN
-                     , lhNe = lhNeN
-                     , lhLt = lhLtN
-                     , lhLe = lhLeN
-                     , lhGt = lhGtN
-                     , lhGe = lhGeN
-                     , lhPP = lhPPN })
+    let tcv = (TCValues { lhTC = lhTCN
+                        , lhNumTC = KV.numTC kv 
+                        , lhOrdTC = KV.ordTC kv 
 
--- TODO: very similar to createFuncsM in Language/CreateFuncs.hs
-createFuncsM' :: [b]
-              -> s
-              -> (b -> LHStateM Name)
-              -> (b -> Name -> s -> LHStateM s)
-              -> (s -> b -> LHStateM Expr)
-              -> LHStateM s
-createFuncsM' genFrom store namef storef exprf = do
-    ns <- freshSeededNamesN =<< mapM namef genFrom
+                        , lhEq = lhEqN
+                        , lhNe = lhNeN
+                        , lhLt = KV.ltFunc kv
+                        , lhLe = KV.leFunc kv
+                        , lhGt = KV.gtFunc kv
+                        , lhGe = KV.geFunc kv
 
-    let genFromNames = zip genFrom ns
-    -- let fullStore = foldr (uncurry storef) store genFromNames
-    fullStore <- foldM (\s (b, n) -> storef b n s) store genFromNames
+                        , lhPlus = KV.plusFunc kv
+                        , lhMinus = KV.minusFunc kv
+                        , lhTimes = KV.timesFunc kv
+                        , lhDiv = KV.divFunc kv
+                        , lhNegate = KV.negateFunc kv
+                        , lhMod = KV.modFunc kv
+                        , lhFromInteger = KV.fromIntegerFunc kv
 
-    exprfs <- mapM (exprf fullStore) genFrom
+                        , lhAnd = KV.andFunc kv
+                        , lhOr = KV.orFunc kv
 
-    sequence_ $ map (uncurry insertMeasureM) (zip ns exprfs)
+                        , lhPP = lhPPN })
 
-    return fullStore
+    return tcv
+
+type PredFunc = LHDictMap -> AlgDataTy -> DataCon -> [Id] -> LHStateM [Alt]
 
 createLHTCFuncs :: LHStateM ()
 createLHTCFuncs = do
-    tenv <- typeEnv
+    lhm <- mapM (uncurry initalizeLHTC) . M.toList =<< typeEnv
+    let lhm' = M.fromList lhm
 
-    let tenv' = M.toList tenv
+    -- createLHTCFuncs' relies on the standard TypeClass lookup functions to get access to
+    -- LH Dicts.  So it is important that, before calling it, we set up the TypeClass correctly
+    lhtc <- mapM (\(n, f) -> do
+                                adt <- lookupT n
+                                case adt of
+                                    Just adt' -> do
+                                        let bnvK = mkTyApp $ map (const TYPE) $ bound_ids adt'
+                                        return (TyCon n bnvK, f)
+                                    Nothing -> error $ "No LH Dict name for " ++ show n) lhm
 
-    lhTCN <- lhTCM
-    lhEqN <- lhEqM
-    lhNeN <- lhNeM
-    lhLtN <- lhLtM
-    lhLeN <- lhLeM
-    lhGtN <- lhGtM
-    lhGeN <- lhGeM
-    lhPPN <- lhPPM
+    tc <- typeClasses
+    tcn <- lhTCM
+    tci <- freshIdN TYPE
+    let tc' = coerce . M.insert tcn (Class { insts = lhtc, typ_ids = [tci] }) $ coerce tc
+    putTypeClasses tc'
 
-    eq_w <- createFuncsM' tenv' M.empty (return . lhEqName . fst) lhStore (lhTEnvExpr lhTCN (lhEqCase2Alts lhEqN) (eqLHFuncCall lhEqN))
-    neq_w <- createFuncsM' tenv' M.empty (return . lhNeqName . fst) lhStore (lhNeqExpr lhTCN eq_w)
-    lt_w <- createFuncsM' tenv' M.empty (return . lhLtName . fst) lhStore (lhTEnvExpr lhTCN (lhLtCase2Alts lhLtN) (ltLHFuncCall lhLtN))
+    -- Now, we do the work of actually generating all the code/functions for the typeclass
+    mapM_ (uncurry (createLHTCFuncs' lhm')) . M.toList =<< typeEnv
 
-    le_w <- createFuncsM' tenv' M.empty (return . lhLeName . fst) lhStore (lhLeExpr lt_w eq_w)
-    gt_w <- createFuncsM' tenv' M.empty (return . lhGtName . fst) lhStore (lhGtExpr lt_w)
-    ge_w <- createFuncsM' tenv' M.empty (return . lhGeName . fst) lhStore (lhGeExpr le_w)
+initalizeLHTC :: Name -> AlgDataTy -> LHStateM (Name, Id)
+initalizeLHTC n adt = do
+    lhf <- lhName "lh" n
+    t <- lhtcT n adt
+    return (n, Id lhf t)
 
-    pp_w <- createFuncsM' tenv' M.empty (return . lhPolyPredName . fst) lhStore (lhPolyPred lhTCN)
+lhtcT :: Name -> AlgDataTy -> LHStateM Type
+lhtcT n adt = do
+    lh <- lhTCM
+    let bi = bound_ids adt
+    let ct = foldl' TyApp (TyCon n TYPE) $ map TyVar bi
 
-    let primN = [Name "Int#" (Just "GHC.Prims") 0 Nothing, Name "Float#" (Just "GHC.Prims") 0 Nothing, Name "Double#" (Just "GHC.Prims") 0 Nothing]
-    eq_w2 <- createPrimFuncs eq_w Eq primN
-    neq_w2 <- createPrimFuncs neq_w Neq primN
-    lt_w2 <- createPrimFuncs lt_w Lt primN
-    le_w2 <- createPrimFuncs le_w Le primN
-    gt_w2 <- createPrimFuncs gt_w Gt primN
-    ge_w2 <- createPrimFuncs ge_w Ge primN
+    let t = (TyApp 
+                (TyCon lh TYPE) 
+                ct
+            )
 
-    pp_w2 <- createPrimPolyPreds pp_w primN
+    let t' = foldr TyFun t $ map (TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
+    let t'' = foldr TyForAll t' $ map NamedTyBndr bi
+    return t''
 
-    tb <- tyBoolT
+lhName :: T.Text -> Name -> LHStateM Name
+lhName t (Name n m _ _) = freshSeededNameN $ Name (t `T.append` n) m 0 Nothing
 
-    tvAN <- freshSeededStringN "a"
+createLHTCFuncs' :: LHDictMap -> Name -> AlgDataTy -> LHStateM ()
+createLHTCFuncs' lhm n adt = do
+    eqN <- lhName "lhEq" n
+    eq <- createFunc lhEqFunc n adt
+    insertMeasureM eqN eq
 
-    let tvA = TyVar $ Id tvAN TYPE
+    neN <- lhName "lhNe" n
+    ne <- createFunc lhNeFunc n adt
+    insertMeasureM neN ne
 
-    genTC lhTCN
-        [ (lhEqN, TyFun tvA (TyFun tvA tb), eq_w2) 
-        , (lhNeN, TyFun tvA (TyFun tvA tb), neq_w2)
-        , (lhLtN, TyFun tvA (TyFun tvA tb), lt_w2)
-        , (lhLeN, TyFun tvA (TyFun tvA tb), le_w2)
-        , (lhGtN, TyFun tvA (TyFun tvA tb), gt_w2)
-        , (lhGeN, TyFun tvA (TyFun tvA tb), ge_w2)
-        , (lhPPN, TyFun (TyFun tvA tb) tb, pp_w2) ]
+    ppN <- lhName "lhPP" n
+    pp <- lhPPFunc n adt
+    insertMeasureM ppN pp
 
----------------------------------------
--- Gen Helper
----------------------------------------
+    -- We define a function to get the LH Dict for this type
+    -- It takes and passes on the type arguments, and the LH Dicts for those
+    -- type arguments
+    lh <- lhTCM
 
-lhStore :: (Name, AlgDataTy) -> Name -> Walkers -> LHStateM Walkers
-lhStore (n, adt) n' w = do
-    let 
-        bn = bound_names adt
-        bnt = map (TyVar . flip Id TYPE) bn
-        bnf = map (\b -> TyFun b b) bnt
+    let bi = bound_ids adt
+    let bt = map (Type . TyVar) bi
+    lhd <- freshIdsN (map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) bi)
+    let lhdv = map Var lhd
 
-        base = TyFun (TyConApp n []) (TyConApp n [])
+    let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ppN]
+    let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs
 
-        t = foldr TyFun base (bnt ++ bnf)
-        i = Id n' t
-    
-    return (M.insert n i w)
+    lhdct <- lhDCType
+    let e = mkApp $ Data (DataCon lh lhdct):fs'
+    let e' = foldr (Lam TermL) e lhd
+    let e'' = foldr (Lam TypeL) e' bi
 
--- Returns bindings for TYPE parameters and cooresponding LH typeclasses
-boundNameBindings :: Name -> AlgDataTy -> LHStateM (AlgDataTy, [Id], [Id])
-boundNameBindings lh adt = do
-    let bn = bound_names adt
+    let fn = M.lookup n lhm
 
-        -- Generates fresh names for TYPE variables, and eq function variables
-    bn' <- freshNamesN (length bn)
-    wbn <- freshNamesN (length bn)
+    case fn of
+        Just fn' -> do
+            insertMeasureM (idName fn') e''
+            -- let bnvK = mkTyApp $ map (const TYPE) bi
+            return () -- return (TyCon n bnvK, fn')
+        Nothing -> error $ "No LH Dict name for " ++ show n
 
-    let
-        bni = map (flip Id TYPE) bn'
-        wbni = map (\(b, f) -> Id f (TyConApp lh [TyVar (Id b TYPE)])) $ zip bn' wbn
+lhDCType :: LHStateM Type
+lhDCType = do
+    lh <- lhTCM
+    n <- freshIdN TYPE
 
-        adt' = foldr (uncurry rename) adt (zip bn bn')
-    
-    return (adt', bni, wbni)
+    return $ (TyFun
+                TyUnknown
+                (TyFun
+                    TyUnknown
+                    (TyFun
+                        TyUnknown
+                        (TyApp 
+                            (TyCon lh TYPE) 
+                            (TyVar n)
+                        )
+                    )
+                )
+            )
 
----------------------------------------
--- Eq/Ne/Ord Function Gen
----------------------------------------
+createFunc :: PredFunc -> Name -> AlgDataTy -> LHStateM Expr 
+createFunc cf n adt = do
+    -- Our function needs the following arguments:
+    -- Type arguments
+    -- A LH typeclass for each type argument
+    -- Two expression of the adt type
+    -- We set up the needed Ids here
+    let bi = bound_ids adt
 
+    lh <- lhTCM
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
 
-lhEqName :: Name -> Name
-lhEqName n = Name ("lhEqName" `T.append` nameOcc n) Nothing 0 Nothing
+    d1 <- freshIdN (TyCon n TYPE)
+    d2 <- freshIdN (TyCon n TYPE)
 
-lhTEnvExpr :: Name -> Case2Alts -> LHFuncCall -> Walkers -> (Name, AlgDataTy) -> LHStateM Expr
-lhTEnvExpr lh ca fc w (n, adt) = do
-    (adt', bni, wbni) <- boundNameBindings lh adt
+    let m = M.fromList $ zip (map idName bi) lhbi
+    e <- mkFirstCase cf m d1 d2 adt
 
-    let
-        bn' = (map idName bni)
-        bfuncs = zip bn' wbni
+    let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ [(TermL, d1), (TermL, d2)]) e
 
-    e <- lhTEnvCase ca fc w bfuncs n bn' adt'
+    return e'
 
-    return (foldr Lam e (wbni ++ bni))
+mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> AlgDataTy -> LHStateM Expr
+mkFirstCase f ldm d1 d2 adt@(DataTyCon { data_cons = dcs }) = do
+    caseB <- freshIdN (typeOf d1)
+    return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 adt) dcs
+mkFirstCase _ _ _ _ _ = return $ Var (Id (Name "Bad mkFirstCase" Nothing 0 Nothing) TyUnknown)
 
+mkFirstCase' :: PredFunc -> LHDictMap -> Id -> AlgDataTy -> DataCon -> LHStateM Alt
+mkFirstCase' f ldm d2 adt dc = do
+    ba <- freshIdsN $ anonArgumentTypes dc
 
-lhTEnvCase :: Case2Alts -> LHFuncCall -> Walkers -> [(Name, Id)] -> Name -> [Name] -> AlgDataTy -> LHStateM Expr
-lhTEnvCase ca _ w ti n bn (DataTyCon {data_cons = dc}) = do
-    let t = TyConApp n $ map (TyVar . flip Id TYPE) bn
+    return . Alt (DataAlt dc ba) =<< mkSecondCase f ldm d2 adt dc ba
 
-    i1 <- freshIdN t
-    caseB <- freshIdN t
-    i2 <- freshIdN t
+mkSecondCase :: PredFunc -> LHDictMap -> Id -> AlgDataTy -> DataCon -> [Id] -> LHStateM Expr
+mkSecondCase f ldm d2 adt dc ba1 = do
+    caseB <- freshIdN (typeOf dc)
 
-    alts <- lhTEnvDataConAlts ca w ti n caseB i2 bn dc
+    alts <- f ldm adt dc ba1
 
-    let c = Case (Var i1) caseB alts
-    
-    return (Lam i1 (Lam i2 c))
-lhTEnvCase _ fc w ti _ bn (NewTyCon { rep_type = t@(TyConApp n _) }) = do
-    let t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
+    return $ Case (Var d2) caseB alts
 
-    i1 <- freshIdN t
-    i2 <- freshIdN t
+lhEqFunc :: PredFunc
+lhEqFunc ldm _ dc ba1 = do
+    ba2 <- freshIdsN $ anonArgumentTypes dc
 
-    let
-        v1 = Cast (Var i1) (t' :~ t)
-        v2 = Cast (Var i2) (t' :~ t)
-
-    e <- fc w ti v1 v2
-    
-    return (Lam i1 (Lam i2 e))
-lhTEnvCase _ _ _ _ _ _ _ = return (Var (Id (Name "BADlhTEnvCase" Nothing 0 Nothing) TyUnknown))
-
-lhTEnvDataConAlts :: Case2Alts -> Walkers -> [(Name, Id)] -> Name -> Id -> Id -> [Name] -> [DataCon] -> LHStateM [Alt]
-lhTEnvDataConAlts _ _ _ _ _ _ _ [] = return []
-lhTEnvDataConAlts ca w ti n caseB1 i2 bn (dc@(DataCon _ t):xs) = do    
-    binds1 <- freshIdsN $ anonArgumentTypes t
-    caseB2 <- freshIdN t
-
-    cAlts <- ca w ti caseB1 caseB2 binds1 dc
-
-    let
-        c = Case (Var i2) caseB2 cAlts
-        alt = Alt (DataAlt dc binds1) c
-
-    alts <- lhTEnvDataConAlts ca w ti n caseB1 i2 bn xs
-    
-    return (alt:alts)
-
-type Case2Alts = Walkers -> [(Name, Id)] -> Id -> Id -> [Id] -> DataCon -> LHStateM [Alt]
-
-lhEqCase2Alts :: Name -> Case2Alts
-lhEqCase2Alts lhExN w ti _ _ binds1 dc@(DataCon _ t) = do
-    binds2 <- freshIdsN $ anonArgumentTypes t
-
+    an <- lhAndE
     true <- mkTrueE
     false <- mkFalseE
 
-    -- Check that the two DataCons args are equal
-    let zbinds = zip (map Var binds1) (map Var binds2)
+    pr <- mapM (uncurry (eqLHFuncCall ldm)) $ zip ba1 ba2
+    let pr' = foldr (\e -> App (App an e)) true pr
 
-    ca <- sequence $ map (uncurry (eqLHFuncCall lhExN w ti)) zbinds
+    return [ Alt Default false
+           , Alt (DataAlt dc ba2) pr'] 
 
-    andE <- andM
-    let e = foldr (\e' -> App (App andE e')) true ca
+eqLHFuncCall :: LHDictMap -> Id -> Id -> LHStateM Expr
+eqLHFuncCall ldm i1 i2
+    | TyCon _ _ <- tyAppCenter t
+    , ts <- tyAppArgs t  = do
+        lhe <- lhEqM
+
+        i <- freshIdN TYPE
+        b <- tyBoolT
+
+        let lhv = Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b)))
+        
+        return $ foldl' App lhv [Var i1, Var i2]
+
+    | TyVar _ <- t = do
+        lhe <- lhEqM
+
+        i <- freshIdN TYPE
+        b <- tyBoolT
+
+        let lhv = App (Var (Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
+        return $ App (App lhv (Var i1)) (Var i2)
+
+    | TyFun _ _ <- t = mkTrueE
+    | TyForAll _ _ <- t = mkTrueE
     
-    return ([ Alt (DataAlt dc binds2) e, Alt Default false ])
-
-type LHFuncCall = Walkers -> [(Name, Id)] -> Expr -> Expr -> LHStateM Expr
-
-eqLHFuncCall :: Name -> LHFuncCall
-eqLHFuncCall lhExN w _ e e'
-    | (TyConApp n ts) <- typeOf e
-    , Just f <- M.lookup n w =
-        let
-            as = map Type ts
-        in
-        return $ foldl' App (Var f) (as ++ [e, e'])
-    | t@(TyVar _) <- typeOf e =
-        let
-            c = App (Var (Id lhExN TyUnknown)) (Type t)
-        in
-        return $ App (App c e) e'
-    | TyFun _ _ <- typeOf e = mkTrueE
-    | TyForAll _ _ <- typeOf e = mkTrueE
-    | t <- typeOf e
-    ,  t == TyLitInt
+    |  t == TyLitInt
     || t == TyLitDouble
     || t == TyLitFloat
     || t == TyLitChar = do
         b <- tyBoolT
         let pt = TyFun t (TyFun t b)
         
-        return $ App (App (Prim Eq pt) e) e'
-    | otherwise = error $ "\nError in eqLHFuncCall " ++ show (typeOf e)
+        return $ App (App (Prim Eq pt) (Var i1)) (Var i2)
 
-lhNeqName :: Name -> Name
-lhNeqName n = Name ("lhNeName" `T.append` nameOcc n) Nothing 0 Nothing
+    | otherwise = error $ "\nError in eqLHFuncCall " ++ show t ++ "\n" ++ show ldm
+    where
+        t = typeOf i1
 
-lhNeqExpr :: Name -> Walkers -> Walkers -> (Name, AlgDataTy) -> LHStateM Expr
-lhNeqExpr lh eqW _ (n, _) = do
-    meenv <- measuresM
+lhNeFunc :: PredFunc
+lhNeFunc ldm _ dc ba1 = do
+    ba2 <- freshIdsN $ anonArgumentTypes dc
 
-    let
-        f = case M.lookup n eqW of
-            Just f' -> f'
-            Nothing -> error "Unknown function in lhNeqExpr"
-        fe = case E.lookup (idName f) meenv of
-            Just fe' -> fe'
-            Nothing -> error "Unknown function def in lhNeqExpr"
-        li = leadingLamIds fe
-
-    no <- notM
-
-    let
-        nli = map idName li
-    
-    li' <- doRenamesN nli li
-
-    let
-        fApp = foldl' App (Var f) $ map Var $ filter (not . isTC lh) li'
-
-        e = foldr Lam (App no fApp) li'
-    
-    return e
-
-
-isTC :: Name -> Id -> Bool
-isTC n (Id _ (TyConApp n' _)) = n == n'
-isTC _ _ = False
-
-lhLtName :: Name -> Name
-lhLtName n = Name ("lhLtName" `T.append` nameOcc n) Nothing 0 Nothing
-
--- Once we have the first datacon (dc1) selected, we have to branch on all datacons less than dc1
-lhLtCase2Alts :: Name -> Walkers -> [(Name, Id)] -> Id -> Id -> [Id] -> DataCon -> LHStateM [Alt]
-lhLtCase2Alts lhExN w ti caseB1 _ binds1 dc@(DataCon dcn _) = do
-    tenv <- typeEnv
-
+    an <- lhAndE
     true <- mkTrueE
     false <- mkFalseE
 
-    let
-        t = typeOf caseB1
+    trueDC <- mkDCTrueM
+    falseDC <- mkDCFalseM
 
-        adt = case t of
-                (TyConApp n' _) -> M.lookup n' tenv
-                _ -> error "Bad type in lhLtCase2Alts"
+    pr <- mapM (uncurry (eqLHFuncCall ldm)) $ zip ba1 ba2
+    let pr' = foldr (\e -> App (App an e)) true pr
 
-        dcs = fmap (takeWhile ((/=) dcn . dataConName) . dataCon) adt
+    b <- freshIdN =<< tyBoolT
+    let pr'' = Case pr' b [ Alt (DataAlt trueDC []) false
+                          , Alt (DataAlt falseDC []) true ]
 
-    la <- maybeM (return []) (lhLtDCAlts true) (return dcs)
+    return [ Alt Default false
+           , Alt (DataAlt dc ba2) pr''] 
 
-    asame <- lhLtSameAlt lhExN w ti binds1 dc
-    
-    return (Alt Default false:asame:la)
+lhPPFunc :: Name -> AlgDataTy -> LHStateM Expr
+lhPPFunc n adt = do
+    let bi = bound_ids adt
 
-lhLtDCAlts :: Expr -> [DataCon] -> LHStateM [Alt]
-lhLtDCAlts _ [] = return []
-lhLtDCAlts true (dc@(DataCon _ t):dcs) = do
-    binds2 <- freshIdsN $ anonArgumentTypes t
-
-    let alt = Alt (DataAlt dc binds2) true
-
-    alts <- lhLtDCAlts true dcs
-    
-    return (alt:alts)
-
-lhLtSameAlt :: Name -> Walkers -> [(Name, Id)] -> [Id] -> DataCon -> LHStateM Alt
-lhLtSameAlt lhExN w ti binds1 dc@(DataCon _ t) = do    
-    binds2 <- freshIdsN $ anonArgumentTypes t
-
-    let zbinds = zip (map Var binds1) (map Var binds2)
-
-    ltB <- sequence $ map (uncurry (ltLHFuncCall lhExN w ti)) zbinds
-    eqB <- sequence $ map (uncurry (eqLHFuncCall lhExN w ti)) zbinds
-
-    let zipB = zip ltB eqB
-
-    e <- lhLtSameAltCases zipB
-    
-    return (Alt (DataAlt dc binds2) e)
-
-lhLtSameAltCases :: [(Expr, Expr)] -> LHStateM Expr
-lhLtSameAltCases [] = mkFalseE
-lhLtSameAltCases ((lt, eq):xs) = do
-    true <- mkDCTrueM
-    false <- mkDCFalseM
-
-    e <- lhLtSameAltCases xs
+    lh <- lhTCM
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
 
     b <- tyBoolT
+    fs <- mapM (\v -> freshIdN (TyFun (TyVar v) b)) bi
 
-    [b1, b2] <- freshIdsN [b, b]
+    d <- freshIdN (TyCon n TYPE)
 
-    let c = Case lt b1 
-            [ Alt (DataAlt true []) (Data true)
-            , Alt Default 
-                (Case eq b2 
-                    [ Alt (DataAlt true []) e
-                    , Alt Default (Data false)]
-                )
-            ]
-    
-    return c
+    let lhm = M.fromList $ zip (map idName bi) lhbi
+    let fnm = M.fromList $ zip (map idName bi) fs
+    e <- lhPPCase lhm fnm adt d
 
-ltLHFuncCall :: Name -> LHFuncCall
-ltLHFuncCall lhExN w _ e e'
-    | (TyConApp n ts) <- typeOf e
-    , Just f <- M.lookup n w =
-        let
-            as = map Type ts
-        in
-        return (foldl' App (Var f) (as ++ [e, e']))
-    | t@(TyVar _) <- typeOf e =
-        let
-            c = App (Var (Id lhExN TyUnknown)) (Type t)
-        in
-        return (App (App c e) e')
-    | TyFun _ _ <- typeOf e = mkTrueE
-    | TyForAll _ _ <- typeOf e = mkTrueE
-    | t <- typeOf e
-    ,  t == TyLitInt
+    let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ map (TermL,) fs ++ [(TermL, d)]) e
+
+    return e'
+
+type PPFuncMap = M.Map Name Id
+
+lhPPCase :: LHDictMap -> PPFuncMap -> AlgDataTy -> Id -> LHStateM Expr
+lhPPCase lhm fnm adt i = do
+    ci <- freshIdN (typeOf i)
+
+    return . Case (Var i) ci =<< mapM (lhPPAlt lhm fnm) (dataCon adt)
+
+lhPPAlt :: LHDictMap -> PPFuncMap -> DataCon -> LHStateM Alt
+lhPPAlt lhm fnm dc = do
+    ba <- freshIdsN $ anonArgumentTypes dc
+
+    an <- lhAndE
+    true <- mkTrueE
+
+    pr <- mapM (\i -> do
+                pp <- lhPPCall lhm fnm (typeOf i)
+                return $ App pp (Var i)) ba
+    let pr' = foldr (\e -> App (App an e)) true pr
+
+    return $ Alt (DataAlt dc ba) pr'
+
+-- This returns an Expr with a function type, of the given Type to Bool.
+lhPPCall :: LHDictMap -> PPFuncMap -> Type -> LHStateM Expr
+lhPPCall lhm fnm t
+    | TyCon _ _ <- tyAppCenter t
+    , ts <- tyAppArgs t  = do
+        lhpp <- lhPPM
+
+        let lhv = Var $ Id lhpp TyUnknown
+        dict <- lhTCDict'' lhm t
+        undefs <- mapM (lhPPCall lhm fnm) ts
+
+        return . mkApp $ lhv:[Type t, dict] ++ undefs -- ++ [Var i]
+
+    | TyVar (Id n _) <- t
+    , Just f <- M.lookup n fnm = return $ Var f -- App (Var f) (Var i)
+    | TyVar _ <- tyAppCenter t = do
+        i <- freshIdN t
+        return . Lam TermL i =<< mkTrueE
+    | TyFun _ _ <- t = do
+        i <- freshIdN t
+        return . Lam TermL i =<< mkTrueE
+    | TyForAll _ _ <- t = do
+        i <- freshIdN t
+        return . Lam TermL i =<< mkTrueE
+    |  t == TyLitInt
     || t == TyLitDouble
     || t == TyLitFloat
     || t == TyLitChar = do
-        b <- tyBoolT
-        let pt = TyFun t (TyFun t b)
-        
-        return (App (App (Prim Lt pt) e) e')
-    | otherwise = error $ "\nError in ltLHFuncCall" ++ show (typeOf e)
+        i <- freshIdN t
+        return . Lam TermL i =<< mkTrueE
+    | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm
 
-dataConName :: DataCon -> Name
-dataConName (DataCon n _) = n
+createExtractors :: LHStateM ()
+createExtractors = do
+    lh <- lhTCM
+    eq <- lhEqM
+    ne <- lhNeM
+    pp <- lhPPM
 
-lhLeName :: Name -> Name
-lhLeName n = Name ("lhLeName" `T.append` nameOcc n) Nothing 0 Nothing
+    createExtractors' lh [eq, ne, pp]
 
-lhLeExpr :: Walkers -> Walkers -> Walkers -> (Name, AlgDataTy) -> LHStateM Expr
-lhLeExpr ltW eqW _ (n, _) = do
-    eenv <- measuresM
+createExtractors' :: Name -> [Name] -> LHStateM ()
+createExtractors' lh ns = mapM_ (uncurry (createExtractors'' lh (length ns))) $ zip [0..] ns
 
-    let
-        lt = case M.lookup n ltW of
-            Just f' -> f'
-            Nothing -> error "Unknown function in lhLeExpr"
-        eq = case M.lookup n eqW of
-            Just f' -> f'
-            Nothing -> error "Unknown function in lhLeExpr"
-        fe = case E.lookup (idName eq) eenv of
-            Just fe' -> fe'
-            Nothing -> error "Unknown function def in lhLeExpr"
-        li = leadingLamIds fe
+createExtractors'' :: Name -> Int -> Int -> Name -> LHStateM ()
+createExtractors'' lh i j n = do
+    a <- freshIdN TYPE
 
-    or_ex <- orM
-    li' <- freshIdsN (map typeOf li)
+    bi <- freshIdsN $ replicate i TyUnknown
 
-    let
-        ltApp = foldl' App (Var lt) $ map Var li'
-        eqApp = foldl' App (Var eq) $ map Var li'
+    li <- freshIdN (TyCon lh (TyApp TYPE TYPE)) 
+    ci <- freshIdN (TyCon lh (TyApp TYPE TYPE))
 
-        orApp = App (App or_ex ltApp) eqApp
+    b <- freshIdN TYPE
+    let d = DataCon lh (TyForAll 
+                            (NamedTyBndr b) 
+                            (TyFun
+                                (TyVar b) 
+                                (TyApp (TyCon lh (TyApp TYPE TYPE)) (TyVar b))
+                            )
+                        )
+    let c = Case (Var li) ci [Alt (DataAlt d bi) (Var $ bi !! j)]
+    let e = Lam TypeL a $ Lam TermL li c
 
-        e = foldr Lam orApp li'
-    
-    return e
-
-lhGtName :: Name -> Name
-lhGtName n = Name ("lhGtName" `T.append` nameOcc n) Nothing 0 Nothing
-
-lhGtExpr :: Walkers -> Walkers -> (Name, AlgDataTy) -> LHStateM Expr
-lhGtExpr ltW _ (n, _) = do
-    eenv <- measuresM
-
-    let
-        f = case M.lookup n ltW of
-            Just f' -> f'
-            Nothing -> error "Unknown function in lhGtExpr"
-        fe = case E.lookup (idName f) eenv of
-            Just fe' -> fe'
-            Nothing -> error "Unknown function def in lhGtExpr"
-        li = leadingLamIds fe
-
-    li' <- freshIdsN (map typeOf li)
-
-    let
-        fApp = foldl' App (Var f) $ map Var $ flipLastTwo li'
-
-        e = foldr Lam fApp li'
-    
-    return e
-
-lhGeName :: Name -> Name
-lhGeName n = Name ("lhGeName" `T.append` nameOcc n) Nothing 0 Nothing
-
-lhGeExpr :: Walkers -> Walkers -> (Name, AlgDataTy) -> LHStateM Expr
-lhGeExpr leW _ (n, _) = do
-    eenv <- measuresM
-
-    let
-        f = case M.lookup n leW of
-            Just f' -> f'
-            Nothing -> error "Unknown function in lhGeExpr"
-        fe = case E.lookup (idName f) eenv of
-            Just fe' -> fe'
-            Nothing -> error "Unknown function def in lhGeExpr"
-        li = leadingLamIds fe
-
-    li' <- freshIdsN (map typeOf li)
-
-    let
-        fApp = foldl' App (Var f) $ map Var $ flipLastTwo li'
-
-        e = foldr Lam fApp li'
-    
-    return e
-
-flipLastTwo :: [a] -> [a]
-flipLastTwo (x:y:[]) = y:[x]
-flipLastTwo (x:xs) = x:flipLastTwo xs
-flipLastTwo xs = xs
-
----------------------------------------
--- DataType Ref Gen
----------------------------------------
-lhPolyPredName :: Name -> Name
-lhPolyPredName n = Name ("lhPolyPred" `T.append` nameOcc n) Nothing 0 Nothing
-
-lhPolyPred :: Name -> Walkers -> (Name, AlgDataTy) -> LHStateM Expr
-lhPolyPred lh w (n, adt) = do
-    (adt', bni, _) <- boundNameBindings lh adt
-
-    let bn = map idName bni
-    
-    tb <- tyBoolT
-    fbi <- freshIdsN (map (\i -> TyFun (TyVar i) tb) bni)
-
-    let bnf = zip bn fbi
-
-    e <- lhPolyPredCase w n adt' bn bnf
-
-    return (foldr Lam e (bni ++ fbi))
-
-lhPolyPredCase :: Walkers -> Name -> AlgDataTy -> [Name] -> [(Name, Id)] -> LHStateM Expr
-lhPolyPredCase w n (DataTyCon { data_cons = dc }) bn bnf = do
-    let
-        t = TyConApp n $ map (TyVar . flip Id TYPE) bn
-
-    i1 <- freshIdN t
-    caseB <- freshIdN t
-
-    alts <- lhPolyPredAlts w dc bnf
-
-    let c = Case (Var i1) caseB alts
-    
-    return (Lam i1 c)
-lhPolyPredCase w n (NewTyCon { rep_type = t }) bn bnf = do
-    let t' = TyConApp n $ map (TyVar . flip Id TYPE) bn
-
-    i <- freshIdN t'
-    caseB <- freshIdN t
-
-    true <- mkTrueE
-
-    let
-        cast = Cast (Var i) (t' :~ t)
-
-        e = polyPredLHFuncCall true w bnf (Var caseB)
-
-        alt = Alt Default e
-
-        c = Case cast caseB [alt]
-    
-    return (Lam i c)
-lhPolyPredCase _ _ _ _ _ = error "lhPolyPredCase: Unhandled AlgDataTy"
-
-lhPolyPredAlts :: Walkers -> [DataCon] -> [(Name, Id)] -> LHStateM [Alt]
-lhPolyPredAlts _ [] _ = return []
-lhPolyPredAlts w (dc@(DataCon _ t):dcs) bnf = do
-    binds <- freshIdsN $ anonArgumentTypes t
-        
-    e <- lhPolyPredCaseExpr w binds bnf
-
-    let alt = Alt (DataAlt dc binds) e
-
-    alts <- lhPolyPredAlts w dcs bnf
-    
-    return (alt:alts)
-
-lhPolyPredCaseExpr :: Walkers -> [Id] -> [(Name, Id)] -> LHStateM Expr
-lhPolyPredCaseExpr w bn bnf = do
-    let
-        tyvs = filter (isTyVar . typeOf) bn
-
-        pc = map (predCalls bnf) tyvs 
-    
-    an <- andM
-    true <- mkTrueE
-
-    let fs = map (polyPredLHFuncCall true w bnf . Var) $ filter (not . isTyVar . typeOf) bn
-    
-    return $ foldr (\e -> App (App an e)) true $ pc ++ fs
-
-predCalls :: [(Name, Id)] -> Id -> Expr
-predCalls bnf i@(Id _ (TyVar tvi)) =
-    let
-        fi = lookup (idName tvi) bnf
-    in
-    case fi of
-        Just fi' -> App (Var fi') (Var i)
-        Nothing -> error $ "No function found in predCalls " ++ show i ++ "\n" ++ show bnf
-predCalls _ _ = error "predCalls: Unhandled Type"
-
-polyPredLHFuncCall :: Expr -> Walkers -> [(Name, Id)] -> Expr -> Expr
-polyPredLHFuncCall true w bnf i = App (polyPredLHFunc' true w bnf i) i
-
-polyPredLHFunc' :: Typed t => Expr -> Walkers -> [(Name, Id)] -> t -> Expr
-polyPredLHFunc' true w bnf i
-    | TyConApp n ts <- typeOf i
-    , Just f <- M.lookup n w =
-        let
-            as = map Type ts
-            as' = map (polyPredFunc' true w bnf) ts
-        in
-        foldl' App (Var f) (as ++ as')
-    | TyForAll _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
-    | TyFun _ _ <- typeOf i = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
-    | t <- typeOf i
-    ,  t == TyLitInt
-    || t == TyLitDouble
-    || t == TyLitFloat
-    || t == TyLitChar = Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
-    | TyVar _ <- typeOf i = polyPredFunc' true w bnf (typeOf i)
-    | TyApp _ _ <- typeOf i =
-        Lam (Id (Name "nonused_id" Nothing 0 Nothing) (typeOf i)) true
-    | otherwise = error $ "Unhandled type in polyPredLHFunc' " ++ show (typeOf i)
-
-polyPredFunc' :: Expr ->  Walkers -> [(Name, Id)] -> Type -> Expr
-polyPredFunc' _ _ bnf (TyVar (Id n _)) 
-    | Just tyF <- lookup n bnf = 
-        Var tyF
-polyPredFunc' true w bnf (TyConApp n ts)
-    | Just f <- M.lookup n w =
-        let
-            as = map Type ts
-            ft = map (polyPredLHFunc' true w bnf . PresType) ts
-        in
-        foldl' App (Var f) (as ++ ft)
-polyPredFunc' _ _ _ _ = error "polyPredFunc': Unhandled type'"
-
-createPrimFuncs :: Walkers -> Primitive -> [Name] -> LHStateM Walkers
-createPrimFuncs w _ [] = return w
-createPrimFuncs w p (n:ns) = do
-    w' <- createPrimFunc w p n
-    
-    createPrimFuncs w' p ns
-
-createPrimFunc :: Walkers -> Primitive -> Name -> LHStateM Walkers
-createPrimFunc w p n = do
-    f <- freshSeededStringN "prim"
-
-    let e = Prim p TyBottom
-    insertMeasureM f e
-
-    let w2 = M.insert n (Id f TyBottom) w
-    
-    return w2
-
-createPrimPolyPreds :: Walkers -> [Name] -> LHStateM Walkers
-createPrimPolyPreds w [] = return w
-createPrimPolyPreds w (n:ns) = do
-    w' <- createPrimPolyPred w n
-    
-    createPrimPolyPreds w' ns
-
-createPrimPolyPred :: Walkers -> Name -> LHStateM Walkers
-createPrimPolyPred w n = do
-    f <- freshSeededStringN "primPP"
-
-    let i = Id (Name "x" Nothing 0 Nothing) TyBottom
-    let e = Lam i (Var i)
-    insertMeasureM f e
-
-    let w2 = M.insert n (Id f TyBottom) w
-    
-    return w2
+    insertMeasureM n e 

@@ -37,7 +37,12 @@ fibx n = fibx (n - 1) + fibx (n - 2)
 fib' :: Int -> Int
 fib' 0 = 0
 fib' 1 = 1
-fib' n = fib' (n - 1) + fib' (n - 2)
+fib' n = fib2' (n - 1) + fib2' (n - 2)
+
+fib2' :: Int -> Int
+fib2' 0 = 0
+fib2' 1 = 1
+fib2' n = fib2' (n - 1) + fib2' (n - 2)
 
 {-@ xSqPlusYSq :: x:Int -> y:Int -> {z:Int | x + y < z} @-}
 xSqPlusYSq :: Int -> Int -> Int

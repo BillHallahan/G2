@@ -19,7 +19,7 @@ isExprValueForm (Var var) eenv =
 isExprValueForm (App f a) eenv = case unApp (App f a) of
     (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
     (Data _:_) -> True
-    (v@(Var _):_) -> False
+    ((Var _):_) -> False
     _ -> False
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False

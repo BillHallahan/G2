@@ -13,6 +13,7 @@ f x = x + g 5
 -- Without the below refinement type for g, this file can not be verified
 -- {-@ g :: Int -> Even @-}
 -- {-@ g :: Int -> {v:Int | v /= -1} @-}
+{-@ g :: Int -> Int @-}
 g :: Int -> Int
 g x = x + x
 
@@ -34,3 +35,21 @@ zipWith f _          _          = die  "Bad call to zipWith"
 
 {-@ die :: {v:String | false} -> a @-}
 die str = error ("Oops, I died!" ++ str)
+
+
+{-@ f2 :: {x:Int | x mod 2 = 0} @-}
+f2 :: Int
+f2 = g2
+
+{-@ g2 :: Int @-}
+g2 :: Int
+g2 = 0
+
+{-@ f3 :: Int -> Even @-}
+f3 :: Int -> Int
+f3 x = x + g3 x
+
+-- Without the below refinement type for g, this file can not be verified
+{-@ g3 :: Int -> Int @-}
+g3 :: Int -> Int
+g3 x = x

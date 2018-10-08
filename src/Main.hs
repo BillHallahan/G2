@@ -74,8 +74,8 @@ runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> 
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   doTimeout (timeLimit config) $ do
-    in_out <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
-    printLHOut (T.pack lhfun) in_out
+    (in_out, entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
+    printLHOut entry in_out
 
 runGHC :: [String] -> IO ()
 runGHC as = do
@@ -100,7 +100,7 @@ runGHC as = do
 
     let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
 
-    let (init_state, _) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
+    let (init_state, entry_f) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                                (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
 
     SomeSolver con <- getSMT config
@@ -137,13 +137,13 @@ runGHC as = do
 
     -- putStrLn "----------------\n----------------"
 
-    printFuncCalls config  tentry in_out
+    printFuncCalls config entry_f in_out
 
-printFuncCalls :: Config -> T.Text -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO ()
+printFuncCalls :: Config -> Id -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 printFuncCalls config entry =
     mapM_ (\(s, inArg, ex, _) -> do
         let funcCall = mkCleanExprHaskell s
-                     . foldl (\a a' -> App a a') (Var $ Id (Name entry Nothing 0 Nothing) TyBottom) $ inArg
+                     . foldl (\a a' -> App a a') (Var entry) $ inArg
 
         let funcOut = mkCleanExprHaskell s $ ex
 
