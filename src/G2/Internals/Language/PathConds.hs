@@ -1,8 +1,7 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Internals.Language.PathConds ( PathCond (..)
                                        , Constraint
@@ -39,8 +38,6 @@ import Data.Maybe
 import Prelude hiding (map, null)
 import qualified Prelude as P (map)
 
--- | You can visualize a PathConds as [PathCond] (accessible via toList)
---
 -- In the implementation:
 -- Each name (Just n) maps to some (but not neccessarily all) of the PathCond's that
 -- contain n, and a list of all names that appear in some PathCond alongside
@@ -50,6 +47,8 @@ import qualified Prelude as P (map)
 -- You can visualize this as a graph, with Names and Nothing as Nodes.
 -- Edges exist in a PathConds pcs netween a name n, and any names in
 -- snd $ M.lookup n (toMap pcs)
+
+-- | You can visualize a PathConds as [PathCond] (accessible via toList)
 newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
                     deriving (Show, Eq, Read)
 
@@ -76,6 +75,7 @@ negatePC pc = pc
 toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet PathCond, [Name])
 toMap = coerce
 
+-- Constructs an empty `PathConds`.
 empty :: PathConds
 empty = PathConds M.empty
 
@@ -135,20 +135,6 @@ relatedSets kv pc@(PathConds pcm) =
         epc = PathConds $ M.filterWithKey (\k _ -> not (isJust k)) pcm
     in
     if null epc then relatedSets' kv pc [] else epc:relatedSets' kv pc []
-
--- relatedSets' :: KV.KnownValues -> PathConds -> [PathConds]
--- relatedSets' kv pc@(PathConds pcm) =
---     case catMaybes (M.keys pcm) of
---         k:_ ->
---             let
---                 s = scc kv [k] pc
---                 vs = concat $ map' (varNamesInPC kv) s
---                 pcm' = M.filterWithKey (\k' _ -> case k' of
---                                                     Nothing -> False
---                                                     Just k'' -> k'' `notElem` vs) pcm
---             in
---             s:relatedSets' kv (PathConds pcm')
---         [] -> []
 
 relatedSets' :: KV.KnownValues -> PathConds -> [Name] -> [PathConds]
 relatedSets' kv pc@(PathConds pcm) ns =

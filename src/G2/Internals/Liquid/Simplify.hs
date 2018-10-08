@@ -6,7 +6,7 @@ import G2.Internals.Language
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.Types
 
--- The LH translation generates certain redundant Expr's over and over again.
+-- | The LH translation generates certain redundant Expr's over and over again.
 -- Here we stamp them out.
 simplify :: LHStateM ()
 simplify = do

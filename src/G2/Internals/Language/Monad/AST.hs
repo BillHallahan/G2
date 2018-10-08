@@ -118,9 +118,6 @@ instance ASTContainerM Expr Type where
         return $ Assert is' e1' e2'
     modifyContainedASTsM _ e = return e
 
--- instance (Traversable t, ASTContainerM c e) => ASTContainerM (t c) e where
---     modifyContainedASTsM f = mapM (modifyContainedASTsM f)
-
 instance ASTContainerM c e => ASTContainerM [c] e where
     modifyContainedASTsM f = mapM (modifyContainedASTsM f)
 

@@ -54,7 +54,7 @@ arbValue TyLitDouble _ av =
 arbValue _ _ av = (Prim Undefined TyBottom, av)
 
 -- Generates an arbitrary value of the given ADT,
--- but will return Undefined instead of an infinite Expr
+-- but will return something containing @(Prim Undefined)@ instead of an infinite Expr
 getFiniteADT :: TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
 getFiniteADT tenv av adt ts =
     let

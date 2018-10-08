@@ -32,7 +32,6 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , getState
                                       , getOrderVal
                                       , setOrderVal
-                                      , executeNext
                                       , halterSub1
                                       , halterIsZero
 
@@ -52,8 +51,7 @@ import Data.Foldable
 import qualified Data.HashSet as S
 import System.Directory
 
--- | ExState
--- Used when applying execution rules
+-- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
 -- see also, the Reducer, Halter, Orderer typeclasses
@@ -73,13 +71,11 @@ getOrderVal (ExState {order_val = ord}) = ord
 setOrderVal :: ExState hv sov t -> sov -> ExState hv sov t
 setOrderVal s sv = s {order_val = sv}
 
--- | Processed a
--- Keeps track of type a's that have either been accepted or dropped
+-- | Keeps track of type a's that have either been accepted or dropped
 data Processed a = Processed { accepted :: [a]
                              , discarded :: [a] }
 
--- | ReducerRes
--- Used by Reducers to indicate their progress reducing
+-- | Used by Reducers to indicate their progress reducing.
 data ReducerRes = NoProgress | InProgress | Finished deriving (Eq, Ord, Show, Read)
 
 progPrioritizer :: ReducerRes -> ReducerRes -> ReducerRes
@@ -89,8 +85,7 @@ progPrioritizer Finished _ = Finished
 progPrioritizer _ Finished = Finished
 progPrioritizer _ _ = NoProgress
 
--- | HaltC
--- Used by members of the Halter typeclass to control whether to continue
+-- | Used by members of the Halter typeclass to control whether to continue
 -- evaluating the current State, or switch to evaluating a new state.
 data HaltC = Discard -- ^ Switch to evaluating a new state, and reject the current state
            | Accept -- ^ Switch to evaluating a new state, and accept the current state
@@ -98,9 +93,8 @@ data HaltC = Discard -- ^ Switch to evaluating a new state, and reject the curre
            | Continue -- ^ Continue evaluating the current State
            deriving (Eq, Ord, Show, Read)
 
--- | Reducer r t
--- A Reducer is used to describe a set of Reduction Rules
--- A set of Reduction Rules takes a State, and outputs new states
+-- | A Reducer is used to describe a set of Reduction Rules.
+-- Reduction Rules take a State, and output new states.
 -- The type parameter r is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as r.
 class Reducer r t where
@@ -108,51 +102,45 @@ class Reducer r t where
     -- Takes a State, and performs the appropriate Reduction Rule
     redRules :: r -> State t -> IO (ReducerRes, [State t], r)
 
--- | Halter h hv t
--- Determines when to stop evaluating a state
+-- | Determines when to stop evaluating a state
 -- The type parameter h is used to disambiguate between different producers.
 -- To create a new Halter, define some new type, and use it as h.
 class Halter h hv t | h -> hv where
-    -- | initHalt
-    -- Initializes each state halter value
+    -- | Initializes each state halter value
     initHalt :: h -> Config -> State t -> hv
 
-    -- | reInitHalt
-    -- Runs whenever we switch to evaluating a different state,
+    -- | Runs whenever we switch to evaluating a different state,
     -- to update the halter value of that new state
     reInitHalt :: h -> hv -> Processed (State t) -> State t -> hv
 
-    -- | stopRed
-    -- Determines whether to continue reduction on the current state
+    -- | Determines whether to continue reduction on the current state
     stopRed :: h -> hv -> Processed (State t) -> State t -> HaltC
 
-    -- | stepHalter
-    -- Takes a state, and updates it's halter record field
+    -- | Takes a state, and updates it's halter record field
     stepHalter :: h -> hv -> Processed (State t) -> State t -> hv
 
--- | Orderer or orv t
--- Picks an order to evaluate the states, to allow prioritizing some over others 
+-- | Picks an order to evaluate the states, to allow prioritizing some over others 
 -- The type parameter or is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as or.
+--
 -- Law: Given
---    exs' = orderStates or orv proc exs
--- it must be the case that length exs' == length exs
+--
+--    @exs' = orderStates or orv proc exs@
+--
+-- it must be the case that @length exs' == length exs@
 -- An Orderer should never eliminate a state, only reorder the states
 -- To not evaluate certain states, use a Halter
 class Orderer or sov t | or -> sov where
-    -- | initPerStateOrdering
-    -- Initializing the per state ordering value 
+    -- | Initializing the per state ordering value 
     initPerStateOrder :: or -> Config -> State t -> sov
 
-    --  orderStates
     -- Takes a list of states that have finished executing, and been kept
     -- and states that still have to be run through reduction rules.
     -- Reorders the latter list, to set the priority of each state
     -- The State at the head of the list is the next executed.
     orderStates :: or -> Processed (ExState hv sov t) -> [ExState hv sov t] -> [ExState hv sov t]    
 
--- | RCombiner r1 r2
--- Combines reducers in various ways
+-- | Combines reducers in various ways
 data RCombiner r1 r2 = r1 :<~ r2 -- ^ Apply r2, followed by r1.  Takes the leftmost update to r1
                      | r1 :<~? r2 -- ^ Apply r2, apply r1 only if r2 returns NoProgress
                      | r1 :<~| r2 -- ^ Apply r2, apply r1 only if r2 returns Finished
@@ -196,8 +184,7 @@ instance Solver con => Reducer (StdRed con) () where
         
         return (if r == RuleIdentity then Finished else InProgress, s', stdr)
 
--- | NonRedPCRed ast out io
--- Removes and reduces the values in a State's non_red_path_conds field. 
+-- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed Config
 
 instance Reducer NonRedPCRed t where
@@ -248,8 +235,7 @@ instance Reducer TaggerRed t where
         else
             return (Finished, [s], tr)
 
--- | HCombiner h1 h2
--- Allows executing multiple halters.
+-- | Allows executing multiple halters.
 -- If the halters disagree, prioritizes the order:
 -- Discard, Accept, Switch, Continue
 data HCombiner h1 h2 = h1 :<~> h2 deriving (Eq, Show, Read)
@@ -328,8 +314,7 @@ instance Halter SwitchEveryNHalter (Int, Int) t where
     stopRed _ (_, i) _ _ = if i <= 0 then Switch else Continue
     stepHalter _ (tot, i) _ _ = if i <= 0 then (tot, tot) else (tot, i - 1)
 
--- | DiscardIfAcceptedTag
--- If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
+-- | If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
 -- matches a Tag in the Accepted State list,
 -- and in the State being evaluated, discard the State
 data DiscardIfAcceptedTag = DiscardIfAcceptedTag Name 
@@ -399,8 +384,7 @@ reduce red con config s = do
     sts <- resultsToState con config rule s res
     return (rule, sts)
 
--- | runReducer
--- Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
+-- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
 runReducer :: (Reducer r t, Halter h hv t, Orderer or sov t) => r -> h -> or -> [State t] -> Config -> IO [([Int], State t)]
 runReducer red hal ord states config =
     mapM (\ExState {state = s, cases = c} -> return (c, s))

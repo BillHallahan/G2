@@ -6,7 +6,6 @@ import G2.Internals.Solver.Language
 
 import Data.Ratio
 
--- | SMT Parser
 -- This is not complete!  It currently only covers the small amount of the SMT
 -- language needed to parse models
 

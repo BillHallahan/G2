@@ -37,18 +37,19 @@ import qualified Data.Text as T
 
 import Debug.Trace
 
--- A mapping of TyVar Name's, to Id's for the LH dict's
+-- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
 
--- A mapping of TyVar Name's, to Id's for the Num dict's
+-- | A mapping of TyVar Name's, to Id's for the Num dict's
 type NumDictMap = M.Map Name Id
 
--- A mapping of TyVar Name's, to Id's for the Integral dict's
+-- | A mapping of TyVar Name's, to Id's for the Integral dict's
 type IntegralDictMap = M.Map Name Id
 
--- A mapping of TyVar Name's, to Id's for the Ord dict's
+-- | A mapping of TyVar Name's, to Id's for the Ord dict's
 type OrdDictMap = M.Map Name Id
 
+-- | A collection of all DictMaps required to convert LH refinement types to G2 `Expr`@s@
 data DictMaps = DictMaps { lh_dicts :: LHDictMap
                          , num_dicts :: NumDictMap
                          , integral_dicts :: IntegralDictMap
@@ -75,7 +76,7 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = in
     in
     dm5
 
--- A mapping of variable names to the corresponding types
+-- | A mapping of variable names to the corresponding types
 type BoundTypes = M.Map Name Type
 
 mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()

@@ -9,16 +9,21 @@ import G2.Internals.Language
 import qualified G2.Internals.Language.PathConds as PC
 import qualified Data.Map as M
 
+-- | The result of a Solver query
 data Result = SAT
             | UNSAT
             | Unknown String
             deriving (Show, Eq)
 
+-- | Defines an interface to interact with Solvers
 class Solver solver where
+    -- | Checks if the given `PathConds` are satisfiable
     check :: forall t . solver -> State t -> PathConds -> IO Result
+    -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
+    -- The model must contain, at a minimum, a value for each passed `Id`
     solve :: forall t . solver -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
 
--- Splits path constraints before sending them to the rest of the solvers
+-- | Splits path constraints before sending them to the rest of the solvers
 data GroupRelated a = GroupRelated a
 
 checkRelated :: Solver a => a -> State t -> PathConds -> IO Result
@@ -58,11 +63,10 @@ instance Solver solver => Solver (GroupRelated solver) where
     solve (GroupRelated s) = solveRelated s
 
 
--- Allows solvers to be combined, to exploit different solvers abilities
+-- | Allows solvers to be combined, to exploit different solvers abilities
 -- to solve different kinds of constraints
--- a :<? b - Try solver b.  If it returns Unknown, try solver a
--- a :>? b - Try solver a.  If it returns Unknown, try solver b
-data CombineSolvers a b = a :<? b | a :?> b
+data CombineSolvers a b = a :<? b -- ^ a :<? b - Try solver b.  If it returns Unknown, try solver a
+                        | a :?> b -- ^ a :>? b - Try solver a.  If it returns Unknown, try solver b
 
 checkWithEither :: (Solver a, Solver b) => a -> b -> State t -> PathConds -> IO Result
 checkWithEither a b s pc = do

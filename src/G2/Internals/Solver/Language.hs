@@ -17,8 +17,7 @@ import qualified Data.Map as M
 
 type SMTName = String
 
--- | SMTHeader
--- These define the two kinds of top level calls we give to the SMT solver.
+-- | These define the two kinds of top level calls we give to the SMT solver.
 -- An assertion says the given SMTAST is true
 -- A sort decl declares a new sort.
 data SMTHeader = Assert SMTAST
@@ -26,10 +25,10 @@ data SMTHeader = Assert SMTAST
                | SetLogic Logic
                deriving (Show, Eq)
 
+-- | Various logics supported by (some) SMT solvers 
 data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA | QF_LIRA | QF_NIRA deriving (Show, Eq)
 
--- | SMTAST
--- These coorespond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
+-- | These correspond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
 -- Its use should be confined to interactions with G2.Internals.SMT.* 
 data SMTAST = (:>=) SMTAST SMTAST
             | (:>) SMTAST SMTAST
@@ -45,15 +44,13 @@ data SMTAST = (:>=) SMTAST SMTAST
             | (:<=>) SMTAST SMTAST
 
             | (:+) SMTAST SMTAST
-            | (:-) SMTAST SMTAST -- Subtraction
+            | (:-) SMTAST SMTAST -- ^ Subtraction
             | (:*) SMTAST SMTAST
             | (:/) SMTAST SMTAST
             | SqrtSMT SMTAST
             | QuotSMT SMTAST SMTAST
             | Modulo SMTAST SMTAST
-            | Neg SMTAST --Unary negation
-
-            | Tester Name SMTAST
+            | Neg SMTAST -- ^ Unary negation
 
             | Ite SMTAST SMTAST SMTAST
             | SLet (SMTName, SMTAST) SMTAST
@@ -65,9 +62,10 @@ data SMTAST = (:>=) SMTAST SMTAST
 
             | V SMTName Sort
 
-            | ItoR SMTAST
+            | ItoR SMTAST -- ^ Integer to real conversion
             deriving (Show, Eq)
 
+-- Every `SMTAST` has a `Sort`
 data Sort = SortInt
           | SortFloat
           | SortDouble

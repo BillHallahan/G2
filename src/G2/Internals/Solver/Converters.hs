@@ -5,8 +5,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- | Converters
--- This contains functions to switch from
+-- | This contains functions to switch from
 -- (1) A State/Exprs/Types to SMTHeaders/SMTASTs/Sorts
 -- (2) SMTHeaders/SMTASTs/Sorts to some SMT solver interface
 -- (3) SMTASTs/Sorts to Exprs/Types
@@ -92,8 +91,7 @@ class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
 
     varName :: con -> SMTName -> Sort -> ast
 
--- | checkConstraints
--- Checks if the path constraints are satisfiable
+-- | Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter con ast out io => con -> PathConds -> IO Result
 checkConstraints con pc = do
     let pc' = unsafeElimCast pc
@@ -103,13 +101,11 @@ checkConstraints con pc = do
 
     checkSat con (getIO con) formula
 
--- | checkModel
--- Checks if the constraints are satisfiable, and returns a model if they are
+-- | Checks if the constraints are satisfiable, and returns a model if they are
 checkModel :: SMTConverter con ast out io => con -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
 checkModel con s is pc = return . fmap liftCasts =<< checkModel' con s is pc
 
--- | checkModel'
--- We split based on whether we are evaluating a ADT or a literal.
+-- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
 checkModel' :: SMTConverter con ast out io => con -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
@@ -153,8 +149,7 @@ checkNumericConstraints con pc = do
         Just m'' -> return $ Just m''
         Nothing -> return Nothing
 
--- | toSMTHeaders
--- Here we convert from a State, to an SMTHeader.  This SMTHeader can later
+-- | Here we convert from a State, to an SMTHeader.  This SMTHeader can later
 -- be given to an SMT solver by using toSolver.
 -- To determine the input that can be fed to a state to get the curr_expr,
 -- we need only consider the types and path constraints of that state.
@@ -172,8 +167,7 @@ toSMTHeaders' pc  =
     ++
     (pathConsToSMTHeaders pc')
 
--- | addSetLogic
--- Determines an appropriate SetLogic command, and adds it to the headers
+-- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
 addSetLogic xs =
     let
@@ -297,7 +291,6 @@ isCoreSort _ = False
 
 -------------------------------------------------------------------------------
 
--- | pathConsToSMTHeaders
 pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
 pathConsToSMTHeaders = map Assert . mapMaybe pathConsToSMT
 
@@ -323,11 +316,7 @@ pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then  (:!) $ exprSMT else exprSMT
-pathConsToSMT (ConsCond (DataCon n _) e b) =
-    let
-        exprSMT = exprToSMT e
-    in
-    Just $ if b then Tester n exprSMT else (:!) $ Tester n exprSMT
+pathConsToSMT (ConsCond (DataCon _ _) _ _) = error "Non-bool DataCon in pathConsToSMT"
 pathConsToSMT (PCExists _) = Nothing
 
 exprToSMT :: Expr -> SMTAST
@@ -363,8 +352,7 @@ exprToSMT a@(App _ _) =
         getArgs _ = []
 exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
 
--- | funcToSMT
--- We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
+-- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: Expr -> [Expr] -> SMTAST
 funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
 funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
@@ -443,7 +431,6 @@ typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
--- | toSolver
 toSolver :: SMTConverter con ast out io => con -> [SMTHeader] -> out
 toSolver con [] = empty con
 toSolver con (Assert ast:xs) = 
@@ -451,7 +438,6 @@ toSolver con (Assert ast:xs) =
 toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver con xs)
 toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
 
--- | toSolverAST
 toSolverAST :: SMTConverter con ast out io => con -> SMTAST -> ast
 toSolverAST con (x :>= y) = (.>=) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :> y) = (.>) con (toSolverAST con x) (toSolverAST con y)
@@ -486,7 +472,6 @@ toSolverAST con (VBool b) = bool con b
 toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
--- | toSolverVarDecl
 toSolverVarDecl :: SMTConverter con ast out io => con -> SMTName -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
@@ -496,11 +481,9 @@ sortName con SortFloat = sortFloat con
 sortName con SortDouble = sortDouble con
 sortName con SortBool = sortBool con
 
--- | toSolverSetLogic
 toSolverSetLogic :: SMTConverter con ast out io => con -> Logic -> out
 toSolverSetLogic = setLogic
 
--- | smtastToExpr
 smtastToExpr :: SMTAST -> Expr
 smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)

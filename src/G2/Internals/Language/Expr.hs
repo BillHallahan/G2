@@ -3,7 +3,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
-                                  , replaceVar
                                   , unApp
                                   , mkApp
                                   , mkDCTrue
@@ -23,14 +22,11 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , modifyAppTop
                                   , modifyAppLHS
                                   , modifyAppRHS
-                                  , modifyInLHS
                                   , nonDataFunctionCalls
                                   , appCenter
                                   , mapArgs
                                   , mkLams
                                   , elimAsserts
-                                  -- , mkLamBindings
-                                  -- , mkMappedLamBindings
                                   , leadingLamUsesIds
                                   , leadingLamIds
                                   , insertInLams
@@ -39,7 +35,6 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , replaceASTs
                                   , args
                                   , passedArgs
-                                  , nthArg
                                   , vars
                                   , varIds
                                   , varNames
@@ -64,21 +59,14 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
 
-replaceVar :: (ASTContainer m Expr) => Name -> Expr -> m -> m
-replaceVar n re = modifyASTs (replaceVar' n re)
-
-replaceVar' :: Name -> Expr -> Expr -> Expr
-replaceVar' n re v@(Var (Id n' _)) = if n == n' then re else v
-replaceVar' _ _ e = e
-
--- | unApp
--- Unravels the application spine.
+-- | Unravels the application spine.
 unApp :: Expr -> [Expr]
 unApp (App f a) = unApp f ++ [a]
 unApp expr = [expr]
 
--- | mkApp
--- Turns the Expr list into an application spine
+-- | Turns the Expr list into an Application
+--
+-- @ mkApp [e1, e2, e3] == App (App e1 e2) e3@
 mkApp :: [Expr] -> Expr
 mkApp [] = error "mkApp: empty list"
 mkApp (e:[]) = e
@@ -137,6 +125,8 @@ getFuncCallsRHS (App e1 e2) = getFuncCallsRHS e1 ++ getFuncCalls' e2
 getFuncCallsRHS (Var _) = []
 getFuncCallsRHS e = getFuncCalls' e
 
+-- | Calls the given function on the topmost @App@ in every function application
+-- in the given `Expr`
 modifyAppTop :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
 modifyAppTop f = modifyContainedASTs (modifyAppTop' f)
 
@@ -148,22 +138,15 @@ modifyAppTop' f e@(App _ _) =
     modifyAppRHS (modifyAppTop' f) e' 
 modifyAppTop' f e = modifyChildren f e
 
--- | modifyAppLHS
 modifyAppLHS :: (Expr -> Expr) -> Expr -> Expr
 modifyAppLHS f (App e e') = App (f e) (modifyAppLHS f e')
 modifyAppLHS _ e = e
 
--- | modifyAppRHS
 modifyAppRHS :: (Expr -> Expr) -> Expr -> Expr
 modifyAppRHS f (App e e') = App (modifyAppRHS f e) (f e')
 modifyAppRHS _ e = e
 
-modifyInLHS :: (Expr -> Expr) -> Expr -> Expr
-modifyInLHS f (App e _) = modifyInLHS f e
-modifyInLHS f e = f e
-
--- | nonDataFunctionCalls
--- Returns all function calls to Vars with all arguments
+-- | Returns all function calls to Vars with all arguments
 nonDataFunctionCalls :: ASTContainer m Expr => m -> [Expr]
 nonDataFunctionCalls = filter (not . centerIsData) . getFuncCalls
 
@@ -172,6 +155,7 @@ centerIsData (App e _) = centerIsData e
 centerIsData (Data _) = True
 centerIsData _ = False
 
+-- Gets the `Expr` at the center of several nested @App@s
 appCenter :: Expr -> Expr
 appCenter (App a _) = appCenter a
 appCenter e = e
@@ -183,30 +167,13 @@ mapArgs _ e = e
 mkLams :: [(LamUse, Id)] ->  Expr -> Expr
 mkLams =  flip (foldr (\(u, i) -> Lam u i))
 
+-- | Remove all @Assert@s from the given `Expr`
 elimAsserts :: ASTContainer m Expr => m -> m
 elimAsserts = modifyASTs elimAsserts'
 
 elimAsserts' :: Expr -> Expr
 elimAsserts' (Assert _ _ e) = e
 elimAsserts' e = e
-
--- Generates a lambda binding for each a in the provided list
--- Takes a function to generate the inner expression
--- mkLamBindings :: NameGen -> [Type] -> (NameGen -> [Id] -> (Expr, NameGen)) -> (Expr, NameGen)
--- mkLamBindings ng ts f =
---     let
---         (is, ng') = freshIds ts ng
-
---         (e, ng'') = f ng' is
---     in
---     (foldr Lam is e, ng'')
-
--- mkMappedLamBindings :: NameGen -> [(a, Type)] -> (NameGen -> [(a, Id)] -> (Expr, NameGen)) -> (Expr, NameGen)
--- mkMappedLamBindings ng at f =
---     let
---         (as, _) = unzip at
---     in
---     mkLamBindings ng (map snd at) (\ng' ns -> f ng' (zip as ns))
 
 -- Runs the given function f on the expression nested in the lambdas, and
 -- rewraps the new expression with the Lambdas
@@ -248,10 +215,6 @@ passedArgs = reverse . passedArgs'
 passedArgs' :: Expr -> [Expr]
 passedArgs' (App e e') = e':passedArgs' e
 passedArgs' _ = []
-
-nthArg :: Expr -> Int -> Id
-nthArg e i = args e !! (i - 1)
-
 
 --Returns all Vars in an ASTContainer
 vars :: (ASTContainer m Expr) => m -> [Expr]
@@ -302,8 +265,7 @@ alphaReduction' mi l@(Lam u i@(Id (Name n m ii lo) t) e) =
     if ii > getMax mi then (l, mi') else (Lam u i' e', mi')
 alphaReduction' m e = (e, m)
 
--- | varBetaReduction
--- Performs beta reduction, if a Var is being applied 
+-- |  Performs beta reduction, if a Var is being applied 
 varBetaReduction :: ASTContainer m Expr => m -> m
 varBetaReduction = modifyASTs varBetaReduction'
 
@@ -317,8 +279,7 @@ replaceLamIds i i' v@(Var v') = if i == v' then Var i' else v
 replaceLamIds i i' l@(Lam u l' e) = if i == l' then l else Lam u l' (replaceLamIds i i' e)
 replaceLamIds i i' e = modifyChildren (replaceLamIds i i') e
 
--- | mkStrict
--- Forces the complete evaluation of an expression
+-- | Forces the complete evaluation of an expression
 mkStrict :: (ASTContainer m Expr) => Walkers -> m -> m
 mkStrict w = modifyContainedASTs (mkStrict' w)
 

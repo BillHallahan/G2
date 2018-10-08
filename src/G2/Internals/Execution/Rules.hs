@@ -525,7 +525,7 @@ stdReduceEvaluate eenv c _ _ ngen =
 -- | Handle the Case forms of Evaluate.
 reduceCase :: E.ExprEnv -> Expr -> Id -> [Alt] -> NameGen -> (Rule, [EvaluateResult])
 reduceCase eenv mexpr bind alts ngen
-  -- | Is the current expression able to match with a literal based `Alt`? If
+  -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
   | (Lit lit) <- unsafeElimCast mexpr
   , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
@@ -565,7 +565,7 @@ reduceCase eenv mexpr bind alts ngen
             , ngen'
             , Nothing)] )
 
-  -- | We are not able to match any constructor but don't have a symbolic variable?
+  -- We are not able to match any constructor but don't have a symbolic variable?
   -- We hit a DEFAULT instead.
   -- We perform the cvar binding and proceed with the alt
   -- expression.
@@ -581,7 +581,7 @@ reduceCase eenv mexpr bind alts ngen
             , ngen
             , Nothing)])
 
-  -- | If we are pointing to something in expr value form, that is not addressed
+  -- If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
   -- path constraints.
   | isExprValueForm mexpr eenv

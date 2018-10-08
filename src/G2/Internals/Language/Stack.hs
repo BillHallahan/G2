@@ -15,6 +15,7 @@ import G2.Internals.Language.Syntax
 
 newtype Stack a = Stack [a] deriving (Show, Eq, Read)
 
+-- | Is the `Stack` empty?
 empty :: Stack a
 empty = Stack []
 
@@ -27,6 +28,8 @@ pop :: Stack a -> Maybe (a, Stack a)
 pop (Stack []) = Nothing
 pop (Stack (x:xs)) = Just (x, Stack xs)
 
+-- | Pop @n@ frames from the `Stack`, or, if the `Stack` has less than @n@
+-- frames, empty the `Stack`.
 popN :: Stack a -> Int -> ([a], Stack a)
 popN s 0 = ([], s)
 popN s n = case pop s of
@@ -37,7 +40,7 @@ popN s n = case pop s of
         (x:xs, s'')
     Nothing -> ([], s)
 
--- | Convert an `Stack` to a list.
+-- | Convert a `Stack` to a list.
 toList :: Stack a -> [a]
 toList (Stack xs) = xs
 

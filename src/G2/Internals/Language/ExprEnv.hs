@@ -15,7 +15,6 @@ module G2.Internals.Language.ExprEnv
     , lookupNameMod
     , insert
     , insertSymbolic
-    , insertPreserving
     , insertExprs
     , redirect
     , union
@@ -37,8 +36,6 @@ module G2.Internals.Language.ExprEnv
     , toList
     , toExprList
     , fromExprList
-    , isRedirect
-    , isRoot
     ) where
 
 import G2.Internals.Language.AST
@@ -58,11 +55,11 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
--- | From a user perspective, `ExprEnv`s are mappings from `Name` to
+-- From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
---  1) Redirection pointers can map two names to the same expr
---  2) Certain names are symbolic.  This means they represent a symbolic variable
---     Nonsymbolic names map to an ExprObj, symbolic names to a SymObj.
+--   1) Redirection pointers can map two names to the same expr
+--   2) Certain names are symbolic.  This means they represent a symbolic variable
+--      Nonsymbolic names map to an ExprObj, symbolic names to a SymObj.
  
 data EnvObj = ExprObj Expr
             | RedirObj Name
@@ -75,21 +72,28 @@ newtype ExprEnv = ExprEnv (M.Map Name EnvObj)
 unwrapExprEnv :: ExprEnv -> M.Map Name EnvObj
 unwrapExprEnv = coerce
 
+-- | Constructs an empty `ExprEnv`
 empty :: ExprEnv
 empty = ExprEnv M.empty
 
+-- | Constructs an `ExprEnv` with a single `Expr`.
 singleton :: Name -> Expr -> ExprEnv
 singleton n e = ExprEnv $ M.singleton n (ExprObj e)
 
+-- Is the `ExprEnv` empty?
 null :: ExprEnv -> Bool
 null = M.null . unwrapExprEnv
 
+-- | Returns the number of `Expr` in the `ExprEnv`.
 size :: ExprEnv -> Int
 size = M.size . unwrapExprEnv
 
+-- | Is the given `Name` bound in the `ExprEnv`?
 member :: Name -> ExprEnv -> Bool
 member n = M.member n . unwrapExprEnv
 
+-- | Lookup the `Expr` with the given `Name`.
+-- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 lookup :: Name -> ExprEnv -> Maybe Expr
 lookup n (ExprEnv smap) = 
     case M.lookup n smap of
@@ -98,12 +102,16 @@ lookup n (ExprEnv smap) =
         Just (SymbObj i) -> Just $ Var i
         Nothing -> Nothing
 
+-- | Lookup the `Expr` with the given `Name`.
+-- If the name is bound to a @Var@, recursively searches that @Vars@ name.
+-- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 deepLookup :: Name -> ExprEnv -> Maybe Expr
 deepLookup n eenv =
     case lookup n eenv of
         Just (Var (Id n' _)) -> lookup n' eenv
         r -> r
 
+-- | Checks if the given `Name` belongs to a symbolic variable.
 isSymbolic :: Name -> ExprEnv -> Bool
 isSymbolic n (ExprEnv eenv') =
     case M.lookup n eenv' of
@@ -136,21 +144,10 @@ insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv
 insertSymbolic :: Name -> Id -> ExprEnv -> ExprEnv
 insertSymbolic n i = ExprEnv. M.insert n (SymbObj i) . unwrapExprEnv
 
--- Inserts into the expr env, preserving the EnvObj type
--- Will make no changes if this is not possible
-insertPreserving :: Name -> Expr -> ExprEnv -> ExprEnv
-insertPreserving n e eenv
-    | isSymbolic n eenv
-    , (Var i) <- e =
-        insertSymbolic n i eenv
-    | isSymbolic n eenv || isRedirect n eenv =
-        eenv
-    | otherwise = insert n e eenv
-
-
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
 
+-- | Maps the two `Name`@s@ so that they point to the same value
 redirect :: Name -> Name -> ExprEnv -> ExprEnv
 redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 
@@ -218,21 +215,19 @@ keys = M.keys . unwrapExprEnv
 symbolicKeys :: ExprEnv -> [Name]
 symbolicKeys eenv = M.keys . unwrapExprEnv . filterWithKey (\n _ -> isSymbolic n eenv) $ eenv
 
---TODO
+-- | Returns all `Expr`@s@ in the `ExprEnv`
 elems :: ExprEnv -> [Expr]
 elems = exprObjs . M.elems . unwrapExprEnv
 
--- | higherOrderExprs
--- Returns a list of all argument function types 
+-- | Returns a list of all argument function types 
 higherOrderExprs :: ExprEnv -> [Type]
 higherOrderExprs = concatMap (higherOrderFuncs) . elems
-
 
 toList :: ExprEnv -> [(Name, EnvObj)]
 toList = M.toList . unwrapExprEnv
 
 -- | Creates a list of Name to Expr coorespondences
--- Looses information about names that are mapped to the same value
+-- Loses information about names that are mapped to the same value
 toExprList :: ExprEnv -> [(Name, Expr)]
 toExprList env@(ExprEnv env') =
     M.toList
@@ -243,19 +238,6 @@ fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
 
 toExprMap :: ExprEnv -> M.Map Name Expr
 toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
-
--- Returns True iff n is a redirect in the ExprEnv
-isRedirect :: Name -> ExprEnv -> Bool
-isRedirect n (ExprEnv eenv) =
-    case M.lookup n eenv of
-        Just (RedirObj _) -> True
-        _ -> False
-
-isRoot :: Name -> ExprEnv -> Bool
-isRoot n (ExprEnv eenv) =
-    case M.lookup n eenv of
-        Just (ExprObj _) -> True
-        _ -> False
 
 -- Symbolic objects will be returned by calls to eval functions, however
 -- calling AST modify functions on the expressions in an ExprEnv will have

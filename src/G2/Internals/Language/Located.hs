@@ -95,11 +95,11 @@ combineSpans s1 s2 =
     in
     s1 {start = start tl, end = end br}
 
--- Constructs a map of Spans to Names, based on all Names in the ExprEnv
+-- | Constructs a map of Spans to Names, based on all Names in the ExprEnv
 spanLookup :: ExprEnv -> M.Map Span Name
 spanLookup =
     M.fromList . mapMaybe (\n -> maybe Nothing (\s -> Just (s, n)) (spanning n)) . names
 
--- Constructs a map of Locs to Names, based on all Names in the ExprEnv
+-- | Constructs a map of Locs to Names, based on all Names in the ExprEnv
 locLookup :: ExprEnv -> M.Map Loc Name
 locLookup = M.mapKeys start . spanLookup

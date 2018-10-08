@@ -30,8 +30,7 @@ instance Solver ADTSolver where
     check _ s = return . checkConsistency (known_values s) (type_env s)
     solve _ s is = solveADTs s (nub is)
 
--- | checkConsistency
--- Attempts to detemine if the given PathConds are consistent.
+-- | Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
 -- and Nothing if it can't decide.
 checkConsistency :: KnownValues -> TypeEnv -> PathConds -> Result
@@ -40,8 +39,7 @@ checkConsistency kv tenv pc = maybe
                                 (\me -> if not (Pre.null me) then SAT else UNSAT) 
                                 $ findConsistent kv tenv pc
 
--- | findConsistent
--- Attempts to find expressions (Data d) or (Coercion (Data d), (t1 :~ t2)) consistent with the given path
+-- | Attempts to find expressions (Data d) or (Coercion (Data d), (t1 :~ t2)) consistent with the given path
 -- constraints.  Returns Just [...] if it can determine [...] are consistent.
 -- Just [] means there are no consistent Expr.  Nothing nmeans it could not be
 -- determined if there were any consistent data constructors.
@@ -69,8 +67,7 @@ solveADTs s [Id n t] pc
             r' -> return (r', Nothing)
 solveADTs _ _ _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
 
--- | addADTs
--- Determines an ADT based on the path conds.  The path conds form a witness.
+-- | Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
 addADTs :: Name -> Name -> [Type] -> Kind -> State t -> PathConds -> (Result, State t)
 addADTs n tn ts k s pc
