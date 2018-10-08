@@ -11,7 +11,9 @@ module G2.Internals.Language.AST
 import G2.Internals.Language.Syntax
 
 import Data.Hashable
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 -- | Describes the data types that can be represented in a tree format.
@@ -296,42 +298,63 @@ instance ASTContainer FuncCall Type where
     modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) = 
         fc {arguments = modifyContainedASTs f as, returns = modifyContainedASTs f r}
 
-instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
+-- instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
+--     containedASTs = foldMap (containedASTs)
+
+--     modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance ASTContainer c t => ASTContainer [c] t where
     containedASTs = foldMap (containedASTs)
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
 
-instance {-# OVERLAPPING #-} (ASTContainer s t, Hashable s, Eq s) => ASTContainer (HS.HashSet s) t where
+instance ASTContainer c t => ASTContainer (Maybe c) t where
+    containedASTs = foldMap (containedASTs)
+
+    modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+
+instance ASTContainer c t => ASTContainer (HM.HashMap k c) t where
+    containedASTs = foldMap (containedASTs)
+
+    modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance ASTContainer c t => ASTContainer (M.Map k c) t where
+    containedASTs = foldMap (containedASTs)
+
+    modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance (ASTContainer s t, Hashable s, Eq s) => ASTContainer (HS.HashSet s) t where
     containedASTs = containedASTs . HS.toList 
 
     modifyContainedASTs f = HS.map (modifyContainedASTs f)
 
-instance {-# OVERLAPPING #-} ASTContainer () Expr where
+instance ASTContainer () Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance {-# OVERLAPPING #-} ASTContainer () Type where
+instance ASTContainer () Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance {-# OVERLAPPING #-} (ASTContainer c t, ASTContainer d t) => ASTContainer (c, d) t where
+instance (ASTContainer c t, ASTContainer d t) => ASTContainer (c, d) t where
     containedASTs (x, y) = containedASTs x ++ containedASTs y
 
     modifyContainedASTs f (x, y) = (modifyContainedASTs f x, modifyContainedASTs f y)
 
-instance {-# OVERLAPPING #-} 
+instance
     (ASTContainer c t, ASTContainer d t, ASTContainer e t) => ASTContainer (c, d, e) t where
         containedASTs (x, y, z) = containedASTs x ++ containedASTs y ++ containedASTs z
 
         modifyContainedASTs f (x, y, z) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z)
 
-instance {-# OVERLAPPING #-} 
+instance
     (ASTContainer c t, ASTContainer d t, ASTContainer e t, ASTContainer g t) => ASTContainer (c, d, e, g) t where
         containedASTs (x, y, z, w) = containedASTs x ++ containedASTs y ++ containedASTs z ++ containedASTs w
 
         modifyContainedASTs f (x, y, z, w) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z, modifyContainedASTs f w)
 
-instance {-# OVERLAPPING #-} 
+instance
     (ASTContainer c t, ASTContainer d t, ASTContainer e t, ASTContainer g t, ASTContainer h t) => ASTContainer (c, d, e, g, h) t where
         containedASTs (x, y, z, w, a) = containedASTs x ++ containedASTs y ++ containedASTs z ++ containedASTs w ++ containedASTs a
 

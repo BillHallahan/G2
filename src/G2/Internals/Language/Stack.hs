@@ -41,15 +41,15 @@ popN s n = case pop s of
 toList :: Stack a -> [a]
 toList (Stack xs) = xs
 
-instance {-# OVERLAPPING #-} ASTContainer a Expr => ASTContainer (Stack a) Expr where
+instance ASTContainer a Expr => ASTContainer (Stack a) Expr where
     containedASTs (Stack s) = containedASTs s
     modifyContainedASTs f (Stack s) = Stack $ modifyContainedASTs f s
 
-instance {-# OVERLAPPING #-} ASTContainer a Type => ASTContainer (Stack a) Type where
+instance ASTContainer a Type => ASTContainer (Stack a) Type where
     containedASTs (Stack s) = containedASTs s
     modifyContainedASTs f (Stack s) = Stack $ modifyContainedASTs f s
 
-instance {-# OVERLAPPING #-} Named a => Named (Stack a) where
+instance Named a => Named (Stack a) where
     names (Stack s) = names s
     rename old new (Stack s) = Stack $ rename old new s
     renames hm (Stack s) = Stack $ renames hm s

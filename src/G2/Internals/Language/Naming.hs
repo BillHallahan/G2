@@ -50,6 +50,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.List.Utils
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 nameOcc :: Name -> T.Text
@@ -546,7 +547,23 @@ instance Named KnownValues where
                         , patErrorFunc = rename old new patE
                         })
 
-instance (Foldable f, Functor f, Named a) => Named (f a) where
+instance Named a => Named [a] where
+    names = foldMap names
+    rename old new = fmap (rename old new)
+    renames hm = fmap (renames hm)
+
+
+instance Named a => Named (Maybe a) where
+    names = foldMap names
+    rename old new = fmap (rename old new)
+    renames hm = fmap (renames hm)
+
+instance Named a => Named (M.Map k a) where
+    names = foldMap names
+    rename old new = fmap (rename old new)
+    renames hm = fmap (renames hm)
+
+instance Named a => Named (HM.HashMap k a) where
     names = foldMap names
     rename old new = fmap (rename old new)
     renames hm = fmap (renames hm)
@@ -556,27 +573,27 @@ instance Named () where
     rename _ _ = id
     renames _ = id
 
-instance {-# OVERLAPPING #-}  (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
+instance (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
     names = names . HS.toList 
     rename old new = HS.map (rename old new)
     renames hm = HS.map (renames hm)
 
-instance {-# OVERLAPPING #-} (Named a, Named b) => Named (a, b) where
+instance (Named a, Named b) => Named (a, b) where
     names (a, b) = names a ++ names b
     rename old new (a, b) = (rename old new a, rename old new b)
     renames hm (a, b) = (renames hm a, renames hm b)
 
-instance {-# OVERLAPPING #-} (Named a, Named b, Named c) => Named (a, b, c) where
+instance (Named a, Named b, Named c) => Named (a, b, c) where
     names (a, b, c) = names a ++ names b ++ names c
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
     renames hm (a, b, c) = (renames hm a, renames hm b, renames hm c)
 
-instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d) => Named (a, b, c, d) where
+instance (Named a, Named b, Named c, Named d) => Named (a, b, c, d) where
     names (a, b, c, d) = names a ++ names b ++ names c ++ names d
     rename old new (a, b, c, d) = (rename old new a, rename old new b, rename old new c, rename old new d)
     renames hm (a, b, c, d) = (renames hm a, renames hm b, renames hm c, renames hm d)
 
-instance {-# OVERLAPPING #-} (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) where
+instance (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) where
     names (a, b, c, d, e) = names a ++ names b ++ names c ++ names d ++ names e
     rename old new (a, b, c, d, e) = (rename old new a, rename old new b, rename old new c, rename old new d, rename old new e)
     renames hm (a, b, c, d, e) = (renames hm a, renames hm b, renames hm c, renames hm d, renames hm e)

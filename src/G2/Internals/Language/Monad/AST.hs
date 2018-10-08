@@ -118,10 +118,16 @@ instance ASTContainerM Expr Type where
         return $ Assert is' e1' e2'
     modifyContainedASTsM _ e = return e
 
-instance (Traversable t, ASTContainerM c e) => ASTContainerM (t c) e where
+-- instance (Traversable t, ASTContainerM c e) => ASTContainerM (t c) e where
+--     modifyContainedASTsM f = mapM (modifyContainedASTsM f)
+
+instance ASTContainerM c e => ASTContainerM [c] e where
     modifyContainedASTsM f = mapM (modifyContainedASTsM f)
 
-instance {-# OVERLAPPING #-} (ASTContainerM c t, ASTContainerM d t) => ASTContainerM (c, d) t where
+instance ASTContainerM c e => ASTContainerM (Maybe c) e where
+    modifyContainedASTsM f = mapM (modifyContainedASTsM f)
+
+instance (ASTContainerM c t, ASTContainerM d t) => ASTContainerM (c, d) t where
     modifyContainedASTsM f (x, y) = do
         x' <- modifyContainedASTsM f x
         y' <- modifyContainedASTsM f y

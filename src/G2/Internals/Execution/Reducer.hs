@@ -259,15 +259,15 @@ data HCombiner h1 h2 = h1 :<~> h2 deriving (Eq, Show, Read)
 -- because this could lead to undecidable instances
 data C a b = C a b
 
-instance {-# OVERLAPPING #-} (ASTContainer a Expr, ASTContainer b Expr) => ASTContainer (C a b) Expr where
+instance (ASTContainer a Expr, ASTContainer b Expr) => ASTContainer (C a b) Expr where
     containedASTs (C a b) = containedASTs a ++ containedASTs b
     modifyContainedASTs f (C a b) = C (modifyContainedASTs f a) (modifyContainedASTs f b)
 
-instance {-# OVERLAPPING #-} (ASTContainer a Type, ASTContainer b Type) => ASTContainer (C a b) Type where
+instance (ASTContainer a Type, ASTContainer b Type) => ASTContainer (C a b) Type where
     containedASTs (C a b) = containedASTs a ++ containedASTs b
     modifyContainedASTs f (C a b) = C (modifyContainedASTs f a) (modifyContainedASTs f b)
 
-instance {-# OVERLAPPING #-} (Named a, Named b) => Named (C a b) where
+instance (Named a, Named b) => Named (C a b) where
     names (C a b) = names a ++ names b
     rename old new (C a b) = C (rename old new a) (rename old new b)
     renames hm (C a b) = C (renames hm a) (renames hm b)

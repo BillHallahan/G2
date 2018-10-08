@@ -183,7 +183,7 @@ renameState old new_seed s =
              , track = rename old new (track s)
              , tags = tags s }
 
-instance {-# OVERLAPPING #-} Named t => Named (State t) where
+instance Named t => Named (State t) where
     names s = names (expr_env s)
             ++ names (type_env s)
             ++ names (curr_expr s)
@@ -260,7 +260,7 @@ instance {-# OVERLAPPING #-} Named t => Named (State t) where
                , tags = tags s }
 
 -- | TypeClass definitions
-instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr where
+instance ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++
                       (containedASTs $ expr_env s) ++
                       (containedASTs $ curr_expr s) ++
@@ -285,7 +285,7 @@ instance {-# OVERLAPPING #-} ASTContainer t Expr => ASTContainer (State t) Expr 
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s }
 
-instance {-# OVERLAPPING #-} ASTContainer t Type => ASTContainer (State t) Type where
+instance ASTContainer t Type => ASTContainer (State t) Type where
     containedASTs s = ((containedASTs . expr_env) s) ++
                       ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
