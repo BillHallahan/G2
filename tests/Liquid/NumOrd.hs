@@ -4,6 +4,10 @@ module NumOrd where
 sub :: Num a => a -> a 
 sub x = x - 1
 
+{-@ subF :: {x:Float | x > 0} -> {y:Float | y >= 0} @-}
+subF :: Float -> Float 
+subF x = x - 1
+
 
 {-@ f :: Num a => {x:a | x > 0} -> {y:a | y >= x} @-}
 f :: Num a => a -> a 

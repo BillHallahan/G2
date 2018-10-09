@@ -10,7 +10,8 @@ module G2.Internals.Language.Monad.Expr ( mkDCTrueM
                                         , mkFalseE
                                         , mkConsE
                                         , mkEmptyE
-                                        , modifyAppTopE ) where
+                                        , modifyAppTopE
+                                        , insertInLamsE ) where
 
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
@@ -67,4 +68,11 @@ modifyAppRHSE f (App e1 e2) = do
     e1' <- modifyAppRHSE f e1
     e2' <- f e2
     return $ App e1' e2'
-modifyAppRHSE f e = modifyChildrenM f e -- return e
+modifyAppRHSE f e = modifyChildrenM f e
+
+insertInLamsE :: ExState s m => ([Id] -> Expr -> m Expr) -> Expr -> m Expr
+insertInLamsE f = insertInLamsE' f []
+
+insertInLamsE' :: ExState s m => ([Id] -> Expr -> m Expr) -> [Id] -> Expr -> m Expr
+insertInLamsE' f xs (Lam u i e)  = return . Lam u i =<< insertInLamsE' f (i:xs) e
+insertInLamsE' f xs e = f (reverse xs) e

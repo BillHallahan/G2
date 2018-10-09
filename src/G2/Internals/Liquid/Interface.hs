@@ -158,6 +158,7 @@ initializeLH ghci_cg ifi = do
     mergeLHSpecState specs
 
     addSpecialAsserts
+    addTrueAsserts ifi
 
     getAnnotations ghci_cg
 

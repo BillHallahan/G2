@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Internals.Language.ExprEnv
     ( ExprEnv
@@ -25,6 +26,7 @@ module G2.Internals.Language.ExprEnv
     , mapWithKey'
     , mapKeys
     , mapM
+    , mapWithKeyM
     , filter
     , filterWithKey
     , filterToSymbolic
@@ -189,6 +191,18 @@ mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
                 Var i' -> return $ SymbObj i'
                 _ -> return s
         f' n = return n
+
+
+mapWithKeyM :: Monad m => (Name -> Expr -> m Expr) -> ExprEnv -> m ExprEnv
+mapWithKeyM f eenv = return . ExprEnv . M.fromList =<< Pre.mapM (uncurry f') (toList eenv)
+    where
+        f' n (ExprObj e) = return . (n,) . ExprObj =<< f n e
+        f' n s@(SymbObj i) = do
+            e' <- f n (Var i)
+            case e' of
+                Var i' -> return $ (n, SymbObj i')
+                _ -> return (n, s)
+        f' n e = return (n, e)
 
 filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
 filter p = filterWithKey (\_ -> p) 

@@ -2,7 +2,8 @@ module G2.Internals.Language.Monad.ExprEnv ( memberE
                                            , lookupE
                                            , insertE
                                            , mapE
-                                           , mapME ) where
+                                           , mapME
+                                           , mapWithKeyME ) where
 
 import G2.Internals.Language
 
@@ -39,4 +40,10 @@ mapME :: ExState s m => (Expr -> m Expr) -> m ()
 mapME f = do
     eenv <- exprEnv
     eenv' <- E.mapM f eenv
+    putExprEnv eenv'
+
+mapWithKeyME :: ExState s m => (Name -> Expr -> m Expr) -> m ()
+mapWithKeyME f = do
+    eenv <- exprEnv
+    eenv' <- E.mapWithKeyM f eenv
     putExprEnv eenv'
