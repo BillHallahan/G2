@@ -34,7 +34,7 @@ import Data.Maybe
 
 type ProgramType = (Name, AlgDataTy)
 
--- | Type environments map names of types to their appropriate types. However
+-- | The type environment maps names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
 -- and we only store those information accordingly.
 type TypeEnv = M.Map Name AlgDataTy
@@ -119,8 +119,7 @@ getCastedAlgDataTy' n ts tenv =
             (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
             _ -> Nothing
 
--- | selfRecursive
--- Given a DataCon dc of type t, checks if one of the descendents of dc could
+-- | Given a DataCon dc of type t, checks if one of the descendents of dc could
 -- be of type t
 selfRecursive :: TypeEnv -> DataCon -> Bool
 selfRecursive tenv dc =
@@ -130,8 +129,7 @@ selfRecursive tenv dc =
     in
     tydc `elem` ts
 
--- | dataConCanContain
--- Recursively searches the possible contents of a DataCon, to determine all
+-- | Recursively searches the possible contents of a DataCon, to determine all
 -- the types that could be anywhere below it in an AST
 dataConCanContain :: TypeEnv -> DataCon -> [Type]
 dataConCanContain tenv = nub . dataConCanContain' tenv

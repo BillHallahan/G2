@@ -15,7 +15,6 @@ module G2.Internals.Solver.Converters
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
-    , pcVars
     , smtastToExpr
     , modelAsExpr
     , checkConstraints
@@ -33,7 +32,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.PathConds as PC
 import G2.Internals.Solver.Language
 
--- This class is used to describe the specific output format required by various solvers
+-- | Used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
 -- datatypes, to a form understandable by the solver.
 class SMTConverter con ast out io | con -> ast, con -> out, con -> io where
@@ -400,6 +399,7 @@ createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
 pcVarDecls :: [PathCond] -> [SMTHeader]
 pcVarDecls = createVarDecls . pcVars
 
+-- Get's all variable required for a list of `PathCond` 
 pcVars :: [PathCond] -> [(Name, Sort)]
 pcVars [] = []
 pcVars (PCExists i:xs) = idToNameSort i : pcVars xs
@@ -484,6 +484,7 @@ sortName con SortBool = sortBool con
 toSolverSetLogic :: SMTConverter con ast out io => con -> Logic -> out
 toSolverSetLogic = setLogic
 
+-- | Converts an `SMTAST` to an `Expr`.
 smtastToExpr :: SMTAST -> Expr
 smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
@@ -493,11 +494,13 @@ smtastToExpr (VBool b) =
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
+-- | Converts a `Sort` to an `Type`.
 sortToType :: Sort -> Type
 sortToType (SortInt) = TyLitInt
 sortToType (SortFloat) = TyLitFloat
 sortToType (SortDouble) = TyLitDouble
 sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 
+-- | Coverts an `SMTModel` to a `Model`.
 modelAsExpr :: SMTModel -> Model
 modelAsExpr = M.mapKeys strToName . M.map smtastToExpr

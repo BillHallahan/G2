@@ -9,7 +9,6 @@ module G2.Internals.Solver.Language
     , module G2.Internals.Language.AST
     , Result (..)) where
 
-import G2.Internals.Language.Syntax hiding (Assert)
 import G2.Internals.Language.AST
 import G2.Internals.Solver.Solver
 
@@ -65,7 +64,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | ItoR SMTAST -- ^ Integer to real conversion
             deriving (Show, Eq)
 
--- Every `SMTAST` has a `Sort`
+-- | Every `SMTAST` has a `Sort`
 data Sort = SortInt
           | SortFloat
           | SortDouble

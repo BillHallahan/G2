@@ -5,8 +5,7 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Support
 
--- | createFuncs
--- Give a list of b's, and functions to generate names and expressions from those
+-- | Give a list of b's, and functions to generate names and expressions from those
 -- b's, generates functions and puts them in the ExprEnv
 -- All b/Name pairs are also stored in some s, using the provided function
 -- The function to generate the expression gets the full s of b/Name pairs

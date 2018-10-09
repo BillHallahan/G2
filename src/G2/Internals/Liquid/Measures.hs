@@ -19,8 +19,8 @@ import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
 
--- Creates measures from LH measure specifications
--- We need this to support measures written in comments
+-- | Creates measures from LH measure specifications.
+-- This is required to find all measures that are written in comments.
 createMeasures :: [Measure SpecType GHC.DataCon] -> LHStateM ()
 createMeasures meas = do
     nt <- return . M.fromList =<< mapMaybeM measureTypeMappings meas

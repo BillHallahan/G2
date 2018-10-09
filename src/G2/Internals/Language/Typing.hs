@@ -81,8 +81,6 @@ mkTyFun :: [Type] -> Type
 mkTyFun [] = error "mkTyFun: empty list"
 mkTyFun [t] = t
 mkTyFun (t1:ts) = TyFun t1 (mkTyFun ts)
--- mkTyFun (t:[]) = t
--- mkTyFun (t1:t2:ts) = mkTyFun (TyFun t1 t2 : ts)
 
 tyAppCenter :: Type -> Type
 tyAppCenter (TyApp t _) = tyAppCenter t
@@ -120,12 +118,9 @@ class Typed a where
 
     typeOf' :: M.Map Name Type -> a -> Type
 
--- | `Id` instance of `Typed`.
 instance Typed Id where
     typeOf' m (Id _ ty) = tyVarRename m ty
 
--- | `Primitive` instance of `Typed`
--- | `Lit` instance of `Typed`.
 instance Typed Lit where
     typeOf (LitInt _) = TyLitInt
     typeOf (LitFloat _) = TyLitFloat
@@ -136,15 +131,12 @@ instance Typed Lit where
 
     typeOf' _ t = typeOf t
 
--- | `DataCon` instance of `Typed`.
 instance Typed DataCon where
     typeOf' _ (DataCon _ ty) = ty
 
--- | `Alt` instance of `Typed`.
 instance Typed Alt where
     typeOf' m (Alt _ expr) = typeOf' m expr
 
--- | `Expr` instance of `Typed`.
 instance Typed Expr where
     typeOf' m (Var v) = typeOf' m v
     typeOf' m (Lit lit) = typeOf' m lit
@@ -169,6 +161,17 @@ instance Typed Expr where
     typeOf' m (Tick _ e) = typeOf' m e
     typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
+
+passedArgs :: Expr -> [Expr]
+passedArgs = reverse . passedArgs'
+
+passedArgs' :: Expr -> [Expr]
+passedArgs' (App e e') = e':passedArgs' e
+passedArgs' _ = []
+
+appCenter :: Expr -> Expr
+appCenter (App a _) = appCenter a
+appCenter e = e
 
 appTypeOf :: M.Map Name Type -> Type -> [Expr] -> Type
 appTypeOf m (TyForAll (NamedTyBndr i) t) (Type t':es) =
@@ -235,13 +238,14 @@ tyVarRename' :: M.Map Name Type -> Type -> Type
 tyVarRename' m t@(TyVar (Id n _)) = M.findWithDefault t n m
 tyVarRename' _ t = t
 
--- | (.::)
--- Returns if the first type given is a specialization of the second,
+-- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> Type -> Bool
 t1 .:: t2 = fst $ specializes M.empty (typeOf t1) t2
 {-# INLINE (.::) #-}
 
+-- | Checks if the first type is equivalent to the second type.
+-- That is, @e@ has type @t1@ iff @e@ has type @t2@.
 (.::.) :: Type -> Type -> Bool
 t1 .::. t2 = PresType t1 .:: t2 && PresType t2 .:: t1
 {-# INLINE (.::.) #-}
@@ -390,10 +394,9 @@ hasTyBottom' _ = Any False
 numArgs :: Typed t => t -> Int
 numArgs = length . argumentTypes
 
--- | argumentTypes
--- Gives the types of the arguments of the functions
 data ArgType = AnonType Type | NamedType Id
 
+-- | Gives the types of the arguments of the functions
 argumentTypes :: Typed t => t -> [Type]
 argumentTypes = argumentTypes' . typeOf
 
@@ -437,8 +440,7 @@ anonArgumentTypes' (TyForAll _ t) = anonArgumentTypes' t
 anonArgumentTypes' (TyFun t1 t2) = t1:anonArgumentTypes' t2
 anonArgumentTypes' _ = []
 
--- | returnType
--- Gives the return type if the given function type is fully saturated
+-- | Gives the return type if the given function type is fully saturated
 returnType :: Typed t => t -> Type
 returnType = returnType' . typeOf
 
@@ -447,13 +449,11 @@ returnType' (TyForAll _ t) = returnType' t
 returnType' (TyFun _ t) = returnType' t
 returnType' t = t
 
--- | polyIds
--- Returns all polymorphic Ids in the given type
+-- | Returns all polymorphic Ids in the given type
 polyIds :: Type -> [Id]
 polyIds = fst . splitTyForAlls
 
--- | splitTyForAlls
--- Turns TyForAll types into a list of type ids
+-- | Turns TyForAll types into a list of type ids
 splitTyForAlls :: Type -> ([Id], Type)
 splitTyForAlls (TyForAll (NamedTyBndr i) t) =
     let
@@ -463,30 +463,17 @@ splitTyForAlls (TyForAll (NamedTyBndr i) t) =
 splitTyForAlls t = ([], t)
 
 
--- Turns TyFun types into a list of types
+-- | Turns TyFun types into a list of types
 splitTyFuns :: Type -> [Type]
 splitTyFuns (TyFun t t') = t:splitTyFuns t'
 splitTyFuns t = [t]
 
--- | tyForAlls
--- Nests a new type in TyForAlls
+-- | Nests a new type in TyForAlls
 mapInTyForAlls :: (Type -> Type) -> Type -> Type
 mapInTyForAlls f (TyForAll b t) = TyForAll b $ mapInTyForAlls f t
 mapInTyForAlls f t = f t
 
+-- | Extracts the type inside TyForAlls, recursively
 inTyForAlls :: Type -> Type
 inTyForAlls (TyForAll _ t) = inTyForAlls t
 inTyForAlls t = t
-
--- | unApp
--- Unravels the application spine.
-passedArgs :: Expr -> [Expr]
-passedArgs = reverse . passedArgs'
-
-passedArgs' :: Expr -> [Expr]
-passedArgs' (App e e') = e':passedArgs' e
-passedArgs' _ = []
-
-appCenter :: Expr -> Expr
-appCenter (App a _) = appCenter a
-appCenter e = e

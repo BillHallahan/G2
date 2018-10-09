@@ -32,8 +32,8 @@ runCheck proj src modN entry chAll gflags s ars out = do
     v' <- unsafeCoerce v :: IO (Either SomeException Bool)
     let outStr = mkCleanExprHaskell s out
     let v'' = case v' of
-                    Left _ -> outStr == "error"
-                    Right b -> b && outStr /= "error"
+                    Left _ -> trace ("Left") outStr == "error"
+                    Right b -> trace ("Right") b && outStr /= "error"
 
     chAllR' <- unsafeCoerce chAllR :: IO [Either SomeException Bool]
     let chAllR'' = rights chAllR'

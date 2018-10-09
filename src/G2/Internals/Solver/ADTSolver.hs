@@ -3,8 +3,7 @@
 
 module G2.Internals.Solver.ADTSolver ( ADTSolver (..)
                                      , checkConsistency
-                                     , findConsistent
-                                     , findConsistent'') where
+                                     , findConsistent) where
 
 import G2.Internals.Language.ArbValueGen
 import G2.Internals.Language.Casts

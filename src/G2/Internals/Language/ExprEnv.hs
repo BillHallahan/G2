@@ -132,6 +132,7 @@ lookupNameMod :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =
     listToMaybe . L.filter (\(Name n m _ _, _) -> ns == n && ms == m) . toExprList
 
+-- | Looks  up a `Name` in the `ExprEnv`.  Crashes if the `Name` is not found.
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =
     case M.lookup n env' of
@@ -140,6 +141,8 @@ lookupNameMod ns ms =
         Just (SymbObj i) -> Var i
         Nothing -> error $ "ExprEnv.!: Given key is not an element of the expr env" ++ show n
 
+-- | Inserts a new `Expr` into the `ExorEnv`, at the given `Name`.
+-- If the `Name` already exists in the `ExprEnv`, the `Expr` is replaced.
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
 insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv
 
@@ -156,14 +159,19 @@ redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 
+-- | Map a function over all `Expr` in the `ExprEnv`.
+-- Will not replace symbolic variables with non-symbolic values,
+-- but will rename symbolic values.
 map :: (Expr -> Expr) -> ExprEnv -> ExprEnv
 map f = mapWithKey (\_ -> f)
 
+-- | Maps a function with an arbitrary return type over all `Expr` in the `ExprEnv`, to get a `Data.Map`.
 map' :: (Expr -> a) -> ExprEnv -> M.Map Name a
 map' f = mapWithKey' (\_ -> f)
 
--- Maps (SymbObj v) iff f v is also a Var
--- Does not affect redirects
+-- | Map a function over all `Expr` in the `ExprEnv`, with access to the `Name`.
+-- Will not replace symbolic variables with non-symbolic values,
+-- but will rename symbolic values.
 mapWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
 mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
     where
@@ -215,11 +223,11 @@ filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
         p' n (ExprObj e) = p n e
         p' n (SymbObj i) = p n (Var i)
 
+-- | Returns a new `ExprEnv`, which contains only the symbolic values.
 filterToSymbolic :: ExprEnv -> ExprEnv
 filterToSymbolic eenv = filterWithKey (\n _ -> isSymbolic n eenv) eenv
 
--- | funcsOfType
--- Returns the names of all expressions with the given type in the expression environment
+-- | Returns the names of all expressions with the given type in the expression environment
 funcsOfType :: Type -> ExprEnv -> [Name]
 funcsOfType t = keys . filter (\e -> t == typeOf e)
 

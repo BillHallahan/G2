@@ -13,8 +13,7 @@ import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 import G2.Internals.Language.Typing
 
--- | unsafeElimCast
--- Removes all casts from the expression.  Makes no guarantees about the type
+-- | Removes all casts from the expression.  Makes no guarantees about the type
 -- correctness of the resulting expression.  In particular, the expression
 -- is likely to not actually type correctly if it contains variables that
 -- are mapped in the Expression Environment
@@ -25,8 +24,7 @@ unsafeElimCast' :: Expr -> Expr
 unsafeElimCast' (Cast e (t1 :~ t2)) = replaceASTs t1 t2 e
 unsafeElimCast' e = e
 
--- | splitCast
--- Given a function cast from (t1 -> t2) to (t1' -> t2'), decomposes it to two
+-- | Given a function cast from (t1 -> t2) to (t1' -> t2'), decomposes it to two
 -- seperate casts, from t1 to t1', and from t2 to t2'.  Given a cast (t1 ~ t2)
 -- where t1 is a NewTyCon N t3 such that t2 /= t3, changes the cast to be
 -- (t1 ~ t3) (t3 ~ t2).
@@ -67,8 +65,7 @@ splitCast ng c@(Cast e (t1 :~ t2)) =
     if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
 splitCast ng e = (e, ng)
 
--- | simplfyCasts
--- Eliminates redundant casts
+-- | Eliminates redundant casts.
 simplifyCasts :: ASTContainer m Expr => m -> m
 simplifyCasts = modifyASTsFix simplifyCasts'
 
@@ -81,8 +78,7 @@ simplifyCasts' e
         = e'
     | otherwise = e
 
--- | liftCasts
--- Changes casts on functions to casts on non-functional values
+-- | Changes casts on functions to casts on non-functional values
 -- (As much as possible)
 liftCasts :: ASTContainer m Expr => m -> m 
 liftCasts = simplifyCasts . modifyASTsFix liftCasts'
@@ -107,9 +103,11 @@ liftCasts'' a@(App e e') =
     if a == a' then a else liftCasts'' a'
 liftCasts'' e = e
 
+-- | Extracts an `Expr` nested in one or more Casts.
 exprInCasts :: Expr -> Expr
 exprInCasts (Cast e _) = exprInCasts e
 exprInCasts e = e
 
+-- | Gets the type of an `Expr`, ignoring Casts.
 typeInCasts :: Expr -> Type
 typeInCasts = typeOf . exprInCasts
