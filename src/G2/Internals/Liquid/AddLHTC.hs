@@ -10,6 +10,11 @@ import G2.Internals.Liquid.Conversion
 
 import qualified Data.Map as M
 
+-- | Adds the LiquidHaskell typeclass to all functions in the ExprEnv, and to
+-- the current expression.  This requires:
+--   1. Adding Lambda bindings for the LH TC
+--   2. Passing the LH TC typeclass to functions
+--   3. Updating all type information
 addLHTC :: LHStateM ()
 addLHTC = do
     mapME addLHTCExprEnv
@@ -43,7 +48,7 @@ addLHTCExprEnvLams is e = do
 
 -- Updates each function call, so that it is passed the appropriate LH TC.
 -- This requires both:
--- (1) Modify the expression, to pass the appropriate arguments
+-- (1) Modifying the expression, to pass the appropriate arguments
 -- (2) Modifying the type of the function variable
 addLHTCExprEnvPasses :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprEnvPasses m e =
@@ -56,10 +61,6 @@ addLHTCExprPasses m = modifyAppTopE (addLHTCExprPasses' m)
 
 addLHTCExprPasses' :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprPasses' m a@(App _ _)
-    | a'@(Var (Id (Name "-" _ _ _) _):_) <- unApp a = do
-        a'' <- addLHTCExprPasses'' m [] a'
-        return $ mkApp a''
-
     | a'@(Var _:_) <- unApp a = do
         a'' <- addLHTCExprPasses'' m [] a'
         return $ mkApp a''

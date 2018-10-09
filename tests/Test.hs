@@ -133,7 +133,9 @@ liquidTests =
                     [AtLeast 1, RForAll (\[x, _] -> dcInAppHasName "Right" x 3)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sumSameInts" 2000 3 
                     [AtLeast 1, RForAll (\[x, y, _] -> dcInAppHasName "Right" x 3 && dcInAppHasName "Left" y 3)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1200 2 [AtLeast 1]
+                , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "sub1" 1200 4 [AtLeast 1]
+
+                , checkLiquid "tests/Liquid" "tests/Liquid/NumOrd.hs" "subTuple" 1200 3 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "d" 1000 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/CommentMeasures.hs" "unpackCP'" 100000 2 [Exactly 0]
