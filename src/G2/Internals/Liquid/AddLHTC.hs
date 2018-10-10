@@ -1,12 +1,11 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Internals.Liquid.AddLHTC (addLHTC) where
+module G2.Internals.Liquid.AddLHTC ( addLHTC ) where
 
 import G2.Internals.Language
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.Types
-
-import G2.Internals.Liquid.Conversion
 
 import qualified Data.Map as M
 
@@ -83,6 +82,30 @@ addLHTCExprPasses'' m es (e:es')
     | otherwise = do
         as <- addLHTCExprPasses'' m [] es'
         return $ reverse es ++ e:as
+
+-- We want to add a LH Dict Type argument to Var's, but not DataCons or Lambdas.
+-- That is: function calls need to be passed the LH Dict but it
+-- doesn't need to be passed around in DataCons
+addLHDictToTypes :: ASTContainerM e Expr => M.Map Name Id -> e -> LHStateM e
+addLHDictToTypes m = modifyASTsM (addLHDictToTypes' m)
+
+addLHDictToTypes' :: M.Map Name Id -> Expr -> LHStateM Expr
+addLHDictToTypes' m (Var (Id n t)) = return . Var . Id n =<< addLHDictToTypes'' m t
+addLHDictToTypes' _ e = return e
+
+addLHDictToTypes'' :: M.Map Name Id -> Type -> LHStateM Type
+addLHDictToTypes'' m t@(TyForAll (NamedTyBndr _) _) = addLHDictToTypes''' m [] t
+addLHDictToTypes'' m t = modifyChildrenM (addLHDictToTypes'' m) t
+
+addLHDictToTypes''' :: M.Map Name Id -> [Id] -> Type -> LHStateM Type
+addLHDictToTypes''' m is (TyForAll (NamedTyBndr b) t) =
+    return . TyForAll (NamedTyBndr b) =<< addLHDictToTypes''' m (b:is) t
+addLHDictToTypes''' _ is t = do
+    lh <- lhTCM
+    let is' = reverse is
+    let dictT = map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) is'
+
+    return $ foldr TyFun t dictT
 
 lhTCDict :: M.Map Name Id -> Type -> LHStateM Expr
 lhTCDict m t = do

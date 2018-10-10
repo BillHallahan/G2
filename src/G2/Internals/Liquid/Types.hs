@@ -18,6 +18,7 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , lookupMeasure
                                  , lookupMeasureM
                                  , insertMeasureM
+                                 , mapMeasuresM
                                  , lookupAssumptionM
                                  , insertAssumptionM
                                  , mapAssumptionsM
@@ -44,6 +45,7 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , lhNegateM
                                  , lhModM
                                  , lhFromIntegerM
+                                 , lhNumOrdM
 
                                  , lhAndE
                                  , lhOrE
@@ -243,6 +245,12 @@ insertMeasureM n e = do
     let meas' = E.insert n e meas
     SM.put $ lh_s {measures = meas'}
 
+mapMeasuresM :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
+mapMeasuresM f = do
+    s@(LHState { measures = meas }) <- SM.get
+    meas' <- E.mapM f meas
+    SM.put $ s { measures = meas' }
+
 lookupAssumptionM :: L.Name -> LHStateM (Maybe L.Expr)
 lookupAssumptionM n = liftLHState (M.lookup n . assumptions)
 
@@ -413,6 +421,17 @@ lhFromIntegerM :: LHStateM L.Id
 lhFromIntegerM = do
     n <- liftTCValues lhFromInteger
     return . L.Id n =<< numT 
+
+lhNumOrdM :: LHStateM L.Id
+lhNumOrdM = do
+    num <- lhNumTCM
+    let num' = L.TyCon num L.TYPE
+
+    ord <- lhOrdTCM
+    let ord' = L.TyCon ord L.TYPE
+
+    n <- liftTCValues lhNumOrd
+    return $ L.Id n (L.TyFun num' ord') 
 
 lhPPM :: LHStateM L.Name
 lhPPM = liftTCValues lhPP

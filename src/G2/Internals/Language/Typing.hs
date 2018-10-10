@@ -24,7 +24,6 @@ module G2.Internals.Language.Typing
     , hasFuncType
     , appendType
     , higherOrderFuncs
-    , isAlgDataTy
     , isTYPE
     , isTyFun
     , hasTYPE
@@ -186,7 +185,7 @@ appTypeOf m (TyVar (Id n _)) es =
     case M.lookup n m of
         Just t -> appTypeOf m t es
         Nothing -> error ("appTypeOf: Unknown TyVar")
-appTypeOf _ t es = error ("appTypeOf" ++ show t ++ "\n" ++ show es ++ "\n\n")
+appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 instance Typed Type where
     typeOf' _ (TyVar (Id _ t)) = t
@@ -327,14 +326,6 @@ higherOrderFuncs' = eval higherOrderFuncs''
 higherOrderFuncs'' :: Type -> [Type]
 higherOrderFuncs'' (TyFun t@(TyFun _ _) _) = [t]
 higherOrderFuncs'' _ = []
-
--- | isAlgDataTy
-isAlgDataTy :: Typed t => t -> Bool
-isAlgDataTy = isAlgDataTy' . typeOf
-
-isAlgDataTy' :: Type -> Bool
-isAlgDataTy' (TyCon _ _) = True
-isAlgDataTy' _ = False
 
 isTYPE :: Type -> Bool
 isTYPE TYPE = True

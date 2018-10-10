@@ -15,8 +15,6 @@ module G2.Internals.Language.TypeEnv ( ProgramType
                                      , getDataCons
                                      , baseDataCons
                                      , getCastedAlgDataTy
-                                     , selfRecursive
-                                     , dataConCanContain
                                      , getDataCon
                                      , getDataConNameMod
                                      , getDataConNameMod'
@@ -118,39 +116,6 @@ getCastedAlgDataTy' n ts tenv =
             Just (NewTyCon {}) -> Nothing
             (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
             _ -> Nothing
-
--- | Given a DataCon dc of type t, checks if one of the descendents of dc could
--- be of type t
-selfRecursive :: TypeEnv -> DataCon -> Bool
-selfRecursive tenv dc =
-    let
-        tydc = typeOf dc
-        ts = dataConCanContain tenv dc
-    in
-    tydc `elem` ts
-
--- | Recursively searches the possible contents of a DataCon, to determine all
--- the types that could be anywhere below it in an AST
-dataConCanContain :: TypeEnv -> DataCon -> [Type]
-dataConCanContain tenv = nub . dataConCanContain' tenv
-
-dataConCanContain' :: TypeEnv -> DataCon -> [Type]
-dataConCanContain' tenv (DataCon _ t) =
-    let
-        ts = anonArgumentTypes t
-
-        pt = filter (not . isAlgDataTy) $ ts
-        dcs = filter isAlgDataTy $ ts
-
-        adts = concat . mapMaybe (fmap dataCon . flip M.lookup tenv . tyConAppName) $ dcs
-
-        recT = concatMap (dataConCanContain tenv) adts
-    in
-    pt ++ (map typeOf dcs) ++ recT
-
-tyConAppName :: Type -> Name
-tyConAppName (TyCon n _) = n
-tyConAppName _ = error "tyConAppName: Type other than TyCon"
 
 getDataCon :: TypeEnv -> Name -> Name -> Maybe DataCon
 getDataCon tenv adt dc =

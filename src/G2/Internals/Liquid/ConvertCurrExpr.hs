@@ -13,8 +13,6 @@ import Control.Monad.Extra
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 convertCurrExpr :: Id -> LHStateM [Name]
 convertCurrExpr ifi = do
     ifi' <- modifyInputExpr ifi
@@ -66,15 +64,15 @@ rebindFuncs e = do
     vs <- mapMaybeM (\i -> fmap (i,) <$> lookupE (idName i)) $ varIds e
     nvs <- mapM (\(Id n t, _) -> freshSeededIdN n t) vs
     
-    mapM_ (\(n, e) -> insertE n (rewriteAssertName n e)) $ zip (map idName nvs) (map snd vs)
+    mapM_ (\(n, e_) -> insertE n (rewriteAssertName n e_)) $ zip (map idName nvs) (map snd vs)
 
     let e' = foldr (uncurry replaceASTs) e $ zip (map (Var . fst) vs) (map Var nvs)
 
     return (e', map idName nvs)
     where
         rewriteAssertName :: Name -> Expr -> Expr
-        rewriteAssertName n (Assert (Just fc) e e') = Assert (Just $ fc {funcName = n}) e e'
-        rewriteAssertName n e = modifyChildren (rewriteAssertName n) e
+        rewriteAssertName n (Assert (Just fc) e1 e2) = Assert (Just $ fc {funcName = n}) e1 e2
+        rewriteAssertName n e1 = modifyChildren (rewriteAssertName n) e1
 
 
 -- We want to get all function calls into Let Bindings.

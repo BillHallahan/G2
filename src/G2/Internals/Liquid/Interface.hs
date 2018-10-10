@@ -13,6 +13,7 @@ import qualified G2.Internals.Language.ExprEnv as E
 import G2.Internals.Execution
 
 import G2.Internals.Liquid.AddLHTC
+import G2.Internals.Liquid.AddOrdToNum
 import G2.Internals.Liquid.Annotations
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ConvertCurrExpr
@@ -90,7 +91,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     let ng_state' = ng_state {track = []}
 
-    let lh_state = createLHTC meenv mkv ng_state'
+    let lh_state = createLHState meenv mkv ng_state'
 
     let (abs_fun, merged_state) = runLHStateM (initializeLH ghci_cg ifi) lh_state
 
@@ -150,6 +151,7 @@ initializeLH ghci_cg ifi = do
     let ghcInfos = map ghcI ghci_cg
 
     addLHTC
+    addOrdToNum
 
     let lh_measures = measureSpecs ghcInfos
     createMeasures lh_measures

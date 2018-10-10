@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
-module G2.Internals.Liquid.TCGen (createLHTC) where
+module G2.Internals.Liquid.TCGen (createLHState) where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.KnownValues as KV
@@ -14,8 +14,11 @@ import Data.Foldable
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-createLHTC :: Measures -> KnownValues -> State [FuncCall] -> LHState
-createLHTC meenv mkv s =
+-- | Creates an LHState.  This involves building a TCValue, and
+-- creating the new LH TC which checks equality, and has a function to
+-- check refinements of polymophic types
+createLHState :: Measures -> KnownValues -> State [FuncCall] -> LHState
+createLHState meenv mkv s =
     let
         (tcv, s') = runStateM (createTCValues mkv) s
 
@@ -32,6 +35,7 @@ createTCValues kv = do
     lhEqN <- freshSeededStringN "lhEq"
     lhNeN <- freshSeededStringN "lhNe"
     lhPPN <- freshSeededStringN "lhPP"
+    lhNuOr <- freshSeededStringN "lhNuOr"
 
     let tcv = (TCValues { lhTC = lhTCN
                         , lhNumTC = KV.numTC kv 
@@ -51,6 +55,7 @@ createTCValues kv = do
                         , lhNegate = KV.negateFunc kv
                         , lhMod = KV.modFunc kv
                         , lhFromInteger = KV.fromIntegerFunc kv
+                        , lhNumOrd = lhNuOr
 
                         , lhAnd = KV.andFunc kv
                         , lhOr = KV.orFunc kv
