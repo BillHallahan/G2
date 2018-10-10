@@ -3,7 +3,7 @@ module G2.Internals.Liquid.TCValues where
 import G2.Internals.Language.Naming
 import G2.Internals.Language.Syntax
 
--- Stores variable names that are used in the LH encoding.
+-- | Stores variable names that are used in the LH encoding.
 -- There are two reasons a name might exist:
 --   (1) It corresponds to something that only makes sense in the context of LH
 --       (i.e. the LH typeclass)

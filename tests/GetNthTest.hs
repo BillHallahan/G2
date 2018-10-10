@@ -6,8 +6,6 @@ module GetNthTest where
 import G2.Internals.Language
 import TestUtils
 
-import Debug.Trace
-
 data CList a = Cons a (CList a) | Nil
 
 data Peano = Succ Peano | Zero

@@ -6,8 +6,7 @@ import qualified G2.Internals.Language.KnownValues as KV
 import G2.Internals.Language.Monad
 import G2.Internals.Liquid.Types
 
-import Debug.Trace
-
+-- | Adds an assert of false to the function called when a pattern match fails
 addSpecialAsserts :: LHStateM ()
 addSpecialAsserts = do
     pen <- KV.patErrorFunc <$> knownValues
@@ -24,7 +23,7 @@ addSpecialAsserts = do
     
     insertE pen e'
 
--- Adds an Assert of True to any function without an assertion already,
+-- | Adds an Assert of True to any function without an assertion already,
 -- excluding certain functions (namely dicts) that we never want to abstract
 addTrueAsserts :: Id -> LHStateM ()
 addTrueAsserts i = do
