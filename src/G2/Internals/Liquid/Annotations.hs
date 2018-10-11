@@ -27,6 +27,8 @@ import qualified Data.Text as T
 
 import SrcLoc
 
+import Debug.Trace
+
 lookupAnnot :: Name -> AnnotMap -> Maybe [(Maybe T.Text, Expr)]
 lookupAnnot (Name _ _ _ (Just s)) =
     HM.lookup s . unAnnotMap
@@ -64,11 +66,11 @@ valToExpr' locM spn@(Span {start = stloc}) (n, ast) = do
     case (e, t) of
         (Just e', Just t') -> do
             let i = Id (Name "ret" Nothing 0 Nothing) t'
-            let ai = assertionLamIds e'
+            let ai = leadingLamUsesIds e' -- assertionLamIds e'
             dm <- dictMapFromIds (map snd ai)
 
             ce <- convertSpecType dm M.empty (map snd ai) (Just i) ast
-            let ce' = addIds ce ai
+            let ce' = addIds ce (ai ++ [(TermL, i)])
 
             insertAnnotM spn n ce'
         _ -> return ()
@@ -86,9 +88,11 @@ assertionLamIds' (Let _ (Assert _ a _)) = leadingLamUsesIds a
 assertionLamIds' _ = []
 
 addIds :: Expr -> [(LamUse, Id)] -> Expr
-addIds e@(Lam _ ei _) ((u, i):is) = if i == ei then e else Lam u i $ addIds e is
+addIds e ((u, i):is) = Lam u i $ addIds e is
+-- addIds e@(Lam _ ei _) ((u, i):is) = if i == ei then e else Lam u i $ addIds e is
 addIds e _ = e
 
+-- modeled after Language.Haskell.Liquid.UX.Annotate
 closeAnnots :: AnnInfo (Annot SpecType) -> AnnInfo SpecType
 closeAnnots = closeA . filterA . collapseA
 
@@ -121,6 +125,10 @@ collapseA (AI m) = AI (fmap pickOneA m)
 pickOneA :: [(t, Annot t1)] -> [(t, Annot t1)]
 pickOneA xas = case (rs, ds, ls, us) of
                  (x:_, _, _, _) -> [x]
+                 (_, x:_, _, _) -> [x]
+                 (_, _, x:_, _) -> trace ("Loc") []
+                 (_, _, _, x:_) -> [x]
+
                  -- (_, x:_, _, _) -> [x]
                  -- (_, _, x:_, _) -> [x]
                  -- (_, _, _, x:_) -> [x]

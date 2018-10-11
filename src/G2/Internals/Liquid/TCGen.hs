@@ -138,7 +138,7 @@ createLHTCFuncs' lhm n adt = do
     lhd <- freshIdsN (map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) bi)
     let lhdv = map Var lhd
 
-    let fs = map (\n' -> Var (Id n' TyUnknown)) [eqN, neN, ppN]
+    let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ppN]
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs
 
     lhdct <- lhDCType
@@ -232,7 +232,8 @@ lhEqFunc ldm _ dc ba1 = do
 
 eqLHFuncCall :: LHDictMap -> Id -> Id -> LHStateM Expr
 eqLHFuncCall ldm i1 i2
-    | TyCon _ _ <- tyAppCenter t = do
+    | TyCon _ _ <- tyAppCenter t
+    , ts <- tyAppArgs t  = do
         lhe <- lhEqM
 
         i <- freshIdN TYPE

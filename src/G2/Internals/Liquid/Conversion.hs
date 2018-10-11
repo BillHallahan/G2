@@ -23,6 +23,7 @@ import G2.Internals.Translation.Haskell
 import qualified Var as Var
 
 import Language.Fixpoint.Types.Names
+import Language.Fixpoint.Types.Sorts
 import qualified Language.Fixpoint.Types.Refinements as Ref
 import Language.Fixpoint.Types.Refinements hiding (Expr, I)
 import Language.Haskell.Liquid.Types
@@ -339,13 +340,16 @@ convertLHExpr m bt t (EBin b e e') = do
 
     let t' = typeOf e2
 
-    nDict <- bopTCDict b m t' -- numDict m t'
+    nDict <- bopTCDict b m t'
 
     return $ mkApp [ b'
                    , Type t'
                    , nDict
                    , e2
                    , e2' ]
+convertLHExpr m bt _ (ECst e s) = do
+    t <- sortToType s
+    convertLHExpr m bt (Just t) e
 convertLHExpr m bt _ (PAnd es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
@@ -564,6 +568,11 @@ primType (Name "Float#" _ _ _) = Just TyLitFloat
 primType (Name "Double#" _ _ _) = Just TyLitDouble
 primType (Name "Word#" _ _ _) = Just TyLitInt
 primType _ = Nothing
+
+sortToType :: Sort -> LHStateM Type
+sortToType FInt = tyIntT
+sortToType FReal = tyDoubleT
+sortToType _ = error "Unhandled sort"
 
 convertBrel :: Brel -> LHStateM Expr
 convertBrel Ref.Eq = convertBrel' lhEqM
