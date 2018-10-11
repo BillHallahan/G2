@@ -24,6 +24,10 @@ max3 xs@(x :+: _) = Just (foldr (\x y -> if x > y then x else y) x xs)
 max3 _ = Nothing
 
 
+{-@ simpleFold :: List { x:Int | x > 0} -> { y:Int | y > 0} @-}
+simpleFold :: List Int -> Int
+simpleFold xs = foldr (\_ y -> y) 1 xs
+
 data C a = C a
 
 {-@ m :: {x:Int | x > 0} -> C { y:Int | y > 0 } @-}

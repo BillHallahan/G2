@@ -101,6 +101,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
 
     let annm = annots merged_state
+    print annm
 
     let track_state = merged_state' {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm} }
 
