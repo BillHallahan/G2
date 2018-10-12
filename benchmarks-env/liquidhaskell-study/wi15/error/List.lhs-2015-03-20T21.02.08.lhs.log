@@ -1,0 +1,71 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T21.02.08.lhs:25:15-17: Error: GHC Error
+ 
+ 25 |             , map
+                    ^^^
+ 
+     Not in scope: ‘map’
+Perhaps you meant one of these:
+  ‘mapM’ (imported from Prelude), ‘fmap’ (imported from Prelude),
+  ‘max’ (imported from Prelude)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T21.02.08.lhs:27:15-19: Error: GHC Error
+ 
+ 27 |             , foldr
+                    ^^^^^
+ 
+     Not in scope: ‘foldr’
+Perhaps you meant ‘foldl’ (imported from Prelude)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T21.02.08.lhs:28:15-20: Error: GHC Error
+ 
+ 28 |             , foldr1
+                    ^^^^^^
+ 
+     Not in scope: ‘foldr1’
+Perhaps you meant one of these:
+  ‘foldl1’ (imported from Prelude), ‘foldl’ (imported from Prelude)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T21.02.08.lhs:29:15-21: Error: GHC Error
+ 
+ 29 |             , zipWith
+                    ^^^^^^^
+ 
+     Not in scope: ‘zipWith’
+Perhaps you meant ‘zipWith3’ (imported from Prelude)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T21.02.08.lhs:30:15-20: Error: GHC Error
+ 
+ 30 |             , concat
+                    ^^^^^^
+ 
+     Not in scope: ‘concat’
+Perhaps you meant one of these:
+  ‘mconcat’ (imported from Prelude), ‘const’ (imported from Prelude)

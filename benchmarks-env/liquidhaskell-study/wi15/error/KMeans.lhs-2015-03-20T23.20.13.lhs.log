@@ -1,0 +1,39 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T23.20.13.lhs:188:22-61: Error: Specified Type Does Not Refine Haskell Type for normalize
+ 
+ 188 |     {-@ normalize :: M.Map k (ClusterN n) -> CenteringKN k n @-}
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall k.
+Data.Map.Base.Map k (GHC.Types.Int, List.List GHC.Types.Double)
+-> Data.Map.Base.Map GHC.Types.Int (List.List GHC.Types.Double)
+  
+ is inconsistent with the Haskell type
+  
+     forall a.
+Data.Map.Base.Map a (GHC.Types.Int, List.List GHC.Types.Double)
+-> Data.Map.Base.Map a (List.List GHC.Types.Double)
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T23.20.13.lhs:190:5-13

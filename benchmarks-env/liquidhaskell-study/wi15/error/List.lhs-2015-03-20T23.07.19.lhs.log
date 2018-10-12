@@ -1,0 +1,77 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:32-34: Error: GHC Error
+ 
+ 142 | replicate n x = foldr (\x a -> x:a) [] [1..n]
+                                      ^^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[a0]’
+Relevant bindings include
+  a :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:27)
+  x :: a0
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:25)
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:13)
+  replicate :: Int -> a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:34: Error: GHC Error
+ 
+ 142 | replicate n x = foldr (\x a -> x:a) [] [1..n]
+                                        ^
+ 
+     Couldn't match expected type ‘[a0]’ with actual type ‘List a’
+Relevant bindings include
+  a :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:27)
+  x :: a0
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:25)
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:13)
+  replicate :: Int -> a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:37-38: Error: GHC Error
+ 
+ 142 | replicate n x = foldr (\x a -> x:a) [] [1..n]
+                                           ^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[t0]’
+Relevant bindings include
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:13)
+  replicate :: Int -> a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.07.19.lhs:142:40-45: Error: GHC Error
+ 
+ 142 | replicate n x = foldr (\x a -> x:a) [] [1..n]
+                                              ^^^^^^
+ 
+     Couldn't match expected type ‘List a0’ with actual type ‘[Int]’

@@ -1,0 +1,64 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:218:18-19: Error: GHC Error
+ 
+ 218 | combine xs Emp = xs
+                        ^^
+ 
+     Couldn't match type ‘a’ with ‘c’
+  ‘a’ is a rigid type variable bound by
+      the type signature for combine :: List a -> List b -> List c
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:216:12
+  ‘c’ is a rigid type variable bound by
+      the type signature for combine :: List a -> List b -> List c
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:216:12
+Expected type: List c
+  Actual type: List a
+Relevant bindings include
+  xs :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:218:9)
+  combine :: List a -> List b -> List c
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:217:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:219:18-19: Error: GHC Error
+ 
+ 219 | combine Emp ys = ys
+                        ^^
+ 
+     Couldn't match type ‘b’ with ‘c’
+  ‘b’ is a rigid type variable bound by
+      the type signature for combine :: List a -> List b -> List c
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:216:12
+  ‘c’ is a rigid type variable bound by
+      the type signature for combine :: List a -> List b -> List c
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:216:12
+Expected type: List c
+  Actual type: List b
+Relevant bindings include
+  ys :: List b
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:219:13)
+  combine :: List a -> List b -> List c
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T19.36.08.lhs:217:1)

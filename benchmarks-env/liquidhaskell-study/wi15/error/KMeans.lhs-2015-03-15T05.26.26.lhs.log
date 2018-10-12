@@ -1,0 +1,42 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T05.26.26.lhs:94:25-72: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyMap . map (\(c, pp) -> (c, distance pp p))
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match type ‘List (t0, Int) -> c0’ with ‘Int’
+Expected type: Center
+  Actual type: List (t0, Int) -> c0
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T05.26.26.lhs:94:37-72: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyMap . map (\(c, pp) -> (c, distance pp p))
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match type ‘List (t0, Point -> Double)’ with ‘Map c0 v0’
+Expected type: List (t0, Int) -> Map c0 v0
+  Actual type: List (t0, Int) -> List (t0, Point -> Double)

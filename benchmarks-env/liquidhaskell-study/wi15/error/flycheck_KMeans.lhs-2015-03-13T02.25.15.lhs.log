@@ -1,0 +1,40 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T02.25.15.lhs:94:32-59: Error: GHC Error
+ 
+ 94 | nearest k n centers p = head $ map (\(a,b) -> a) ( centers)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘[Center]’ with actual type ‘List b0’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T02.25.15.lhs:94:52-58: Error: GHC Error
+ 
+ 94 | nearest k n centers p = head $ map (\(a,b) -> a) ( centers)
+                                                         ^^^^^^^
+ 
+     Couldn't match type ‘Map Center Point’ with ‘List (b0, t0)’
+Expected type: List (b0, t0)
+  Actual type: Centering

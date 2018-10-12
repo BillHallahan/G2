@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/MapReduce.lhs-2015-03-20T23.26.19.lhs:70:18: Error: Bad Type Specification
+ MapReduce.collapse :: (a -> a -> a) -> (Map b {v : (List a) | size v == Nat}) -> (Map b a)
+     Sort Error in Refinement: {v##0 : (List.List  v_amxO) | size v##0 == Nat}
+     Unbound Symbol Nat
+ Perhaps you meant: fst

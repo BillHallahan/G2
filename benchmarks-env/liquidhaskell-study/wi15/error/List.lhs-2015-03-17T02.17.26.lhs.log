@@ -1,0 +1,89 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:216:9-13: Error: GHC Error
+ 
+ 216 | concat (x:Emp) = singleton x
+               ^^^^^
+ 
+     Couldn't match expected type ‘List (List a)’ with actual type ‘[a]’
+Relevant bindings include
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:216:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:216:11-13: Error: GHC Error
+ 
+ 216 | concat (x:Emp) = singleton x
+                 ^^^
+ 
+     Couldn't match expected type ‘[a]’ with actual type ‘List t0’
+Relevant bindings include
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:216:9)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:216:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:217:20-23: Error: GHC Error
+ 
+ 217 | concat lol = foldr (++) [] lol
+                          ^^^^
+ 
+     Couldn't match type ‘[a0]’ with ‘List a’
+Expected type: [a0] -> List a -> List a
+  Actual type: [a0] -> [a0] -> [a0]
+Relevant bindings include
+  lol :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:217:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:216:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:217:25-26: Error: GHC Error
+ 
+ 217 | concat lol = foldr (++) [] lol
+                               ^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[t1]’
+Relevant bindings include
+  lol :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:217:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:216:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:217:28-30: Error: GHC Error
+ 
+ 217 | concat lol = foldr (++) [] lol
+                                  ^^^
+ 
+     Couldn't match type ‘List a’ with ‘[a0]’
+Expected type: List [a0]
+  Actual type: List (List a)
+Relevant bindings include
+  lol :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:217:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T02.17.26.lhs:216:1)

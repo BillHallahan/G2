@@ -1,0 +1,12 @@
+resolver: lts-5.15
+packages: [ ../.., ../../liquid-fixpoint, ../../prover ]
+extra-deps:
+- daemons-0.2.1
+- located-base-0.1.0.0
+- dotgen-0.4.2
+- fgl-visualize-0.1.0.1
+- intern-0.9.1.4
+- aeson-0.11.2.0
+# see https://github.com/OlafChitil/hat/issues/10
+- haskell-src-exts-1.16.0.1
+- hat-2.9.0.0

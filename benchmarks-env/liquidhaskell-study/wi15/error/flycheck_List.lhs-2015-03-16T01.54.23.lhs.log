@@ -1,0 +1,48 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T01.54.23.lhs:220:17-20: Error: GHC Error
+ 
+ 220 | concat = foldr1 (++) []
+                       ^^^^
+ 
+     Couldn't match type ‘[a0]’ with ‘List (List a) -> List a’
+Expected type: (List (List a) -> List a)
+               -> (List (List a) -> List a) -> List (List a) -> List a
+  Actual type: [a0] -> [a0] -> [a0]
+Relevant bindings include
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T01.54.23.lhs:220:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T01.54.23.lhs:220:22-23: Error: GHC Error
+ 
+ 220 | concat = foldr1 (++) []
+                            ^^
+ 
+     Couldn't match expected type ‘List (List (List a) -> List a)’
+            with actual type ‘[t0]’
+Relevant bindings include
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T01.54.23.lhs:220:1)

@@ -1,0 +1,43 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.07.22.lhs:192:21-56: Error: GHC Error
+ 
+ 192 | kmeans1 k n ps cs = normalize $ k n (newClusters k n ps)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match type ‘Int -> Map a0 Cluster -> Map a0 Point’
+               with ‘Map Center Point’
+Expected type: Centering
+  Actual type: Int -> Map a0 Cluster -> Map a0 Point
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.07.22.lhs:192:33-56: Error: GHC Error
+ 
+ 192 | kmeans1 k n ps cs = normalize $ k n (newClusters k n ps)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘Int
+                              -> Map Center (Int, Point) -> Int’
+            with actual type ‘Int’

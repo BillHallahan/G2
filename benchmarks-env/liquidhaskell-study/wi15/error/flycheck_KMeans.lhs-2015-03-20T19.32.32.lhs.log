@@ -1,0 +1,45 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T19.32.32.lhs:94:46-51: Error: GHC Error
+ 
+ 94 | nearest k n centers p = floor $ distance n p minVal
+                                                   ^^^^^^
+ 
+     Couldn't match type ‘[t0]’ with ‘List Double’
+Expected type: Point
+  Actual type: [t0]
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T19.32.32.lhs:96:47-53: Error: GHC Error
+ 
+ 96 |         minVal = M.findWithDefault [0] minKey centers -- point  (List Double)
+                                                    ^^^^^^^
+ 
+     Couldn't match type ‘List Double’ with ‘[t]’
+Expected type: Map Center [t]
+  Actual type: Centering
+Relevant bindings include
+  minVal :: [t]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T19.32.32.lhs:96:9)

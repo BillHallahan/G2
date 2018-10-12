@@ -1,0 +1,71 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:31-33: Error: GHC Error
+ 
+ 218 | concat xss = foldl (\acc x -> acc ++ x) empty xss
+                                     ^^^
+ 
+     Couldn't match expected type ‘[a0]’ with actual type ‘List a’
+Relevant bindings include
+  x :: [a0]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:26)
+  acc :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:22)
+  xss :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:31-38: Error: GHC Error
+ 
+ 218 | concat xss = foldl (\acc x -> acc ++ x) empty xss
+                                     ^^^^^^^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[a0]’
+Relevant bindings include
+  x :: [a0]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:26)
+  acc :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:22)
+  xss :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:47-49: Error: GHC Error
+ 
+ 218 | concat xss = foldl (\acc x -> acc ++ x) empty xss
+                                                     ^^^
+ 
+     Couldn't match type ‘List a’ with ‘[a0]’
+Expected type: List [a0]
+  Actual type: List (List a)
+Relevant bindings include
+  xss :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T22.33.22.lhs:218:1)

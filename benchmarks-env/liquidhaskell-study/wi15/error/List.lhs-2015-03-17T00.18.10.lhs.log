@@ -1,0 +1,27 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T00.18.10.lhs:194:16: Error: Bad Type Specification
+ List.zipWith :: (a -> b -> c) -> (List a) -> (List b) -> {cs : (List c) | size cs == size}
+     Sort Error in Refinement: {cs##3 : (List.List  c_a1dP) | size cs##3 == size}
+     Cannot unify int with func(0, [(List.List  @(43)); int])
+  because
+Invalid Relation size cs##3 == size with operand types int and func(1, [(List.List  @(0)); int])

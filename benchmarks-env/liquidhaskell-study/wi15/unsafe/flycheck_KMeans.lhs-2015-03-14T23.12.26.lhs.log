@@ -1,0 +1,9 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+liquid: <no location info>: Error: Uh oh.
+    This should never happen! If you are seeing this message, 
+please submit a bug report at 
+https://github.com/ucsd-progsys/liquidhaskell/issues 
+with this message and the source file that caused this error.
+
+RefType.toType cannot handle: {VV : _ | $HOLE[GHC.Types.LT##6S:=GHC.Types.LT##6S][GHC.Types.EQ##6U:=GHC.Types.EQ##6U][GHC.Types.GT##6W:=GHC.Types.GT##6W]}

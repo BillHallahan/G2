@@ -1,0 +1,51 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T07.18.25.lhs:89:23: Error: Cannot parse specification:
+ 
+ 89 | {-@ assume length :: a::l0 -> {v:Int | v== 0} @-}
+                            ^
+ 
+     Leftover while parsing
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T07.18.25.lhs:90:23: Error: Cannot parse specification:
+ 
+ 90 | {-@ assume length :: a::l1 -> {v:Int | v== 1} @-}
+                            ^
+ 
+     Leftover while parsing
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T07.18.25.lhs:91:23: Error: Cannot parse specification:
+ 
+ 91 | {-@ assume length :: a::l2 -> {v:Int | v== 2} @-}
+                            ^
+ 
+     Leftover while parsing
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T07.18.25.lhs:92:23: Error: Cannot parse specification:
+ 
+ 92 | {-@ assume length :: a::l3 -> {v:Int | v== 3} @-}
+                            ^
+ 
+     Leftover while parsing

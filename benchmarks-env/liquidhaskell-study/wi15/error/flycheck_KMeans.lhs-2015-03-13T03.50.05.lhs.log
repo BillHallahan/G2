@@ -1,0 +1,30 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T03.50.05.lhs:93:16: Error: Bad Type Specification
+ KMeans.nearest :: k:{v : Int | v >= 0} -> n:{v : Int | v >= 0} -> {VV : (Map {v : Int | 0 <= v
+                                                                                         && v < k} {v : (List Double) | size v == n}) | length VV > 0} -> {v : (List Double) | size v == n} -> {v : Int | 0 <= v
+                                                                                                                                                                                                          && v < k
+                                                                                                                                                                                                          && v < k
+                                                                                                                                                                                                          && v > 0}
+     Sort Error in Refinement: {VV : (Data.Map.Base.Map  int  (List.List  real)) | length VV > 0}
+     Unbound Symbol length
+ Perhaps you meant: len

@@ -1,0 +1,37 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/MapReduce.lhs-2015-03-19T10.49.20.lhs:54:12-69: Error: Specified Type Does Not Refine Haskell Type for List.map
+ 
+ 54 | {-@ map :: (a -> List (k, v)) -> List (List a) -> List (List (k, v)) @-}
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a k v.
+(a -> List.List (k, v))
+-> List.List (List.List a) -> List.List (List.List (k, v))
+  
+ is inconsistent with the Haskell type
+  
+     forall a b. (a -> b) -> List.List a -> List.List b
+  
+ defined at List.lhs:168:1-3

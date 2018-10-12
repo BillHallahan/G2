@@ -1,0 +1,44 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T05.38.40.lhs:96:26-32: Error: GHC Error
+ 
+ 96 |     dists = map distance centers
+                               ^^^^^^^
+ 
+     Couldn't match type ‘Map Center Point’ with ‘List Int’
+Expected type: List Int
+  Actual type: Centering
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T05.38.40.lhs:97:23-27: Error: GHC Error
+ 
+ 97 |     smlK  = minKeyMap dists
+                            ^^^^^
+ 
+     Couldn't match expected type ‘Map k v0’
+            with actual type ‘List (Point -> Point -> Double)’
+Relevant bindings include
+  smlK :: k
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T05.38.40.lhs:97:5)

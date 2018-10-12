@@ -1,0 +1,48 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T04.14.03.lhs:219:28-29: Error: GHC Error
+ 
+ 219 | (++) (a:+:as) y = a :+: (as++y)
+                                  ^^
+ 
+     Ambiguous occurrence ‘++’
+It could refer to either ‘++’,
+                         defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T04.14.03.lhs:218:1
+                      or ‘++’,
+                         imported from ‘Prelude’ at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T04.14.03.lhs:34:1-78
+                         (and originally defined in ‘GHC.Base’)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T04.14.03.lhs:222:17-20: Error: GHC Error
+ 
+ 222 | concat = foldr1 (++)
+                       ^^^^
+ 
+     Ambiguous occurrence ‘++’
+It could refer to either ‘++’,
+                         defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T04.14.03.lhs:218:1
+                      or ‘++’,
+                         imported from ‘Prelude’ at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T04.14.03.lhs:34:1-78
+                         (and originally defined in ‘GHC.Base’)

@@ -1,0 +1,25 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T05.09.40.lhs:221:32: Error: Bad Type Specification
+ List.concat :: xss:(List (List a)) -> {v : (List a) | sizeXs xss > 0 => sizeXs xss == sizeXs v}
+     Sort Error in Refinement: {xs##0 : (List.List  a_a1dC) | (sizeXs xss > 0 => sizeXs xss == sizeXs xs##0)}
+     Cannot unify (List.List  @(44)) with a_a1dC

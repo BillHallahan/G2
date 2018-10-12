@@ -1,0 +1,25 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T00.09.56.lhs:217:14: Error: Bad Type Specification
+ List.+:+ :: la:(List a) -> lb:(List a) -> {l : (List a) | size l == size la + lb}
+     Sort Error in Refinement: {l##0 : (List.List  a_a1eQ) | size l##0 == size la + lb}
+     Operands have different types int and (List.List  a_a1eQ) in size la + lb

@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.51.03.lhs:281:21: Error: Bad Type Specification
+ List.concatHelper :: x1:(List a) -> xs:(List (List a)) -> {res : (List a) | sample4 x1 xs == size a}
+     Sort Error in Refinement: {res##0 : (List.List  a_a1dY) | sample4 x1 xs == size a}
+     Unbound Symbol a
+ Perhaps you meant: xs, x1

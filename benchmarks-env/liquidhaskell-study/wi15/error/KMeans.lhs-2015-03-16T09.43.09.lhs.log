@@ -1,0 +1,27 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-16T09.43.09.lhs:183:16: Error: Bad Type Specification
+ KMeans.kmeans1 :: k:{v : Int | v >= 0} -> n:{v : Int | v >= 0} -> (List {v : (List Double) | size v == n}) -> c1:(Map {v : Int | 0 <= v
+                                                                                                                                  && v < k} {v : (List Double) | size v == n}) -> {VV : (Map {v : Int | 0 <= v
+                                                                                                                                                                                                        && v < k} {v : (List Double) | size v == n}) | size c1 == size VV}
+     Sort Error in Refinement: {VV : (Data.Map.Base.Map  int  (List.List  real)) | size c1 == size VV}
+     Cannot unify List.List with (Data.Map.Base.Map  int)

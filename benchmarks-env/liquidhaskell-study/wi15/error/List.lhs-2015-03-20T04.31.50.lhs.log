@@ -1,0 +1,60 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:224:21-23: Error: GHC Error
+ 
+ 224 | concat lol = mg Emp lol
+                           ^^^
+ 
+     Couldn't match type ‘a’ with ‘List a’
+  ‘a’ is a rigid type variable bound by
+      the type signature for concat :: List (List a) -> List a
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:44:14
+Expected type: List a
+  Actual type: List (List a)
+Relevant bindings include
+  lol :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:224:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:224:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:229:22: Error: GHC Error
+ 
+ 229 | mg b (l:+:lol) = mg (b:+:l) lol
+                            ^
+ 
+     Couldn't match expected type ‘a’ with actual type ‘List a’
+  ‘a’ is a rigid type variable bound by
+      the type signature for mg :: List a -> List a -> List a
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:227:7
+Relevant bindings include
+  lol :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:229:11)
+  l :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:229:7)
+  b :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:229:4)
+  mg :: List a -> List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T04.31.50.lhs:228:1)

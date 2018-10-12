@@ -1,0 +1,54 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T23.44.10.lhs:163:20-39: Error: GHC Error
+ 
+ 163 | map f (x :+: xs) = (:+:) (f x) map f xs
+                          ^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘(a -> b) -> List a -> List b’
+            with actual type ‘List b’
+Relevant bindings include
+  xs :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T23.44.10.lhs:163:14)
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T23.44.10.lhs:163:8)
+  f :: a -> b
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T23.44.10.lhs:163:5)
+  map :: (a -> b) -> List a -> List b
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T23.44.10.lhs:162:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T23.44.10.lhs:163:32-34: Error: GHC Error
+ 
+ 163 | map f (x :+: xs) = (:+:) (f x) map f xs
+                                      ^^^
+ 
+     Couldn't match expected type ‘List b’
+            with actual type ‘(a0 -> b0) -> List a0 -> List b0’
+Relevant bindings include
+  f :: a -> b
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T23.44.10.lhs:163:5)
+  map :: (a -> b) -> List a -> List b
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T23.44.10.lhs:162:1)

@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-14T22.43.29.lhs:89:15: Error: Bad Type Specification
+ List.length :: {v : {v : (List {VV : a | $HOLE[v:=VV]}) | $HOLE} -> {v : Int | $HOLE} | size v == length v}
+     Sort Error in Refinement: {v##0 : func(0, [(List.List  a_a1dj);
+                                                int]) | size v##0 == length v##0}
+     Cannot unify (List.List  @(42)) with func(0, [(List.List  a_a1dj); int])

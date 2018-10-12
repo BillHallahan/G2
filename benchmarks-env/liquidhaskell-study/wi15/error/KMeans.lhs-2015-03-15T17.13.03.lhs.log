@@ -1,0 +1,41 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T17.13.03.lhs:94:37-84: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyList (map (\(c, pp) -> (c, distance n pp p)) (centers))
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘[(Center, v0)]’
+            with actual type ‘List (t0, Double)’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T17.13.03.lhs:94:77-83: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyList (map (\(c, pp) -> (c, distance n pp p)) (centers))
+                                                                                  ^^^^^^^
+ 
+     Couldn't match type ‘Map Center Point’ with ‘List (t0, Point)’
+Expected type: List (t0, Point)
+  Actual type: Centering

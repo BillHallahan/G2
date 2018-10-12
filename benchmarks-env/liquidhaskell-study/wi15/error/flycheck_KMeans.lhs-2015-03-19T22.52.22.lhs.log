@@ -1,0 +1,54 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-19T22.52.22.lhs:20:1-7: Error: GHC Error
+ 
+ 20 | nearest   :: Int -> Int -> Centering -> Point -> Center
+      ^^^^^^^
+ 
+     The type signature for ‘nearest’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-19T22.52.22.lhs:99:19-21: Error: GHC Error
+ 
+ 99 | distonList n k (x :+: xs) p = map (zipWith (distance) (snd x) p) xs
+                        ^^^
+ 
+     Not in scope: data constructor ‘:+:’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-19T22.52.22.lhs:122:16-22: Error: GHC Error
+ 
+ 122 | test_nearest = nearest 3 2 (M.fromList [(0, p0), (1, p1), (2, p2)]) p
+                      ^^^^^^^
+ 
+     Not in scope: ‘nearest’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-19T22.52.22.lhs:197:32-38: Error: GHC Error
+ 
+ 197 |     fm p          = singleton (nearest k n cs p, (1 :: Int, p))
+                                      ^^^^^^^
+ 
+     Not in scope: ‘nearest’

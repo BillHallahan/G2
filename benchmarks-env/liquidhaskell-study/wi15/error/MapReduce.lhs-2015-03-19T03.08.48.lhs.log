@@ -1,0 +1,27 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/MapReduce.lhs-2015-03-19T03.08.48.lhs:58:14: Error: Bad Type Specification
+ MapReduce.group :: (Ord a) =>
+                    {v : (List (a, b)) | size v > 0} -> {m : (Map a (List b)) | msize m == size v}
+     Sort Error in Refinement: {m##3 : (Data.Map.Base.Map  k_amy7  (List.List  v_amy8)) | msize m##3 == size v}
+     Unbound Symbol v
+ Perhaps you meant: len, cmp, snd, fst

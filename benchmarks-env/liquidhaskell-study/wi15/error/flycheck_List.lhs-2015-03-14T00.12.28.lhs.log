@@ -1,0 +1,59 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:226:51-56: Error: GHC Error
+ 
+ 226 | concatHelper (x1 :+: (x2 :+: xs)) = concatHelper (append )  
+                                                         ^^^^^^
+ 
+     Couldn't match expected type ‘List t1’
+            with actual type ‘List a0 -> List a0 -> List a0’
+Relevant bindings include
+  xs :: List t1
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:226:30)
+  x2 :: t1
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:226:23)
+  x1 :: t1
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:226:15)
+  concatHelper :: List t1 -> t
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:226:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:(229,31)-(231,41): Error: GHC Error
+     Couldn't match expected type ‘List (List a)
+                              -> ((a2 -> b0 -> b0) -> b0 -> List a2 -> b0)
+                              -> (List a3 -> List a3 -> List a3)
+                              -> List a4
+                              -> List (List a)
+                              -> List a’
+            with actual type ‘List a1’
+Relevant bindings include
+  xs :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:229:24)
+  x2 :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:229:17)
+  x1 :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:229:9)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.12.28.lhs:229:1)

@@ -1,0 +1,46 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T19.53.12.lhs:182:31-41: Error: GHC Error
+ 
+ 182 | kmeans1 k n ps cs = normalize newClusters
+                                     ^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘Map Center (Int, List Double)’
+            with actual type ‘(a0 -> List (k'0, v0))
+                              -> (v0 -> v0 -> v0) -> List a0 -> Map k'0 v0’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T19.53.12.lhs:187:21-38: Error: GHC Error
+ 
+ 187 |     newClusters   = mapReduce fm fr ps
+                           ^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘(a -> List (k', v))
+                              -> (v -> v -> v) -> List a -> Map k' v’
+            with actual type ‘Map Center (Int, Point)’
+Relevant bindings include
+  newClusters :: (a -> List (k', v))
+                 -> (v -> v -> v) -> List a -> Map k' v
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T19.53.12.lhs:187:5)

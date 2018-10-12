@@ -1,0 +1,50 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T00.01.49.lhs:44:1-6: Error: GHC Error
+ 
+ 44 | concat    :: List (List a) -> List a
+      ^^^^^^
+ 
+     The type signature for ‘concat’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T00.01.49.lhs:217:24-29: Error: GHC Error
+ 
+ 217 | sample (x:xs)  = x :+: concat xs
+                              ^^^^^^
+ 
+     Not in scope: ‘concat’
+Perhaps you meant one of these:
+  ‘mconcat’ (imported from Prelude), ‘const’ (imported from Prelude)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T00.01.49.lhs:219:32-37: Error: GHC Error
+ 
+ 219 | prop_concat = lAssert (length (concat xss) == 6)
+                                      ^^^^^^
+ 
+     Not in scope: ‘concat’
+Perhaps you meant one of these:
+  ‘mconcat’ (imported from Prelude), ‘const’ (imported from Prelude)

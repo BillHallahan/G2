@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-21T00.24.19.lhs:133:21: Error: Bad Type Specification
+ KMeans.mergeCluster :: n:{v : Int | v >= 0} -> {VV : (Int, (List Double)) | size (snd VV) == n} -> {VV : (Int, (List Double)) | size (snd VV) == n} -> {VV : (Int, (List Double)) | size (snd VV) == size v1 + size v2}
+     Sort Error in Refinement: {VV : (Tuple  int  (List.List  real)) | size (snd VV) == size v1 + size v2}
+     Unbound Symbol v1
+ Perhaps you meant: VV, n

@@ -1,0 +1,39 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-18T05.30.20.lhs:83:18-69: Error: GHC Error
+ 
+ 83 | distance px py = sqrt $ foldr (+) 0 $ zipWith (\x y -> (x-y)^2) px py
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘Point -> Double’
+            with actual type ‘Double’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-18T05.30.20.lhs:83:65-66: Error: GHC Error
+ 
+ 83 | distance px py = sqrt $ foldr (+) 0 $ zipWith (\x y -> (x-y)^2) px py
+                                                                      ^^
+ 
+     Couldn't match expected type ‘List Double’ with actual type ‘Int’

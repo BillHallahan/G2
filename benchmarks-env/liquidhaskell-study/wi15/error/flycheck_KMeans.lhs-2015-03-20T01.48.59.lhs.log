@@ -1,0 +1,64 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.48.59.lhs:196:33-38: Error: GHC Error
+ 
+ 196 |     newClusters    = mapReduce (fm k n) (fr n) ps
+                                       ^^^^^^
+ 
+     Couldn't match expected type ‘Int -> Point -> List (k, Cluster)’
+            with actual type ‘List (Center, (Int, Point))’
+Relevant bindings include
+  newClusters :: Map k Cluster
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.48.59.lhs:196:5)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.48.59.lhs:196:36: Error: GHC Error
+ 
+ 196 |     newClusters    = mapReduce (fm k n) (fr n) ps
+                                          ^
+ 
+     Couldn't match type ‘Int’ with ‘List Double’
+Expected type: Point
+  Actual type: Int
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.48.59.lhs:196:42-45: Error: GHC Error
+ 
+ 196 |     newClusters    = mapReduce (fm k n) (fr n) ps
+                                                ^^^^
+ 
+     Couldn't match type ‘(Int, Point)’ with ‘Cluster -> Cluster’
+Expected type: Cluster -> Cluster -> Cluster
+  Actual type: Cluster -> Cluster
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.48.59.lhs:196:45: Error: GHC Error
+ 
+ 196 |     newClusters    = mapReduce (fm k n) (fr n) ps
+                                                   ^
+ 
+     Couldn't match type ‘Int’ with ‘(Int, Point)’
+Expected type: Cluster
+  Actual type: Int

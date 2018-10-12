@@ -1,0 +1,136 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:11:19-22: Error: GHC Error
+ 
+ 11 | expand   :: (a -> List (k, v)) -> List a -> List (k, v)
+                        ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:11:35-38: Error: GHC Error
+ 
+ 11 | expand   :: (a -> List (k, v)) -> List a -> List (k, v)
+                                        ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:11:45-48: Error: GHC Error
+ 
+ 11 | expand   :: (a -> List (k, v)) -> List a -> List (k, v)
+                                                  ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:12:24-27: Error: GHC Error
+ 
+ 12 | group    :: (Ord k) => List (k, v) -> M.Map k (List v)
+                             ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:12:48-51: Error: GHC Error
+ 
+ 12 | group    :: (Ord k) => List (k, v) -> M.Map k (List v)
+                                                     ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:13:39-42: Error: GHC Error
+ 
+ 13 | collapse :: (v -> v -> v) -> M.Map k (List v) -> M.Map k v
+                                            ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:22:31-34: Error: GHC Error
+ 
+ 22 | mapReduce :: (Ord k) => (a -> List (k, v))
+                                    ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:24:25-28: Error: GHC Error
+ 
+ 24 |                      -> List a
+                              ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:63:17-19: Error: GHC Error
+ 
+ 63 |     vs'       = add v (M.findWithDefault empty k m)
+                      ^^^
+ 
+     Not in scope: ‘add’
+Perhaps you meant one of these:
+  ‘and’ (imported from Prelude), ‘odd’ (imported from Prelude)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:63:42-46: Error: GHC Error
+ 
+ 63 |     vs'       = add v (M.findWithDefault empty k m)
+                                               ^^^^^
+ 
+     Not in scope: ‘empty’
+Perhaps you meant one of these:
+  ‘M.empty’ (imported from Data.Map),
+  ‘mempty’ (imported from Prelude)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:73:24-27: Error: GHC Error
+ 
+ 73 | toList :: M.Map k v -> List (k, v)
+                             ^^^^
+ 
+     Not in scope: type constructor or class ‘List’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:74:38-40: Error: GHC Error
+ 
+ 74 | toList = M.foldrWithKey (\k v acc -> add (k, v) acc) empty
+                                           ^^^
+ 
+     Not in scope: ‘add’
+Perhaps you meant one of these:
+  ‘and’ (imported from Prelude), ‘odd’ (imported from Prelude)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T22.30.19.lhs:74:54-58: Error: GHC Error
+ 
+ 74 | toList = M.foldrWithKey (\k v acc -> add (k, v) acc) empty
+                                                           ^^^^^
+ 
+     Not in scope: ‘empty’
+Perhaps you meant one of these:
+  ‘M.empty’ (imported from Data.Map),
+  ‘mempty’ (imported from Prelude)

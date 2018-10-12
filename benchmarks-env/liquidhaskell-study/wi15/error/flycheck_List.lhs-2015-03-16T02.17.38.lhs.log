@@ -1,0 +1,28 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.17.38.lhs:221:18: Error: Bad Type Specification
+ List.cons_list :: x:(List a) -> (List a) -> {v : (List a) | size v == n
+                                                             && n == size x}
+     Sort Error in Refinement: {v##0 : (List.List  a_a1f8) | (size v##0 == n
+                                                              && n == size x)}
+     Unbound Symbol n
+ Perhaps you meant: x, y

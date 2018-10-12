@@ -1,0 +1,28 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T19.39.14.lhs:220:41: Error: Cannot parse specification:
+ 
+ 220 | {-@ concat :: {lofl:List (List a) | True} -> {lcat:List a | (size lcat) == (foldr (\lst acc -> (size lst) + acc) 0 lofl} @-}
+                                               ^
+ 
+     unexpected "}"
+     expecting operator, "==", "=", "~~", "!=", "/=", "!~", "<", "<=", ">", ">=" or "("

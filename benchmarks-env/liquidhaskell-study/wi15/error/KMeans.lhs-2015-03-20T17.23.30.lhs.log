@@ -1,0 +1,40 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T17.23.30.lhs:190:30-37: Error: GHC Error
+ 
+ 190 |     normalize     :: M.Map a ClusterN n -> M.Map a PointN n
+                                    ^^^^^^^^
+ 
+     Not in scope: type constructor or class ‘ClusterN’
+Perhaps you meant ‘Cluster’ (line 66)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T17.23.30.lhs:190:52-57: Error: GHC Error
+ 
+ 190 |     normalize     :: M.Map a ClusterN n -> M.Map a PointN n
+                                                          ^^^^^^
+ 
+     Not in scope: type constructor or class ‘PointN’
+Perhaps you meant ‘Point’ (line 39)

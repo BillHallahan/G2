@@ -1,0 +1,27 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T23.14.03.lhs:248:15: Error: Bad Type Specification
+ List.concat :: (List (List a)) -> {v : (List a) | size v == llsize}
+     Sort Error in Refinement: {xs##0 : (List.List  a_a1eP) | size xs##0 == llsize}
+     Cannot unify int with func(0, [(List.List  (List.List  @(43))); int])
+  because
+Invalid Relation size xs##0 == llsize with operand types int and func(1, [(List.List  (List.List  @(0))); int])

@@ -1,0 +1,58 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:224:28-40: Error: GHC Error
+ 
+ 224 | concat2 (x:+:xs) l = x :+: concat2(xs l)
+                                  ^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘List a’
+            with actual type ‘List a -> List a’
+Relevant bindings include
+  l :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:224:18)
+  xs :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:224:14)
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:224:10)
+  concat2 :: List a -> List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:223:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:224:36-39: Error: GHC Error
+ 
+ 224 | concat2 (x:+:xs) l = x :+: concat2(xs l)
+                                          ^^^^
+ 
+     Couldn't match expected type ‘List a -> List a’
+            with actual type ‘List a’
+Relevant bindings include
+  l :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:224:18)
+  xs :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:224:14)
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:224:10)
+  concat2 :: List a -> List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.49.03.lhs:223:1)

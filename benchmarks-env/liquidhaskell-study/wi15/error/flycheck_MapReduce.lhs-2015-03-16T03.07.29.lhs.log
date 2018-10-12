@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-16T03.07.29.lhs:50:16: Error: Bad Type Specification
+ MapReduce.expand :: (a -> (List (b, c))) -> xs:(List a) -> {v : (List (b, c)) | sizeXs xs == size v}
+     Sort Error in Refinement: {xkv##2 : (List.List  (Tuple  k_amyp  v_amyq)) | sizeXs xs == size xkv##2}
+     Unbound Symbol sizeXs
+ Perhaps you meant: sizes

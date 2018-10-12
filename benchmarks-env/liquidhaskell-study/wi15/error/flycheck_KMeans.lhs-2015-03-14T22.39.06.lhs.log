@@ -1,0 +1,42 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-14T22.39.06.lhs:94:25-56: Error: GHC Error
+ 
+ 94 | nearest k n centers p = M.map (\pt -> distance n pt p) p
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match type ‘Map k0 Double’ with ‘Int’
+Expected type: Center
+  Actual type: Map k0 Double
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-14T22.39.06.lhs:94:56: Error: GHC Error
+ 
+ 94 | nearest k n centers p = M.map (\pt -> distance n pt p) p
+                                                             ^
+ 
+     Couldn't match type ‘List Double’ with ‘Map k0 Point’
+Expected type: Map k0 Point
+  Actual type: Point

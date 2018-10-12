@@ -1,0 +1,39 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.39.12.lhs:248:14-76: Error: Specified Type Does Not Refine Haskell Type for List.size2
+ 
+ 248 | {-@ size2 :: (List a -> Int) -> xs:List (List a) -> {res:Int | Sum2 xs res} @-}
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a.
+(List.List a -> GHC.Types.Int)
+-> List.List (List.List a) -> GHC.Types.Int
+  
+ is inconsistent with the Haskell type
+  
+     forall a a.
+GHC.Num.Num a =>
+(List.List a -> a) -> List.List (List.List a) -> a
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.39.12.lhs:249:1-5

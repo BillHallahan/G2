@@ -1,0 +1,59 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:223:13: Error: GHC Error
+ 
+ 223 | unravel a = a
+                   ^
+ 
+     Couldn't match expected type ‘b’ with actual type ‘a’
+  ‘a’ is a rigid type variable bound by
+      the type signature for unravel :: a -> b
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:222:12
+  ‘b’ is a rigid type variable bound by
+      the type signature for unravel :: a -> b
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:222:12
+Relevant bindings include
+  a :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:223:9)
+  unravel :: a -> b
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:223:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:233:21-34: Error: GHC Error
+ 
+ 233 | concat (x :+: xs) = map listHead x :+: concat xs
+                           ^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘a’ with actual type ‘List b0’
+  ‘a’ is a rigid type variable bound by
+      the type signature for concat :: List (List a) -> List a
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:44:14
+Relevant bindings include
+  xs :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:233:15)
+  x :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:233:9)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.03.17.lhs:232:1)

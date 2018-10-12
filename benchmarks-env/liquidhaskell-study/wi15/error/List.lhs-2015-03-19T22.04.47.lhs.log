@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T22.04.47.lhs:195:16: Error: Bad Type Specification
+ List.zipWith :: (a -> b -> c) -> a1:(List a) -> {b1 : (List b) | size a1 == size b1} -> {c1 : (List c) | size c == size a1}
+     Sort Error in Refinement: {c1##5 : (List.List  c_a1dO) | size c == size a1}
+     Unbound Symbol c
+ Perhaps you meant: a1, cmp

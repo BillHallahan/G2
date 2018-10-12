@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-17T20.57.49.lhs:82:17: Error: Bad Type Specification
+ KMeans.distance :: {v : Int | v >= 0} -> {v : (List Double) | size v == nx} -> {v : (List Double) | size v == ny} -> Double
+     Sort Error in Refinement: {v##0 : (List.List  real) | size v##0 == nx}
+     Unbound Symbol nx
+ Perhaps you meant: n

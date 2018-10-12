@@ -1,0 +1,62 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:41-47: Error: GHC Error
+ 
+ 224 | concatSingleLists x y = foldr1 (\a b -> add a b) y x    
+                                               ^^^^^^^
+ 
+     Couldn't match expected type ‘List a -> List a’
+            with actual type ‘List (List a -> List a)’
+Relevant bindings include
+  b :: List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:36)
+  a :: List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:34)
+  y :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:21)
+  x :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:19)
+  concatSingleLists :: List a -> List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:47: Error: GHC Error
+ 
+ 224 | concatSingleLists x y = foldr1 (\a b -> add a b) y x    
+                                                     ^
+ 
+     Couldn't match expected type ‘List (List a -> List a)’
+            with actual type ‘List a -> List a’
+Relevant bindings include
+  b :: List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:36)
+  a :: List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:34)
+  y :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:21)
+  x :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:19)
+  concatSingleLists :: List a -> List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T21.35.10.lhs:224:1)

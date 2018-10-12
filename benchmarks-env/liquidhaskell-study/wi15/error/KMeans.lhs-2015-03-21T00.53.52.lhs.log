@@ -1,0 +1,40 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-21T00.53.52.lhs:94:37-105: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyList (M.map (\(key,value) -> (key,(distance n p value))) (M.toList centers))
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘[(Center, v0)]’
+            with actual type ‘Map k0 (t0, Double)’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-21T00.53.52.lhs:94:89-104: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyList (M.map (\(key,value) -> (key,(distance n p value))) (M.toList centers))
+                                                                                              ^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘Map k0 (t0, Point)’
+            with actual type ‘[(Center, Point)]’

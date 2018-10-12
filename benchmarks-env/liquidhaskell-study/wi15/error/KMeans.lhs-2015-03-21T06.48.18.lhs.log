@@ -1,0 +1,38 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-21T06.48.18.lhs:93:13-88: Error: Specified Type Does Not Refine Haskell Type for KMeans.mMap
+ 
+ 93 | {-@ mMap :: (a -> b) -> l1:List (PointN n) -> {l2:List (PointN n) | size l2 == size l1} @-}
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a b.
+(a -> b)
+-> List.List (List.List GHC.Types.Double)
+-> List.List (List.List GHC.Types.Double)
+  
+ is inconsistent with the Haskell type
+  
+     forall t t. (t -> t) -> [t] -> [t]
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-21T06.48.18.lhs:94:1-4

@@ -1,0 +1,30 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T17.16.31.lhs:249:16: Error: Bad Type Specification
+ List.concat2 :: l1:(List a) -> l2:(List a) -> {l3 : (List a) | size l3 == size l1 + size l2
+                                                                && (noEmpty l1 == true => size l3 > 0)
+                                                                && (noEmpty l1 == true => size l3 > 0)}
+     Sort Error in Refinement: {l3##0 : (List.List  a_a1eQ) | (size l3##0 == size l1 + size l2
+                                                               && ((noEmpty l1 == true => size l3##0 > 0)
+                                                                   && (noEmpty l1 == true => size l3##0 > 0)))}
+     Unbound Symbol true
+ Perhaps you meant: size, strLen, Prop, tail

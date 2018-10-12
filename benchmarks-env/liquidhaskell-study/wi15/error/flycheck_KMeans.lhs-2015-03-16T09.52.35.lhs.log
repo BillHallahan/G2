@@ -1,0 +1,43 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T09.52.35.lhs:95:82-84: Error: GHC Error
+ 
+ 95 |                            let myList = map (\(x1, x2) -> (x1, distance n p x2)) kvs
+                                                                                       ^^^
+ 
+     Couldn't match expected type ‘List (t, Point)’
+            with actual type ‘[(Center, Point)]’
+Relevant bindings include
+  myList :: List (t, Double)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T09.52.35.lhs:95:32)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T09.52.35.lhs:96:50-55: Error: GHC Error
+ 
+ 96 |                            minKeyMap (M.fromList myList)
+                                                       ^^^^^^
+ 
+     Couldn't match expected type ‘[(Center, v0)]’
+            with actual type ‘List (t0, Double)’

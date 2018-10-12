@@ -1,0 +1,48 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T17.36.52.lhs:215:10-14: Error: GHC Error
+ 
+ 215 | concat = foldl :+: []
+                ^^^^^
+ 
+     Ambiguous occurrence ‘foldl’
+It could refer to either ‘foldl’,
+                         defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T17.36.52.lhs:222:1
+                      or ‘foldl’,
+                         imported from ‘Prelude’ at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T17.36.52.lhs:34:1-78
+                         (and originally defined in ‘Data.Foldable’)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T17.36.52.lhs:223:25-29: Error: GHC Error
+ 
+ 223 | foldl op b (x :+: xs) = foldl op (op b x) xs
+                               ^^^^^
+ 
+     Ambiguous occurrence ‘foldl’
+It could refer to either ‘foldl’,
+                         defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T17.36.52.lhs:222:1
+                      or ‘foldl’,
+                         imported from ‘Prelude’ at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-19T17.36.52.lhs:34:1-78
+                         (and originally defined in ‘Data.Foldable’)
