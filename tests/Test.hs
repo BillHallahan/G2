@@ -169,7 +169,7 @@ liquidTests =
 
                 -- , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error1.hs" "f" 600 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 4 [AtLeast 1]
-                , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error3.hs" "z" 100000 3 [Exactly 0]
+                , checkLiquid "tests/Liquid" "tests/Liquid/ZipWith.lhs" "distance" 1000 4 [AtLeast 3]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
