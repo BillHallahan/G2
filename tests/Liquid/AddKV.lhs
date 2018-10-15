@@ -10,12 +10,9 @@ K-Means Clustering
 module KMeans where
 
 import Data.List (minimumBy)
-import Assert
-import List
 import Prelude hiding (map, repeat, foldr, zipWith, concat, foldr1)
 import qualified Data.Map as M
 
-group    :: (Ord k) => List (k, v) -> M.Map k (List v)
 
 \end{code}
 </div>
@@ -30,12 +27,19 @@ Points and Clusters
 First, lets define the various types that model the key entities in clustering.
 
 \begin{code}
+data List a = Emp
+            | (:+:) a (List a)
+              deriving (Eq, Ord, Show)
 
-{-@ group :: (Ord k) => List (k, v) -> M.Map k (List v) @-}
-group     = foldr addKV  M.empty
+{-@ measure size      :: List a -> Int
+    size (Emp)        = 0
+    size ((:+:) x xs) = 1 + size xs
+  @-}
 
-addKV (k,v) m = M.insert k (add v empty) m
-  
+{-@ empty :: List a @-}
+empty = Emp
+
+addKV (k,v) m = M.insert k (v :+: empty) m
 
 \end{code}
 

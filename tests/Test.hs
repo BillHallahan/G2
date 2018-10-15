@@ -178,7 +178,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.lhs" "lt" 1000 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.lhs" "gt" 1000 2 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Group.lhs" "group" 1000 2 []
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/AddKV.lhs" "addKV" 1000 3 [Exactly 0]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropConcat.lhs" "prop_concat" 1000 1 [AtLeast 1]
 
