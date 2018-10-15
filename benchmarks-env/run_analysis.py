@@ -1,8 +1,10 @@
 #!/usr/bin/python3
 
 import subprocess
-import time
 import os
+from tempfile import mkstemp
+from shutil import move
+from os import fdopen, remove
 from ast import literal_eval
 from multiprocessing.dummy import Pool
 
@@ -76,6 +78,17 @@ def isolate_func_name(file_path, line_num):
     line_num -= 1
     return lines[line_num].split()[0]
 
+def replace(file_path, pattern, subst):
+    #Create temp file
+    fh, abs_path = mkstemp()
+    with fdopen(fh,'w') as new_file:
+        with open(file_path) as old_file:
+            for line in old_file:
+                new_file.write(line.replace(pattern, subst))
+    #Remove original file
+    remove(file_path)
+    #Move new file
+    move(abs_path, file_path)
 
 def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G2Target):
     """
@@ -87,8 +100,10 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
     :param target:  the target of the exe
     :return: the string result of running G2 on the target
     """
+    target_file = os.path.join(target_dir, target.file_name)
+    replace(target_file, ' Prop ', ' ')
     cmd = "./G2 %s -- --time 300 --n %d --liquid %s --liquid-func %s" % (
-        test_dir, recurs_n, os.path.join(target_dir, target.file_name), target.func_name
+        test_dir, recurs_n, target_file, target.func_name
     )
     proc = subprocess.Popen(cmd, shell=True, encoding='UTF-8', cwd=g2_dir, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, stdin=subprocess.PIPE)
