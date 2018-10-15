@@ -16,7 +16,6 @@
  
 
 module PropConcat ( List
-                  , foldr
                   , concat
                   ) where
 
@@ -32,10 +31,7 @@ concat    :: List (List a) -> List a
 data List a = Emp
             | (:+:) a (List a)
               deriving (Eq, Ord, Show)
-\end{code}
 
-
-\begin{code}
 {-@ measure size      :: List a -> Int
     size (Emp)        = 0
     size ((:+:) x xs) = 1 + size xs
@@ -47,8 +43,7 @@ data List a = Emp
 
 {-@ length :: xs:List a -> {len:Int | len = size xs} @-}
 length            :: List a -> Int
-length Emp        = 0
-length (x :+: xs) = 1 + length xs
+length _        = 0
 
 {-@ l1 :: ListN Int 1 @-}
 l1     = 1 :+: Emp
@@ -56,20 +51,13 @@ l1     = 1 :+: Emp
 {-@ l0 :: ListN Int 0 @-}
 l0     = Emp :: List Int
 
-foldr :: (a -> b -> b) -> b -> List a -> b
-foldr _  b _        = b
-
 {-@ die :: {v:String | false} -> a @-}
 die str = error ("Oops, I died!" ++ str)
 
-{-@ id2 :: x1: (List a) -> ListN a {1} @-}
-id2 :: List a -> List a 
-id2 x2 = x2
-
 {-@ concat :: List (List a) -> List a @-}
-concat xs = foldr (\xs res -> res) Emp xs
+concat xs = Emp
 
-prop_concat = lAssert (length (concat xss) == 1)
+prop_concat = lAssert (length (concat xss) == 0)
   where
     xss     = l0 :+: l1 :+: Emp
 
