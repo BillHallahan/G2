@@ -63,7 +63,7 @@ test-suite test
                        , hpc
                        , HTTP
                        , liquidhaskell
-                       , liquid-fixpoint
+                       , liquid-fixpoint 
                        , MissingH
                        , mtl
                        , reducers
