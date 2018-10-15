@@ -40,7 +40,7 @@ Assertions
 Lets define a refined type for the `Bool` that is *always* true:
 
 \begin{code}
-{-@ type TRUE = {v:Bool | Prop v} @-}
+{-@ type TRUE = {v:Bool | v} @-}
 \end{code}
 
 Notice that we can now assign the type `TRUE` to any `Bool` expression
