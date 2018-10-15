@@ -3,18 +3,7 @@
 \begin{code}
 {-@ LIQUID "--short-names" @-}
 {-@ LIQUID "--no-termination" @-}
-
--- CHECKBINDER prop_size
--- CHECKBINDER empty
--- CHECKBINDER add
--- CHECKBINDER singleton
--- CHECKBINDER prop_replicate
--- CHECKBINDER prop_map
--- CHECKBINDER foldr1
--- CHECKBINDER prop_zipWith
--- CHECKBINDER prop_concat
  
-
 module PropConcat ( List
                   , concat
                   ) where
@@ -39,16 +28,14 @@ data List a = Emp
 
 {-@ invariant {v:List a | 0 <= size v} @-}
 
-{-@ type ListN a N  = {v:List a | size v = N} @-}
-
 {-@ length :: xs:List a -> {len:Int | len = size xs} @-}
 length            :: List a -> Int
 length _        = 0
 
-{-@ l1 :: ListN Int 1 @-}
+{-@ l1 :: List Int @-}
 l1     = 1 :+: Emp
 
-{-@ l0 :: ListN Int 0 @-}
+{-@ l0 :: List Int @-}
 l0     = Emp :: List Int
 
 {-@ die :: {v:String | false} -> a @-}

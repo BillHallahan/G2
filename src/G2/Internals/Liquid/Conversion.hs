@@ -495,17 +495,18 @@ symbolName s =
         _ -> Name n (Just m') 0 Nothing
 
 convertEVar :: Name -> BoundTypes -> Maybe Type -> LHStateM Expr
-convertEVar nm@(Name n md _ _) bt mt = do
-    let mt' = maybe TyUnknown id mt
-    let t = maybe mt' id $ M.lookup nm bt
+convertEVar nm@(Name n md _ _) bt mt
+    | Just t <-  M.lookup nm bt = return $ Var (Id nm t)
+    | otherwise = do
+        let t = maybe TyUnknown id mt
 
-    meas <- measuresM
-    tenv <- typeEnv
-    
-    case (E.lookupNameMod n md meas, getDataConNameMod' tenv nm) of
-        (Just (n', e), _) -> return $ Var $ Id n' (typeOf e)
-        (_, Just dc) -> return $ Data dc 
-        _ -> return $ Var (Id nm t)
+        meas <- measuresM
+        tenv <- typeEnv
+        
+        case (E.lookupNameMod n md meas, getDataConNameMod' tenv nm) of
+            (Just (n', e), _) -> return $ Var $ Id n' (typeOf e)
+            (_, Just dc) -> return $ Data dc 
+            _ -> return $ Var (Id nm t)
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyCon n _)) (Ref.I i) = do
