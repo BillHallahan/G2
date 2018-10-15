@@ -175,6 +175,8 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/SimpleAnnot.hs" "simpleF" 1000 1 [Exactly 0]
 
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropConcat.hs" "prop_concat" 1000 1 [AtLeast 1]
+
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AddToEven.hs" "f" 2000 1
                     [ AtLeast 1
                     , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
