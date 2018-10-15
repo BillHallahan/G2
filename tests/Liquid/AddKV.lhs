@@ -31,15 +31,8 @@ data List a = Emp
             | (:+:) a (List a)
               deriving (Eq, Ord, Show)
 
-{-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
-  @-}
-
 {-@ empty :: List a @-}
 empty = Emp
-
-addKV (k,v) m = M.insert k (v :+: empty) m
 
 \end{code}
 
