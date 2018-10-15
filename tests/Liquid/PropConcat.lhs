@@ -57,19 +57,17 @@ l1     = 1 :+: Emp
 l0     = Emp :: List Int
 
 foldr :: (a -> b -> b) -> b -> List a -> b
-foldr _  b Emp        = b
-foldr op b (x :+: xs) = x `op` (foldr op b xs)
+foldr _  b _        = b
 
 {-@ die :: {v:String | false} -> a @-}
 die str = error ("Oops, I died!" ++ str)
 
-{-@ append :: x1: (List a) -> x2 : (List a) -> ListN a {1} @-}
-append :: List a -> List a -> List a 
-append Emp x2 = x2
-append (x :+: xs) x2 = append xs (x :+: x2) 
+{-@ id2 :: x1: (List a) -> ListN a {1} @-}
+id2 :: List a -> List a 
+id2 x2 = x2
 
 {-@ concat :: List (List a) -> List a @-}
-concat xs = foldr (\xs res -> append xs res) Emp xs
+concat xs = foldr (\xs res -> res) Emp xs
 
 prop_concat = lAssert (length (concat xss) == 1)
   where
