@@ -181,6 +181,9 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/AddKV.lhs" "empty" 1000 3 [Exactly 0]
 
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "f" 1000 3 [Exactly 0]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "g" 1000 3 [Exactly 0]
+
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropConcat.lhs" "prop_concat" 1000 1 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Distance.lhs" "distance" 1000 4 [AtLeast 1]
