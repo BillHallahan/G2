@@ -33,6 +33,10 @@ module G2.Internals.Liquid.Types ( LHOutput (..)
                                  , lhOrdTCM
                                  , lhEqM
                                  , lhNeM
+                                 , lhLtM
+                                 , lhLeM
+                                 , lhGtM
+                                 , lhGeM
                                  , lhLtE
                                  , lhLeE
                                  , lhGtE
@@ -334,6 +338,18 @@ lhEqM = liftTCValues lhEq
 
 lhNeM :: LHStateM L.Name
 lhNeM = liftTCValues lhNe
+
+lhLtM :: LHStateM L.Name
+lhLtM = liftTCValues lhLt
+
+lhLeM :: LHStateM L.Name
+lhLeM = liftTCValues lhLe
+
+lhGtM :: LHStateM L.Name
+lhGtM = liftTCValues lhGt
+
+lhGeM :: LHStateM L.Name
+lhGeM = liftTCValues lhGe
 
 binT :: LHStateM L.Type
 binT = do

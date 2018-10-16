@@ -24,8 +24,26 @@ addLHTC = do
 
 addLHTCExprEnv :: Expr -> LHStateM Expr
 addLHTCExprEnv e = do
-    (e', m) <- addLHTCExprEnvLams [] e
-    addLHTCExprEnvPasses m e'
+    e' <- addTypeLams e
+    (e'', m) <- addLHTCExprEnvLams [] e'
+    addLHTCExprEnvPasses m e''
+
+-- Rewrites a type to make type lambdas explicit
+-- This is needed so that addLHTCExprEnvLams can insert the LH Dict after the type correctly.
+-- In generally, it's not always correct to eta-expand Haskell functions, but
+-- it is fine here because the type arguments are guaranteed to not be undefined
+addTypeLams :: Expr -> LHStateM Expr
+addTypeLams e = 
+    let
+        t = typeOf e
+    in
+    addTypeLams' t e
+
+addTypeLams' :: Type -> Expr -> LHStateM Expr
+addTypeLams' (TyForAll _ t) (Lam TypeL i e) = return . Lam TypeL i =<< addTypeLams' t e
+addTypeLams' (TyForAll (NamedTyBndr i) t) e =
+    return . Lam TypeL i =<< addTypeLams' t (App e (Type (TyVar i)))
+addTypeLams' _ e = return e
 
 -- Updates a function definition with Lambdas to take the LH TC for each type argument.
 addLHTCExprEnvLams :: [Id] -> Expr -> LHStateM (Expr, M.Map Name Id)

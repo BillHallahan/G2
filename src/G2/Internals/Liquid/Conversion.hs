@@ -252,7 +252,7 @@ convertSpecType _ _ _ _ st = error $ "Bad st = " ++ show st
 
 polyPredFunc :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc as ty m bt b = do
-    dict <- lhTCDict' m ty
+    dict <- lhTCDict m ty
     as' <- mapM (polyPredLam m bt) as
 
     bool <- tyBoolT
@@ -301,7 +301,7 @@ convertLHExpr m bt _ (EApp e e') = do
             let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts'
                 te = map Type specTo
 
-            tcs <- mapM (lhTCDict' m) ts
+            tcs <- mapM (lhTCDict m) ts
 
             let fw = mkApp $ f:te
 
@@ -606,8 +606,7 @@ convertBrel' f = do
     return $ Var $ Id n t
 
 brelTCDict :: Brel -> DictMaps -> Type -> LHStateM Expr
-brelTCDict b =
-    if lhFunc b then lhTCDict else ordDict
+brelTCDict b = lhTCDict
 
 lhFunc :: Brel -> Bool
 lhFunc Ref.Eq = True
