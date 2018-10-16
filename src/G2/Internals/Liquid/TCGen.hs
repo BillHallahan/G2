@@ -34,6 +34,12 @@ createTCValues kv = do
     lhTCN <- freshSeededStringN "lh"
     lhEqN <- freshSeededStringN "lhEq"
     lhNeN <- freshSeededStringN "lhNe"
+
+    lhLtN <- freshSeededStringN "lhLt"
+    lhLeN <- freshSeededStringN "lhLe"
+    lhGtN <- freshSeededStringN "lhGt"
+    lhGeN <- freshSeededStringN "lhGe"
+
     lhPPN <- freshSeededStringN "lhPP"
     lhNuOr <- freshSeededStringN "lhNuOr"
 
@@ -43,10 +49,10 @@ createTCValues kv = do
 
                         , lhEq = lhEqN
                         , lhNe = lhNeN
-                        , lhLt = KV.ltFunc kv
-                        , lhLe = KV.leFunc kv
-                        , lhGt = KV.gtFunc kv
-                        , lhGe = KV.geFunc kv
+                        , lhLt = lhLtN
+                        , lhLe = lhLeN
+                        , lhGt = lhGtN
+                        , lhGe = lhGeN
 
                         , lhPlus = KV.plusFunc kv
                         , lhMinus = KV.minusFunc kv
@@ -64,7 +70,7 @@ createTCValues kv = do
 
     return tcv
 
-type PredFunc = LHDictMap -> AlgDataTy -> DataCon -> [Id] -> LHStateM [Alt]
+type PredFunc = LHDictMap -> Name -> AlgDataTy -> DataCon -> [Id] -> LHStateM [Alt]
 
 createLHTCFuncs :: LHStateM ()
 createLHTCFuncs = do
@@ -124,6 +130,22 @@ createLHTCFuncs' lhm n adt = do
     ne <- createFunc lhNeFunc n adt
     insertMeasureM neN ne
 
+    ltN <- lhName "lhLt" n
+    lt <- createLtFunc n adt
+    insertMeasureM ltN lt
+
+    leN <- lhName "lhLe" n
+    le <- createLeFunc n adt
+    insertMeasureM leN le
+
+    gtN <- lhName "lhGt" n
+    gt <- createGtFunc n adt
+    insertMeasureM gtN gt
+
+    geN <- lhName "lhGe" n
+    ge <- createGeFunc n adt
+    insertMeasureM geN ge
+
     ppN <- lhName "lhPP" n
     pp <- lhPPFunc n adt
     insertMeasureM ppN pp
@@ -138,7 +160,7 @@ createLHTCFuncs' lhm n adt = do
     lhd <- freshIdsN (map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) bi)
     let lhdv = map Var lhd
 
-    let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ppN]
+    let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ltN, leN, gtN, geN, ppN]
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs
 
     lhdct <- lhDCType
@@ -166,9 +188,21 @@ lhDCType = do
                     TyUnknown
                     (TyFun
                         TyUnknown
-                        (TyApp 
-                            (TyCon lh TYPE) 
-                            (TyVar n)
+                        (TyFun
+                            TyUnknown
+                            (TyFun
+                                TyUnknown
+                                (TyFun
+                                    TyUnknown
+                                    (TyFun
+                                        TyUnknown
+                                        (TyApp 
+                                            (TyCon lh TYPE) 
+                                            (TyVar n)
+                                        )
+                                    )
+                                )
+                            )
                         )
                     )
                 )
@@ -190,34 +224,34 @@ createFunc cf n adt = do
     d2 <- freshIdN (TyCon n TYPE)
 
     let m = M.fromList $ zip (map idName bi) lhbi
-    e <- mkFirstCase cf m d1 d2 adt
+    e <- mkFirstCase cf m d1 d2 n adt
 
     let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ [(TermL, d1), (TermL, d2)]) e
 
     return e'
 
-mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> AlgDataTy -> LHStateM Expr
-mkFirstCase f ldm d1 d2 adt@(DataTyCon { data_cons = dcs }) = do
+mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
+mkFirstCase f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
     caseB <- freshIdN (typeOf d1)
-    return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 adt) dcs
-mkFirstCase _ _ _ _ _ = return $ Var (Id (Name "Bad mkFirstCase" Nothing 0 Nothing) TyUnknown)
+    return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
+mkFirstCase _ _ _ _ _ _ = return $ Var (Id (Name "Bad mkFirstCase" Nothing 0 Nothing) TyUnknown)
 
-mkFirstCase' :: PredFunc -> LHDictMap -> Id -> AlgDataTy -> DataCon -> LHStateM Alt
-mkFirstCase' f ldm d2 adt dc = do
+mkFirstCase' :: PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> LHStateM Alt
+mkFirstCase' f ldm d2 n adt dc = do
     ba <- freshIdsN $ anonArgumentTypes dc
 
-    return . Alt (DataAlt dc ba) =<< mkSecondCase f ldm d2 adt dc ba
+    return . Alt (DataAlt dc ba) =<< mkSecondCase f ldm d2 n adt dc ba
 
-mkSecondCase :: PredFunc -> LHDictMap -> Id -> AlgDataTy -> DataCon -> [Id] -> LHStateM Expr
-mkSecondCase f ldm d2 adt dc ba1 = do
+mkSecondCase :: PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> [Id] -> LHStateM Expr
+mkSecondCase f ldm d2 n adt dc ba1 = do
     caseB <- freshIdN (typeOf dc)
 
-    alts <- f ldm adt dc ba1
+    alts <- f ldm n adt dc ba1
 
     return $ Case (Var d2) caseB alts
 
 lhEqFunc :: PredFunc
-lhEqFunc ldm _ dc ba1 = do
+lhEqFunc ldm _ _ dc ba1 = do
     ba2 <- freshIdsN $ anonArgumentTypes dc
 
     an <- lhAndE
@@ -269,7 +303,7 @@ eqLHFuncCall ldm i1 i2
         t = typeOf i1
 
 lhNeFunc :: PredFunc
-lhNeFunc ldm _ dc ba1 = do
+lhNeFunc ldm _ _ dc ba1 = do
     ba2 <- freshIdsN $ anonArgumentTypes dc
 
     an <- lhAndE
@@ -288,6 +322,71 @@ lhNeFunc ldm _ dc ba1 = do
 
     return [ Alt Default false
            , Alt (DataAlt dc ba2) pr''] 
+
+createLtFunc :: Name -> AlgDataTy -> LHStateM Expr
+createLtFunc = createOrdFunc Lt
+
+createLeFunc :: Name -> AlgDataTy -> LHStateM Expr
+createLeFunc = createOrdFunc Le
+
+createGtFunc :: Name -> AlgDataTy -> LHStateM Expr
+createGtFunc = createOrdFunc Gt
+
+createGeFunc :: Name -> AlgDataTy -> LHStateM Expr
+createGeFunc = createOrdFunc Ge
+
+-- We currently treat relations between Ints/Floats/Doubles correctly,
+-- and just assume all other relations are true.
+-- In LH, relations between x :: T and y :: T work by checking that
+--    f x < f y
+-- for all f :: T -> Int, so this could make us miss some counterexamples.
+-- However, we will never generate an incorrect counterexample.
+-- (i.e. it is sound but incomplete)
+createOrdFunc :: Primitive -> Name -> AlgDataTy -> LHStateM Expr 
+createOrdFunc pr n adt = do
+    let bi = bound_ids adt
+
+    lh <- lhTCM
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
+
+    d1 <- freshIdN (TyCon n TYPE)
+    d2 <- freshIdN (TyCon n TYPE)
+
+    kv <- knownValues
+    e <- mkOrdCases pr kv d1 d2 n adt
+
+    let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ [(TermL, d1), (TermL, d2)]) e
+
+    return e'
+
+mkOrdCases :: Primitive -> KnownValues -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
+mkOrdCases pr kv i1 i2 n adt@(DataTyCon { data_cons = [dc]})
+    | n == KV.tyInt kv = mkPrimOrdCases pr TyLitInt i1 i2 dc
+    | n == KV.tyFloat kv = mkPrimOrdCases pr TyLitFloat i1 i2 dc
+    | n == KV.tyDouble kv = mkPrimOrdCases pr TyLitDouble i1 i2 dc
+    | otherwise = mkTrueE
+mkOrdCases _ _ _ _ _ _ = mkTrueE
+
+mkPrimOrdCases :: Primitive -> Type -> Id -> Id -> DataCon -> LHStateM Expr
+mkPrimOrdCases pr t i1 i2 dc = do
+    i1' <- freshIdN (typeOf dc)
+    i2' <- freshIdN (typeOf dc)
+
+    b1 <- freshIdN t
+    b2 <- freshIdN t
+
+    b <- tyBoolT
+
+    let eq = App
+                (App 
+                    (Prim pr (TyFun t (TyFun t b))) 
+                    (Var b1)
+                ) 
+                (Var b2)
+
+    let c2 = Case (Var i2) i2' [Alt (DataAlt dc [b2]) eq]
+
+    return $ Case (Var i1) i1' [Alt (DataAlt dc [b1]) c2]
 
 lhPPFunc :: Name -> AlgDataTy -> LHStateM Expr
 lhPPFunc n adt = do
@@ -367,10 +466,16 @@ createExtractors :: LHStateM ()
 createExtractors = do
     lh <- lhTCM
     eq <- lhEqM
+
+    lt <- lhLtM
+    le <- lhLeM
+    gt <- lhGtM
+    ge <- lhGeM
+
     ne <- lhNeM
     pp <- lhPPM
 
-    createExtractors' lh [eq, ne, pp]
+    createExtractors' lh [eq, ne, lt, le, gt, ge, pp]
 
 createExtractors' :: Name -> [Name] -> LHStateM ()
 createExtractors' lh ns = mapM_ (uncurry (createExtractors'' lh (length ns))) $ zip [0..] ns

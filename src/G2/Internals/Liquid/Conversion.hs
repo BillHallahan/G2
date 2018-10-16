@@ -606,8 +606,7 @@ convertBrel' f = do
     return $ Var $ Id n t
 
 brelTCDict :: Brel -> DictMaps -> Type -> LHStateM Expr
-brelTCDict b =
-    if lhFunc b then lhTCDict else ordDict
+brelTCDict b = lhTCDict
 
 lhFunc :: Brel -> Bool
 lhFunc Ref.Eq = True
