@@ -57,11 +57,65 @@ addLHTCExprEnvLams is e = do
     let is'' = map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) $ is'
     is''' <- freshIdsN is''
 
-    let e' = foldr (Lam TermL) e is'''
+    -- Lambdas may be nested in an Expr (for example, if the lambda is in a Let)
+    -- So hear we dig down, and recursively apply addLHTCExprEnvLams to any
+    -- nested Lambdas
+    (le, m') <- addLHTCExprEnvNextLams e
+
+    let e' = foldr (Lam TermL) le is'''
 
     let m = M.fromList $ zip (map idName is') is'''
 
-    return (e', m)
+    return (e', M.union m m')
+
+addLHTCExprEnvNextLams :: Expr -> LHStateM (Expr, M.Map Name Id)
+addLHTCExprEnvNextLams e@(Var _) = return (e, M.empty)
+addLHTCExprEnvNextLams e@(Lit _) = return (e, M.empty)
+addLHTCExprEnvNextLams e@(Prim _ _) = return (e, M.empty)
+addLHTCExprEnvNextLams e@(Data _) = return (e, M.empty)
+addLHTCExprEnvNextLams (App e1 e2) = do
+    (e1', m1) <- addLHTCExprEnvNextLams e1
+    (e2', m2) <- addLHTCExprEnvNextLams e2
+    return (App e1' e2', M.union m1 m2)
+addLHTCExprEnvNextLams e@(Lam TypeL _ _) = addLHTCExprEnvLams [] e
+addLHTCExprEnvNextLams (Lam TermL i e) = do
+    (e', m) <- addLHTCExprEnvNextLams e
+    return (Lam TermL i e', m)
+addLHTCExprEnvNextLams (Let b e) = do
+    (b', ms) <- return . unzip =<< mapM (\(b', be) -> do
+                                (be', m) <- addLHTCExprEnvNextLams be
+                                return ((b', be'), m)
+                            ) b
+    (e', m) <- addLHTCExprEnvNextLams e
+
+    return (Let b' e', foldr M.union M.empty (m:ms))
+addLHTCExprEnvNextLams (Case e i a) = do
+    (e', m) <- addLHTCExprEnvNextLams e
+
+    (a', ms) <- return . unzip =<< mapM addLHTCExprEnvNextLamsAlt a
+
+    return (Case e' i a', foldr M.union M.empty (m:ms))
+addLHTCExprEnvNextLams e@(Type _) = return (e, M.empty)
+addLHTCExprEnvNextLams (Cast e c) = do
+    (e', m) <- addLHTCExprEnvNextLams e
+    return (Cast e' c, m)
+addLHTCExprEnvNextLams e@(Coercion _) = return (e, M.empty)
+addLHTCExprEnvNextLams (Tick t e) = do
+    (e', m) <- addLHTCExprEnvNextLams e
+    return (Tick t e', m)
+addLHTCExprEnvNextLams (Assume e1 e2) = do
+    (e1', m1) <- addLHTCExprEnvNextLams e1
+    (e2', m2) <- addLHTCExprEnvNextLams e2
+    return (Assume e1' e2', M.union m1 m2)
+addLHTCExprEnvNextLams (Assert fc e1 e2) = do
+    (e1', m1) <- addLHTCExprEnvNextLams e1
+    (e2', m2) <- addLHTCExprEnvNextLams e2
+    return (Assert fc e1' e2', M.union m1 m2)
+
+addLHTCExprEnvNextLamsAlt :: Alt -> LHStateM (Alt, M.Map Name Id)
+addLHTCExprEnvNextLamsAlt (Alt am e) = do
+    (e', m) <- addLHTCExprEnvNextLams e
+    return (Alt am e', m)
 
 -- Updates each function call, so that it is passed the appropriate LH TC.
 -- This requires both:

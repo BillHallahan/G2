@@ -3,16 +3,14 @@
 module WhereFuncs where
 
 -- import MapReduce
-import Assert
-import List
 import Prelude hiding (map, repeat, foldr, zipWith, foldr1, concat)
 import qualified Data.Map as M
 
-type Centering = M.Map Int Int
+type C = M.Map Int Int
 
-{-@ f :: Centering -> Centering
+{-@ f :: C -> C
   @-}
-f :: Centering -> Centering
+f :: C -> C
 f cs = normalize newClusters
   where
     normalize     :: M.Map a Int -> M.Map a Int
