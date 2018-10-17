@@ -77,7 +77,7 @@ addLHTCExprEnvNextLams (App e1 e2) = do
     (e1', m1) <- addLHTCExprEnvNextLams e1
     (e2', m2) <- addLHTCExprEnvNextLams e2
     return (App e1' e2', M.union m1 m2)
-addLHTCExprEnvNextLams e@(Lam TypeL _ _) = addLHTCExprEnvLams [] e
+addLHTCExprEnvNextLams e@(Lam TypeL i le) = addLHTCExprEnvLams [] e
 addLHTCExprEnvNextLams (Lam TermL i e) = do
     (e', m) <- addLHTCExprEnvNextLams e
     return (Lam TermL i e', m)
@@ -132,11 +132,11 @@ addLHTCExprPasses m = modifyAppTopE (addLHTCExprPasses' m)
 
 addLHTCExprPasses' :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprPasses' m a@(App _ _)
-    | a'@(Var _:_) <- unApp a = do
+    | a'@(Data _:_) <- unApp a  = return a
+    | otherwise = do
+        let a' = unApp a
         a'' <- addLHTCExprPasses'' m [] a'
         return $ mkApp a''
-
-    | otherwise = return a
 
 addLHTCExprPasses' _ e = return e
 

@@ -454,4 +454,4 @@ mkConfigTest :: Config
 mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs }
 
 mkConfigTestWithMap :: Config
-mkConfigTestWithMap = mkConfigTest { base = mapLib:base mkConfigTest}
+mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ [mapLib]}
