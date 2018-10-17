@@ -153,7 +153,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat3" 800 3 [AtLeast 2]
                 , checkLiquid "tests/Liquid" "tests/Liquid/ConcatList.hs" "concat5" 1600 3 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
+                , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/Tests/Group3.lhs" "f" 1 (mkConfigTestWithMap {steps = 2200}) [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
 
@@ -180,6 +180,9 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "oneOrOther" 1000 2 [Exactly 0]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/AddKV.lhs" "empty" 1000 3 [Exactly 0]
+
+                , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "f" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
+                , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "g" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropConcat.lhs" "prop_concat" 1000 1 [AtLeast 1]
 
@@ -449,3 +452,6 @@ errors e =
 
 mkConfigTest :: Config
 mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs }
+
+mkConfigTestWithMap :: Config
+mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ [mapLib]}

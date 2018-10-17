@@ -8,6 +8,7 @@ import qualified Data.Map as M
 
 import qualified Data.List as L
 
+
 data List a = Emp
             | (:+:) a (List a)
               deriving (Eq, Ord, Show)
@@ -44,12 +45,21 @@ addKV = M.insert 0 X M.empty
 f :: M.Map Int Int
 f = M.fromList [(2300, 2353)]
 
+{-@ fs :: M.Map {z:Int | z < 1000} Int @-}
+fs :: M.Map Int Int
+fs = M.fromList [(2300, 2353)]
+
+
+
+{-@ fs2 :: M.Map Int Int @-}
+fs2 :: M.Map Int Int
+fs2 = M.fromList []
+
+
 {-@ f39 :: M.Map {z:Int | z < 1000} {y:Int | y < 4000 } @-}
 f39 :: M.Map Int Int
 f39 = M.fromList []
 
-
-data Map2 k a = Assocs2 [(k, a)]
 
 {-@ f2 :: [Int] @-}
 f2 :: Int -> [Int]

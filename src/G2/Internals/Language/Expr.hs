@@ -22,6 +22,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , modifyAppTop
                                   , modifyAppLHS
                                   , modifyAppRHS
+                                  , modifyLamTop
                                   , nonDataFunctionCalls
                                   , appCenter
                                   , mapArgs
@@ -145,6 +146,21 @@ modifyAppLHS _ e = e
 modifyAppRHS :: (Expr -> Expr) -> Expr -> Expr
 modifyAppRHS f (App e e') = App (modifyAppRHS f e) (f e')
 modifyAppRHS _ e = e
+
+modifyLamTop :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
+modifyLamTop f = modifyContainedASTs (modifyLamTop' f)
+
+modifyLamTop' :: (Expr -> Expr) -> Expr -> Expr
+modifyLamTop' f e@(Lam _ _ _) =
+    let
+        e' = f e
+    in
+    modifyLamRHS (modifyLamTop' f) e'
+modifyLamTop' f e = modifyChildren f e
+
+modifyLamRHS :: (Expr -> Expr) -> Expr -> Expr
+modifyLamRHS f (Lam u i e) = Lam u i $ modifyLamRHS f e
+modifyLamRHS f e = f e
 
 -- | Returns all function calls to Vars with all arguments
 nonDataFunctionCalls :: ASTContainer m Expr => m -> [Expr]

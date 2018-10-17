@@ -11,6 +11,7 @@ module G2.Internals.Language.Monad.Expr ( mkDCTrueM
                                         , mkConsE
                                         , mkEmptyE
                                         , modifyAppTopE
+                                        , modifyLamTopE
                                         , insertInLamsE ) where
 
 import G2.Internals.Language.Expr
@@ -69,6 +70,20 @@ modifyAppRHSE f (App e1 e2) = do
     e2' <- f e2
     return $ App e1' e2'
 modifyAppRHSE f e = modifyChildrenM f e
+
+modifyLamTopE :: (Monad m, ASTContainerM c Expr) => (Expr -> m Expr) -> c -> m c
+modifyLamTopE f = modifyContainedASTsM (modifyLamTopE' f)
+
+modifyLamTopE' :: Monad m => (Expr -> m Expr) -> Expr -> m Expr
+modifyLamTopE' f e@(Lam _ _ _) = do
+    e' <- f e
+    
+    modifyLamRHSE (modifyLamTopE' f) e'
+modifyLamTopE' f e = modifyChildrenM f e
+
+modifyLamRHSE :: Monad m => (Expr -> m Expr) -> Expr -> m Expr
+modifyLamRHSE f (Lam u i e) = return . Lam u i =<< modifyLamRHSE f e
+modifyLamRHSE f e = f e
 
 insertInLamsE :: ExState s m => ([Id] -> Expr -> m Expr) -> Expr -> m Expr
 insertInLamsE f = insertInLamsE' f []

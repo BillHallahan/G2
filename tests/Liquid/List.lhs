@@ -86,6 +86,8 @@ the *size*, i.e. number of elements of a `List`:
   @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}
+
+{-@ type ListNE a = {v:List a | size v > 0} @-}
 \end{code}
 
 It will be helpful to have a few abbreviations. First,
