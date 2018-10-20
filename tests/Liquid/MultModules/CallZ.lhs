@@ -17,7 +17,7 @@ import List
 
 \begin{code}
 
-callZ :: List Double -> List Double
+callZ :: List Double -> List Double -> List Double
 callZ = z
 
 \end{code}

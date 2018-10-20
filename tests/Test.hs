@@ -187,7 +187,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropConcat.lhs" "prop_concat" 1000 1 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Distance.lhs" "distance" 1000 4 [AtLeast 1]
-                , checkLiquid "tests/Liquid/MultModules" "tests/Liquid/MultModules/CallZ.lhs" "callZ" 1000 2 [AtLeast 1]
+                , checkLiquid "tests/Liquid/MultModules" "tests/Liquid/MultModules/CallZ.lhs" "callZ" 1000 3 [AtLeast 1]
 
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AddToEven.hs" "f" 2000 1
                     [ AtLeast 1
