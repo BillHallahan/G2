@@ -1,4 +1,5 @@
 \begin{code}
+{-@ LIQUID "--no-termination" @-}
 
 module WhereFuncs where
 
@@ -8,8 +9,7 @@ import qualified Data.Map as M
 
 type C = M.Map Int Int
 
-{-@ f :: C -> C
-  @-}
+{-@ f :: C -> C @-}
 f :: C -> C
 f cs = normalize newClusters
   where
@@ -17,11 +17,10 @@ f cs = normalize newClusters
     normalize _   = M.empty 
     newClusters   = M.empty
 
-{-@ g :: M.Map Int Int -> M.Map Int Int
-  @-}
+{-@ g :: M.Map Int Int -> M.Map Int Int @-}
 g :: M.Map Int Int -> M.Map Int Int
 g cs = normalize
   where
     normalize :: M.Map a Int
-    normalize = M.empty 
+    normalize = M.empty
 \end{code}
