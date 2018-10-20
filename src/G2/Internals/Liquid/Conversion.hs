@@ -78,7 +78,7 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = in
 type BoundTypes = M.Map Name Type
 
 mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()
-mergeLHSpecState sp = mapM_ (uncurry mergeLHSpecState') sp
+mergeLHSpecState = mapM_ (uncurry mergeLHSpecState')
 
 mergeLHSpecState' :: Var.Var -> LocSpecType -> LHStateM ()
 mergeLHSpecState' v lst = do

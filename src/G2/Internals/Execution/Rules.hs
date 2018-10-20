@@ -309,6 +309,14 @@ stdReduceBase redEx _ s@State { exec_stack = estk
           eenv' = E.insert n expr eenv
       in
       (RulePrimError, [(eenv', CurrExpr Evaluate (Prim Error TyBottom), [], [], Nothing, ngen, estk', [], [], tr)])
+  -- We treat trying to evalute Error in an assertion as a violation of the assertion
+  | CurrExpr Evaluate expr <- cexpr
+  , (Prim Error _):_ <- unApp expr
+  , Just (AssertFrame is _, estk') <- S.pop estk =
+      let
+          false = Data $ mkDCFalse kv tenv
+      in
+      (RulePrimError, [(eenv, CurrExpr Evaluate (Prim Error TyBottom), [], [ExtCond false False], is, ngen, estk', [], [], tr)])
   | CurrExpr Evaluate expr <- cexpr
   , (Prim Error _):_ <- unApp expr
   , Just (_, estk') <- S.pop estk =
