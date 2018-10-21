@@ -39,7 +39,7 @@ checkInputOutput'' proj src md entry i req config = do
 
     let (init_state, _) = initState binds tycons cls Nothing Nothing Nothing False (T.pack entry) mb_modname ex config
     
-    SomeSolver con <- getSMT config
+    SomeSMTSolver con <- getSMT config
     let con' = GroupRelated (ADTSolver :?> con)
 
     let chAll = checkExprAll req
@@ -63,6 +63,9 @@ checkInputOutput'' proj src md entry i req config = do
     let io = map (\(_, i', o, _) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
+
+    closeIO con
+    
     return $ mr && chEx
 
 ------------

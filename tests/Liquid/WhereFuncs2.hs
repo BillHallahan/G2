@@ -20,3 +20,11 @@ i = iCalls
         {-@ iCalls :: x:Int -> { y:Int | x >= y } @-}
         iCalls :: Int -> Int
         iCalls x = x
+
+{-@ sq :: {x:Int | x >= 0} -> Int @-}
+sq :: Int -> Int
+sq x = sq' 1
+    where
+        {-@ sq' :: y:Int -> {z:Int | z > y} @-}
+        sq' :: Int -> Int
+        sq' y = if y < x then x + sq' (y + 1) else y

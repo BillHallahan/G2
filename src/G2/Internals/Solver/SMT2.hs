@@ -32,8 +32,9 @@ import System.Process
 data Z3 = Z3 (Handle, Handle, ProcessHandle)
 data CVC4 = CVC4 (Handle, Handle, ProcessHandle)
 
-data SomeSolver where
-    SomeSolver :: forall con . Solver con => con -> SomeSolver
+data SomeSMTSolver where
+    SomeSMTSolver :: forall con ast out io 
+                   . SMTConverter con ast out io => con -> SomeSMTSolver
 
 instance Solver Z3 where
     check solver _ pc = checkConstraints solver pc
@@ -45,6 +46,7 @@ instance Solver CVC4 where
 
 instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     getIO (Z3 hhp) = hhp
+    closeIO (Z3 (h_in, _, _)) = hPutStr h_in "(exit)"
 
     empty _ = ""  
     merge _ = (++)
@@ -166,6 +168,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
 instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     getIO (CVC4 hhp) = hhp
+    closeIO (CVC4 (h_in, _, _)) = hPutStr h_in "(exit)"
 
     empty _ = ""  
     merge _ = (++)
@@ -301,8 +304,12 @@ function3 f a b c = "(" ++ f ++ " " ++ a ++ " " ++ b ++ " " ++ c ++ ")"
 -- in all future calls
 getProcessHandles :: CreateProcess -> IO (Handle, Handle, ProcessHandle)
 getProcessHandles pr = do
-    (m_h_in, m_h_out, _, p) <- createProcess (pr)
+    (m_h_in, m_h_out, h_err, p) <- createProcess (pr)
         { std_in = CreatePipe, std_out = CreatePipe }
+
+    case h_err of
+        Just h_err' -> hClose h_err'
+        Nothing -> return ()
 
     let (h_in, h_out) =
             case (m_h_in, m_h_out) of
@@ -313,13 +320,13 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getSMT :: Config -> IO SomeSolver
+getSMT :: Config -> IO SomeSMTSolver
 getSMT (Config {smt = ConZ3}) = do
     hhp <- getZ3ProcessHandles
-    return $ SomeSolver (Z3 hhp)
+    return $ SomeSMTSolver (Z3 hhp)
 getSMT (Config {smt = ConCVC4}) = do
     hhp <- getCVC4ProcessHandles
-    return $ SomeSolver (CVC4 hhp)
+    return $ SomeSMTSolver (CVC4 hhp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the

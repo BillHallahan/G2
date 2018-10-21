@@ -103,7 +103,7 @@ runGHC as = do
     let (init_state, entry_f) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                                (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
 
-    SomeSolver con <- getSMT config
+    SomeSMTSolver con <- getSMT config
     let con' = GroupRelated (ADTSolver :?> con)
 
     let tr_ng = mkNameGen ()
@@ -136,6 +136,8 @@ runGHC as = do
         False -> return ()
 
     -- putStrLn "----------------\n----------------"
+
+    closeIO con
 
     printFuncCalls config entry_f in_out
 
