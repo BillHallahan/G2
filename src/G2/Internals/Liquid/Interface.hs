@@ -74,7 +74,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
     
     let ghc_cg' = case ghc_cg of
                   Right g_c -> g_c
-                  Left e -> error $ "ERROR OCCURRED IN LIQUID HASKELL\n" ++ show e
+                  Left e -> error $ "ERROR OCCURRED IN LIQUIDHASKELL\n" ++ show e
 
     tgt_trans <- translateLoaded proj fp libs False config' 
 
