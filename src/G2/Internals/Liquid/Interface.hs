@@ -110,7 +110,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     let track_state = merged_state' {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm} }
 
-    SomeSolver con <- getSMT config
+    SomeSMTSolver con <- getSMT config
     let con' = GroupRelated (ADTSolver :?> con)
 
     let final_state = track_state { known_values = mkv }
@@ -149,6 +149,8 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
     -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
+
+    closeIO con
 
     return (states, ifi)
 
