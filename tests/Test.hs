@@ -184,6 +184,9 @@ liquidTests =
                 , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "f" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
                 , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "g" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
 
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/WhereFuncs2.hs" "hCalls" 1000 3 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/WhereFuncs2.hs" "i" 1000 2 [AtLeast 1]
+
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropConcat.lhs" "prop_concat" 1000 1 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Distance.lhs" "distance" 1000 4 [AtLeast 1]

@@ -39,6 +39,7 @@ import Language.Fixpoint.Solver
 import qualified Language.Fixpoint.Types as F
 import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
+import Control.Exception
 import Data.Coerce
 import Data.List
 import qualified Data.Map as M
@@ -69,11 +70,15 @@ findCounterExamples proj fp entry libs lhlibs config = do
 
     lh_config <- getOpts []
 
-    ghc_cg <- getGHCInfos lh_config proj [fp] lhlibs
+    ghc_cg <- try $ getGHCInfos lh_config proj [fp] lhlibs :: IO (Either SomeException [LHOutput])
     
+    let ghc_cg' = case ghc_cg of
+                  Right g_c -> g_c
+                  Left e -> error $ "ERROR OCCURRED IN LIQUID HASKELL\n" ++ show e
+
     tgt_trans <- translateLoaded proj fp libs False config' 
 
-    runLHCore entry tgt_trans ghc_cg config'
+    runLHCore entry tgt_trans ghc_cg' config'
 
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
                     -> [LHOutput]
@@ -188,12 +193,12 @@ getGHCInfos config proj fp lhlibs = do
 getGHCInfos' :: LHC.Config -> GhcInfo -> IO LHOutput
 getGHCInfos' config ghci = do
     -- CGInfo
-    let cgi = generateConstraints ghci
+    -- let cgi = generateConstraints ghci
 
-    finfo <- cgInfoFInfo ghci cgi
-    F.Result _ sol _ <- solve (fixConfig "LH_FILEPATH" config) finfo
+    -- finfo <- cgInfoFInfo ghci cgi
+    -- F.Result _ sol _ <- solve (fixConfig "LH_FILEPATH" config) finfo
 
-    return (LHOutput {ghcI = ghci, cgI = cgi, solution = sol})
+    return (LHOutput {ghcI = ghci, cgI = undefined {- cgi -}, solution = undefined {- sol -} })
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
 funcSpecs = concatMap (gsTySigs . spec)
