@@ -158,7 +158,16 @@ def collect_reports_deprecated():
     """
     LOG_CMD = "grep -h -A2 'Liquid Type Mismatch' %s*.log" % STUDY_DIR
 
-    logs = subprocess.check_output(LOG_CMD, shell=True, encoding='UTF-8').split('--')
+    # logs = subprocess.check_output(LOG_CMD, shell=True, encoding='UTF-8').split('--')
+    logs = []
+    for file in os.listdir(STUDY_DIR):
+        if file.endswith(".log"):
+            try:
+                cmd = "grep -h -A2 'Liquid Type Mismatch' %s" % STUDY_DIR + file
+                newlogs = subprocess.check_output(cmd, shell=True, encoding='UTF-8').split('--')
+                logs.extend(newlogs)
+            except:
+                pass
 
     targets_raw = [x.split('\n') for x in logs]
     targets_raw = [[i for i in x if i.replace(' ', '') != ''] for x in targets_raw]
