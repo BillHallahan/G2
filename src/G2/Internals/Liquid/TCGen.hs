@@ -273,9 +273,10 @@ eqLHFuncCall ldm i1 i2
         i <- freshIdN TYPE
         b <- tyBoolT
 
-        let lhv = Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b)))
-        
-        return $ foldl' App lhv [Var i1, Var i2]
+        let lhv = App (Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b)))) (Type t)
+        lhd <- lhTCDict'' ldm t
+
+        return $ foldl' App (App lhv lhd) [Var i1, Var i2]
 
     | TyVar _ <- t = do
         lhe <- lhEqM
@@ -283,8 +284,10 @@ eqLHFuncCall ldm i1 i2
         i <- freshIdN TYPE
         b <- tyBoolT
 
+        lhd <- lhTCDict'' ldm t
+
         let lhv = App (Var (Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
-        return $ App (App lhv (Var i1)) (Var i2)
+        return $ App (App (App lhv lhd) (Var i1)) (Var i2)
 
     | TyFun _ _ <- t = mkTrueE
     | TyForAll _ _ <- t = mkTrueE

@@ -11,15 +11,10 @@ data List a = Emp
 
 {-@ badLength :: l:List a -> {v:Int | l = l} @-} 
 badLength            :: List a -> Int
-badLength Emp        = 0
-badLength (x :+: xs) = 1
+badLength _        = 0
 
 {-@ prop_size :: TRUE @-}
-prop_size  = lAssert (badLength l1 == 1)
-
-{-@ l1 :: List Int @-}
-l1 :: List Int
-l1 = 1 :+: Emp
+prop_size  = lAssert (badLength (1 :+: Emp) == 1)
 
 {-@ type TRUE = {v:Bool | v} @-}
 
