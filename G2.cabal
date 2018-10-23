@@ -31,8 +31,8 @@ executable G2
                        , hashable
                        , hpc
                        , HTTP
-                       , liquidhaskell >= 0.8.0.5
-                       , liquid-fixpoint >= 0.7.0.5
+                       , liquidhaskell == 0.8.0.5
+                       , liquid-fixpoint == 0.7.0.5
                        , MissingH
                        , mtl
                        , reducers
@@ -62,8 +62,8 @@ test-suite test
                        , hashable
                        , hpc
                        , HTTP
-                       , liquidhaskell
-                       , liquid-fixpoint 
+                       , liquidhaskell == 0.8.0.5
+                       , liquid-fixpoint == 0.7.0.5
                        , MissingH
                        , mtl
                        , reducers
