@@ -24,6 +24,7 @@ import HigherOrderMathTest
 import GetNthTest
 import DefuncTest
 import CaseTest
+import Expr
 import Typing
 
 import InputOutputTest
@@ -42,6 +43,7 @@ tests = return . testGroup "Tests"
         , testFileTests
         , baseTests
         , primTests
+        , exprTests
         , typingTests
         ]
 
@@ -182,6 +184,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/AddKV.lhs" "empty" 1000 3 [Exactly 0]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropSize.hs" "prop_size" 2000 1 [AtLeast 1]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropSize2.hs" "prop_size" 2000 1 [AtLeast 1]
 
                 , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "f" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
                 , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "g" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]

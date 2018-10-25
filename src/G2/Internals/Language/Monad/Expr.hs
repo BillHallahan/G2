@@ -12,7 +12,8 @@ module G2.Internals.Language.Monad.Expr ( mkDCTrueM
                                         , mkEmptyE
                                         , modifyAppTopE
                                         , modifyLamTopE
-                                        , insertInLamsE ) where
+                                        , insertInLamsE
+                                        , etaExpandToE ) where
 
 import G2.Internals.Language.Expr
 import G2.Internals.Language.Syntax
@@ -91,3 +92,13 @@ insertInLamsE f = insertInLamsE' f []
 insertInLamsE' :: ExState s m => ([Id] -> Expr -> m Expr) -> [Id] -> Expr -> m Expr
 insertInLamsE' f xs (Lam u i e)  = return . Lam u i =<< insertInLamsE' f (i:xs) e
 insertInLamsE' f xs e = f (reverse xs) e
+
+etaExpandToE :: ExState s m => Int -> Expr -> m Expr
+etaExpandToE n e = do
+    eenv <- exprEnv
+    ng <- nameGen
+
+    let (e', ng') = etaExpandTo eenv ng n e
+
+    putNameGen ng'
+    return e'

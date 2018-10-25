@@ -25,6 +25,8 @@ addSpecialAsserts = do
 
 -- | Adds an Assert of True to any function without an assertion already,
 -- excluding certain functions (namely dicts) that we never want to abstract
+-- Furthermore, expands all Lambdas as much as possible, so that we get all the arguments
+-- for the assertion. 
 addTrueAsserts :: Id -> LHStateM ()
 addTrueAsserts i = do
     ns <- return . maybe [] varNames =<< lookupE (idName i)
@@ -36,20 +38,20 @@ addTrueAsserts i = do
     mapWithKeyME (addTrueAsserts' ns')
 
 addTrueAsserts' :: [Name] -> Name -> Expr -> LHStateM Expr
-addTrueAsserts' ns n
+addTrueAsserts' ns n e
     | n `elem` ns =
-        insertInLamsE (\is e ->
-                    case e of
-                        Let [(_, _)] (Assert _ _ _) -> return e
+        insertInLamsE (\is e' ->
+                    case e' of
+                        Let [(_, _)] (Assert _ _ _) -> return e'
                         _ -> do
                             true <- mkTrueE
-                            r <- freshIdN (typeOf e)
+                            r <- freshIdN (typeOf e')
 
                             let fc = FuncCall { funcName = n
                                               , arguments = map Var is
                                               , returns = (Var r)}
-                                e' = Let [(r, e)] $ Assert (Just fc) true (Var r)
+                                e'' = Let [(r, e')] $ Assert (Just fc) true (Var r)
 
-                            return e'
-                    )
-    | otherwise = return
+                            return e''
+                    ) =<< etaExpandToE (numArgs e) e
+    | otherwise = return e

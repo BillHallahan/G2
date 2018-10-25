@@ -117,7 +117,10 @@ loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool ->
 loadProj hsc proj src gflags simpl = do
     beta_flags <- getSessionDynFlags
     let gen_flags = gflags
-    let beta_flags' = foldl' gopt_set beta_flags gen_flags
+
+    let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
+
+    let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
     let dflags = beta_flags' { hscTarget = case hsc of
                                                 Just hsc' -> hsc'
                                                 _ -> hscTarget beta_flags'
