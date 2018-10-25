@@ -42,8 +42,11 @@ for file in onlyfiles:
     with open(join(sys.argv[1], file)) as wholeoutput:
         outputstr = wholeoutput.read()
         if 'G2: ' in outputstr:
-            stats[t.func_name]['Error'] += 1
-            print(file)
+            if 'ERROR OCCURRED IN LIQUIDHASKELL' in outputstr:
+                stats[t.func_name]['LHError'] += 1
+            else:
+                stats[t.func_name]['Error'] += 1
+                print(file)
         if '0m\nERROR' in outputstr:
             stats[t.func_name]['None'] += 1
         if 'Abstract' in outputstr:
@@ -53,14 +56,11 @@ for file in onlyfiles:
         if 'Timeout' in outputstr:
             stats[t.func_name]['Timeout'] += 1
 
-for func in stats:
-    print(func, stats[func])
 
-
-print('{}\t{}\t{}\t{}\t{}'.format("Func",'Error','None','Abstract','Concrete','Timeout'))
+print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format("Func",'LHError', 'Error','None','Abstract','Concrete','Timeout'))
 
 for key in stats:
-    print('{}\t{}\t{}\t{}\t{}'.format(
-        key, stats[key]['Error'],
+    print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format(
+        key, stats[key]['LHError'], stats[key]['Error'],
         stats[key]['None'], stats[key]['Abstract'],
         stats[key]['Concrete'], stats[key]['Timeout']))
