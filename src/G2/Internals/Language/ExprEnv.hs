@@ -6,6 +6,7 @@ module G2.Internals.Language.ExprEnv
     ( ExprEnv
     , empty
     , singleton
+    , fromList
     , null
     , size
     , member
@@ -81,6 +82,10 @@ empty = ExprEnv M.empty
 -- | Constructs an `ExprEnv` with a single `Expr`.
 singleton :: Name -> Expr -> ExprEnv
 singleton n e = ExprEnv $ M.singleton n (ExprObj e)
+
+-- | Constructs an `ExprEnv` from a list of `Name` and `Expr` pairs.
+fromList :: [(Name, Expr)] -> ExprEnv
+fromList = ExprEnv . M.fromList . Pre.map (\(n, e) -> (n, ExprObj e))
 
 -- Is the `ExprEnv` empty?
 null :: ExprEnv -> Bool

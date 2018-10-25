@@ -24,6 +24,7 @@ import HigherOrderMathTest
 import GetNthTest
 import DefuncTest
 import CaseTest
+import Expr
 import Typing
 
 import InputOutputTest
@@ -42,6 +43,7 @@ tests = return . testGroup "Tests"
         , testFileTests
         , baseTests
         , primTests
+        , exprTests
         , typingTests
         ]
 

@@ -44,6 +44,7 @@ module G2.Internals.Language.Expr ( module G2.Internals.Language.Casts
                                   , freeVars
                                   , alphaReduction
                                   , varBetaReduction
+                                  , etaExpandTo
                                   , mkStrict) where
 
 import G2.Internals.Language.AST
@@ -207,8 +208,7 @@ maybeInsertInLams' :: ([Id] -> Expr -> Maybe Expr) -> [Id] -> Expr -> Maybe Expr
 maybeInsertInLams' f xs (Lam u i e)  = fmap (Lam u i) $ maybeInsertInLams' f (i:xs) e
 maybeInsertInLams' f xs e = f (reverse xs) e
 
--- | inLams
--- Returns the Expr in nested Lams
+-- | Returns the Expr in nested Lams
 inLams :: Expr -> Expr
 inLams (Lam _ _ e) = inLams e
 inLams e = e
@@ -221,6 +221,7 @@ leadingLamIds :: Expr -> [Id]
 leadingLamIds (Lam _ i e) = i:leadingLamIds e
 leadingLamIds _ = []
 
+-- | Returns all Ids from Lam's at the top of the Expr
 args :: Expr -> [Id]
 args (Lam _ i e) = i:args e
 args _ = []
@@ -294,6 +295,80 @@ replaceLamIds :: Id -> Id -> Expr -> Expr
 replaceLamIds i i' v@(Var v') = if i == v' then Var i' else v
 replaceLamIds i i' l@(Lam u l' e) = if i == l' then l else Lam u l' (replaceLamIds i i' e)
 replaceLamIds i i' e = modifyChildren (replaceLamIds i i') e
+
+-- | If doing so will not change evaluation, eta expands to the given arity.
+-- This function is conservative, so it may sometimes fail to determine that
+-- we can perform eta expansion, even when it can.
+-- However, it should NEVER eta expand something that will change evaluation.
+--
+-- Eta expansion converts:
+--           @ abs @
+-- to
+--     @ \x -> abs x @
+-- and
+--           @ \x -> (+) x @
+-- to
+--     @ \x -> \y -> (+) x y @
+-- That is, it looks directly inside the outermost lambdas
+--
+-- If the arity is greater than the given number, does nothing.
+-- If the given number is greater than the maximal number of arguments,
+-- tries to expand to the maximal number of arguments.
+--
+-- This function is careful to not change 
+-- That is, we cannot convert:
+--      @ undefined `seq` 1 @
+-- to
+--      @ (\x -> undefined x) `seq` 1 @
+-- because the first will call undefined, and error, whereas the second will
+-- evaluate to 1.
+etaExpandTo :: ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
+etaExpandTo eenv ng n (Lam u i e) =
+    let
+        (e', ng') = etaExpandTo eenv ng n e
+    in
+    (Lam u i e', ng')
+etaExpandTo eenv ng n e = etaExpandTo' eenv ng n e
+
+etaExpandTo' :: ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
+etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
+    where
+        n' = n `min` numArgs e
+        n'' = validN eenv M.empty n' e
+
+        (fn, ng') = freshNames n'' ng
+
+        -- Determines if we can eta expand the Expr, without changing semantics
+        -- This requires looking in variables, possibly recursively.
+        -- We use the map to track if recursive lookups are actually decreasing arity,
+        -- and prevent an infinite loop
+        validN :: ExprEnv -> M.Map Name Int -> Int -> Expr -> Int
+        validN _ m 0 _ = n'
+        validN eenv m i (Lam _ _ e') = validN eenv m (i - 1) e'
+        validN eenv m i (Var (Id v _))
+            | Just i' <- M.lookup v m
+            , Just e' <- E.lookup v eenv =
+                if i >= i' then n' - i `min` i' else validN eenv m' i e'
+            | Just e' <- E.lookup v eenv = validN eenv m' i e'
+            | otherwise = n'
+            where
+                m' = M.insert v i m
+        validN eenv m i (App e' _) = validN eenv m (i + 1) e'
+        validN eenv m i (Let b e') =
+            let
+                eenv' = E.insertExprs (map (\(i, e'') -> (idName i, e'')) b) eenv
+            in
+            validN eenv' m i e'
+        validN _ m i _ = n' - i
+
+        addLamApps :: [Name] -> Type -> Expr -> Expr
+        addLamApps [] _ e = e
+        addLamApps (_:ns) (TyForAll (NamedTyBndr b) t') e =
+            Lam TypeL b (App (addLamApps ns t' e) (Var b))
+        addLamApps (n':ns) (TyFun t t') e =
+            Lam TermL (Id n' t) (App (addLamApps ns t' e) (Var (Id n' t)))
+        addLamApps _ _ e = e
+
 
 -- | Forces the complete evaluation of an expression
 mkStrict :: (ASTContainer m Expr) => Walkers -> m -> m
