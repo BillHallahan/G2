@@ -97,7 +97,13 @@ concat = foldr (append) Emp
 \end{code}
 
 \begin{code}
-prop_concat_1 = lAssert (length xss == 0)
+{-@ length_1 :: xs:List a -> Int  @-}
+length_1            :: List a -> Int
+length_1 Emp        = 0
+length_1 (x :+: xs) = 1
+
+prop_concat_1 :: Bool
+prop_concat_1 = lAssert (length_1 xss == 0)
   where
     xss     = Emp
 \end{code}

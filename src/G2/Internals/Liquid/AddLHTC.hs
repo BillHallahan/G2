@@ -25,8 +25,9 @@ addLHTC = do
 addLHTCExprEnv :: Expr -> LHStateM Expr
 addLHTCExprEnv e = do
     e' <- addTypeLams e
-    (e'', m) <- addLHTCExprEnvLams [] e'
-    addLHTCExprEnvPasses m e''
+    e'' <- addTypeLamsLet e'
+    (e''', m) <- addLHTCExprEnvLams [] e''
+    addLHTCExprEnvPasses m e'''
 
 -- Rewrites a type to make type lambdas explicit
 -- This is needed so that addLHTCExprEnvLams can insert the LH Dict after the type correctly.
@@ -44,6 +45,20 @@ addTypeLams' (TyForAll _ t) (Lam TypeL i e) = return . Lam TypeL i =<< addTypeLa
 addTypeLams' (TyForAll (NamedTyBndr i) t) e =
     return . Lam TypeL i =<< addTypeLams' t (App e (Type (TyVar i)))
 addTypeLams' _ e = return e
+
+-- | Let bindings may be passed Type parameters, but have no type lambdas,
+-- so we have to add Lambdas to Let's as well. 
+addTypeLamsLet :: Expr -> LHStateM Expr
+addTypeLamsLet = modifyM addTypeLamsLet'
+
+addTypeLamsLet' :: Expr -> LHStateM Expr
+addTypeLamsLet' (Let be e) = do
+    be' <- mapM (\(b, e) -> do
+            e' <- addTypeLams e
+            return (b, e')
+        ) be
+    return (Let be' e)
+addTypeLamsLet' e = return e
 
 -- Updates a function definition with Lambdas to take the LH TC for each type argument.
 addLHTCExprEnvLams :: [Id] -> Expr -> LHStateM (Expr, M.Map Name Id)
