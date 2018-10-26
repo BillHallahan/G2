@@ -187,12 +187,17 @@ addLHDictToTypes'' m t = modifyChildrenM (addLHDictToTypes'' m) t
 addLHDictToTypes''' :: M.Map Name Id -> [Id] -> Type -> LHStateM Type
 addLHDictToTypes''' m is (TyForAll (NamedTyBndr b) t) =
     return . TyForAll (NamedTyBndr b) =<< addLHDictToTypes''' m (b:is) t
-addLHDictToTypes''' _ is t = do
+addLHDictToTypes''' m is t = do
     lh <- lhTCM
     let is' = reverse is
     let dictT = map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) is'
 
-    return $ foldr TyFun t dictT
+    -- The recursive step in addLHDictToTypes'' only kicks in when it is not
+    -- at a TyForAll.  So we have to perform recursion here, on the type nested
+    -- in the TyForAll's
+    t' <- addLHDictToTypes'' m t
+
+    return $ foldr TyFun t' dictT
 
 lhTCDict :: M.Map Name Id -> Type -> LHStateM Expr
 lhTCDict m t = do
