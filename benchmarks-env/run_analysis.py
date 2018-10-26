@@ -102,7 +102,7 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
     """
     target_file = os.path.join(target_dir, target.file_name)
     replace(target_file, ' Prop ', ' ')
-    cmd = "./G2 %s -- --time 300 --n %d --liquid %s --liquid-func %s" % (
+    cmd = "./G2 %s -- --time 30 --n %d --liquid %s --liquid-func %s" % (
         test_dir, recurs_n, target_file, target.func_name
     )
     proc = subprocess.Popen(cmd, shell=True, encoding='UTF-8', cwd=g2_dir, stdout=subprocess.PIPE,
@@ -111,7 +111,7 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
     proc.wait()
     err = proc.stderr.read()
     if 'No functions with name' in err:
-        target.func_name = isolate_func_name(g2_dir + target_dir + target.file_name, int(target.line_num[0]))
+        target.func_name = isolate_func_name(target_dir + target.file_name, int(target.line_num[0]))
         print("FIXED FUNCTION NAME ERROR:")
         print(target.func_name)
         return run_g2(g2_dir, test_dir, target_dir, recurs_n, target)
@@ -203,6 +203,8 @@ def collect_reports_deprecated():
     print('Targets remaining: %d' % len(targets))
 
     # Targets are printed with four fields, and then two spaces and there is the G2 Report
+    #for t in targets:
+    #    create_g2_report(t)
     pool = Pool(4)
     results = pool.map(create_g2_report, targets)
 
