@@ -56,6 +56,8 @@ import G2.Internals.Language.Syntax
 import qualified Data.Map as M
 import Data.Monoid hiding (Alt)
 
+import Debug.Trace
+
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
 

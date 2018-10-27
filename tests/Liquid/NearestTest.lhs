@@ -4,10 +4,9 @@
 
 module KMeans where
 
-nearest   :: Int -> Int
+nearest   :: Int
 
-{-@ nearest :: k:Int -> {x:Int | x < k} @-}
-nearest k = x
+{-@ nearest :: {x:Int | x < 5} @-}
+nearest = x
         where (x,y) = head []
-
 \end{code}
