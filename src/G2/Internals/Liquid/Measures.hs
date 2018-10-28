@@ -56,7 +56,7 @@ measureTypeMappings (M {name = n, sort = srt}) = do
 addLHDictToType :: Name -> Type -> Type
 addLHDictToType lh t =
     let
-        lhD = map (\i -> mkTyCon lh [TyVar i] TYPE) $ tyForAllBindings $ PresType t
+        lhD = map (\i -> mkFullAppedTyCon lh [TyVar i] TYPE) $ tyForAllBindings $ PresType t
     in
     mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
@@ -70,7 +70,7 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
     let bnds = tyForAllBindings $ PresType $ fromJust st
         ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]
         nbnds = zip ds $ map TyVar bnds
-        as = map (\(d, t) -> Id d $ mkTyCon lh_tc [t] TYPE) nbnds
+        as = map (\(d, t) -> Id d $ mkFullAppedTyCon lh_tc [t] TYPE) nbnds
         as' = map (TypeL, ) bnds ++ map (TermL,) as
 
         as_t = map (\i -> (forType $ typeOf i, i)) as

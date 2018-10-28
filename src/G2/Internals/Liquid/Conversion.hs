@@ -558,7 +558,7 @@ rTyConType rtc sts = do
     ts <- mapM specTypeToType sts
     
     case (not . any isNothing $ ts) of
-        True -> case fmap (\n' -> mkTyCon n' (catMaybes ts) TYPE) n of
+        True -> case fmap (\n' -> mkFullAppedTyCon n' (catMaybes ts) TYPE) n of
                     Nothing -> return $ primType tcn
                     t -> return t
         False -> return Nothing

@@ -65,8 +65,8 @@ createDeepSeqExpr tenv w (n, adt) ng =
 createDeepSeqCase1 :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> RenameMap-> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
 createDeepSeqCase1 tenv w ti n rm bn (DataTyCon {data_cons = dc}) ng =
     let
-        (i, ng') = freshId (mkTyCon n (map (TyVar . flip Id TYPE) bn) TYPE) ng
-        (caseB, ng'') = freshId (mkTyCon n (map (TyVar . flip Id TYPE) bn) TYPE) ng'
+        (i, ng') = freshId (mkFullAppedTyCon n (map (TyVar . flip Id TYPE) bn) TYPE) ng
+        (caseB, ng'') = freshId (mkFullAppedTyCon n (map (TyVar . flip Id TYPE) bn) TYPE) ng'
 
         (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n caseB rm bn ng'' dc
 
@@ -75,7 +75,7 @@ createDeepSeqCase1 tenv w ti n rm bn (DataTyCon {data_cons = dc}) ng =
     (Lam TermL i c, ng''')
 createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
     let
-        t' = mkTyCon n (map (TyVar . flip Id TYPE) bn) TYPE
+        t' = mkFullAppedTyCon n (map (TyVar . flip Id TYPE) bn) TYPE
         t'' = renames rm t
 
         (i, ng') = freshId t' ng
