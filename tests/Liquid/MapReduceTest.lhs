@@ -6,9 +6,7 @@ import Prelude hiding (map, reduce, concat, foldr, foldr1)
 
 mapReduce :: (Int -> Int)
           -> Int
-mapReduce fm = length kvs
-  where
-    kvs      = expand      fm     -- step 1
+mapReduce fm = length (expand fm)
 
 {-@ expand  :: (Int -> Int) -> M.Map Int Int @-}
 expand   :: (Int -> Int) -> M.Map Int Int
