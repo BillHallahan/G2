@@ -110,27 +110,76 @@ symbState eenv
     let
         cexprT = returnType cexpr
 
-        (t, atf) = case AT.lookup cexprT at of
-                        Just (t', f) -> (TyCon t' TYPE, App (Var f))
-                        Nothing -> (cexprT, id)
 
-        (i, ng') = freshId t ng
+        -- We have to retype this Id, so it has the correct type in the Symbolic Id list
+        idToT = tysBoundByStack eenv stck cexpr
+        cexprT' = foldr (uncurry retype) cexprT idToT
+        (i, ng') = freshId cexprT' ng
+
+        -- Create lambdas, to gobble up any ApplyFrames left on the stack
+        (lams, ng'') = tyBindings ng' cexpr
+
+        -- If the type of b is not the same as cexprT's type, we have no assumption,
+        -- so we get a new b.  Otherwise, we just keep our current b,
+        -- in case it is used in the assertion
+        (b', ng''') = if typeOf b == cexprT then (b, ng'') else freshId cexprT ng''
 
         -- inferred = maybe [] (map snd) $ lookupAnnotAtLoc last_v annm
         -- inferredExprs = mkInferredAssumptions (ars ++ [ret]) inferred
         -- inferred' = foldr Assume (Var b) $ e:inferredExprs
 
         -- cexpr' = Let [(b, atf (Var i))] $ inferred'
-        cexpr' = Let [(b, atf (Var i))] $ Assume e (Var b)
+        cexpr' = lams $ Let [(b', Var i)] $ Assume e (Var b')
+
+        -- We add the Id's from the newly created Lambdas to the arguments list
+        lamI = map Var $ leadingLamIds cexpr'
 
         eenv' = E.insertSymbolic (idName i) i eenv
     in
-    -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
+    -- There may be TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
-    case not (hasTyBottom cexprT) && null (tyVars cexprT) && fn `elem` ns of
-        True -> trace ("True\n" ++ show fn ++ "\n" ++ show cexpr ++ "\n" ++ show (typeOf cexpr)) Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck, [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
-        False -> trace ("False\n" ++ show fn ++ "\n" ++ show cexpr ++ "\n" ++ show (typeOf cexpr)) Nothing
+    case not (hasTyBottom cexprT) && fn `elem` ns of
+        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng'', stck, [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars ++ lamI, returns = Var i}):abs_c})
+        False -> Nothing
 symbState _ _ _ _ _ _ = Nothing
+
+-- Creates Lambda bindings to saturate the type of the given Typed thing,
+-- and a list of the bindings so they can be used elsewhere
+tyBindings :: Typed t => NameGen -> t -> (Expr -> Expr, NameGen)
+tyBindings ng t =
+    let
+        at = spArgumentTypes t
+        (fn, ng') = freshNames (length at) ng
+    in
+    (tyBindings' fn at, ng')
+
+tyBindings' :: [Name] -> [ArgType] -> Expr -> Expr
+tyBindings' _ [] = id
+tyBindings' ns (NamedType i:ts) = Lam TypeL i . tyBindings' ns ts
+tyBindings' (n:ns) (AnonType t:ts) = Lam TermL (Id n t) . tyBindings' ns ts
+tyBindings' [] _ = error "Name list exhausted in tyBindings'"
+
+tysBoundByStack :: Typed t => ExprEnv -> S.Stack Frame -> t -> [(Id, Type)]
+tysBoundByStack eenv s t = tysBoundByStack' eenv s (typeOf t)
+
+tysBoundByStack' :: ExprEnv -> S.Stack Frame -> Type -> [(Id, Type)]
+tysBoundByStack' eenv s (TyFun _ t)
+    | Just (_, s') <- S.pop s = tysBoundByStack' eenv s' t
+tysBoundByStack' eenv s (TyForAll b t)
+    | NamedTyBndr i <- b
+    , Just (ApplyFrame e, s') <- S.pop s
+    , Just t <- getTypeExpr eenv e =
+        (i, t):tysBoundByStack' eenv s' t
+    | Just (_, s') <- S.pop s =  tysBoundByStack' eenv s' t
+tysBoundByStack' _ _ _ = []
+
+getTypeExpr :: ExprEnv -> Expr -> Maybe Type
+getTypeExpr eenv (Var (Id n _)) =
+    case E.lookup n eenv of
+        Just e -> getTypeExpr eenv e
+        Nothing -> Nothing
+getTypeExpr eenv (Type t) = Just t
+getTypeExpr _ _ = Nothing
 
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function
