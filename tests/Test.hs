@@ -219,6 +219,10 @@ liquidTests =
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/Replicate.hs" "r" 2000 3
                     [ AtLeast 1
                     , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldr") ]
+
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AbsTypeClass.hs" "callF" 1000 2
+                    [ AtLeast 1
+                    , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "f") ]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
