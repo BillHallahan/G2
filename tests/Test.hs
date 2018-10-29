@@ -206,11 +206,19 @@ liquidTests =
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "concat" 1000 2 [AtLeast 3]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_concat_1" 1500 1 [AtLeast 1]
+                , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests2.lhs" "prop_size" 1500 1 [AtLeast 1]
 
                 , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
 
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ExH.lhs" "c" 1500 1 [Exactly 0]
+
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/Replicate.hs" "replicate" 2000 4
+                    [ AtLeast 1
+                    , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldr") ]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/Replicate.hs" "r" 2000 3
+                    [ AtLeast 1
+                    , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldr") ]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
