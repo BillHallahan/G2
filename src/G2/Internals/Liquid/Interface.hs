@@ -108,7 +108,10 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let annm = annots merged_state
     -- print annm
 
-    let track_state = merged_state' {track = LHTracker {abstract_calls = [], last_var = Nothing, annotations = annm} }
+    let track_state = merged_state' {track = LHTracker { abstractable = abs_fun
+                                                       , abstract_calls = []
+                                                       , last_var = Nothing
+                                                       , annotations = annm} }
 
     SomeSMTSolver con <- getSMT config
     let con' = GroupRelated (ADTSolver :?> con)
@@ -122,7 +125,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     ret <- if higherOrderSolver config == AllFuncs
               then run 
                     (NonRedPCRed config
-                      :<~| LHRed abs_fun con' config) 
+                      :<~| LHRed con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHHalter entry mb_modname (expr_env init_state)) 
@@ -131,7 +134,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
               else run 
                     (NonRedPCRed config
                       :<~| TaggerRed state_name tr_ng
-                      :<~| LHRed abs_fun con' config) 
+                      :<~| LHRed con' config) 
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 

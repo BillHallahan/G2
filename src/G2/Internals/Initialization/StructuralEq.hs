@@ -127,7 +127,7 @@ genInsts tcn nsT t dc ((n@(Name n' _ _ _), adt):xs) = do
 createStructEqFunc :: Name -> Name -> Name -> AlgDataTy -> IT.SimpleStateM ()
 createStructEqFunc dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
     ns' <- freshSeededNamesN $ map idName ns
-    let t = mkTyCon tn (map (TyVar . flip Id TYPE) ns') TYPE
+    let t = mkFullAppedTyCon tn (map (TyVar . flip Id TYPE) ns') TYPE
 
     bt <- freshIdsN $ map (const TYPE) ns
     bd <- freshIdsN $ map (\i -> TyApp (TyCon dcn (TyFun TYPE TYPE)) (TyVar i)) bt
@@ -141,7 +141,7 @@ createStructEqFunc dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
 createStructEqFunc dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
     kv <- knownValues
 
-    let t = mkTyCon tn (map TyVar ns) TYPE
+    let t = mkFullAppedTyCon tn (map TyVar ns) TYPE
 
     bt <- freshIdsN $ map typeOf ns
     bd <- freshIdsN $ map (\i -> TyApp (TyCon dcn (TyFun TYPE TYPE)) (TyVar i)) bt

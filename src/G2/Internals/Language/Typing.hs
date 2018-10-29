@@ -18,6 +18,7 @@ module G2.Internals.Language.Typing
     , tyAppArgs
     , unTyApp
     , mkTyCon
+    , mkFullAppedTyCon
     , (.::)
     , (.::.)
     , specializes
@@ -95,12 +96,21 @@ mkTyApp (t:[]) = t
 mkTyApp (t1:t2:ts) = mkTyApp (TyApp t1 t2 : ts)
 
 mkTyCon :: Name
-           -> [Type] -- ^ Type arguments
-           -> Kind -- ^ Result kind
-           -> Type
-mkTyCon n ts k =
+        -> [Type]
+        -> Kind
+        -> Type
+mkTyCon n ts k = mkTyApp $ TyCon n k:ts
+
+-- | Makes a fully applied TyCon.
+-- Since the TyCon is fully applied, we can figure out its kind based on it's
+-- arguments and result kind.
+mkFullAppedTyCon :: Name
+                 -> [Type] -- ^ Type arguments
+                 -> Kind -- ^ Result kind
+                 -> Type
+mkFullAppedTyCon n ts k =
     let
-        tsk = mkTyApp $ map typeOf ts ++ [k]
+        tsk = mkTyFun $ map typeOf ts ++ [k]
     in
     mkTyApp $ TyCon n tsk:ts
 

@@ -160,7 +160,14 @@ createLHTCFuncs' lhm n adt = do
     lhd <- freshIdsN (map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) bi)
     let lhdv = map Var lhd
 
-    let fs = map (\n -> Var (Id n TyUnknown)) [eqN, neN, ltN, leN, gtN, geN, ppN]
+
+    let fs = map (\(n, t) -> Var (Id n t)) [ (eqN, (typeOf eq))
+                                           , (neN, (typeOf ne))
+                                           , (ltN, (typeOf lt))
+                                           , (leN, (typeOf le))
+                                           , (gtN, (typeOf gt))
+                                           , (geN, (typeOf ge))
+                                           , (ppN, (typeOf pp)) ]
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs
 
     lhdct <- lhDCType
@@ -177,23 +184,30 @@ createLHTCFuncs' lhm n adt = do
             return () -- return (TyCon n bnvK, fn')
         Nothing -> error $ "No LH Dict name for " ++ show n
 
+
 lhDCType :: LHStateM Type
 lhDCType = do
     lh <- lhTCM
     n <- freshIdN TYPE
 
+    a <- freshSeededStringN "a"
+    bool <- tyBoolT
+    let tva = TyVar (Id a TYPE)
+    let taab = TyFun tva (TyFun tva bool)
+
+
     return $ (TyFun
-                TyUnknown
+                taab -- eq
                 (TyFun
-                    TyUnknown
+                    taab --neq
                     (TyFun
-                        TyUnknown
+                        taab --lt
                         (TyFun
-                            TyUnknown
+                            taab --le
                             (TyFun
-                                TyUnknown
+                                taab --gt
                                 (TyFun
-                                    TyUnknown
+                                    taab --ge
                                     (TyFun
                                         TyUnknown
                                         (TyApp 

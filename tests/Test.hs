@@ -201,6 +201,14 @@ liquidTests =
                     [ AtLeast 1
                     , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
                                     -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
+
+                , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "r" 1000 1 [Exactly 0]
+                , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]
+                , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "concat" 1000 2 [AtLeast 3]
+                , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_concat_1" 1500 1 [AtLeast 1]
+
+                , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
+                , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -238,12 +246,14 @@ testFileTests =
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating5.hs" 400 (Just "output19") Nothing "f" 3 [AtLeast 1, RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y)), _] -> x + y + 1 == 19)]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/LetFloating/LetFloating6.hs" 400 (Just "output32") Nothing "f" 2 [AtLeast 1, RExists (\[App _ (Lit (LitInt x)), _] -> x == 25)]
 
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 4 && y > 100), Exactly 1]
-                , checkExpr "tests/TestFiles/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 2 && (dcInAppHasName "J" y 2 || isError y)), AtLeast 2]
+                , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass1.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
+                , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
+                , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
+                , checkExprWithConfig "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass4.hs" Nothing Nothing Nothing "f" 1 (mkConfigTestWithMap {steps = 1000}) [AtLeast 1]
+
+                , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
+                , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 4 && y > 100), Exactly 1]
+                , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 Nothing Nothing "changeJ" 3 [RForAll (\[_, x, y] -> dcInAppHasName "J" x 2 && (dcInAppHasName "J" y 2 || isError y)), AtLeast 2]
 
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Case1.hs" 400 Nothing Nothing "f" 2 [ RExists (\[App _ (Lit (LitInt x)), y] -> x < 0 && dcHasName "A" y)
                                                                                                               , RExists (\[App _ (Lit (LitInt x)), y] -> x >= 0 && dcHasName "C" y), Exactly 2]

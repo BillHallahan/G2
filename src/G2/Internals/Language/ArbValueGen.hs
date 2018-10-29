@@ -51,7 +51,7 @@ arbValue TyLitDouble _ av =
         d = doubleGen av
     in
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
-arbValue _ _ av = (Prim Undefined TyBottom, av)
+arbValue t _ av = (Prim Undefined t, av)
 
 -- Generates an arbitrary value of the given ADT,
 -- but will return something containing @(Prim Undefined)@ instead of an infinite Expr
