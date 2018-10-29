@@ -33,3 +33,6 @@ replicate n x = foldl (\acc _ -> x :+: acc) Emp [1..n]
 r :: a -> List a
 r x = foldl (\acc _ -> x :+: acc) Emp [1]
 
+{-@ r2 :: {l: (List Int) | 1 = (size l)} @-}
+r2 :: List Int
+r2 = foldl (\acc _ -> 1 :+: acc) Emp [1]
