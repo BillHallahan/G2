@@ -209,6 +209,8 @@ liquidTests =
 
                 , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
+
+                , checkLiquid "tests/Liquid/" "tests/Liquid/ExH.lhs" "c" 1500 1 [Exactly 0]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
