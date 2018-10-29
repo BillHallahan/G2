@@ -24,6 +24,8 @@ import Data.Monoid
 import Data.Semigroup
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
 -- Var f can potentially split into two states.
@@ -114,26 +116,20 @@ symbState eenv
 
         (i, ng') = freshId t ng
 
-        inferred = maybe [] (map snd) $ lookupAnnotAtLoc last_v annm -- lookupAnnot last_v annm
-        inferredExprs = mkInferredAssumptions (ars ++ [ret]) inferred
-        inferred' = foldr Assume (Var b) $ e:inferredExprs
+        -- inferred = maybe [] (map snd) $ lookupAnnotAtLoc last_v annm
+        -- inferredExprs = mkInferredAssumptions (ars ++ [ret]) inferred
+        -- inferred' = foldr Assume (Var b) $ e:inferredExprs
 
-        cexpr' = Let [(b, atf (Var i))] $ inferred'
+        -- cexpr' = Let [(b, atf (Var i))] $ inferred'
+        cexpr' = Let [(b, atf (Var i))] $ Assume e (Var b)
 
         eenv' = E.insertSymbolic (idName i) i eenv
-
-        -- the top of the stack may be an update frame for the variable currently being evaluated
-        -- we don't want the definition to be updated with a symbolic variable, so we remove it
-        -- stck' = case S.pop stck of
-        --             Just (UpdateFrame u, stck'') -> if u == fn then stck'' else stck
-        --             _ -> stck
-        stck' = stck
     in
     -- There may be TyVars or TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && null (tyVars cexprT) && fn `elem` ns of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck', [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
-        False -> Nothing
+        True -> trace ("True\n" ++ show fn ++ "\n" ++ show cexpr ++ "\n" ++ show (typeOf cexpr)) Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng', stck, [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars, returns = Var i}):abs_c})
+        False -> trace ("False\n" ++ show fn ++ "\n" ++ show cexpr ++ "\n" ++ show (typeOf cexpr)) Nothing
 symbState _ _ _ _ _ _ = Nothing
 
 -- Counts the maximal number of Vars with names in the ExprEnv

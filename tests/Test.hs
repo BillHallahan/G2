@@ -223,6 +223,7 @@ liquidTests =
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AbsTypeClass.hs" "callF" 1000 2
                     [ AtLeast 1
                     , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "f") ]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AbsTypeClassVerified.hs" "callF" 2000 2 [ Exactly 0 ]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
