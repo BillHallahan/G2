@@ -6,6 +6,8 @@ error_lh = []
 error_g2 = []
 no_error = []
 
+step_or_timeout = []
+
 count = 0
 
 abstract = 0
@@ -13,33 +15,43 @@ concrete = 0
 timeout = 0
 step = 0
 
+for_func = None
+
 for fn in os.listdir("./benchmark-reports"):
-    file = open("./benchmark-reports/" + fn)
+    with open("./benchmark-reports/" + fn) as file:
 
-    r = file.read()
+        r = file.read()
+        lines = r.splitlines()
 
-    if r.find("G2") != -1:
-        if r.find("ERROR OCCURRED IN LIQUIDHASKELL") != -1:
-            error_lh.append(fn)
+        #if len(lines) < 3 or lines[3] != "concat":
+        #    continue
+
+        if r.find("G2") != -1:
+            if r.find("ERROR OCCURRED IN LIQUIDHASKELL") != -1:
+                error_lh.append(fn)
+            else:
+                error_g2.append(fn)
         else:
-            error_g2.append(fn)
-    else:
-        no_error.append(fn)
+            no_error.append(fn)
 
-        if r.find("Abstract") != -1:
-            abstract += 1
-        elif r.find("Concrete") != -1:
-            concrete += 1
-        elif r.find("Timeout") != -1:
-            timeout += 1
-        else:
-            step += 1
+            if r.find("Abstract") != -1:
+                abstract += 1
+            elif r.find("Concrete") != -1:
+                concrete += 1
+            elif r.find("Timeout") != -1:
+                step_or_timeout.append(fn)
+                timeout += 1
+            else:
+                step_or_timeout.append(fn)
+                step += 1
 
-    file.close()
+        file.close()
 
-    count += 1
+        count += 1
 
 
+print("Step or timeout:")
+print(step_or_timeout)
 
 print("No Error:")
 print(no_error)
