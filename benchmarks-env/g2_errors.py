@@ -6,7 +6,9 @@ error_lh = []
 error_g2 = []
 no_error = []
 
-step_or_timeout = []
+abstract_counter = []
+step_lim_hit = []
+timeout_hit = []
 
 count = 0
 
@@ -23,8 +25,8 @@ for fn in os.listdir("./benchmark-reports"):
         r = file.read()
         lines = r.splitlines()
 
-        #if len(lines) < 3 or lines[3] != "concat":
-        #    continue
+        if len(lines) < 3 or lines[3] != "foldr1":
+            continue
 
         if r.find("G2") != -1:
             if r.find("ERROR OCCURRED IN LIQUIDHASKELL") != -1:
@@ -35,26 +37,29 @@ for fn in os.listdir("./benchmark-reports"):
             no_error.append(fn)
 
             if r.find("Abstract") != -1:
+                abstract_counter.append(fn)
                 abstract += 1
             elif r.find("Concrete") != -1:
                 concrete += 1
             elif r.find("Timeout") != -1:
-                step_or_timeout.append(fn)
+                timeout_hit.append(fn)
                 timeout += 1
             else:
-                step_or_timeout.append(fn)
+                step_lim_hit.append(fn)
                 step += 1
 
         file.close()
 
         count += 1
 
-
-print("Step or timeout:")
-print(step_or_timeout)
-
 print("No Error:")
 print(no_error)
+
+print("Step limit hit:")
+print(step_lim_hit)
+
+print("Timeout hit:")
+print(timeout_hit)
 
 print("Error LH:")
 print(error_lh)
