@@ -47,20 +47,24 @@ for file in onlyfiles:
             else:
                 stats[t.func_name]['Error'] += 1
                 print(file)
-        if '0m\nERROR' in outputstr:
+        elif '0m\nERROR:\n\n' in outputstr:
             stats[t.func_name]['None'] += 1
-        if 'Abstract' in outputstr:
+        elif 'Abstract' in outputstr:
             stats[t.func_name]['Abstract'] += 1
-        if 'Concrete' in outputstr:
+        elif 'Concrete' in outputstr:
             stats[t.func_name]['Concrete'] += 1
-        if 'Timeout' in outputstr:
+        elif 'Timeout' in outputstr:
             stats[t.func_name]['Timeout'] += 1
+        else:
+            stats[t.func_name]['StepExhaustion'] += 1
+            
 
 
-print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format("Func",'LHError', 'Error','None','Abstract','Concrete','Timeout'))
+print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format('Func','LHError', 'Error','None','Abstract','Concrete','Timeout', 'Step Exhaustion'))
 
 for key in stats:
-    print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format(
+    print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format(
         key, stats[key]['LHError'], stats[key]['Error'],
         stats[key]['None'], stats[key]['Abstract'],
-        stats[key]['Concrete'], stats[key]['Timeout']))
+        stats[key]['Concrete'], stats[key]['Timeout'], stats[key]['StepExhaustion']
+    ))

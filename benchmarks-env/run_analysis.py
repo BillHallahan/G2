@@ -52,11 +52,11 @@ def get_first_word_at_line(file_name, line_num):
     :param line_num:  the line number
     :return: the function name.
     """
-    fp = open(os.path.join(STUDY_DIR, file_name))
-    word = ''
-    for i, line in enumerate(fp):
-        if i == (line_num[0] - 1):
-            word = line.split()[0]
+    with open(os.path.join(STUDY_DIR, file_name)) as fp:
+        word = ''
+        for i, line in enumerate(fp):
+            if i == (line_num[0] - 1):
+                word = line.split()[0]
     return word
 
 
