@@ -179,6 +179,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "getPos" 1000 4
                     [ AtLeast 1
                     , RExists (\[_, _, (App _ x), y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' == y' && y' == 10)]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "goodGet" 1000 4 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/SimpleAnnot.hs" "simpleF" 1000 1 [Exactly 0]
