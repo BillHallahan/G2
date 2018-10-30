@@ -211,7 +211,7 @@ liquidTests =
                 , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
 
-                , checkLiquid "tests/Liquid/" "tests/Liquid/ExH.lhs" "c" 1500 1 [Exactly 0]
+                , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/ExH.hs" "c" 1 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
 
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/Replicate.hs" "replicate" 2000 3
                     [ AtLeast 1

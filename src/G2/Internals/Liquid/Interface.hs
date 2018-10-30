@@ -53,6 +53,8 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
+import Debug.Trace
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -168,7 +170,7 @@ initializeLH ghci_cg ifi = do
     createMeasures lh_measures
 
     let specs = funcSpecs ghcInfos
-    mergeLHSpecState specs
+    trace (show $ map fst specs) mergeLHSpecState specs
 
     addSpecialAsserts
     addTrueAsserts ifi
@@ -206,7 +208,8 @@ getGHCInfos' config ghci = do
     return (LHOutput {ghcI = ghci, cgI = undefined {- cgi -}, solution = undefined {- sol -} })
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
-funcSpecs = concatMap (gsTySigs . spec)
+funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
+            ++ concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)

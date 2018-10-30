@@ -35,6 +35,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
 
@@ -87,14 +89,23 @@ mergeLHSpecState' v lst = do
         (Id (Name n m _ _) _) = mkIdUnsafe v
         g2N = E.lookupNameMod n m eenv
 
-    case g2N of
+    case trace (show (fmap fst g2N)) g2N of
         Just (n', e) -> do
-            e' <- mergeSpecType (val lst) n' e
-            insertE n' e'
+            case convertVar n' of
+                True -> do
+                    e' <- mergeSpecType (val lst) n' e
+                    insertE n' e'
 
-            assumpt <- createAssumption (val lst) e
-            insertAssumptionM n' assumpt
+                    assumpt <- createAssumption (val lst) e
+                    insertAssumptionM n' assumpt
+                False -> return ()
         Nothing -> return ()
+
+convertVar :: Name -> Bool
+convertVar (Name "error" _ _ _) = False
+convertVar (Name "patError" _ _ _) = False
+convertVar (Name "." _ _ _) = False
+convertVar _ = True
 
 mergeSpecType :: SpecType -> Name -> Expr -> LHStateM Expr
 mergeSpecType st fn e = do
@@ -248,6 +259,15 @@ convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
 convertSpecType _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
+convertSpecType _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
+convertSpecType _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
+convertSpecType _ _ _ _ st@(RAllS {}) = error $ "RAllS " ++ show st
+convertSpecType _ _ _ _ st@(RApp {}) = error $ "RApp " ++ show st
+convertSpecType _ _ _ _ st@(RAllE {}) = error $ "RAllE " ++ show st
+convertSpecType _ _ _ _ st@(REx {}) = error $ "REx " ++ show st
+convertSpecType _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
+convertSpecType _ _ _ _ st@(RAppTy {}) = error $ "RAppTy " ++ show st
+convertSpecType _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ st = error $ "Bad st = " ++ show st
 
 polyPredFunc :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr

@@ -22,18 +22,13 @@ data List a = Emp
     size ((:+:) x xs) = 1 + size xs
   @-}
 
-{-@ type ListN a N  = {v:List a | size v = N} @-}
-
 {-@ length :: x:List a -> {v:Int | v = len(x)}@-}
 length            :: List a -> Int
 length Emp        = 0
 length (x :+: xs) = 1 + length xs
 
 {-@ prop_size :: TRUE @-}
-prop_size  = lAssert (length l0 == 0)
-
-{-@ l0 :: ListN Int 0 @-}
-l0     = Emp :: List Int
+prop_size  = lAssert (length (Emp :: List Int) == 0)
 
 {-@ die :: {v:String | false} -> a @-}
 die str = error ("Oops, I died!" ++ str)
