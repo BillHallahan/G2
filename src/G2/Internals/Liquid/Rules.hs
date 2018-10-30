@@ -4,7 +4,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Internals.Liquid.Rules ( LHRed (..)
-                                 , LHHalter (..)
+                                 , LHAbsHalter (..)
                                  , LHTracker (..)
                                  , lhReduce
                                  , initialTrack) where
@@ -19,8 +19,10 @@ import qualified G2.Internals.Language.Stack as S
 import G2.Internals.Liquid.Annotations
 import G2.Internals.Solver hiding (Assert)
 
+import Data.List
 import Data.Maybe
 import Data.Monoid
+import Data.Ord
 import Data.Semigroup
 import qualified Data.Text as T
 
@@ -246,9 +248,6 @@ instance ASTContainer LHTracker Type where
         lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
 
 data LHRed con = LHRed con Config
--- data LHOrderer = LHOrderer T.Text (Maybe T.Text) ExprEnv
-data LHHalter = LHHalter T.Text (Maybe T.Text) ExprEnv
-
 
 instance Solver con => Reducer (LHRed con) LHTracker where
     redRules lhr@(LHRed solver config) s = do
@@ -256,8 +255,33 @@ instance Solver con => Reducer (LHRed con) LHTracker where
 
         return $ (if r == RuleIdentity then Finished else InProgress, s', lhr)
 
-instance Halter LHHalter Int LHTracker where
-    initHalt (LHHalter entry modn eenv) _ _ =
+-- | Halt if we go `n` steps past another, already accepted state 
+data LHLimitByAccepted = LHLimitByAccepted Int
+
+instance Halter LHLimitByAccepted (Maybe Int) LHTracker where
+    initHalt _ _ _ = Nothing
+
+    -- Find all accepted states with the (current) minimal number of abstracted functions
+    -- Then, get the minimal number of steps taken by one of those states
+    updatePerStateHalt _ _ (Processed { accepted = []}) _ = Nothing
+    updatePerStateHalt _ _ (Processed { accepted = acc@(_:_)}) _ =
+        let
+            minT = minimum $ map (length . abstract_calls . track) acc
+            accMin = filter (\s -> minT == (length . abstract_calls . track $ s)) acc
+        in
+        Just . minimum $ map (length . rules) acc
+    
+    stopRed _ Nothing _ _ = Continue
+    stopRed (LHLimitByAccepted n) (Just nAcc) _ s = if length (rules s) > nAcc + n then Discard else Continue
+    
+    stepHalter _ hv _ _ = hv
+
+-- | Halt if we abstract more calls than some other already accepted state
+data LHAbsHalter = LHAbsHalter T.Text (Maybe T.Text) ExprEnv
+
+instance Halter LHAbsHalter Int LHTracker where
+    -- We initialize the maximal number of abstracted variables, to the number of variables in the entry function
+    initHalt (LHAbsHalter entry modn eenv) _ _ =
         let 
             fe = case E.occLookup entry modn eenv of
                 Just e -> e
@@ -265,7 +289,7 @@ instance Halter LHHalter Int LHTracker where
         in
         initialTrack eenv fe
 
-    reInitHalt _ ii (Processed {accepted = acc}) _ = minimum $ ii:map (length . abstract_calls . track) acc
+    updatePerStateHalt _ ii (Processed {accepted = acc}) _ = minimum $ ii:map (length . abstract_calls . track) acc
 
     stopRed _ hv _ s = if length (abstract_calls $ track s) > hv then Discard else Continue
 

@@ -454,7 +454,8 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     r <- run (NonRedPCRed config
                :<~| StdRed con' config)
              (MaxOutputsHalter 
-               :<~> ZeroHalter)
+               :<~> ZeroHalter
+               :<~> AcceptHalter)
              NextOrderer con' [] config init_state
 
     closeIO con

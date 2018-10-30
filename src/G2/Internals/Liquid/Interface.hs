@@ -128,7 +128,8 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                       :<~| LHRed con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
-                      :<~> LHHalter entry mb_modname (expr_env init_state)) 
+                      :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                      :<~> AcceptHalter) 
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state
               else run 
@@ -138,7 +139,8 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
-                      :<~> LHHalter entry mb_modname (expr_env init_state)) 
+                      :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                      :<~> AcceptHalter) 
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state
     
