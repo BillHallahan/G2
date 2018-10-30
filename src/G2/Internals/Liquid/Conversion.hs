@@ -198,7 +198,7 @@ convertAssertSpecType m bt is r st = do
 
 
 -- | See also: convertAssumeSpecType, convertAssertSpecType
--- We can maybe pass an Id for the value returned by the function
+-- We can Maybe pass an Id for the value returned by the function
 -- If we do, our Expr includes the Refinement on the return value,
 -- otherwise it does not.  This allows us to use this same function to
 -- translate both for assumptions and assertions
@@ -256,7 +256,13 @@ convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
 
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
-convertSpecType m _ _ _ st@(RAppTy {rt_arg = arg, rt_res = res, rt_reft = r}) = error $ "RAppTy\nm = " ++ show m ++ "\nall = " ++ show st ++  "\nrt_arg = " ++ show arg ++ "\nrt_res = " ++ show res ++ "\nrt_reft = " ++ show r
+convertSpecType m bt _ r st@(RAppTy {rt_arg = arg, rt_res = res, rt_reft = reft})
+    | Just r' <- r = do
+        resT <- unsafeSpecTypeToType arg
+        argsPred <- polyPredFunc [res] resT m bt r'
+        return argsPred
+        -- error $ "RAppTy\nm = " ++ show m ++ "\nall = " ++ show st ++  "\nrt_arg = " ++ show arg ++ "\nrt_res = " ++ show res ++ "\nrt_reft = " ++ show r ++ "\n\n" ++ show argsPred
+    | otherwise = mkTrueE
 convertSpecType _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
 convertSpecType _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
 convertSpecType _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
@@ -565,6 +571,12 @@ specTypeToType (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     t <- specTypeToType rty
     return $ fmap (TyForAll (NamedTyBndr i)) t
 specTypeToType (RApp {rt_tycon = c, rt_args = as}) = rTyConType c as
+specTypeToType (RAppTy {rt_arg = arg, rt_res = res}) = do
+    argT <- specTypeToType arg
+    resT <- specTypeToType res
+    case (argT, resT) of
+        (Just argT', Just resT') -> return $ Just (TyApp argT' resT')
+        _ -> return Nothing
 specTypeToType rty = error $ "Unmatched pattern in specTypeToType " ++ show (pprint rty)
 
 rTyConType :: RTyCon -> [SpecType]-> LHStateM (Maybe Type)

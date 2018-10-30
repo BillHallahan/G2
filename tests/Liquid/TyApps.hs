@@ -8,10 +8,10 @@ class Container t where
 instance Container C where
     contains (C x) = x
 
-{-@ getPosInt :: Container t => t { x:Int | x >= 0 } -> { y:Int | y > 0 } @-}
-getPosInt :: Container t => t Int -> Int
-getPosInt = contains
+{-@ getLt10Int :: Container t => t { x:Int | x <= 10 } -> { y:Int | y < 10 } @-}
+getLt10Int :: Container t => t Int -> Int
+getLt10Int = contains
 
-{-@ getPos :: (Num a, Container t) => t { x:a | x >= 0 } -> { y:a | y > 0 } @-}
-getPos :: (Num a, Container t) => t a -> a
-getPos = contains
+{-@ getLt10 :: (Num a, Container t) => t { x:a | x <= 10 } -> { y:a | y < 10 } @-}
+getLt10 :: (Num a, Container t) => t a -> a
+getLt10 = contains
