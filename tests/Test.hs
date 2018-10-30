@@ -109,8 +109,10 @@ liquidTests =
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > z' || y' > z'), AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 1000 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > 0 && x' >= y' && z' <= 0), AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 4000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 6000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
+                , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 4000 2
+                    [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
+                , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 6000 2
+                    [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "xSqPlusYSq" 1000 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' + y' >= z'), AtLeast 1]
 
@@ -124,7 +126,7 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 4000 3 [AtLeast 3, RForAll getNthErrors]
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 2000 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 4 [AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 2 [AtLeast 3]
+                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 4 [AtLeast 3]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
                     [AtLeast 1, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
@@ -461,6 +463,10 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     closeIO con
 
     return $ map (\(_, i, o, _) -> (i, o)) r
+
+checkLiquidWithNoCutOff :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
+checkLiquidWithNoCutOff proj fp entry stps i reqList =
+    checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps, cut_off = stps}) reqList
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps}) reqList

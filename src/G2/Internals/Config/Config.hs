@@ -24,6 +24,7 @@ data Config = Config {
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , steps :: Int -- ^ How many steps to take when running States
+    , cut_off :: Int -- ^ How many steps to take after finding an equally good equiv state, in LH mode
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
@@ -50,6 +51,7 @@ mkConfig as m = Config {
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , steps = strArg "n" as m read 500
+    , cut_off = strArg "cut-off" as m read 1000
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off

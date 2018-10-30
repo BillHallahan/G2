@@ -129,6 +129,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                      :<~> LHLimitByAccepted (cut_off config)
                       :<~> AcceptHalter) 
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state
@@ -140,6 +141,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                      :<~> LHLimitByAccepted (cut_off config)
                       :<~> AcceptHalter) 
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state

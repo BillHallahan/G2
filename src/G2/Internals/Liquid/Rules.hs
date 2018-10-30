@@ -4,6 +4,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Internals.Liquid.Rules ( LHRed (..)
+                                 , LHLimitByAccepted (..)
                                  , LHAbsHalter (..)
                                  , LHTracker (..)
                                  , lhReduce
@@ -280,7 +281,8 @@ instance Halter LHLimitByAccepted (Maybe Int) LHTracker where
 data LHAbsHalter = LHAbsHalter T.Text (Maybe T.Text) ExprEnv
 
 instance Halter LHAbsHalter Int LHTracker where
-    -- We initialize the maximal number of abstracted variables, to the number of variables in the entry function
+    -- We initialize the maximal number of abstracted variables,
+    -- to the number of variables in the entry function
     initHalt (LHAbsHalter entry modn eenv) _ _ =
         let 
             fe = case E.occLookup entry modn eenv of
