@@ -53,8 +53,6 @@ import Var
 
 import G2.Internals.Language.KnownValues
 
-import Debug.Trace
-
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -170,7 +168,7 @@ initializeLH ghci_cg ifi = do
     createMeasures lh_measures
 
     let specs = funcSpecs ghcInfos
-    trace (show $ map fst specs) mergeLHSpecState specs
+    mergeLHSpecState specs
 
     addSpecialAsserts
     addTrueAsserts ifi

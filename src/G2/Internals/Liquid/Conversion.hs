@@ -35,8 +35,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import Debug.Trace
-
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
 
@@ -89,7 +87,7 @@ mergeLHSpecState' v lst = do
         (Id (Name n m _ _) _) = mkIdUnsafe v
         g2N = E.lookupNameMod n m eenv
 
-    case trace (show (fmap fst g2N)) g2N of
+    case g2N of
         Just (n', e) -> do
             case convertVar n' of
                 True -> do

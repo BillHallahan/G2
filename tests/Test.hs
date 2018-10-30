@@ -207,6 +207,17 @@ liquidTests =
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "concat" 1000 2 [AtLeast 3]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_concat_1" 1500 1 [AtLeast 1]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests2.lhs" "prop_size" 1500 1 [AtLeast 1]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/ListTests3.lhs" "prop_map" 2000 4
+                    [ AtLeast 3
+                    , RForAll (\[_, _, f, _] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, _, _, f', _] }) ]  -> n == "map" && f == f') ]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/ListTests3.lhs" "replicate" 2000 3
+                    [ AtLeast 3
+                    , RForAll (\[_, nA, aA] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, nA', aA'] }) ]
+                        -> n == "replicate" && nA == nA' && aA == aA') ]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/ListTests3.lhs" "prop_size" 2000 0
+                    [ AtLeast 1
+                    , RForAll (\[] _ [(FuncCall { funcName = Name n _ _ _, returns = r }) ]
+                        -> n == "length2" && getIntB r (/= 3)) ]
 
                 , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
@@ -470,7 +481,11 @@ checkAbsLiquidWithConfig proj fp entry i config reqList = do
 
     let (ch, r) = case res of
                 Left e -> (False, Left e)
-                Right exprs -> (checkAbsLHExprGen (map (\(s, inp, out, _) -> (s, inp, out)) exprs) i reqList, Right ())
+                Right exprs ->
+                    let
+                        te = checkAbsLHExprGen (map (\(s, inp, out, _) -> (s, inp, out)) exprs) i reqList
+                    in
+                    (null te, Right te)
 
     return . testCase fp
         $ assertBool ("Liquid test for file " ++ fp ++ 
