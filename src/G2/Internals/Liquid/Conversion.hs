@@ -256,6 +256,7 @@ convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
 
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
+convertSpecType m _ _ _ st@(RAppTy {rt_arg = arg, rt_res = res, rt_reft = r}) = error $ "RAppTy\nm = " ++ show m ++ "\nall = " ++ show st ++  "\nrt_arg = " ++ show arg ++ "\nrt_res = " ++ show res ++ "\nrt_reft = " ++ show r
 convertSpecType _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
 convertSpecType _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
 convertSpecType _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
