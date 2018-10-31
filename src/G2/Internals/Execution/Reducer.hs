@@ -321,13 +321,13 @@ instance Halter MaxOutputsHalter (Maybe Int) t where
     stepHalter _ hv _ _ = hv
 
 -- | Switch execution every n steps
-data SwitchEveryNHalter = SwitchEveryNHalter
+data SwitchEveryNHalter = SwitchEveryNHalter Int
 
-instance Halter SwitchEveryNHalter (Int, Int) t where
-    initHalt _ config _ = let s = steps config in (s, s)
-    updatePerStateHalt _ hv _ _ = hv
-    stopRed _ (_, i) _ _ = if i <= 0 then Switch else Continue
-    stepHalter _ (tot, i) _ _ = if i <= 0 then (tot, tot) else (tot, i - 1)
+instance Halter SwitchEveryNHalter Int t where
+    initHalt (SwitchEveryNHalter sw) config _ = sw
+    updatePerStateHalt (SwitchEveryNHalter sw) hv _ _ = sw
+    stopRed _ i _ _ = if i <= 0 then Switch else Continue
+    stepHalter _ i _ _ = i - 1
 
 -- | If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
 -- matches a Tag in the Accepted State list,
