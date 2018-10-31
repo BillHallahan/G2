@@ -276,7 +276,8 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
             $ allMin (length . abstract_calls . track) acc
     
     stopRed _ Nothing _ _ = Continue
-    stopRed (LHLimitByAcceptedHalter n) (Just nAcc) _ s = if length (rules s) > nAcc + n then Switch else Continue
+    stopRed (LHLimitByAcceptedHalter n) (Just nAcc) _ s =
+        if length (rules s) > nAcc + n then Discard else Continue
     
     stepHalter _ hv _ _ = hv
 
@@ -284,20 +285,23 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
 -- applied, or throws away all the states if no such rule exists
 data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer Int
  
-instance Orderer LHLimitByAcceptedOrderer () LHTracker where
-    initPerStateOrder _ _ _ = ()
+instance Orderer LHLimitByAcceptedOrderer Int Int LHTracker where
+    initPerStateOrder _ _ _ = 0
 
-    orderStates _ (Processed { accepted = [] }) ss = ss
-    orderStates (LHLimitByAcceptedOrderer n) (Processed { accepted = acc }) ss =
-        let
-            mr = minimum . map (length . rules . getState)
-                $ allMin (length . abstract_calls . track . getState) acc
-            -- Find the first state where less than the current maximal number of rules have been applied
-            (bs, gs) = break (\s -> (length . rules . getState $ s) < mr + n) ss
-        in
-        case gs of
-            (s:gs') -> s:gs' ++ bs
-            [] -> [] 
+    orderStates (LHLimitByAcceptedOrderer n) _ _ = length . rules 
+    -- orderStates _ (Processed { accepted = [] }) ss = ss
+    -- orderStates (LHLimitByAcceptedOrderer n) (Processed { accepted = acc }) ss =
+    --     let
+    --         mr = minimum . map (length . rules . getState)
+    --             $ allMin (length . abstract_calls . track . getState) acc
+    --         -- Find the first state where less than the current maximal number of rules have been applied
+    --         (lt, gt) = partition (\s -> (length . rules . getState $ s) < mr + n) ss
+    --     in
+    --     case lt of
+    --         (s:lt') -> s:lt' ++ gt
+    --         [] -> [] 
+
+
 
 allMin :: Ord b => (a -> b) -> [a] -> [a]
 allMin f s =

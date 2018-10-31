@@ -107,7 +107,7 @@ run :: (Named hv, Show t
        , ASTContainer t Type
        , Reducer r t
        , Halter h hv t
-       , Orderer or sov t
+       , Orderer or sov b t
        , Solver solver) => r -> h -> or ->
     solver -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
 run red hal ord con pns config (is@State { type_env = tenv
