@@ -52,3 +52,7 @@ f3 x = x + g3 x
 {-@ g3 :: Int -> Int @-}
 g3 :: Int -> Int
 g3 x = x
+
+{-@ h :: {x:Int | x == 8} @-}
+h :: Int
+h = 6 + 2

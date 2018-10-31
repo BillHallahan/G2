@@ -89,12 +89,21 @@ mergeLHSpecState' v lst = do
 
     case g2N of
         Just (n', e) -> do
-            e' <- mergeSpecType (val lst) n' e
-            insertE n' e'
+            case convertVar n' of
+                True -> do
+                    e' <- mergeSpecType (val lst) n' e
+                    insertE n' e'
 
-            assumpt <- createAssumption (val lst) e
-            insertAssumptionM n' assumpt
+                    assumpt <- createAssumption (val lst) e
+                    insertAssumptionM n' assumpt
+                False -> return ()
         Nothing -> return ()
+
+convertVar :: Name -> Bool
+convertVar (Name "error" _ _ _) = False
+convertVar (Name "patError" _ _ _) = False
+convertVar (Name "." _ _ _) = False
+convertVar _ = True
 
 mergeSpecType :: SpecType -> Name -> Expr -> LHStateM Expr
 mergeSpecType st fn e = do
@@ -189,7 +198,7 @@ convertAssertSpecType m bt is r st = do
 
 
 -- | See also: convertAssumeSpecType, convertAssertSpecType
--- We can maybe pass an Id for the value returned by the function
+-- We can Maybe pass an Id for the value returned by the function
 -- If we do, our Expr includes the Refinement on the return value,
 -- otherwise it does not.  This allows us to use this same function to
 -- translate both for assumptions and assertions
@@ -247,8 +256,40 @@ convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
 
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
+convertSpecType m bt _ r st@(RAppTy {rt_arg = arg, rt_res = res, rt_reft = reft})
+    | Just r' <- r = mkTrueE
+        -- t <- unsafeSpecTypeToType st
+        -- argsPred <- polyPredFunc2 [res] t m bt r'
+        -- return argsPred
+    | otherwise = mkTrueE
 convertSpecType _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
+convertSpecType _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
+convertSpecType _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
+convertSpecType _ _ _ _ st@(RAllS {}) = error $ "RAllS " ++ show st
+convertSpecType _ _ _ _ st@(RApp {}) = error $ "RApp " ++ show st
+convertSpecType _ _ _ _ st@(RAllE {}) = error $ "RAllE " ++ show st
+convertSpecType _ _ _ _ st@(REx {}) = error $ "REx " ++ show st
+convertSpecType _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
+convertSpecType _ _ _ _ st@(RAppTy {}) = error $ "RAppTy " ++ show st
+convertSpecType _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ st = error $ "Bad st = " ++ show st
+
+polyPredFunc2 :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
+polyPredFunc2 as ty m bt b = do
+    dict <- lhTCDict m ty
+    error (show dict)
+    as' <- mapM (polyPredLam m bt) as
+
+    bool <- tyBoolT
+
+    let ar1 = Type (typeOf b)
+        ars = [dict] ++ as' ++ [Var b]
+        t = TyForAll (NamedTyBndr b) $ foldr1 TyFun $ map typeOf ars ++ [bool]
+
+    lhPP <- lhPPM
+    
+    return $ mkApp $ Var (Id lhPP t):ar1:ars
+
 
 polyPredFunc :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc as ty m bt b = do
@@ -546,6 +587,12 @@ specTypeToType (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     t <- specTypeToType rty
     return $ fmap (TyForAll (NamedTyBndr i)) t
 specTypeToType (RApp {rt_tycon = c, rt_args = as}) = rTyConType c as
+specTypeToType (RAppTy {rt_arg = arg, rt_res = res}) = do
+    argT <- specTypeToType arg
+    resT <- specTypeToType res
+    case (argT, resT) of
+        (Just argT', Just resT') -> return $ Just (TyApp argT' resT')
+        _ -> return Nothing
 specTypeToType rty = error $ "Unmatched pattern in specTypeToType " ++ show (pprint rty)
 
 rTyConType :: RTyCon -> [SpecType]-> LHStateM (Maybe Type)

@@ -19,6 +19,7 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , TaggerRed (..)
 
                                       -- Halters
+                                      , AcceptHalter (..)
                                       , HCombiner (..)
                                       , ZeroHalter (..)
                                       , DiscardIfAcceptedTag (..)
@@ -111,7 +112,7 @@ class Halter h hv t | h -> hv where
 
     -- | Runs whenever we switch to evaluating a different state,
     -- to update the halter value of that new state
-    reInitHalt :: h -> hv -> Processed (State t) -> State t -> hv
+    updatePerStateHalt :: h -> hv -> Processed (State t) -> State t -> hv
 
     -- | Determines whether to continue reduction on the current state
     stopRed :: h -> hv -> Processed (State t) -> State t -> HaltC
@@ -266,10 +267,10 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         C hv1 hv2
 
-    reInitHalt (h1 :<~> h2) (C hv1 hv2) proc s =
+    updatePerStateHalt (h1 :<~> h2) (C hv1 hv2) proc s =
         let
-            hv1' = reInitHalt h1 hv1 proc s
-            hv2' = reInitHalt h2 hv2 proc s
+            hv1' = updatePerStateHalt h1 hv1 proc s
+            hv2' = updatePerStateHalt h2 hv2 proc s
         in
         C hv1' hv2'
 
@@ -287,11 +288,24 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         C hv1' hv2'
 
+-- | Accepts a state when it is in ExecNormalForm
+data AcceptHalter = AcceptHalter
+
+instance Halter AcceptHalter () t where
+    initHalt _ _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+    stopRed _ _ _ s =
+        case isExecValueForm s && true_assert s of
+            True -> Accept
+            False -> Continue
+    stepHalter _ _ _ _ = ()
+
+-- | Allows execution to continue until the step counter hits 0, then discards the state
 data ZeroHalter = ZeroHalter
 
 instance Halter ZeroHalter Int t where
     initHalt _ config _ = steps config
-    reInitHalt _ hv _ _ = hv
+    updatePerStateHalt _ hv _ _ = hv
     stopRed = halterIsZero
     stepHalter = halterSub1
 
@@ -299,18 +313,19 @@ data MaxOutputsHalter = MaxOutputsHalter
 
 instance Halter MaxOutputsHalter (Maybe Int) t where
     initHalt _ config _ = maxOutputs config
-    reInitHalt _ hv _ _ = hv
+    updatePerStateHalt _ hv _ _ = hv
     stopRed _ m (Processed {accepted = acc}) _ =
         case m of
             Just m' -> if length acc >= m' then Discard else Continue
             _ -> Continue
     stepHalter _ hv _ _ = hv
 
+-- | Switch execution every n steps
 data SwitchEveryNHalter = SwitchEveryNHalter
 
 instance Halter SwitchEveryNHalter (Int, Int) t where
     initHalt _ config _ = let s = steps config in (s, s)
-    reInitHalt _ hv _ _ = hv
+    updatePerStateHalt _ hv _ _ = hv
     stopRed _ (_, i) _ _ = if i <= 0 then Switch else Continue
     stepHalter _ (tot, i) _ _ = if i <= 0 then (tot, tot) else (tot, i - 1)
 
@@ -322,13 +337,13 @@ data DiscardIfAcceptedTag = DiscardIfAcceptedTag Name
 instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
     initHalt _ _ _ = S.empty
     
-    -- reInitHalter gets the intersection of the accepted States Tags,
+    -- updatePerStateHalt gets the intersection of the accepted States Tags,
     -- and the Tags of the State being evaluated.
     -- Then, it filters further by the name in the Halter
-    reInitHalt (DiscardIfAcceptedTag (Name n m _ _)) 
-               _ 
-               (Processed {accepted = acc})
-               (State {tags = ts}) =
+    updatePerStateHalt (DiscardIfAcceptedTag (Name n m _ _)) 
+                       _ 
+                       (Processed {accepted = acc})
+                       (State {tags = ts}) =
         let
             allAccTags = S.unions $ map tags acc
             matchCurrState = S.intersection ts allAccTags
@@ -346,6 +361,7 @@ instance Orderer NextOrderer () t where
     initPerStateOrder _ _ _ = ()
     orderStates = executeNext
 
+-- | Continue execution on the state that has been picked the least in the past. 
 data PickLeastUsedOrderer = PickLeastUsedOrderer
 
 instance Orderer PickLeastUsedOrderer Int t where
@@ -369,10 +385,7 @@ halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> In
 halterSub1 _ h _ _ = h - 1
 
 halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> HaltC
-halterIsZero _ 0 _ s =
-    case isExecValueForm s && true_assert s of
-        True -> Accept
-        False -> Discard
+halterIsZero _ 0 _ s = Discard
 halterIsZero _ _ _ _ = Continue
 
 --------
@@ -431,7 +444,7 @@ runReducer red hal ord states config =
 reInitFirstHalter :: Halter h hv t => h -> Processed (ExState hv sov t) -> [ExState hv sov t] -> [ExState hv sov t]
 reInitFirstHalter h proc (es@ExState {state = s, halter_val = hv}:xs) =
     let
-        hv' = reInitHalt h hv (processedToState proc) s
+        hv' = updatePerStateHalt h hv (processedToState proc) s
     in
     es {halter_val = hv'}:xs
 reInitFirstHalter _ _ [] = []

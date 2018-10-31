@@ -114,7 +114,8 @@ runGHC as = do
                   (NonRedPCRed config
                     :<~| StdRed con' config) 
                   (MaxOutputsHalter 
-                    :<~> ZeroHalter)
+                    :<~> ZeroHalter
+                    :<~> AcceptHalter)
                   NextOrderer
                   con' [] config init_state
               else run
@@ -123,7 +124,8 @@ runGHC as = do
                     :<~| StdRed con' config) 
                   (DiscardIfAcceptedTag state_name 
                     :<~> MaxOutputsHalter 
-                    :<~> ZeroHalter)
+                    :<~> ZeroHalter
+                    :<~> AcceptHalter)
                   NextOrderer
                   con' [] config init_state
 

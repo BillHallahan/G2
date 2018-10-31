@@ -128,7 +128,9 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                       :<~| LHRed con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
-                      :<~> LHHalter entry mb_modname (expr_env init_state)) 
+                      :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                      :<~> LHLimitByAccepted (cut_off config)
+                      :<~> AcceptHalter) 
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state
               else run 
@@ -138,7 +140,9 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
-                      :<~> LHHalter entry mb_modname (expr_env init_state)) 
+                      :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                      :<~> LHLimitByAccepted (cut_off config)
+                      :<~> AcceptHalter) 
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state
     
@@ -206,7 +210,8 @@ getGHCInfos' config ghci = do
     return (LHOutput {ghcI = ghci, cgI = undefined {- cgi -}, solution = undefined {- sol -} })
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
-funcSpecs = concatMap (gsTySigs . spec)
+funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
+            ++ concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)
