@@ -289,7 +289,7 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
     -- If we start trying to execute a state with more than the maximal number
     -- of rules applied, we throw it away.
     discardOnStart (LHLimitByAcceptedHalter n) (Just v) _ s = length (rules s) > v + n
-    discardOnStart _ Nothing _ _ = False
+    discardOnStart _ Nothing _ s = False
 
     -- Find all accepted states with the (current) minimal number of abstracted functions
     -- Then, get the minimal number of steps taken by one of those states
@@ -300,7 +300,7 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
     
     stopRed _ Nothing _ _ = Continue
     stopRed (LHLimitByAcceptedHalter n) (Just nAcc) _ s =
-        if length (rules s) > nAcc + n then Discard else Continue
+        if length (rules s) > nAcc + n then Switch else Continue
     
     stepHalter _ hv _ _ = hv
 

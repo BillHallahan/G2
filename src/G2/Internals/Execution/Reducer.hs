@@ -268,6 +268,13 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         C hv1' hv2'
 
+    discardOnStart (h1 :<~> h2) (C hv1 hv2) proc s =
+        let
+            b1 = discardOnStart h1 hv1 proc s
+            b2 = discardOnStart h2 hv2 proc s
+        in
+        b1 || b2
+
     stopRed (h1 :<~> h2) (C hv1 hv2) proc s =
         let
             hc1 = stopRed h1 hv1 proc s
@@ -395,7 +402,7 @@ runReducer red hal ord states config =
         | hc == Accept =
             let
                 fnsh' = fnsh {accepted = rss:accepted fnsh}
-                (s', xs') = minState ord' fnsh' xs -- orderStates ord' fnsh' xs
+                (s', xs') = minState ord' fnsh' xs
             in
             case s' of
                 Just s'' -> return . (:) rss =<< runReducer' red' hal' ord' fnsh' (reInitFirstHalter hal' fnsh' (s'':xs'))
@@ -403,21 +410,21 @@ runReducer red hal ord states config =
         | hc == Discard =
             let
                 fnsh' = fnsh {discarded = rss:discarded fnsh}
-                (s', xs') = minState ord' fnsh' xs -- xs' = orderStates ord' fnsh' xs
+                (s', xs') = minState ord' fnsh' xs
             in
             case s' of
                 Just s'' -> runReducer' red' hal' ord' fnsh' (reInitFirstHalter hal' fnsh' (s'':xs'))
                 Nothing -> return []
         | hc == Switch =
             let
-                (Just s', xs') = minState ord' fnsh (rss:xs) -- xs' = orderStates ord' fnsh (rss:xs)
+                (Just s', xs') = minState ord' fnsh (rss:xs)
                 
                 s'' = s' { halter_val = updatePerStateHalt hal' (halter_val s') ps (state s')
                          , order_val = updateSelected ord' (order_val s') ps (state s') }
             in
             if not $ discardOnStart hal' (halter_val s'') ps (state s'')
                 then runReducer' red' hal' ord' fnsh (s'':xs')
-                else runReducer' red' hal' ord' (fnsh {discarded = s'':discarded fnsh}) (s'':xs')
+                else runReducer' red' hal' ord' (fnsh {discarded = s'':discarded fnsh}) xs'
         | otherwise = do
             case logStates config of
                 Just f -> outputState f is s
