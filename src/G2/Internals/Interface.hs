@@ -118,7 +118,7 @@ run red hal ord con pns config (is@State { type_env = tenv
 
     let preproc_state = runPreprocessing swept
 
-    exec_states <- runExecution red hal ord [preproc_state] config
+    exec_states <- runExecution red hal ord config [preproc_state]
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states

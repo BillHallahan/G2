@@ -388,66 +388,76 @@ reduce red con config s = do
     return (rule, sts)
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> [State t] -> Config -> IO [([Int], State t)]
-runReducer red hal ord states config =
-    mapM (\ExState {state = s, cases = c} -> return (c, s))
-        =<< (runReducer' red hal ord (Processed {accepted = [], discarded = []}) $ map (\s -> ExState { state = s
-                                                                                                      , halter_val = initHalt hal config s
-                                                                                                      , order_val = initPerStateOrder ord config s
-                                                                                                      , cases = []}) states)
-  where
-    runReducer' :: (Reducer r t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Processed (ExState hv sov t) -> [ExState hv sov t] -> IO [ExState hv sov t]
-    runReducer' _ _ _ _ [] = return []
-    runReducer' red' hal' ord' fnsh (rss@(ExState {state = s, halter_val = h_val, cases = is}):xs)
-        | hc == Accept =
-            let
-                fnsh' = fnsh {accepted = rss:accepted fnsh}
-                (s', xs') = minState ord' fnsh' xs
-            in
-            case s' of
-                Just s'' -> return . (:) rss =<< runReducer' red' hal' ord' fnsh' (reInitFirstHalter hal' fnsh' (s'':xs'))
-                Nothing -> return [rss]
-        | hc == Discard =
-            let
-                fnsh' = fnsh {discarded = rss:discarded fnsh}
-                (s', xs') = minState ord' fnsh' xs
-            in
-            case s' of
-                Just s'' -> runReducer' red' hal' ord' fnsh' (reInitFirstHalter hal' fnsh' (s'':xs'))
-                Nothing -> return []
-        | hc == Switch =
-            let
-                (Just s', xs') = minState ord' fnsh (rss:xs)
-                
-                s'' = s' { halter_val = updatePerStateHalt hal' (halter_val s') ps (state s')
-                         , order_val = updateSelected ord' (order_val s') ps (state s') }
-            in
-            if not $ discardOnStart hal' (halter_val s'') ps (state s'')
-                then runReducer' red' hal' ord' fnsh (s'':xs')
-                else runReducer' red' hal' ord' (fnsh {discarded = s'':discarded fnsh}) xs'
-        | otherwise = do
-            case logStates config of
-                Just f -> outputState f is s
-                Nothing -> return ()
-
-            (_, reduceds, red'') <- redRules red' s
-
-            let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
-            
-            let mod_info = map (\(i, s') -> rss {state = s', halter_val = stepHalter hal' h_val (processedToState fnsh) s', cases = is ++ maybe [] (\i' -> [i']) i}) isred
-            
-            runReducer' red'' hal' ord' fnsh (mod_info ++ xs)
-        where
-            hc = stopRed hal' h_val ps s
-            ps = processedToState fnsh
-
-reInitFirstHalter :: Halter h hv t => h -> Processed (ExState hv sov t) -> [ExState hv sov t] -> [ExState hv sov t]
-reInitFirstHalter h proc (es@ExState {state = s, halter_val = hv}:xs) =
+runReducer :: (Reducer r t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> [State t] -> IO [([Int], State t)]
+runReducer red hal ord config xss =
     let
-        hv' = updatePerStateHalt h hv (processedToState proc) s
+        pr = Processed {accepted = [], discarded = []}
+        xss' = map (\s -> ExState { state = s
+                                 , halter_val = initHalt hal config s
+                                 , order_val = initPerStateOrder ord config s
+                                 , cases = []}) xss
     in
-    es {halter_val = hv'}:xs
-reInitFirstHalter _ _ [] = []
+    case xss' of
+        (s:xs) -> mapM (\ExState {state = s, cases = c} -> return (c, s))
+                        =<< runReducer' red hal ord config pr s xs 
+        [] -> return []
+
+runReducer' :: (Reducer r t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> Processed (ExState hv sov t) -> ExState hv sov t -> [ExState hv sov t] -> IO [ExState hv sov t]
+runReducer' red hal ord config pr rs@(ExState { state = s, halter_val = h_val, cases = is }) xs
+    | hc == Accept =
+        let
+            pr' = pr {accepted = rs:accepted pr}
+            (rs', xs') = minState ord pr' xs
+            rs'' = fmap (updateExStateHalter hal pr') rs'
+        in
+        case rs'' of
+            Just jrs -> return . (:) rs =<< runReducer' red hal ord config pr' jrs xs'
+            Nothing -> return [rs]
+    | hc == Discard =
+        let
+            pr' = pr {discarded = rs:discarded pr}
+            (rs', xs') = minState ord pr' xs
+            rs'' = fmap (updateExStateHalter hal pr') rs'
+        in
+        case rs'' of
+            Just jrs -> runReducer' red hal ord config pr' jrs xs'
+            Nothing -> return []
+    | hc == Switch =
+        let
+            (Just rs', xs') = minState ord pr (rs:xs)
+            
+            rs'' = rs' { halter_val = updatePerStateHalt hal (halter_val rs') ps (state rs')
+                       , order_val = updateSelected ord (order_val rs') ps (state rs') }
+        in
+        if not $ discardOnStart hal (halter_val rs'') ps (state rs'')
+            then runReducer' red hal ord config pr rs'' xs'
+            else runReducerList red hal ord config (pr {discarded = rs'':discarded pr}) xs'
+    | otherwise = do
+        case logStates config of
+            Just f -> outputState f is s
+            Nothing -> return ()
+
+        (_, reduceds, red') <- redRules red s
+
+        let isred = if length (reduceds) > 1 then zip (map Just [1..]) reduceds else zip (repeat Nothing) reduceds
+        
+        let mod_info = map (\(i, s') -> rs {state = s', halter_val = stepHalter hal h_val ps s', cases = is ++ maybe [] (\i' -> [i']) i}) isred
+        
+        runReducerList red hal ord config pr (mod_info ++ xs)
+    where
+        hc = stopRed hal h_val ps s
+        ps = processedToState pr
+
+runReducerList :: (Reducer r t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> Processed (ExState hv sov t) -> [ExState hv sov t] -> IO [ExState hv sov t]
+runReducerList _ _ _ _ _ [] = return []
+runReducerList red hal ord config pr (x:xs) = runReducer' red hal ord config pr x xs
+
+updateExStateHalter :: Halter h hv t => h -> Processed (ExState hv sov t) -> ExState hv sov t -> ExState hv sov t
+updateExStateHalter hal proc es@ExState {state = s, halter_val = hv} =
+    let
+        hv' = updatePerStateHalt hal hv (processedToState proc) s
+    in
+    es {halter_val = hv'}
 
 processedToState :: Processed (ExState hv sov t) -> Processed (State t)
 processedToState (Processed {accepted = app, discarded = dis}) =
