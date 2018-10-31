@@ -123,14 +123,6 @@ class Halter h hv t | h -> hv where
 -- | Picks an order to evaluate the states, to allow prioritizing some over others 
 -- The type parameter or is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as or.
---
--- Law: Given
---
---    @exs' = orderStates or orv proc exs@
---
--- it must be the case that @length exs' == length exs@
--- An Orderer should never eliminate a state, only reorder the states
--- To not evaluate certain states, use a Halter
 class Orderer or sov t | or -> sov where
     -- | Initializing the per state ordering value 
     initPerStateOrder :: or -> Config -> State t -> sov
