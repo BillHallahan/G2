@@ -4,11 +4,14 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Internals.Liquid.Rules ( LHRed (..)
-                                 , LHLimitByAccepted (..)
+                                 , LHLimitByAcceptedHalter
+                                 , LHLimitByAcceptedOrderer
                                  , LHAbsHalter (..)
                                  , LHTracker (..)
                                  , lhReduce
-                                 , initialTrack) where
+                                 , initialTrack
+
+                                 , limitByAccepted) where
 
 import G2.Internals.Config
 import G2.Internals.Execution.Reducer
@@ -256,26 +259,68 @@ instance Solver con => Reducer (LHRed con) LHTracker where
 
         return $ (if r == RuleIdentity then Finished else InProgress, s', lhr)
 
--- | Halt if we go `n` steps past another, already accepted state 
-data LHLimitByAccepted = LHLimitByAccepted Int
+limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
+limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
 
-instance Halter LHLimitByAccepted (Maybe Int) LHTracker where
+
+-- LHLimitByAcceptedHalter and LHLimitByAcceptedOrderer should always be used
+-- together.
+-- LHLimitByAcceptedHalter is parameterized by a cutoff, `c`.
+-- It allows execution of a state only if
+--    (1) No counterexamples have been found
+--    (2) The earliest the best (fewest abstracted functions) counterexample
+--        was found was at reduction step n, and the state has taken fewer
+--        than c + n steps
+-- If either of these is violated, we switch to a new state.
+-- However, if we find a better (fewer abstracted functions) counterexamples
+-- with a higher, n, we want to be able to go back to that state.
+--
+-- For this reason, we rely on discardOnStart to discard states that have taken
+-- too many steps.  Because the Orderer always chooses the State that has taken the
+-- least steps, we only restart a State with too many steps once EVERY state has too
+-- many steps.
+
+-- | Halt if we go `n` steps past another, already accepted state 
+data LHLimitByAcceptedHalter = LHLimitByAcceptedHalter Int
+
+instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
     initHalt _ _ _ = Nothing
+
+    -- If we start trying to execute a state with more than the maximal number
+    -- of rules applied, we throw it away.
+    discardOnStart (LHLimitByAcceptedHalter n) (Just v) _ s = length (rules s) > v + n
+    discardOnStart _ Nothing _ s = False
 
     -- Find all accepted states with the (current) minimal number of abstracted functions
     -- Then, get the minimal number of steps taken by one of those states
     updatePerStateHalt _ _ (Processed { accepted = []}) _ = Nothing
     updatePerStateHalt _ _ (Processed { accepted = acc@(_:_)}) _ =
-        let
-            minT = minimum $ map (length . abstract_calls . track) acc
-            accMin = filter (\s -> minT == (length . abstract_calls . track $ s)) acc
-        in
-        Just . minimum $ map (length . rules) acc
+        Just . minimum . map (length . rules)
+            $ allMin (length . abstract_calls . track) acc
     
     stopRed _ Nothing _ _ = Continue
-    stopRed (LHLimitByAccepted n) (Just nAcc) _ s = if length (rules s) > nAcc + n then Discard else Continue
+    stopRed (LHLimitByAcceptedHalter n) (Just nAcc) _ s =
+        if length (rules s) > nAcc + n then Switch else Continue
     
     stepHalter _ hv _ _ = hv
+
+-- | Runs the state that had the fewest number of rules applied.
+data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer Int
+ 
+instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
+    initPerStateOrder _ _ _ = ()
+
+    orderStates (LHLimitByAcceptedOrderer n) _ _ = length . rules 
+
+    updateSelected _ _ _ _ = ()
+
+
+allMin :: Ord b => (a -> b) -> [a] -> [a]
+allMin f s =
+    let
+        minT = minimum $ map f s
+    in
+    filter (\s -> minT == (f $ s)) s
 
 -- | Halt if we abstract more calls than some other already accepted state
 data LHAbsHalter = LHAbsHalter T.Text (Maybe T.Text) ExprEnv

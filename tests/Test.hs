@@ -123,9 +123,9 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 1400 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "fromInt" 600 2 [RForAll (\[x, y] -> isInt x (\x' -> x' == 0)  && y `eqIgT` zeroPeano), AtLeast 1]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 4000 3 [AtLeast 3, RForAll getNthErrors]
+                , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 2700 3 [AtLeast 3, RForAll getNthErrors]
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 2000 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 4 [AtLeast 3]
+                , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 2700 4 [AtLeast 3]
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 4 [AtLeast 3]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 

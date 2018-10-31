@@ -122,6 +122,8 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing
 
+    let (limHalt, limOrd) = limitByAccepted (cut_off config)
+
     ret <- if higherOrderSolver config == AllFuncs
               then run 
                     (NonRedPCRed config
@@ -129,7 +131,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
-                      :<~> LHLimitByAccepted (cut_off config)
+                      :<~> limHalt
                       :<~> SwitchEveryNHalter (switch_after config)
                       :<~> AcceptHalter) 
                     NextOrderer 
@@ -142,10 +144,10 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
-                      :<~> LHLimitByAccepted (cut_off config)
+                      :<~> limHalt
                       :<~> SwitchEveryNHalter (switch_after config)
                       :<~> AcceptHalter) 
-                    NextOrderer 
+                    limOrd 
                     con' (pres_names ++ names annm) config final_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
