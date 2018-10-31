@@ -262,11 +262,34 @@ instance Solver con => Reducer (LHRed con) LHTracker where
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
 
+
+-- LHLimitByAcceptedHalter and LHLimitByAcceptedOrderer should always be used
+-- together.
+-- LHLimitByAcceptedHalter is parameterized by a cutoff, `c`.
+-- It allows execution of a state only if
+--    (1) No counterexamples have been found
+--    (2) The earliest the best (fewest abstracted functions) counterexample
+--        was found was at reduction step n, and the state has taken fewer
+--        than c + n steps
+-- If either of these is violated, we switch to a new state.
+-- However, if we find a better (fewer abstracted functions) counterexamples
+-- with a higher, n, we want to be able to go back to that state.
+--
+-- For this reason, we rely on discardOnStart to discard states that have taken
+-- too many steps.  Because the Orderer always chooses the State that has taken the
+-- least steps, we only restart a State with too many steps once EVERY state has too
+-- many steps.
+
 -- | Halt if we go `n` steps past another, already accepted state 
 data LHLimitByAcceptedHalter = LHLimitByAcceptedHalter Int
 
 instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
     initHalt _ _ _ = Nothing
+
+    -- If we start trying to execute a state with more than the maximal number
+    -- of rules applied, we throw it away.
+    discardOnStart (LHLimitByAcceptedHalter n) (Just v) _ s = length (rules s) > v + n
+    discardOnStart _ Nothing _ _ = False
 
     -- Find all accepted states with the (current) minimal number of abstracted functions
     -- Then, get the minimal number of steps taken by one of those states
@@ -281,26 +304,15 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
     
     stepHalter _ hv _ _ = hv
 
--- | Finds a state that has had less than the current maximal number of reduction rules
--- applied, or throws away all the states if no such rule exists
+-- | Runs the state that had the fewest number of rules applied.
 data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer Int
  
-instance Orderer LHLimitByAcceptedOrderer Int Int LHTracker where
-    initPerStateOrder _ _ _ = 0
+instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
+    initPerStateOrder _ _ _ = ()
 
     orderStates (LHLimitByAcceptedOrderer n) _ _ = length . rules 
-    -- orderStates _ (Processed { accepted = [] }) ss = ss
-    -- orderStates (LHLimitByAcceptedOrderer n) (Processed { accepted = acc }) ss =
-    --     let
-    --         mr = minimum . map (length . rules . getState)
-    --             $ allMin (length . abstract_calls . track . getState) acc
-    --         -- Find the first state where less than the current maximal number of rules have been applied
-    --         (lt, gt) = partition (\s -> (length . rules . getState $ s) < mr + n) ss
-    --     in
-    --     case lt of
-    --         (s:lt') -> s:lt' ++ gt
-    --         [] -> [] 
 
+    updateSelected _ _ _ _ = ()
 
 
 allMin :: Ord b => (a -> b) -> [a] -> [a]

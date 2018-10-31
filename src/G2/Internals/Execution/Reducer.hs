@@ -30,9 +30,6 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , NextOrderer (..)
                                       , PickLeastUsedOrderer (..)
 
-                                      , getState
-                                      , getOrderVal
-                                      , setOrderVal
                                       , halterSub1
                                       , halterIsZero
 
@@ -62,15 +59,6 @@ data ExState hv sov t = ExState { state :: State t
                                 , order_val :: sov
                                 , cases :: [Int]
                                 }
-
-getState :: ExState hv sov t -> State t
-getState (ExState {state = s}) = s
-
-getOrderVal :: ExState hv sov t -> sov
-getOrderVal (ExState {order_val = ord}) = ord
-
-setOrderVal :: ExState hv sov t -> sov -> ExState hv sov t
-setOrderVal s sv = s {order_val = sv}
 
 -- | Keeps track of type a's that have either been accepted or dropped
 data Processed a = Processed { accepted :: [a]
@@ -113,6 +101,13 @@ class Halter h hv t | h -> hv where
     -- | Runs whenever we switch to evaluating a different state,
     -- to update the halter value of that new state
     updatePerStateHalt :: h -> hv -> Processed (State t) -> State t -> hv
+
+    -- | Runs when we start execution on a state, immediately after
+    -- `updatePerStateHalt`.  Allows a State to be discarded right
+    -- before execution is about to (re-)begin.
+    -- Return True if execution should proceed, False to discard
+    discardOnStart :: h -> hv -> Processed (State t) -> State t -> Bool
+    discardOnStart _ _ _ _ = False
 
     -- | Determines whether to continue reduction on the current state
     stopRed :: h -> hv -> Processed (State t) -> State t -> HaltC
@@ -416,8 +411,13 @@ runReducer red hal ord states config =
         | hc == Switch =
             let
                 (Just s', xs') = minState ord' fnsh (rss:xs) -- xs' = orderStates ord' fnsh (rss:xs)
+                
+                s'' = s' { halter_val = updatePerStateHalt hal' (halter_val s') ps (state s')
+                         , order_val = updateSelected ord' (order_val s') ps (state s') }
             in
-            runReducer' red' hal' ord' fnsh (reInitFirstHalter hal' fnsh (s':xs'))
+            if not $ discardOnStart hal' (halter_val s'') ps (state s'')
+                then runReducer' red' hal' ord' fnsh (s'':xs')
+                else runReducer' red' hal' ord' (fnsh {discarded = s'':discarded fnsh}) (s'':xs')
         | otherwise = do
             case logStates config of
                 Just f -> outputState f is s
