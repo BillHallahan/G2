@@ -107,7 +107,7 @@ run :: (Named hv, Show t
        , ASTContainer t Type
        , Reducer r t
        , Halter h hv t
-       , Orderer or sov t
+       , Orderer or sov b t
        , Solver solver) => r -> h -> or ->
     solver -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
 run red hal ord con pns config (is@State { type_env = tenv
@@ -118,7 +118,7 @@ run red hal ord con pns config (is@State { type_env = tenv
 
     let preproc_state = runPreprocessing swept
 
-    exec_states <- runExecution red hal ord [preproc_state] config
+    exec_states <- runExecution red hal ord config [preproc_state]
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states

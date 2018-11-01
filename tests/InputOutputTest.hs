@@ -49,14 +49,16 @@ checkInputOutput'' proj src md entry i req config = do
               (NonRedPCRed config
                 :<~| StdRed con' config) 
               (MaxOutputsHalter 
-                :<~> ZeroHalter)
+                :<~> ZeroHalter
+                :<~> AcceptHalter)
               NextOrderer
               con' [] config init_state
           else run
               (NonRedPCRed config
                 :<~| StdRed con' config) 
               (MaxOutputsHalter 
-                :<~> ZeroHalter)
+                :<~> ZeroHalter
+                :<~> AcceptHalter)
               NextOrderer
               con' [] config init_state
     mr <- validateStates proj src md entry chAll [] r

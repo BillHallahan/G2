@@ -122,13 +122,18 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing
 
+    let (limHalt, limOrd) = limitByAccepted (cut_off config)
+
     ret <- if higherOrderSolver config == AllFuncs
               then run 
                     (NonRedPCRed config
                       :<~| LHRed con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
-                      :<~> LHHalter entry mb_modname (expr_env init_state)) 
+                      :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                      :<~> limHalt
+                      :<~> SwitchEveryNHalter (switch_after config)
+                      :<~> AcceptHalter) 
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state
               else run 
@@ -138,8 +143,11 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
-                      :<~> LHHalter entry mb_modname (expr_env init_state)) 
-                    NextOrderer 
+                      :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                      :<~> limHalt
+                      :<~> SwitchEveryNHalter (switch_after config)
+                      :<~> AcceptHalter) 
+                    limOrd 
                     con' (pres_names ++ names annm) config final_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
@@ -206,7 +214,8 @@ getGHCInfos' config ghci = do
     return (LHOutput {ghcI = ghci, cgI = undefined {- cgi -}, solution = undefined {- sol -} })
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
-funcSpecs = concatMap (gsTySigs . spec)
+funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
+            ++ concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)

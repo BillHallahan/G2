@@ -109,8 +109,10 @@ liquidTests =
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > z' || y' > z'), AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "subToPos" 1000 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' > 0 && x' >= y' && z' <= 0), AtLeast 1]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 4000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 6000 2 [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
+                , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib" 4000 2
+                    [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
+                , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/SimpleMath.hs" "fib'" 6000 2
+                    [RForAll (\[x, y] -> isInt x $ \x' -> isInt y $ \y' -> x' > y'), AtLeast 3]
                 , checkLiquid "tests/Liquid" "tests/Liquid/SimpleMath.hs" "xSqPlusYSq" 1000 3 
                     [RForAll (\[x, y, z] -> isInt x $ \x' -> isInt y $ \y' -> isInt z $ \z' -> x' + y' >= z'), AtLeast 1]
 
@@ -121,10 +123,10 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "add" 1400 3 [RForAll (\[x, y, _] -> x `eqIgT` zeroPeano || y `eqIgT` zeroPeano), AtLeast 5]
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "fromInt" 600 2 [RForAll (\[x, y] -> isInt x (\x' -> x' == 0)  && y `eqIgT` zeroPeano), AtLeast 1]
 
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 4000 3 [AtLeast 3, RForAll getNthErrors]
+                , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 2700 3 [AtLeast 3, RForAll getNthErrors]
                 , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 2000 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 4000 4 [AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 2 [AtLeast 3]
+                , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 2700 4 [AtLeast 3]
+                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 4 [AtLeast 3]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
                     [AtLeast 1, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
@@ -173,6 +175,13 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 4 [AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/ZipWith.lhs" "distance" 1000 4 [AtLeast 3]
 
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "getPosInt" 1000 4
+                    [ AtLeast 1
+                    , RForAll (\[_, _, (App _ x), y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' == y' && y' == 10)]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "getPos" 1000 4
+                    [ AtLeast 1
+                    , RExists (\[_, _, (App _ x), y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' == y' && y' == 10)]
+                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "goodGet" 1000 4 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/SimpleAnnot.hs" "simpleF" 1000 1 [Exactly 0]
@@ -206,9 +215,32 @@ liquidTests =
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "concat" 1000 2 [AtLeast 3]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_concat_1" 1500 1 [AtLeast 1]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/ListTests2.lhs" "prop_map" 2000 4
+                    [ AtLeast 3
+                    , RForAll (\[_, _, f, _] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, _, _, f', _] }) ]  -> n == "map" && f == f') ]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/ListTests2.lhs" "replicate" 2000 3
+                    [ AtLeast 3
+                    , RForAll (\[_, nA, aA] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, nA', aA'] }) ]
+                        -> n == "replicate" && nA == nA' && aA == aA') ]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/ListTests2.lhs" "prop_size" 2000 0
+                    [ AtLeast 1
+                    , RForAll (\[] _ [(FuncCall { funcName = Name n _ _ _, returns = r }) ]
+                        -> n == "length2" && getIntB r (/= 3)) ]
 
                 , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
+
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/Replicate.hs" "replicate" 2000 3
+                    [ AtLeast 1
+                    , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldl") ]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/Replicate.hs" "r" 2000 2
+                    [ AtLeast 1
+                    , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldl") ]
+
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AbsTypeClass.hs" "callF" 1000 1
+                    [ AtLeast 1
+                    , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "f") ]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AbsTypeClassVerified.hs" "callF" 10000 1 [ Exactly 0 ]
         ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -424,12 +456,17 @@ testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     r <- run (NonRedPCRed config
                :<~| StdRed con' config)
              (MaxOutputsHalter 
-               :<~> ZeroHalter)
+               :<~> ZeroHalter
+               :<~> AcceptHalter)
              NextOrderer con' [] config init_state
 
     closeIO con
 
     return $ map (\(_, i, o, _) -> (i, o)) r
+
+checkLiquidWithNoCutOff :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
+checkLiquidWithNoCutOff proj fp entry stps i reqList =
+    checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps, cut_off = stps}) reqList
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps}) reqList
@@ -455,7 +492,11 @@ checkAbsLiquidWithConfig proj fp entry i config reqList = do
 
     let (ch, r) = case res of
                 Left e -> (False, Left e)
-                Right exprs -> (checkAbsLHExprGen (map (\(s, inp, out, _) -> (s, inp, out)) exprs) i reqList, Right ())
+                Right exprs ->
+                    let
+                        te = checkAbsLHExprGen (map (\(s, inp, out, _) -> (s, inp, out)) exprs) i reqList
+                    in
+                    (null te, Right te)
 
     return . testCase fp
         $ assertBool ("Liquid test for file " ++ fp ++ 
