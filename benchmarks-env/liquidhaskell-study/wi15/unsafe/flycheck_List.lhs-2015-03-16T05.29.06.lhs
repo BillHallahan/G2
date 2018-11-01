@@ -5,8 +5,11 @@ Lists
 <div class="hidden">
 \begin{code}
 {-@ LIQUID "--prune"@ -}
+{-@ LIQUID "--prune-unsorted" @-}
 {-@ LIQUID "--short-names" @-}
+{-@ LIQUID "--prune-unsorted" @-}
 {-@ LIQUID "--no-termination" @-}
+{-@ LIQUID "--prune-unsorted" @-}
 
 -- CHECKBINDER prop_size
 -- CHECKBINDER empty

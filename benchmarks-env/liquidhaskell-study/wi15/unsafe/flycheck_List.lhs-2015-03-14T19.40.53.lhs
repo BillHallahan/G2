@@ -19,6 +19,7 @@ Lists
  
 
 module List ( List
+, snd1
             , empty
             , add
             , singleton
