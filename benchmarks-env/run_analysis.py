@@ -115,7 +115,10 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
         print("FIXED FUNCTION NAME ERROR:")
         print(target.func_name)
         return run_g2(g2_dir, test_dir, target_dir, recurs_n, target)
-    return proc.stdout.read() + "\nERROR:\n" + err
+    res = proc.stdout.read() + "\nERROR:\n" + err
+    proc.stderr.close()
+    proc.stdout.close()
+    return res
 
 
 def create_report(data, directory, file_tag):
