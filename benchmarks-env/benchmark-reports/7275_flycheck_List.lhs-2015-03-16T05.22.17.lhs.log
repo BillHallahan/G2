@@ -1,0 +1,94 @@
+7275
+flycheck_List.lhs-2015-03-16T05.22.17.lhs
+(240, '23-44')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T05.22.17.lhs:240:23-44: Error: Liquid Type Mismatch', ' 240 | concat (hd :+: tl)  = concat2 hd (concat tl) ']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T05.22.17.lhs:223:13-19: Error: Multiple specifications for `emptyLL` :
+    Conflicting definitions at
+     
+    * /home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T05.22.17.lhs:225:1-7
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 370,Just 366]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T05.22.17.lhs:239:1-6: Error: Liquid Type Mismatch
+ 
+ 239 | concat (Emp)        = Emp
+       ^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == 0
+                           && consize VV == 0
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == consize ?a
+                           && (emptyLL ?a == GHC.Types.False => size VV > 0)}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T05.22.17.lhs:240:23-44: Error: Liquid Type Mismatch
+ 
+ 240 | concat (hd :+: tl)  = concat2 hd (concat tl) 
+                             ^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == size hd + size ?b
+                           && (size hd > 0 => size VV > 0)
+                           && (size ?b > 0 => size VV > 0)
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == consize ?a
+                           && (emptyLL ?a == GHC.Types.False => size VV > 0)}
+  
+   In Context
+     hd : {hd : (List a) | 0 <= size hd}
+      
+     ?b : {?b : (List a) | size ?b == consize tl
+                           && (emptyLL tl == GHC.Types.False => size ?b > 0)
+                           && 0 <= size ?b}
+      
+     tl : {tl : (List (List a)) | 0 <= size tl}
+      
+     ?a : {?a : (List (List a)) | 0 <= size ?a}

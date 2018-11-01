@@ -1,0 +1,290 @@
+9938
+flycheck_List.lhs-2015-03-15T23.51.07.lhs
+(123, '15-21')
+empty
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:123:15-21: Error: Liquid Type Mismatch', ' 123 | empty = fixme "empty"']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mempty = error
+makes a call to
+fixme fs? = error
+violating fixme's refinement type
+Concrete
+
+
+ERROR:
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 289,Just 338,Just 355,Just 276,Just 356,Just 309,Just 360,Just 346,Just 331,Just 252,Just 301,Just 333,Just 335]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:99:23-36: Error: Liquid Type Mismatch
+ 
+ 99 | prop_size  = lAssert (length l3 == 3)
+                            ^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?c}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Bool | Prop ?c <=> ?b == ?a}
+      
+     ?b : {?b : Int | ?b >= 0}
+      
+     ?a : {?a : Int | ?a == (3 : int)}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:123:15-21: Error: Liquid Type Mismatch
+ 
+ 123 | empty = fixme "empty"
+                     ^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "empty"
+                        && strLen ?b == 5}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:126:18-22: Error: Liquid Type Mismatch
+ 
+ 126 | add x xs = fixme "add"
+                        ^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "add"
+                        && strLen ?b == 3}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:129:21-31: Error: Liquid Type Mismatch
+ 
+ 129 | singleton x = fixme "singleton"
+                           ^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?b
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : [Char] | ?b ~~ ?a
+                         && len ?b == strLen ?a
+                         && len ?b >= 0}
+      
+     ?a : {?a : Addr# | ?a ~~ "singleton"
+                        && strLen ?a == 9}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:141:19-29: Error: Liquid Type Mismatch
+ 
+ 141 | replicate = fixme "replicate"
+                         ^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?b
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : [Char] | ?b ~~ ?a
+                         && len ?b == strLen ?a
+                         && len ?b >= 0}
+      
+     ?a : {?a : Addr# | ?a ~~ "replicate"
+                        && strLen ?a == 9}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:148:31-57: Error: Liquid Type Mismatch
+ 
+ 148 | prop_replicate n x = lAssert (n == length (replicate n x))
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?b}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     n : {n : Int | n >= 0}
+      
+     ?b : {?b : Bool | Prop ?b <=> n == ?a}
+      
+     ?a : {?a : Int | ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:163:26-55: Error: Liquid Type Mismatch
+ 
+ 163 | prop_map f xs = lAssert (length xs == length (map f xs))
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?b}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Int | ?c >= 0}
+      
+     ?b : {?b : Bool | Prop ?b <=> ?c == ?a}
+      
+     ?a : {?a : Int | ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:175:28-63: Error: Liquid Type Mismatch
+ 
+ 175 | foldr1 op Emp        = die "Cannot call foldr1 with empty list"
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "Cannot call foldr1 with empty list"
+                        && strLen ?b == 34}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:194:40-60: Error: Liquid Type Mismatch
+ 
+ 194 | zipWith f _          _          = die  "Bad call to zipWith"
+                                              ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "Bad call to zipWith"
+                        && strLen ?b == 19}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:197:28-50: Error: Liquid Type Mismatch
+ 
+ 197 | prop_zipWith xs = lAssert (length xs == length x2s)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?c}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Bool | Prop ?c <=> ?b == ?a}
+      
+     ?b : {?b : Int | ?b >= 0}
+      
+     ?a : {?a : Int | ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:213:16-23: Error: Liquid Type Mismatch
+ 
+ 213 | concat = fixme "concat"
+                      ^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "concat"
+                        && strLen ?b == 6}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-15T23.51.07.lhs:215:24-47: Error: Liquid Type Mismatch
+ 
+ 215 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?c}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Bool | Prop ?c <=> ?b == ?a}
+      
+     ?b : {?b : Int | ?b >= 0}
+      
+     ?a : {?a : Int | ?a == (6 : int)}

@@ -1,0 +1,269 @@
+6440
+flycheck_KMeans.lhs-2015-03-13T04.00.14.lhs
+(197, '21-41')
+kmeans1
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T04.00.14.lhs:197:21-41: Error: Liquid Type Mismatch', ' 197 | kmeans1 k n ps cs = normalize newClusters']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mThe call
+kmeans1 0 0 Emp (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp)) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp)) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp))) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp)) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp)) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+The call
+kmeans1 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (fromList []) = error
+violates kmeans1's refinement type
+Concrete
+
+Timeout!
+
+ERROR:
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 154,Just 460,Just 270,Just 31]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T04.00.14.lhs:95:1-7: Error: Liquid Type Mismatch
+ 
+ 95 | nearest k n centers p = x
+      ^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == x}
+  
+   not a subtype of Required type
+     VV : {VV : Int | 0 <= VV
+                      && VV < k}
+  
+   In Context
+     k : {k : Int | k >= 0}
+      
+     ?b : (Int, Double)
+      
+     x : {v : Int | v == v
+                    && v >= v
+                    && v <= v
+                    && 0 <= v
+                    && v >= 0
+                    && v == fst ?b
+                    && v == fst ?a}
+      
+     ?a : {?a : (Int, Double) | snd ?a == y
+                                && fst ?a == x
+                                && x_Tuple22 ?a == y
+                                && x_Tuple21 ?a == x}
+      
+     y : {y : Double | y == snd ?b}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T04.00.14.lhs:145:46-62: Error: Liquid Type Mismatch
+ 
+ 145 | mergeCluster n (n1, p1) (n2, p2) = (n1 + n2, zipWith (+) p1 p2)
+                                                    ^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | VV == p2
+                                && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == size p1}
+  
+   In Context
+     p1 : {p1 : (List Double) | 0 <= size p1}
+      
+     p2 : {p2 : (List Double) | 0 <= size p2}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T04.00.14.lhs:159:30-42: Error: Liquid Type Mismatch
+ 
+ 159 | centroid n p sz = map (\x -> x `divide` sz) p
+                                    ^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == sz}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV /= 0}
+  
+   In Context
+     sz : Int
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T04.00.14.lhs:197:21-41: Error: Liquid Type Mismatch
+ 
+ 197 | kmeans1 k n ps cs = normalize newClusters
+                           ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}
