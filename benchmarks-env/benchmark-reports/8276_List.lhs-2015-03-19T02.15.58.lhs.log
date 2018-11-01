@@ -1,0 +1,133 @@
+8276
+List.lhs-2015-03-19T02.15.58.lhs
+(232, '24-47')
+prop_concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.15.58.lhs:232:24-47: Error: Liquid Type Mismatch', ' 232 | prop_concat = lAssert (length (concat xss) == 6)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.15.58.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
+    constructor List.:+: :: x:a -> xs:(List a) -> {VV : (List a) | sizes VV == size x + size xs
+                                                                   && size VV == 1 + size xs}
+    Sort Error in Refinement: {VV : (List.List a_a1WT) | (sizes VV == size x + size xs
+                                                          && size VV == 1 + size xs)}
+    Cannot unify (List.List @(42)) with a_a1WT in expression: sizes VV,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.15.58.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
+    constructor List.Emp :: {VV : (List a) | sizes VV == 0
+                                             && size VV == 0}
+    Sort Error in Refinement: {VV : (List.List a_a1WT) | (sizes VV == 0
+                                                          && size VV == 0)}
+    Cannot unify (List.List @(42)) with a_a1WT in expression: sizes VV]
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 355,Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.15.58.lhs:229:21-41: Error: Liquid Type Mismatch
+ 
+ 229 | concat (x :+: xs) = prepend x (concat xs)
+                           ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == size x + size ?a
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sizes ?b}
+  
+   In Context
+     xs : {v : (List (List a)) | 0 <= size v}
+      
+     ?b : {?b : (List (List a)) | 0 <= size ?b}
+      
+     x : {v : (List a) | 0 <= size v}
+      
+     ?a : {?a : (List a) | size ?a == sizes xs
+                           && 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.15.58.lhs:232:24-47: Error: Liquid Type Mismatch
+ 
+ 232 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?g}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     List.l2 : {List.l2 : (List Int) | size List.l2 == 2
+                                       && 0 <= size List.l2}
+      
+     ?g : {?g : Bool | Prop ?g <=> ?h == ?c}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?b
+                                    && sizes v == size List.l0 + size ?b
+                                    && 0 <= size v}
+      
+     List.l3 : {List.l3 : (List Int) | size List.l3 == 3
+                                       && 0 <= size List.l3}
+      
+     ?f : {?f : (List Int) | size ?f == sizes xss
+                             && 0 <= size ?f}
+      
+     ?c : {?c : Int | ?c == (6 : int)}
+      
+     ?h : {?h : Int | ?h == size ?f}
+      
+     ?e : {?e : (List (List Int)) | size ?e == 1 + size ?d
+                                    && sizes ?e == size List.l3 + size ?d
+                                    && 0 <= size ?e}
+      
+     ?b : {?b : (List (List Int)) | size ?b == 1 + size ?a
+                                    && sizes ?b == size List.l1 + size ?a
+                                    && 0 <= size ?b}
+      
+     List.l0 : {List.l0 : (List Int) | size List.l0 == 0
+                                       && 0 <= size List.l0}
+      
+     ?d : {?d : (List (List Int)) | size ?d == 0
+                                    && sizes ?d == 0
+                                    && 0 <= size ?d}
+      
+     ?a : {?a : (List (List Int)) | size ?a == 1 + size ?e
+                                    && sizes ?a == size List.l2 + size ?e
+                                    && 0 <= size ?a}
+      
+     List.l1 : {List.l1 : (List Int) | size List.l1 == 1
+                                       && 0 <= size List.l1}

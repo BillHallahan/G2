@@ -1,0 +1,215 @@
+2822
+flycheck_List.lhs-2015-03-14T19.23.46.lhs
+(255, '34-64')
+sample3
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:255:34-64: Error: Liquid Type Mismatch', ' 255 | sample3  (x1 :+: (x2 :+: xs )) = sample3 ((append x1 x2) :+: xs)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T19.23.46.lhs:235:13-19: Error: Multiple specifications for `sample2` :
+    Conflicting definitions at
+     
+    * /home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T19.23.46.lhs:236:1-7
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 273,Just 353,Just 354,Just 355,Just 358,Just 281,Just 345,Just 283,Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:253:1-7: Error: Liquid Type Mismatch
+ 
+ 253 | sample3  Emp = 0
+       ^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == (0 : int)}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV == sample2 ?a}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:254:24-32: Error: Liquid Type Mismatch
+ 
+ 254 | sample3 (x1 :+: Emp) = length x1
+                              ^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == size x1}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV == sample2 ?a}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+      
+     x1 : {v : (List a) | 0 <= size v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:255:34-64: Error: Liquid Type Mismatch
+ 
+ 255 | sample3  (x1 :+: (x2 :+: xs )) = sample3 ((append x1 x2) :+: xs)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == sample2 ?a}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV == sample2 ?b}
+  
+   In Context
+     xs : {v : (List (List a)) | 0 <= size v}
+      
+     ?b : {?b : (List (List a)) | 0 <= size ?b}
+      
+     ?a : {?a : (List (List a)) | size ?a == 1 + size xs
+                                  && 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:259:1-12: Error: Liquid Type Mismatch
+ 
+ 259 | concatHelper x1 Emp = x1
+       ^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | VV == x1
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sample4 x1 ?a}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+      
+     x1 : {v : (List a) | 0 <= size v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:260:31-42: Error: Liquid Type Mismatch
+ 
+ 260 | concatHelper x1 (x2 :+: xs) = append x2 x1
+                                     ^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == size x2 + size x1
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sample4 x1 ?a}
+  
+   In Context
+     x2 : {v : (List a) | 0 <= size v}
+      
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+      
+     x1 : {v : (List a) | 0 <= size v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:263:1-6: Error: Liquid Type Mismatch
+ 
+ 263 | concat Emp = Emp
+       ^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | VV == x1
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | sample2 ?a == size VV}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+      
+     x1 : {v : (List a) | 0 <= size v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:265:33-63: Error: Liquid Type Mismatch
+ 
+ 265 | concat (x1 :+: (x2 :+: xs )) =  concat  ((append x1 x2) :+: xs)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | sample2 ?a == size VV
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | sample2 ?b == size VV}
+  
+   In Context
+     xs : {v : (List (List a)) | 0 <= size v}
+      
+     ?b : {?b : (List (List a)) | 0 <= size ?b}
+      
+     ?a : {?a : (List (List a)) | size ?a == 1 + size xs
+                                  && 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T19.23.46.lhs:273:24-47: Error: Liquid Type Mismatch
+ 
+ 273 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?e}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?g : {?g : Int | ?g == (6 : int)}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?c
+                                    && 0 <= size v}
+      
+     ?f : {?f : (List (List Int)) | size ?f == 1 + size ?h
+                                    && 0 <= size ?f}
+      
+     ?c : {?c : (List (List Int)) | size ?c == 1 + size ?d
+                                    && 0 <= size ?c}
+      
+     ?h : {?h : (List (List Int)) | size ?h == 0
+                                    && 0 <= size ?h}
+      
+     ?e : {?e : Bool | Prop ?e <=> ?a == ?g}
+      
+     ?b : {?b : (List Int) | sample2 xss == size ?b
+                             && 0 <= size ?b}
+      
+     ?d : {?d : (List (List Int)) | size ?d == 1 + size ?f
+                                    && 0 <= size ?d}
+      
+     ?a : {?a : Int | ?a == size ?b}

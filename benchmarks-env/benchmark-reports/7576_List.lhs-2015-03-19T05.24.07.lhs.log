@@ -1,0 +1,116 @@
+7576
+List.lhs-2015-03-19T05.24.07.lhs
+(219, '24-47')
+prop_concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T05.24.07.lhs:219:24-47: Error: Liquid Type Mismatch', ' 219 | prop_concat = lAssert (length (concat xss) == 6)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mprop_concat = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+concat xss = Emp
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+prop_concat = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+concat xss = 0 :+: Emp
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+prop_concat = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+concat xss = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+prop_concat = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+concat xss = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+prop_concat = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+concat xss = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+
+ERROR:
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T05.24.07.lhs:143:1: warning: [-Woverlapping-patterns]
+    Pattern match is redundant
+    In an equation for ‘replicate’: replicate 0 _ = ...
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T05.24.07.lhs:143:1: warning: [-Woverlapping-patterns]
+    Pattern match is redundant
+    In an equation for ‘replicate’: replicate 0 _ = ...
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T05.24.07.lhs:219:24-47: Error: Liquid Type Mismatch
+ 
+ 219 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?d}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Int | ?c == (6 : int)}
+      
+     ?b : {?b : Int | ?b == size ?a}
+      
+     ?d : {?d : Bool | Prop ?d <=> ?b == ?c}
+      
+     ?a : {?a : (List Int) | 0 <= size ?a}
