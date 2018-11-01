@@ -101,6 +101,11 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
     :return: the string result of running G2 on the target
     """
     target_file = os.path.join(target_dir, target.file_name)
+
+    is_fixme = False
+    if is_fixme_target(target_file, target.func_name):
+        is_fixme = True
+
     replace(target_file, ' Prop ', ' ')
     cmd = "./G2 %s -- --time 30 --n %d --liquid %s --liquid-func %s" % (
         test_dir, recurs_n, target_file, target.func_name
@@ -116,10 +121,18 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
         print(target.func_name)
         return run_g2(g2_dir, test_dir, target_dir, recurs_n, target)
     res = proc.stdout.read() + "\nERROR:\n" + err
+    if is_fixme:
+        res = 'IS_FIXME\n' + res
     proc.stderr.close()
     proc.stdout.close()
     return res
 
+def is_fixme_target(tFile, fName):
+    with open(tFile) as fd:
+        for line in fd:
+            if fName in line and 'fixme' in line:
+                return True
+    return False
 
 def create_report(data, directory, file_tag):
     """
