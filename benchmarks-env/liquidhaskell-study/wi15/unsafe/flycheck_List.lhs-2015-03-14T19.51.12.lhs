@@ -20,12 +20,6 @@ Lists
 
 module List ( List
 , snd1
-, snd1
-, snd1
-, snd1
-, snd1
-, snd1
-, snd1
             , empty
             , add
             , singleton

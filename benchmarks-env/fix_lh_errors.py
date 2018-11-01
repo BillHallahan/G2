@@ -31,12 +31,16 @@ def run():
         fd.close()
         if 'ERROR OCCURRED IN LIQUIDHASKELL' in fileText:
             if 'Illegal type specification' in fileText:
-                # add_line_to_file(os.path.join(targetdiname, targName))
-                pass
+                targPath = os.path.join(targetdirname, targName)
+                if not check_string_in_file(targPath, 'prune-unsorted'):
+                    add_line_to_file(targPath, '{-@ LIQUID', '{-@ LIQUID "--prune-unsorted" @-}')
             if 'Multiple specifications' in fileText and '{-@ LIQUID "--prune-unsorted" @-}' not in fileText:
-                add_line_to_file(os.path.join(targetdirname, targName), '{-@ LIQUID', '{-@ LIQUID "--prune-unsorted" @-}')
+                pass
             if 'Cannot lift' in fileText:
-                add_line_to_file(os.path.join(targetdirname, targName), 'module', ', ' + get_func_needing_a_lift(filePath))
+                targPath = os.path.join(targetdirname, targName)
+                func = get_func_needing_a_lift(filePath)
+                if not check_string_in_file(targPath, ', ' + func):
+                    add_line_to_file(targPath, 'module', ', ' + func)
 
         
 def get_func_needing_a_lift(fPath):
@@ -46,6 +50,10 @@ def get_func_needing_a_lift(fPath):
                lift_func = line.split('`')[1]
                return lift_func
 
+def check_string_in_file(fPath, string):
+    with open(fPath, 'r') as fd:
+        text = fd.read()
+        return (string in text)
 
 
 def add_line_to_file(filePath, searchString, addString):

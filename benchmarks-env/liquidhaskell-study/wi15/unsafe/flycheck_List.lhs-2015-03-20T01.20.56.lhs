@@ -20,7 +20,6 @@ Lists
 
 module List ( List
 , sumSize
-, sumSize
             , empty
             , add
             , singleton

@@ -5,7 +5,9 @@ K-Means Clustering
 <div class="hidden">
 \begin{code}
 {-@ LIQUID "--short-names"    @-}
+{-@ LIQUID "--prune-unsorted" @-}
 {-@ LIQUID "--no-termination" @-}
+{-@ LIQUID "--prune-unsorted" @-}
 
 module KMeans (kmeans, kmeans1, nearest, mergeCluster) where
 
