@@ -1,0 +1,16 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+liquid: 
+**** ERROR *********************************************************************
+**** ERROR *********************************************************************
+**** ERROR *********************************************************************
+Malformed alias application
+	"Sum" defined at "/home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T07.35.42.lhs" (line 233, column 15)
+	expects 0 arguments but it is given 2
+**** ERROR *********************************************************************
+**** ERROR *********************************************************************
+**** ERROR *********************************************************************
+
+Callstack:
+  error, called at src/Language/Fixpoint/Misc.hs:128:14 in liqui_Ad9kDK86MIT6KtaxOwHio0:Language.Fixpoint.Misc
+  errorstar, called at src/Language/Haskell/Liquid/Misc.hs:121:38 in liqui_7Rrw3lWfrCe0HTHd7y8pQ5:Language.Haskell.Liquid.Misc
