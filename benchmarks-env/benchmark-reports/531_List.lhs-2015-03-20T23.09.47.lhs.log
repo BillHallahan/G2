@@ -9,15 +9,35 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
+[0mprop_replicate 1 0 = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+replicate 1 0 = Emp
+Strengthen the refinement type of replicate to eliminate this possibility
+Abstract
+
+prop_replicate 0 0 = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+replicate 0 0 = 0 :+: Emp
+Strengthen the refinement type of replicate to eliminate this possibility
+Abstract
+
+prop_replicate 0 0 = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+replicate 0 0 = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of replicate to eliminate this possibility
+Abstract
+
+
 ERROR:
-G2: appTypeOf
-TyApp (TyCon (Name "List" (Just "List") 8214565720323848036 (Just (Span {start = Loc {line = 54, col = 1, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}, end = Loc {line = 56, col = 39, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}}))) (TyApp TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679077292 (Just (Span {start = Loc {line = 41, col = 14, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}, end = Loc {line = 41, col = 32, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}}))) TYPE))
-[App (Data (DataCon (Name "Emp" (Just "List") 8214565720323848130 (Just (Span {start = Loc {line = 54, col = 15, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}, end = Loc {line = 54, col = 18, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}}))) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 6989586621679077043 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}}))) TYPE)) (TyApp (TyCon (Name "List" (Just "List") 8214565720323848036 (Just (Span {start = Loc {line = 54, col = 1, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}, end = Loc {line = 56, col = 39, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}}))) (TyApp TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679077043 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}}))) TYPE)))))) (Type (TyVar (Id (Name "a" Nothing 6989586621679077292 (Just (Span {start = Loc {line = 41, col = 14, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}, end = Loc {line = 41, col = 32, file = "./liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.09.47.lhs"}}))) TYPE))),App (App (App (App (App (Var (Id (Name "enumFromTo" (Just "GHC.Enum") 8214565720323800213 Nothing) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 6989586621679076100 Nothing) TYPE)) (TyFun (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyApp TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679076100 Nothing) TYPE))) (TyFun (TyApp (TyCon (Name "Enum" (Just "GHC.Enum") 8214565720323800217 Nothing) (TyApp TYPE (TyCon (Name "Constraint" (Just "GHC.Types") 3674937295934324920 Nothing) TYPE))) (TyVar (Id (Name "a" Nothing 6989586621679076100 Nothing) TYPE))) (TyFun (TyVar (Id (Name "a" Nothing 6989586621679076100 Nothing) TYPE)) (TyFun (TyVar (Id (Name "a" Nothing 6989586621679076100 Nothing) TYPE)) (TyApp (TyCon (Name "[]" (Just "GHC.Types") 0 Nothing) (TyApp TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679076100 Nothing) TYPE)))))))))) (Type (TyCon (Name "Int" (Just "GHC.Types") 8214565720323799621 Nothing) TYPE))) (Var (Id (Name "lhInt" (Just "GHC.Types") 0 Nothing) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) TYPE) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323799621 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE))))) (Var (Id (Name "$fEnumInt" (Just "GHC.Enum") 8214565720323800203 Nothing) (TyApp (TyCon (Name "Enum" (Just "GHC.Enum") 8214565720323800217 Nothing) (TyApp TYPE (TyCon (Name "Constraint" (Just "GHC.Types") 3674937295934324920 Nothing) TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323799621 Nothing) TYPE))))) (App (Data (DataCon (Name "I#" (Just "GHC.Types") 8214565720323799620 (Just (Span {start = Loc {line = 17, col = 12, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) (TyFun TyLitInt (TyCon (Name "Int" (Just "GHC.Types") 8214565720323799621 Nothing) TYPE)))) (Lit (LitInt 1)))) (Var (Id (Name "n" Nothing 6989586621679077062 Nothing) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323799621 Nothing) TYPE)))]
-
-
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Language/Typing.hs:188:20 in main:G2.Internals.Language.Typing
 
 
 LIQUID_OUT:

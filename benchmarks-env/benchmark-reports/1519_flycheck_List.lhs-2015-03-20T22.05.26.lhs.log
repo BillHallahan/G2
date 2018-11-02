@@ -9,7 +9,12 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mTimeout!
+[0mfoldr1 undefined Emp = error
+makes a call to
+die fs? = error
+violating die's refinement type
+Concrete
+
 
 ERROR:
 

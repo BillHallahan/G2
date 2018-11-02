@@ -9,17 +9,14 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mnearest 1 0 (fromList []) Emp = error
-makes a call to
-
+[0m
 ERROR:
-G2: appTypeOf
-TyUnknown
-[Type (TyCon (Name "Int" (Just "GHC.Types") 8214565720323816656 Nothing) TYPE),Type (TyCon (Name "Double" (Just "GHC.Types") 8214565720323816660 Nothing) TYPE),Var (Id (Name "fs?" Nothing 87918 Nothing) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyApp TYPE TYPE)) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323816656 Nothing) TYPE))),Var (Id (Name "fs?" Nothing 87919 Nothing) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyApp TYPE TYPE)) (TyCon (Name "Double" (Just "GHC.Types") 8214565720323816660 Nothing) TYPE)))]
-
-
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
+    Not in scope: type constructor or class
+ matchTyCon ` ListNE '
 CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Language/Typing.hs:188:20 in main:G2.Internals.Language.Typing
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
 
 LIQUID_OUT:

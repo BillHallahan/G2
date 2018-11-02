@@ -4,6 +4,7 @@ List.lhs-2015-03-17T21.03.02.lhs
 replicate
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-17T21.03.02.lhs:141:19-29: Error: Liquid Type Mismatch', ' 141 | replicate = fixme "replicate"']
 
+IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
 [1;94m

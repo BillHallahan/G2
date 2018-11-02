@@ -4,6 +4,7 @@ List.lhs-2015-03-19T03.39.30.lhs
 empty
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.39.30.lhs:126:15-21: Error: Liquid Type Mismatch', ' 126 | empty = fixme "empty"']
 
+IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
 [1;94m

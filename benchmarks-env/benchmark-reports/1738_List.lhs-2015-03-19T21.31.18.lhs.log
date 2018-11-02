@@ -4,6 +4,7 @@ List.lhs-2015-03-19T21.31.18.lhs
 singleton
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T21.31.18.lhs:131:21-25: Error: Liquid Type Mismatch', ' 131 | singleton x = fixme "123" ']
 
+IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
 [1;94m

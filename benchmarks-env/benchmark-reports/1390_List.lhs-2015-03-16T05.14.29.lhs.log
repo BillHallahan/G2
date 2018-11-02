@@ -9,22 +9,9 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
+[0mTimeout!
+
 ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
-[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T05.14.29.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
-    constructor List.:+: :: x:a -> xs:(List a) -> {VV : (List a) | sizeXs VV == size x + sizeXs xs
-                                                                   && size VV == 1 + size xs}
-    Sort Error in Refinement: {VV : (List.List a_a1WT) | (sizeXs VV == size x + sizeXs xs
-                                                          && size VV == 1 + size xs)}
-    Cannot unify (List.List @(42)) with a_a1WT in expression: sizeXs VV,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T05.14.29.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
-    constructor List.Emp :: {VV : (List a) | sizeXs VV == 0
-                                             && size VV == 0}
-    Sort Error in Refinement: {VV : (List.List a_a1WT) | (sizeXs VV == 0
-                                                          && size VV == 0)}
-    Cannot unify (List.List @(42)) with a_a1WT in expression: sizeXs VV]
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
 
 LIQUID_OUT:

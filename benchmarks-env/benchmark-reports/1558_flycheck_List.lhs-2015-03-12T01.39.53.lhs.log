@@ -26,48 +26,6 @@ length Emp = 0
 violating length's refinement type
 Concrete
 
-length (0 :+: (0 :+: (0 :+: Emp))) = 3
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
-length (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 4
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
-length (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 5
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
-length (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 6
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
-length (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 7
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
-length (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 8
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
-length (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = 9
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
 
 ERROR:
 

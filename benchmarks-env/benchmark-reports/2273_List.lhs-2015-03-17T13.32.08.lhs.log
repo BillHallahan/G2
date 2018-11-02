@@ -9,22 +9,449 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
+[0mconcat Emp = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: Emp) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: Emp) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
+makes a call to
+Timeout!
+
 ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
-[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-17T13.32.08.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
-    constructor List.:+: :: x:a -> xs:(List a) -> {VV : (List a) | sizeList VV == size x + sizeList xs
-                                                                   && size VV == 1 + size xs}
-    Sort Error in Refinement: {VV : (List.List a_a1WT) | (sizeList VV == size x + sizeList xs
-                                                          && size VV == 1 + size xs)}
-    Cannot unify (List.List @(42)) with a_a1WT in expression: sizeList VV,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-17T13.32.08.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
-    constructor List.Emp :: {VV : (List a) | sizeList VV == 0
-                                             && size VV == 0}
-    Sort Error in Refinement: {VV : (List.List a_a1WT) | (sizeList VV == 0
-                                                          && size VV == 0)}
-    Cannot unify (List.List @(42)) with a_a1WT in expression: sizeList VV]
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
 
 LIQUID_OUT:

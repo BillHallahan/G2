@@ -14,26 +14,8 @@ makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
-zipWith fs? Emp Emp = 0 :+: Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? Emp Emp = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of zipWith to eliminate this possibility
+length Emp = 1
+Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 prop_zipWith Emp = error
@@ -54,21 +36,12 @@ zipWith fs? (0 :+: Emp) (0 :+: Emp) = Emp
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
-prop_zipWith (0 :+: Emp) = error
+prop_zipWith Emp = error
 makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+zipWith fs? Emp Emp = 0 :+: Emp
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
@@ -81,75 +54,12 @@ length ((fs? 0 0) :+: (zipWith fs? Emp Emp)) = 2
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length ((fs? 0 0) :+: (zipWith fs? (0 :+: Emp) (0 :+: Emp))) = 3
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length Emp = 1
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
 prop_zipWith (0 :+: Emp) = error
 makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
 length (0 :+: Emp) = 2
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length (0 :+: (0 :+: Emp)) = 3
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 

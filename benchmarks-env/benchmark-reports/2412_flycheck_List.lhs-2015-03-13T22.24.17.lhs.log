@@ -21,18 +21,6 @@ length Emp = 0
 violating length's refinement type
 Concrete
 
-prop_zipWith (0 :+: (0 :+: Emp)) = True
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
-prop_zipWith (0 :+: (0 :+: (0 :+: Emp))) = True
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
 
 ERROR:
 

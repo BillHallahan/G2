@@ -27,15 +27,6 @@ length (0 :+: (0 :+: Emp)) = 0
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
-prop_replicate 3 0 = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length (0 :+: (0 :+: (0 :+: Emp))) = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
 
 ERROR:
 

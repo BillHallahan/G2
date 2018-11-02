@@ -9,10 +9,9 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mexpand undefined Emp = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
+[0mThe call
+expand undefined Emp = Emp
+violates expand's refinement type
 Concrete
 
 

@@ -27,24 +27,6 @@ concat xss = 0 :+: (0 :+: Emp)
 Strengthen the refinement type of concat to eliminate this possibility
 Abstract
 
-prop_concat_1 = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat_1 = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
 
 ERROR:
 

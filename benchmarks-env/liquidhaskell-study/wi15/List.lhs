@@ -7,8 +7,6 @@ Lists
 {-@ LIQUID "--short-names" @-}
 {-@ LIQUID "--no-termination" @-}
 
-{-# LANGUAGE DeriveGeneric #-}
-
 -- CHECKBINDER prop_size
 -- CHECKBINDER empty
 -- CHECKBINDER add
@@ -35,8 +33,6 @@ module List ( List
 import Assert
 import Prelude hiding (length, replicate, foldr, foldr1, map, concat, zipWith)
 
-import GHC.Generics
-
 infixr 9 :+:
 
 empty     :: List a
@@ -57,7 +53,7 @@ Lets cook up our own `List` data type from scratch:
 \begin{code}
 data List a = Emp
             | (:+:) a (List a)
-              deriving (Eq, Ord, Show, Generic)
+              deriving (Eq, Ord, Show)
 \end{code}
 
 We can write a **measure** that logically represents
@@ -70,8 +66,6 @@ the *size*, i.e. number of elements of a `List`:
   @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}
-
-{-@ type ListNE a = {v:List a | size v > 0} @-}
 \end{code}
 
 It will be helpful to have a few abbreviations. First,
@@ -92,7 +86,7 @@ and then, lists whose size equals that of *another* list `Xs`:
 Write down a *refined* type for `length`:
 
 \begin{code}
-{-@ length            :: xs:List a -> {v:Nat | v = size xs} @-}
+{-@ length :: x: (List a) -> {v:Int | v = (size x)} @-}
 length            :: List a -> Int
 length Emp        = 0
 length (x :+: xs) = 1 + length xs
@@ -127,13 +121,13 @@ LiquidHaskell verifies respect the given type signatures:
 
 \begin{code}
 {-@ empty :: ListN a 0 @-}
-empty = fixme "empty"
+empty = Emp :: List a
 
 {-@ add :: a -> xs:List a -> ListN a {1 + size xs} @-}
-add x xs = fixme "add"
+add x xs = x :+: xs
 
 {-@ singleton :: a -> ListN a 1 @-}
-singleton x = fixme "singleton"
+singleton x = x :+: empty
 \end{code}
 
 (c) Replicating Values
@@ -142,10 +136,11 @@ singleton x = fixme "singleton"
 Fill in the code, and update the refinement type specification
 for `replicate n x` which should return a `List` `n` copies of
 the value `x`:
-
+{-@ replicate :: Int -> a -> List a @-}
 \begin{code}
-{-@ replicate :: n:Nat -> a -> ListN a n @-}
-replicate = fixme "replicate"
+{-@ replicate :: n:Int -> a -> ListN a {n} @-}
+replicate 0 _ = empty
+replicate n x = add x (replicate (n-1) x)
 \end{code}
 
 When you are done, the following assertion should be verified by LH.
@@ -162,7 +157,7 @@ Fix the specification for `map` such that the assertion in `prop_map`
 is verified by LH. (This will require you to first complete part (a) above.)
 
 \begin{code}
-{-@ map :: (a -> b) -> xs:List a -> ListX b xs @-}
+{-@ map :: (a -> b) -> x:List a -> {y:List b | size x = size y } @-}
 map f Emp        = Emp
 map f (x :+: xs) = f x :+: map f xs
 
@@ -177,7 +172,7 @@ Fix the specification for `foldr1` so that the call to `die` is
 verified by LH:
 
 \begin{code}
-{-@ foldr1 :: (a -> a -> a) -> {v:List a | size v > 0} -> a @-}
+{-@ foldr1 :: (a -> a -> a) -> {x:List a | size x > 0} -> a @-}
 foldr1 op (x :+: xs) = foldr op x xs
 foldr1 op Emp        = die "Cannot call foldr1 with empty list"
 
@@ -195,7 +190,7 @@ Fix the specification of `zipWith` so that LH verifies:
 + The assert inside `prop_zipwith`.
 
 \begin{code}
-{-@ zipWith :: (a -> b -> c) -> xs:List a -> ListX b xs -> ListX c xs @-}
+{-@ zipWith :: (a -> b -> c) -> x:List a -> ListX b x -> ListX c x @-}
 zipWith _ Emp Emp               = Emp
 zipWith f (x :+: xs) (y :+: ys) = f x y :+: zipWith f xs ys
 zipWith f _          _          = die  "Bad call to zipWith"
@@ -216,15 +211,19 @@ is verified by LH. Feel free to write any other code
 or specification (types, measures) that you need.
 
 \begin{code}
-{-@ measure sizes      :: List (List a) -> Int
-    sizes (Emp)        = 0
-    sizes ((:+:) x xs) = size x + sizes xs
+{-@ measure si      :: List (List a) -> Int
+    si (Emp) = 0
+    si ((:+:) x xs) = size x + si xs
   @-}
 
-{-@ invariant {v:List (List a) | 0 <= sizes v} @-}
+{-@ concat ::  x:List (List a) -> {y:List a|size y = si x} @-}
+concat Emp = Emp
+concat (x :+: xs) = x `addl` (concat xs)
 
-{-@ concat :: xs:List (List a) -> {v:List a | size v = sizes xs} @-}
-concat = fixme "concat"
+{-@ addl :: x:List a -> y:List a -> {z:List a| size z = size x + size y } @-}
+addl Emp xs = xs
+addl xs Emp = xs
+addl (x :+: xs) ys = x :+: (addl xs ys)
 
 prop_concat = lAssert (length (concat xss) == 6)
   where

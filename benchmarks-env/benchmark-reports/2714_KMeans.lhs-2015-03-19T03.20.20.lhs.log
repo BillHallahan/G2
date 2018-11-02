@@ -9,56 +9,14 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mdistance 1 Emp ((0.0) :+: Emp) = error
-makes a call to
-zipWith fs? Emp ((0.0) :+: Emp) = error
-violating zipWith's refinement type
-Concrete
-
-distance 2 Emp ((0.0) :+: ((0.0) :+: Emp)) = error
-makes a call to
-zipWith fs? Emp ((0.0) :+: ((0.0) :+: Emp)) = error
-violating zipWith's refinement type
-Concrete
-
-distance 3 Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) = error
-makes a call to
-zipWith fs? Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) = error
-violating zipWith's refinement type
-Concrete
-
-distance 4 Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) = error
-makes a call to
-zipWith fs? Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) = error
-violating zipWith's refinement type
-Concrete
-
-distance 5 Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) = error
-makes a call to
-zipWith fs? Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) = error
-violating zipWith's refinement type
-Concrete
-
-distance 6 Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) = error
-makes a call to
-zipWith fs? Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) = error
-violating zipWith's refinement type
-Concrete
-
-distance 7 Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) = error
-makes a call to
-zipWith fs? Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) = error
-violating zipWith's refinement type
-Concrete
-
-distance 8 Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) = error
-makes a call to
-zipWith fs? Emp ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) = error
-violating zipWith's refinement type
-Concrete
-
-
+[0m
 ERROR:
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
+    Not in scope: type constructor or class
+ matchTyCon ` ListNE '
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
 
 LIQUID_OUT:

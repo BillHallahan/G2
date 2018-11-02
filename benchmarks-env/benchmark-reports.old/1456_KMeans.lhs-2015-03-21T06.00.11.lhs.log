@@ -1,0 +1,947 @@
+1456
+KMeans.lhs-2015-03-21T06.00.11.lhs
+(170, '37-50')
+kmeans
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-21T06.00.11.lhs:170:37-50: Error: Liquid Type Mismatch', ' 170 | kmeans steps k n ps = repeat steps (kmeans1 k n ps)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mkmeans 1 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 6 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (f (f (f (f (fromList [])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 7 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (f (f (f (f (f (fromList []))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 8 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (f (f (f (f (f (f (fromList [])))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 9 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (f (f (f (f (f (f (f (fromList []))))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 10 0 0 Emp (fromList []) = error
+makes a call to
+kmeans1 0 0 Emp (f (f (f (f (f (f (f (f (f (fromList [])))))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 0 (Emp :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 0 (Emp :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 0 (Emp :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 0 (Emp :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: Emp) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 0 (Emp :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: Emp) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 6 0 0 (Emp :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: Emp) (f (f (f (f (f (fromList [])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 7 0 0 (Emp :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: Emp) (f (f (f (f (f (f (fromList []))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 8 0 0 (Emp :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: Emp) (f (f (f (f (f (f (f (fromList [])))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 6 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (f (f (f (f (f (fromList [])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 7 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (f (f (f (f (f (f (fromList []))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) (fromList []) = error
+makes a call to
+kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 6 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (f (f (f (f (f (fromList [])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 7 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (f (f (f (f (f (f (fromList []))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 8 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (f (f (f (f (f (f (f (fromList [])))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)))) (fromList []) = error
+makes a call to
+kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)))) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 6 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (f (f (f (f (f (fromList [])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 7 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (f (f (f (f (f (f (fromList []))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp))) (fromList []) = error
+makes a call to
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp))) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 6 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (f (f (f (f (f (fromList [])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp)) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp)) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp)) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 6 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (f (f (f (f (f (fromList [])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp)) (fromList []) = error
+makes a call to
+kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp)) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (f (f (f (f (fromList []))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 6 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) :+: Emp) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 7 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) :+: Emp) (f (f (f (fromList [])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 8 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 8 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 8 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 8 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 0 8 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 8 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) :+: Emp) (f (f (fromList []))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 9 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 9 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 9 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 9 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))))) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 10 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 10 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 0 10 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 10 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))))) :+: Emp) (f (fromList [])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 0 11 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))))))) :+: Emp) (fromList []) = error
+makes a call to
+kmeans1 0 11 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))))))) :+: Emp) (fromList []) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 0 Emp (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 Emp (fromList ([(0, Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 0 Emp (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 Emp (f (fromList ([(0, Emp)]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 1 0 Emp (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 Emp (f (f (fromList ([(0, Emp)])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 1 0 Emp (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 Emp (f (f (f (fromList ([(0, Emp)]))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 1 0 Emp (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 Emp (f (f (f (f (fromList ([(0, Emp)])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 6 1 0 Emp (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 Emp (f (f (f (f (f (fromList ([(0, Emp)]))))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 0 (Emp :+: Emp) (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: Emp) (fromList ([(0, Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 0 (Emp :+: Emp) (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: Emp) (f (fromList ([(0, Emp)]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 1 0 (Emp :+: Emp) (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: Emp) (f (f (fromList ([(0, Emp)])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 1 0 (Emp :+: Emp) (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: Emp) (f (f (f (fromList ([(0, Emp)]))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 0 (Emp :+: (Emp :+: Emp)) (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: (Emp :+: Emp)) (fromList ([(0, Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 0 (Emp :+: (Emp :+: Emp)) (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: (Emp :+: Emp)) (f (fromList ([(0, Emp)]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 1 0 (Emp :+: (Emp :+: Emp)) (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: (Emp :+: Emp)) (f (f (fromList ([(0, Emp)])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList ([(0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList ([(0, Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 0 Emp (fromList ([(0, Emp), (0, Emp)])) = error
+makes a call to
+kmeans1 1 0 Emp (fromList ([(0, Emp), (0, Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 0 Emp (fromList ([(0, Emp), (0, Emp)])) = error
+makes a call to
+kmeans1 1 0 Emp (f (fromList ([(0, Emp), (0, Emp)]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 0 (Emp :+: Emp) (fromList ([(0, Emp), (0, Emp)])) = error
+makes a call to
+kmeans1 1 0 (Emp :+: Emp) (fromList ([(0, Emp), (0, Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 1 Emp (fromList ([(0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 Emp (fromList ([(0, (0.0) :+: Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 1 Emp (fromList ([(0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 Emp (f (fromList ([(0, (0.0) :+: Emp)]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 1 1 Emp (fromList ([(0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 Emp (f (f (fromList ([(0, (0.0) :+: Emp)])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 1 1 Emp (fromList ([(0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 Emp (f (f (f (fromList ([(0, (0.0) :+: Emp)]))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 1 1 Emp (fromList ([(0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 Emp (f (f (f (f (fromList ([(0, (0.0) :+: Emp)])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 1 (((0.0) :+: Emp) :+: Emp) (fromList ([(0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 (((0.0) :+: Emp) :+: Emp) (fromList ([(0, (0.0) :+: Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 1 (((0.0) :+: Emp) :+: Emp) (fromList ([(0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 (((0.0) :+: Emp) :+: Emp) (f (fromList ([(0, (0.0) :+: Emp)]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 1 1 (((0.0) :+: Emp) :+: Emp) (fromList ([(0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 (((0.0) :+: Emp) :+: Emp) (f (f (fromList ([(0, (0.0) :+: Emp)])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 1 Emp (fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])) = error
+makes a call to
+kmeans1 1 1 Emp (fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 2 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])) = error
+makes a call to
+kmeans1 1 2 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 2 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])) = error
+makes a call to
+kmeans1 1 2 Emp (f (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 1 2 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])) = error
+makes a call to
+kmeans1 1 2 Emp (f (f (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 1 2 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])) = error
+makes a call to
+kmeans1 1 2 Emp (f (f (f (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))]))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 5 1 2 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])) = error
+makes a call to
+kmeans1 1 2 Emp (f (f (f (f (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])) = error
+makes a call to
+kmeans1 1 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 3 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])) = error
+makes a call to
+kmeans1 1 3 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 3 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])) = error
+makes a call to
+kmeans1 1 3 Emp (f (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 1 3 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])) = error
+makes a call to
+kmeans1 1 3 Emp (f (f (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 4 1 3 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])) = error
+makes a call to
+kmeans1 1 3 Emp (f (f (f (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))]))))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 4 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])) = error
+makes a call to
+kmeans1 1 4 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 4 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])) = error
+makes a call to
+kmeans1 1 4 Emp (f (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 3 1 4 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])) = error
+makes a call to
+kmeans1 1 4 Emp (f (f (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 5 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])) = error
+makes a call to
+kmeans1 1 5 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 5 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])) = error
+makes a call to
+kmeans1 1 5 Emp (f (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 6 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])) = error
+makes a call to
+kmeans1 1 6 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 2 1 6 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])) = error
+makes a call to
+kmeans1 1 6 Emp (f (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))]))) = error
+violating kmeans1's refinement type
+Concrete
+
+kmeans 1 1 7 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))])) = error
+makes a call to
+kmeans1 1 7 Emp (fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))])) = error
+violating kmeans1's refinement type
+Concrete
+
+
+ERROR:
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 16,Just 32]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-21T06.00.11.lhs:170:37-50: Error: Liquid Type Mismatch
+ 
+ 170 | kmeans steps k n ps = repeat steps (kmeans1 k n ps)
+                                           ^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List {v : (List Double) | size v == n}) | VV == ps
+                                                           && 0 <= size VV
+                                                           && 0 <= sizes VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List {v : (List Double) | size v == n}) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}
+      
+     ps : {ps : (List (List Double)) | 0 <= size ps
+                                       && 0 <= sizes ps}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-21T06.00.11.lhs:190:21-41: Error: Liquid Type Mismatch
+ 
+ 190 | kmeans1 k n ps cs = normalize newClusters
+                           ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}

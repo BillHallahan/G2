@@ -17,54 +17,6 @@ implies fs? fs? = False
 Strengthen the refinement type of implies to eliminate this possibility
 Abstract
 
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
-violates zipWith's refinement type
-when
-implies fs? fs? = False
-Strengthen the refinement type of implies to eliminate this possibility
-Abstract
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: Emp)) = error
-violates zipWith's refinement type
-when
-implies fs? fs? = False
-Strengthen the refinement type of implies to eliminate this possibility
-Abstract
-
-The call
-zipWith divInt (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = error
-violates zipWith's refinement type
-when
-implies fs? fs? = False
-Strengthen the refinement type of implies to eliminate this possibility
-Abstract
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: Emp)) (0 :+: Emp) = error
-violates zipWith's refinement type
-when
-implies fs? fs? = False
-Strengthen the refinement type of implies to eliminate this possibility
-Abstract
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = error
-violates zipWith's refinement type
-when
-implies fs? fs? = False
-Strengthen the refinement type of implies to eliminate this possibility
-Abstract
-
-The call
-zipWith divInt (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = error
-violates zipWith's refinement type
-when
-implies fs? fs? = False
-Strengthen the refinement type of implies to eliminate this possibility
-Abstract
-
 
 ERROR:
 

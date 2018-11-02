@@ -27,24 +27,6 @@ replicate 0 0 = 0 :+: Emp
 Strengthen the refinement type of replicate to eliminate this possibility
 Abstract
 
-prop_replicate 0 0 = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-replicate 0 0 = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of replicate to eliminate this possibility
-Abstract
-
-prop_replicate 0 0 = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-replicate 0 0 = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of replicate to eliminate this possibility
-Abstract
-
 
 ERROR:
 

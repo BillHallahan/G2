@@ -15,6 +15,11 @@ violates concat2's refinement type
 Concrete
 
 The call
+concat2 (0 :+: (0 :+: Emp)) Emp = 0 :+: Emp
+violates concat2's refinement type
+Concrete
+
+The call
 concat2 (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
 violates concat2's refinement type
 Concrete
@@ -30,82 +35,7 @@ violates concat2's refinement type
 Concrete
 
 The call
-concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: Emp)) Emp = 0 :+: Emp
-violates concat2's refinement type
-Concrete
-
-The call
 concat2 (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: Emp)
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))
 violates concat2's refinement type
 Concrete
 
@@ -115,37 +45,12 @@ violates concat2's refinement type
 Concrete
 
 The call
-concat2 (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
 violates concat2's refinement type
 Concrete
 
 The call
-concat2 (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))
+concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
 violates concat2's refinement type
 Concrete
 
@@ -155,67 +60,17 @@ violates concat2's refinement type
 Concrete
 
 The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+concat2 (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
 violates concat2's refinement type
 Concrete
 
 The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+concat2 (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
 violates concat2's refinement type
 Concrete
 
 The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+concat2 (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
 violates concat2's refinement type
 Concrete
 

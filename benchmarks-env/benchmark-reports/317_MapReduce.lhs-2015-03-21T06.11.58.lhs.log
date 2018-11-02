@@ -9,167 +9,21 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mexpand undefined Emp = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
+[0mThe call
+expand undefined Emp = Emp
+violates expand's refinement type
+when
+implies fs? fs? = False
+Strengthen the refinement type of implies to eliminate this possibility
+Abstract
 
-expand undefined (0 :+: Emp) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
-
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))))) = error
-makes a call to
-concat fs? = error
-violating concat's refinement type
-Concrete
+The call
+expand undefined (0 :+: Emp) = Emp
+violates expand's refinement type
+when
+map undefined (0 :+: Emp) = Emp :+: Emp
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
 
 
 ERROR:

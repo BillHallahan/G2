@@ -12,21 +12,9 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m
 ERROR:
 G2: ERROR OCCURRED IN LIQUIDHASKELL
-[<no source information>:0:0: Error: Illegal type specification for `constructor GHC.Tuple.(,)`
-    constructor GHC.Tuple.(,) :: x_Tuple21:a -> x_Tuple22:{VV : b | true} -> {VV : (a, b) | cludim VV == size x_Tuple22
-                                                                                            && snd VV == x_Tuple22
-                                                                                            && fst VV == x_Tuple21
-                                                                                            && x_Tuple22 VV == x_Tuple22
-                                                                                            && x_Tuple21 VV == x_Tuple21}
-    Sort Error in Refinement: {VV : (Tuple a_12 b_13) | ((((cludim VV == size x_Tuple22##GHC.Tuple.(,)
-                                                            && snd VV == x_Tuple22##GHC.Tuple.(,))
-                                                           && fst VV == x_Tuple21##GHC.Tuple.(,))
-                                                          && x_Tuple22 VV == x_Tuple22##GHC.Tuple.(,))
-                                                         && x_Tuple21 VV == x_Tuple21##GHC.Tuple.(,))}
-    Unbound Symbol a_12
- Perhaps you meant: papp2, p2
-  because
-Cannot unify int with a_12 in expression: cludim VV]
+liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
+    Not in scope: type constructor or class
+ matchTyCon ` ListNE '
 CallStack (from HasCallStack):
   error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 

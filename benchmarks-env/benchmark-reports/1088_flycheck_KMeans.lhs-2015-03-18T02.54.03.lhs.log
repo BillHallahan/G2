@@ -9,134 +9,14 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mThe call
-kmeans1 0 0 Emp (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 0 (Emp :+: Emp) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: Emp))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 0 (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp)))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 1 (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: (((0.0) :+: Emp) :+: Emp))))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: (((0.0) :+: ((0.0) :+: Emp)) :+: Emp)))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp)) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 3 (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) :+: Emp))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp)) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 4 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) :+: Emp))) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-The call
-kmeans1 0 5 (((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) :+: Emp) (fromList []) = error
-violates kmeans1's refinement type
-Concrete
-
-Timeout!
-
+[0m
 ERROR:
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
+    Not in scope: type constructor or class
+ matchTyCon ` ListNE '
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
 
 LIQUID_OUT:

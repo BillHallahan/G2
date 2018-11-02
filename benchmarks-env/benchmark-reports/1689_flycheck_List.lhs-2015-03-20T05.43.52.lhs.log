@@ -9,16 +9,7 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mprop_size = True
-makes a call to
-length (0 :+: (0 :+: (0 :+: Emp))) = 3
-violating length's refinement type
-when
-l3 = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of l3 to eliminate this possibility
-Abstract
-
-
+[0m
 ERROR:
 
 

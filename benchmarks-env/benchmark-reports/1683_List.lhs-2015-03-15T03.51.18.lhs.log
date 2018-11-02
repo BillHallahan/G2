@@ -36,15 +36,6 @@ concat (l0 :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = 0 :+: (0 :+: Emp)
 Strengthen the refinement type of concat to eliminate this possibility
 Abstract
 
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat (l0 :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
 
 ERROR:
 

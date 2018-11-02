@@ -20,7 +20,17 @@ violates addl's refinement type
 Concrete
 
 The call
+addl (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
+violates addl's refinement type
+Concrete
+
+The call
 addl (0 :+: (0 :+: (0 :+: Emp))) Emp = Emp
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: Emp
 violates addl's refinement type
 Concrete
 
@@ -30,12 +40,27 @@ violates addl's refinement type
 Concrete
 
 The call
+addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: Emp
+violates addl's refinement type
+Concrete
+
+The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = Emp
 violates addl's refinement type
 Concrete
 
 The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: Emp
+violates addl's refinement type
+Concrete
+
+The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = Emp
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: Emp
 violates addl's refinement type
 Concrete
 
@@ -60,12 +85,132 @@ violates addl's refinement type
 Concrete
 
 The call
+addl (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) Emp = Emp
 violates addl's refinement type
 Concrete
 
 The call
+addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violates addl's refinement type
+Concrete
+
+The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) Emp = Emp
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: Emp
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: Emp
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = 0 :+: Emp
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = 0 :+: Emp
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: Emp) = 0 :+: Emp
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violates addl's refinement type
+Concrete
+
+The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) (0 :+: Emp) = 0 :+: Emp
 violates addl's refinement type
 Concrete
 
@@ -80,371 +225,10 @@ violates addl's refinement type
 Concrete
 
 The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))) Emp = Emp
+addl (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
 violates addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-Timeout!
 
 ERROR:
 

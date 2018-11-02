@@ -15,12 +15,6 @@ die ("Assert Fails!") = error
 violating die's refinement type
 Concrete
 
-prop_replicate 1 0 = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-Concrete
-
 
 ERROR:
 

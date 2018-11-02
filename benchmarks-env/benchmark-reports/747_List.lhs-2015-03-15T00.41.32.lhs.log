@@ -4,6 +4,7 @@ List.lhs-2015-03-15T00.41.32.lhs
 concat
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T00.41.32.lhs:215:16-23: Error: Liquid Type Mismatch', ' 215 | concat = fixme "concat"']
 
+IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
 [1;94m

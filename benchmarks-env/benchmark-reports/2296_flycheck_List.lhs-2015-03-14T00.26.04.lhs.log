@@ -12,31 +12,13 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m
 ERROR:
 G2: ERROR OCCURRED IN LIQUIDHASKELL
-[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T00.26.04.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
-    constructor List.Emp :: {VV : (List a) | concatHelperMeasure VV == 0
-                                             && size VV == 0}
-    Sort Error in Refinement: {VV : (List.List a_a1WU) | (concatHelperMeasure VV == 0
-                                                          && size VV == 0)}
-    The sort func(0, [(List.List (List.List a_a1WU)); int]) is not numeric
-  because
-Cannot unify func(0, [(List.List (List.List a_a1WU)); int]) with int in expression: concatHelperMeasure VV == 0
-  because
-Invalid Relation concatHelperMeasure VV == 0 with operand types func(0, [(List.List (List.List a_a1WU)); int]) and int,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T00.26.04.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
-    constructor List.:+: :: a -> xs:(List a) -> {VV : (List a) | concatHelperMeasure VV == 1 + size xs
-                                                                 && size VV == 1 + size xs}
-    Sort Error in Refinement: {VV : (List.List a_a1WU) | (concatHelperMeasure VV == 1 + size xs
-                                                          && size VV == 1 + size xs)}
-    The sort func(0, [(List.List (List.List a_a1WU)); int]) is not numeric
-  because
-Cannot unify func(0, [(List.List (List.List a_a1WU)); int]) with int in expression: concatHelperMeasure VV == 1 + size xs
-  because
-Invalid Relation concatHelperMeasure VV == 1 + size xs with operand types func(0, [(List.List (List.List a_a1WU)); int]) and int,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T00.26.04.lhs:215:13: Error: Bad Measure Specification
+[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T00.26.04.lhs:217:13: Error: Bad Measure Specification
     measure  concatHelperMeasure
     The sort func(0, [(List.List (List.List @(42))); int]) is not numeric
   because
 Cannot unify func(0, [(List.List (List.List @(42))); int]) with int in expression: 0
   because
-Cannot cast 0 of sort int to incompatible sort func(1, [(List.List (List.List @(0))); int]),/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T00.26.04.lhs:215:13: Error: Bad Measure Specification
+Cannot cast 0 of sort int to incompatible sort func(1, [(List.List (List.List @(0))); int]),/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T00.26.04.lhs:217:13: Error: Bad Measure Specification
     measure  concatHelperMeasure
     The sort func(0, [(List.List (List.List @(43))); int]) is not numeric
   because

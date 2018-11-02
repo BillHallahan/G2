@@ -9,19 +9,7 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mcentroid 0 ((0.0) :+: Emp) 0 = error
-makes a call to
-divide (0.0) 0 = error
-violating divide's refinement type
-Concrete
-
-centroid 0 ((0.0) :+: ((0.0) :+: Emp)) 0 = error
-makes a call to
-divide (0.0) 0 = error
-violating divide's refinement type
-Concrete
-
-
+[0m
 ERROR:
 
 liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.34.05.lhs:95:1: warning: [-Wtabs]
@@ -31,6 +19,12 @@ liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.34.05.lhs:95:1: warning
 liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.34.05.lhs:95:1: warning: [-Wtabs]
     Tab character found here.
     Please use spaces instead.
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
+    Not in scope: type constructor or class
+ matchTyCon ` ListNE '
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
 
 LIQUID_OUT:

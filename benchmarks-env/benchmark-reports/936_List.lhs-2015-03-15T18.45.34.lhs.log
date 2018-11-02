@@ -4,6 +4,7 @@ List.lhs-2015-03-15T18.45.34.lhs
 add
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T18.45.34.lhs:127:18-22: Error: Liquid Type Mismatch', ' 127 | add x xs = fixme "add"']
 
+IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
 [1;94m

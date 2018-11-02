@@ -10,7 +10,17 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
 [0mThe call
+zipWith undefined (0 :+: Emp) Emp = error
+violates zipWith's refinement type
+Concrete
+
+The call
 zipWith undefined Emp (0 :+: Emp) = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined (0 :+: (0 :+: Emp)) Emp = error
 violates zipWith's refinement type
 Concrete
 
@@ -20,7 +30,17 @@ violates zipWith's refinement type
 Concrete
 
 The call
+zipWith undefined (0 :+: (0 :+: (0 :+: Emp))) Emp = error
+violates zipWith's refinement type
+Concrete
+
+The call
 zipWith undefined Emp (0 :+: (0 :+: (0 :+: Emp))) = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = error
 violates zipWith's refinement type
 Concrete
 
@@ -30,7 +50,17 @@ violates zipWith's refinement type
 Concrete
 
 The call
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = error
+violates zipWith's refinement type
+Concrete
+
+The call
 zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = error
 violates zipWith's refinement type
 Concrete
 
@@ -50,257 +80,7 @@ violates zipWith's refinement type
 Concrete
 
 The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined (0 :+: Emp) Emp = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: Emp)) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith divInt (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined (0 :+: (0 :+: Emp)) Emp = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: Emp)) (0 :+: Emp) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith divInt (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith divInt (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined (0 :+: (0 :+: (0 :+: Emp))) Emp = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith divInt (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith divInt (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = error
-violates zipWith's refinement type
-Concrete
-
-The call
 zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) Emp = error
-violates zipWith's refinement type
-Concrete
-
-The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = error
 violates zipWith's refinement type
 Concrete
 
@@ -310,17 +90,17 @@ violates zipWith's refinement type
 Concrete
 
 The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = error
-violates zipWith's refinement type
-Concrete
-
-The call
 zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) Emp = error
 violates zipWith's refinement type
 Concrete
 
 The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = error
+zipWith const (0 :+: (0 :+: Emp)) (0 :+: Emp) = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = error
 violates zipWith's refinement type
 Concrete
 
@@ -330,11 +110,50 @@ violates zipWith's refinement type
 Concrete
 
 The call
-zipWith asTypeOf (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: Emp) = error
+zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = error
 violates zipWith's refinement type
 Concrete
 
-Timeout!
+The call
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) Emp = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) Emp = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) Emp = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) Emp = error
+violates zipWith's refinement type
+Concrete
+
+The call
+zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) = error
+violates zipWith's refinement type
+Concrete
+
 
 ERROR:
 

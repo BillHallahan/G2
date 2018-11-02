@@ -18,6 +18,15 @@ length fs? = 1
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
+prop_map undefined Emp = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+length Emp = 1
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
 prop_map undefined (0 :+: Emp) = error
 makes a call to
 die ("Assert Fails!") = error
@@ -42,195 +51,6 @@ die ("Assert Fails!") = error
 violating die's refinement type
 when
 length fs? = 4
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 5
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 6
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 7
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 8
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 9
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 10
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 11
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 12
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 13
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 14
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 15
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 16
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 17
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 18
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 19
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 20
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 21
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 22
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 23
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length Emp = 1
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length (0 :+: Emp) = 2
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 

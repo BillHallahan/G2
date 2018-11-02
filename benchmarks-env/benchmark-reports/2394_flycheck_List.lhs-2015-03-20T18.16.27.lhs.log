@@ -9,22 +9,23 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
+[0mzipWith undefined (0 :+: Emp) (0 :+: (0 :+: Emp)) = error
+makes a call to
+die ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+die ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: (0 :+: Emp)) (0 :+: Emp) = error
+makes a call to
+Timeout!
+
 ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
-[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T18.16.27.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
-    constructor List.:+: :: x:a -> xs:(List a) -> {VV : (List a) | listOfListsSize VV == size x + listOfListsSize xs
-                                                                   && size VV == 1 + size xs}
-    Sort Error in Refinement: {VV : (List.List a_a1WT) | (listOfListsSize VV == size x + listOfListsSize xs
-                                                          && size VV == 1 + size xs)}
-    Cannot unify (List.List @(42)) with a_a1WT in expression: listOfListsSize VV,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T18.16.27.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
-    constructor List.Emp :: {VV : (List a) | listOfListsSize VV == 0
-                                             && size VV == 0}
-    Sort Error in Refinement: {VV : (List.List a_a1WT) | (listOfListsSize VV == 0
-                                                          && size VV == 0)}
-    Cannot unify (List.List @(42)) with a_a1WT in expression: listOfListsSize VV]
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
 
 LIQUID_OUT:

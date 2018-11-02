@@ -4,6 +4,7 @@ flycheck_List.lhs-2015-03-16T02.15.25.lhs
 empty
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.15.25.lhs:124:15-21: Error: Liquid Type Mismatch', ' 124 | empty = fixme "empty"']
 
+IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
 [1;94m

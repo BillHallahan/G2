@@ -14,196 +14,16 @@ makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
-map undefined Emp = 0 :+: Emp
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
 length fs? = 1
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined Emp = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+length Emp = 1
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
@@ -221,179 +41,35 @@ makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
 length fs? = 2
 Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined Emp = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+map undefined Emp = 0 :+: Emp
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: Emp) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+length (0 :+: Emp) = 2
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined Emp = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+map undefined Emp = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
 prop_map undefined (0 :+: (0 :+: Emp)) = error
@@ -410,58 +86,64 @@ makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
+length fs? = 3
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined Emp = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+map undefined Emp = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: (0 :+: Emp)) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+length (0 :+: (0 :+: Emp)) = 3
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: Emp) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+map undefined (0 :+: Emp) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+map undefined (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+length fs? = 4
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: (0 :+: Emp)) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
 map undefined (0 :+: (0 :+: Emp)) = 0 :+: Emp
 Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-Timeout!
 
 ERROR:
 

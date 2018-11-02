@@ -9,14 +9,11 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mmapReduce undefined undefined Emp = error
-makes a call to
-concat (map undefined Emp) = error
-violating concat's refinement type
-Concrete
-
-
+[0m
 ERROR:
+G2: exprToSMT: unhandled Expr: Lam TermL (Id (Name "a" Nothing 7566047373982490711 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/List.lhs"}}))) (TyApp (TyCon (Name "structEq" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyApp (TyApp (TyCon (Name "$" (Just "GHC.Tuple") 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802121 Nothing) TYPE)) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802121 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))) (App (Data (DataCon (Name "structEq" Nothing 2 Nothing) (TyFun (TyFun (TyVar (Id (Name "a" Nothing 7566047373982490709 Nothing) TYPE)) (TyFun (TyVar (Id (Name "a" Nothing 7566047373982490709 Nothing) TYPE)) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))) (TyCon (Name "structEq" Nothing 0 Nothing) TYPE)))) (App (App (App (Var (Id (Name "structEqList" Nothing 0 Nothing) (TyCon (Name "structEq" Nothing 0 Nothing) TYPE))) (Type (TyApp (TyApp (TyCon (Name "$" (Just "GHC.Tuple") 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802121 Nothing) TYPE)) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802121 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))) (Var (Id (Name "fs?" Nothing 87989 Nothing) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyApp TYPE TYPE)) (TyApp (TyApp (TyCon (Name "$" (Just "GHC.Tuple") 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802121 Nothing) TYPE)) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802121 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))))) (Var (Id (Name "a" Nothing 7566047373982490711 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/List.lhs"}}))) (TyApp (TyCon (Name "structEq" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyApp (TyApp (TyCon (Name "$" (Just "GHC.Tuple") 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802121 Nothing) TYPE)) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802121 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))))))
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Solver/Converters.hs:354:15 in main:G2.Internals.Solver.Converters
 
 
 LIQUID_OUT:

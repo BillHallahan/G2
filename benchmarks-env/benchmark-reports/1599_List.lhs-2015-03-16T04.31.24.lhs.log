@@ -27,75 +27,21 @@ length x2s = 0
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length x2s = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length x2s = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length x2s = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length x2s = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length x2s = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length x2s = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length x2s = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
 prop_zipWith Emp = error
 makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
 length Emp = 1
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_zipWith (0 :+: (0 :+: Emp)) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+length x2s = 0
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 

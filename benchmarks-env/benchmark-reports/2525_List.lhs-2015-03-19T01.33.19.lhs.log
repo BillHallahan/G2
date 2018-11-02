@@ -9,12 +9,48 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mprop_map undefined Emp = error
+[0mprop_map undefined (0 :+: Emp) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+map undefined (0 :+: Emp) = Emp
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+prop_map undefined Emp = error
 makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
 map undefined Emp = 0 :+: Emp
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: Emp) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+length ((undefined 0) :+: (map undefined Emp)) = 0
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: Emp) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+length (0 :+: Emp) = 0
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: (0 :+: Emp)) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+map undefined (0 :+: (0 :+: Emp)) = Emp
 Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
@@ -27,47 +63,17 @@ map undefined Emp = 0 :+: (0 :+: Emp)
 Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
-prop_map undefined Emp = error
+prop_map undefined (0 :+: (0 :+: Emp)) = error
 makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
-map undefined Emp = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of map to eliminate this possibility
+length ((undefined 0) :+: (map undefined (0 :+: Emp))) = 0
+Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = Emp
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: Emp) = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
 
 ERROR:
-G2: appTypeOf
-TyBottom
-[App (Data (DataCon (Name "I#" (Just "GHC.Types") 8214565720323799604 (Just (Span {start = Loc {line = 17, col = 12, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) (TyFun TyLitInt (TyCon (Name "Int" (Just "GHC.Types") 8214565720323799605 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))) (Lit (LitInt 0))]
-
-
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Language/Typing.hs:188:20 in main:G2.Internals.Language.Typing
 
 
 LIQUID_OUT:

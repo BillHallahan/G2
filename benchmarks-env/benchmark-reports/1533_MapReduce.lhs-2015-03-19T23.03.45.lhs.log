@@ -9,10 +9,10 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mmapReduce undefined undefined Emp = error
+[0mmapReduce undefined undefined Emp = fromList []
 makes a call to
-concat (map undefined Emp) = error
-violating concat's refinement type
+group Emp = fromList []
+violating group's refinement type
 Concrete
 
 

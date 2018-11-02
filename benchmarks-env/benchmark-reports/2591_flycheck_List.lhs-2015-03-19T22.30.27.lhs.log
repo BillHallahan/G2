@@ -18,6 +18,15 @@ zipWith fs? Emp Emp = 0 :+: Emp
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
+prop_zipWith (0 :+: Emp) = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith fs? (0 :+: Emp) (0 :+: Emp) = Emp
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
 prop_zipWith Emp = error
 makes a call to
 die ("Assert Fails!") = error
@@ -36,66 +45,12 @@ zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: Emp))
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
-prop_zipWith Emp = error
+prop_zipWith (0 :+: (0 :+: Emp)) = error
 makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
-zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith Emp = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = Emp
+zipWith fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = Emp
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
@@ -108,57 +63,12 @@ zipWith fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: Emp)
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
-prop_zipWith (0 :+: Emp) = error
+prop_zipWith Emp = error
 makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = Emp
+zipWith fs? Emp Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
@@ -168,105 +78,6 @@ die ("Assert Fails!") = error
 violating die's refinement type
 when
 zipWith fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 

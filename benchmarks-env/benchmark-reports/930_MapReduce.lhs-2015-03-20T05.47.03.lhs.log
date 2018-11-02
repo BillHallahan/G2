@@ -9,66 +9,7 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mmapReduce undefined undefined (0 :+: Emp) = error
-makes a call to
-concat (map undefined (0 :+: Emp)) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: Emp))) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: (0 :+: Emp)))) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = error
-violating concat's refinement type
-Concrete
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = error
-makes a call to
-concat (map undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = error
-violating concat's refinement type
-Concrete
-
+[0mTimeout!
 
 ERROR:
 

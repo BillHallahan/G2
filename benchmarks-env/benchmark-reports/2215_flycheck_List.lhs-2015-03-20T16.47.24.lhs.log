@@ -15,103 +15,13 @@ die fs? = error
 violating die's refinement type
 Concrete
 
+zipWith undefined (0 :+: Emp) Emp = error
+makes a call to
+die fs? = error
+violating die's refinement type
+Concrete
+
 zipWith undefined (0 :+: Emp) (0 :+: (undefined :+: Emp)) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (undefined :+: Emp))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (undefined :+: Emp)))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (undefined :+: Emp))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (undefined :+: Emp)))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (undefined :+: Emp))))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (undefined :+: Emp)))))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (undefined :+: Emp))))))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (undefined :+: Emp)))))))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die ("Bad call to zipWith") = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = error
 makes a call to
 die ("Bad call to zipWith") = error
 violating die's refinement type
@@ -123,9 +33,39 @@ die ("Bad call to zipWith") = error
 violating die's refinement type
 Concrete
 
-zipWith undefined (0 :+: Emp) Emp = error
+zipWith undefined (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (undefined :+: Emp))) = error
 makes a call to
-die fs? = error
+die ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = error
+makes a call to
+die ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (undefined :+: Emp)))) = error
+makes a call to
+die ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+die ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (undefined :+: Emp))))) = error
+makes a call to
+die ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
+makes a call to
+die ("Bad call to zipWith") = error
 violating die's refinement type
 Concrete
 

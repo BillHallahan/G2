@@ -15,12 +15,6 @@ length Emp = 0
 violating length's refinement type
 Concrete
 
-prop_map undefined (0 :+: Emp) = True
-makes a call to
-length Emp = 0
-violating length's refinement type
-Concrete
-
 
 ERROR:
 

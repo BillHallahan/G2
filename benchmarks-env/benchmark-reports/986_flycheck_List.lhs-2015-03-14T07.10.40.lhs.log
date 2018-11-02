@@ -20,7 +20,17 @@ violates concat's refinement type
 Concrete
 
 The call
+concat (Emp :+: (Emp :+: Emp)) = Emp
+violates concat's refinement type
+Concrete
+
+The call
 concat ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+violates concat's refinement type
+Concrete
+
+The call
+concat (Emp :+: ((0 :+: Emp) :+: Emp)) = 0 :+: Emp
 violates concat's refinement type
 Concrete
 
@@ -50,152 +60,7 @@ violates concat's refinement type
 Concrete
 
 The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))) :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))))))
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: Emp)) = Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: ((0 :+: Emp) :+: Emp)) = 0 :+: Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat's refinement type
-Concrete
-
-The call
-concat ((0 :+: Emp) :+: (Emp :+: Emp)) = 0 :+: Emp
-violates concat's refinement type
-Concrete
-
-The call
 concat (Emp :+: (Emp :+: (Emp :+: Emp))) = Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = 0 :+: Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = 0 :+: (0 :+: Emp)
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = 0 :+: Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = 0 :+: Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)))) = 0 :+: (0 :+: Emp)
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))))) = 0 :+: Emp
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))))) = 0 :+: (0 :+: Emp)
-violates concat's refinement type
-Concrete
-
-The call
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = Emp
 violates concat's refinement type
 Concrete
 

@@ -23,6 +23,15 @@ makes a call to
 die ("Assert Fails!") = error
 violating die's refinement type
 when
+length fs? = 0
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_concat = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
 concat xss = 0 :+: Emp
 Strengthen the refinement type of concat to eliminate this possibility
 Abstract
@@ -34,69 +43,6 @@ violating die's refinement type
 when
 concat xss = 0 :+: (0 :+: Emp)
 Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 0
-Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 

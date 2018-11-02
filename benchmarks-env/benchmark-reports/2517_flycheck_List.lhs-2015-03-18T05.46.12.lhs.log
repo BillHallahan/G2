@@ -9,11 +9,26 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
+[0mprop_concat_1 = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+concat BAD 2 fs? = undefined :+: Emp
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+prop_concat_1 = error
+makes a call to
+die ("Assert Fails!") = error
+violating die's refinement type
+when
+concat BAD 2 fs? = undefined :+: (undefined :+: Emp)
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+
 ERROR:
-G2: Unrecognized Data (DataCon (Name "Emp" (Just "List") 8214565720323848258 (Just (Span {start = Loc {line = 54, col = 15, file = "./liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.46.12.lhs"}, end = Loc {line = 54, col = 18, file = "./liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.46.12.lhs"}}))) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 6989586621679075657 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.46.12.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.46.12.lhs"}}))) TYPE)) (TyApp (TyCon (Name "List" (Just "List") 8214565720323848164 (Just (Span {start = Loc {line = 54, col = 1, file = "./liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.46.12.lhs"}, end = Loc {line = 56, col = 39, file = "./liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.46.12.lhs"}}))) (TyApp TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679075657 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.46.12.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.46.12.lhs"}}))) TYPE))))) with args [Var (Id (Name "fs?" Nothing 87605 Nothing) TYPE),Var (Id (Name "fs?" Nothing 87606 Nothing) TyUnknown)] in funcToSMT
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Solver/Converters.hs:360:17 in main:G2.Internals.Solver.Converters
 
 
 LIQUID_OUT:

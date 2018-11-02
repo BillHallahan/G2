@@ -15,12 +15,6 @@ zipWith fs? Emp Emp = Emp
 violating zipWith's refinement type
 Concrete
 
-prop_zipWith (0 :+: Emp) = True
-makes a call to
-zipWith fs? Emp Emp = Emp
-violating zipWith's refinement type
-Concrete
-
 
 ERROR:
 
