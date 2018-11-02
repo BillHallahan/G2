@@ -119,6 +119,8 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
         target.func_name = isolate_func_name(target_dir + target.file_name, int(target.line_num[0]))
         print("FIXED FUNCTION NAME ERROR:")
         print(target.func_name)
+        proc.stderr.close()
+        proc.stdout.close()
         return run_g2(g2_dir, test_dir, target_dir, recurs_n, target)
     res = proc.stdout.read() + "\nERROR:\n" + err
     if is_fixme:
