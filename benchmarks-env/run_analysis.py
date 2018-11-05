@@ -107,7 +107,7 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
         is_fixme = True
 
     replace(target_file, ' Prop ', ' ')
-    cmd = "./G2 %s -- --time 30 --n %d --liquid %s --liquid-func %s" % (
+    cmd = "./G2 %s -- --time 120 --n %d --liquid %s --liquid-func %s" % (
         test_dir, recurs_n, target_file, target.func_name
     )
     proc = subprocess.Popen(cmd, shell=True, encoding='UTF-8', cwd=g2_dir, stdout=subprocess.PIPE,
@@ -221,10 +221,10 @@ def collect_reports_deprecated():
     print('Targets remaining: %d' % len(targets))
 
     # Targets are printed with four fields, and then two spaces and there is the G2 Report
-    #for t in targets:
-    #    create_g2_report(t)
-    pool = Pool(4)
-    results = pool.map(create_g2_report, targets)
+    for t in targets:
+        create_g2_report(t)
+    # pool = Pool(4)
+    # results = pool.map(create_g2_report, targets)
 
 if __name__ == '__main__':
     collect_reports_deprecated()

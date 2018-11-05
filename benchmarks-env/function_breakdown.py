@@ -41,12 +41,14 @@ for file in onlyfiles:
     t = read_target(sys.argv[1], file)
     with open(join(sys.argv[1], file)) as wholeoutput:
         outputstr = wholeoutput.read()
-        if 'G2: ' in outputstr:
+        if 'IS_FIXME' in outputstr:
+            stats[t.func_name]['fixme'] += 1
+        elif 'G2: ' in outputstr:
             if 'ERROR OCCURRED IN LIQUIDHASKELL' in outputstr:
                 stats[t.func_name]['LHError'] += 1
             else:
-                stats[t.func_name]['Error'] += 1
                 print(file)
+                stats[t.func_name]['Error'] += 1
         elif '0m\nERROR:\n\n' in outputstr:
             stats[t.func_name]['None'] += 1
         elif 'Abstract' in outputstr:
@@ -60,11 +62,12 @@ for file in onlyfiles:
             
 
 
-print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format('Func','LHError', 'Error','None','Abstract','Concrete','Timeout', 'Step Exhaustion'))
+print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format('Func','LHError', 'Error','None','Abstract','Concrete','Timeout', 'Step Exhaustion', "Fixme"))
 
 for key in stats:
-    print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format(
+    print('{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}\t{: <20}'.format(
         key, stats[key]['LHError'], stats[key]['Error'],
         stats[key]['None'], stats[key]['Abstract'],
-        stats[key]['Concrete'], stats[key]['Timeout'], stats[key]['StepExhaustion']
+        stats[key]['Concrete'], stats[key]['Timeout'], 
+        stats[key]['StepExhaustion'], stats[key]['fixme']
     ))
