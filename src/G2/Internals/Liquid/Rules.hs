@@ -4,7 +4,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Internals.Liquid.Rules ( LHRed (..)
-                                 , LHNonRedPCRed (..)
                                  , LHLimitByAcceptedHalter
                                  , LHLimitByAcceptedOrderer
                                  , LHAbsHalter (..)
@@ -263,24 +262,6 @@ instance Solver con => Reducer (LHRed con) LHTracker where
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
-
--- | We mostly lean on the normal NonRedPCRed, but we have to make sure spots for LH Dicts
--- are filled in.
--- We currently assume all such Dicts can simply be undefined.
-data LHNonRedPCRed = LHNonRedPCRed LHState Config
-
-instance Reducer LHNonRedPCRed t where
-    redRules nrpr@(LHNonRedPCRed lhs config) s = do
-        (pr, s', nrpr') <- redRules (NonRedPCRed config) s
-
-        s'' <- mapM (\s_@(State { curr_expr = CurrExpr er ce }) ->
-                        let
-                            ce' = evalLHStateM (addLHTCExprPasses M.empty ce) lhs
-                        in
-                        return $ s_ { curr_expr = CurrExpr er ce'}
-                    ) s'
-
-        return (pr, s'',LHNonRedPCRed lhs config)
 
 -- LHLimitByAcceptedHalter and LHLimitByAcceptedOrderer should always be used
 -- together.
