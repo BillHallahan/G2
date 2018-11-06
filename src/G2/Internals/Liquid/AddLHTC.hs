@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Internals.Liquid.AddLHTC ( addLHTC ) where
+module G2.Internals.Liquid.AddLHTC ( addLHTC
+                                   , addLHTCExprPasses ) where
 
 import G2.Internals.Language
 import G2.Internals.Language.Monad
