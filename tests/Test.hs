@@ -186,6 +186,9 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/SimpleAnnot.hs" "simpleF" 1000 1 [Exactly 0]
 
+                , checkLiquid "tests/Liquid/" "tests/Liquid/HigherOrder2.hs" "f" 2000 2 [Exactly 0]
+                , checkLiquid "tests/Liquid/" "tests/Liquid/HigherOrder2.hs" "h" 2000 2 [AtLeast 1]
+
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "lt" 1000 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "gt" 1000 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "oneOrOther" 1000 2 [Exactly 0]
