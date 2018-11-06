@@ -230,6 +230,8 @@ liquidTests =
                 , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
 
+                , checkLiquid "tests/Liquid/" "tests/Liquid/MapReduceTest2.lhs" "mapReduce" 1500 3 [Exactly 0]
+
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/Replicate.hs" "replicate" 2000 3
                     [ AtLeast 1
                     , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldl") ]
