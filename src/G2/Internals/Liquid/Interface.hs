@@ -92,18 +92,20 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     let renme = E.keys np_eenv \\ nub (Lang.names (type_classes no_part_state))
     let ((meenv, mkv), ng') = doRenames renme np_ng (np_eenv, known_values no_part_state)
+    let mkv' = mkv { structEqTC = structEqTC (known_values no_part_state)
+                   , structEqFunc = structEqFunc (known_values no_part_state)}
     let ng_state = no_part_state {name_gen = ng'}
 
     let ng_state' = ng_state {track = []}
 
-    let lh_state = createLHState meenv mkv ng_state'
+    let lh_state = createLHState meenv mkv' ng_state'
 
     let (abs_fun, merged_state) = runLHStateM (initializeLH ghci_cg ifi) lh_state
 
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
 
-    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
+    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv'
 
     let annm = annots merged_state
     -- print annm
@@ -116,7 +118,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     SomeSMTSolver con <- getSMT config
     let con' = GroupRelated (ADTSolver :?> con)
 
-    let final_state = track_state { known_values = mkv }
+    let final_state = track_state { known_values = mkv' }
 
 
     let tr_ng = mkNameGen ()
@@ -126,7 +128,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     ret <- if higherOrderSolver config == AllFuncs
               then run 
-                    (NonRedPCRed config
+                    (LHNonRedPCRed merged_state config -- NonRedPCRed config
                       :<~| LHRed con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
@@ -137,7 +139,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state
               else run 
-                    (NonRedPCRed config
+                    (LHNonRedPCRed merged_state config -- NonRedPCRed config
                       :<~| TaggerRed state_name tr_ng
                       :<~| LHRed con' config) 
                     (DiscardIfAcceptedTag state_name

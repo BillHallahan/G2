@@ -13,9 +13,7 @@ import Prelude hiding (map, reduce, concat)
 expand   :: (Int -> List Int) -> List Int -> List Int
 
 mapReduce :: (Int -> List Int) -> List Int -> List Int
-mapReduce fm xs = kvs
-  where
-    kvs   = expand      fm xs     -- step 1
+mapReduce fm xs = expand fm xs     -- step 1
 
 {-@ expand  :: (Int -> List Int) -> List Int -> List Int @-}
 expand f xs = concat (map f xs)
