@@ -90,7 +90,7 @@ def replace(file_path, pattern, subst):
     #Move new file
     move(abs_path, file_path)
 
-def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G2Target):
+def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G2Target, recurse):
     """
     Runs G2 on a target with the specified arguments
     :param g2_dir:  the directory of the G2 exe
@@ -100,6 +100,7 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
     :param target:  the target of the exe
     :return: the string result of running G2 on the target
     """
+    res = ''
     target_file = os.path.join(target_dir, target.file_name)
 
     is_fixme = False
@@ -116,12 +117,16 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
     proc.wait()
     err = proc.stderr.read()
     if 'No functions with name' in err:
+        if recurse:
+            res = "UNABLE TO TARGET FUNC"
+            return res
         target.func_name = isolate_func_name(target_dir + target.file_name, int(target.line_num[0]))
         print("FIXED FUNCTION NAME ERROR:")
         print(target.func_name)
         proc.stderr.close()
         proc.stdout.close()
-        return run_g2(g2_dir, test_dir, target_dir, recurs_n, target)
+        res = run_g2(g2_dir, test_dir, target_dir, recurs_n, target, True)
+        return res
     res = proc.stdout.read() + "\nERROR:\n" + err
     if is_fixme:
         res = 'IS_FIXME\n' + res
@@ -163,7 +168,7 @@ def create_g2_report(t: G2Target):
     :param t: the target to write the report for
     :return: None
     """
-    g2_res = run_g2('.', './liquidhaskell-study/wi15/', './liquidhaskell-study/wi15/unsafe/', 2000, t)
+    g2_res = run_g2('.', './liquidhaskell-study/wi15/', './liquidhaskell-study/wi15/unsafe/', 2000, t, False)
     liquid_res = run_liquid('./liquidhaskell-study/wi15/unsafe/', t)
     print(t.id)
     create_report("%s\n%s\n%s" % (str(t), g2_res, liquid_res), 'benchmark-reports', "%s_%s" % (str(t.id), str(t.file_name)))
@@ -221,10 +226,10 @@ def collect_reports_deprecated():
     print('Targets remaining: %d' % len(targets))
 
     # Targets are printed with four fields, and then two spaces and there is the G2 Report
-    for t in targets:
-        create_g2_report(t)
-    # pool = Pool(4)
-    # results = pool.map(create_g2_report, targets)
+    # for t in targets:
+    #     create_g2_report(t)
+    pool = Pool(4)
+    results = pool.map(create_g2_report, targets)
 
 if __name__ == '__main__':
     collect_reports_deprecated()
