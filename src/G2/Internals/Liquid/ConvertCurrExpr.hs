@@ -10,8 +10,11 @@ import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.Types
 
 import Control.Monad.Extra
+import Data.Monoid
 import qualified Data.Map as M
 import Data.Maybe
+
+import Debug.Trace
 
 convertCurrExpr :: Id -> LHStateM [Name]
 convertCurrExpr ifi = do
@@ -76,7 +79,7 @@ rebindFuncs e = do
         rewriteAssertName n e1 = modifyChildren (rewriteAssertName n) e1
 
 
--- Modifies Let's in the CurrExpr to have Asserts in functions.
+-- Modifies Let's in the CurrExpr to have Asserts in functions, if they are self recursive.
 -- Furthermore, distinguishes between the first call to a function,
 -- and those that are recursive.
 adjustLetsForAbstract :: Expr -> LHStateM Expr 
@@ -90,7 +93,8 @@ adjustLetsForAbstract' e = return e
 
 adjustLetsForAbstract'' :: Id -> Expr -> LHStateM [(Id, Expr)]
 adjustLetsForAbstract'' i e
-    | hasFuncType i = do
+    | hasFuncType i
+    , selfRecursive e = do
         i' <- freshIdN (typeOf i)
         let ce = replaceASTs (Var i) (Var i') e
 
@@ -102,8 +106,12 @@ adjustLetsForAbstract'' i e
 
                     return $ Let [(r, ee)] $ Assert (Just fc) true (Var r)) ce
 
-        return [(i, e'), (i', ce)]
+        trace (show i) return [(i, e'), (i', ce)]
     | otherwise = return [(i, e)]
+    where
+        selfRecursive :: Expr -> Bool
+        selfRecursive (Var i') = i == i'
+        selfRecursive e = getAny $ evalChildren (Any . selfRecursive) e
 
 -- We want to get all function calls into Let Bindings.
 -- This is a bit tricky- we can't just get all calls at once,
