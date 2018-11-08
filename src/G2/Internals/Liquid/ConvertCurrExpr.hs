@@ -52,10 +52,11 @@ modifyInputExpr i@(Id n _) = do
 modifyInputExpr' :: Id -> Expr -> LHStateM (Id, [Name])
 modifyInputExpr' i e = do
     (e', ns) <- rebindFuncs e
-    e'' <- letLiftFuncs e'
+    e'' <- adjustLetsForAbstract e'
+    e''' <- letLiftFuncs e''
 
     newI <- freshSeededIdN (idName i) (typeOf i)
-    insertE (idName newI) e''
+    insertE (idName newI) e'''
 
     return (newI, ns)
 
@@ -74,6 +75,35 @@ rebindFuncs e = do
         rewriteAssertName n (Assert (Just fc) e1 e2) = Assert (Just $ fc {funcName = n}) e1 e2
         rewriteAssertName n e1 = modifyChildren (rewriteAssertName n) e1
 
+
+-- Modifies Let's in the CurrExpr to have Asserts in functions.
+-- Furthermore, distinguishes between the first call to a function,
+-- and those that are recursive.
+adjustLetsForAbstract :: Expr -> LHStateM Expr 
+adjustLetsForAbstract = modifyM adjustLetsForAbstract'
+
+adjustLetsForAbstract' :: Expr -> LHStateM Expr 
+adjustLetsForAbstract' (Let b e) = do
+    b' <- return . concat =<< mapM (uncurry adjustLetsForAbstract'') b
+    return $ Let b' e
+adjustLetsForAbstract' e = return e
+
+adjustLetsForAbstract'' :: Id -> Expr -> LHStateM [(Id, Expr)]
+adjustLetsForAbstract'' i e
+    | hasFuncType i = do
+        i' <- freshIdN (typeOf i)
+        let ce = replaceASTs (Var i) (Var i') e
+
+
+        e' <- insertInLamsE (\as ee -> do
+                    r <- freshIdN (typeOf ee)
+                    let fc = FuncCall { funcName = idName i, arguments = map Var as, returns = Var r}
+                    true <- mkTrueE
+
+                    return $ Let [(r, ee)] $ Assert (Just fc) true (Var r)) ce
+
+        return [(i, e'), (i', ce)]
+    | otherwise = return [(i, e)]
 
 -- We want to get all function calls into Let Bindings.
 -- This is a bit tricky- we can't just get all calls at once,

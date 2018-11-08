@@ -80,6 +80,32 @@ lhReduce' State { expr_env = eenv
             sb = symbState eenv vv ng at stck tr
         in
         Just $ (r, states ++ maybeToList sb)
+-- We override the default Let case, so we can add function bindings
+-- to our list of abstractable functions
+lhReduce' State { expr_env = eenv
+                , type_env = tenv
+                , curr_expr = CurrExpr Evaluate (Let b e)
+                , name_gen = ng
+                , known_values = kv
+                , exec_stack = stck
+                , track = tr } =
+    let 
+        (eenv', e', ng', news) = liftLetBinds b eenv e ng
+
+        absM = map snd . filter (hasFuncType . fst) $ zip (map fst b) news
+    in
+    Just 
+       ( RuleEvalLet news
+       , [( eenv'
+          , CurrExpr Evaluate e'
+          , []
+          , []
+          , Nothing
+          , ng'
+          , stck
+          , []
+          , []
+          , tr { abstractable = abstractable tr ++ absM })])
 lhReduce' State { expr_env = eenv
                 , type_env = tenv
                 , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
