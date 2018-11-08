@@ -213,6 +213,10 @@ liquidTests =
                     [ AtLeast 1
                     , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
                                     -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
+                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AddToEvenWhere.hs" "f" 2000 1
+                    [ AtLeast 1
+                    , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
+                                    -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
 
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "r" 1000 1 [Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]

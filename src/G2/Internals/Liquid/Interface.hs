@@ -108,7 +108,6 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
 
     let annm = annots merged_state
-    -- print annm
 
     let track_state = merged_state' {track = LHTracker { abstractable = abs_fun
                                                        , abstract_calls = []
@@ -118,6 +117,11 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     SomeSMTSolver con <- getSMT config
     let con' = GroupRelated (ADTSolver :?> con)
 
+    -- We replace certain function name lists in the final State with names
+    -- mapping into the measures from the LHState.  These functions do not
+    -- need to be passed the LH typeclass, so this ensures use of Names from
+    -- these lists will work, without us having to modify all of G2 to account
+    -- for the LH typeclass.
     let final_state = track_state { known_values = mkv
                                   , type_classes = mtc
                                   , apply_types = mat}

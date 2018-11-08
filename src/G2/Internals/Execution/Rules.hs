@@ -8,6 +8,7 @@ module G2.Internals.Execution.Rules
   , ReduceResult
   , EvaluateResult
   , isExecValueForm
+  , liftLetBinds
   , reduceNoConstraintChecks
   , resultsToState
   , stdReduce

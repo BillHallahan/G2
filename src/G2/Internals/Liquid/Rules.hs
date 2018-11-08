@@ -4,7 +4,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Internals.Liquid.Rules ( LHRed (..)
-                                 , LHNonRedPCRed (..)
                                  , LHLimitByAcceptedHalter
                                  , LHLimitByAcceptedOrderer
                                  , LHAbsHalter (..)
@@ -81,6 +80,32 @@ lhReduce' State { expr_env = eenv
             sb = symbState eenv vv ng at stck tr
         in
         Just $ (r, states ++ maybeToList sb)
+-- We override the default Let case, so we can add function bindings
+-- to our list of abstractable functions
+lhReduce' State { expr_env = eenv
+                , type_env = tenv
+                , curr_expr = CurrExpr Evaluate (Let b e)
+                , name_gen = ng
+                , known_values = kv
+                , exec_stack = stck
+                , track = tr } =
+    let 
+        (eenv', e', ng', news) = liftLetBinds b eenv e ng
+
+        absM = map snd . filter (hasFuncType . fst) $ zip (map fst b) news
+    in
+    Just 
+       ( RuleEvalLet news
+       , [( eenv'
+          , CurrExpr Evaluate e'
+          , []
+          , []
+          , Nothing
+          , ng'
+          , stck
+          , []
+          , []
+          , tr { abstractable = abstractable tr ++ absM })])
 lhReduce' State { expr_env = eenv
                 , type_env = tenv
                 , curr_expr = CurrExpr Evaluate vv@(Var (Id n _))
@@ -263,24 +288,6 @@ instance Solver con => Reducer (LHRed con) LHTracker where
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
-
--- | We mostly lean on the normal NonRedPCRed, but we have to make sure spots for LH Dicts
--- are filled in.
--- We currently assume all such Dicts can simply be undefined.
-data LHNonRedPCRed = LHNonRedPCRed LHState Config
-
-instance Reducer LHNonRedPCRed t where
-    redRules nrpr@(LHNonRedPCRed lhs config) s = do
-        (pr, s', nrpr') <- redRules (NonRedPCRed config) s
-
-        s'' <- mapM (\s_@(State { curr_expr = CurrExpr er ce }) ->
-                        let
-                            ce' = evalLHStateM (addLHTCExprPasses M.empty ce) lhs
-                        in
-                        return $ s_ { curr_expr = CurrExpr er ce'}
-                    ) s'
-
-        return (pr, s'',LHNonRedPCRed lhs config)
 
 -- LHLimitByAcceptedHalter and LHLimitByAcceptedOrderer should always be used
 -- together.
