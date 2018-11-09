@@ -137,7 +137,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     (NonRedPCRed config -- NonRedPCRed config
                       :<~| LHRed con' config) 
                     (MaxOutputsHalter 
-                      :<~> ZeroHalter 
+                      -- :<~> ZeroHalter 
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
                       :<~> limHalt
                       :<~> SwitchEveryNHalter (switch_after config)
@@ -150,7 +150,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                       :<~| LHRed con' config) 
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
-                      :<~> ZeroHalter 
+                      -- :<~> ZeroHalter 
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
                       :<~> limHalt
                       :<~> SwitchEveryNHalter (switch_after config)

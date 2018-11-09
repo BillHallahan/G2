@@ -1,0 +1,110 @@
+1540
+flycheck_List.lhs-2015-03-16T02.36.20.lhs
+(235, '24-46')
+prop_concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.36.20.lhs:235:24-46: Error: Liquid Type Mismatch', ' 235 | prop_concat = lAssert (length (concat xss) > 6)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T02.36.20.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
+    constructor List.:+: :: x:a -> xs:(List a) -> {VV : (List a) | consize VV == size x + consize xs
+                                                                   && size VV == 1 + size xs}
+    Sort Error in Refinement: {VV : (List.List a_a1WU) | (consize VV == size x + consize xs
+                                                          && size VV == 1 + size xs)}
+    Cannot unify (List.List @(42)) with a_a1WU in expression: consize VV,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T02.36.20.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
+    constructor List.Emp :: {VV : (List a) | consize VV == 0
+                                             && size VV == 0}
+    Sort Error in Refinement: {VV : (List.List a_a1WU) | (consize VV == 0
+                                                          && size VV == 0)}
+    Cannot unify (List.List @(42)) with a_a1WU in expression: consize VV]
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.36.20.lhs:235:24-46: Error: Liquid Type Mismatch
+ 
+ 235 | prop_concat = lAssert (length (concat xss) > 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?h}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     List.l2 : {List.l2 : (List Int) | size List.l2 == 2
+                                       && 0 <= size List.l2}
+      
+     ?g : {?g : (List (List Int)) | size ?g == 1 + size ?c
+                                    && consize ?g == size List.l3 + consize ?c
+                                    && 0 <= size ?g}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?b
+                                    && consize v == size List.l0 + consize ?b
+                                    && 0 <= size v}
+      
+     List.l3 : {List.l3 : (List Int) | size List.l3 == 3
+                                       && 0 <= size List.l3}
+      
+     ?f : {?f : (List (List Int)) | size ?f == 1 + size ?g
+                                    && consize ?f == size List.l2 + consize ?g
+                                    && 0 <= size ?f}
+      
+     ?c : {?c : (List (List Int)) | size ?c == 0
+                                    && consize ?c == 0
+                                    && 0 <= size ?c}
+      
+     ?h : {?h : Bool | Prop ?h <=> ?e > ?d}
+      
+     ?e : {?e : Int | ?e == size ?a}
+      
+     ?b : {?b : (List (List Int)) | size ?b == 1 + size ?f
+                                    && consize ?b == size List.l1 + consize ?f
+                                    && 0 <= size ?b}
+      
+     List.l0 : {List.l0 : (List Int) | size List.l0 == 0
+                                       && 0 <= size List.l0}
+      
+     ?d : {?d : Int | ?d == (6 : int)}
+      
+     ?a : {?a : (List Int) | size ?a == consize xss
+                             && 0 <= size ?a}
+      
+     List.l1 : {List.l1 : (List Int) | size List.l1 == 1
+                                       && 0 <= size List.l1}

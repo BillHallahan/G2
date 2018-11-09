@@ -1,0 +1,64 @@
+1643
+flycheck_MapReduce.lhs-2015-03-21T00.21.15.lhs
+(32, '21-36')
+mapReduce
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-21T00.21.15.lhs:32:21-36: Error: Liquid Type Mismatch', ' 32 |                then collapse fr kvsm      ']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+G2: appTypeOf
+TyCon (Name "Int" (Just "GHC.Types") 8214565720323815563 Nothing) TYPE
+[Var (Id (Name "kvsm" Nothing 6989586621679108334 Nothing) (TyApp (TyApp (TyCon (Name "Map" (Just "Data.Map") 8214565720323837859 Nothing) (TyApp (TyApp TYPE TYPE) TYPE)) (TyVar (Id (Name "k" Nothing 6989586621679108390 (Just (Span {start = Loc {line = 22, col = 14, file = "./liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.21.15.lhs"}, end = Loc {line = 25, col = 34, file = "./liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.21.15.lhs"}}))) TYPE))) (TyApp (TyCon (Name "List" (Just "List") 8214565720323867343 (Just (Span {start = Loc {line = 58, col = 1, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 60, col = 48, file = "./liquidhaskell-study/wi15/List.lhs"}}))) (TyApp TYPE TYPE)) (TyVar (Id (Name "v" Nothing 6989586621679108392 (Just (Span {start = Loc {line = 22, col = 14, file = "./liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.21.15.lhs"}, end = Loc {line = 25, col = 34, file = "./liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.21.15.lhs"}}))) TYPE)))))]
+
+
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Language/Typing.hs:188:20 in main:G2.Internals.Language.Typing
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 5]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-21T00.21.15.lhs:32:21-36: Error: Liquid Type Mismatch
+ 
+ 32 |                then collapse fr kvsm      -- step 3
+                          ^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | 0 <= size VV
+                           && 0 <= sizes VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV > 0}
+  
+   In Context
