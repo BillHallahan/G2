@@ -33,6 +33,8 @@ import Data.Ord
 import Data.Semigroup
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
 -- Var f can potentially split into two states.
@@ -314,19 +316,19 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
 
     -- If we start trying to execute a state with more than the maximal number
     -- of rules applied, we throw it away.
-    discardOnStart (LHLimitByAcceptedHalter n) (Just v) _ s = length (rules s) > v + n
+    discardOnStart (LHLimitByAcceptedHalter co) (Just v) _ s = num_steps s > v + co
     discardOnStart _ Nothing _ s = False
 
     -- Find all accepted states with the (current) minimal number of abstracted functions
     -- Then, get the minimal number of steps taken by one of those states
     updatePerStateHalt _ _ (Processed { accepted = []}) _ = Nothing
     updatePerStateHalt _ _ (Processed { accepted = acc@(_:_)}) _ =
-        Just . minimum . map (length . rules)
+        Just . minimum . map num_steps
             $ allMin (length . abstract_calls . track) acc
     
-    stopRed _ Nothing _ _ = Continue
-    stopRed (LHLimitByAcceptedHalter n) (Just nAcc) _ s =
-        if length (rules s) > nAcc + n then Switch else Continue
+    stopRed _ Nothing _ s = Continue
+    stopRed (LHLimitByAcceptedHalter co) (Just nAcc) _ s =
+        if num_steps s > nAcc + co then Switch else Continue
     
     stepHalter _ hv _ _ = hv
 
@@ -336,9 +338,9 @@ data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer Int
 instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
     initPerStateOrder _ _ _ = ()
 
-    orderStates (LHLimitByAcceptedOrderer n) _ _ = length . rules 
+    orderStates _ _ = num_steps
 
-    updateSelected _ _ _ _ = ()
+    updateSelected _ _ (Processed { accepted = acc}) s = ()
 
 
 allMin :: Ord b => (a -> b) -> [a] -> [a]

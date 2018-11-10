@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -58,7 +59,8 @@ data State t = State { expr_env :: E.ExprEnv
                      , arbValueGen :: ArbValueGen
                      , known_values :: KnownValues
                      , cleaned_names :: CleanedNames
-                     , rules :: [Rule]
+                     , rules :: ![Rule]
+                     , num_steps :: !Int -- Invariant: The length of the rules list
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
                      , track :: t
                      } deriving (Show, Eq, Read)
@@ -167,6 +169,7 @@ renameState old new_seed s =
              , known_values = rename old new (known_values s)
              , cleaned_names = M.insert new old (cleaned_names s)
              , rules = rules s
+             , num_steps = num_steps s
              , track = rename old new (track s)
              , tags = tags s }
 
@@ -215,6 +218,7 @@ instance Named t => Named (State t) where
                , known_values = rename old new (known_values s)
                , cleaned_names = M.insert new old (cleaned_names s)
                , rules = rules s
+               , num_steps = num_steps s
                , track = rename old new (track s)
                , tags = tags s }
 
@@ -243,6 +247,7 @@ instance Named t => Named (State t) where
                , known_values = renames hm (known_values s)
                , cleaned_names = foldr (uncurry M.insert) (cleaned_names s) (HM.toList hm)
                , rules = rules s
+               , num_steps = num_steps s
                , track = renames hm (track s)
                , tags = tags s }
 

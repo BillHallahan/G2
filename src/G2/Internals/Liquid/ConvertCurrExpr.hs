@@ -14,8 +14,6 @@ import Data.Monoid
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 convertCurrExpr :: Id -> LHStateM [Name]
 convertCurrExpr ifi = do
     ifi' <- modifyInputExpr ifi
@@ -44,7 +42,7 @@ modifyInputExpr i@(Id n _) = do
         Just je -> do
             (newI, ns) <- modifyInputExpr' i je
 
-            let ce' = replaceASTs (Var i) (Var newI) ce
+            let ce' = replaceVarWithName (idName i) (Var newI) ce
 
             putCurrExpr (CurrExpr er ce')
             return ns
@@ -55,8 +53,8 @@ modifyInputExpr i@(Id n _) = do
 modifyInputExpr' :: Id -> Expr -> LHStateM (Id, [Name])
 modifyInputExpr' i e = do
     (e', ns) <- rebindFuncs e
-    e'' <- adjustLetsForAbstract e'
-    e''' <- letLiftFuncs e''
+    -- e'' <- e' adjustLetsForAbstract e'
+    e''' <- letLiftFuncs e'
 
     newI <- freshSeededIdN (idName i) (typeOf i)
     insertE (idName newI) e'''
@@ -78,6 +76,12 @@ rebindFuncs e = do
         rewriteAssertName n (Assert (Just fc) e1 e2) = Assert (Just $ fc {funcName = n}) e1 e2
         rewriteAssertName n e1 = modifyChildren (rewriteAssertName n) e1
 
+replaceVarWithName :: Name -> Expr -> Expr -> Expr
+replaceVarWithName n new = modify (replaceVarWithName' n new)
+
+replaceVarWithName' :: Name -> Expr -> Expr -> Expr
+replaceVarWithName' n new v@(Var (Id n' _)) = if n == n' then new else v
+replaceVarWithName' _ _ e = e
 
 -- Modifies Let's in the CurrExpr to have Asserts in functions, if they are self recursive.
 -- Furthermore, distinguishes between the first call to a function,
@@ -106,7 +110,7 @@ adjustLetsForAbstract'' i e
 
                     return $ Let [(r, ee)] $ Assert (Just fc) true (Var r)) ce
 
-        trace (show i) return [(i, e'), (i', ce)]
+        return [(i, e'), (i', ce)]
     | otherwise = return [(i, e)]
     where
         selfRecursive :: Expr -> Bool
