@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -269,7 +270,7 @@ resultsToState con config rule s@(State {known_values = kv}) (red@(_, _, pc, ass
         return . (++) finalS' =<< resultsToState con config rule s xs
     | otherwise = return . (:) s' =<< resultsToState con config rule s xs
     where
-        s' = resultToState config s rule red
+        !s' = resultToState config s rule red
 
 {-# INLINE resultToState #-}
 resultToState :: Config -> State t -> Rule -> ReduceResult t -> State t
@@ -282,7 +283,7 @@ resultToState _ s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
       , name_gen = ng
       , exec_stack = st
       , symbolic_ids = symbolic_ids s ++ is
-      , rules = rules s ++ [r]
+      , rules = r:rules s
       , track = tv }
 
 -- | stdReduce

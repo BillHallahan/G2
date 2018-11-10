@@ -87,6 +87,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , known_values = kv'
     , cleaned_names = M.empty
     , rules = []
+    , num_steps = 0
     , track = ()
     , tags = S.empty
  }
@@ -118,7 +119,7 @@ run red hal ord con pns config (is@State { type_env = tenv
 
     let preproc_state = runPreprocessing swept
 
-    exec_states <- runExecution red hal ord config [preproc_state]
+    exec_states <- runExecution red hal ord config preproc_state
 
     let ident_states = filter (isExecValueForm . snd) exec_states
     let ident_states' = filter (true_assert . snd) ident_states
