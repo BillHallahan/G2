@@ -232,7 +232,7 @@ def collect_reports_deprecated():
             parse_target = parse_target_data(t, i)
             file_hash = parse_target.get_file_hash()
             if ((parse_target.file_name in targets_avail or len(targets_avail) == 0)
-                    and file_hash not in files_and_funcs):
+                    and (file_hash not in files_and_funcs or parse_target.func_name is "|")):
                 targets.append(parse_target)
                 files_and_funcs.append(file_hash)
     print('Targets remaining: %d' % len(targets))
@@ -245,4 +245,3 @@ def collect_reports_deprecated():
 
 if __name__ == '__main__':
     collect_reports_deprecated()
-
