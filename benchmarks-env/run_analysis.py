@@ -91,7 +91,7 @@ def replace(file_path, pattern, subst):
     #Move new file
     move(abs_path, file_path)
 
-def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G2Target, recurse):
+def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, cut_off: int, target: G2Target, recurse):
     """
     Runs G2 on a target with the specified arguments
     :param g2_dir:  the directory of the G2 exe
@@ -109,8 +109,8 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
         is_fixme = True
 
     replace(target_file, ' Prop ', ' ')
-    cmd = "./G2 %s -- --time 120 --n %d --liquid %s --liquid-func %s" % (
-        test_dir, recurs_n, target_file, con_comline(target.func_name)
+    cmd = "./G2 %s -- --time 120 --n %d --cut-off %d --liquid %s --liquid-func %s" % (
+        test_dir, recurs_n, cut_off, target_file, con_comline(target.func_name)
     )
     startTime = time.time()
     proc = subprocess.Popen(cmd, shell=True, encoding='UTF-8', cwd=g2_dir, stdout=subprocess.PIPE,
@@ -130,7 +130,7 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, target: G
         print(target.func_name)
         proc.stderr.close()
         proc.stdout.close()
-        res = run_g2(g2_dir, test_dir, target_dir, recurs_n, target, True)
+        res = run_g2(g2_dir, test_dir, target_dir, recurs_n, cut_off, target, True)
         return res
     #res = proc.stdout.read() + "\nERROR:\n" + err
     if is_fixme:
@@ -181,7 +181,7 @@ def create_g2_report(t: G2Target):
     print(t.id)
     #print(t.func_name)
     #print(t.file_name)
-    g2_res = run_g2('.', './liquidhaskell-study/wi15/', './liquidhaskell-study/wi15/unsafe/', 2000, t, False)
+    g2_res = run_g2('.', './liquidhaskell-study/wi15/', './liquidhaskell-study/wi15/unsafe/', 2000, 600, t, False)
     liquid_res = run_liquid('./liquidhaskell-study/wi15/unsafe/', t)
     create_report("%s\n%s\n%s" % (str(t), g2_res, liquid_res), 'benchmark-reports', "%s_%s" % (str(t.id), str(t.file_name)))
 
