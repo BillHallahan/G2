@@ -9,97 +9,89 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mThe call
-replicate 1 0 = Emp
-violates replicate's refinement type
+[0mreplicate 1 0 = Emp
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 1 0 = Emp
+violating replicate's refinement type
 when
-foldl lh[] b a fs? fs? fs? = Emp
+foldl lh[] b a fs? fs? fs? fs? fs? = Emp
 Strengthen the refinement type of foldl to eliminate this possibility
 Abstract
 
-The call
 replicate 0 0 = 0 :+: Emp
-violates replicate's refinement type
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 0 0 = 0 :+: Emp
+violating replicate's refinement type
 when
-foldl lh[] b a fs? fs? fs? = 0 :+: Emp
+foldl lh[] b a fs? fs? fs? fs? fs? = 0 :+: Emp
 Strengthen the refinement type of foldl to eliminate this possibility
 Abstract
 
-The call
+replicate 1 0 = Emp
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 1 0 = Emp
+violating replicate's refinement type
+when
+enumFromTo (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = []
+Strengthen the refinement type of enumFromTo to eliminate this possibility
+Abstract
+
 replicate 0 0 = 0 :+: (0 :+: Emp)
-violates replicate's refinement type
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 0 0 = 0 :+: (0 :+: Emp)
+violating replicate's refinement type
 when
-foldl lh[] b a fs? fs? fs? = 0 :+: (0 :+: Emp)
+foldl lh[] b a fs? fs? fs? fs? fs? = 0 :+: (0 :+: Emp)
 Strengthen the refinement type of foldl to eliminate this possibility
 Abstract
 
-The call
-replicate 1 0 = Emp
-violates replicate's refinement type
-when
-enumFromTo fs? fs? = []
-Strengthen the refinement type of enumFromTo to eliminate this possibility
-Abstract
-
-The call
 replicate 0 0 = 0 :+: (0 :+: (0 :+: Emp))
-violates replicate's refinement type
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 0 0 = 0 :+: (0 :+: (0 :+: Emp))
+violating replicate's refinement type
 when
-foldl lh[] b a fs? fs? fs? = 0 :+: (0 :+: (0 :+: Emp))
+foldl lh[] b a fs? fs? fs? fs? fs? = 0 :+: (0 :+: (0 :+: Emp))
 Strengthen the refinement type of foldl to eliminate this possibility
 Abstract
 
-The call
 replicate 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates replicate's refinement type
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating replicate's refinement type
 when
-foldl lh[] b a fs? fs? fs? = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+foldl lh[] b a fs? fs? fs? fs? fs? = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
 Strengthen the refinement type of foldl to eliminate this possibility
 Abstract
 
-The call
-replicate 0 0 = 0 :+: Emp
-violates replicate's refinement type
+replicate 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+violating replicate's refinement type
 when
-enumFromTo fs? fs? = [0]
+foldl lh[] b a fs? fs? fs? fs? fs? = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+Strengthen the refinement type of foldl to eliminate this possibility
+Abstract
+
+replicate 0 0 = 0 :+: Emp
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 0 0 = 0 :+: Emp
+violating replicate's refinement type
+when
+enumFromTo (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = [0]
 Strengthen the refinement type of enumFromTo to eliminate this possibility
 Abstract
 
-The call
-replicate 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates replicate's refinement type
-when
-foldl lh[] b a fs? fs? fs? = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-Strengthen the refinement type of foldl to eliminate this possibility
-Abstract
-
-The call
 replicate 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates replicate's refinement type
+makes a call to
+replicate (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+violating replicate's refinement type
 when
-foldl lh[] b a fs? fs? fs? = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-Strengthen the refinement type of foldl to eliminate this possibility
-Abstract
-
-The call
-replicate 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates replicate's refinement type
-when
-foldl lh[] b a fs? fs? fs? = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-Strengthen the refinement type of foldl to eliminate this possibility
-Abstract
-
-The call
-replicate 0 0 = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-violates replicate's refinement type
-when
-foldl lh[] b a fs? fs? fs? = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
+foldl lh[] b a fs? fs? fs? fs? fs? = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
 Strengthen the refinement type of foldl to eliminate this possibility
 Abstract
 
 
-ERROR:
-
+6.184124231338501
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

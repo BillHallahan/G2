@@ -11,70 +11,60 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mprop_map undefined (0 :+: Emp) = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-map undefined (0 :+: Emp) = Emp
+map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: Emp) = Emp
 Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
 prop_map undefined Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-map undefined Emp = 0 :+: Emp
+map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = 0 :+: Emp
 Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
 prop_map undefined (0 :+: Emp) = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length ((undefined 0) :+: (map undefined Emp)) = 0
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((undefined 0) :+: (map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp)) = 0
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 prop_map undefined (0 :+: Emp) = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length (0 :+: Emp) = 0
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) = 0
 Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-map undefined (0 :+: (0 :+: Emp)) = Emp
-Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
 prop_map undefined Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-map undefined Emp = 0 :+: (0 :+: Emp)
+map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = 0 :+: (0 :+: Emp)
 Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
 prop_map undefined (0 :+: (0 :+: Emp)) = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length ((undefined 0) :+: (map undefined (0 :+: Emp))) = 0
-Strengthen the refinement type of length to eliminate this possibility
+map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
 
-ERROR:
-
+8.802860975265503
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

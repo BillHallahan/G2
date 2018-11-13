@@ -9,15 +9,24 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
-liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
-    Not in scope: type constructor or class
- matchTyCon ` ListNE '
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+[0mThe call
+mergeCluster 1 ((1, (0.0) :+: Emp)) ((1, (0.0) :+: Emp)) = (2, (0.0) :+: Emp)
+violates mergeCluster's refinement type
+when
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? ((0.0) :+: Emp) ((0.0) :+: Emp) = (0.0) :+: Emp
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
 
+The call
+mergeCluster 2 ((1, (0.0) :+: ((0.0) :+: Emp))) ((1, (0.0) :+: ((0.0) :+: Emp))) = (2, (0.0) :+: ((0.0) :+: Emp))
+violates mergeCluster's refinement type
+when
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? ((0.0) :+: ((0.0) :+: Emp)) ((0.0) :+: ((0.0) :+: Emp)) = (0.0) :+: ((0.0) :+: Emp)
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+
+13.511675119400024
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

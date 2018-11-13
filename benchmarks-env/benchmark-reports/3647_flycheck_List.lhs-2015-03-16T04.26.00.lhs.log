@@ -11,13 +11,12 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mprop_concat = error
 makes a call to
-length error = error
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) error = error
 violating length's refinement type
 Concrete
 
 
-ERROR:
-
+4.99652624130249
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

@@ -9,33 +9,26 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mThe call
+[0mzipWith undefined Emp Emp = Emp
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp Emp = Emp
+violating zipWith's refinement type
+when
+implies fs? fs? = False
+Strengthen the refinement type of implies to eliminate this possibility
+Abstract
+
 zipWith undefined Emp Emp = Emp
-violates zipWith's refinement type
-when
-implies fs? fs? = False
-Strengthen the refinement type of implies to eliminate this possibility
-Abstract
-
-The call
-zipWith undefined Emp Emp = Emp
-violates zipWith's refinement type
-when
-implies fs? fs? = False
-Strengthen the refinement type of implies to eliminate this possibility
-Abstract
-
-The call
-zipWith divInt (0 :+: Emp) (0 :+: Emp) = error
-violates zipWith's refinement type
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp Emp = Emp
+violating zipWith's refinement type
 when
 implies fs? fs? = False
 Strengthen the refinement type of implies to eliminate this possibility
 Abstract
 
 
-ERROR:
-
+7.30081582069397
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

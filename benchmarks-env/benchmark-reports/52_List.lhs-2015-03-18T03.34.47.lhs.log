@@ -11,13 +11,11 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mfoldr1 undefined Emp = error
 makes a call to
-die fs? = error
+die (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = error
 violating die's refinement type
 Concrete
 
 
-ERROR:
-
 liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T03.34.47.lhs:55:32: warning: [-Wtabs]
     Tab character found here, and in 21 further locations.
     Please use spaces instead.
@@ -26,6 +24,7 @@ liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T03.34.47.lhs:55:32: warning:
     Tab character found here, and in 21 further locations.
     Please use spaces instead.
 
+11.862530946731567
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

@@ -69,13 +69,13 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = error
+concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -87,135 +87,8 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
 
-concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-
-ERROR:
-
+6.932317733764648
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

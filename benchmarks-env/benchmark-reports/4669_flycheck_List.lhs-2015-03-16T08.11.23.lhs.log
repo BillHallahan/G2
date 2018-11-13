@@ -27,6 +27,12 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
 concat ((0 :+: (0 :+: Emp)) :+: Emp) = 0 :+: Emp
 makes a call to
 concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = 0 :+: Emp
@@ -39,7 +45,7 @@ concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :
 violating concat's refinement type
 Concrete
 
-concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -51,39 +57,8 @@ concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :
 violating concat's refinement type
 Concrete
 
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: Emp) = 0 :+: Emp
-makes a call to
-concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: Emp) = 0 :+: Emp
-violating concat's refinement type
-Concrete
 
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: Emp) = 0 :+: Emp
-makes a call to
-concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: Emp) = 0 :+: Emp
-violating concat's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) :+: Emp) = 0 :+: Emp
-makes a call to
-concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) :+: Emp) = 0 :+: Emp
-violating concat's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-
-ERROR:
-
+27.706276655197144
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

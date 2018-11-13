@@ -9,69 +9,56 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mmergeCluster 0 ((0, Emp)) ((0, undefined :+: Emp)) = error
+[0mmergeCluster 0 ((0, (0.0) :+: Emp)) ((0, Emp)) = error
 makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) Emp (undefined :+: Emp) = error
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? ((0.0) :+: Emp) Emp = error
 violating zipWith's refinement type
 Concrete
 
-mergeCluster 0 ((0, (0.0) :+: Emp)) ((0, Emp)) = error
+mergeCluster 0 ((0, Emp)) ((0, undefined :+: Emp)) = error
 makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) ((0.0) :+: Emp) Emp = error
-violating zipWith's refinement type
-Concrete
-
-mergeCluster 0 ((0, (0.0) :+: Emp)) ((0, (0.0) :+: (undefined :+: Emp))) = error
-makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) Emp (undefined :+: Emp) = error
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
 violating zipWith's refinement type
 Concrete
 
 mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: Emp))) ((0, (0.0) :+: Emp)) = error
 makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) ((0.0) :+: Emp) Emp = error
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? ((0.0) :+: Emp) Emp = error
 violating zipWith's refinement type
 Concrete
 
-mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: Emp))) ((0, (0.0) :+: ((0.0) :+: (undefined :+: Emp)))) = error
+mergeCluster 0 ((0, (0.0) :+: Emp)) ((0, (0.0) :+: (undefined :+: Emp))) = error
 makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) Emp (undefined :+: Emp) = error
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
 violating zipWith's refinement type
 Concrete
 
 mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) ((0, (0.0) :+: ((0.0) :+: Emp))) = error
 makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) ((0.0) :+: Emp) Emp = error
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? ((0.0) :+: Emp) Emp = error
 violating zipWith's refinement type
 Concrete
 
-mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: (undefined :+: Emp))))) = error
+mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: Emp))) ((0, (0.0) :+: ((0.0) :+: (undefined :+: Emp)))) = error
 makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) Emp (undefined :+: Emp) = error
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
 violating zipWith's refinement type
 Concrete
 
 mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) = error
 makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) ((0.0) :+: Emp) Emp = error
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? ((0.0) :+: Emp) Emp = error
 violating zipWith's refinement type
 Concrete
 
-mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: (undefined :+: Emp)))))) = error
+mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: (undefined :+: Emp))))) = error
 makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) Emp (undefined :+: Emp) = error
-violating zipWith's refinement type
-Concrete
-
-mergeCluster 0 ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) ((0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) = error
-makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (+ (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble)) ((0.0) :+: Emp) Emp = error
+zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
 violating zipWith's refinement type
 Concrete
 
 
-ERROR:
-
+5.97645378112793
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

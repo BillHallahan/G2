@@ -32,15 +32,6 @@ makes a call to
 die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: Emp) = Emp
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
 length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 2
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
@@ -59,8 +50,35 @@ makes a call to
 die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
+map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: Emp) = Emp
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: Emp) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
 length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) = 2
 Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: (0 :+: Emp)) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 3
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_map undefined (0 :+: (0 :+: Emp)) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of map to eliminate this possibility
 Abstract
 
 prop_map undefined Emp = error
@@ -77,76 +95,12 @@ makes a call to
 die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: Emp)) = Emp
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
-length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 3
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined Emp = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
-map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = 0 :+: (0 :+: (0 :+: Emp))
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
 length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) = 3
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
-prop_map undefined (0 :+: Emp) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
-map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: Emp) = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
 
-prop_map undefined (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
-map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: (0 :+: Emp))) = Emp
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
-length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 4
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
-map (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: Emp)) = 0 :+: Emp
-Strengthen the refinement type of map to eliminate this possibility
-Abstract
-
-
-ERROR:
-
+7.337776184082031
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

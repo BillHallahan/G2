@@ -9,9 +9,98 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
+[0mzipWith remInt (0 :+: Emp) (0 :+: (0 :+: Emp)) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) remInt Emp (0 :+: Emp) = error
+violating zipWith's refinement type
+Concrete
 
+zipWith seq (0 :+: Emp) (0 :+: (0 :+: Emp)) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) seq Emp (0 :+: Emp) = error
+violating zipWith's refinement type
+Concrete
+
+zipWith timesInt (0 :+: Emp) (1 :+: (0 :+: Emp)) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) timesInt Emp (0 :+: Emp) = error
+violating zipWith's refinement type
+Concrete
+
+zipWith remInt (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) remInt Emp (0 :+: (0 :+: Emp)) = error
+violating zipWith's refinement type
+Concrete
+
+zipWith remInt (0 :+: (0 :+: Emp)) (0 :+: Emp) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) remInt (0 :+: Emp) Emp = error
+violating zipWith's refinement type
+Concrete
+
+zipWith seq (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) seq Emp (0 :+: (0 :+: Emp)) = error
+violating zipWith's refinement type
+Concrete
+
+zipWith seq (0 :+: (0 :+: Emp)) (0 :+: Emp) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) seq (0 :+: Emp) Emp = error
+violating zipWith's refinement type
+Concrete
+
+zipWith timesInt (0 :+: Emp) (1 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) timesInt Emp (0 :+: (0 :+: Emp)) = error
+violating zipWith's refinement type
+Concrete
+
+zipWith timesInt (0 :+: (0 :+: Emp)) (1 :+: Emp) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) timesInt (0 :+: Emp) Emp = error
+violating zipWith's refinement type
+Concrete
+
+zipWith remInt (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) remInt Emp (0 :+: (0 :+: (0 :+: Emp))) = error
+violating zipWith's refinement type
+Concrete
+
+zipWith seq (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) seq Emp (0 :+: (0 :+: (0 :+: Emp))) = error
+violating zipWith's refinement type
+Concrete
+
+zipWith timesInt (0 :+: Emp) (1 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) timesInt Emp (0 :+: (0 :+: (0 :+: Emp))) = error
+violating zipWith's refinement type
+Concrete
+
+zipWith remInt (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) remInt (0 :+: (0 :+: Emp)) Emp = error
+violating zipWith's refinement type
+Concrete
+
+zipWith seq (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) seq (0 :+: (0 :+: Emp)) Emp = error
+violating zipWith's refinement type
+Concrete
+
+zipWith timesInt (0 :+: (0 :+: (0 :+: Emp))) (1 :+: Emp) = error
+makes a call to
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) timesInt (0 :+: (0 :+: Emp)) Emp = error
+violating zipWith's refinement type
+Concrete
+
+
+20.28512978553772
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

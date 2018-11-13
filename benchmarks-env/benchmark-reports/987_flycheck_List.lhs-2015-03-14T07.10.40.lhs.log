@@ -9,9 +9,17 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
+[0mprop_concat = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (l0 :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
 
+
+6.349052667617798
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

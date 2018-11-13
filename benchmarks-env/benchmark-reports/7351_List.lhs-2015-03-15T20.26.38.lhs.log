@@ -1,0 +1,95 @@
+7351
+List.lhs-2015-03-15T20.26.38.lhs
+(231, '24-47')
+prop_concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T20.26.38.lhs:231:24-47: Error: Liquid Type Mismatch', ' 231 | prop_concat = lAssert (length (concat xss) == 6)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mprop_concat = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) xss = 0 :+: Emp
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+prop_concat = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) xss = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+
+5.774607419967651
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 252,Just 349]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T20.26.38.lhs:224:10-23: Error: Liquid Type Mismatch
+ 
+ 224 | concat = foldr addl Emp
+                ^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV > 0}
+  
+   In Context
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T20.26.38.lhs:231:24-47: Error: Liquid Type Mismatch
+ 
+ 231 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?d}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Int | ?c == (6 : int)}
+      
+     ?b : {?b : Int | ?b == size ?a}
+      
+     ?d : {?d : Bool | Prop ?d <=> ?b == ?c}
+      
+     ?a : {?a : (List Int) | size ?a > 0
+                             && 0 <= size ?a}

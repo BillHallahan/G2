@@ -11,33 +11,22 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mprop_concat = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-concat (l0 :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = Emp
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (l0 :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = Emp
 Strengthen the refinement type of concat to eliminate this possibility
 Abstract
 
 prop_concat = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-concat (l0 :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = 0 :+: Emp
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (l0 :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = 0 :+: Emp
 Strengthen the refinement type of concat to eliminate this possibility
 Abstract
 
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat (l0 :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-
-ERROR:
 
 liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T03.51.18.lhs:219:1: warning: [-Woverlapping-patterns]
     Pattern match is redundant
@@ -47,6 +36,7 @@ liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T03.51.18.lhs:219:1: warning:
     Pattern match is redundant
     In an equation for ‘addl’: addl (x :+: xs) ys = ...
 
+4.939803600311279
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

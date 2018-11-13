@@ -1,0 +1,211 @@
+7623
+List.lhs-2015-03-18T04.05.55.lhs
+(203, '28-50')
+prop_zipWith
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T04.05.55.lhs:203:28-50: Error: Liquid Type Mismatch', ' 203 | prop_zipWith xs = lAssert (length xs == length x2s)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mprop_zipWith Emp = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? Emp Emp = 0 :+: Emp
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+prop_zipWith (0 :+: Emp) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (0 :+: Emp) (0 :+: Emp) = Emp
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+prop_zipWith Emp = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? Emp Emp = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+prop_zipWith (0 :+: (0 :+: Emp)) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+prop_zipWith (0 :+: (0 :+: Emp)) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+prop_zipWith (0 :+: Emp) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+
+ERROR:
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T04.05.55.lhs:55:32: warning: [-Wtabs]
+    Tab character found here, and in 21 further locations.
+    Please use spaces instead.
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T04.05.55.lhs:55:32: warning: [-Wtabs]
+    Tab character found here, and in 21 further locations.
+    Please use spaces instead.
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 352,Just 274,Just 338,Just 347,Just 348,Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T04.05.55.lhs:181:28-63: Error: Liquid Type Mismatch
+ 
+ 181 | foldr1 op Emp        = die "Cannot call foldr1 with empty list"
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "Cannot call foldr1 with empty list"
+                        && strLen ?b == 34}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T04.05.55.lhs:200:40-60: Error: Liquid Type Mismatch
+ 
+ 200 | zipWith f _          _          = die  "Bad call to zipWith"
+                                              ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "Bad call to zipWith"
+                        && strLen ?b == 19}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T04.05.55.lhs:203:28-50: Error: Liquid Type Mismatch
+ 
+ 203 | prop_zipWith xs = lAssert (length xs == length x2s)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?c}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     xs : {v : (List a) | 0 <= size v}
+      
+     ?c : {?c : Bool | Prop ?c <=> ?a == ?b}
+      
+     ?b : {?b : Int | ?b == size x2s}
+      
+     ?a : {?a : Int | ?a == size xs}
+      
+     x2s : {v : (List a) | 0 <= size v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T04.05.55.lhs:219:16-23: Error: Liquid Type Mismatch
+ 
+ 219 | concat = fixme "concat"
+                      ^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "concat"
+                        && strLen ?b == 6}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-18T04.05.55.lhs:221:24-47: Error: Liquid Type Mismatch
+ 
+ 221 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?b}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : (List Int) | 0 <= size ?c}
+      
+     ?b : {?b : Bool | Prop ?b <=> ?d == ?a}
+      
+     ?d : {?d : Int | ?d == size ?c}
+      
+     ?a : {?a : Int | ?a == (6 : int)}

@@ -9,10 +9,1520 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mTimeout!
+[0mprepend (0 :+: Emp) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
 
-ERROR:
+prepend (0 :+: Emp) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
 
+prepend (0 :+: (0 :+: Emp)) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: Emp)
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: Emp)
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: Emp))
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) (0 :+: Emp) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) (0 :+: Emp) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) (0 :+: Emp) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: (0 :+: Emp)) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: (0 :+: Emp)) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+prepend (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = Emp
+makes a call to
+prepend (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = Emp
+violating prepend's refinement type
+when
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) = Emp
+Strengthen the refinement type of foldr to eliminate this possibility
+Abstract
+
+
+34.02061653137207
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

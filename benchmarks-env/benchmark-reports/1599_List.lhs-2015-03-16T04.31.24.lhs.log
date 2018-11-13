@@ -11,42 +11,31 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mprop_zipWith Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length x2s = 1
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) x2s = 1
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 prop_zipWith (0 :+: Emp) = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length x2s = 0
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) x2s = 0
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 prop_zipWith Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length Emp = 1
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 1
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length x2s = 0
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-
-ERROR:
 
 liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T04.31.24.lhs:219:12: warning: [-Wtabs]
     Tab character found here, and in 11 further locations.
@@ -56,6 +45,7 @@ liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T04.31.24.lhs:219:12: warning
     Tab character found here, and in 11 further locations.
     Please use spaces instead.
 
+6.957433700561523
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

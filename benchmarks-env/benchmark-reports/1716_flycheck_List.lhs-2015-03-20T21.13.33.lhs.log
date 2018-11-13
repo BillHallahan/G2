@@ -9,33 +9,50 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mzipWith undefined Emp (undefined :+: Emp) = error
+[0mzipWith undefined (0 :+: Emp) Emp = error
 makes a call to
-die fs? = error
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
-zipWith undefined (0 :+: Emp) Emp = error
+zipWith undefined Emp (undefined :+: Emp) = error
 makes a call to
-die fs? = error
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
-zipWith asTypeOf (0 :+: Emp) (0 :+: (undefined :+: Emp)) = error
+zipWith remInt (0 :+: Emp) (0 :+: (undefined :+: Emp)) = error
 makes a call to
-die ("Bad call to zipWith") = error
+die (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) ("Bad call to zipWith") = error
 violating die's refinement type
 Concrete
 
-zipWith asTypeOf (0 :+: (0 :+: Emp)) (0 :+: Emp) = error
+zipWith seq (0 :+: Emp) (0 :+: (undefined :+: Emp)) = error
 makes a call to
-die ("Bad call to zipWith") = error
+die (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith timesInt (0 :+: Emp) (1 :+: (undefined :+: Emp)) = error
+makes a call to
+die (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith divInt (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = error
+makes a call to
+die (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) ("Bad call to zipWith") = error
+violating die's refinement type
+Concrete
+
+zipWith remInt (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+die (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) ("Bad call to zipWith") = error
 violating die's refinement type
 Concrete
 
 
-ERROR:
-
+9.104663848876953
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

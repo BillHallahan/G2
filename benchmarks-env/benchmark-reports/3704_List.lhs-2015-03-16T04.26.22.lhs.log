@@ -57,63 +57,8 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
 
-concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-
-ERROR:
-
+5.679191827774048
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

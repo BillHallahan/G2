@@ -11,16 +11,15 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mprop_replicate 0 0 = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length fs? = 1
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 1
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 
-ERROR:
-
+4.98748254776001
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

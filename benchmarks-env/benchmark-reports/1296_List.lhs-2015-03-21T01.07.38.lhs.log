@@ -11,34 +11,24 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mprop_concat = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-concat xss = Emp
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) xss = Emp
 Strengthen the refinement type of concat to eliminate this possibility
 Abstract
 
 prop_concat = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-concat xss = 0 :+: Emp
-Strengthen the refinement type of concat to eliminate this possibility
-Abstract
-
-prop_concat = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-concat xss = 0 :+: (0 :+: Emp)
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) xss = 0 :+: Emp
 Strengthen the refinement type of concat to eliminate this possibility
 Abstract
 
 
-ERROR:
-
+5.3611650466918945
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

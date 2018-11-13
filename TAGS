@@ -1,0 +1,4394 @@
+
+./tests/Test.hs,628
+module Main Main3,4
+main main31,32
+tests tests35,36
+timeout timeout45,46
+sampleTests sampleTests49,50
+liquidTests liquidTests98,99
+testFileTests testFileTests171,172
+baseTests baseTests308,309
+primTests primTests328,329
+checkExpr checkExpr343,344
+checkExprReaches checkExprReaches347,348
+checkExprWithConfig checkExprWithConfig351,352
+testFile testFile365,366
+testFileWithConfig testFileWithConfig369,370
+checkLiquid checkLiquid386,387
+checkLiquidWithConfig checkLiquidWithConfig389,390
+findCounterExamples' findCounterExamples'401,402
+errors errors404,405
+mkConfigTest mkConfigTest410,411
+
+./tests/Liquid/Foldr1.hs,238
+module Foldr1 Foldr10,1
+data List List5,6
+data List a = EmpEmp5,6
+            | (:(6,7
+foldr1 foldr115,16
+foldr foldr18,19
+collapse collapse23,24
+die die26,27
+h h28,29
+collapse2 collapse233,34
+foldr1_2 foldr1_237,38
+
+./tests/Liquid/List.lhs,761
+empty empty42,43
+add add43,44
+singleton singleton44,45
+replicate replicate45,46
+map map46,47
+zipWith zipWith47,48
+concat concat48,49
+die die58,59
+lAssert lAssert63,64
+data List List73,74
+data List a = EmpEmp73,74
+            | (:(74,75
+length length109,110
+prop_size prop_size118,119
+l3 l3121,122
+l2 l2124,125
+l1 l1127,128
+l0 l0130,131
+empty empty142,143
+add add145,146
+singleton singleton148,149
+replicate replicate160,161
+prop_replicate prop_replicate168,169
+map map179,180
+prop_map prop_map183,184
+foldr1 foldr1194,195
+foldr foldr198,199
+zipWith zipWith213,214
+prop_zipWith prop_zipWith218,219
+joinL joinL234,235
+prop_join prop_join237,238
+concat concat245,246
+prop_concat prop_concat248,249
+
+./tests/Liquid/AddToEven.hs,166
+module AddToEven AddToEven0,1
+f f9,10
+g g15,16
+data List List20,21
+data List a = EmpEmp20,21
+            | (:(21,22
+zipWith zipWith30,31
+die die35,36
+
+./tests/Liquid/Tests/Concat.hs,122
+module Concat Concat0,1
+data List List15,16
+data List a = EmpEmp15,16
+            | (:(16,17
+concat concat21,22
+
+./tests/Liquid/Tests/Foldr2.lhs,94
+data List List40,41
+data List a = EmpEmp40,41
+            | (:(41,42
+foldr foldr63,64
+
+./tests/Liquid/Tests/Concat2.hs,141
+module Concat2 Concat20,1
+data List List4,5
+data List a = EmpEmp4,5
+            | (:(5,6
+concat concat21,22
+concat' concat'27,28
+
+./tests/Liquid/Tests/MapReduce2.hs,501
+module MapReduce2 MapReduce20,1
+expand expand6,7
+group group7,8
+collapse collapse8,9
+add add10,11
+empty empty11,12
+concat concat13,14
+map map15,16
+data List List18,19
+data List a = EmpEmp18,19
+            | (:(19,20
+die die25,26
+mapReduce mapReduce39,40
+expand expand54,55
+group group58,59
+addKV addKV60,61
+collapse collapse66,67
+concat concat70,71
+cons_list cons_list73,74
+empty empty76,77
+add add79,80
+foldr1 foldr182,83
+foldr foldr86,87
+map map92,93
+
+./tests/Liquid/Tests/F3.hs,40
+module F3 F30,1
+f3 f33,4
+g3 g37,8
+
+./tests/Liquid/Tests/Length.hs,122
+module Length Length0,1
+data List List12,13
+data List a = EmpEmp12,13
+            | (:(13,14
+length length17,18
+
+./tests/Liquid/Tests/MapReduce.lhs,147
+module MapReduce MapReduce5,6
+group group10,11
+collapse collapse11,12
+mapReduce mapReduce20,21
+group group38,39
+collapse collapse47,48
+
+./tests/Liquid/Tests/AddKV.lhs,112
+module AddKV AddKV1,2
+data List List6,7
+data List a = EmpEmp6,7
+            | (:(7,8
+addKV addKV14,15
+
+./tests/Liquid/Tests/Collapse2.hs,209
+module Collapse Collapse0,1
+data List List5,6
+data List a = EmpEmp5,6
+            | (:(6,7
+collapse collapse18,19
+foldr1 foldr122,23
+foldr foldr25,26
+empty empty30,31
+die die33,34
+f f35,36
+
+./tests/Liquid/Tests/Group3.lhs,694
+module Group3 Group33,4
+data List List10,11
+data List a = EmpEmp10,11
+            | (:(11,12
+data X X29,30
+data X = XX29,30
+group group35,36
+addKV addKV39,40
+f f43,44
+f39 f3947,48
+data Map2 Map251,52
+data Map2 k a = Assocs2 Assocs251,52
+f2 f254,55
+fromList2 fromList258,59
+instance Foldable Foldable []61,62
+    foldrX foldrX62,63
+    sum sum63,64
+class Foldable Foldable65,66
+    foldrX foldrX66,67
+    sum sum67,68
+h h70,71
+h2 h272,73
+class Test Test75,76
+  tcf tcf76,77
+  tcg tcg77,78
+instance Test Test Int79,80
+  tcf tcf80,81
+  tcg tcg81,82
+tcfInt tcfInt83,84
+crashes crashes87,88
+foldr2 foldr290,91
+f3 f395,96
+g3 g399,100
+
+./tests/Liquid/Tests/ToList.hs,173
+module ToList ToList0,1
+data List List4,5
+data List a = EmpEmp4,5
+            | (:(5,6
+toList toList13,14
+empty empty17,18
+add add23,24
+toList2 toList225,26
+
+./tests/Liquid/Tests/Group.lhs,344
+module MapReduce MapReduce5,6
+group group10,11
+data List List17,18
+data List = EmpEmp17,18
+          | (:(18,19
+data T T21,22
+data T v = T T21,22
+data List2 List223,24
+data List2 v = Emp2 Emp223,24
+data List2 v = Emp2 | C2 C223,24
+data Map2 Map225,26
+data Map2 v = Map2 Map225,26
+group group39,40
+foldr2 foldr241,42
+
+./tests/Liquid/Tests/Replicate.hs,124
+module Replicate Replicate0,1
+data List List2,3
+data List = EmpEmp2,3
+            | (:(3,4
+replicate replicate6,7
+
+./tests/Liquid/Tests/Collapse.hs,209
+module Collapse Collapse0,1
+data List List5,6
+data List a = EmpEmp5,6
+            | (:(6,7
+collapse collapse18,19
+foldr1 foldr121,22
+foldr foldr24,25
+empty empty29,30
+die die32,33
+f f34,35
+
+./tests/Liquid/Tests/Group2.lhs,208
+module Group2 Group21,2
+data List List6,7
+data List a = EmpEmp6,7
+            | (:(7,8
+foldr foldr16,17
+data X X25,26
+data X = XX25,26
+group group31,32
+addKV addKV35,36
+group2 group238,39
+
+./tests/Liquid/Tests/Distance.hs,388
+module Distance Distance0,1
+data List List6,7
+data List a = EmpEmp6,7
+            | (:(7,8
+zipWith zipWith21,22
+foldr foldr25,26
+type Center Center30,31
+type Centering Centering33,34
+type Point Point36,37
+nearest nearest40,41
+distance distance46,47
+die die50,51
+distance2 distance253,54
+distance3 distance357,58
+distance4 distance461,62
+foldr2 foldr264,65
+
+./tests/Liquid/Tests/List2.lhs,826
+module List2 List220,21
+empty empty36,37
+add add37,38
+singleton singleton38,39
+replicate replicate39,40
+map map40,41
+zipWith zipWith41,42
+concat concat42,43
+die die53,54
+lAssert lAssert56,57
+data List List61,62
+data List a = EmpEmp61,62
+            | (:(62,63
+length length97,98
+prop_size prop_size107,108
+l3 l3110,111
+l2 l2113,114
+l1 l1116,117
+l0 l0119,120
+empty empty131,132
+add add134,135
+singleton singleton137,138
+replicate replicate149,150
+take_list take_list151,152
+repeat_list repeat_list154,155
+prop_replicate prop_replicate162,163
+map map173,174
+prop_map prop_map177,178
+foldr1 foldr1188,189
+foldr foldr191,192
+zipWith zipWith206,207
+prop_zipWith prop_zipWith211,212
+concat concat232,233
+cons_list cons_list235,236
+prop_concat prop_concat237,238
+
+./tests/Liquid/Flycheck_02.lhs,726
+module Logic Logic5,6
+main main6,7
+ax1 ax116,17
+ax2 ax217,18
+ax3 ax318,19
+ax4 ax419,20
+ax5 ax520,21
+infixr infixr22,23
+f f26,27
+(=(==>)134,135
+False False135,136
+True True137,138
+(<(<=>)144,145
+False False145,146
+True True147,148
+ex0 ex0277,278
+ex0' ex0'284,285
+ex1 ex1293,294
+ex2 ex2300,301
+ex3 ex3310,311
+ex4 ex4313,314
+ex3' ex3'320,321
+ex6 ex6330,331
+ex7 ex7333,334
+exDeMorgan1 exDeMorgan1344,345
+exDeMorgan2 exDeMorgan2347,348
+ax0 ax0358,359
+ax0' ax0'365,366
+ax1 ax1374,375
+ax2 ax2390,391
+ax3 ax3393,394
+ax4 ax4396,397
+ax5 ax5399,400
+congruence congruence421,422
+fx1 fx1435,436
+size size445,446
+fx0 fx0454,455
+fx2 fx2464,465
+fx2VC fx2VC476,477
+
+./tests/Liquid/SimpleMath.hs,367
+module SimpleMath SimpleMath0,1
+abs2 abs26,7
+add add12,13
+subToPos subToPos16,17
+fib fib25,26
+fibx fibx30,31
+fib' fib'36,37
+xSqPlusYSq xSqPlusYSq42,43
+id2Int id2Int46,47
+id2 id250,51
+eq2 eq254,55
+eq3Int eq3Int58,59
+eq3 eq363,64
+add2 add267,68
+add3 add371,72
+add4 add475,76
+add5 add579,80
+add6 add683,84
+lt lt87,88
+neg neg91,92
+
+./tests/Liquid/MapReduceInfer/List.lhs,761
+empty empty37,38
+add add38,39
+singleton singleton39,40
+replicate replicate40,41
+map map41,42
+zipWith zipWith42,43
+concat concat43,44
+data List List53,54
+data List a = EmpEmp53,54
+            | (:(54,55
+length length89,90
+prop_size prop_size99,100
+l3 l3102,103
+l2 l2105,106
+l1 l1108,109
+l0 l0111,112
+empty empty123,124
+add add126,127
+singleton singleton129,130
+replicate replicate141,142
+take_list take_list143,144
+repeat_list repeat_list146,147
+prop_replicate prop_replicate154,155
+map map165,166
+prop_map prop_map169,170
+foldr1 foldr1180,181
+foldr foldr184,185
+zipWith zipWith199,200
+prop_zipWith prop_zipWith204,205
+concat concat225,226
+cons_list cons_list228,229
+prop_concat prop_concat230,231
+
+./tests/Liquid/MapReduceInfer/MapReduce.lhs,250
+module MapReduce MapReduce5,6
+expand expand10,11
+group group11,12
+collapse collapse12,13
+mapReduce mapReduce22,23
+expand expand52,53
+group2 group261,62
+group group65,66
+addKV addKV67,68
+collapse collapse77,78
+toList toList79,80
+
+./tests/Liquid/ConcatList2.hs,155
+module ConcatList2 ConcatList20,1
+data List List10,11
+data List a = EmpEmp10,11
+            | (:(11,12
+concat concat26,27
+concat' concat'33,34
+
+./tests/Liquid/Passing/PassingMath.hs,341
+module PassingMath PassingMath0,1
+add add3,4
+lt lt7,8
+ltPoly ltPoly15,16
+data Test Test18,19
+data Test = X X18,19
+data Test = X | Y Y18,19
+data Test = X | Y | Z Z18,19
+instance Ord Ord Test20,21
+	X X21,22
+	Z Z22,23
+	_ _23,24
+	X X25,26
+	Z Z26,27
+	Y Y28,29
+	_ _29,30
+ltTest ltTest33,34
+ltTest2 ltTest237,38
+
+./tests/Liquid/CommentMeasures.hs,477
+module CommentMeasures CommentMeasures0,1
+data C C2,3
+data C = C C2,3
+ge4gt5 ge4gt58,9
+d d15,16
+data CPoly CPoly21,22
+data CPoly a = CP CP21,22
+unpackCP' unpackCP'24,25
+unpackBool unpackBool28,29
+data OneOf OneOf31,32
+data OneOf a b = A A31,32
+data OneOf a b = A a | B B31,32
+getsA getsA41,42
+getsAInt getsAInt46,47
+sumSameOneOfs sumSameOneOfs51,52
+gets2As gets2As57,58
+gets2As' gets2As'61,62
+die die66,67
+addsToLarger' addsToLarger'73,74
+
+./tests/Liquid/HigherOrder.hs,101
+module HigherOrder HigherOrder0,1
+data X X2,3
+data X = X X2,3
+f f4,5
+g g8,9
+isX isX12,13
+
+./tests/Liquid/DataRefTest.hs,583
+module DataRefTest DataRefTest0,1
+data Maybe Maybe4,5
+data Maybe a = Just Just4,5
+data Maybe a = Just a | NothingNothing4,5
+data Either Either5,6
+data Either a b = Left Left5,6
+data Either a b = Left a | Right Right5,6
+addMaybe addMaybe8,9
+addMaybe2 addMaybe213,14
+isJust isJust18,19
+isNothing isNothing23,24
+getLeftInts getLeftInts27,28
+getLeft getLeft30,31
+sumSameInts sumSameInts35,36
+sumSame sumSame39,40
+isLeft isLeft45,46
+isRight isRight50,51
+die die55,56
+sub1 sub159,60
+id2 id263,64
+const4 const467,68
+check check71,72
+fI fI75,76
+
+./tests/Liquid/Nonused.hs,48
+module Nonused Nonused0,1
+f f8,9
+g g11,12
+
+./tests/Liquid/Assert.lhs,267
+module Assert Assert5,6
+divide divide7,8
+die die23,24
+fixme fixme32,33
+one_plus_one_eq_two one_plus_one_eq_two50,51
+one_plus_one_eq_three one_plus_one_eq_three57,58
+lAssert lAssert64,65
+propOk propOk72,73
+propFail propFail78,79
+divide divide88,89
+
+./tests/Liquid/Error/Error2.hs,140
+module Error2 Error25,6
+data List List10,11
+data List a = EmpEmp10,11
+            | (:(11,12
+die die15,16
+f1 f117,18
+f f20,21
+
+./tests/Liquid/Error/Error3.hs,35
+module Error3 Error34,5
+z z6,7
+
+./tests/Liquid/Error/Error1.hs,85
+module L L4,5
+data L a = EE8,9
+            | (:(9,10
+(+(+:+)17,18
+f f22,23
+
+./tests/Liquid/pee.hs,228
+module Pee Pee0,1
+data Peano Peano2,3
+data Peano = Succ Succ2,3
+data Peano = Succ Peano | ZeroZero2,3
+add add5,6
+toInt toInt12,13
+add' add'16,17
+isZero isZero21,22
+fromInt fromInt26,27
+fromInt' fromInt'30,31
+
+./tests/Liquid/SimplePoly.hs,321
+module SimplePoly SimplePoly0,1
+data S S2,3
+data S a = S S2,3
+s s5,6
+sget sget9,10
+sset sset13,14
+data Pair Pair16,17
+data Pair a b = Pair Pair16,17
+p p19,20
+snd2Int snd2Int23,24
+snd2 snd226,27
+sumPair sumPair30,31
+pfst pfst34,35
+psnd psnd38,39
+switchInt switchInt41,42
+switch switch45,46
+
+./tests/Liquid/HigherOrderRef.hs,161
+module HigherOrderRef HigherOrderRef0,1
+f1 f13,4
+f2 f27,8
+f3 f311,12
+f4 f415,16
+f5 f519,20
+f6 f624,25
+f7 f729,30
+f8 f833,34
+callf callf36,37
+
+./tests/Liquid/ConcatList.hs,256
+module ConcatList ConcatList2,3
+data List List6,7
+data List a = EmpEmp6,7
+            | (:(7,8
+concat concat24,25
+concat2 concat231,32
+concat3 concat335,36
+die die39,40
+concat4 concat454,55
+concat5 concat559,60
+concat56 concat5665,66
+
+./tests/Liquid/GetNth.hs,523
+module GetNth GetNth0,1
+data CList CList4,5
+data CList a = Cons Cons4,5
+data CList a = Cons !a (CList a) | NilNil4,5
+data CList2 CList27,8
+data CList2 a = Cons2 Cons27,8
+data CList2 a = Cons2 a | Nil2Nil27,8
+getNthInt3 getNthInt310,11
+getNth2 getNth214,15
+length2 length219,20
+getNthInt getNthInt24,25
+getNth getNth28,29
+getNthInt2 getNthInt234,35
+length length40,41
+die die45,46
+getHeadInt getHeadInt48,49
+getHead getHead52,53
+sumC sumC57,58
+sumC' sumC'61,62
+sumCList sumCList66,67
+
+./tests/Liquid/Pee.hs,228
+module Pee Pee0,1
+data Peano Peano2,3
+data Peano = Succ Succ2,3
+data Peano = Succ Peano | ZeroZero2,3
+add add5,6
+toInt toInt10,11
+add' add'14,15
+isZero isZero19,20
+fromInt fromInt24,25
+fromInt' fromInt'28,29
+
+./tests/Liquid/flycheck_03.lhs,606
+module Intro Intro8,9
+divide divide11,12
+zero'''' zero''''12,13
+die die13,14
+zero zero52,53
+one one55,56
+two two56,57
+three three57,58
+one' one'67,68
+zero' zero'114,115
+zero'' zero''122,123
+zero''' zero'''135,136
+zero'''' zero''''158,159
+die die177,178
+cantDie cantDie188,189
+canDie canDie198,199
+divide' divide'216,217
+divide divide231,232
+avg2 avg2257,258
+avg3 avg3258,259
+avg avg269,270
+abs abs285,286
+calc calc315,316
+result result329,330
+isPositive isPositive338,339
+lAssert lAssert375,376
+yes yes378,379
+no no379,380
+truncate truncate391,392
+
+./tests/Liquid/Peano.hs,208
+module Peano Peano0,1
+data Peano = Succ Succ1,2
+data Peano = Succ Peano | ZeroZero1,2
+add add3,4
+toInt toInt7,8
+add' add'10,11
+isZero isZero14,15
+fromInt fromInt18,19
+fromInt' fromInt'21,22
+
+./tests/Liquid/List2.lhs,761
+empty empty37,38
+add add38,39
+singleton singleton39,40
+replicate replicate40,41
+map map41,42
+zipWith zipWith42,43
+concat concat43,44
+data List List53,54
+data List a = EmpEmp53,54
+            | (:(54,55
+length length89,90
+prop_size prop_size99,100
+l3 l3102,103
+l2 l2105,106
+l1 l1108,109
+l0 l0111,112
+empty empty123,124
+add add126,127
+singleton singleton129,130
+replicate replicate141,142
+take_list take_list143,144
+repeat_list repeat_list146,147
+prop_replicate prop_replicate154,155
+map map165,166
+prop_map prop_map169,170
+foldr1 foldr1180,181
+foldr foldr183,184
+zipWith zipWith198,199
+prop_zipWith prop_zipWith203,204
+concat concat224,225
+cons_list cons_list226,227
+prop_concat prop_concat228,229
+
+./tests/Liquid/RealWorld/Heap.hs,311
+type Depth Depth9,10
+data Heap Heap11,12
+data Heap a = Leaf Leaf11,12
+data Heap a = Leaf | Branch Branch11,12
+rank rank28,29
+singleton singleton36,37
+empty empty40,41
+swap swap42,43
+splitMin splitMin44,45
+getMin getMin49,50
+deleteMin deleteMin52,53
+merge merge55,56
+insert insert66,67
+
+./tests/Liquid/RealWorld/Assert.lhs,267
+module Assert Assert5,6
+divide divide7,8
+die die24,25
+fixme fixme33,34
+one_plus_one_eq_two one_plus_one_eq_two51,52
+one_plus_one_eq_three one_plus_one_eq_three58,59
+lAssert lAssert65,66
+propOk propOk73,74
+propFail propFail79,80
+divide divide89,90
+
+./tests/Liquid/RealWorld/MapReduce/Assert.lhs,267
+module Assert Assert5,6
+divide divide7,8
+die die24,25
+fixme fixme33,34
+one_plus_one_eq_two one_plus_one_eq_two51,52
+one_plus_one_eq_three one_plus_one_eq_three58,59
+lAssert lAssert65,66
+propOk propOk73,74
+propFail propFail79,80
+divide divide89,90
+
+./tests/Liquid/RealWorld/MapReduce/Expand.lhs,240
+module MapReduce MapReduce5,6
+expand expand9,10
+concat concat10,11
+data List List37,38
+data List a = EmpEmp37,38
+            | (:(38,39
+expand expand42,43
+expand2 expand246,47
+singleton singleton50,51
+concat concat55,56
+
+./tests/Liquid/RealWorld/ListFails.lhs,197
+empty empty33,34
+concat concat34,35
+fuu fuu44,45
+data List List47,48
+data List a = EmpEmp47,48
+            | (:(48,49
+empty empty52,53
+singleton singleton54,55
+concat concat58,59
+
+./tests/BaseTests/ListTests.hs,289
+module ListTests ListTests0,1
+test test5,6
+maxMap maxMap8,9
+minTest minTest11,12
+foldrTest foldrTest15,16
+foldrTest2 foldrTest218,19
+hd hd21,22
+hdTail hdTail24,25
+fromListIntFloat fromListIntFloat34,35
+fromListInt fromListInt37,38
+foldrx foldrx40,41
+map2 map246,47
+
+./tests/BaseTests/POPL.hs,711
+module POPL POPL2,3
+zip zip9,10
+inGe0 inGe016,17
+is4Mod6 is4Mod619,20
+ith4Mod6 ith4Mod622,23
+kModNs kModNs26,27
+(!(!!)29,30
+xs xs30,31
+[] []31,32
+(x(x:_)32,33
+(_(_:xs)33,34
+takeNFromN takeNFromN35,36
+inEven inEven38,39
+outEven outEven41,42
+sumKNats sumKNats44,45
+sumKNats0 sumKNats047,48
+range range50,51
+gt5 gt553,54
+sum sum56,57
+take take60,61
+succ succ66,67
+abs abs69,70
+fixed fixed74,75
+takeFib takeFib90,91
+fibs fibs93,94
+zipWith zipWith96,97
+fstCollatz fstCollatz104,105
+null null107,108
+lengthGt5 lengthGt5111,112
+infEven infEven114,115
+infC infC117,118
+head head120,121
+filter filter124,125
+collatz collatz130,131
+isOdd isOdd138,139
+
+./tests/BaseTests/Other.hs,61
+module Other Other0,1
+check4VeryEasy2 check4VeryEasy24,5
+
+./tests/BaseTests/NQueens.hs,351
+module NQueens NQueens0,1
+type Pos Pos4,5
+find6Easy find6Easy6,7
+find4 find417,18
+find4Easy find4Easy24,25
+tupleList tupleList30,31
+check4Easy check4Easy34,35
+check4 check437,38
+check check40,41
+validPos validPos44,45
+uniqRow uniqRow47,48
+uniqCol uniqCol50,51
+uniq uniq53,54
+uniqDiag uniqDiag60,61
+isSorted isSorted64,65
+
+./tests/BaseTests/MaybeTest.hs,168
+module MaybeTest MaybeTest0,1
+sumN sumN8,9
+lengthN lengthN12,13
+average average16,17
+averageF averageF19,20
+maybeAvg maybeAvg22,23
+average' average'27,28
+
+./tests/BaseTests/LHPOPL.hs,187
+module LHPOPL LHPOPL0,1
+type Salary Salary5,6
+maxRaise maxRaise17,18
+calcRaise calcRaise29,30
+salaries1 salaries133,34
+salaries2 salaries236,37
+allSalaries allSalaries40,41
+
+./tests/BaseTests/IntegralTests.hs,49
+module IntegralTests IntegralTests0,1
+f f2,3
+
+./tests/BaseTests/Tuples.hs,78
+module Tuples Tuples0,1
+addTupleElems addTupleElems2,3
+oneTwo oneTwo7,8
+
+./tests/DefuncTest.hs,560
+module DefuncTest DefuncTest2,3
+a a9,10
+dataB dataB12,13
+add1 add115,16
+multiply2 multiply218,19
+defunc1Add1 defunc1Add121,22
+defunc1Multiply2 defunc1Multiply225,26
+defuncB defuncB29,30
+add1D2 add1D235,36
+sub1D2 sub1D238,39
+squareD2 squareD241,42
+iListI iListI44,45
+iListNil iListNil47,48
+fListF fListF50,51
+fListNil fListNil53,54
+add1Def add1Def56,57
+sub1Def sub1Def59,60
+squareDef squareDef62,63
+defunc2Check defunc2Check65,66
+defunc2Check' defunc2Check'69,70
+defunc2Check'' defunc2Check''75,76
+tyIntS tyIntS81,82
+
+./tests/Reqs.hs,342
+data Reqs Reqs11,12
+data Reqs c t = RForAll RForAll11,12
+              | RExists RExists12,13
+              | RForAllTracker RForAllTracker13,14
+              | AtLeast AtLeast14,15
+              | AtMost AtMost15,16
+              | Exactly Exactly16,17
+checkExprGen checkExprGen19,20
+givenLengthCheck givenLengthCheck32,33
+
+./tests/CaseTest.hs,120
+module CaseTest CaseTest2,3
+exists1 exists17,8
+exists2 exists212,13
+exists3 exists316,17
+exists4 exists421,22
+
+./tests/ASTValidation/Test.hs,139
+module Main Main3,4
+letsTypeValidNoError letsTypeValidNoError10,11
+letsTypeValidOneError letsTypeValidOneError19,20
+main main28,29
+
+./tests/PeanoTest.hs,366
+module PeanoTest PeanoTest2,3
+zeroPeano zeroPeano8,9
+succPeano succPeano12,13
+peano_0_4 peano_0_416,17
+peano_1_3 peano_1_321,22
+peano_1_4 peano_1_426,27
+peano_2_2 peano_2_231,32
+peano_3_1 peano_3_136,37
+peano_4_0 peano_4_040,41
+peano_4_1 peano_4_144,45
+peano_4_out peano_4_out48,49
+peano_1_4_5 peano_1_4_552,53
+peano_4_1_5 peano_4_1_557,58
+
+./tests/TestUtils.hs,639
+module TestUtils TestUtils2,3
+eqIgT eqIgT9,10
+eqIgIds eqIgIds20,21
+eqIgNames eqIgNames23,24
+typeNameIs typeNameIs26,27
+dcHasName dcHasName30,31
+isBool isBool34,35
+dcInAppHasName dcInAppHasName38,39
+buriedDCName buriedDCName43,44
+appNthArgIs appNthArgIs48,49
+isInt isInt57,58
+appNth appNth62,63
+isIntT isIntT67,68
+isDouble isDouble71,72
+isFloat isFloat75,76
+inCast inCast80,81
+notCast notCast84,85
+getInt getInt88,89
+getIntB getIntB93,94
+getBoolB getBoolB96,97
+isApp isApp100,101
+isError isError104,105
+isTyFun isTyFun108,109
+noUndefined noUndefined112,113
+noUndefined' noUndefined'115,116
+
+./tests/GetNthTest.hs,775
+module GetNthTest GetNthTest3,4
+data CList CList8,9
+data CList a = Cons Cons8,9
+data CList a = Cons a (CList a) | NilNil8,9
+data Peano Peano10,11
+data Peano = Succ Succ10,11
+data Peano = Succ Peano | ZeroZero10,11
+getNth getNth12,13
+getNthErr getNthErr17,18
+toCList toCList22,23
+toCListGen toCListGen26,27
+toCListType toCListType30,31
+toCListGenType toCListGenType34,35
+cListLength cListLength38,39
+getNthTest getNthTest42,43
+getNthErrTest getNthErrTest46,47
+getNthErrGenTest getNthErrGenTest51,52
+getNthErrGenTest' getNthErrGenTest'59,60
+getNthErrGenTest2 getNthErrGenTest267,68
+getNthErrGenTest2' getNthErrGenTest2'75,76
+elimType elimType83,84
+elimType' elimType'86,87
+getNthErrors getNthErrors90,91
+cfmapTest cfmapTest94,95
+
+./tests/Samples/PeanoTC.hs,356
+module Typeclass Typeclass0,1
+data Peano Peano2,3
+data Peano = Zero Zero2,3
+data Peano = Zero | Succ Succ2,3
+class Number Number4,5
+    add add5,6
+    isZero isZero6,7
+instance Number Number Peano9,10
+    add add10,11
+    isZero isZero13,14
+instance Number Number Int19,20
+    add add20,21
+    isZero isZero22,23
+test test27,28
+
+./tests/Samples/Floating.hs,78
+module Floating Floating0,1
+addFloat addFloat2,3
+addDouble addDouble5,6
+
+./tests/Samples/ImportA.hs,41
+module ImportA ImportA0,1
+foo foo4,5
+
+./tests/Samples/GetNthPoly.hs,930
+module GetNthPoly GetNthPoly0,1
+data CList CList4,5
+data CList a = Cons Cons4,5
+data CList a = Cons !a (CList a) | Nil Nil4,5
+data IList IList6,7
+data IList = ICons ICons6,7
+data X X8,9
+data X = X X8,9
+data Peano Peano10,11
+data Peano = Succ Succ10,11
+data Peano = Succ Peano | ZeroZero10,11
+getNthX getNthX14,15
+getNthPeano getNthPeano17,18
+getNthCListInt getNthCListInt23,24
+getNthCListX getNthCListX26,27
+getNthInt getNthInt29,30
+getNth getNth33,34
+getHead getHead38,39
+getTail getTail42,43
+getHeadI getHeadI46,47
+length length50,51
+getNthContract getNthContract55,56
+class CFunctor CFunctor59,60
+    cfmap cfmap60,61
+    (<(<$!)62,63
+instance CFunctor CFunctor CList65,66
+    cfmap cfmap66,67
+cfmapInt cfmapInt69,70
+double double72,73
+add1 add175,76
+intX intX78,79
+intCListInt intCListInt81,82
+cfmapIntX cfmapIntX84,85
+cfmapIntCListInt cfmapIntCListInt87,88
+
+./tests/Samples/Mux.hs,311
+module Mux Mux0,1
+type Bit Bit4,5
+mux mux6,7
+tree tree11,12
+decode decode15,16
+binaryMux binaryMux22,23
+num num25,26
+encode encode29,30
+enc enc33,34
+oneHot oneHot38,39
+log2 log242,43
+ulog2 ulog245,46
+prop_encode prop_encode53,54
+prop_mux prop_mux57,58
+prop_encDec prop_encDec65,66
+
+./tests/Samples/ImportC.hs,41
+module ImportC ImportC0,1
+foo foo2,3
+
+./tests/Samples/Intersect.hs,132
+module Intersect Intersect0,1
+intersect intersect4,5
+intersectBy intersectBy7,8
+any any12,13
+commutative commutative16,17
+
+./tests/Samples/McCarthy91.hs,211
+module McCarthy91 McCarthy910,1
+mccarthy mccarthy2,3
+lessThan91 lessThan917,8
+lessThanNot91 lessThanNot9110,11
+greaterThan10Less greaterThan10Less13,14
+greaterThanNot10Less greaterThanNot10Less16,17
+
+./tests/Samples/OkasakiRedBlack.hs,269
+module OkasakiRedBlack OkasakiRedBlack0,1
+data Color Color2,3
+data Color = R R2,3
+data Color = R | BB2,3
+data Tree Tree3,4
+data Tree elt = E E3,4
+data Tree elt = E | T T3,4
+insert insert5,6
+ins ins8,9
+makeBlack makeBlack15,16
+balance balance17,18
+
+./tests/Samples/FoldlUsesPoly.hs,867
+module FoldlUsesPoly FoldlUsesPoly0,1
+data CList CList4,5
+data CList a = Nil Nil4,5
+data CList a = Nil | Cons Cons4,5
+data Pair Pair6,7
+data Pair a b = Pair Pair6,7
+getNth getNth8,9
+length length13,14
+foldl foldl17,18
+sumMinAndMaxInt sumMinAndMaxInt21,22
+sumMinAndMax sumMinAndMax24,25
+minInt minInt27,28
+maxInt maxInt30,31
+min2 min233,34
+min' min'37,38
+max2 max241,42
+max' max'45,46
+maxInt' maxInt'49,50
+sum sum52,53
+maxesInt maxesInt55,56
+maxes maxes58,59
+class Switchable Switchable61,62
+    switch switch62,63
+instance Switchable Switchable Pair64,65
+    switch switch65,66
+switchP switchP68,69
+switchInt switchInt71,72
+data Holds Holds74,75
+data Holds a = H H74,75
+class In In76,77
+    getIn getIn77,78
+instance In In Holds79,80
+    getIn getIn80,81
+getInP getInP83,84
+getInInt getInInt86,87
+
+./tests/Samples/HigherOrderMath.hs,646
+module HigherOrderMath HigherOrderMath0,1
+abs2 abs22,3
+abs3 abs37,8
+square square10,11
+negativeSquare negativeSquare13,14
+fourthPower fourthPower16,17
+fixed fixed19,20
+negative negative22,23
+add1 add125,26
+sub1 sub128,29
+add add31,32
+sub sub34,35
+pythagorean pythagorean37,38
+approxSqrt approxSqrt42,43
+sameFloatArgLarger sameFloatArgLarger57,58
+functionSatisfies functionSatisfies60,61
+functionSatisfies2 functionSatisfies263,64
+fToG fToG66,67
+notNegativeAt0 notNegativeAt069,70
+notNegativeAt0NegativeAt1 notNegativeAt0NegativeAt172,73
+isTrue0 isTrue080,81
+isTrue1 isTrue183,84
+isTrue2 isTrue286,87
+
+./tests/Samples/FoldlUses.hs,240
+module FoldlUses FoldlUses0,1
+data CList CList4,5
+data CList = Cons Cons4,5
+data CList = Cons Int CList | NilNil4,5
+getNth getNth6,7
+length length11,12
+range range15,16
+foldl foldl20,21
+sum sum24,25
+dotProd dotProd30,31
+
+./tests/Samples/ImportB.hs,41
+module ImportB ImportB0,1
+foo foo4,5
+
+./tests/Samples/GetNthErr.hs,224
+module GetNthErr GetNthErr0,1
+data CList CList4,5
+data CList = Cons Cons4,5
+data CList = Cons Int CList | NilNil4,5
+getNth getNth6,7
+length length11,12
+getNthContract getNthContract15,16
+dotProd dotProd18,19
+
+./tests/Samples/Higher.hs,145
+module Higher Higher0,1
+square square2,3
+plus5 plus55,6
+const const8,9
+foo foo11,12
+fixed fixed18,19
+main main21,22
+add add24,25
+
+./tests/Samples/GetNth.hs,195
+module GetNth GetNth0,1
+data CList CList4,5
+data CList = Cons Cons4,5
+data CList = Cons Int CList | NilNil4,5
+getNth getNth6,7
+length length11,12
+getNthContract getNthContract15,16
+
+./tests/Samples/Peano.hs,454
+module Peano Peano0,1
+data Peano = Succ Succ2,3
+data Peano = Succ Peano | Zero Zero2,3
+add add4,5
+sub sub9,10
+multiply multiply14,15
+isEven isEven18,19
+toInt toInt23,24
+fromInt fromInt27,28
+equalsFour equalsFour33,34
+equalsTwo equalsTwo36,37
+eq eq39,40
+isTrue isTrue42,43
+eqEachOtherAndAddTo4 eqEachOtherAndAddTo445,46
+multiplyToFour multiplyToFour48,49
+fstIsEvenAddToFour fstIsEvenAddToFour51,52
+fstIsTwo fstIsTwo54,55
+
+./tests/InputOutputTest.hs,565
+module InputOutputTest InputOutputTest1,2
+checkInputOutput checkInputOutput19,20
+checkInputOutputWithConfig checkInputOutputWithConfig22,23
+checkInputOutput' checkInputOutput'32,33
+checkInputOutput'' checkInputOutput''35,36
+checkInputOutputLH checkInputOutputLH69,70
+checkInputOutputLHWithConfig checkInputOutputLHWithConfig72,73
+checkInputOutputLH' checkInputOutputLH'82,83
+checkInputOutputLH'' checkInputOutputLH''85,86
+checkExprAll checkExprAll100,101
+checkExprExists checkExprExists103,104
+checkExprInOutCount checkExprInOutCount106,107
+
+./tests/HigherOrderMathTest.hs,750
+module HigherOrderMathTest HigherOrderMathTest2,3
+abs2 abs28,9
+abs3 abs311,12
+square square14,15
+negativeSquare negativeSquare17,18
+fourthPower fourthPower20,21
+add1 add123,24
+sub1 sub126,27
+add add29,30
+sub sub32,33
+approxSqrt approxSqrt35,36
+pythagorean pythagorean38,39
+notNegativeAt0 notNegativeAt041,42
+notNegativeAt0NegativeAt1 notNegativeAt0NegativeAt144,45
+abs2NonNeg abs2NonNeg47,48
+allabs2NonNeg allabs2NonNeg51,52
+squareRes squareRes55,56
+negativeSquareRes negativeSquareRes59,60
+fourthPowerRes fourthPowerRes63,64
+addRes addRes67,68
+subRes subRes71,72
+approxSqrtRes approxSqrtRes75,76
+pythagoreanRes pythagoreanRes79,80
+functionSatisfiesRes functionSatisfiesRes83,84
+tyBoolS tyBoolS87,88
+
+./tests/TestFiles/Where1.hs,35
+module Where1 Where10,1
+f f2,3
+
+./tests/TestFiles/MultCase.hs,39
+module MultCase MultCase0,1
+f f2,3
+
+./tests/TestFiles/PolyTypes.hs,76
+module PolyTypes PolyTypes0,1
+polyFst polyFst2,3
+typedFst typedFst5,6
+
+./tests/TestFiles/AssumeAssert.hs,160
+module AssumeAssert AssumeAssert0,1
+assertGt5 assertGt52,3
+assumeGt5 assumeGt55,6
+outShouldBeGt5 outShouldBeGt58,9
+outShouldBeGe5 outShouldBeGe511,12
+
+./tests/TestFiles/Deriving/DerivingSimple.hs,150
+module DerivingSimple DerivingSimple0,1
+data X X2,3
+data X = A A2,3
+data X = A | B B2,3
+eq eq4,5
+notEq notEq7,8
+lt lt10,11
+gt gt13,14
+
+./tests/TestFiles/Deriving/DerivingComp.hs,207
+module DerivingComp DerivingComp0,1
+data X X2,3
+data X = A A2,3
+data X = A Int | B B2,3
+data Y Y4,5
+data Y = C C4,5
+data Y = C X | D D4,5
+eq eq6,7
+notEq notEq9,10
+lt lt12,13
+gt gt15,16
+
+./tests/TestFiles/CheckSq.hs,49
+module CheckSq CheckSq2,3
+checkSq checkSq4,5
+
+./tests/TestFiles/Defunc1.hs,823
+module Defunc1 Defunc10,1
+data A A2,3
+data A = A A2,3
+       | B B3,4
+f f5,6
+h h9,10
+add1 add112,13
+multiply2 multiply215,16
+data X X18,19
+data X = X X18,19
+x x20,21
+newtype Dollars Dollars23,24
+deskJob deskJob25,26
+mowLawn mowLawn28,29
+makeMoney makeMoney31,32
+newtype Y Y34,35
+mapY mapY36,37
+yAdd1 yAdd139,40
+mapYInt mapYInt42,43
+data Z Z45,46
+data Z = Z Z45,46
+data ZZ ZZ47,48
+data ZZ = ZZ ZZ47,48
+genZ genZ49,50
+genZ2 genZ252,53
+compZApps compZApps56,57
+compZApps2 compZApps259,60
+helper helper68,69
+compZZ compZZ71,72
+compZZ2 compZZ279,80
+zzHelper zzHelper88,89
+data E E91,92
+data E = E E91,92
+data E = E | EE EE91,92
+data T T93,94
+data T = T T93,94
+data TT TT95,96
+data TT = TT TT95,96
+e e97,98
+genT genT101,102
+compTT2 compTT2104,105
+
+./tests/TestFiles/Case2.hs,116
+module Case2 Case20,1
+data X X2,3
+data X = A A2,3
+data X = A X | B B2,3
+data X = A X | B | CC2,3
+f f4,5
+
+./tests/TestFiles/MatchesFunc1.hs,165
+module MultiSplit2 MultiSplit20,1
+data X X2,3
+data X = X X2,3
+data X = X Int X | YY2,3
+f f4,5
+g g7,8
+x0 x012,13
+x1 x115,16
+x2 x218,19
+x3 x321,22
+
+./tests/TestFiles/RecordFields1.hs,246
+module RecordFields1 RecordFields10,1
+data Y Y2,3
+data Y = A A2,3
+data Y = A | B B2,3
+data Y = A | B | CC2,3
+data X X4,5
+data X = X X4,5
+data X = X { count count4,5
+           , alg alg5,6
+fCall fCall7,8
+f f11,12
+g g14,15
+
+./tests/TestFiles/Coercions/GADT.hs,82
+module GADT GADT2,3
+data X X4,5
+    I I5,6
+    B B6,7
+f f8,9
+g g13,14
+
+./tests/TestFiles/Coercions/Age.hs,405
+module NewType1 NewType10,1
+newtype Age Age12,13
+newtype Years Years13,14
+born born15,16
+yearPasses yearPasses18,19
+diffAge diffAge21,22
+age age24,25
+newtype Year Year27,28
+data YearTracker YearTracker28,29
+data YearTracker = AD AD28,29
+data YearTracker = AD Year | BC BC28,29
+oneAD oneAD30,31
+yearBefore yearBefore33,34
+yearAfter yearAfter40,41
+yearBefore2 yearBefore247,48
+
+./tests/TestFiles/Coercions/NewType1.hs,1067
+module NewType1 NewType10,1
+newtype N1 N12,3
+newtype N2 N23,4
+newtype N3 N34,5
+newtype N4 N45,6
+add1N4 add1N47,8
+add1N3 add1N310,11
+add1N2 add1N213,14
+add1N1 add1N116,17
+n1Map n1Map19,20
+data X X22,23
+data X = XX22,23
+newtype NewX NewX23,24
+newtype NewX = N N23,24
+f f25,26
+g g28,29
+h h31,32
+newtype W W34,35
+mapW mapW36,37
+mapWInt mapWInt39,40
+mapWAdd1Int mapWAdd1Int42,43
+data E E45,46
+data E a b = L L45,46
+data E a b = L a | R R45,46
+newtype EInt EInt46,47
+getL getL48,49
+getLIntFloat getLIntFloat52,53
+getR getR55,56
+getRIntFloat getRIntFloat59,60
+appLeft appLeft62,63
+appLeftFloat appLeftFloat66,67
+add1 add169,70
+sub1 sub172,73
+data T T75,76
+data T a b c = TL TL75,76
+data T a b c = TL a | TC TC75,76
+data T a b c = TL a | TC b | TR TR75,76
+newtype TFloat TFloat76,77
+getC getC78,79
+getTR getTR82,83
+getCIntFloatDouble getCIntFloatDouble86,87
+getRIntFloatDouble getRIntFloatDouble89,90
+newtype TFloat' TFloat'93,94
+getTR' getTR'95,96
+getRIntFloatX' getRIntFloatX'99,100
+
+./tests/TestFiles/Prim2.hs,237
+module Prim2 Prim20,1
+quotI1 quotI13,4
+quotI2 quotI26,7
+remI1 remI19,10
+remI2 remI212,13
+p1 p116,17
+p2 p224,25
+p1List p1List32,33
+p2List p2List35,36
+integerToFloatList integerToFloatList38,39
+sqrtList sqrtList41,42
+
+./tests/TestFiles/Case3.hs,88
+module Case2 Case20,1
+data X X2,3
+data X = A A2,3
+data X = A X | BB2,3
+f f4,5
+
+./tests/TestFiles/FuncWrapper/FuncWrapper2.hs,158
+module FuncWrapper2 FuncWrapper25,6
+fWrapper fWrapper7,8
+add1 add110,11
+addNeg1 addNeg113,14
+fAssume fAssume16,17
+fAssert fAssert19,20
+f f22,23
+
+./tests/TestFiles/FuncWrapper/FuncWrapper1.hs,158
+module FuncWrapper1 FuncWrapper15,6
+fWrapper fWrapper7,8
+add1 add110,11
+addNeg1 addNeg113,14
+fAssume fAssume16,17
+fAssert fAssert19,20
+f f22,23
+
+./tests/TestFiles/HigherOrderList.hs,53
+module HigherOrderList HigherOrderList0,1
+g g2,3
+
+./tests/TestFiles/PolyPred/PolyPred2.hs,211
+module PolyPred2 PolyPred25,6
+data CList CList7,8
+data CList a = Cons Cons7,8
+data CList a = Cons a (CList a) | NilNil7,8
+intPred intPred9,10
+sumAssert sumAssert12,13
+sum sum15,16
+sum' sum'18,19
+
+./tests/TestFiles/PolyPred/PolyPred1.hs,119
+module PolyPred1 PolyPred10,1
+data X X2,3
+data X a = X X2,3
+intPred intPred4,5
+fAssert fAssert7,8
+f f10,11
+
+./tests/TestFiles/Defunc2.hs,246
+module Defunc2 Defunc20,1
+data IList IList2,3
+data IList = I I2,3
+           | INilINil3,4
+data FList FList5,6
+data FList = F F5,6
+           | FNilFNil6,7
+add1 add18,9
+sub1 sub111,12
+square square14,15
+funcMap funcMap17,18
+
+./tests/TestFiles/IfTest.hs,35
+module IfTest IfTest0,1
+f f2,3
+
+./tests/TestFiles/Case1.hs,112
+module Case1 Case10,1
+data X X2,3
+data X = A A2,3
+data X = A | B B2,3
+data X = A | B | CC2,3
+f f4,5
+
+./tests/TestFiles/Infinite.hs,48
+module Infinite Infinite0,1
+f f2,3
+g g7,8
+
+./tests/TestFiles/Error/Error2.hs,89
+module Error2 Error20,1
+data X X2,3
+data X = X X2,3
+data X = X | Y Y2,3
+f f4,5
+
+./tests/TestFiles/Error/Error3.hs,45
+module Error3 Error30,1
+f f2,3
+g g9,10
+
+./tests/TestFiles/Error/Error1.hs,53
+module Error1 Error10,1
+f f2,3
+g g5,6
+h h8,9
+
+./tests/TestFiles/PolyDataTy1.hs,765
+module PolyDataTy1 PolyDataTy10,1
+data X X2,3
+data X a = X X2,3
+data X a = X a | YY2,3
+f f4,5
+data CThreeOpt CThreeOpt8,9
+data CThreeOpt a b c = Fst Fst8,9
+data CThreeOpt a b c = Fst a | Snd Snd8,9
+data CThreeOpt a b c = Fst a | Snd b | Thd Thd8,9
+getFst getFst10,11
+getFstXIntInt getFstXIntInt14,15
+getSndDef getSndDef17,18
+getSndDefXIntInt getSndDefXIntInt21,22
+data Groups Groups24,25
+data Groups a b c d e f g h = Five Five24,25
+data Groups a b c d e f g h = Five a b c d e | Six Six24,25
+data Groups a b c d e f g h = Five a b c d e | Six a b c d e f | Seven Seven24,25
+data Groups a b c d e f g h = Five a b c d e | Six a b c d e f | Seven a b c d e f g | Eight Eight24,25
+data Z Z25,26
+data Z = ZZ25,26
+sum sum27,28
+
+./tests/TestFiles/TypeKeyword.hs,81
+module TypeKeyword TypeKeyword0,1
+type Age Age2,3
+yearPasses yearPasses4,5
+
+./tests/TestFiles/Strictness1.hs,86
+module Strictness1 Strictness10,1
+data X X2,3
+data X = A A2,3
+f f4,5
+g g7,8
+
+./tests/TestFiles/TypeClass/TypeClass1.hs,130
+module TypeClass1 TypeClass10,1
+class Test Test2,3
+    test test3,4
+instance Test Test Int5,6
+    test test6,7
+f f8,9
+
+./tests/TestFiles/TypeClass/TypeClass3.hs,238
+module TypeClass3 TypeClass30,1
+class Test Test2,3
+    test test3,4
+    bar bar5,6
+instance Test Test Int7,8
+    test test8,9
+    bar bar10,11
+instance Test Test [a]12,13
+    test test13,14
+    bar bar15,16
+f f17,18
+
+./tests/TestFiles/TypeClass/TypeClass2.hs,251
+module TypeClass2 TypeClass20,1
+class Test Test2,3
+    test test3,4
+    bar bar5,6
+instance Test Test Int7,8
+    test test8,9
+    bar bar10,11
+instance Test Test Float12,13
+    test test13,14
+    bar bar14,15
+f f16,17
+g g19,20
+
+./tests/TestFiles/TypeClass/HKTypeClass1.hs,545
+module HKTypeClass1 HKTypeClass10,1
+class Extract Extract2,3
+    extract extract3,4
+    replace replace5,6
+    change change7,8
+data J J14,15
+data J a = J J14,15
+data E E16,17
+data E a b = E E16,17
+instance Extract Extract J18,19
+    extract extract19,20
+    replace replace21,22
+instance Extract Extract (E a)23,24
+    extract extract24,25
+    replace replace26,27
+largeJ largeJ28,29
+largeE largeE31,32
+extractJ extractJ34,35
+extractE extractE37,38
+changeJ changeJ40,41
+add1 add143,44
+add2 add246,47
+
+./tests/TestFiles/BadNames1.hs,168
+module BadNames1 BadNames10,1
+data X' X'2,3
+data X' = X' X'2,3
+data X' = X' X' | Y' Y'2,3
+data X' = X' X' | Y' | Z'Z'2,3
+abs' abs'4,5
+xswitch xswitch9,10
+
+./tests/TestFiles/Expr.hs,491
+module Expr Expr2,3
+data Expr = Var Var4,5
+          | Data Data5,6
+          | Lam Lam6,7
+          | BinOp BinOp7,8
+          | UnOp UnOp8,9
+          | Const Const9,10
+data Bin Bin11,12
+data Bin = Add Add11,12
+data Bin = Add | Sub Sub11,12
+data Bin = Add | Sub | MulMul11,12
+data Un Un13,14
+data Un = NegNeg13,14
+data Const Const15,16
+data Const = CTrue CTrue15,16
+data Const = CTrue | CFalseCFalse15,16
+leadingLams leadingLams17,18
+varSub varSub21,22
+
+./tests/TestFiles/Guards.hs,44
+module Guards Guards0,1
+f f2,3
+g g7,8
+
+./tests/TestFiles/FromInteger.hs,55
+module FromInteger FromInteger0,1
+simple simple2,3
+
+./tests/TestFiles/Prim.hs,50
+module Prim Prim0,1
+g g2,3
+f f6,7
+h h9,10
+
+./tests/TestFiles/LetFloating/LetFloating3.hs,83
+module LetFloating3 LetFloating30,1
+f f2,3
+z z14,15
+output32 output3217,18
+
+./tests/TestFiles/LetFloating/LetFloating2.hs,72
+module LetFloating2 LetFloating20,1
+f f2,3
+output16 output1610,11
+
+./tests/TestFiles/LetFloating/LetFloating5.hs,72
+module LetFloating4 LetFloating40,1
+f f2,3
+output19 output1914,15
+
+./tests/TestFiles/LetFloating/LetFloating.hs,68
+module LetFloating LetFloating0,1
+f f2,3
+output6 output610,11
+
+./tests/TestFiles/LetFloating/LetFloating6.hs,83
+module LetFloating6 LetFloating60,1
+f f2,3
+z z12,13
+output32 output3215,16
+
+./tests/TestFiles/LetFloating/LetFloating4.hs,83
+module LetFloating4 LetFloating40,1
+f f2,3
+z z10,11
+output12 output1213,14
+
+./tests/TestFiles/MultiSplit.hs,111
+module MultiSplit1 MultiSplit13,4
+data X X5,6
+data X = X X5,6
+equals1 equals17,8
+f f10,11
+g g13,14
+
+./src/G2/Lib/Printers.hs,1520
+module G2.Lib.Printers G2.Lib.Printers2,3
+mkIdHaskell mkIdHaskell30,31
+mkNameHaskell mkNameHaskell33,34
+mkUnsugaredExprHaskell mkUnsugaredExprHaskell36,37
+mkCleanExprHaskell mkCleanExprHaskell40,41
+mkCleanExprHaskell' mkCleanExprHaskell'44,45
+mkExprHaskell mkExprHaskell62,63
+mkAltMatchHaskell mkAltMatchHaskell101,102
+mkDataConHaskell mkDataConHaskell106,107
+off off111,112
+printList printList114,115
+printList' printList'117,118
+printString printString121,122
+printString' printString'124,125
+isTuple isTuple128,129
+printTuple printTuple132,133
+printTuple' printTuple'135,136
+isInfixable isInfixable140,141
+isApp isApp144,145
+mkLitHaskell mkLitHaskell148,149
+mkPrimHaskell mkPrimHaskell156,157
+mkTypeHaskell mkTypeHaskell184,185
+duplicate duplicate190,191
+ppExprEnv ppExprEnv194,195
+ppRelExprEnv ppRelExprEnv204,205
+ppCurrExpr ppCurrExpr211,212
+ppPathConds ppPathConds214,215
+ppPathCond ppPathCond217,218
+injNewLine injNewLine232,233
+injTuple injTuple235,236
+pprExecStateStr pprExecStateStr239,240
+pprExecEEnvStr pprExecEEnvStr292,293
+pprTEnvStr pprTEnvStr297,298
+pprExecStackStr pprExecStackStr302,303
+pprExecFrameStr pprExecFrameStr307,308
+pprExecCodeStr pprExecCodeStr310,311
+pprExecNamesStr pprExecNamesStr313,314
+pprPathsStr pprPathsStr316,317
+pprTCStr pprTCStr321,322
+pprInputIdsStr pprInputIdsStr326,327
+pprFuncTableStr pprFuncTableStr331,332
+pprPathCondStr pprPathCondStr336,337
+pprCleanedNamesStr pprCleanedNamesStr356,357
+
+./src/G2/Lib/Utils.hs,57
+module G2.Lib.Utils G2.Lib.Utils0,1
+batman batman3,4
+
+./src/G2/Internals/Config.hs,52
+module G2.Internals.Config G2.Internals.Config0,1
+
+./src/G2/Internals/Interface.hs,173
+module G2.Internals.Interface G2.Internals.Interface3,4
+initState initState38,39
+mkExprEnv mkExprEnv94,95
+mkTypeEnv mkTypeEnv97,98
+run run101,102
+run run112,113
+
+./src/G2/Internals/Translation/Interface.hs,273
+module G2.Internals.Translation.Interface G2.Internals.Translation.Interface0,1
+translateLibs translateLibs13,14
+translateLibs' translateLibs'16,17
+mergeTranslates mergeTranslates24,25
+translateLoaded translateLoaded34,35
+translateLoadedV translateLoadedV40,41
+
+./src/G2/Internals/Translation/HaskellCheck.hs,302
+module G2.Internals.Translation.HaskellCheck G2.Internals.Translation.HaskellCheck0,1
+validateStates validateStates21,22
+runCheck runCheck26,27
+runCheck' runCheck'41,42
+simpVar simpVar72,73
+runHPC runHPC75,76
+runHPC' runHPC'82,83
+toCall toCall104,105
+removeModule removeModule107,108
+
+./src/G2/Internals/Translation/InjectSpecials.hs,510
+module G2.Internals.Translation.InjectSpecialsG2.Internals.Translation.InjectSpecials2,3
+_MAX_TUPLE _MAX_TUPLE13,14
+specialTypes specialTypes16,17
+specialTypes' specialTypes'19,20
+specialDC specialDC27,28
+specialTypeNames specialTypeNames37,38
+specialConstructors specialConstructors40,41
+specialTypeNames' specialTypeNames'44,45
+specialConstructors' specialConstructors'47,48
+aName aName50,51
+aTyVar aTyVar53,54
+listName listName56,57
+specials specials59,60
+mkTuples mkTuples85,86
+
+./src/G2/Internals/Translation/PrimInject.hs,393
+module G2.Internals.Translation.PrimInjectG2.Internals.Translation.PrimInject4,5
+primInject primInject21,22
+primInjectT primInjectT24,25
+dataInject dataInject33,34
+dataInject' dataInject'41,42
+conName conName48,49
+primDefs primDefs51,52
+replaceFromPD replaceFromPD106,107
+addPrimsToBase addPrimsToBase114,115
+mergeProgs mergeProgs117,118
+mergeProgTys mergeProgTys121,122
+
+./src/G2/Internals/Translation/Cabal.hs,73
+module G2.Internals.Translation.CabalG2.Internals.Translation.Cabal0,1
+
+./src/G2/Internals/Translation/Haskell.hs,1365
+module G2.Internals.Translation.HaskellG2.Internals.Translation.Haskell3,4
+mkIOString mkIOString58,59
+mkRawCore mkRawCore63,64
+rawDump rawDump69,70
+type NameMap NameMap75,76
+type TypeNameMap TypeNameMap76,77
+equivMods equivMods78,79
+hskToG2 hskToG290,91
+type ExportedName ExportedName112,113
+type CompileClosure CompileClosure113,114
+loadProj loadProj115,116
+mkCompileClosure mkCompileClosure138,139
+mkBinds mkBinds174,175
+mkExpr mkExpr188,189
+createTickish createTickish203,204
+mkId mkId210,211
+mkIdUnsafe mkIdUnsafe214,215
+mkIdLookup mkIdLookup217,218
+mkIdUpdatingNM mkIdUpdatingNM225,226
+mkName mkName235,236
+mkNameLookup mkNameLookup246,247
+mkSpan mkSpan264,265
+mkRealSpan mkRealSpan268,269
+mkRealLoc mkRealLoc277,278
+switchModule switchModule283,284
+mkLit mkLit289,290
+mkBind mkBind302,303
+mkAlts mkAlts306,307
+mkAlt mkAlt309,310
+mkAltMatch mkAltMatch312,313
+mkType mkType317,318
+mkTyCon mkTyCon331,332
+mkTyConName mkTyConName372,373
+mkData mkData381,382
+mkDataName mkDataName387,388
+mkTyBinder mkTyBinder390,391
+prim_list prim_list394,395
+mkCoercion mkCoercion400,401
+mkClass mkClass407,408
+exportedNames exportedNames412,413
+availInfoNames availInfoNames415,416
+absVarLoc absVarLoc421,422
+absVarLoc' absVarLoc'430,431
+absLocSpan absLocSpan468,469
+absLoc absLoc474,475
+
+./src/G2/Internals/Translation/Cabal/Interface.hs,312
+module G2.Internals.Translation.Cabal.InterfaceG2.Internals.Translation.Cabal.Interface0,1
+unpackTar unpackTar16,17
+unpackTarSameDir unpackTarSameDir24,25
+newtype DependencyGraph DependencyGraph27,28
+  { un_graph un_graph28,29
+insertNode insertNode31,32
+isVersionOk isVersionOk37,38
+run run43,44
+
+./src/G2/Internals/Translation/Cabal/Parser.hs,335
+module G2.Internals.Translation.Cabal.ParserG2.Internals.Translation.Cabal.Parser0,1
+buildInfoDeps buildInfoDeps13,14
+libraryDeps libraryDeps21,22
+type LibraryCondTree LibraryCondTree25,26
+condTreeLibDeps condTreeLibDeps28,29
+packageLibraryDeps packageLibraryDeps39,40
+pkgIdent pkgIdent48,49
+parseCabal parseCabal52,53
+
+./src/G2/Internals/Translation/Cabal/Downloader.hs,285
+module G2.Internals.Translation.Cabal.DownloaderG2.Internals.Translation.Cabal.Downloader0,1
+hackage_url hackage_url11,12
+base_4_10_url base_4_10_url14,15
+mkUrl mkUrl17,18
+downloadFile downloadFile23,24
+downloadPackage downloadPackage29,30
+downloadBase downloadBase32,33
+
+./src/G2/Internals/Execution/Interface.hs,173
+module G2.Internals.Execution.InterfaceG2.Internals.Execution.Interface2,3
+runExecution runExecution15,16
+runNDepthNoConstraintChecks runNDepthNoConstraintChecks18,19
+
+./src/G2/Internals/Execution/Reducer.hs,5424
+module G2.Internals.Execution.Reducer G2.Internals.Execution.Reducer6,7
+data ExState ExState61,62
+data ExState hv sov t = ExState ExState61,62
+data ExState hv sov t = ExState { state state61,62
+                                , halter_val halter_val62,63
+                                , order_val order_val63,64
+                                , cases cases64,65
+getState getState67,68
+getOrderVal getOrderVal70,71
+setOrderVal setOrderVal73,74
+data Processed Processed78,79
+data Processed a = Processed Processed78,79
+data Processed a = Processed { accepted accepted78,79
+                             , discarded discarded79,80
+data ReducerRes ReducerRes83,84
+data ReducerRes = NoProgress NoProgress83,84
+data ReducerRes = NoProgress | InProgress InProgress83,84
+data ReducerRes = NoProgress | InProgress | Finished Finished83,84
+progPrioritizer progPrioritizer85,86
+data HaltC HaltC95,96
+data HaltC = Discard Discard95,96
+           | Accept Accept96,97
+           | Switch Switch97,98
+           | Continue Continue98,99
+class Reducer Reducer106,107
+    redRules redRules109,110
+class Halter Halter115,116
+    initHalt initHalt118,119
+    reInitHalt reInitHalt123,124
+    stopRed stopRed127,128
+    stepHalter stepHalter131,132
+class Orderer Orderer142,143
+    initOrder initOrder145,146
+    initPerStateOrder initPerStateOrder149,150
+    orderStates orderStates157,158
+data RCombiner RCombiner161,162
+data RCombiner r1 r2 = r1 r1161,162
+instance (R(Reducer r1 t, Reducer r2 t) => Reducer (RCombiner r1 r2) t166,167
+    redRules redRules167,168
+redRulesToStates redRulesToStates187,188
+data StdRed StdRed196,197
+data StdRed con = StdRed StdRed196,197
+instance Solver Solver con => Reducer (StdRed con) ()198,199
+    redRules redRules199,200
+data TypeVerifier TypeVerifier206,207
+data TypeVerifier = TypeVerifier TypeVerifier206,207
+instance Reducer Reducer TypeVerifier t207,208
+    redRules redRules208,209
+data NonRedPCRed NonRedPCRed235,236
+data NonRedPCRed = NonRedPCRed NonRedPCRed235,236
+instance Reducer Reducer NonRedPCRed t237,238
+    redRules redRules238,239
+higherOrderToAppTys higherOrderToAppTys261,262
+higherOrderToAppTys' higherOrderToAppTys'264,265
+data TaggerRed TaggerRed273,274
+data TaggerRed = TaggerRed TaggerRed273,274
+instance Reducer Reducer TaggerRed t275,276
+    redRules redRules276,277
+data HCombiner HCombiner289,290
+data HCombiner h1 h2 = h1 h1289,290
+data C C294,295
+data C a b = C C294,295
+instance {-# OVERLAPPING #-} (A(ASTContainer a Expr, ASTContainer b Expr) => ASTContainer (C a b) Expr296,297
+    containedASTs containedASTs297,298
+    modifyContainedASTs modifyContainedASTs298,299
+instance {-# OVERLAPPING #-} (A(ASTContainer a Type, ASTContainer b Type) => ASTContainer (C a b) Type300,301
+    containedASTs containedASTs301,302
+    modifyContainedASTs modifyContainedASTs302,303
+instance {-# OVERLAPPING #-} (N(Named a, Named b) => Named (C a b)304,305
+    names names305,306
+    rename rename306,307
+    renames renames307,308
+instance (H(Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 hv2) t309,310
+    initHalt initHalt310,311
+    reInitHalt reInitHalt317,318
+    stopRed stopRed324,325
+    stepHalter stepHalter331,332
+data ZeroHalter ZeroHalter338,339
+data ZeroHalter = ZeroHalterZeroHalter338,339
+instance Halter Halter ZeroHalter Int t340,341
+    initHalt initHalt341,342
+    reInitHalt reInitHalt342,343
+    stopRed stopRed343,344
+    stepHalter stepHalter344,345
+data MaxOutputsHalter MaxOutputsHalter346,347
+data MaxOutputsHalter = MaxOutputsHalterMaxOutputsHalter346,347
+instance Halter Halter MaxOutputsHalter (Maybe Int) t348,349
+    initHalt initHalt349,350
+    reInitHalt reInitHalt350,351
+    stopRed stopRed351,352
+    stepHalter stepHalter355,356
+data SwitchEveryNHalter SwitchEveryNHalter357,358
+data SwitchEveryNHalter = SwitchEveryNHalterSwitchEveryNHalter357,358
+instance Halter Halter SwitchEveryNHalter (Int, Int) t359,360
+    initHalt initHalt360,361
+    reInitHalt reInitHalt361,362
+    stopRed stopRed362,363
+    stepHalter stepHalter363,364
+data DiscardIfAcceptedTag DiscardIfAcceptedTag369,370
+data DiscardIfAcceptedTag = DiscardIfAcceptedTag DiscardIfAcceptedTag369,370
+instance Halter Halter DiscardIfAcceptedTag (S-HashSet Name) t371,372
+    initHalt initHalt372,373
+    reInitHalt reInitHalt377,378
+    stopRed stopRed387,388
+    stepHalter stepHalter390,391
+data NextOrderer NextOrderer392,393
+data NextOrderer = NextOrdererNextOrderer392,393
+instance Orderer Orderer NextOrderer () () t394,395
+    initOrder initOrder395,396
+    initPerStateOrder initPerStateOrder396,397
+    orderStates orderStates397,398
+data PickLeastUsedOrderer PickLeastUsedOrderer399,400
+data PickLeastUsedOrderer = PickLeastUsedOrdererPickLeastUsedOrderer399,400
+instance Orderer Orderer PickLeastUsedOrderer () Int t401,402
+    initOrder initOrder402,403
+    initPerStateOrder initPerStateOrder403,404
+    orderStates orderStates404,405
+executeNext executeNext415,416
+halterSub1 halterSub1418,419
+halterIsZero halterIsZero421,422
+reduce reduce431,432
+runReducer runReducer439,440
+reInitFirstHalter reInitFirstHalter482,483
+processedToState processedToState490,491
+outputState outputState494,495
+
+./src/G2/Internals/Execution/PrimitiveEval.hs,499
+module G2.Internals.Execution.PrimitiveEval G2.Internals.Execution.PrimitiveEval3,4
+evalPrims evalPrims10,11
+evalPrim evalPrim13,14
+evalPrims' evalPrims'22,23
+evalPrim' evalPrim'30,31
+getLit getLit47,48
+evalPrim1 evalPrim151,52
+evalPrim2 evalPrim260,61
+isZero isZero74,75
+evalPrim2NumBool evalPrim2NumBool80,81
+evalPrim2Num evalPrim2Num86,87
+evalPrim2Fractional evalPrim2Fractional92,93
+evalPrim2Integral evalPrim2Integral97,98
+evalPrim1Floating evalPrim1Floating101,102
+
+./src/G2/Internals/Execution/NormalForms.hs,221
+module G2.Internals.Execution.NormalForms G2.Internals.Execution.NormalForms0,1
+isExprValueForm isExprValueForm15,16
+isExecValueForm isExecValueForm34,35
+isExecValueFormDisNonRedPC isExecValueFormDisNonRedPC41,42
+
+./src/G2/Internals/Execution/RuleTypes.hs,2187
+module G2.Internals.Execution.RuleTypes G2.Internals.Execution.RuleTypes3,4
+data Rule Rule9,10
+data Rule = RuleEvalValRuleEvalVal9,10
+          | RuleEvalVarNonVal RuleEvalVarNonVal10,11
+          | RuleEvalVarVal RuleEvalVarVal11,12
+          | RuleEvalUnIntRuleEvalUnInt12,13
+          | RuleEvalApp RuleEvalApp13,14
+          | RuleEvalPrimAlreadyNormRuleEvalPrimAlreadyNorm15,16
+          | RuleEvalPrimToNormRuleEvalPrimToNorm16,17
+          | RuleEvalLet RuleEvalLet18,19
+          | RuleEvalCaseData RuleEvalCaseData20,21
+          | RuleEvalCaseLitRuleEvalCaseLit21,22
+          | RuleEvalCaseDefaultRuleEvalCaseDefault22,23
+          | RuleEvalCaseSymRuleEvalCaseSym23,24
+          | RuleEvalCasePrimRuleEvalCasePrim24,25
+          | RuleEvalCaseNonValRuleEvalCaseNonVal25,26
+          | RuleEvalCastSplitRuleEvalCastSplit27,28
+          | RuleEvalCastRuleEvalCast28,29
+          | RuleEvalAssumeRuleEvalAssume30,31
+          | RuleEvalAssertRuleEvalAssert31,32
+          | RuleReturnEUpdateVar RuleReturnEUpdateVar33,34
+          | RuleReturnEUpdateNonVar RuleReturnEUpdateNonVar34,35
+          | RuleReturnECaseRuleReturnECase36,37
+          | RuleReturnCastRuleReturnCast38,39
+          | RuleReturnEApplyLamExpr RuleReturnEApplyLamExpr40,41
+          | RuleReturnEApplyLamType RuleReturnEApplyLamType41,42
+          | RuleReturnEApplyDataRuleReturnEApplyData42,43
+          | RuleReturnEApplySymRuleReturnEApplySym43,44
+          | RuleReturnCAssumeRuleReturnCAssume45,46
+          | RuleReturnCAssertRuleReturnCAssert46,47
+          | RuleIdentityRuleIdentity48,49
+          | RulePrimErrorRulePrimError49,50
+          | RuleAnnotationRuleAnnotation51,52
+          | RuleReturnAppSymbFuncRuleReturnAppSymbFunc53,54
+          | RuleReturnReplaceSymbFuncRuleReturnReplaceSymbFunc54,55
+          | RuleReturnCurrExprFrRuleReturnCurrExprFr56,57
+          | RuleErrorRuleError58,59
+instance AST AST e => ASTContainer Rule e61,62
+    containedASTs containedASTs62,63
+    modifyContainedASTs modifyContainedASTs63,64
+instance Named Named Rule65,66
+     names names66,67
+     rename rename67,68
+
+./src/G2/Internals/Execution/Memory.hs,188
+module G2.Internals.Execution.MemoryG2.Internals.Execution.Memory0,1
+markAndSweep markAndSweep13,14
+markAndSweepPreserving markAndSweepPreserving16,17
+activeNames activeNames48,49
+
+./src/G2/Internals/Execution/Rules.hs,1291
+module G2.Internals.Execution.RulesG2.Internals.Execution.Rules4,5
+exprRenames exprRenames35,36
+liftBinds liftBinds40,41
+liftCaseBinds liftCaseBinds56,57
+liftLetBinds liftLetBinds61,62
+dataAlts dataAlts73,74
+litAlts litAlts77,78
+defaultAlts defaultAlts81,82
+matchDataAlts matchDataAlts85,86
+matchLitAlts matchLitAlts90,91
+liftSymDataAlt liftSymDataAlt96,97
+liftSymDataAlt' liftSymDataAlt'99,100
+liftSymLitAlt liftSymLitAlt137,138
+liftSymLitAlt' liftSymLitAlt'141,142
+liftSymDefAlt liftSymDefAlt155,156
+liftSymDefAlt' liftSymDefAlt'164,165
+defAltExpr defAltExpr178,179
+liftSymDefAltPCs liftSymDefAltPCs183,184
+traceIdType traceIdType189,190
+removeTypes removeTypes200,201
+repeatedLookup repeatedLookup208,209
+lookupForPrim lookupForPrim218,219
+type ReduceResult ReduceResult227,228
+reduceNoConstraintChecks reduceNoConstraintChecks229,230
+resultsToState resultsToState236,237
+resultToState resultToState275,276
+stdReduce stdReduce290,291
+stdReduceBase stdReduceBase293,294
+type EvaluateResult EvaluateResult422,423
+stdReduceEvaluate stdReduceEvaluate427,428
+reduceCase reduceCase532,533
+type EReturnResult EReturnResult622,623
+reduceEReturn reduceEReturn625,626
+isApplyFrame isApplyFrame708,709
+reduceLam reduceLam712,713
+
+./src/G2/Internals/Liquid/Interface.hs,1246
+module G2.Internals.Liquid.Interface G2.Internals.Liquid.Interface3,4
+data LHReturn LHReturn53,54
+data LHReturn = LHReturn LHReturn53,54
+data LHReturn = LHReturn { calledFunc calledFunc53,54
+                         , violating violating54,55
+                         , abstracted abstracted55,56
+data FuncInfo FuncInfo57,58
+data FuncInfo = FuncInfo FuncInfo57,58
+data FuncInfo = FuncInfo { func func57,58
+                         , funcArgs funcArgs58,59
+                         , funcReturn funcReturn59,60
+findCounterExamples findCounterExamples64,65
+runLHCore runLHCore76,77
+adjustCurrExpr adjustCurrExpr174,175
+rewriteAssertName rewriteAssertName196,197
+replaceVarByName replaceVarByName200,201
+getGHCInfos getGHCInfos204,205
+getGHCInfos' getGHCInfos'216,217
+funcSpecs funcSpecs226,227
+measureSpecs measureSpecs229,230
+reqNames reqNames232,233
+pprint pprint265,266
+printLHOut printLHOut273,274
+printParsedLHOut printParsedLHOut276,277
+printAbs printAbs298,299
+printFuncInfo printFuncInfo316,317
+parseLHOut parseLHOut320,321
+sameFuncNameArgs sameFuncNameArgs339,340
+parseLHFuncTuple parseLHFuncTuple343,344
+testLiquidFile testLiquidFile349,350
+testLiquidDir testLiquidDir382,383
+
+./src/G2/Internals/Liquid/Annotations.hs,1315
+module G2.Internals.Liquid.Annotations G2.Internals.Liquid.Annotations3,4
+newtype AnnotMap AnnotMap32,33
+newtype AnnotMap = AM AM32,33
+newtype AnnotMap = AM { unAnnotMap unAnnotMap32,33
+lookupAnnot lookupAnnot34,35
+lookupAnnotAtLoc lookupAnnotAtLoc39,40
+getAnnotMap getAnnotMap44,45
+lhCleanAnnotMaps lhCleanAnnotMaps54,55
+annotMapToExpr annotMapToExpr61,62
+valToExpr valToExpr66,67
+valToExpr' valToExpr'72,73
+fstSrcSpanToLoc fstSrcSpanToLoc86,87
+assertionLamIds assertionLamIds91,92
+assertionLamIds' assertionLamIds'94,95
+addIds addIds99,100
+hasAssumeAssert hasAssumeAssert103,104
+hasAssumeAssert' hasAssumeAssert'106,107
+lamIdMap lamIdMap111,112
+isLHTC isLHTC115,116
+isNumD isNumD119,120
+instance ASTContainer ASTContainer AnnotMap Expr123,124
+    containedASTs containedASTs124,125
+    modifyContainedASTs modifyContainedASTs125,126
+instance ASTContainer ASTContainer AnnotMap Type127,128
+    containedASTs containedASTs128,129
+    modifyContainedASTs modifyContainedASTs129,130
+instance Named Named AnnotMap131,132
+    names names132,133
+    rename rename133,134
+    renames renames134,135
+closeAnnots closeAnnots136,137
+closeA closeA139,140
+mlookup mlookup151,152
+filterA filterA156,157
+collapseA collapseA162,163
+pickOneA pickOneA165,166
+
+./src/G2/Internals/Liquid/TCGen.hs,1710
+module G2.Internals.Liquid.TCGen G2.Internals.Liquid.TCGen2,3
+genTC genTC30,31
+genTCFuncs genTCFuncs63,64
+lhFuncName lhFuncName95,96
+accessFunction accessFunction100,101
+createLHTC createLHTC119,120
+createTCValues createTCValues129,130
+createFuncsM' createFuncsM'150,151
+createLHTCFuncs createLHTCFuncs169,170
+lhStore lhStore223,224
+boundNameBindings boundNameBindings238,239
+lhEqName lhEqName259,260
+lhTEnvExpr lhTEnvExpr262,263
+lhTEnvCase lhTEnvCase275,276
+lhTEnvDataConAlts lhTEnvDataConAlts303,304
+type Case2Alts Case2Alts319,320
+lhEqCase2Alts lhEqCase2Alts321,322
+type LHFuncCall LHFuncCall338,339
+eqLHFuncCall eqLHFuncCall340,341
+lhNeqName lhNeqName366,367
+lhNeqExpr lhNeqExpr369,370
+isTC isTC397,398
+lhLtName lhLtName401,402
+lhLtCase2Alts lhLtCase2Alts405,406
+lhLtDCAlts lhLtDCAlts427,428
+lhLtSameAlt lhLtSameAlt438,439
+lhLtSameAltCases lhLtSameAltCases453,454
+ltLHFuncCall ltLHFuncCall476,477
+dataConName dataConName502,503
+lhLeName lhLeName505,506
+lhLeExpr lhLeExpr508,509
+lhGtName lhGtName537,538
+lhGtExpr lhGtExpr540,541
+lhGeName lhGeName562,563
+lhGeExpr lhGeExpr565,566
+flipLastTwo flipLastTwo587,588
+lhPolyPredName lhPolyPredName595,596
+lhPolyPred lhPolyPred598,599
+lhPolyPredCase lhPolyPredCase613,614
+lhPolyPredAlts lhPolyPredAlts646,647
+lhPolyPredCaseExpr lhPolyPredCaseExpr659,660
+predCalls predCalls673,674
+polyPredLHFuncCall polyPredLHFuncCall683,684
+polyPredLHFunc' polyPredLHFunc'686,687
+polyPredFunc' polyPredFunc'707,708
+createPrimFuncs createPrimFuncs720,721
+createPrimFunc createPrimFunc727,728
+createPrimPolyPreds createPrimPolyPreds738,739
+createPrimPolyPred createPrimPolyPred745,746
+
+./src/G2/Internals/Liquid/Primitives.hs,357
+module G2.Internals.Liquid.Primitives G2.Internals.Liquid.Primitives2,3
+mkLHPrim mkLHPrim9,10
+boolBoolBool boolBoolBool22,23
+mkLHGe mkLHGe29,30
+mkLHGt mkLHGt32,33
+mkLHEq mkLHEq35,36
+mkLHNeq mkLHNeq38,39
+mkLHLt mkLHLt41,42
+mkLHLe mkLHLe44,45
+mkLHAnd mkLHAnd47,48
+mkLHOr mkLHOr50,51
+mkLHImplies mkLHImplies53,54
+mkLHIff mkLHIff56,57
+
+./src/G2/Internals/Liquid/ElimPartialApp.hs,254
+module G2.Internals.Liquid.ElimPartialApp G2.Internals.Liquid.ElimPartialApp2,3
+elimPartialApp elimPartialApp12,13
+req req23,24
+elimPartialApp' elimPartialApp'31,32
+lamsCount lamsCount44,45
+takeEnd takeEnd48,49
+argTypeToId argTypeToId51,52
+
+./src/G2/Internals/Liquid/TCValues.hs,567
+module G2.Internals.Liquid.TCValues G2.Internals.Liquid.TCValues0,1
+data TCValues TCValues5,6
+data TCValues = TCValues TCValues5,6
+data TCValues = TCValues { lhTC lhTC5,6
+                         , lhEq lhEq6,7
+                         , lhNe lhNe7,8
+                         , lhLt lhLt9,10
+                         , lhLe lhLe10,11
+                         , lhGt lhGt11,12
+                         , lhGe lhGe12,13
+                         , lhPP lhPP14,15
+instance Named Named TCValues16,17
+    names names17,18
+    rename rename18,19
+
+./src/G2/Internals/Liquid/Types.hs,2004
+module G2.Internals.Liquid.Types G2.Internals.Liquid.Types3,4
+data LHOutput LHOutput40,41
+data LHOutput = LHOutput LHOutput40,41
+data LHOutput = LHOutput { ghcI ghcI40,41
+                         , cgI cgI41,42
+                         , solution solution42,43
+type Measures Measures44,45
+data LHState LHState49,50
+data LHState = LHState LHState49,50
+data LHState = LHState { state state49,50
+                       , measures measures50,51
+                       , tcvalues tcvalues51,52
+consLHState consLHState54,55
+deconsLHState deconsLHState60,61
+measuresM measuresM65,66
+newtype LHStateM LHStateM70,71
+newtype LHStateM a = LHStateM { unSM unSM70,71
+instance SM.MonadState SM-MonadState LHState LHStateM72,73
+    state state73,74
+instance ExState ExState LHState LHStateM75,76
+    exprEnv exprEnv76,77
+    putExprEnv putExprEnv77,78
+    typeEnv typeEnv79,80
+    putTypeEnv putTypeEnv80,81
+    nameGen nameGen82,83
+    putNameGen putNameGen83,84
+    knownValues knownValues85,86
+instance FullState FullState LHState LHStateM87,88
+    typeClasses typeClasses88,89
+    putTypeClasses putTypeClasses89,90
+runLHStateM runLHStateM91,92
+evalLHStateM evalLHStateM94,95
+execLHStateM execLHStateM97,98
+liftState liftState101,102
+expr_env expr_env104,105
+rep_expr_envM rep_expr_envM107,108
+type_env type_env114,115
+rep_type_envM rep_type_envM117,118
+name_gen name_gen124,125
+rep_name_genM rep_name_genM127,128
+known_values known_values134,135
+type_classes type_classes137,138
+rep_type_classesM rep_type_classesM140,141
+liftLHState liftLHState147,148
+lookupMeasure lookupMeasure150,151
+lookupMeasureM lookupMeasureM153,154
+insertMeasureM insertMeasureM156,157
+andM andM165,166
+orM orM172,173
+notM notM179,180
+liftTCValues liftTCValues184,185
+lhTCM lhTCM187,188
+lhEqM lhEqM190,191
+lhNeM lhNeM193,194
+lhLtM lhLtM196,197
+lhLeM lhLeM199,200
+lhGtM lhGtM202,203
+lhGeM lhGeM205,206
+lhPPM lhPPM208,209
+
+./src/G2/Internals/Liquid/CreateFuncs.hs,423
+module G2.Internals.Liquid.CreateFuncs G2.Internals.Liquid.CreateFuncs0,1
+createEqPreds createEqPreds14,15
+createEqPreds' createEqPreds'23,24
+createEqPred createEqPred37,38
+createEqPredLams createEqPredLams50,51
+createEqPredAlts createEqPredAlts58,59
+createEqPredBranching createEqPredBranching75,76
+createEqWalkers createEqWalkers87,88
+createEqWalkers' createEqWalkers'90,91
+eqWalkerId eqWalkerId98,99
+
+./src/G2/Internals/Liquid/SpecialAsserts.hs,123
+module G2.Internals.Liquid.SpecialAsserts G2.Internals.Liquid.SpecialAsserts0,1
+addSpecialAsserts addSpecialAsserts6,7
+
+./src/G2/Internals/Liquid/Measures.hs,335
+module G2.Internals.Liquid.Measures G2.Internals.Liquid.Measures2,3
+createMeasures createMeasures20,21
+allTypesKnown allTypesKnown35,36
+measureTypeMappings measureTypeMappings38,39
+addLHDictToType addLHDictToType48,49
+convertMeasure convertMeasure55,56
+convertDefs convertDefs83,84
+mkExprFromBody mkExprFromBody109,110
+
+./src/G2/Internals/Liquid/SimplifyAsserts.hs,657
+module G2.Internals.Liquid.SimplifyAsserts G2.Internals.Liquid.SimplifyAsserts3,4
+type ModifiedKnownValues ModifiedKnownValues10,11
+simplifyAsserts simplifyAsserts12,13
+simplifyAssertsG simplifyAssertsG16,17
+simplifyAsserts' simplifyAsserts'19,20
+simplifyIn simplifyIn24,25
+simplifyIn' simplifyIn'32,33
+elimAnds elimAnds37,38
+elimLHPP elimLHPP40,41
+isNestedLPP isNestedLPP49,50
+isNestedLHTC isNestedLHTC54,55
+isRedundantNestedArg isRedundantNestedArg61,62
+isRedundantNestedArg' isRedundantNestedArg'65,66
+isRedundantArg isRedundantArg70,71
+isIdentity isIdentity77,78
+elimCalls2 elimCalls284,85
+elimCalls2' elimCalls2'87,88
+
+./src/G2/Internals/Liquid/Rules.hs,1434
+module G2.Internals.Liquid.Rules G2.Internals.Liquid.Rules5,6
+lhReduce lhReduce44,45
+lhReduce' lhReduce'47,48
+symbState symbState100,101
+initialTrack initialTrack138,139
+mkInferredAssumptions mkInferredAssumptions152,153
+mkInferredAssumptions' mkInferredAssumptions'156,157
+countLams countLams165,166
+data LHTracker LHTracker169,170
+data LHTracker = LHTracker LHTracker169,170
+data LHTracker = LHTracker { abstract_calls abstract_calls169,170
+                           , last_var last_var170,171
+                           , annotations annotations171,172
+instance Named Named LHTracker173,174
+    names names174,175
+    rename rename176,177
+    renames renames179,180
+instance ASTContainer ASTContainer LHTracker Expr182,183
+    containedASTs containedASTs183,184
+    modifyContainedASTs modifyContainedASTs184,185
+instance ASTContainer ASTContainer LHTracker Type187,188
+    containedASTs containedASTs188,189
+    modifyContainedASTs modifyContainedASTs189,190
+data LHRed LHRed192,193
+data LHRed con = LHRed LHRed192,193
+data LHHalter LHHalter194,195
+data LHHalter = LHHalter LHHalter194,195
+instance Solver Solver con => Reducer (LHRed con) LHTracker197,198
+    redRules redRules198,199
+instance Halter Halter LHHalter Int LHTracker203,204
+    initHalt initHalt204,205
+    reInitHalt reInitHalt212,213
+    stopRed stopRed214,215
+    stepHalter stepHalter216,217
+
+./src/G2/Internals/Liquid/Conversion.hs,2655
+module G2.Internals.Liquid.Conversion G2.Internals.Liquid.Conversion3,4
+addLHTC addLHTC42,43
+addLHTCState addLHTCState52,53
+replaceVarTy replaceVarTy60,61
+replaceVarTy' replaceVarTy'63,64
+mergeLHSpecState mergeLHSpecState78,79
+mergeLHSpecState' mergeLHSpecState'107,108
+addLHTCExprEnv addLHTCExprEnv125,126
+addLHTCCurrExpr addLHTCCurrExpr136,137
+modifyLamTops modifyLamTops145,146
+modifyLamTops' modifyLamTops'148,149
+modifyAfterLams modifyAfterLams158,159
+addLHTCLams addLHTCLams164,165
+addLams addLams177,178
+pastTYPE pastTYPE190,191
+getTypeNames getTypeNames195,196
+tYPEOrTyVar tYPEOrTyVar199,200
+hasLHTC hasLHTC205,206
+modifyAppTops modifyAppTops210,211
+addLHTCCalls addLHTCCalls222,223
+lhDicts lhDicts229,230
+addTCPasses addTCPasses234,235
+inAppCenter inAppCenter247,248
+addArgs addArgs251,252
+isType isType261,262
+addLHDictArgs addLHDictArgs266,267
+typeExprType typeExprType275,276
+typeToLHTypeClass typeToLHTypeClass285,286
+type SpecTypeFunc SpecTypeFunc296,297
+addAssertSpecType addAssertSpecType298,299
+addAssumeAssertSpecType addAssumeAssertSpecType320,321
+addTrueAsserts addTrueAsserts346,347
+addTrueAsserts' addTrueAsserts'353,354
+hasAssert hasAssert369,370
+hasAssert' hasAssert'372,373
+convertSpecType convertSpecType380,381
+convertAssertSpecType convertAssertSpecType396,397
+convertAssumeSpecType convertAssumeSpecType399,400
+convertSpecTypeDict convertSpecTypeDict414,415
+specTypeLams specTypeLams426,427
+specTypeLamTypes specTypeLamTypes444,445
+specTypeApps specTypeApps462,463
+assumeSpecTypeApps assumeSpecTypeApps469,470
+specTypeApps' specTypeApps'479,480
+higherOrderRefs higherOrderRefs532,533
+polyPredFunc polyPredFunc536,537
+polyPredLam polyPredLam544,545
+unsafeSpecTypeToType unsafeSpecTypeToType553,554
+specTypeToType specTypeToType559,560
+reftSymbol reftSymbol581,582
+reftExpr reftExpr584,585
+unpackReft unpackReft587,588
+rTyConType rTyConType590,591
+primType primType604,605
+convertLHExpr convertLHExpr611,612
+convertSymbol convertSymbol743,744
+convertEVar convertEVar752,753
+convertSymbolT convertSymbolT762,763
+symbolName symbolName767,768
+convertCon convertCon786,787
+convertBop convertBop793,794
+bopDict bopDict802,803
+lhTCDict lhTCDict806,807
+lhTCDict' lhTCDict'814,815
+numDict numDict825,826
+integralDict integralDict834,835
+callFromInteger callFromInteger843,844
+favorNonTyInteger favorNonTyInteger865,866
+fromJustErr fromJustErr874,875
+convertBrel convertBrel878,879
+tyVarInTyAppHasName tyVarInTyAppHasName888,889
+typeIdList typeIdList892,893
+tyConAppList tyConAppList896,897
+
+./src/G2/Internals/Execution.hs,57
+module G2.Internals.ExecutionG2.Internals.Execution2,3
+
+./src/G2/Internals/Postprocessing/Interface.hs,129
+module G2.Internals.Postprocessing.Interface G2.Internals.Postprocessing.Interface2,3
+runPostprocessing runPostprocessing8,9
+
+./src/G2/Internals/Postprocessing/NameSwitcher.hs,123
+module G2.Internals.Postprocessing.NameSwitcher G2.Internals.Postprocessing.NameSwitcher2,3
+switchNames switchNames7,8
+
+./src/G2/Internals/Postprocessing/Undefunctionalize.hs,215
+module G2.Internals.Postprocessing.Undefunctionalize G2.Internals.Postprocessing.Undefunctionalize2,3
+undefunctionalize undefunctionalize8,9
+replaceFuncSLT replaceFuncSLT11,12
+functionType functionType23,24
+
+./src/G2/Internals/Preprocessing.hs,65
+module G2.Internals.PreprocessingG2.Internals.Preprocessing2,3
+
+./src/G2/Internals/Config/Config.hs,1444
+module G2.Internals.Config.Config G2.Internals.Config.Config0,1
+data Mode Mode6,7
+data Mode = Regular Regular6,7
+data Mode = Regular | Liquid Liquid6,7
+data SMTSolver SMTSolver8,9
+data SMTSolver = ConZ3 ConZ38,9
+data SMTSolver = ConZ3 | ConCVC4 ConCVC48,9
+data HigherOrderSolver HigherOrderSolver10,11
+data HigherOrderSolver = AllFuncsAllFuncs10,11
+                       | SingleFunc SingleFunc11,12
+data Config Config13,14
+data Config = Config Config13,14
+      mode mode14,15
+    , base base15,16
+    , logStates logStates16,17
+    , maxOutputs maxOutputs17,18
+    , printCurrExpr printCurrExpr18,19
+    , printExprEnv printExprEnv19,20
+    , printRelExprEnv printRelExprEnv20,21
+    , printPathCons printPathCons21,22
+    , returnsTrue returnsTrue22,23
+    , higherOrderSolver higherOrderSolver23,24
+    , smt smt24,25
+    , steps steps25,26
+    , strict strict26,27
+    , timeLimit timeLimit27,28
+    , validate validate28,29
+mkConfigDef mkConfigDef31,32
+mkConfig mkConfig34,35
+smtSolverArg smtSolverArg54,55
+smtSolverArg' smtSolverArg'57,58
+higherOrderSolArg higherOrderSolArg62,63
+higherOrderSolArg' higherOrderSolArg'65,66
+data BoolDef BoolDef70,71
+data BoolDef = On On70,71
+data BoolDef = On | Off Off70,71
+boolArg boolArg76,77
+strToBool strToBool89,90
+strArg strArg101,102
+strToArg strToArg111,112
+strArgs strArgs115,116
+strsToArgs strsToArgs125,126
+
+./src/G2/Internals/Config/Interface.hs,159
+module G2.Internals.Config.Interface G2.Internals.Config.Interface0,1
+configName configName8,9
+getConfig getConfig11,12
+configExists configExists27,28
+
+./src/G2/Internals/Config/ParseConfig.hs,312
+module G2.Internals.Config.ParseConfig G2.Internals.Config.ParseConfig0,1
+configDef configDef10,11
+configLexer configLexer20,21
+identifier identifier23,24
+spacedComma spacedComma26,27
+parseSetting parseSetting33,34
+parseLine parseLine42,43
+parseFile parseFile48,49
+parseConfig parseConfig51,52
+
+./src/G2/Internals/Language.hs,55
+module G2.Internals.LanguageG2.Internals.Language2,3
+
+./src/G2/Internals/Preprocessing/Interface.hs,125
+module G2.Internals.Preprocessing.Interface G2.Internals.Preprocessing.Interface2,3
+runPreprocessing runPreprocessing8,9
+
+./src/G2/Internals/Preprocessing/AdjustTypes.hs,251
+module G2.Internals.Preprocessing.AdjustTypes G2.Internals.Preprocessing.AdjustTypes3,4
+adjustTypes adjustTypes8,9
+wrapInteger wrapInteger19,20
+wrapInteger' wrapInteger'22,23
+unpackString unpackString37,38
+unpackString' unpackString'40,41
+
+./src/G2/Internals/Preprocessing/NameCleaner.hs,289
+module G2.Internals.Preprocessing.NameCleanerG2.Internals.Preprocessing.NameCleaner10,11
+allowedStartSymbols allowedStartSymbols23,24
+allowedSymbol allowedSymbol32,33
+allowedName allowedName35,36
+cleanNames cleanNames41,42
+cleanNames' cleanNames'44,45
+allNames allNames67,68
+
+./src/G2/Internals/Solver/Interface.hs,385
+module G2.Internals.Solver.InterfaceG2.Internals.Solver.Interface3,4
+subModel subModel19,20
+subVarFuncCall subVarFuncCall31,32
+subVar subVar35,36
+subVar' subVar'38,39
+    | i `notElem`notElem40,41
+subVar' subVar'49,50
+notLam notLam51,52
+isApp isApp55,56
+isVar isVar59,60
+filterTC filterTC63,64
+filterTC' filterTC'66,67
+tcCenter tcCenter73,74
+isTC isTC78,79
+
+./src/G2/Internals/Solver/ADTSolver.hs,643
+module G2.Internals.Solver.ADTSolver G2.Internals.Solver.ADTSolver2,3
+data ADTSolver ADTSolver24,25
+data ADTSolver = ADTSolverADTSolver24,25
+instance Solver Solver ADTSolver26,27
+    check check27,28
+    solve solve29,30
+checkConsistency checkConsistency35,36
+findConsistent findConsistent48,49
+head' head'63,64
+solveADTs solveADTs67,68
+addADTs addADTs83,84
+findConsistent' findConsistent'121,122
+findConsistent'' findConsistent''129,130
+pcVarType pcVarType144,145
+pcVarType' pcVarType'149,150
+pcInCastType pcInCastType157,158
+castReturnType castReturnType163,164
+replaceReturnType replaceReturnType171,172
+
+./src/G2/Internals/Solver/SMT2.hs,3411
+module G2.Internals.Solver.SMT2 G2.Internals.Solver.SMT211,12
+data Z3 Z331,32
+data Z3 = Z3 Z331,32
+data CVC4 CVC432,33
+data CVC4 = CVC4 CVC432,33
+data SomeSolver SomeSolver34,35
+    SomeSolver SomeSolver35,36
+instance Solver Solver Z337,38
+    check check38,39
+    solve solve39,40
+instance Solver Solver CVC441,42
+    check check42,43
+    solve solve43,44
+instance SMTConverter SMTConverter Z3 String String (Handle, Handle, ProcessHandle)45,46
+    getIO getIO46,47
+    empty empty48,49
+    merge merge49,50
+    checkSat checkSat51,52
+    checkSatGetModel checkSatGetModel62,63
+    checkSatGetModelGetExpr checkSatGetModelGetExpr79,80
+    assert assert100,101
+    varDecl varDecl102,103
+    setLogic setLogic104,105
+    (.(.>=)119,120
+    (.(.>)120,121
+    (.(.=)121,122
+    (.(./=)122,123
+    (.(.<=)123,124
+    (.(.<)124,125
+    (.(.&&)126,127
+    (.(.||)127,128
+    (.(.!)128,129
+    (.(.=>)129,130
+    (.(.<=>)130,131
+    (.(.+)132,133
+    (.(.-)133,134
+    (.(.*)134,135
+    (.(./)135,136
+    smtQuot smtQuot136,137
+    smtModulo smtModulo137,138
+    smtSqrt smtSqrt138,139
+    neg neg139,140
+    itor itor141,142
+    ite ite144,145
+    int int146,147
+    float float147,148
+    double double149,150
+    bool bool151,152
+    var var152,153
+    sortInt sortInt154,155
+    sortFloat sortFloat155,156
+    sortDouble sortDouble156,157
+    sortBool sortBool157,158
+    cons cons159,160
+    varName varName164,165
+instance SMTConverter SMTConverter CVC4 String String (Handle, Handle, ProcessHandle)166,167
+    getIO getIO167,168
+    empty empty169,170
+    merge merge170,171
+    checkSat checkSat172,173
+    checkSatGetModel checkSatGetModel183,184
+    checkSatGetModelGetExpr checkSatGetModelGetExpr200,201
+    assert assert221,222
+    varDecl varDecl223,224
+    setLogic setLogic225,226
+    (.(.>=)240,241
+    (.(.>)241,242
+    (.(.=)242,243
+    (.(./=)243,244
+    (.(.<=)244,245
+    (.(.<)245,246
+    (.(.&&)247,248
+    (.(.||)248,249
+    (.(.!)249,250
+    (.(.=>)250,251
+    (.(.<=>)251,252
+    (.(.+)253,254
+    (.(.-)254,255
+    (.(.*)255,256
+    (.(./)256,257
+    smtQuot smtQuot257,258
+    smtModulo smtModulo258,259
+    smtSqrt smtSqrt259,260
+    neg neg260,261
+    itor itor262,263
+    ite ite264,265
+    int int266,267
+    float float267,268
+    double double269,270
+    bool bool271,272
+    var var272,273
+    sortInt sortInt274,275
+    sortFloat sortFloat275,276
+    sortDouble sortDouble276,277
+    sortBool sortBool277,278
+    cons cons279,280
+    varName varName284,285
+functionList functionList286,287
+function1 function1289,290
+function2 function2292,293
+function3 function3295,296
+getProcessHandles getProcessHandles301,302
+getSMT getSMT315,316
+getZ3ProcessHandles getZ3ProcessHandles328,329
+getCVC4ProcessHandles getCVC4ProcessHandles331,332
+setUpFormulaZ3 setUpFormulaZ3336,337
+setUpFormulaCVC4 setUpFormulaCVC4341,342
+checkSat' checkSat'348,349
+parseModel parseModel367,368
+parseToSMTAST parseToSMTAST371,372
+getModelZ3 getModelZ3379,380
+getModelCVC4 getModelCVC4393,394
+getLinesMatchParens getLinesMatchParens406,407
+getLinesMatchParens' getLinesMatchParens'409,410
+solveExpr solveExpr424,425
+solveExpr' solveExpr'432,433
+solveExpr'' solveExpr''439,440
+
+./src/G2/Internals/Solver/ParseSMT.hs,888
+module G2.Internals.Solver.ParseSMTG2.Internals.Solver.ParseSMT0,1
+smtDef smtDef17,18
+ident ident27,28
+smtLexer smtLexer30,31
+identifier identifier33,34
+reserved reserved36,37
+integer integer39,40
+floatT floatT42,43
+flexFloatT flexFloatT45,46
+whiteSpace whiteSpace48,49
+parens parens51,52
+smtParser smtParser54,55
+getValuesParser getValuesParser57,58
+sExpr sExpr60,61
+letExpr letExpr64,65
+identExprTuple identExprTuple71,72
+boolExpr boolExpr77,78
+parensConsName parensConsName84,85
+consName consName87,88
+intExpr intExpr94,95
+doubleFloatExpr doubleFloatExpr102,103
+doubleFloatExprNeg doubleFloatExprNeg105,106
+doubleFloatExprRat doubleFloatExprRat111,112
+doubleFloatExprDec doubleFloatExprDec121,122
+doubleFloat doubleFloat126,127
+flexDoubleFloat flexDoubleFloat135,136
+parseSMT parseSMT144,145
+parseGetValues parseGetValues151,152
+
+./src/G2/Internals/Solver/Language.hs,1939
+module G2.Internals.Solver.LanguageG2.Internals.Solver.Language6,7
+type SMTName SMTName17,18
+data SMTHeader SMTHeader23,24
+data SMTHeader = Assert Assert23,24
+               | VarDecl VarDecl24,25
+               | SetLogic SetLogic25,26
+data Logic Logic28,29
+data Logic = ALL ALL28,29
+data Logic = ALL | QF_LIA QF_LIA28,29
+data Logic = ALL | QF_LIA | QF_LRA QF_LRA28,29
+data Logic = ALL | QF_LIA | QF_LRA | QF_NIA QF_NIA28,29
+data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA QF_NRA28,29
+data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA | QF_LIRA QF_LIRA28,29
+data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA | QF_LIRA | QF_NIRA QF_NIRA28,29
+data SMTAST SMTAST33,34
+data SMTAST = (:(33,34
+            | (:(41,42
+            | (:(49,50
+            | SqrtSMT SqrtSMT50,51
+            | QuotSMT QuotSMT51,52
+            | Modulo Modulo52,53
+            | Neg Neg53,54
+            | Tester Tester55,56
+            | Ite Ite57,58
+            | SLet SLet58,59
+            | VInt VInt60,61
+            | VFloat VFloat61,62
+            | VDouble VDouble62,63
+            | VBool VBool63,64
+            | V V65,66
+            | ItoR ItoR67,68
+data Sort Sort70,71
+data Sort = SortIntSortInt70,71
+          | SortFloatSortFloat71,72
+          | SortDoubleSortDouble72,73
+          | SortBoolSortBool73,74
+isSat isSat76,77
+type SMTModel SMTModel80,81
+instance AST AST SMTAST82,83
+    children children83,84
+    modifyChildren modifyChildren107,108
+instance AST AST Sort130,131
+    children children131,132
+    modifyChildren modifyChildren133,134
+instance ASTContainer ASTContainer SMTHeader SMTAST135,136
+    containedASTs containedASTs136,137
+    modifyContainedASTs modifyContainedASTs139,140
+instance ASTContainer ASTContainer SMTAST Sort142,143
+    containedASTs containedASTs143,144
+    modifyContainedASTs modifyContainedASTs146,147
+
+./src/G2/Internals/Solver/Converters.hs,2742
+module G2.Internals.Solver.ConvertersG2.Internals.Solver.Converters12,13
+class SMTConverter SMTConverter39,40
+    getIO getIO40,41
+    empty empty42,43
+    merge merge43,44
+    checkSat checkSat45,46
+    checkSatGetModel checkSatGetModel46,47
+    checkSatGetModelGetExpr checkSatGetModelGetExpr47,48
+    assert assert49,50
+    varDecl varDecl50,51
+    setLogic setLogic51,52
+    (.(.>=)53,54
+    (.(.>)54,55
+    (.(.=)55,56
+    (.(./=)56,57
+    (.(.<)57,58
+    (.(.<=)58,59
+    (.(.&&)60,61
+    (.(.||)61,62
+    (.(.!)62,63
+    (.(.=>)63,64
+    (.(.<=>)64,65
+    (.(.+)66,67
+    (.(.-)67,68
+    (.(.*)68,69
+    (.(./)69,70
+    smtQuot smtQuot70,71
+    smtModulo smtModulo71,72
+    smtSqrt smtSqrt72,73
+    neg neg73,74
+    itor itor74,75
+    ite ite76,77
+    int int79,80
+    float float80,81
+    double double81,82
+    bool bool82,83
+    cons cons83,84
+    var var84,85
+    sortInt sortInt87,88
+    sortFloat sortFloat88,89
+    sortDouble sortDouble89,90
+    sortBool sortBool90,91
+    varName varName92,93
+checkConstraints checkConstraints96,97
+checkModel checkModel107,108
+checkModel' checkModel'114,115
+    | (idName i) `M.member`M.member118,119
+getModelVal getModelVal125,126
+checkNumericConstraints checkNumericConstraints139,140
+toSMTHeaders toSMTHeaders162,163
+toSMTHeaders' toSMTHeaders'165,166
+addSetLogic addSetLogic176,177
+isNIA isNIA195,196
+isNIA' isNIA'198,199
+isLIA isLIA203,204
+isLIA' isLIA'206,207
+isIASort isIASort221,222
+isIntegerCoeff isIntegerCoeff225,226
+isNRA isNRA230,231
+isNRA' isNRA'233,234
+isLRA isLRA238,239
+isLRA' isLRA'241,242
+isRASort isRASort257,258
+isRationalCoeff isRationalCoeff262,263
+isLIRA isLIRA268,269
+isLIRA' isLIRA'271,272
+isNIRA isNIRA275,276
+isNIRA' isNIRA'278,279
+isCore' isCore'282,283
+isCoreSort isCoreSort293,294
+pathConsToSMTHeaders pathConsToSMTHeaders300,301
+pathConsToSMT pathConsToSMT303,304
+exprToSMT exprToSMT332,333
+funcToSMT funcToSMT367,368
+funcToSMT1Prim funcToSMT1Prim372,373
+funcToSMT2Prim funcToSMT2Prim380,381
+altToSMT altToSMT399,400
+createVarDecls createVarDecls407,408
+pcVarDecls pcVarDecls411,412
+pcVars pcVars414,415
+amVars amVars420,421
+vars vars424,425
+idToNameSort idToNameSort431,432
+typeToSMT typeToSMT434,435
+toSolver toSolver446,447
+toSolverAST toSolverAST454,455
+toSolverAST con (x `QuotSMT`QuotSMT472,473
+toSolverAST con (x `Modulo`Modulo473,474
+toSolverAST toSolverAST474,475
+toSolverVarDecl toSolverVarDecl489,490
+sortName sortName492,493
+toSolverSetLogic toSolverSetLogic499,500
+smtastToExpr smtastToExpr503,504
+sortToType sortToType512,513
+modelAsExpr modelAsExpr518,519
+
+./src/G2/Internals/Solver/Solver.hs,879
+module G2.Internals.Solver.Solver G2.Internals.Solver.Solver2,3
+data Result Result11,12
+data Result = SATSAT11,12
+            | UNSATUNSAT12,13
+            | Unknown Unknown13,14
+class Solver Solver16,17
+    check check17,18
+    solve solve18,19
+data GroupRelated GroupRelated21,22
+data GroupRelated a = GroupRelated GroupRelated21,22
+checkRelated checkRelated23,24
+checkRelated' checkRelated'27,28
+solveRelated solveRelated35,36
+solveRelated' solveRelated'39,40
+instance Solver Solver solver => Solver (GroupRelated solver)55,56
+    check check56,57
+    solve solve57,58
+data CombineSolvers CombineSolvers64,65
+data CombineSolvers a b = a a64,65
+checkWithEither checkWithEither66,67
+solveWithEither solveWithEither78,79
+instance (S(Solver a, Solver b) => Solver (CombineSolvers a b)90,91
+    check check91,92
+    solve solve94,95
+
+./src/G2/Internals/Language/ApplyTypes.hs,490
+module G2.Internals.Language.ApplyTypes G2.Internals.Language.ApplyTypes2,3
+newtype ApplyTypes ApplyTypes20,21
+applyTypesMap applyTypesMap23,24
+lookup lookup26,27
+applyTypeName applyTypeName29,30
+applyTypeFunc applyTypeFunc32,33
+applyFuncs applyFuncs35,36
+empty empty38,39
+typeToAppType typeToAppType41,42
+typeToAppType' typeToAppType'44,45
+insert insert50,51
+toList toList53,54
+instance Named Named ApplyTypes56,57
+    names names57,58
+    rename rename59,60
+
+./src/G2/Internals/Language/TypeClasses.hs,2085
+module G2.Internals.Language.TypeClasses G2.Internals.Language.TypeClasses4,5
+data Class Class36,37
+data Class = Class Class36,37
+data Class = Class { insts insts36,37
+data Class = Class { insts :: [(Type, Id)], typ_ids typ_ids36,37
+type TCType TCType38,39
+newtype TypeClasses TypeClasses39,40
+initTypeClasses initTypeClasses42,43
+nameIdToTypeId nameIdToTypeId51,52
+affectedType affectedType58,59
+isTypeClassNamed isTypeClassNamed62,63
+isTypeClass isTypeClass65,66
+instance ASTContainer ASTContainer TypeClasses Expr69,70
+    containedASTs containedASTs70,71
+    modifyContainedASTs modifyContainedASTs71,72
+instance ASTContainer ASTContainer TypeClasses Type73,74
+    containedASTs containedASTs74,75
+    modifyContainedASTs modifyContainedASTs75,76
+instance ASTContainer ASTContainer Class Expr78,79
+    containedASTs containedASTs79,80
+    modifyContainedASTs modifyContainedASTs80,81
+instance ASTContainer ASTContainer Class Type82,83
+    containedASTs containedASTs83,84
+    modifyContainedASTs modifyContainedASTs84,85
+instance Named Named TypeClasses87,88
+    names names88,89
+    rename rename89,90
+    renames renames91,92
+instance Named Named Class94,95
+    names names95,96
+    rename rename96,97
+    renames renames98,99
+eqTCDict eqTCDict101,102
+numTCDict numTCDict104,105
+ordTCDict ordTCDict107,108
+integralTCDict integralTCDict110,111
+structEqTCDict structEqTCDict113,114
+lookupTCDict lookupTCDict119,120
+lookupEqDicts lookupEqDicts125,126
+lookupStructEqDicts lookupStructEqDicts128,129
+lookupTCDicts lookupTCDicts131,132
+lookupTCDictsTypes lookupTCDictsTypes134,135
+tcDicts tcDicts138,139
+satisfyingTCTypes satisfyingTCTypes145,146
+satisfyTCReq satisfyTCReq157,158
+toIdTypeTup toIdTypeTup164,165
+typeClassReq typeClassReq168,169
+tyConAppName tyConAppName172,173
+tyConAppArg tyConAppArg176,177
+inter inter180,181
+concreteSatEq concreteSatEq184,185
+concreteSatStructEq concreteSatStructEq187,188
+concreteSatTC concreteSatTC190,191
+satisfyingTC satisfyingTC202,203
+
+./src/G2/Internals/Language/KnownValues.hs,1381
+module G2.Internals.Language.KnownValues G2.Internals.Language.KnownValues4,5
+data KnownValues KnownValues8,9
+data KnownValues = KnownValues KnownValues8,9
+                   tyInt tyInt9,10
+                 , dcInt dcInt10,11
+                 , tyFloat tyFloat12,13
+                 , dcFloat dcFloat13,14
+                 , tyDouble tyDouble15,16
+                 , dcDouble dcDouble16,17
+                 , tyInteger tyInteger18,19
+                 , dcInteger dcInteger19,20
+                 , tyBool tyBool21,22
+                 , dcTrue dcTrue22,23
+                 , dcFalse dcFalse23,24
+                 , tyList tyList25,26
+                 , dcCons dcCons26,27
+                 , dcEmpty dcEmpty27,28
+                 , eqTC eqTC29,30
+                 , numTC numTC30,31
+                 , ordTC ordTC31,32
+                 , integralTC integralTC32,33
+                 , eqFunc eqFunc34,35
+                 , neqFunc neqFunc35,36
+                 , geFunc geFunc36,37
+                 , gtFunc gtFunc37,38
+                 , ltFunc ltFunc38,39
+                 , leFunc leFunc39,40
+                 , structEqTC structEqTC41,42
+                 , structEqFunc structEqFunc42,43
+                 , andFunc andFunc44,45
+                 , orFunc orFunc45,46
+                 , patErrorFunc patErrorFunc47,48
+
+./src/G2/Internals/Language/Located.hs,1345
+module G2.Internals.Language.Located G2.Internals.Language.Located0,1
+class Located Located17,18
+    loc loc18,19
+class Spanning Spanning20,21
+    spanning spanning21,22
+instance Located Located Span23,24
+    loc loc24,25
+instance Located Located Name26,27
+    loc loc27,28
+instance Located Located Id29,30
+    loc loc30,31
+instance Spanning Spanning Name32,33
+    spanning spanning33,34
+instance Spanning Spanning Id35,36
+    spanning spanning36,37
+newtype Locatable Locatable39,40
+instance Located Located a => Located (Locatable a)41,42
+    loc loc42,43
+instance Spanning Spanning a => Spanning (Locatable a)44,45
+    spanning spanning45,46
+instance Located Located a => Eq (Locatable a)47,48
+    x x48,49
+instance Located Located a => Ord (Locatable a)50,51
+    x `compare`compare51,52
+newtype Spannable Spannable54,55
+instance Located Located a => Located (Spannable a)56,57
+    loc loc57,58
+instance Spanning Spanning a => Spanning (Spannable a)59,60
+    spanning spanning60,61
+instance Spanning Spanning a => Eq (Spannable a)62,63
+    x x63,64
+instance Spanning Spanning a => Ord (Spannable a)65,66
+    x `compare`compare66,67
+topLeft topLeft70,71
+bottomRight bottomRight79,80
+combineSpans combineSpans89,90
+spanLookup spanLookup98,99
+locLookup locLookup103,104
+
+./src/G2/Internals/Language/Primitives.hs,659
+module G2.Internals.Language.Primitives G2.Internals.Language.Primitives2,3
+primStr primStr12,13
+strToPrim strToPrim41,42
+findPrim findPrim64,65
+mkRawPrim mkRawPrim69,70
+mkPrim mkPrim97,98
+mkGe mkGe114,115
+mkGt mkGt117,118
+mkEq mkEq120,121
+mkEq' mkEq'123,124
+mkNeq mkNeq126,127
+mkLt mkLt129,130
+mkLe mkLe132,133
+mkAnd mkAnd135,136
+mkOr mkOr138,139
+mkNot mkNot141,142
+mkPlus mkPlus144,145
+mkMinus mkMinus147,148
+mkMult mkMult150,151
+mkDiv mkDiv153,154
+mkMod mkMod156,157
+mkNegate mkNegate159,160
+mkImplies mkImplies162,163
+mkIff mkIff165,166
+mkFromInteger mkFromInteger168,169
+mkToInteger mkToInteger171,172
+
+./src/G2/Internals/Language/Monad.hs,68
+module G2.Internals.Language.Monad G2.Internals.Language.Monad0,1
+
+./src/G2/Internals/Language/SymLinks.hs,615
+module G2.Internals.Language.SymLinks G2.Internals.Language.SymLinks3,4
+newtype SymLinks SymLinks20,21
+empty empty23,24
+lookup lookup26,27
+insert insert29,30
+filter filter32,33
+map map35,36
+map' map'38,39
+keys keys41,42
+instance ASTContainer ASTContainer SymLinks Expr44,45
+    containedASTs containedASTs45,46
+    modifyContainedASTs modifyContainedASTs46,47
+instance ASTContainer ASTContainer SymLinks Type48,49
+    containedASTs containedASTs49,50
+    modifyContainedASTs modifyContainedASTs50,51
+instance Named Named SymLinks52,53
+    names names53,54
+    rename rename55,56
+
+./src/G2/Internals/Language/Syntax.hs,4438
+module G2.Internals.Language.SyntaxG2.Internals.Language.Syntax5,6
+type Program Program14,15
+type Binds Binds21,22
+data Loc Loc25,26
+data Loc = Loc Loc25,26
+data Loc = Loc { line line25,26
+               , col col26,27
+               , file file27,28
+instance Hashable Hashable Loc29,30
+data Span Span33,34
+data Span = Span Span33,34
+data Span = Span { start start33,34
+                 , end end34,35
+instance Hashable Hashable Span36,37
+data Name Name42,43
+data Name = Name Name42,43
+instance Eq Eq Name44,45
+    Name Name45,46
+instance Ord Ord Name47,48
+    Name n m i _ `compare`compare48,49
+instance Hashable Hashable Name50,51
+    hashWithSalt hashWithSalt51,52
+data Id Id56,57
+data Id = Id Id56,57
+instance Hashable Hashable Id58,59
+idName idName60,61
+data Expr Expr73,74
+data Expr = Var Var73,74
+          | Lit Lit74,75
+          | Prim Prim75,76
+          | Data Data76,77
+          | App App77,78
+          | Lam Lam78,79
+          | Let Let79,80
+          | Case Case80,81
+          | Type Type81,82
+          | Cast Cast82,83
+          | Coercion Coercion83,84
+          | Tick Tick84,85
+          | Assume Assume85,86
+          | Assert Assert86,87
+instance Hashable Hashable Expr89,90
+data Primitive Primitive94,95
+data Primitive = GeGe94,95
+               | GtGt95,96
+               | EqEq96,97
+               | NeqNeq97,98
+               | LtLt98,99
+               | LeLe99,100
+               | AndAnd100,101
+               | OrOr101,102
+               | NotNot102,103
+               | ImpliesImplies103,104
+               | IffIff104,105
+               | PlusPlus105,106
+               | MinusMinus106,107
+               | MultMult107,108
+               | DivDiv108,109
+               | DivIntDivInt109,110
+               | QuotQuot110,111
+               | ModMod111,112
+               | NegateNegate112,113
+               | SqRtSqRt113,114
+               | IntToFloatIntToFloat114,115
+               | IntToDoubleIntToDouble115,116
+               | FromIntegerFromInteger116,117
+               | ToIntegerToInteger117,118
+               | ErrorError118,119
+               | UndefinedUndefined119,120
+               | BindFuncBindFunc120,121
+instance Hashable Hashable Primitive123,124
+data Lit Lit127,128
+data Lit = LitInt LitInt127,128
+         | LitFloat LitFloat128,129
+         | LitDouble LitDouble129,130
+         | LitChar LitChar130,131
+         | LitString LitString131,132
+         | LitInteger LitInteger132,133
+instance Hashable Hashable Lit135,136
+data DataCon DataCon138,139
+data DataCon = DataCon DataCon138,139
+instance Hashable Hashable DataCon140,141
+data AltMatch AltMatch152,153
+data AltMatch = DataAlt DataAlt152,153
+              | LitAlt LitAlt153,154
+              | DefaultDefault154,155
+instance Hashable Hashable AltMatch157,158
+data Alt Alt163,164
+data Alt = Alt Alt163,164
+instance Hashable Hashable Alt165,166
+altMatch altMatch167,168
+data TyBinder TyBinder171,172
+data TyBinder = AnonTyBndr AnonTyBndr171,172
+              | NamedTyBndr NamedTyBndr172,173
+instance Hashable Hashable TyBinder175,176
+data Coercion Coercion177,178
+data Coercion = Type Type177,178
+instance Hashable Hashable Coercion179,180
+data Type Type190,191
+data Type = TyVar TyVar190,191
+          | TyLitInt TyLitInt192,193
+          | TyLitInt | TyLitFloat TyLitFloat192,193
+          | TyLitInt | TyLitFloat | TyLitDouble TyLitDouble192,193
+          | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar TyLitChar192,193
+          | TyLitInt | TyLitFloat | TyLitDouble | TyLitChar | TyLitStringTyLitString192,193
+          | TyFun TyFun193,194
+          | TyApp TyApp194,195
+          | TyConApp TyConApp195,196
+          | TyForAll TyForAll196,197
+          | TyBottomTyBottom197,198
+          | TYPETYPE198,199
+          | TyUnknownTyUnknown199,200
+instance Hashable Hashable Type202,203
+data Tickish Tickish204,205
+data Tickish = Breakpoint Breakpoint204,205
+instance Hashable Hashable Tickish206,207
+data FuncCall FuncCall209,210
+data FuncCall = FuncCall FuncCall209,210
+data FuncCall = FuncCall { funcName funcName209,210
+                         , arguments arguments210,211
+                         , returns returns211,212
+instance Hashable Hashable FuncCall213,214
+
+./src/G2/Internals/Language/CreateFuncs.hs,142
+module G2.Internals.Language.CreateFuncs G2.Internals.Language.CreateFuncs0,1
+createFuncs createFuncs12,13
+createFuncs createFuncs20,21
+
+./src/G2/Internals/Language/Ids.hs,820
+module G2.Internals.Language.Ids G2.Internals.Language.Ids3,4
+class Ided Ided9,10
+    ids ids10,11
+instance Ided Ided Id12,13
+    ids ids13,14
+instance Ided Ided Name15,16
+    ids ids16,17
+instance Ided Ided Expr18,19
+    ids ids19,20
+instance Ided Ided Type31,32
+    ids ids32,33
+instance Ided Ided DataCon38,39
+    ids ids39,40
+instance Ided Ided AltMatch41,42
+    ids ids42,43
+instance Ided Ided TyBinder45,46
+    ids ids46,47
+instance Ided Ided Coercion49,50
+    ids ids50,51
+instance (F(Foldable f, Ided a) => Ided (f a)52,53
+    ids ids53,54
+instance {-# OVERLAPPING #-} (I(Ided a, Ided b) => Ided (a, b)55,56
+    ids ids56,57
+instance {-# OVERLAPPING #-} (I(Ided a, Ided b, Ided c) => Ided (a, b, c)58,59
+    ids ids59,60
+varIdsInAltMatch varIdsInAltMatch61,62
+
+./src/G2/Internals/Language/ArbValueGen.hs,791
+module G2.Internals.Language.ArbValueGen G2.Internals.Language.ArbValueGen0,1
+data ArbValueGen ArbValueGen15,16
+data ArbValueGen = ArbValueGen ArbValueGen15,16
+data ArbValueGen = ArbValueGen { intGen intGen15,16
+                               , floatGen floatGen16,17
+                               , doubleGen doubleGen17,18
+                               , boolGen boolGen18,19
+arbValueInit arbValueInit21,22
+arbValue arbValue32,33
+numArgs numArgs55,56
+minArgLen minArgLen58,59
+minArgLenADT minArgLenADT62,63
+numRecArgsADT numRecArgsADT68,69
+numRecArgsADT' numRecArgsADT'71,72
+tyConAppName tyConAppName84,85
+getADT getADT88,89
+getADT' getADT'91,92
+minimumByMaybe minimumByMaybe108,109
+noTyConsNamed noTyConsNamed112,113
+scoreTuple scoreTuple122,123
+
+./src/G2/Internals/Language/Stack.hs,707
+module G2.Internals.Language.StackG2.Internals.Language.Stack3,4
+newtype Stack Stack15,16
+empty empty17,18
+push push21,22
+pop pop25,26
+popN popN29,30
+toList toList40,41
+instance {-# OVERLAPPING #-} ASTContainer ASTContainer a Expr => ASTContainer (Stack a) Expr43,44
+    containedASTs containedASTs44,45
+    modifyContainedASTs modifyContainedASTs45,46
+instance {-# OVERLAPPING #-} ASTContainer ASTContainer a Type => ASTContainer (Stack a) Type47,48
+    containedASTs containedASTs48,49
+    modifyContainedASTs modifyContainedASTs49,50
+instance {-# OVERLAPPING #-} Named Named a => Named (Stack a)51,52
+    names names52,53
+    rename rename53,54
+    renames renames54,55
+
+./src/G2/Internals/Language/Monad/Primitives.hs,550
+module G2.Internals.Language.Monad.Primitives G2.Internals.Language.Monad.Primitives0,1
+appExpr appExpr26,27
+mkGeE mkGeE29,30
+mkGtE mkGtE32,33
+mkEqE mkEqE35,36
+mkNeqE mkNeqE38,39
+mkLtE mkLtE41,42
+mkLeE mkLeE44,45
+mkAndE mkAndE47,48
+mkOrE mkOrE50,51
+mkNotE mkNotE53,54
+mkPlusE mkPlusE56,57
+mkMinusE mkMinusE59,60
+mkMultE mkMultE62,63
+mkDivE mkDivE65,66
+mkModE mkModE68,69
+mkNegateE mkNegateE71,72
+mkImpliesE mkImpliesE74,75
+mkIffE mkIffE77,78
+mkFromIntegerE mkFromIntegerE80,81
+mkToIntegerE mkToIntegerE83,84
+
+./src/G2/Internals/Language/Monad/CreateFuncs.hs,125
+module G2.Internals.Language.Monad.CreateFuncs G2.Internals.Language.Monad.CreateFuncs0,1
+createFuncsM createFuncsM14,15
+
+./src/G2/Internals/Language/Monad/Typing.hs,226
+module G2.Internals.Language.Monad.Typing G2.Internals.Language.Monad.Typing0,1
+appKV appKV13,14
+tyIntT tyIntT18,19
+tyIntegerT tyIntegerT21,22
+tyDoubleT tyDoubleT24,25
+tyFloatT tyFloatT27,28
+tyBoolT tyBoolT30,31
+
+./src/G2/Internals/Language/Monad/ExprEnv.hs,174
+module G2.Internals.Language.Monad.ExprEnv G2.Internals.Language.Monad.ExprEnv0,1
+liftEE liftEE14,15
+memberE memberE17,18
+lookupE lookupE20,21
+insertE insertE23,24
+
+./src/G2/Internals/Language/Monad/TypeEnv.hs,151
+module G2.Internals.Language.Monad.TypeEnv G2.Internals.Language.Monad.TypeEnv0,1
+liftTE liftTE14,15
+lookupT lookupT17,18
+insertT insertT20,21
+
+./src/G2/Internals/Language/Monad/Expr.hs,375
+module G2.Internals.Language.Monad.Expr G2.Internals.Language.Monad.Expr0,1
+appKVTEnv appKVTEnv17,18
+mkDCTrueM mkDCTrueM23,24
+mkDCFalseM mkDCFalseM26,27
+mkDCIntE mkDCIntE29,30
+mkDCIntegerE mkDCIntegerE32,33
+mkDCFloatE mkDCFloatE35,36
+mkDCDoubleE mkDCDoubleE38,39
+mkTrueE mkTrueE41,42
+mkFalseE mkFalseE44,45
+mkConsE mkConsE47,48
+mkEmptyE mkEmptyE50,51
+
+./src/G2/Internals/Language/Monad/Naming.hs,455
+module G2.Internals.Language.Monad.Naming G2.Internals.Language.Monad.Naming0,1
+doRenameN doRenameN18,19
+doRenamesN doRenamesN21,22
+renameAllN renameAllN24,25
+freshSeededStringN freshSeededStringN27,28
+freshSeededStringsN freshSeededStringsN30,31
+freshSeededNameN freshSeededNameN33,34
+freshSeededNamesN freshSeededNamesN36,37
+freshNameN freshNameN39,40
+freshNamesN freshNamesN42,43
+freshIdN freshIdN45,46
+freshIdsN freshIdsN48,49
+
+./src/G2/Internals/Language/Monad/Support.hs,1216
+module G2.Internals.Language.Monad.Support G2.Internals.Language.Monad.Support4,5
+newtype StateM StateM17,18
+instance SM.MonadState SM-MonadState (State t) (StateM t)19,20
+    state state20,21
+class SM.MonadState s m => ExState ExState22,23
+    exprEnv exprEnv23,24
+    putExprEnv putExprEnv24,25
+    typeEnv typeEnv26,27
+    putTypeEnv putTypeEnv27,28
+    nameGen nameGen29,30
+    putNameGen putNameGen30,31
+    knownValues knownValues32,33
+class ExState s m => FullState FullState34,35
+    typeClasses typeClasses35,36
+    putTypeClasses putTypeClasses36,37
+instance ExState ExState (State t) (StateM t)38,39
+    exprEnv exprEnv39,40
+    putExprEnv putExprEnv40,41
+    typeEnv typeEnv42,43
+    putTypeEnv putTypeEnv43,44
+    nameGen nameGen45,46
+    putNameGen putNameGen46,47
+    knownValues knownValues48,49
+instance FullState FullState (State t) (StateM t)50,51
+    typeClasses typeClasses51,52
+    putTypeClasses putTypeClasses52,53
+runStateM runStateM54,55
+readRecord readRecord57,58
+rep_expr_envM rep_expr_envM60,61
+rep_type_envM rep_type_envM65,66
+withNG withNG70,71
+rep_name_genM rep_name_genM77,78
+rep_type_classesM rep_type_classesM82,83
+
+./src/G2/Internals/Language/Typing.hs,2445
+module G2.Internals.Language.TypingG2.Internals.Language.Typing6,7
+tyInt tyInt54,55
+tyInteger tyInteger57,58
+tyDouble tyDouble60,61
+tyFloat tyFloat63,64
+tyBool tyBool66,67
+mkTyApp mkTyApp69,70
+mkTyFun mkTyFun76,77
+unTyApp unTyApp85,86
+class Typed Typed90,91
+    typeOf typeOf91,92
+    typeOf' typeOf'94,95
+instance Typed Typed Id97,98
+    typeOf' typeOf'98,99
+instance Typed Typed Lit102,103
+    typeOf typeOf103,104
+    typeOf' typeOf'110,111
+instance Typed Typed DataCon113,114
+    typeOf' typeOf'114,115
+instance Typed Typed Alt117,118
+    typeOf' typeOf'118,119
+instance Typed Typed Expr121,122
+    typeOf' typeOf'122,123
+instance Typed Typed Type168,169
+    typeOf' typeOf'169,170
+newtype PresType PresType202,203
+instance Typed Typed PresType204,205
+    typeOf' typeOf'205,206
+retype retype210,211
+retype' retype'213,214
+(.(.::)224,225
+t1 t1225,226
+(.(.::.)227,228
+t1 t1228,229
+specializes specializes230,231
+hasFuncType hasFuncType305,306
+appendType appendType315,316
+higherOrderFuncs higherOrderFuncs321,322
+higherOrderFuncs' higherOrderFuncs'324,325
+higherOrderFuncs'' higherOrderFuncs''327,328
+isAlgDataTy isAlgDataTy332,333
+isAlgDataTy' isAlgDataTy'335,336
+isTYPE isTYPE339,340
+hasTYPE hasTYPE344,345
+isTyVar isTyVar350,351
+isTyFun isTyFun354,355
+isPolyFunc isPolyFunc360,361
+isPolyFunc' isPolyFunc'363,364
+tyVars tyVars369,370
+tyVars' tyVars'372,373
+hasTyFuns hasTyFuns377,378
+hasTyFuns' hasTyFuns'380,381
+hasTyBottom hasTyBottom385,386
+hasTyBottom' hasTyBottom'388,389
+numArgs numArgs393,394
+data ArgType ArgType398,399
+data ArgType = JustType JustType398,399
+data ArgType = JustType Type | BindType BindType398,399
+argumentTypes argumentTypes400,401
+argumentTypes' argumentTypes'403,404
+spArgumentTypes spArgumentTypes409,410
+spArgumentTypes' spArgumentTypes'412,413
+tyForAllBindings tyForAllBindings418,419
+tyForAllBindings' tyForAllBindings'421,422
+anonArgumentTypes anonArgumentTypes427,428
+anonArgumentTypes' anonArgumentTypes'430,431
+returnType returnType437,438
+returnType' returnType'440,441
+polyIds polyIds447,448
+splitTyForAlls splitTyForAlls452,453
+splitTyFuns splitTyFuns462,463
+nestTyForAlls nestTyForAlls468,469
+inTyForAlls inTyForAlls472,473
+collapseTyConApp collapseTyConApp477,478
+collapseTyConApp' collapseTyConApp'480,481
+replaceFstTyVar replaceFstTyVar486,487
+
+./src/G2/Internals/Language/ExprEnv.hs,2171
+module G2.Internals.Language.ExprEnvG2.Internals.Language.ExprEnv3,4
+data EnvObj EnvObj63,64
+data EnvObj = ExprObj ExprObj63,64
+            | RedirObj RedirObj64,65
+            | SymbObj SymbObj65,66
+newtype ExprEnv ExprEnv68,69
+unwrapExprEnv unwrapExprEnv71,72
+empty empty74,75
+singleton singleton77,78
+null null80,81
+size size83,84
+member member86,87
+lookup lookup89,90
+deepLookup deepLookup97,98
+isSymbolic isSymbolic103,104
+occLookup occLookup110,111
+lookupNameMod lookupNameMod117,118
+(!(!)121,122
+insert insert129,130
+insertSymbolic insertSymbolic132,133
+insertPreserving insertPreserving137,138
+insertExprs insertExprs147,148
+redirect redirect150,151
+union union153,154
+map map156,157
+map' map'159,160
+mapWithKey mapWithKey164,165
+mapWithKey' mapWithKey'175,176
+mapKeys mapKeys178,179
+filter filter181,182
+filterWithKey filterWithKey184,185
+filterToSymbolic filterToSymbolic192,193
+funcsOfType funcsOfType197,198
+keys keys200,201
+symbolicKeys symbolicKeys203,204
+elems elems207,208
+higherOrderExprs higherOrderExprs212,213
+toList toList216,217
+toExprList toExprList221,222
+fromExprList fromExprList226,227
+toExprMap toExprMap229,230
+isRedirect isRedirect233,234
+isRoot isRoot239,240
+instance ASTContainer ASTContainer ExprEnv Expr249,250
+    containedASTs containedASTs250,251
+    modifyContainedASTs modifyContainedASTs251,252
+instance ASTContainer ASTContainer ExprEnv Type253,254
+    containedASTs containedASTs254,255
+    modifyContainedASTs modifyContainedASTs255,256
+instance ASTContainer ASTContainer EnvObj Expr257,258
+    containedASTs containedASTs258,259
+    modifyContainedASTs modifyContainedASTs262,263
+instance ASTContainer ASTContainer EnvObj Type269,270
+    containedASTs containedASTs270,271
+    modifyContainedASTs modifyContainedASTs274,275
+instance Named Named ExprEnv278,279
+    names names279,280
+    rename rename281,282
+    renames renames287,288
+instance Named Named EnvObj293,294
+    names names294,295
+    rename rename298,299
+    renames renames302,303
+isExprObj isExprObj308,309
+exprObjs exprObjs312,313
+
+./src/G2/Internals/Language/Casts.hs,396
+module G2.Internals.Language.Casts G2.Internals.Language.Casts2,3
+unsafeElimCast unsafeElimCast20,21
+unsafeElimCast' unsafeElimCast'23,24
+splitCast splitCast33,34
+simplifyCasts simplifyCasts71,72
+simplifyCasts' simplifyCasts'74,75
+liftCasts liftCasts87,88
+liftCasts' liftCasts'90,91
+liftCasts'' liftCasts''94,95
+exprInCasts exprInCasts110,111
+typeInCasts typeInCasts114,115
+
+./src/G2/Internals/Language/TypeEnv.hs,2091
+module G2.Internals.Language.TypeEnv G2.Internals.Language.TypeEnv3,4
+type ProgramType ProgramType34,35
+type TypeEnv TypeEnv39,40
+data AlgDataTy AlgDataTy43,44
+data AlgDataTy = DataTyCon DataTyCon43,44
+data AlgDataTy = DataTyCon { bound_names bound_names43,44
+                           , data_cons data_cons44,45
+               | NewTyCon NewTyCon45,46
+               | NewTyCon { bound_names bound_names45,46
+                          , data_con data_con46,47
+                          , rep_type rep_type47,48
+               | TypeSynonym TypeSynonym48,49
+               | TypeSynonym { synonym_of synonym_of48,49
+nameModMatch nameModMatch51,52
+argTypesTEnv argTypesTEnv55,56
+argTypesTEnv' argTypesTEnv'58,59
+dataCon dataCon62,63
+dcName dcName67,68
+isPolyAlgDataTy isPolyAlgDataTy70,71
+isDataTyCon isDataTyCon73,74
+isNewTyCon isNewTyCon77,78
+newTyConRepType newTyConRepType81,82
+getDataCons getDataCons85,86
+baseDataCons baseDataCons93,94
+baseDataCon baseDataCon96,97
+getCastedAlgDataTy getCastedAlgDataTy99,100
+getCasted getCasted107,108
+selfRecursive selfRecursive118,119
+dataConCanContain dataConCanContain129,130
+dataConCanContain' dataConCanContain'132,133
+tyConAppName tyConAppName146,147
+getDataCon getDataCon150,151
+getDataConNameMod getDataConNameMod157,158
+getDataConNameMod' getDataConNameMod'164,165
+dataConArgs dataConArgs167,168
+dataConWithName dataConWithName170,171
+dataConHasName dataConHasName174,175
+dataConWithNameMod dataConWithNameMod177,178
+dataConHasNameMod dataConHasNameMod181,182
+retypeAlgDataTy retypeAlgDataTy184,185
+instance ASTContainer ASTContainer AlgDataTy Expr191,192
+    containedASTs containedASTs192,193
+    modifyContainedASTs modifyContainedASTs194,195
+instance ASTContainer ASTContainer AlgDataTy Type196,197
+    containedASTs containedASTs197,198
+    modifyContainedASTs modifyContainedASTs201,202
+instance ASTContainer ASTContainer AlgDataTy DataCon205,206
+    containedASTs containedASTs206,207
+    modifyContainedASTs modifyContainedASTs210,211
+
+./src/G2/Internals/Language/ASTVerify.hs,892
+module G2.Internals.Language.ASTVerify G2.Internals.Language.ASTVerify3,4
+typeMatch typeMatch22,23
+letsTypeValid letsTypeValid34,35
+letsTypeValid' letsTypeValid'37,38
+altMatchType altMatchType44,45
+pathCondExpr pathCondExpr53,54
+caseTypeValid caseTypeValid62,63
+caseTypeValid' caseTypeValid'65,66
+castTypeValid castTypeValid76,77
+castTypeValid' castTypeValid'79,80
+checkVarBinds checkVarBinds90,91
+checkVarBinds' checkVarBinds'97,98
+checkVarBinds' eenv bound (Var i) | not $ (E.member (idName i) eenv || i `elem`elem104,105
+checkVarBinds' checkVarBinds'105,106
+checkExprEnvTyping checkExprEnvTyping110,111
+checkExprEnvTyping' checkExprEnvTyping'114,115
+getFunTypeList getFunTypeList123,124
+checkAppTyping checkAppTyping130,131
+checkPathCond checkPathCond140,141
+checkAssumeAssert checkAssumeAssert152,153
+checkAssumeAssert' checkAssumeAssert'156,157
+
+./src/G2/Internals/Language/Expr.hs,1630
+module G2.Internals.Language.Expr G2.Internals.Language.Expr4,5
+replaceVar replaceVar60,61
+replaceVar' replaceVar'63,64
+unApp unApp69,70
+mkApp mkApp75,76
+mkDCInt mkDCInt80,81
+mkDCInteger mkDCInteger83,84
+mkDCFloat mkDCFloat86,87
+mkDCDouble mkDCDouble89,90
+mkDCTrue mkDCTrue92,93
+mkDCFalse mkDCFalse95,96
+mkTrue mkTrue98,99
+mkFalse mkFalse101,102
+mkBool mkBool104,105
+mkCons mkCons107,108
+mkEmpty mkEmpty110,111
+mkIdentity mkIdentity113,114
+modifyAppLHS modifyAppLHS121,122
+modifyAppRHS modifyAppRHS126,127
+modifyInLHS modifyInLHS130,131
+functionCalls functionCalls136,137
+functionCalls' functionCalls'139,140
+functionCallsApp functionCallsApp143,144
+nonDataFunctionCalls nonDataFunctionCalls149,150
+centerIsData centerIsData152,153
+appCenter appCenter157,158
+mkLams mkLams161,162
+mkLamBindings mkLamBindings166,167
+mkMappedLamBindings mkMappedLamBindings175,176
+insertInLams insertInLams184,185
+insertInLams' insertInLams'187,188
+maybeInsertInLams maybeInsertInLams191,192
+maybeInsertInLams' maybeInsertInLams'194,195
+inLams inLams200,201
+leadingLamIds leadingLamIds204,205
+args args208,209
+passedArgs passedArgs212,213
+nthArg nthArg216,217
+vars vars221,222
+vars' vars'224,225
+varId varId228,229
+symbVars symbVars232,233
+symbVars' symbVars'235,236
+alphaReduction alphaReduction239,240
+alphaReduction' alphaReduction'242,243
+varBetaReduction varBetaReduction256,257
+varBetaReduction' varBetaReduction'259,260
+replaceLamIds replaceLamIds264,265
+mkStrict mkStrict271,272
+mkStrict' mkStrict'274,275
+typeToWalker typeToWalker282,283
+
+./src/G2/Internals/Language/Naming.hs,4722
+module G2.Internals.Language.NamingG2.Internals.Language.Naming4,5
+nameOcc nameOcc54,55
+nameModule nameModule57,58
+nameLoc nameLoc60,61
+data NameGen NameGen63,64
+data NameGen = NameGen NameGen63,64
+data NameGen = NameGen { max_uniq max_uniq63,64
+                       , dc_children dc_children64,65
+nameToStr nameToStr68,69
+strToName strToName74,75
+mkNameGen mkNameGen83,84
+varIds varIds97,98
+varIds' varIds'100,101
+varNames varNames104,105
+exprNames exprNames108,109
+exprTopNames exprTopNames111,112
+altMatchNames altMatchNames120,121
+dataConName dataConName124,125
+typeNames typeNames127,128
+typeTopNames typeTopNames130,131
+doRename doRename136,137
+doRenames doRenames140,141
+renameAll renameAll148,149
+class Named Named160,161
+    name name161,162
+    names names162,163
+    rename rename163,164
+    renames renames164,165
+    name name166,167
+    renames renames167,168
+instance Named Named Name169,170
+    names names170,171
+    rename rename171,172
+    renames renames172,173
+instance Named Named Id176,177
+    names names177,178
+    rename rename178,179
+    renames renames179,180
+instance Named Named Expr181,182
+    names names182,183
+    rename rename197,198
+    renames renames217,218
+renameExpr renameExpr238,239
+renameExpr' renameExpr'241,242
+renameVars renameVars251,252
+renameVars' renameVars'254,255
+renameExprId renameExprId263,264
+renameExprDataCon renameExprDataCon266,267
+renameExprAlt renameExprAlt269,270
+renameExprAltIds renameExprAltIds278,279
+instance Named Named Type287,288
+    names names288,289
+    rename rename295,296
+    renames renames303,304
+tyBinderNamesInType tyBinderNamesInType313,314
+idNamesInType idNamesInType317,318
+renameTyBinderInType renameTyBinderInType320,321
+renameIdInType renameIdInType324,325
+renamesTyBinderInType renamesTyBinderInType327,328
+renamesIdInType renamesIdInType331,332
+instance Named Named Alt334,335
+    names names335,336
+    rename rename337,338
+    renames renames339,340
+instance Named Named DataCon341,342
+    names names342,343
+    rename rename344,345
+    renames renames347,348
+instance Named Named AltMatch350,351
+    names names351,352
+    rename rename354,355
+    renames renames358,359
+instance Named Named TyBinder362,363
+    names names363,364
+    rename rename366,367
+    renames renames369,370
+instance Named Named Coercion372,373
+    names names373,374
+    rename rename374,375
+    renames renames375,376
+instance Named Named FuncCall377,378
+    names names378,379
+    rename rename379,380
+    renames renames381,382
+instance Named Named AlgDataTy385,386
+    names names386,387
+    rename rename390,391
+    renames renames394,395
+instance Named Named KnownValues398,399
+    names names399,400
+    rename rename442,443
+instance (F(Foldable f, Functor f, Named a) => Named (f a)520,521
+    names names521,522
+    rename rename522,523
+    renames renames523,524
+instance Named Named ()525,526
+    names names526,527
+    rename rename527,528
+    renames renames528,529
+instance {-# OVERLAPPING #-}  (N(Named s, Hashable s, Eq s) => Named (HS-HashSet s)530,531
+    names names531,532
+    rename rename532,533
+    renames renames533,534
+instance {-# OVERLAPPING #-} (N(Named a, Named b) => Named (a, b)535,536
+    names names536,537
+    rename rename537,538
+    renames renames538,539
+instance {-# OVERLAPPING #-} (N(Named a, Named b, Named c) => Named (a, b, c)540,541
+    names names541,542
+    rename rename542,543
+    renames renames543,544
+instance {-# OVERLAPPING #-} (N(Named a, Named b, Named c, Named d) => Named (a, b, c, d)545,546
+    names names546,547
+    rename rename547,548
+    renames renames548,549
+instance {-# OVERLAPPING #-} (N(Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e)550,551
+    names names551,552
+    rename rename552,553
+    renames renames553,554
+instance Named Named Int555,556
+    names names556,557
+    rename rename557,558
+instance Named Named T-Text559,560
+    names names560,561
+    rename rename561,562
+freshSeededString freshSeededString563,564
+freshSeededStrings freshSeededStrings566,567
+freshSeededName freshSeededName569,570
+freshSeededNames freshSeededNames576,577
+freshName freshName582,583
+freshNames freshNames587,588
+freshId freshId590,591
+freshIds freshIds593,594
+freshSeededId freshSeededId600,601
+freshVar freshVar607,608
+childrenNames childrenNames619,620
+childrenNamesExisting childrenNamesExisting625,626
+childrenNamesNew childrenNamesNew638,639
+mapNG mapNG648,649
+mapNG' mapNG'651,652
+
+./src/G2/Internals/Language/PathConds.hs,1893
+module G2.Internals.Language.PathConds G2.Internals.Language.PathConds6,7
+newtype PathConds PathConds53,54
+data PathCond PathCond59,60
+data PathCond = AltCond AltCond59,60
+              | ExtCond ExtCond60,61
+              | ConsCond ConsCond61,62
+              | PCExists PCExists62,63
+type Constraint Constraint65,66
+type Assertion Assertion66,67
+instance Hashable Hashable PathCond68,69
+negatePC negatePC70,71
+toMap toMap76,77
+empty empty79,80
+fromList fromList82,83
+map map85,86
+map' map'88,89
+insert insert97,98
+insert' insert'100,101
+insert'' insert''112,113
+number number116,117
+null null119,120
+relevant relevant124,125
+relatedSets relatedSets132,133
+relatedSets' relatedSets'153,154
+varIdsInPC varIdsInPC165,166
+varIdsInPC varIdsInPC174,175
+varNamesInPC varNamesInPC182,183
+scc scc185,186
+scc' scc'188,189
+toList toList205,206
+instance ASTContainer ASTContainer PathConds Expr208,209
+    containedASTs containedASTs209,210
+    modifyContainedASTs modifyContainedASTs211,212
+instance ASTContainer ASTContainer PathConds Type213,214
+    containedASTs containedASTs214,215
+    modifyContainedASTs modifyContainedASTs216,217
+instance ASTContainer ASTContainer PathCond Expr218,219
+    containedASTs containedASTs219,220
+    modifyContainedASTs modifyContainedASTs224,225
+instance ASTContainer ASTContainer PathCond Type231,232
+    containedASTs containedASTs232,233
+    modifyContainedASTs modifyContainedASTs237,238
+instance Named Named PathConds246,247
+    names names247,248
+    rename rename249,250
+    renames renames253,254
+instance Named Named PathCond257,258
+    names names258,259
+    rename rename263,264
+    renames renames268,269
+instance Ided Ided PathConds273,274
+    ids ids274,275
+instance Ided Ided PathCond276,277
+    ids ids277,278
+isExtCond isExtCond284,285
+
+./src/G2/Internals/Language/AST.hs,6372
+module G2.Internals.Language.ASTG2.Internals.Language.AST5,6
+class AST AST16,17
+    children children18,19
+    modifyChildren modifyChildren20,21
+modify modify24,25
+modifyM modifyM38,39
+modifyFix modifyFix48,49
+modifyContainedFix modifyContainedFix55,56
+modifyFixM modifyFixM64,65
+eval eval76,77
+evalM evalM79,80
+evalChildren evalChildren90,91
+class AST t => ASTContainer ASTContainer95,96
+    containedASTs containedASTs97,98
+    modifyContainedASTs modifyContainedASTs99,100
+modifyASTs modifyASTs102,103
+modifyASTsM modifyASTsM106,107
+modifyASTsFix modifyASTsFix110,111
+modifyContainedASTsFix modifyContainedASTsFix114,115
+evalASTs evalASTs118,119
+evalASTsM evalASTsM121,122
+evalContainedASTs evalContainedASTs126,127
+instance AST AST Expr130,131
+    children children131,132
+    modifyChildren modifyChildren146,147
+instance AST AST Type159,160
+    children children160,161
+    modifyChildren modifyChildren167,168
+instance AST AST DataCon174,175
+    children children175,176
+    modifyChildren modifyChildren176,177
+instance AST AST t => ASTContainer t t181,182
+    containedASTs containedASTs182,183
+    modifyContainedASTs modifyContainedASTs184,185
+instance ASTContainer ASTContainer Expr Type186,187
+    containedASTs containedASTs187,188
+    modifyContainedASTs modifyContainedASTs201,202
+instance ASTContainer ASTContainer Id Expr217,218
+  containedASTs containedASTs218,219
+  modifyContainedASTs modifyContainedASTs220,221
+instance ASTContainer ASTContainer Id Type222,223
+  containedASTs containedASTs223,224
+  modifyContainedASTs modifyContainedASTs225,226
+instance ASTContainer ASTContainer Name Expr227,228
+    containedASTs containedASTs228,229
+    modifyContainedASTs modifyContainedASTs229,230
+instance ASTContainer ASTContainer Name Type231,232
+    containedASTs containedASTs232,233
+    modifyContainedASTs modifyContainedASTs233,234
+instance ASTContainer ASTContainer Type Expr235,236
+    containedASTs containedASTs236,237
+    modifyContainedASTs modifyContainedASTs237,238
+instance ASTContainer ASTContainer DataCon Expr239,240
+    containedASTs containedASTs240,241
+    modifyContainedASTs modifyContainedASTs241,242
+instance ASTContainer ASTContainer DataCon Type243,244
+    containedASTs containedASTs244,245
+    modifyContainedASTs modifyContainedASTs246,247
+instance ASTContainer ASTContainer AltMatch Expr248,249
+    containedASTs containedASTs249,250
+    modifyContainedASTs modifyContainedASTs250,251
+instance ASTContainer ASTContainer AltMatch Type252,253
+    containedASTs containedASTs253,254
+    modifyContainedASTs modifyContainedASTs256,257
+instance ASTContainer ASTContainer Alt Expr259,260
+    containedASTs containedASTs260,261
+    modifyContainedASTs modifyContainedASTs261,262
+instance ASTContainer ASTContainer Alt Type263,264
+    containedASTs containedASTs264,265
+    modifyContainedASTs modifyContainedASTs265,266
+instance ASTContainer ASTContainer TyBinder Expr268,269
+    containedASTs containedASTs269,270
+    modifyContainedASTs modifyContainedASTs270,271
+instance ASTContainer ASTContainer TyBinder Type272,273
+    containedASTs containedASTs273,274
+    modifyContainedASTs modifyContainedASTs276,277
+instance ASTContainer ASTContainer Coercion Expr279,280
+    containedASTs containedASTs280,281
+    modifyContainedASTs modifyContainedASTs281,282
+instance ASTContainer ASTContainer Coercion Type283,284
+    containedASTs containedASTs284,285
+    modifyContainedASTs modifyContainedASTs285,286
+instance ASTContainer ASTContainer FuncCall Expr287,288
+    containedASTs containedASTs288,289
+    modifyContainedASTs modifyContainedASTs289,290
+instance ASTContainer ASTContainer FuncCall Type292,293
+    containedASTs containedASTs293,294
+    modifyContainedASTs modifyContainedASTs294,295
+instance (F(Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t297,298
+    containedASTs containedASTs298,299
+    modifyContainedASTs modifyContainedASTs300,301
+instance {-# OVERLAPPING #-} (A(ASTContainer s t, Hashable s, Eq s) => ASTContainer (HS-HashSet s) t302,303
+    containedASTs containedASTs303,304
+    modifyContainedASTs modifyContainedASTs305,306
+instance {-# OVERLAPPING #-} ASTContainer ASTContainer () Expr307,308
+    containedASTs containedASTs308,309
+    modifyContainedASTs modifyContainedASTs309,310
+instance {-# OVERLAPPING #-} ASTContainer ASTContainer () Type311,312
+    containedASTs containedASTs312,313
+    modifyContainedASTs modifyContainedASTs313,314
+instance {-# OVERLAPPING #-} (A(ASTContainer c t, ASTContainer d t) => ASTContainer (c, d) t315,316
+    containedASTs containedASTs316,317
+    modifyContainedASTs modifyContainedASTs318,319
+instance ASTContainer ASTContainer Lit Expr342,343
+    containedASTs containedASTs343,344
+    modifyContainedASTs modifyContainedASTs344,345
+instance ASTContainer ASTContainer Lit Type346,347
+    containedASTs containedASTs347,348
+    modifyContainedASTs modifyContainedASTs348,349
+instance ASTContainer ASTContainer Bool Expr350,351
+    containedASTs containedASTs351,352
+    modifyContainedASTs modifyContainedASTs352,353
+instance ASTContainer ASTContainer Bool Type354,355
+    containedASTs containedASTs355,356
+    modifyContainedASTs modifyContainedASTs356,357
+instance ASTContainer ASTContainer Char Expr358,359
+    containedASTs containedASTs359,360
+    modifyContainedASTs modifyContainedASTs360,361
+instance ASTContainer ASTContainer Char Type362,363
+    containedASTs containedASTs363,364
+    modifyContainedASTs modifyContainedASTs364,365
+instance ASTContainer ASTContainer T-Text Expr366,367
+    containedASTs containedASTs367,368
+    modifyContainedASTs modifyContainedASTs368,369
+instance ASTContainer ASTContainer T-Text Type370,371
+    containedASTs containedASTs371,372
+    modifyContainedASTs modifyContainedASTs372,373
+instance ASTContainer ASTContainer Int Expr374,375
+    containedASTs containedASTs375,376
+    modifyContainedASTs modifyContainedASTs376,377
+instance ASTContainer ASTContainer Int Type378,379
+    containedASTs containedASTs379,380
+    modifyContainedASTs modifyContainedASTs380,381
+replaceASTs replaceASTs388,389
+replaceASTs' replaceASTs'391,392
+
+./src/G2/Internals/Language/Support.hs,3970
+module G2.Internals.Language.SupportG2.Internals.Language.Support4,5
+data State State44,45
+data State t = State State44,45
+data State t = State { expr_env expr_env44,45
+                     , type_env type_env45,46
+                     , curr_expr curr_expr46,47
+                     , name_gen name_gen47,48
+                     , path_conds path_conds48,49
+                     , non_red_path_conds non_red_path_conds49,50
+                     , true_assert true_assert50,51
+                     , assert_ids assert_ids51,52
+                     , type_classes type_classes52,53
+                     , sym_links sym_links53,54
+                     , input_ids input_ids54,55
+                     , symbolic_ids symbolic_ids55,56
+                     , func_table func_table56,57
+                     , deepseq_walkers deepseq_walkers57,58
+                     , apply_types apply_types58,59
+                     , exec_stack exec_stack59,60
+                     , model model60,61
+                     , arbValueGen arbValueGen61,62
+                     , known_values known_values62,63
+                     , cleaned_names cleaned_names63,64
+                     , rules rules64,65
+                     , tags tags65,66
+                     , track track66,67
+                     , type_errors type_errors67,68
+type InputIds InputIds72,73
+type SymbolicIds SymbolicIds76,77
+data EvalOrReturn EvalOrReturn83,84
+data EvalOrReturn = EvaluateEvaluate83,84
+                  | ReturnReturn84,85
+data CurrExpr CurrExpr87,88
+data CurrExpr = CurrExpr CurrExpr87,88
+newtype FuncInterps FuncInterps92,93
+data Interp Interp96,97
+data Interp = StdInterp StdInterp96,97
+data Interp = StdInterp | UnInterp UnInterp96,97
+type Walkers Walkers99,100
+type CleanedNames CleanedNames102,103
+naiveLookup naiveLookup105,106
+emptyFuncInterps emptyFuncInterps108,109
+lookupFuncInterps lookupFuncInterps112,113
+insertFuncInterps insertFuncInterps116,117
+unionFuncInterps unionFuncInterps121,122
+data Frame Frame139,140
+data Frame = CaseFrame CaseFrame139,140
+           | ApplyFrame ApplyFrame140,141
+           | UpdateFrame UpdateFrame141,142
+           | CastFrame CastFrame142,143
+           | CurrExprFrame CurrExprFrame143,144
+           | AssumeFrame AssumeFrame144,145
+           | AssertFrame AssertFrame145,146
+type Model Model148,149
+renameState renameState151,152
+instance {-# OVERLAPPING #-} Named Named t => Named (State t)181,182
+    names names182,183
+    rename rename200,201
+    renames renames228,229
+instance {-# OVERLAPPING #-} ASTContainer ASTContainer t Expr => ASTContainer (State t) Expr257,258
+    containedASTs containedASTs258,259
+    modifyContainedASTs modifyContainedASTs269,270
+instance {-# OVERLAPPING #-} ASTContainer ASTContainer t Type => ASTContainer (State t) Type280,281
+    containedASTs containedASTs281,282
+    modifyContainedASTs modifyContainedASTs293,294
+instance ASTContainer ASTContainer CurrExpr Expr305,306
+    containedASTs containedASTs306,307
+    modifyContainedASTs modifyContainedASTs307,308
+instance ASTContainer ASTContainer CurrExpr Type309,310
+    containedASTs containedASTs310,311
+    modifyContainedASTs modifyContainedASTs311,312
+instance ASTContainer ASTContainer Frame Expr313,314
+    containedASTs containedASTs314,315
+    modifyContainedASTs modifyContainedASTs321,322
+instance ASTContainer ASTContainer Frame Type328,329
+    containedASTs containedASTs329,330
+    modifyContainedASTs modifyContainedASTs336,337
+instance Named Named CurrExpr344,345
+    names names345,346
+    rename rename346,347
+    renames renames347,348
+instance Named Named FuncInterps349,350
+    names names350,351
+    rename rename352,353
+    renames renames355,356
+instance Named Named Frame358,359
+    names names359,360
+    rename rename367,368
+    renames renames375,376
+
+./src/G2/Internals/Initialization/Interface.hs,131
+module G2.Internals.Initialization.Interface G2.Internals.Initialization.Interface0,1
+runInitialization runInitialization14,15
+
+./src/G2/Internals/Initialization/ElimTypeSynonyms.hs,232
+module G2.Internals.Initialization.ElimTypeSynonyms G2.Internals.Initialization.ElimTypeSynonyms2,3
+elimTypeSyms elimTypeSyms8,9
+elimTypeSyms' elimTypeSyms'11,12
+elimTypeSymsTEnv elimTypeSymsTEnv18,19
+typeSym typeSym21,22
+
+./src/G2/Internals/Initialization/StructuralEq.hs,511
+module G2.Internals.Initialization.StructuralEq G2.Internals.Initialization.StructuralEq2,3
+createStructEqFuncs createStructEqFuncs23,24
+tcaName tcaName69,70
+genExtractor genExtractor73,74
+genInsts genInsts93,94
+createStructEqFunc createStructEqFunc123,124
+createStructEqFuncDC createStructEqFuncDC167,168
+createStructEqFuncDCAlt createStructEqFuncDCAlt180,181
+boundChecks boundChecks196,197
+boundCheck boundCheck205,206
+structEqCheck structEqCheck209,210
+dictForType dictForType235,236
+
+./src/G2/Internals/Initialization/KnownValues.hs,281
+module G2.Internals.Initialization.KnownValues G2.Internals.Initialization.KnownValues2,3
+initKnownValues initKnownValues12,13
+exprWithStrName exprWithStrName56,57
+typeWithStrName typeWithStrName62,63
+dcWithStrName dcWithStrName68,69
+dcWithStrName' dcWithStrName'75,76
+
+./src/G2/Internals/Initialization/DeepSeqWalks.hs,642
+module G2.Internals.Initialization.DeepSeqWalks G2.Internals.Initialization.DeepSeqWalks4,5
+type BoundName BoundName14,15
+createDeepSeqWalks createDeepSeqWalks16,17
+createDeepSeqName createDeepSeqName23,24
+createDeepSeqStore createDeepSeqStore26,27
+createDeepSeqExpr createDeepSeqExpr40,41
+createDeepSeqCase1 createDeepSeqCase160,61
+createDeepSeqDataConCase1Alts createDeepSeqDataConCase1Alts90,91
+bindTypes bindTypes107,108
+tyForAllIds tyForAllIds115,116
+createDeepSeqDataConCase2 createDeepSeqDataConCase2119,120
+deepSeqFuncCall deepSeqFuncCall147,148
+deepSeqFunc deepSeqFunc153,154
+walkerFunc walkerFunc167,168
+
+./src/G2/Internals/Initialization/Functionalizer.hs,428
+module G2.Internals.Initialization.Functionalizer G2.Internals.Initialization.Functionalizer34,35
+functionalize functionalize45,46
+applyTypeNames applyTypeNames62,63
+mkApplyFuncAndTypes mkApplyFuncAndTypes69,70
+mkApplyFuncAndTypes' mkApplyFuncAndTypes'80,81
+mkApplyTypeMap mkApplyTypeMap119,120
+unrollNamedTyForAll unrollNamedTyForAll128,129
+traceTyMap traceTyMap133,134
+mkApplyTypeMap' mkApplyTypeMap'141,142
+
+./src/G2/Internals/Initialization/Types.hs,1563
+module G2.Internals.Initialization.Types G2.Internals.Initialization.Types3,4
+data SimpleState SimpleState19,20
+data SimpleState = SimpleState SimpleState19,20
+data SimpleState = SimpleState { expr_env expr_env19,20
+                               , type_env type_env20,21
+                               , name_gen name_gen21,22
+                               , known_values known_values22,23
+                               , type_classes type_classes23,24
+newtype SimpleStateM SimpleStateM25,26
+newtype SimpleStateM a = SimpleStateM { unSM unSM25,26
+instance SM.MonadState SM-MonadState SimpleState SimpleStateM27,28
+    state state28,29
+instance ExState ExState SimpleState SimpleStateM30,31
+    exprEnv exprEnv31,32
+    putExprEnv putExprEnv32,33
+    typeEnv typeEnv34,35
+    putTypeEnv putTypeEnv35,36
+    nameGen nameGen37,38
+    putNameGen putNameGen38,39
+    knownValues knownValues40,41
+runSimpleStateM runSimpleStateM42,43
+evalSimpleStateM evalSimpleStateM45,46
+execSimpleStateM execSimpleStateM48,49
+rep_expr_envM rep_expr_envM51,52
+rep_type_envM rep_type_envM56,57
+rep_name_genM rep_name_genM61,62
+typeClasses typeClasses66,67
+putTypeClasses putTypeClasses69,70
+putKnownValues putKnownValues74,75
+instance ASTContainer ASTContainer SimpleState Expr79,80
+    containedASTs containedASTs80,81
+    modifyContainedASTs modifyContainedASTs81,82
+instance ASTContainer ASTContainer SimpleState Type83,84
+    containedASTs containedASTs84,85
+    modifyContainedASTs modifyContainedASTs85,86
+
+./src/G2/Internals/Initialization/InitVarLocs.hs,188
+module G2.Internals.Initialization.InitVarLocs G2.Internals.Initialization.InitVarLocs2,3
+initVarLocs initVarLocs6,7
+initVarLocs' initVarLocs'9,10
+adjustSpanLoc adjustSpanLoc20,21
+
+./src/G2/Internals/Initialization/ElimTicks.hs,141
+module G2.Internals.Initialization.ElimTicks G2.Internals.Initialization.ElimTicks2,3
+elimTicks elimTicks6,7
+elimTicks' elimTicks'9,10
+
+./src/G2/Internals/Initialization/MkCurrExpr.hs,611
+module G2.Internals.Initialization.MkCurrExpr G2.Internals.Initialization.MkCurrExpr2,3
+mkCurrExpr mkCurrExpr14,15
+mkInputs mkInputs47,48
+mkAssumeAssert mkAssumeAssert60,61
+retsTrue retsTrue72,73
+findFunc findFunc75,76
+data TypeBT TypeBT94,95
+data TypeBT = B B94,95
+data TypeBT = B Id | T T94,95
+instantiateArgTypes instantiateArgTypes96,97
+instantitateTypes instantitateTypes103,104
+pickForTyVar pickForTyVar128,129
+reAddNoCons reAddNoCons134,135
+argTys argTys141,142
+typeTBId typeTBId146,147
+typeTBType typeTBType150,151
+typeB typeB154,155
+checkReaches checkReaches158,159
+
+./src/G2/Internals/Translation.hs,61
+module G2.Internals.TranslationG2.Internals.Translation2,3
+
+./src/G2/Internals/Solver.hs,51
+module G2.Internals.SolverG2.Internals.Solver2,3
+
+./src/Main.hs,594
+module Main Main2,3
+main main25,26
+doTimeout doTimeout49,50
+runMultiLHFile runMultiLHFile58,59
+runSingleLHFile runSingleLHFile65,66
+runSingleLHFun runSingleLHFun72,73
+runGHC runGHC79,80
+printFuncCalls printFuncCalls141,142
+ppStatePiece ppStatePiece159,160
+mReturnsTrue mReturnsTrue168,169
+mAssume mAssume171,172
+mAssert mAssert174,175
+mReaches mReaches177,178
+mkLiquid mkLiquid180,181
+mkLiquidFunc mkLiquidFunc183,184
+mkMapSrc mkMapSrc186,187
+mkLiquidLibs mkLiquidLibs189,190
+mkLiquidFileTest mkLiquidFileTest192,193
+mkLiquidDirTest mkLiquidDirTest195,196
+
+./Setup.hs,15
+main main1,2

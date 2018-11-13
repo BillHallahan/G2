@@ -9,9 +9,7 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
+[0mG2: ERROR OCCURRED IN LIQUIDHASKELL
 /home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T04.32.38.lhs:91:15: Error: Illegal type specification for `List.length`
     List.length :: v:(List a) -> {v : Int | v >= 0
                                             && v == size v}
@@ -23,6 +21,7 @@ Cannot unify (List.List @(42)) with int in expression: size v
 CallStack (from HasCallStack):
   error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
+2.1746411323547363
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

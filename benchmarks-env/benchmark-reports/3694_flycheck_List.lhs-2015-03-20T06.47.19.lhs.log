@@ -11,13 +11,18 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mfoldr divInt 0 (0 :+: Emp) = error
 makes a call to
-foldr divInt 0 Emp = 0
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) divInt 0 Emp = 0
+violating foldr's refinement type
+Concrete
+
+foldr divInt 1 (0 :+: Emp) = 0
+makes a call to
+foldr (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) divInt 1 Emp = 1
 violating foldr's refinement type
 Concrete
 
 
-ERROR:
-
+5.739642381668091
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

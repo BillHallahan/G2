@@ -45,27 +45,8 @@ zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
-prop_zipWith (0 :+: (0 :+: Emp)) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
 
-prop_zipWith (0 :+: Emp) = error
-makes a call to
-die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (0 :+: Emp) (0 :+: Emp) = 0 :+: (0 :+: Emp)
-Strengthen the refinement type of zipWith to eliminate this possibility
-Abstract
-
-
-ERROR:
-
+7.262236833572388
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

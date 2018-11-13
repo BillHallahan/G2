@@ -9,9 +9,14 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
+[0mprop_size = True
+makes a call to
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (3 :+: (2 :+: (1 :+: Emp))) = 3
+violating length's refinement type
+Concrete
 
+
+4.905554294586182
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

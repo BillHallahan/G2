@@ -9,84 +9,68 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mThe call
-concat2 Emp Emp = Emp
-violates concat2's refinement type
+[0mconcat2 Emp Emp = Emp
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp Emp = Emp
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 (0 :+: Emp) Emp = 0 :+: Emp
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) Emp = 0 :+: Emp
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 Emp (0 :+: Emp) = 0 :+: Emp
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp (0 :+: Emp) = 0 :+: Emp
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 (0 :+: (0 :+: Emp)) Emp = 0 :+: (0 :+: Emp)
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) Emp = 0 :+: (0 :+: Emp)
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 Emp (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 Emp (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+violating concat2's refinement type
 Concrete
 
-The call
 concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-violates concat2's refinement type
-Concrete
-
-The call
-concat2 Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-violates concat2's refinement type
+makes a call to
+concat2 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+violating concat2's refinement type
 Concrete
 
 
-ERROR:
-
+6.223452091217041
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

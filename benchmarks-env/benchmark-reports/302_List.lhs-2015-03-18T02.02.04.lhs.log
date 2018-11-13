@@ -16,8 +16,6 @@ violating fixme's refinement type
 Concrete
 
 
-ERROR:
-
 liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T02.02.04.lhs:55:32: warning: [-Wtabs]
     Tab character found here, and in four further locations.
     Please use spaces instead.
@@ -26,6 +24,7 @@ liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T02.02.04.lhs:55:32: warning:
     Tab character found here, and in four further locations.
     Please use spaces instead.
 
+4.769138813018799
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

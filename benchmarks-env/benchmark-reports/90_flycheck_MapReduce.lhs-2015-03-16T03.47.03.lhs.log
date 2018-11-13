@@ -9,10 +9,85 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mTimeout!
+[0mmapReduce undefined undefined (0 :+: Emp) = error
+makes a call to
+collapse (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (fromList ([(0, Emp)])) = fromList (map (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt))) (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) \ds1 -> 
+   case ds1 of
+      (,) k1 v -> (k1, f v) ([(0, Emp)]))
+violating collapse's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
 
-ERROR:
+mapReduce undefined undefined (0 :+: (0 :+: Emp)) = error
+makes a call to
+collapse (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (fromList ([(0, Emp)])) = fromList (map (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt))) (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) \ds1 -> 
+   case ds1 of
+      (,) k1 v -> (k1, f v) ([(0, Emp)]))
+violating collapse's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
 
+mapReduce undefined undefined (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+collapse (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (fromList ([(0, Emp)])) = fromList (map (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt))) (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) \ds1 -> 
+   case ds1 of
+      (,) k1 v -> (k1, f v) ([(0, Emp)]))
+violating collapse's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
+
+mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
+makes a call to
+collapse (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (fromList ([(0, Emp)])) = fromList (map (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt))) (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) \ds1 -> 
+   case ds1 of
+      (,) k1 v -> (k1, f v) ([(0, Emp)]))
+violating collapse's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
+
+mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
+makes a call to
+collapse (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (fromList ([(0, Emp)])) = fromList (map (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt))) (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) \ds1 -> 
+   case ds1 of
+      (,) k1 v -> (k1, f v) ([(0, Emp)]))
+violating collapse's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
+
+mapReduce undefined undefined (0 :+: Emp) = error
+makes a call to
+collapse (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (fromList ([(0, 0 :+: Emp), (0, Emp)])) = fromList (map (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt))) (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) \ds1 -> 
+   case ds1 of
+      (,) k1 v -> (k1, f v) ([(0, 0 :+: Emp), (0, Emp)]))
+violating collapse's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, 0 :+: Emp), (0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
+
+mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
+makes a call to
+collapse (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (fromList ([(0, Emp)])) = fromList (map (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lhList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt))) (lh(,) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt)) \ds1 -> 
+   case ds1 of
+      (,) k1 v -> (k1, f v) ([(0, Emp)]))
+violating collapse's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
+
+
+13.007863759994507
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

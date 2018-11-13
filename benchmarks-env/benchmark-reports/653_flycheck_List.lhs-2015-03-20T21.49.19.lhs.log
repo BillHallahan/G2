@@ -12,13 +12,12 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mempty = error
 makes a call to
-fixme fs? = error
+fixme fs? fs? = error
 violating fixme's refinement type
 Concrete
 
 
-ERROR:
-
+4.51873254776001
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

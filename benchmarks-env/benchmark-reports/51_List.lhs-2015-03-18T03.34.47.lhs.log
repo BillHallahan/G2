@@ -11,42 +11,31 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mprop_map undefined Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length fs? = 1
+length (lh lhEqInteger lhNeInteger lhLtInteger lhLeInteger lhGtInteger lhGeInteger lhPPInteger) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 1
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 prop_map undefined Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length Emp = 1
+length (lh lhEqInteger lhNeInteger lhLtInteger lhLeInteger lhGtInteger lhGeInteger lhPPInteger) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 1
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 prop_map undefined (0 :+: Emp) = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length fs? = 2
+length (lh lhEqInteger lhNeInteger lhLtInteger lhLeInteger lhGtInteger lhGeInteger lhPPInteger) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 2
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
-prop_map undefined (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-length fs? = 3
-Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-
-ERROR:
 
 liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T03.34.47.lhs:55:32: warning: [-Wtabs]
     Tab character found here, and in 21 further locations.
@@ -56,6 +45,7 @@ liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T03.34.47.lhs:55:32: warning:
     Tab character found here, and in 21 further locations.
     Please use spaces instead.
 
+5.706315279006958
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

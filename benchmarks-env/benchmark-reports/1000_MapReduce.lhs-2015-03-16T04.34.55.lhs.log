@@ -9,10 +9,44 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mTimeout!
+[0mmapReduce undefined undefined (0 :+: Emp) = fromList []
+makes a call to
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
+violating group's refinement type
+when
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: Emp) = Emp
+Strengthen the refinement type of expand to eliminate this possibility
+Abstract
 
-ERROR:
+mapReduce undefined undefined (0 :+: (0 :+: Emp)) = fromList []
+makes a call to
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
+violating group's refinement type
+when
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: Emp)) = Emp
+Strengthen the refinement type of expand to eliminate this possibility
+Abstract
 
+mapReduce undefined undefined (0 :+: (0 :+: (0 :+: Emp))) = fromList []
+makes a call to
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
+violating group's refinement type
+when
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: (0 :+: Emp))) = Emp
+Strengthen the refinement type of expand to eliminate this possibility
+Abstract
+
+mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = fromList []
+makes a call to
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
+violating group's refinement type
+when
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+Strengthen the refinement type of expand to eliminate this possibility
+Abstract
+
+
+10.882813453674316
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

@@ -10,8 +10,6 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
 [0m
-ERROR:
-
 liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T08.03.27.lhs:236:1: warning: [-Woverlapping-patterns]
     Pattern match is redundant
     In an equation for ‘sample’: sample f (Emp) = ...
@@ -35,6 +33,7 @@ G2: ERROR OCCURRED IN LIQUIDHASKELL
 CallStack (from HasCallStack):
   error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
+2.1972928047180176
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

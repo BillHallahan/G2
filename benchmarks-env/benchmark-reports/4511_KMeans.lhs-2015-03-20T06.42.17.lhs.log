@@ -9,8 +9,7 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
+[0mTimeout!
 
 liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.42.17.lhs:95:1: warning: [-Wtabs]
     Tab character found here.
@@ -19,13 +18,8 @@ liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.42.17.lhs:95:1: warning
 liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.42.17.lhs:95:1: warning: [-Wtabs]
     Tab character found here.
     Please use spaces instead.
-G2: ERROR OCCURRED IN LIQUIDHASKELL
-liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
-    Not in scope: type constructor or class
- matchTyCon ` ListNE '
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
+120.57525253295898
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

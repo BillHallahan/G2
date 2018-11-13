@@ -9,15 +9,15 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
-liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
-    Not in scope: type constructor or class
- matchTyCon ` ListNE '
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+[0mG2: appTypeOf
+TyCon (Name "Int" (Just "GHC.Types") 8214565720323803191 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE
+[App (App (Var (Id (Name "lhList" (Just "List") 0 Nothing) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 6989586621679083231 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/List.lhs"}}))) TYPE)) (TyFun (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679083231 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/List.lhs"}}))) TYPE))) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) TYPE) (TyApp (TyCon (Name "List" (Just "List") 8214565720323851607 (Just (Span {start = Loc {line = 54, col = 1, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 56, col = 39, file = "./liquidhaskell-study/wi15/List.lhs"}}))) TYPE) (TyVar (Id (Name "a" Nothing 6989586621679083231 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/List.lhs"}}))) TYPE)))))))) (Type (TyCon (Name "Double" (Just "GHC.Types") 8214565720323803195 (Just (Span {start = Loc {line = 23, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 23, col = 25, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE))) (Var (Id (Name "lhDouble" (Just "GHC.Types") 0 Nothing) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) TYPE) (TyCon (Name "Double" (Just "GHC.Types") 8214565720323803195 (Just (Span {start = Loc {line = 23, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 23, col = 25, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))),Var (Id (Name "VV" (Just "") 0 Nothing) (TyApp (TyApp (TyCon (Name "(,)" (Just "GHC.Tuple") 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323803191 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)) (TyApp (TyCon (Name "List" (Just "List") 8214565720323851607 (Just (Span {start = Loc {line = 54, col = 1, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 56, col = 39, file = "./liquidhaskell-study/wi15/List.lhs"}}))) (TyFun TYPE TYPE)) (TyCon (Name "Double" (Just "GHC.Types") 8214565720323803195 (Just (Span {start = Loc {line = 23, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 23, col = 25, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE))))]
 
+
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Language/Typing.hs:198:20 in main:G2.Internals.Language.Typing
+
+3.620338201522827
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

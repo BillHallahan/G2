@@ -9,14 +9,13 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mThe call
-foldr1 undefined Emp = error
-violates foldr1's refinement type
+[0mfoldr1 undefined Emp = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = error
+violating foldr1's refinement type
 Concrete
 
 
-ERROR:
-
 liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T23.23.14.lhs:143:1: warning: [-Woverlapping-patterns]
     Pattern match is redundant
     In an equation for ‘replicate’: replicate 0 _ = ...
@@ -25,6 +24,7 @@ liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T23.23.14.lhs:143:1:
     Pattern match is redundant
     In an equation for ‘replicate’: replicate 0 _ = ...
 
+7.748906135559082
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

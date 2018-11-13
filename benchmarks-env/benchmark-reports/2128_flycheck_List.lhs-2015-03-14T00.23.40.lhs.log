@@ -9,60 +9,50 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mThe call
-concatHelper Emp Emp = Emp
-violates concatHelper's refinement type
+[0mconcatHelper Emp Emp = Emp
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp Emp = Emp
+violating concatHelper's refinement type
 Concrete
 
-The call
 concatHelper (0 :+: (0 :+: Emp)) Emp = 0 :+: (0 :+: Emp)
-violates concatHelper's refinement type
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) Emp = 0 :+: (0 :+: Emp)
+violating concatHelper's refinement type
 Concrete
 
-The call
 concatHelper (0 :+: (0 :+: (0 :+: Emp))) Emp = 0 :+: (0 :+: (0 :+: Emp))
-violates concatHelper's refinement type
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) Emp = 0 :+: (0 :+: (0 :+: Emp))
+violating concatHelper's refinement type
 Concrete
 
-The call
 concatHelper (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates concatHelper's refinement type
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating concatHelper's refinement type
 Concrete
 
-The call
 concatHelper (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates concatHelper's refinement type
-Concrete
-
-The call
-concatHelper (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
-violates concatHelper's refinement type
-Concrete
-
-The call
-concatHelper (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))
-violates concatHelper's refinement type
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+violating concatHelper's refinement type
 Concrete
 
 concatHelper Emp (Emp :+: Emp) = Emp
 makes a call to
-concatHelper Emp Emp = Emp
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp Emp = Emp
 violating concatHelper's refinement type
 Concrete
 
-The call
-concatHelper Emp ((0 :+: Emp) :+: Emp) = 0 :+: Emp
-violates concatHelper's refinement type
-Concrete
-
-The call
-concatHelper (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))
-violates concatHelper's refinement type
+concatHelper (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+violating concatHelper's refinement type
 Concrete
 
 
-ERROR:
-
+6.057820558547974
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

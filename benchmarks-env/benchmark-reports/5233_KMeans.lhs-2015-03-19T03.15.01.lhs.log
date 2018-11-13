@@ -9,19 +9,13 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mdistance 0 Emp (undefined :+: Emp) = error
-makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
-violating zipWith's refinement type
-Concrete
-
-distance 0 ((0.0) :+: Emp) Emp = error
+[0mdistance 0 ((0.0) :+: Emp) Emp = error
 makes a call to
 zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? ((0.0) :+: Emp) Emp = error
 violating zipWith's refinement type
 Concrete
 
-distance 0 ((0.0) :+: Emp) ((0.0) :+: (undefined :+: Emp)) = error
+distance 0 Emp (undefined :+: Emp) = error
 makes a call to
 zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
 violating zipWith's refinement type
@@ -33,7 +27,7 @@ zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lh
 violating zipWith's refinement type
 Concrete
 
-distance 0 ((0.0) :+: ((0.0) :+: Emp)) ((0.0) :+: ((0.0) :+: (undefined :+: Emp))) = error
+distance 0 ((0.0) :+: Emp) ((0.0) :+: (undefined :+: Emp)) = error
 makes a call to
 zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
 violating zipWith's refinement type
@@ -45,7 +39,7 @@ zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lh
 violating zipWith's refinement type
 Concrete
 
-distance 0 ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) ((0.0) :+: ((0.0) :+: ((0.0) :+: (undefined :+: Emp)))) = error
+distance 0 ((0.0) :+: ((0.0) :+: Emp)) ((0.0) :+: ((0.0) :+: (undefined :+: Emp))) = error
 makes a call to
 zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
 violating zipWith's refinement type
@@ -57,21 +51,14 @@ zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lh
 violating zipWith's refinement type
 Concrete
 
-distance 0 ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: (undefined :+: Emp))))) = error
+distance 0 ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) ((0.0) :+: ((0.0) :+: ((0.0) :+: (undefined :+: Emp)))) = error
 makes a call to
 zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? Emp (undefined :+: Emp) = error
 violating zipWith's refinement type
 Concrete
 
-distance 0 ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) = error
-makes a call to
-zipWith (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) (lh lhEqDouble lhNeDouble lhLtDouble lhLeDouble lhGtDouble lhGeDouble lhPPDouble) fs? ((0.0) :+: Emp) Emp = error
-violating zipWith's refinement type
-Concrete
 
-
-ERROR:
-
+6.464217662811279
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

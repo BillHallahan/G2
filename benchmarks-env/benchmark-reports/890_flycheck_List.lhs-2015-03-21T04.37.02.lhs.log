@@ -9,9 +9,7 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
+[0mG2: ERROR OCCURRED IN LIQUIDHASKELL
 /home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-21T04.37.02.lhs:245:13-18: Error: Multiple specifications for `llsize` :
     Conflicting definitions at
      
@@ -19,6 +17,7 @@ G2: ERROR OCCURRED IN LIQUIDHASKELL
 CallStack (from HasCallStack):
   error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
 
+2.0753138065338135
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

@@ -4,10 +4,9 @@ List.lhs-2015-03-16T04.31.24.lhs
 |
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T04.31.24.lhs:224:36-45: Error: Liquid Type Mismatch', ' 224 | \t| otherwise\t\t= (listHead l) :+: concat ((listTail l) :+: ls)']
 
-
-ERROR:
 /bin/sh: 1: Syntax error: end of file unexpected
 
+0.002116680145263672
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

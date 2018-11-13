@@ -11,70 +11,60 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mmapReduce undefined undefined (0 :+: Emp) = fromList []
 makes a call to
-group Emp = fromList []
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
 violating group's refinement type
 when
-expand undefined (0 :+: Emp) = Emp
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: Emp) = Emp
 Strengthen the refinement type of expand to eliminate this possibility
 Abstract
 
 mapReduce undefined undefined (0 :+: (0 :+: Emp)) = fromList []
 makes a call to
-group Emp = fromList []
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
 violating group's refinement type
 when
-expand undefined (0 :+: (0 :+: Emp)) = Emp
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: Emp)) = Emp
 Strengthen the refinement type of expand to eliminate this possibility
 Abstract
 
 mapReduce undefined undefined (0 :+: (0 :+: (0 :+: Emp))) = fromList []
 makes a call to
-group Emp = fromList []
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
 violating group's refinement type
 when
-expand undefined (0 :+: (0 :+: (0 :+: Emp))) = Emp
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: (0 :+: Emp))) = Emp
 Strengthen the refinement type of expand to eliminate this possibility
 Abstract
 
 mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = fromList []
 makes a call to
-group Emp = fromList []
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
 violating group's refinement type
 when
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = Emp
 Strengthen the refinement type of expand to eliminate this possibility
 Abstract
 
 mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = fromList []
 makes a call to
-group Emp = fromList []
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
 violating group's refinement type
 when
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = Emp
 Strengthen the refinement type of expand to eliminate this possibility
 Abstract
 
 mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = fromList []
 makes a call to
-group Emp = fromList []
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = fromList []
 violating group's refinement type
 when
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
-Strengthen the refinement type of expand to eliminate this possibility
-Abstract
-
-mapReduce undefined undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = fromList []
-makes a call to
-group Emp = fromList []
-violating group's refinement type
-when
-expand undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = Emp
+expand (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = Emp
 Strengthen the refinement type of expand to eliminate this possibility
 Abstract
 
 
-ERROR:
-
+7.49254298210144
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

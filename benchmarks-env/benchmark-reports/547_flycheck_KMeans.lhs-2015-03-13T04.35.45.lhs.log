@@ -9,15 +9,117 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
-liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
-    Not in scope: type constructor or class
- matchTyCon ` ListNE '
-CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+[0mThe call
+nearest 0 0 (fromList []) Emp = 0
+violates nearest's refinement type
+Concrete
 
+The call
+nearest 0 1 (fromList []) ((0.0) :+: Emp) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 0 (fromList []) Emp = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 2 (fromList []) ((0.0) :+: ((0.0) :+: Emp)) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 1 (fromList []) ((0.0) :+: Emp) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 3 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 2 (fromList []) ((0.0) :+: ((0.0) :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 4 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 3 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 5 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 4 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 6 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 5 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 7 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 6 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 8 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 7 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 9 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))))) = 0
+violates nearest's refinement type
+Concrete
+
+nearest 1 8 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+The call
+nearest 0 10 (fromList []) ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))))) = 0
+violates nearest's refinement type
+Concrete
+
+
+12.70073676109314
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

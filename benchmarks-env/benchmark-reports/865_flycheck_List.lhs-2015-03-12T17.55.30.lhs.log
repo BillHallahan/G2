@@ -9,20 +9,20 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mThe call
-length Emp = 0
-violates length's refinement type
+[0mlength Emp = 0
+makes a call to
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0
+violating length's refinement type
 Concrete
 
 length (0 :+: Emp) = 1
 makes a call to
-length Emp = 0
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0
 violating length's refinement type
 Concrete
 
 
-ERROR:
-
+4.555658578872681
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

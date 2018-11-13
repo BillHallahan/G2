@@ -11,31 +11,30 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mcollapse undefined (fromList ([(0, Emp)])) = error
 makes a call to
-foldr1 undefined Emp = error
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = error
 violating foldr1's refinement type
 Concrete
 
 collapse undefined (fromList ([(0, 0 :+: Emp), (0, Emp)])) = error
 makes a call to
-foldr1 undefined Emp = error
-violating foldr1's refinement type
-Concrete
-
-collapse undefined (fromList ([(0, 0 :+: Emp), (0, 0 :+: Emp), (0, Emp)])) = error
-makes a call to
-foldr1 undefined Emp = error
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = error
 violating foldr1's refinement type
 Concrete
 
 collapse const (fromList ([(0, 0 :+: (0 :+: Emp)), (0, Emp)])) = error
 makes a call to
-foldr1 const Emp = error
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) const Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse const (fromList ([(0, 0 :+: (0 :+: (0 :+: Emp))), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) const Emp = error
 violating foldr1's refinement type
 Concrete
 
 
-ERROR:
-
+7.347170352935791
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

@@ -9,9 +9,727 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mTimeout!
+[0mconcat Emp = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
 
-ERROR:
+concat ((0 :+: Emp) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat Emp = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0 :+: Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 0 :+: Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: Emp) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: Emp) = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat Emp = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0 :+: (0 :+: Emp)
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: Emp) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: Emp) = 0 :+: Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 0 :+: Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat Emp = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0 :+: Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = 0 :+: Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat Emp = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0 :+: (0 :+: Emp)
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: Emp)) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: Emp)) = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList fs? fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: Emp) = 0 :+: (0 :+: Emp)
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat Emp = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0 :+: (0 :+: (0 :+: Emp))
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: Emp)) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: Emp)) = 0 :+: Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 0 :+: Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: Emp) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: Emp) = 0 :+: Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = 0 :+: Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList fs? fs? = Emp :+: Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: Emp) = 0 :+: (0 :+: Emp)
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: (Emp :+: Emp))) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: Emp))) = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList fs? fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = 0 :+: (0 :+: Emp)
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = 0 :+: Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 0 :+: Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat Emp = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0 :+: (0 :+: (0 :+: Emp))
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+when
+reverseList fs? fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+when
+reverseList fs? fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: Emp)) = 0 :+: (0 :+: Emp)
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat Emp = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 0 :+: (0 :+: Emp)
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = 0 :+: (0 :+: Emp)
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList fs? fs? = Emp :+: (Emp :+: Emp)
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = 0 :+: Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat (Emp :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+violating concat's refinement type
+when
+concatRec (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? fs? = Emp
+Strengthen the refinement type of concatRec to eliminate this possibility
+Abstract
+
+concat (Emp :+: (Emp :+: (Emp :+: Emp))) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: Emp))) = 0 :+: Emp
+violating concat's refinement type
+when
+reverseList (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = 0 :+: Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+violating concat's refinement type
+when
+reverseList fs? fs? = Emp :+: Emp
+Strengthen the refinement type of reverseList to eliminate this possibility
+Abstract
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: Emp) = Emp
+violating concat's refinement type
+when
+$ BAD 2 fs? fs? fs? fs? = Emp
+Strengthen the refinement type of $ to eliminate this possibility
+Abstract
+
+Timeout!
 
 liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T18.10.36.lhs:57:32: warning: [-Wtabs]
     Tab character found here, and in 21 further locations.
@@ -21,6 +739,7 @@ liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T18.10.36.lhs:57:32: warning:
     Tab character found here, and in 21 further locations.
     Please use spaces instead.
 
+120.70537662506104
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

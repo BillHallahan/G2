@@ -11,43 +11,69 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mmapReduce undefined undefined Emp = error
 makes a call to
-foldr1 undefined Emp = error
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = error
 violating foldr1's refinement type
 when
-group kvs = fromList ([(0, Emp)])
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, Emp)])
 Strengthen the refinement type of group to eliminate this possibility
 Abstract
 
 mapReduce undefined undefined Emp = error
 makes a call to
-foldr1 undefined Emp = error
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = error
 violating foldr1's refinement type
 when
-group kvs = fromList ([(0, 0 :+: Emp), (0, Emp)])
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, 0 :+: Emp), (0, Emp)])
 Strengthen the refinement type of group to eliminate this possibility
 Abstract
 
-mapReduce undefined undefined Emp = error
+mapReduce undefined const Emp = error
 makes a call to
-foldr1 undefined Emp = error
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) const Emp = error
 violating foldr1's refinement type
 when
-group kvs = fromList ([(0, 0 :+: Emp), (0, 0 :+: Emp), (0, Emp)])
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, 0 :+: (0 :+: Emp)), (0, Emp)])
 Strengthen the refinement type of group to eliminate this possibility
 Abstract
 
-mapReduce undefined timesInt Emp = error
+mapReduce undefined divInt Emp = error
 makes a call to
-foldr1 timesInt Emp = error
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) divInt Emp = error
 violating foldr1's refinement type
 when
-group kvs = fromList ([(0, 1 :+: (0 :+: Emp)), (0, Emp)])
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, 0 :+: (0 :+: Emp)), (0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
+
+mapReduce undefined divInt Emp = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) divInt Emp = error
+violating foldr1's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, 1 :+: (0 :+: Emp)), (0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
+
+mapReduce undefined const Emp = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) const Emp = error
+violating foldr1's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, 0 :+: (0 :+: (0 :+: Emp))), (0, Emp)])
+Strengthen the refinement type of group to eliminate this possibility
+Abstract
+
+mapReduce undefined const Emp = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) const Emp = error
+violating foldr1's refinement type
+when
+group (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) kvs = fromList ([(0, 0 :+: (0 :+: (0 :+: (0 :+: Emp)))), (0, Emp)])
 Strengthen the refinement type of group to eliminate this possibility
 Abstract
 
 
-ERROR:
-
+8.773137331008911
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

@@ -21,15 +21,8 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: Emp)) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
 
-
-ERROR:
-
+4.745007753372192
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

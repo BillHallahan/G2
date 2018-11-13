@@ -9,228 +9,168 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mThe call
-addl (0 :+: Emp) Emp = Emp
-violates addl's refinement type
+[0maddl (0 :+: Emp) Emp = Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
 addl (0 :+: (0 :+: Emp)) Emp = Emp
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
 addl (0 :+: (0 :+: (0 :+: Emp))) Emp = Emp
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
+addl (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: Emp) = 0 :+: Emp
+violating addl's refinement type
 Concrete
 
-The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = Emp
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
+addl (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: Emp) = 0 :+: Emp
+violating addl's refinement type
 Concrete
 
-The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = Emp
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: Emp) = 0 :+: Emp
+violating addl's refinement type
 Concrete
 
-The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = Emp
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
 addl (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) Emp = Emp
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: Emp) = 0 :+: Emp
+violating addl's refinement type
 Concrete
 
-The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) Emp = Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) Emp = Emp
+violating addl's refinement type
+Concrete
+
 addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: Emp) = 0 :+: Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))) Emp = Emp
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) Emp = Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
 addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates addl's refinement type
-Concrete
-
-The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: Emp) = 0 :+: Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
+addl (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: Emp) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) Emp = Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
+addl (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating addl's refinement type
+Concrete
+
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: Emp) = 0 :+: Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
-violates addl's refinement type
+addl (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) Emp = Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
+violating addl's refinement type
 Concrete
 
-The call
 addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: Emp) = 0 :+: Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) (0 :+: (0 :+: (0 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
-violates addl's refinement type
+addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) Emp = Emp
+makes a call to
+addl (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) Emp = Emp
+violating addl's refinement type
 Concrete
 
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))) (0 :+: (0 :+: Emp)) = 0 :+: (0 :+: Emp)
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))) (0 :+: Emp) = 0 :+: Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))))))))) Emp = Emp
-violates addl's refinement type
-Concrete
-
-The call
-addl (0 :+: Emp) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
-violates addl's refinement type
-Concrete
-
-
-ERROR:
 
 liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T03.51.18.lhs:219:1: warning: [-Woverlapping-patterns]
     Pattern match is redundant
@@ -240,6 +180,7 @@ liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T03.51.18.lhs:219:1: warning:
     Pattern match is redundant
     In an equation for ‘addl’: addl (x :+: xs) ys = ...
 
+8.381078004837036
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

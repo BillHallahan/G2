@@ -16,8 +16,6 @@ violating fixme's refinement type
 Concrete
 
 
-ERROR:
-
 liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T05.11.12.lhs:143:1: warning: [-Woverlapping-patterns]
     Pattern match is redundant
     In an equation for ‘replicate’: replicate 0 _ = ...
@@ -26,6 +24,7 @@ liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T05.11.12.lhs:143:1: warning:
     Pattern match is redundant
     In an equation for ‘replicate’: replicate 0 _ = ...
 
+4.755053281784058
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

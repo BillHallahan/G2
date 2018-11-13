@@ -11,8 +11,6 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mTimeout!
 
-ERROR:
-
 liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T17.11.34.lhs:147:1: warning: [-Wtabs]
     Tab character found here, and in one further location.
     Please use spaces instead.
@@ -21,6 +19,7 @@ liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T17.11.34.lhs:147:1:
     Tab character found here, and in one further location.
     Please use spaces instead.
 
+120.61369466781616
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

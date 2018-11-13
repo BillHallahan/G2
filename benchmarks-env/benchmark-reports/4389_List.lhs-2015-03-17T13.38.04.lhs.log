@@ -57,13 +57,13 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))) = error
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))) = error
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -75,13 +75,13 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))) = error
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))) = error
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -105,12 +105,6 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
 concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))) = error
 makes a call to
 patError = undefined
@@ -129,6 +123,12 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
 concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))) = error
 makes a call to
 patError = undefined
@@ -141,13 +141,13 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))) = error
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))) = error
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -160,6 +160,12 @@ violating patError's refinement type
 Concrete
 
 concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -183,12 +189,6 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
 concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))) = error
 makes a call to
 patError = undefined
@@ -207,13 +207,7 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
+concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -225,13 +219,13 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -243,25 +237,7 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -273,7 +249,25 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
 concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -291,6 +285,36 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
 concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
 makes a call to
 patError = undefined
@@ -303,31 +327,13 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
 concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -340,18 +346,6 @@ violating patError's refinement type
 Concrete
 
 concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -375,6 +369,12 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
+concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
 concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp))))) = error
 makes a call to
 patError = undefined
@@ -387,156 +387,8 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
 
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: (Emp :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((undefined :+: Emp) :+: (Emp :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((undefined :+: Emp) :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: (Emp :+: ((undefined :+: Emp) :+: Emp)))))) = error
-makes a call to
-Timeout!
-
-ERROR:
-
+13.80177927017212
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

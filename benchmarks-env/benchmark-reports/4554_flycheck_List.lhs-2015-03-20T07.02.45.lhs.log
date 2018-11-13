@@ -11,61 +11,51 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [0m[1;90m 
 [0mprop_zipWith Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length Emp = 1
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 1
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 prop_zipWith Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length Emp = 1
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 1
 Strengthen the refinement type of length to eliminate this possibility
-Abstract
-
-prop_zipWith (0 :+: Emp) = error
-makes a call to
-die ("Assert Fails!") = error
-violating die's refinement type
-when
-zipWith fs? (0 :+: Emp) (0 :+: Emp) = Emp
-Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
 prop_zipWith Emp = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-zipWith fs? Emp Emp = 0 :+: Emp
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? Emp Emp = 0 :+: Emp
 Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
 prop_zipWith (0 :+: Emp) = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length ((fs? 0 0) :+: (zipWith fs? Emp Emp)) = 2
-Strengthen the refinement type of length to eliminate this possibility
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (0 :+: Emp) (0 :+: Emp) = Emp
+Strengthen the refinement type of zipWith to eliminate this possibility
 Abstract
 
 prop_zipWith (0 :+: Emp) = error
 makes a call to
-die ("Assert Fails!") = error
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
 violating die's refinement type
 when
-length (0 :+: Emp) = 2
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((fs? 0 0) :+: (zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? Emp Emp)) = 2
 Strengthen the refinement type of length to eliminate this possibility
 Abstract
 
 
-ERROR:
-
+7.595617055892944
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

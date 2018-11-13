@@ -9,15 +9,11 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0m
-ERROR:
-G2: ERROR OCCURRED IN LIQUIDHASKELL
-liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
-    Not in scope: type constructor or class
- matchTyCon ` ListNE '
+[0mG2: Unrecognized Data (DataCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 3530822107858468866 Nothing) TYPE)) (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 3530822107858468866 Nothing) TYPE))))) with args [Type (TyApp (TyApp (TyCon (Name "$" (Just "GHC.Tuple") 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323803224 Nothing) TYPE)) (TyCon (Name "Double" (Just "GHC.Types") 8214565720323803228 Nothing) TYPE))] in funcToSMT
 CallStack (from HasCallStack):
-  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+  error, called at src/G2/Internals/Solver/Converters.hs:360:17 in main:G2.Internals.Solver.Converters
 
+6.292664051055908
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

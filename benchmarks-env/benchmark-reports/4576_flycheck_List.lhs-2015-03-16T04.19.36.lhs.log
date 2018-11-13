@@ -9,19 +9,25 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mconcat (Emp :+: Emp) = error
+[0mconcat Emp = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
-concat Emp = error
+concat (Emp :+: Emp) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
 concat ((0 :+: Emp) :+: Emp) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: Emp)) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -39,19 +45,19 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: Emp)) = error
+concat ((0 :+: Emp) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: Emp))) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
 concat ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: (Emp :+: Emp)) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
@@ -69,111 +75,14 @@ patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
 concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = error
 makes a call to
 patError = undefined
 violating patError's refinement type
 Concrete
 
-concat (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
 
-concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: Emp)) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp))) = error
-makes a call to
-patError = undefined
-violating patError's refinement type
-Concrete
-
-
-ERROR:
-
+6.083413362503052
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

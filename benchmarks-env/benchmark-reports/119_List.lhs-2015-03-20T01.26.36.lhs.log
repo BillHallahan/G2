@@ -9,99 +9,80 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mzipWith undefined (0 :+: Emp) Emp = error
+[0mzipWith undefined Emp (0 :+: Emp) = error
 makes a call to
-die fs? = error
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
-zipWith undefined Emp (0 :+: Emp) = error
+zipWith undefined (0 :+: Emp) Emp = error
 makes a call to
-die fs? = error
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
 zipWith undefined Emp (0 :+: (0 :+: Emp)) = error
 makes a call to
-die fs? = error
-violating die's refinement type
-Concrete
-
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: Emp))) = error
-makes a call to
-die fs? = error
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
 zipWith undefined (0 :+: (0 :+: Emp)) Emp = error
 makes a call to
-die fs? = error
+die fs? fs? = error
+violating die's refinement type
+Concrete
+
+zipWith undefined Emp (0 :+: (0 :+: (0 :+: Emp))) = error
+makes a call to
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
 zipWith undefined (0 :+: (0 :+: (0 :+: Emp))) Emp = error
 makes a call to
-die fs? = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = error
-makes a call to
-die fs? = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = error
-makes a call to
-die fs? = error
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
 zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) = error
 makes a call to
-die fs? = error
+die fs? fs? = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = error
+makes a call to
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
 zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) = error
 makes a call to
-die fs? = error
+die fs? fs? = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = error
+makes a call to
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
 zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) = error
 makes a call to
-die fs? = error
-violating die's refinement type
-Concrete
-
-zipWith undefined Emp (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) = error
-makes a call to
-die fs? = error
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
 zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = error
 makes a call to
-die fs? = error
-violating die's refinement type
-Concrete
-
-zipWith undefined (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) Emp = error
-makes a call to
-die fs? = error
-violating die's refinement type
-Concrete
-
-zipWith divInt (0 :+: Emp) (0 :+: (0 :+: Emp)) = error
-makes a call to
-die ("Bad call to zipWith") = error
+die fs? fs? = error
 violating die's refinement type
 Concrete
 
 
-ERROR:
-
+9.337799310684204
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

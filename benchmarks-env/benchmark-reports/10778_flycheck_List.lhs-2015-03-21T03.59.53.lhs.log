@@ -1,0 +1,110 @@
+10778
+flycheck_List.lhs-2015-03-21T03.59.53.lhs
+(207, '40-60')
+zipWith
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T03.59.53.lhs:207:40-60: Error: Liquid Type Mismatch', ' 207 | zipWith f _          _          = die  "Bad call to zipWith"']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mzipWith undefined Emp (0 :+: Emp) = error
+makes a call to
+die fs? fs? = error
+violating die's refinement type
+Concrete
+
+zipWith undefined (0 :+: Emp) Emp = error
+makes a call to
+die fs? fs? = error
+violating die's refinement type
+Concrete
+
+
+4.826781749725342
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 353,Just 279,Just 346,Just 351]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T03.59.53.lhs:200:45-59: Error: Liquid Type Mismatch
+ 
+ 200 | zipWith f (x :+: xs) (y :+: ys) = f x y :+: zipWith f xs ys
+                                                   ^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | VV == ys
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | getTailSize xs == 0
+                           && getTailSize VV == 0}
+  
+   In Context
+     xs : {v : (List a) | 0 <= size v}
+      
+     ys : {ys : (List a) | 0 <= size ys}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T03.59.53.lhs:207:40-60: Error: Liquid Type Mismatch
+ 
+ 207 | zipWith f _          _          = die  "Bad call to zipWith"
+                                              ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "Bad call to zipWith"
+                        && strLen ?b == 19}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T03.59.53.lhs:212:19-35: Error: Liquid Type Mismatch
+ 
+ 212 |     x2s         = zipWith (+) xs xs
+                         ^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | VV == xs
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | getTailSize xs == 0
+                           && getTailSize VV == 0}
+  
+   In Context
+     xs : {v : (List a) | 0 <= size v}
