@@ -228,11 +228,12 @@ def collect_reports_deprecated():
     targets = []
     files_and_funcs = []
     for i, t in enumerate(targets_raw):
-        if i not in targets_done:
+        parse_target_p = parse_target_data(t, i)
+        if i not in targets_done or parse_target_p.file_name == "List.lhs-2015-03-20T03.47.50.lhs":
             parse_target = parse_target_data(t, i)
             file_hash = parse_target.get_file_hash()
             if ((parse_target.file_name in targets_avail or len(targets_avail) == 0)
-                    and (file_hash not in files_and_funcs or parse_target.func_name is "|")):
+                    and file_hash not in files_and_funcs):
                 targets.append(parse_target)
                 files_and_funcs.append(file_hash)
     print('Targets remaining: %d' % len(targets))

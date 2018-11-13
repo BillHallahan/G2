@@ -1,8 +1,8 @@
-8474
+8481
 List.lhs-2015-03-20T03.47.50.lhs
-(132, '21-31')
-singleton
-[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.47.50.lhs:132:21-31: Error: Liquid Type Mismatch', ' 132 | singleton x = fixme "singleton"']
+(216, '16-23')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.47.50.lhs:216:16-23: Error: Liquid Type Mismatch', ' 216 | concat = fixme "concat"']
 
 IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
@@ -10,14 +10,14 @@ LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rig
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0msingleton 0 = error
+[0mconcat Emp = error
 makes a call to
-fixme fs? fs? = error
+fixme BAD 2 fs? = error
 violating fixme's refinement type
 Concrete
 
 
-4.287278175354004
+6.601197242736816
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

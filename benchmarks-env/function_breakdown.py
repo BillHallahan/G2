@@ -78,7 +78,7 @@ for file in onlyfiles:
             stats[t.func_name]['Timeout'] += 1
             timeout += 1
         else:
-            # print(file)
+            print(file)
             stats[t.func_name]['StepExhaustion'] += 1
             stepexhaustion += 1
     total += 1

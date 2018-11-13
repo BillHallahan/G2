@@ -1,22 +1,23 @@
-8478
+8474
 List.lhs-2015-03-20T03.47.50.lhs
-(178, '28-63')
-foldr1
-[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.47.50.lhs:178:28-63: Error: Liquid Type Mismatch', ' 178 | foldr1 op Emp        = die "Cannot call foldr1 with empty list"']
+(132, '21-31')
+singleton
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.47.50.lhs:132:21-31: Error: Liquid Type Mismatch', ' 132 | singleton x = fixme "singleton"']
 
+IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mfoldr1 undefined Emp = error
+[0msingleton 0 = error
 makes a call to
-die (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = error
-violating die's refinement type
+fixme fs? fs? = error
+violating fixme's refinement type
 Concrete
 
 
-12.003515005111694
+6.996537446975708
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

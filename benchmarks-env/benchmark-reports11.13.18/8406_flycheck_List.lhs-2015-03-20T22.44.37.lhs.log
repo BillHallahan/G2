@@ -1,12 +1,17 @@
 8406
 flycheck_List.lhs-2015-03-20T22.44.37.lhs
 (230, '29-36')
-|
+prop_zipWith
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T22.44.37.lhs:230:29-36: Error: Liquid Type Mismatch', ' 230 |   | length xs >  1 = lastL (tailL xs)']
 
-/bin/sh: 1: Syntax error: end of file unexpected
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
-0.002613067626953125
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mTimeout!
+
+120.37147235870361
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

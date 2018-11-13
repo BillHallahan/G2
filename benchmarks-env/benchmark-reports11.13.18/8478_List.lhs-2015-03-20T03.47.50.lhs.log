@@ -1,23 +1,22 @@
-8481
+8478
 List.lhs-2015-03-20T03.47.50.lhs
-(216, '16-23')
-concat
-[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.47.50.lhs:216:16-23: Error: Liquid Type Mismatch', ' 216 | concat = fixme "concat"']
+(178, '28-63')
+foldr1
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.47.50.lhs:178:28-63: Error: Liquid Type Mismatch', ' 178 | foldr1 op Emp        = die "Cannot call foldr1 with empty list"']
 
-IS_FIXME
 LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
 [1;94m
 **** DONE:  A-Normalization ****************************************************
 [0m[1;90m 
-[0mconcat Emp = error
+[0mfoldr1 undefined Emp = error
 makes a call to
-fixme BAD 2 fs? = error
-violating fixme's refinement type
+die (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = error
+violating die's refinement type
 Concrete
 
 
-4.729957818984985
+17.633585214614868
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.

@@ -1,12 +1,51 @@
 1600
 List.lhs-2015-03-16T04.31.24.lhs
 (223, '36-45')
-|
+prop_zipWith
 [' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T04.31.24.lhs:223:36-45: Error: Liquid Type Mismatch', ' 223 | \t| (length l) == 1\t= (listHead l) :+: concat ls']
 
-/bin/sh: 1: Syntax error: end of file unexpected
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
 
-0.002309560775756836
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mprop_zipWith Emp = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) x2s = 1
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_zipWith (0 :+: Emp) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) x2s = 0
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+prop_zipWith Emp = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+length (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp = 1
+Strengthen the refinement type of length to eliminate this possibility
+Abstract
+
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T04.31.24.lhs:219:12: warning: [-Wtabs]
+    Tab character found here, and in 11 further locations.
+    Please use spaces instead.
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T04.31.24.lhs:219:12: warning: [-Wtabs]
+    Tab character found here, and in 11 further locations.
+    Please use spaces instead.
+
+5.9346983432769775
 
 LIQUID_OUT:
 LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
