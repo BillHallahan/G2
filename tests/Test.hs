@@ -239,6 +239,8 @@ liquidTests =
 
                 , checkLiquid "tests/Liquid/" "tests/Liquid/MapReduceTest2.lhs" "mapReduce" 1500 3 [Exactly 0]
 
+                , checkLiquid "tests/Liquid/" "tests/Liquid/MeasErr.lhs" "f" 1500 2 [Exactly 0]
+
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/Replicate.hs" "replicate" 2000 3
                     [ AtLeast 1
                     , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldl") ]
