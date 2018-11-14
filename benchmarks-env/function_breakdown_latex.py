@@ -52,6 +52,8 @@ onlyfiles = [f for f in listdir(sys.argv[1]) if isfile(join(sys.argv[1], f))]
 for file in onlyfiles:
     t = read_target(sys.argv[1], file)
     with open(join(sys.argv[1], file)) as wholeoutput:
+        add_time = False
+
         outputstr = wholeoutput.read()
         if 'IS_FIXME' in outputstr:
             stats[t.func_name]['fixme'] += 1
@@ -64,6 +66,7 @@ for file in onlyfiles:
                 stats[t.func_name]['LHError'] += 1
                 LHerror += 1
             else:
+                add_time = True
                 stats[t.func_name]['Error'] += 1
                 error += 1
         elif '0m\nERROR:\n\n' in outputstr:
@@ -71,34 +74,46 @@ for file in onlyfiles:
             stats[t.func_name]['None'] += 1
             none += 1
         elif 'Abstract' in outputstr:
+            add_time = True
             stats[t.func_name]['Abstract'] += 1
             abstract += 1
         elif 'Concrete' in outputstr:
+            add_time = True
             stats[t.func_name]['Concrete'] += 1
             concrete += 1
         elif 'Timeout' in outputstr:
+            add_time = True
             stats[t.func_name]['Timeout'] += 1
             timeout += 1
         else:
+            add_time = True
             # print(file)
             stats[t.func_name]['StepExhaustion'] += 1
             stepexhaustion += 1
+        
+        tm = re.search("time = (\d+\.\d+)", outputstr)
+        if tm is not  None and add_time:
+            time = tm.group(1)
+            stats[t.func_name]['Time'] += float(time)
+
     total += 1
             
 
-print('\\begin{tabular}{ | l | c | c | c | c | }')
+print('\\begin{tabular}{ | l | c | c | c | c | c | }')
 
 print('\hline')
 
-print('{: <20}& {: <20}& {: <20}& {: <20}& {: <20} \\\\ \hline'.format('Func','Concrete','Abstract','Timeout','Error','Step Exhaustion'))
+print('{: <20}& {: <20}& {: <20}& {: <20}& {: <20}& {: <20} \\\\ \hline'.format('Func','Concrete','Abstract','Timeout','Error','Avg. Time (s)'))
 
 for key in stats:
     if (stats[key]['Concrete'] != 0 or stats[key]['Abstract'] != 0 or stats[key]['Timeout'] != 0 or stats[key]['Error'] != 0 or stats[key]['StepExhaustion'] != 0):
-        print('{: <20}& {: <20}& {: <20}& {: <20}& {: <20} \\\\ \hline'.format(
+        c = stats[key]['Concrete'] + stats[key]['Abstract'] + stats[key]['Timeout'] + stats[key]['Error'] + stats[key]['StepExhaustion']
+        
+        print('{: <20}& {: <20}& {: <20}& {: <20}& {: <20}& {: <20} \\\\ \hline'.format(
             con_latex(key),
             stats[key]['Concrete'],
             stats[key]['Abstract'], stats[key]['Timeout'], 
-            stats[key]['Error']))
+            stats[key]['Error'], round(stats[key]['Time'] / c, 1)))
 
 print('\end{tabular}')
 

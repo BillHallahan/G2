@@ -63,6 +63,7 @@ for file in onlyfiles:
                 stats[t.func_name]['LHError'] += 1
                 LHerror += 1
             else:
+                print(file)
                 stats[t.func_name]['Error'] += 1
                 error += 1
         elif '0m\nERROR:\n\n' in outputstr:
@@ -78,7 +79,7 @@ for file in onlyfiles:
             stats[t.func_name]['Timeout'] += 1
             timeout += 1
         else:
-            print(file)
+            #print(file)
             stats[t.func_name]['StepExhaustion'] += 1
             stepexhaustion += 1
             
