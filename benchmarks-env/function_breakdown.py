@@ -49,6 +49,7 @@ stats = defaultdict(lambda: defaultdict(int))
 onlyfiles = [f for f in listdir(sys.argv[1]) if isfile(join(sys.argv[1], f))]
 for file in onlyfiles:
     t = read_target(sys.argv[1], file)
+    total += 1
     with open(join(sys.argv[1], file)) as wholeoutput:
         outputstr = wholeoutput.read()
         if 'IS_FIXME' in outputstr:
@@ -65,7 +66,6 @@ for file in onlyfiles:
                 stats[t.func_name]['Error'] += 1
                 error += 1
         elif '0m\nERROR:\n\n' in outputstr:
-            print(file)
             stats[t.func_name]['None'] += 1
             none += 1
         elif 'Abstract' in outputstr:
@@ -81,7 +81,6 @@ for file in onlyfiles:
             print(file)
             stats[t.func_name]['StepExhaustion'] += 1
             stepexhaustion += 1
-    total += 1
             
 
 

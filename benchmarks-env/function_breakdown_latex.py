@@ -86,19 +86,19 @@ for file in onlyfiles:
     total += 1
             
 
-print('\\begin{tabular}{ | l | c | c | c | c | c | }')
+print('\\begin{tabular}{ | l | c | c | c | c | }')
 
 print('\hline')
 
-print('{: <20}& {: <20}& {: <20}& {: <20}& {: <20}& {: <20} \\\\ \hline'.format('Func','Concrete','Abstract','Timeout','Error','Step Exhaustion'))
+print('{: <20}& {: <20}& {: <20}& {: <20}& {: <20} \\\\ \hline'.format('Func','Concrete','Abstract','Timeout','Error','Step Exhaustion'))
 
 for key in stats:
     if (stats[key]['Concrete'] != 0 or stats[key]['Abstract'] != 0 or stats[key]['Timeout'] != 0 or stats[key]['Error'] != 0 or stats[key]['StepExhaustion'] != 0):
-        print('{: <20}& {: <20}& {: <20}& {: <20}& {: <20}& {: <20} \\\\ \hline'.format(
+        print('{: <20}& {: <20}& {: <20}& {: <20}& {: <20} \\\\ \hline'.format(
             con_latex(key),
             stats[key]['Concrete'],
             stats[key]['Abstract'], stats[key]['Timeout'], 
-            stats[key]['Error'],stats[key]['StepExhaustion']))
+            stats[key]['Error']))
 
 print('\end{tabular}')
 

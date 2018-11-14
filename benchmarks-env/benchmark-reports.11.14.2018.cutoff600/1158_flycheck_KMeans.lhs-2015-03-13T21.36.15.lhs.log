@@ -1,0 +1,95 @@
+1158
+flycheck_KMeans.lhs-2015-03-13T21.36.15.lhs
+(190, '21-41')
+kmeans1
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T21.36.15.lhs:190:21-41: Error: Liquid Type Mismatch', ' 190 | kmeans1 k n ps cs = normalize newClusters']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mG2: appTypeOf
+TyCon (Name "Int" (Just "GHC.Types") 8214565720323803193 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE
+[App (App (Var (Id (Name "lhList" (Just "List") 0 Nothing) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 6989586621679083237 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/List.lhs"}}))) TYPE)) (TyFun (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679083237 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/List.lhs"}}))) TYPE))) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) TYPE) (TyApp (TyCon (Name "List" (Just "List") 8214565720323851609 (Just (Span {start = Loc {line = 54, col = 1, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 56, col = 39, file = "./liquidhaskell-study/wi15/List.lhs"}}))) TYPE) (TyVar (Id (Name "a" Nothing 6989586621679083237 (Just (Span {start = Loc {line = 54, col = 11, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 54, col = 12, file = "./liquidhaskell-study/wi15/List.lhs"}}))) TYPE)))))))) (Type (TyCon (Name "Double" (Just "GHC.Types") 8214565720323803197 (Just (Span {start = Loc {line = 23, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 23, col = 25, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE))) (Var (Id (Name "lhDouble" (Just "GHC.Types") 0 Nothing) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) TYPE) (TyCon (Name "Double" (Just "GHC.Types") 8214565720323803197 (Just (Span {start = Loc {line = 23, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 23, col = 25, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))),Var (Id (Name "x" (Just "") 0 Nothing) (TyApp (TyApp (TyCon (Name "(,)" (Just "GHC.Tuple") 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323803193 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)) (TyApp (TyCon (Name "List" (Just "List") 8214565720323851609 (Just (Span {start = Loc {line = 54, col = 1, file = "./liquidhaskell-study/wi15/List.lhs"}, end = Loc {line = 56, col = 39, file = "./liquidhaskell-study/wi15/List.lhs"}}))) (TyFun TYPE TYPE)) (TyCon (Name "Double" (Just "GHC.Types") 8214565720323803197 (Just (Span {start = Loc {line = 23, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 23, col = 25, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE))))]
+
+
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Language/Typing.hs:198:20 in main:G2.Internals.Language.Typing
+
+time = 4.2651283740997314
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 371,Just 148,Just 31]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T21.36.15.lhs:155:30-42: Error: Liquid Type Mismatch
+ 
+ 155 | centroid n p sz = map (\x -> x `divide` sz) p
+                                    ^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == sz}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV /= 0}
+  
+   In Context
+     sz : Int
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T21.36.15.lhs:190:21-41: Error: Liquid Type Mismatch
+ 
+ 190 | kmeans1 k n ps cs = normalize newClusters
+                           ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-13T21.36.15.lhs:196:21-42: Error: Liquid Type Mismatch
+ 
+ 196 |     fr wp1 wp2    = mergeCluster n wp1 wp2
+                           ^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (Int, (List Double)) | VV == wp2}
+  
+   not a subtype of Required type
+     VV : {VV : (Int, (List Double)) | clusterSize wp1 == clusterSize VV}
+  
+   In Context
+     wp2 : (Int, (List Double))
+      
+     wp1 : (Int, (List Double))

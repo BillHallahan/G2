@@ -1,0 +1,392 @@
+1332
+List.lhs-2015-03-16T06.17.20.lhs
+(223, '1-6')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.17.20.lhs:223:1-6: Error: Liquid Type Mismatch', ' 223 | concat empty \t    \t\t= Emp']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mconcat ((0 :+: Emp) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: Emp) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: ((0 :+: (0 :+: Emp)) :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((0 :+: Emp) :+: (Emp :+: ((0 :+: Emp) :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: Emp) = Emp
+violating concat's refinement type
+Concrete
+
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:225:14: warning: [-Wtabs]
+    Tab character found here, and in 9 further locations.
+    Please use spaces instead.
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:226:1: warning: [-Woverlapping-patterns]
+    Pattern match is redundant
+    In an equation for ‘concat’: concat (l :+: ls) = ...
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:225:14: warning: [-Wtabs]
+    Tab character found here, and in 9 further locations.
+    Please use spaces instead.
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:226:1: warning: [-Woverlapping-patterns]
+    Pattern match is redundant
+    In an equation for ‘concat’: concat (l :+: ls) = ...
+
+11.288565397262573
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 364]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.17.20.lhs:223:1-6: Error: Liquid Type Mismatch
+ 
+ 223 | concat empty 	    		= Emp
+       ^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == 0
+                           && sizeAll VV == 0
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sizeAll empty}
+  
+   In Context
+     empty : {empty : (List (List a)) | 0 <= size empty}

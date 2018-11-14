@@ -137,7 +137,7 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, cut_off: 
         res = 'IS_FIXME\n' + res
     #proc.stderr.close()
     #proc.stdout.close()
-    res = res + '\n' + str(resultTime)
+    res = res + '\ntime = ' + str(resultTime)
     return res
 
 def con_comline(s):
@@ -240,7 +240,7 @@ def collect_reports_deprecated():
     # Targets are printed with four fields, and then two spaces and there is the G2 Report
     #for t in targets:
     #    create_g2_report(t)
-    pool = Pool(4)
+    pool = Pool(12)
     results = pool.map(create_g2_report, targets)
 
 if __name__ == '__main__':
