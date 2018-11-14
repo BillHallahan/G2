@@ -61,7 +61,7 @@ repeat 0 f x = x
 repeat n f x = repeat (n-1) f (f x)
 
 {-@ kmeans1 :: k:Int -> n:Int ->
-               List Point -> Centering -> CenteringKN k n
+               List (PointN n) -> Centering -> CenteringKN k n
   @-}
 kmeans1 k n ps cs = normalize newClusters
   where

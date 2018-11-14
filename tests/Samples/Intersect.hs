@@ -16,3 +16,16 @@ any p (x:xs)    = p x || any p xs
 
 commutative :: (Eq a) => [a] -> [a] -> Bool
 commutative xs ys = xs `intersect` ys == ys `intersect` xs
+
+intersectEq :: Eq a => [a] -> [a] -> [a]
+intersectEq [] _ =  []
+intersectEq _  [] =  []
+intersectEq xs ys =  [x | x <- xs, any (== x) ys]
+
+intersectEq' :: Eq a => [a] -> [a] -> [a]
+-- intersectEq' [] _ =  []
+-- intersectEq' _  [] =  []
+intersectEq' xs ys =  [x | x <- xs, any (== x) ys]
+
+interEquiv :: Eq a => [a] -> [a] -> Bool
+interEquiv xs ys = xs `intersectEq` ys == xs `intersectEq'` ys 

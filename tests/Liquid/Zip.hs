@@ -26,7 +26,6 @@ zip _ _ = die  "Bad call to zip"
 die str = error ("Oops, I died!" ++ str)
 
 {-@ measure sumsize @-}
-sumsize :: [[a]] -> Int
 sumsize [] = 0
 sumsize (x:xs) = size x + sumsize xs
 
@@ -35,7 +34,6 @@ concat [] = []
 concat (xs:[]) = xs
 concat (xs:(ys:xss)) = concat ((append xs ys):xss)
 
-append :: [a] -> [a] -> [a]
 append [] [] = []
 append xs [] = xs
 append [] ys = ys

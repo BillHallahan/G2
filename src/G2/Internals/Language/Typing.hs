@@ -48,6 +48,8 @@ module G2.Internals.Language.Typing
     , retype
     , mapInTyForAlls
     , inTyForAlls
+
+    , numTypeArgs
     ) where
 
 import G2.Internals.Language.AST
@@ -478,3 +480,10 @@ mapInTyForAlls f t = f t
 inTyForAlls :: Type -> Type
 inTyForAlls (TyForAll _ t) = inTyForAlls t
 inTyForAlls t = t
+
+numTypeArgs :: Typed t => t -> Int
+numTypeArgs = numTypeArgs' . typeOf
+
+numTypeArgs' :: Type -> Int
+numTypeArgs' (TyForAll (NamedTyBndr _) t) = 1 + numTypeArgs' t
+numTypeArgs' _ = 0

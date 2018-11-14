@@ -335,7 +335,7 @@ convertLHExpr m bt _ (EApp e e') = do
 
     let tArgE = typeOf argE
         ctArgE = tyAppCenter tArgE
-        ts = tyAppArgs tArgE
+        ts = take (numTypeArgs f) $ tyAppArgs tArgE
     
     case (ctArgE, f_ar_ts) of
         (TyCon _ _, Just f_ar_ts') -> do
