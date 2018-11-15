@@ -40,14 +40,14 @@ main = do
   -}
 
   {-
-  allBenches <- allBenchFiles
-  absBenches <- abstractBenchFilePairs
+  allBenches <- allBenches
+  absBenches <- abstractBenches
   putStrLn $ show (length allBenches, length absBenches)
 
   mapM_ (putStrLn . show) absBenches
   -}
 
-  pairs <- loadBenchPairs
+  pairs <- loadBenches
   mapM (putStrLn . show) pairs
 
   putStrLn "compiles!"
