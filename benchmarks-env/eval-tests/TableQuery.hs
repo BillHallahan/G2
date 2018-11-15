@@ -18,6 +18,7 @@ wi15SafeDir = wi15Dir ++ "safe/"
 wi15UnsafeDir :: String
 wi15UnsafeDir = wi15Dir ++ "unsafe/"
 
+-- CALL THIS
 -- file -> id mapping
 loadFileIdTable :: IO (Map String String)
 loadFileIdTable = do
@@ -83,5 +84,5 @@ afterLogs file table logs = do
   -- return afterLogs
   -- take the tail because otherwise it includes log of current file
   return $ tail afterLogs
-  
+
 

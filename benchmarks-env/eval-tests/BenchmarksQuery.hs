@@ -1,4 +1,4 @@
-module BenchMarksQuery where
+module BenchmarksQuery where
 
 import Control.Exception
 import Control.Monad
@@ -9,10 +9,6 @@ import Data.List.Split
 import System.Directory
 
 import Text.Regex.Posix
-
-
-import TableQuery
-import LiquidQuery
 
 import Text.Regex
 
@@ -25,7 +21,9 @@ benchFile = "/home/celery/foo/yale/G2/benchmarks-env/bench-pairs.txt"
 -- Regex magic
 
 whenPat :: String
+-- whenPat = "violates.*\nwhen\n[a-zA-Z0-9]*"
 whenPat = "when\n[a-zA-Z0-9]*"
+
 
 extractWhenGroup :: String -> String
 extractWhenGroup group = (splitOn "\n" group) !! 1
@@ -64,6 +62,8 @@ abstractBenchFilePairs = do
   let cleanPairs = map (\(b, ws) -> (logFromBench b, ws)) absPairs
   return cleanPairs
 
+-- CALL THIS
+-- Load the log / pairing for where things messed up
 loadBenchPairs :: IO ([(String, [String])])
 loadBenchPairs = do
   raw <- readFile benchFile

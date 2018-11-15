@@ -19,7 +19,8 @@ data SpecTypesCompareFlag =
   | SpecTypesNotFound
   deriving (Eq, Show)
 
--- Call this to compare var1 in file1's spec type against var1 in file2
+-- CALL THIS
+-- Compare var1 in file1's spec type against var1 in file2
 structDiffFiles ::
   (String, String) -> (String, String) -> IO SpecTypesCompareFlag
 structDiffFiles pair1 pair2 =

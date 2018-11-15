@@ -2,9 +2,10 @@ module Main where
 
 import Data.Maybe
 
-import BenchMarksQuery
+import BenchmarksQuery
 import TableQuery
 import LiquidQuery
+import EvalMain
 
 testDir = "/home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/"
 testFile = testDir ++ "unsafe/List.lhs-2015-03-21T02.26.22.lhs"
@@ -38,11 +39,16 @@ main = do
 
   -}
 
+  {-
   allBenches <- allBenchFiles
   absBenches <- abstractBenchFilePairs
   putStrLn $ show (length allBenches, length absBenches)
 
   mapM_ (putStrLn . show) absBenches
+  -}
+
+  pairs <- loadBenchPairs
+  mapM (putStrLn . show) pairs
 
   putStrLn "compiles!"
 
