@@ -1,0 +1,198 @@
+533
+List.lhs-2015-03-20T23.09.47.lhs
+(176, '28-63')
+foldr1
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.09.47.lhs:176:28-63: Error: Liquid Type Mismatch', ' 176 | foldr1 op Emp        = die "Cannot call foldr1 with empty list"']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mfoldr1 undefined Emp = error
+makes a call to
+die (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? = error
+violating die's refinement type
+Concrete
+
+
+time = 9.809097290039062
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 352,Just 274,Just 338,Just 291,Just 283,Just 347,Just 348,Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.09.47.lhs:149:31-57: Error: Liquid Type Mismatch
+ 
+ 149 | prop_replicate n x = lAssert (n == length (replicate n x))
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?c}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     n : {n : Int | n >= 0}
+      
+     ?c : {?c : Bool | Prop ?c <=> n == ?b}
+      
+     ?b : {?b : Int | ?b == size ?a}
+      
+     ?a : {?a : (List a) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.09.47.lhs:164:26-55: Error: Liquid Type Mismatch
+ 
+ 164 | prop_map f xs = lAssert (length xs == length (map f xs))
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?d}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     xs : {v : (List a) | 0 <= size v}
+      
+     ?c : {?c : Int | ?c == size ?b}
+      
+     ?b : {?b : (List a) | 0 <= size ?b}
+      
+     ?d : {?d : Bool | Prop ?d <=> ?a == ?c}
+      
+     ?a : {?a : Int | ?a == size xs}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.09.47.lhs:176:28-63: Error: Liquid Type Mismatch
+ 
+ 176 | foldr1 op Emp        = die "Cannot call foldr1 with empty list"
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?b
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : [Char] | ?b ~~ ?a
+                         && len ?b == strLen ?a
+                         && len ?b >= 0}
+      
+     ?a : {?a : Addr# | ?a ~~ "Cannot call foldr1 with empty list"
+                        && strLen ?a == 34}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.09.47.lhs:195:40-60: Error: Liquid Type Mismatch
+ 
+ 195 | zipWith f _          _          = die  "Bad call to zipWith"
+                                              ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?b
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : [Char] | ?b ~~ ?a
+                         && len ?b == strLen ?a
+                         && len ?b >= 0}
+      
+     ?a : {?a : Addr# | ?a ~~ "Bad call to zipWith"
+                        && strLen ?a == 19}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.09.47.lhs:198:28-50: Error: Liquid Type Mismatch
+ 
+ 198 | prop_zipWith xs = lAssert (length xs == length x2s)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?c}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     xs : {v : (List a) | 0 <= size v}
+      
+     ?c : {?c : Bool | Prop ?c <=> ?a == ?b}
+      
+     ?b : {?b : Int | ?b == size x2s}
+      
+     ?a : {?a : Int | ?a == size xs}
+      
+     x2s : {v : (List a) | 0 <= size v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.09.47.lhs:214:16-23: Error: Liquid Type Mismatch
+ 
+ 214 | concat = fixme "concat"
+                      ^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "concat"
+                        && strLen ?b == 6}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T23.09.47.lhs:216:24-47: Error: Liquid Type Mismatch
+ 
+ 216 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?a}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Int | ?c == size ?b}
+      
+     ?b : {?b : (List Int) | 0 <= size ?b}
+      
+     ?d : {?d : Int | ?d == (6 : int)}
+      
+     ?a : {?a : Bool | Prop ?a <=> ?c == ?d}

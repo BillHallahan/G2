@@ -181,7 +181,7 @@ def create_g2_report(t: G2Target):
     print(t.id)
     #print(t.func_name)
     #print(t.file_name)
-    g2_res = run_g2('.', './liquidhaskell-study/wi15/', './liquidhaskell-study/wi15/unsafe/', 2000, 600, t, False)
+    g2_res = run_g2('.', './liquidhaskell-study/wi15/', './liquidhaskell-study/wi15/unsafe/', 2000, 500, t, False)
     liquid_res = run_liquid('./liquidhaskell-study/wi15/unsafe/', t)
     create_report("%s\n%s\n%s" % (str(t), g2_res, liquid_res), 'benchmark-reports', "%s_%s" % (str(t.id), str(t.file_name)))
 

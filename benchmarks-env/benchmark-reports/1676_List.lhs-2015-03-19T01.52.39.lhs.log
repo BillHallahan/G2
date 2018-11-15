@@ -1,0 +1,122 @@
+1676
+List.lhs-2015-03-19T01.52.39.lhs
+(225, '24-47')
+prop_concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T01.52.39.lhs:225:24-47: Error: Liquid Type Mismatch', ' 225 | prop_concat = lAssert (length (concat xss) == 6)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mprop_concat = error
+makes a call to
+fixme BAD 2 ("concat") = error
+violating fixme's refinement type
+Concrete
+
+
+time = 5.6606245040893555
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 359,Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T01.52.39.lhs:223:16-23: Error: Liquid Type Mismatch
+ 
+ 223 | concat = fixme "concat"
+                      ^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "concat"
+                        && strLen ?b == 6}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T01.52.39.lhs:225:24-47: Error: Liquid Type Mismatch
+ 
+ 225 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?f}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     List.l2 : {List.l2 : (List Int) | size List.l2 == 2
+                                       && 0 <= size List.l2}
+      
+     ?g : {?g : (List (List Int)) | size ?g == 1 + size ?e
+                                    && sizes ?g == size List.l1 + size ?e
+                                    && 0 <= size ?g}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?g
+                                    && sizes v == size List.l0 + size ?g
+                                    && 0 <= size v}
+      
+     List.l3 : {List.l3 : (List Int) | size List.l3 == 3
+                                       && 0 <= size List.l3}
+      
+     ?f : {?f : Bool | Prop ?f <=> ?b == ?d}
+      
+     ?c : {?c : (List (List Int)) | size ?c == 1 + size ?a
+                                    && sizes ?c == size List.l3 + size ?a
+                                    && 0 <= size ?c}
+      
+     ?h : {?h : (List Int) | size ?h == sizes xss
+                             && 0 <= size ?h}
+      
+     ?e : {?e : (List (List Int)) | size ?e == 1 + size ?c
+                                    && sizes ?e == size List.l2 + size ?c
+                                    && 0 <= size ?e}
+      
+     ?b : {?b : Int | ?b == size ?h}
+      
+     List.l0 : {List.l0 : (List Int) | size List.l0 == 0
+                                       && 0 <= size List.l0}
+      
+     ?d : {?d : Int | ?d == (6 : int)}
+      
+     ?a : {?a : (List (List Int)) | size ?a == 0
+                                    && sizes ?a == 0
+                                    && 0 <= size ?a}
+      
+     List.l1 : {List.l1 : (List Int) | size List.l1 == 1
+                                       && 0 <= size List.l1}

@@ -1,0 +1,96 @@
+5089
+flycheck_List.lhs-2015-03-18T06.39.13.lhs
+(204, '28-50')
+prop_zipWith
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T06.39.13.lhs:204:28-50: Error: Liquid Type Mismatch', ' 204 | prop_zipWith xs = lAssert (length xs == length x2s)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mprop_zipWith Emp = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (fs? :+: (2 :+: (1 :+: Emp))) (3 :+: (2 :+: (1 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+prop_zipWith (0 :+: Emp) = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+zipWith (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? (fs? :+: (2 :+: (1 :+: Emp))) (3 :+: (2 :+: (1 :+: Emp))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of zipWith to eliminate this possibility
+Abstract
+
+
+time = 39.41371488571167
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 274]
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T06.39.13.lhs:142:30-42
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T06.39.13.lhs:144:11
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T06.39.13.lhs:146:40-57
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T06.39.13.lhs:147:26-41
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T06.39.13.lhs:204:28-50: Error: Liquid Type Mismatch
+ 
+ 204 | prop_zipWith xs = lAssert (length xs == length x2s)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?a}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     List.l2 : {List.l2 : (List Int) | size List.l2 == 2
+                                       && 0 <= size List.l2}
+      
+     xs : {v : (List a) | 0 <= size v}
+      
+     ?c : {?c : Int | ?c == size xs}
+      
+     ?e : {?e : Int | ?e == (5 : int)}
+      
+     ?b : {?b : Int | ?b == size x2s}
+      
+     ?d : {?d : (List Int) | size ?d == 1 + size List.l2
+                             && size2 ?d == size ?e + size2 List.l2
+                             && 0 <= size ?d}
+      
+     ?a : {?a : Bool | Prop ?a <=> ?c == ?b}
+      
+     x2s : {v : (List Int) | size v == size ?d
+                             && 0 <= size v}
