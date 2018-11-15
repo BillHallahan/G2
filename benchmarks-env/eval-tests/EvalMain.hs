@@ -1,5 +1,8 @@
 module EvalMain where
 
+-- import Data.Map hiding (map)
+import Data.Set as Set hiding (map, filter)
+
 import TableQuery
 import LiquidQuery
 import BenchmarksQuery
@@ -12,5 +15,6 @@ import BenchmarksQuery
   Check changes
 
 -}
+
 
 

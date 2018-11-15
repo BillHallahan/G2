@@ -47,8 +47,8 @@ main = do
   mapM_ (putStrLn . show) absBenches
   -}
 
-  pairs <- loadBenches
-  mapM (putStrLn . show) pairs
+  trips <- loadTriples
+  mapM (putStrLn . show) trips
 
   putStrLn "compiles!"
 

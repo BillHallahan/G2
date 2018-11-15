@@ -4,7 +4,7 @@ import Prelude hiding (lookup)
 import System.Directory
 import Data.List hiding (lookup)
 import Data.List.Split
-import Data.Map hiding (map, filter)
+import Data.Map as Map hiding (map, filter)
 
 tableFile :: String
 tableFile = "/home/celery/foo/yale/G2/benchmarks-env/id-file-pairs.txt"
@@ -24,7 +24,7 @@ loadFileIdTable :: IO (Map String String)
 loadFileIdTable = do
   raw <- readFile tableFile
   let pairs = read raw :: [(String, String)]
-  let table = fromList $ map (\(a, b) -> (b, a)) pairs
+  let table = Map.fromList $ map (\(a, b) -> (b, a)) pairs
   return table
 
 -- Loads all the .log files

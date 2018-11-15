@@ -26,7 +26,6 @@ structDiffFiles ::
 structDiffFiles pair1 pair2 =
   structDiffSpecTypesFromFiles pair1 pair2 lhDir lhLibs
 
-
 structDiffSpecTypesFromFiles ::
   (String, String) -> (String, String) -> String -> [String]
     -> IO SpecTypesCompareFlag
@@ -40,13 +39,11 @@ structDiffSpecTypesFromFiles (var1, file1) (var2, file2) proj lhlibs = do
         else return SpecTypesSame
     _ -> return SpecTypesNotFound
 
-
 getVarFileSpecTypes ::
   String -> String -> String -> [String]-> IO (Maybe SpecType)
 getVarFileSpecTypes var file proj lhlibs = do
   varStys <- getVarSpecTypes file proj lhlibs
   return $ findSpecType var varStys
-
 
 getVarSpecTypes :: String -> String -> [String] -> IO [(Var, SpecType)]
 getVarSpecTypes file proj lhlibs = do
@@ -54,14 +51,12 @@ getVarSpecTypes file proj lhlibs = do
   lhOuts <- getGHCInfos lhConfig proj [file] lhlibs
   return $ map (\(a, b) -> (a, val b)) $ funcSpecs $ map ghcI lhOuts
 
-
 findSpecType :: String -> [(Var, SpecType)] -> Maybe SpecType
 findSpecType _ [] = Nothing
 findSpecType name ((v, sty) : stys) =
   if name == (occNameString $ nameOccName $ Var.varName v)
     then Just sty
     else findSpecType name stys
-
 
 specTypesStructDiffer :: SpecType -> SpecType -> Bool
 specTypesStructDiffer

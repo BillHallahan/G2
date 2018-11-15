@@ -5,11 +5,10 @@ import Control.Monad
 
 import Data.List
 import Data.List.Split
+import Data.Set as Set hiding (map, filter)
 
 import System.Directory
-
 import Text.Regex.Posix
-
 import Text.Regex
 
 reportsDir :: String
@@ -20,24 +19,35 @@ benchFile = "/home/celery/foo/yale/G2/benchmarks-env/bench-pairs.txt"
 
 -- Regex magic
 
-whenPat :: String
-whenPat = ".*\nwhen\n.* "
--- whenPat = "when\n[a-zA-Z0-9]*"
+whenPat1 :: String
+whenPat1 = "The call\n.*\n.*\nwhen\n.*"
+-- whenPat1 = "*\n.*\nwhen\n.*"
 
-extractWhenGroup :: String -> (String, String)
-extractWhenGroup group =
-  let splitted = splitOn "\nwhen\n" group in
-  let left = splitted !! 0 in
-  let right = splitted !! 1 in
-  let errFun = (splitOn " " $ (splitOn "'" left) !! 0) !! 1 in
-  let absFun = head $ splitOn " " (splitted !! 1) in
+extractWhen1Group :: String -> (String, String)
+extractWhen1Group group =
+  let splitted = splitOn "\n" group in
+  let errFun = head $ splitOn " " $ splitted !! 1 in
+  let absFun = head $ splitOn " " $ last splitted in
     (errFun, absFun)
-  
+
+whenPat2 :: String
+whenPat2 = "0m.*\nmakes.*\n.*\n.*\n.*\n.*"
+-- whenPat2 = "0m.*\nmakes.*\n.*"
+
+extractWhen2Group :: String -> (String, String)
+extractWhen2Group group =
+  let splitted = splitOn "\n" group in
+  let errFun = tail $ tail $ head $ splitOn " " $ head splitted in
+  let absFun = head $ splitOn " " $ last $ splitted in
+    (errFun, absFun)
+
 parseWhenPairs :: String -> [(String, String)]
 parseWhenPairs raw =
-  let groups = raw =~ whenPat :: [[String]] in
-    nub $ map extractWhenGroup $ concat groups
-
+  let groups1 = raw =~ whenPat1 :: [[String]] in
+  let groups2 = raw =~ whenPat2 :: [[String]] in
+  let extracts1 = map extractWhen1Group $ concat groups1 in
+  let extracts2 = map extractWhen2Group $ concat groups2 in
+    nub $ filter (\(_, w) -> length w /= 0) $ extracts1 ++ extracts2
 
 -- All the bench files
 allBenches :: IO [String]
@@ -72,5 +82,16 @@ loadBenches = do
   raw <- readFile benchFile
   let pairs = read raw :: [(String, [(String, String)])]
   return pairs
+
+blackSet :: Set String
+blackSet = Set.fromList []
+
+-- .lhs file, erroring fun, abstracted fun
+loadTriples :: IO [(String, String, String)]
+loadTriples = do
+  benches <- loadBenches
+  let rawTrips = concatMap (\(b, ws) -> map (\(e, a) -> (b, e, a)) ws) benches
+  let cleanTrips = filter (\(_, e, _) -> not $ member e blackSet) rawTrips
+  return cleanTrips
 
 
