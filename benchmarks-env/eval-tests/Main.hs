@@ -2,6 +2,7 @@ module Main where
 
 import Data.Maybe
 
+import BenchMarksQuery
 import TableQuery
 import LiquidQuery
 
@@ -25,6 +26,7 @@ main = do
   putStrLn $ show $ afterLogs testFile table logs
   -}
 
+  {-
   mbSpecs1 <- getVarFileSpecTypes "concat" testFile testDir [testListLibSrc]
   mbSpecs2 <- getVarFileSpecTypes "concat" testFile testDir [testListLibSrc]
 
@@ -33,6 +35,15 @@ main = do
 
   res <- structDiffFiles ("concat", testFile) ("concat", testFile)
   putStrLn $ show res
+
+  -}
+
+  allBenches <- allBenchFiles
+  absBenches <- abstractBenchFilePairs
+  putStrLn $ show (length allBenches, length absBenches)
+
+  mapM_ (putStrLn . show) absBenches
+
   putStrLn "compiles!"
 
 
