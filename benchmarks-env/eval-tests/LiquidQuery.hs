@@ -23,7 +23,6 @@ lhLibs = map (\f -> lhDir ++ f) ["List.lhs"]
 data SpecTypesCompareFlag =
     SpecTypesDiffer
   | SpecTypesSame
-  | SpecTypesNotFound
   deriving (Eq, Show)
 
 exprFromURef :: RReft -> R.Expr
@@ -52,7 +51,9 @@ structEqSpecTypesFromFiles (var1, file1) (var2, file2) proj lhlibs = do
       if specTypesStructEq sty1 sty2
         then return SpecTypesSame
         else return SpecTypesDiffer
-    _ -> return SpecTypesNotFound
+    (Nothing, Nothing) -> return SpecTypesSame
+    (_, Nothing) -> return SpecTypesDiffer
+    (Nothing, _) -> return SpecTypesDiffer
 
 getVarFileSpecTypes ::
   String -> String -> String -> [String]-> IO (Maybe SpecType)
@@ -77,27 +78,36 @@ specTypesStructEq :: SpecType -> SpecType -> Bool
 specTypesStructEq
   (RVar {rt_var = rtv1, rt_reft = ref1})
   (RVar {rt_var = rtv2, rt_reft = ref2})
-    = refTypeEq (exprFromURef ref1) (exprFromURef ref2)
+    =
+      -- trace ("stvar " ++ show (rtv2, ref2) $
+      refTypesEq (exprFromURef ref1) (exprFromURef ref2)
 specTypesStructEq
   (RFun {rt_bind = rb1, rt_in = rin1, rt_out = rout1, rt_reft = ref1})
   (RFun {rt_bind = rb2, rt_in = rin2, rt_out = rout2, rt_reft = ref2})
-    = specTypesStructEq rin1 rin2 &&
+    =
+      -- trace ("stfun " ++ show (ref2) $
+      specTypesStructEq rin1 rin2 &&
       specTypesStructEq rout1 rout2 &&
-      refTypeEq (exprFromURef ref1) (exprFromURef ref2)
+      refTypesEq (exprFromURef ref1) (exprFromURef ref2)
 specTypesStructEq
   (RAllT {rt_tvbind = rtb1, rt_ty = rty1})
   (RAllT {rt_tvbind = rtb2, rt_ty = rty2})
-    = specTypesStructEq rty1 rty2
+    =
+      -- trace ("strtall " ++ show (rty2) $
+      specTypesStructEq rty1 rty2
 specTypesStructEq
   (RApp {rt_tycon = rtc1, rt_args = rta1, rt_pargs = rtpa1, rt_reft = ref1})
   (RApp {rt_tycon = rtc2, rt_args = rta2, rt_pargs = rtpa2, rt_reft = ref2})
-    = refTypeEq (exprFromURef ref1) (exprFromURef ref2) &&
+    =
+      -- trace ("strapp " ++ show (ref1, ref2, refTypesEq (exprFromURef ref1) (exprFromURef ref2)) $
+      refTypesEq (exprFromURef ref1) (exprFromURef ref2) &&
+      (length rta1 == length rta2) &&
       (all id $ map (uncurry specTypesStructEq) $ zip rta1 rta2)
 specTypesStructEq
   (RAppTy {rt_arg = rta1, rt_res = res1, rt_reft = ref1})
   (RAppTy {rt_arg = rta2, rt_res = res2, rt_reft = ref2})
     = specTypesStructEq rta1 rta2 &&
-      refTypeEq (exprFromURef ref1) (exprFromURef ref2)
+      refTypesEq (exprFromURef ref1) (exprFromURef ref2)
 
 specTypesStructEq (RVar {}) sty2 = False
 specTypesStructEq (RFun {}) sty2 = False
@@ -105,25 +115,49 @@ specTypesStructEq (RAllT {}) sty2 = False
 specTypesStructEq (RApp {}) sty2 = False
 specTypesStructEq (RAppTy {}) sty2 = False
 
-specTypesStructEq sty1 sty2 = trace ("specTypesStructEq: catch all") True
+specTypesStructEq sty1 sty2 =
+  -- trace ("specTypesStructEq: catch all") $
+  True
 
 
-refTypeEq :: R.Expr -> R.Expr -> Bool
-refTypeEq (ECon c1) (ECon c2) = c1 == c2
-refTypeEq (EVar v1) (EVar v2) = True
-refTypeEq (EApp ef1 ea1) (EApp ef2 ea2) = refTypeEq ef1 ef2 && refTypeEq ea1 ea2
-refTypeEq (ENeg e1) (ENeg e2) = refTypeEq e1 e2
-refTypeEq (EBin b1 ep1 eq1) (EBin b2 ep2 eq2) =
-  b1 == b2 && refTypeEq ep1 ep2 && refTypeEq eq1 eq2
-refTypeEq (ECst e1 s1) (ECst e2 s2) = refTypeEq e1 e2
-refTypeEq (PAnd es1) (PAnd es2) = all id $ map (uncurry refTypeEq) $ zip es1 es2
-refTypeEq (POr es1) (POr es2) = all id $ map (uncurry refTypeEq) $ zip es1 es2
-refTypeEq (PNot e1) (PNot e2) = refTypeEq e1 e2
-refTypeEq (PImp ep1 eq1) (PImp ep2 eq2) = refTypeEq ep1 ep2 && refTypeEq eq1 eq2
-refTypeEq (PIff ep1 eq1) (PIff ep2 eq2) = refTypeEq ep1 ep2 && refTypeEq eq1 eq2
-refTypeEq (PAtom bre1 ep1 eq1) (PAtom bre2 ep2 eq2) =
-  bre1 == bre2 && refTypeEq ep1 ep2 && refTypeEq eq1 eq2
-refTypeEq _ _ = False
+refTypesEq :: R.Expr -> R.Expr -> Bool
+refTypesEq (ECon c1) (ECon c2) =
+  -- trace "rfecon" $
+  c1 == c2
+refTypesEq (EVar v1) (EVar v2) =
+  -- trace "rfevar" $
+  True
+refTypesEq (EApp ef1 ea1) (EApp ef2 ea2) =
+  -- trace "rfeapp" $
+  refTypesEq ef1 ef2 && refTypesEq ea1 ea2
+refTypesEq (ENeg e1) (ENeg e2) =
+  -- trace "rfeneg" $
+  refTypesEq e1 e2
+refTypesEq (EBin b1 ep1 eq1) (EBin b2 ep2 eq2) =
+  -- trace "rfebin" $
+  b1 == b2 && refTypesEq ep1 ep2 && refTypesEq eq1 eq2
+refTypesEq (ECst e1 s1) (ECst e2 s2) =
+  -- trace "rfecst" $
+  refTypesEq e1 e2
+refTypesEq (PAnd es1) (PAnd es2) =
+  -- trace "rfeand" $
+  (length es1 == length es2) && (all id $ map (uncurry refTypesEq) $ zip es1 es2)
+refTypesEq (POr es1) (POr es2) =
+  -- trace "rfeor" $
+  (length es1 == length es2) && (all id $ map (uncurry refTypesEq) $ zip es1 es2)
+refTypesEq (PNot e1) (PNot e2) =
+  -- trace "rfenot" $
+  refTypesEq e1 e2
+refTypesEq (PImp ep1 eq1) (PImp ep2 eq2) =
+  -- trace "rfeimp" $
+  refTypesEq ep1 ep2 && refTypesEq eq1 eq2
+refTypesEq (PIff ep1 eq1) (PIff ep2 eq2) =
+  -- trace "rfeiff" $
+  refTypesEq ep1 ep2 && refTypesEq eq1 eq2
+refTypesEq (PAtom bre1 ep1 eq1) (PAtom bre2 ep2 eq2) =
+  -- trace ("rfpatom " ++ show (bre1, bre2)) $
+  bre1 == bre2 && refTypesEq ep1 ep2 && refTypesEq eq1 eq2
+refTypesEq _ _ = False
 
 
 

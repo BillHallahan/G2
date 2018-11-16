@@ -32,6 +32,20 @@ import BenchmarksQuery
 
 -}
 
+
+nothingFile :: String
+nothingFile = "dump-nothing.txt"
+
+goodFile :: String
+goodFile = "dump-good.txt"
+
+manualFile :: String
+manualFile = "dump-manual.txt"
+
+appendFileLn :: String -> String -> IO ()
+appendFileLn file text = appendFile file (text ++ "\n")
+
+
 recoverSafeUnsafePath :: String -> IO String
 recoverSafeUnsafePath file = do
   let unsafePath = wi15UnsafeDir ++ file
@@ -74,7 +88,7 @@ markTriple (trip @ (log, errFun, absFun)) = do
 
 
 linearLogsFind ::
-  (String, String, String) -> [(String, String)] -> IO (Maybe String)
+  (String, String, String) -> [(String, String)] -> IO (Maybe (String, Bool))
 linearLogsFind _ [] = return Nothing
 linearLogsFind
     (trip @ (file, errFun, absFun)) ((aLog, aFile) : afters) = do
@@ -84,72 +98,48 @@ linearLogsFind
     then linearLogsFind trip afters
     else do
       let origPair = (absFun, wi15UnsafeDir ++ file)
-      afterFilePath <- recoverSafeUnsafePath aFile
-      let afModPair = (absFun, afterFilePath)
+      aFullFile <- recoverSafeUnsafePath aFile
+      let afModPair = (absFun, aFullFile)
       diffRes <- structEqFiles origPair afModPair
       case diffRes of
         Left err -> linearLogsFind trip afters
-        Right SpecTypesDiffer -> return $ Just aLog
-        Right otherwise -> do
-          putStrLn $ "linearLogsCompare: Looks promising on " ++ show aLog
-          return $ Just aLog
-        -- otherwise -> linearLogsFind trip afters
-
-
-
-{-
-checkTripleOnLogs ::
-  (String, String, String) -> [(String, String)] -> Int -> Int
-    -> IO (Maybe String)
-checkTripleOnLogs (trip @ (file, errFun, absFun)) logs lo hi
-  | lo > hi = return Nothing
-  | otherwise = do
-      let mid = (lo + hi) / 2
-      let (aLog, aFile) = logs !! mid
-      absErrEx <- absErrExists aLog errFun
-      synErrEx <- syntaxErrExists aLog
-      if synErrEx || absErrEx
-        -- Go later
-        then checkTripleOnLogs trip logs mid hi
-        else do
-          let origPair = (absFun, wi15UnsafeDir ++ file)
-          afterFilePath <- recoverSafeUnsafePath aFile
-          let afModPair = (absFun, afterFilePath)
-          diffRes <- structEqFiles origPair afModPair
-          case diffRes of
-            Left err -> checkTripleOnLogs trip afters
-            Right SpecTypesDiffer -> return $ Just (aLog, aFile)
-            otherwise -> checkTripleOnLogs trip afters
-  
--}
-
-
-
-{-
--}
-
+        Right SpecTypesDiffer -> return $ Just (aFullFile, True)
+        Right SpecTypesSame -> return $ Just (aFullFile, False)
 
 
 -- Careful: some of these are absolute paths and some are not.
 checkTriple ::
   Map String String
     -> [String]
-    -> (String, String, String) -> IO (Maybe String)
+    -> (String, String, String) -> IO ()
 checkTriple table logs (log, errFun, absFun)
   | Just file <- fileFromLog log
   , Just aftLogs <- afterLogs file table logs
   , Just flPairs <- mapM (\l -> fileFromLog l >>= return . (,) l) aftLogs = do
-      putStrLn $ "checkTriple: " 
-                  ++ "[" ++ (show $ length flPairs) ++ "] "
-                  ++ show (log, errFun, absFun)
 
       checkRes <- linearLogsFind (file, errFun, absFun) flPairs
+      _ <- case checkRes of
+        Nothing -> do
+          appendFileLn nothingFile $ wi15UnsafeDir ++ file
+          appendFileLn nothingFile $ show (errFun, absFun)
+          appendFileLn nothingFile "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          return ()
+        Just (aFile, True) -> do
+          appendFileLn goodFile $ wi15UnsafeDir ++ file
+          appendFileLn goodFile $ aFile
+          appendFileLn goodFile $ show (errFun, absFun)
+          appendFileLn goodFile "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          return ()
+        Just (aFile, False) -> do
+          appendFileLn manualFile $ wi15UnsafeDir ++ file
+          appendFileLn manualFile $ aFile
+          appendFileLn manualFile $ show (errFun, absFun)
+          appendFileLn manual "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          return ()
 
-      putStrLn $ "checkTriple: result: " ++ show checkRes
-      putStrLn "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
-      return Nothing
+      return ()
 
-  | otherwise = return Nothing
+  | otherwise = return ()
 
 evalMain :: IO ()
 evalMain = do
@@ -165,7 +155,7 @@ evalMain = do
   let whatTrips = filter (\(_, m) -> m == NoBarMark) markedTrips
   let synTrips = filter (\(_, m) -> m == SyntaxMark) markedTrips
 
-  checkeds <- mapM (checkTriple table logs . fst) $ take 100 okayTrips
+  checkeds <- mapM (checkTriple table logs . fst) $ take 50 okayTrips
 
   -- mapM_ (putStrLn . show) checkeds
 
