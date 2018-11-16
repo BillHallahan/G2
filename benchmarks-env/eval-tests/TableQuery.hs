@@ -4,10 +4,14 @@ import Prelude hiding (lookup)
 import System.Directory
 import Data.List hiding (lookup)
 import Data.List.Split
-import Data.Map as Map hiding (map, filter)
+import Data.Map as Map hiding (member, map, filter)
+import Data.Set as Set hiding (map, filter)
 
 tableFile :: String
 tableFile = "/home/celery/foo/yale/G2/benchmarks-env/id-file-pairs.txt"
+
+badLogsFile :: String
+badLogsFile = "/home/celery/foo/yale/G2/benchmarks-env/bad-logs.txt"
 
 wi15Dir :: String
 wi15Dir = "/home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/"
@@ -17,6 +21,12 @@ wi15SafeDir = wi15Dir ++ "safe/"
 
 wi15UnsafeDir :: String
 wi15UnsafeDir = wi15Dir ++ "unsafe/"
+
+loadBadLogs :: IO (Set String)
+loadBadLogs = do
+  raw <- readFile badLogsFile
+  let logset = Set.fromList $ (read raw :: [String])
+  return logset
 
 -- CALL THIS
 -- file -> id mapping
@@ -30,10 +40,12 @@ loadFileIdTable = do
 -- Loads all the .log files
 loadLogs :: IO [String]
 loadLogs = do
+  badLogs <- loadBadLogs
   safes <- getDirectoryContents wi15SafeDir
   unsafes <- getDirectoryContents wi15UnsafeDir
   let logs = sort $ filter (isInfixOf ".log") $ safes ++ unsafes
-  return logs
+  let cleans = filter (\l -> not $ member l badLogs) logs
+  return cleans
 
 kindFromFile :: String -> Maybe String
 kindFromFile file =
