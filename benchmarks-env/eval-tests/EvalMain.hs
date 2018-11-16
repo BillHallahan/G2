@@ -48,6 +48,9 @@ whatFile = "dump-what.txt"
 syntaxFile :: String
 syntaxFile = "dump-syntax.txt"
 
+etcFile :: String
+etcFile = "dump-etc.txt"
+
 appendFileLn :: String -> String -> IO ()
 appendFileLn file text = appendFile file (text ++ "\n")
 
@@ -128,23 +131,32 @@ checkTriple table logs (log, errFun, absFun)
         Nothing -> do
           appendFileLn nothingFile $ wi15UnsafeDir ++ file
           appendFileLn nothingFile $ show (errFun, absFun)
-          appendFileLn nothingFile "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          appendFileLn nothingFile "^^^^^"
           appendFileLn nothingFile ""
           return ()
         Just (aFile, True) -> do
           appendFileLn goodFile $ wi15UnsafeDir ++ file
           appendFileLn goodFile $ aFile
           appendFileLn goodFile $ show (errFun, absFun)
-          appendFileLn goodFile "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          appendFileLn goodFile "^^^^^"
           appendFileLn goodFile ""
           return ()
         Just (aFile, False) -> do
-          appendFileLn manualFile $ wi15UnsafeDir ++ file
-          appendFileLn manualFile $ aFile
-          appendFileLn manualFile $ show (errFun, absFun)
-          appendFileLn manualFile "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
-          appendFileLn manualFile ""
-          return ()
+          case (errFun, absFun) of
+            ("kmeans1", "map") -> do
+              appendFileLn etcFile $ wi15UnsafeDir ++ file
+              appendFileLn etcFile $ aFile
+              appendFileLn etcFile $ show (errFun, absFun)
+              appendFileLn manualFile "^^^^^"
+              appendFileLn manualFile ""
+              return ()
+            _ -> do
+              appendFileLn manualFile $ wi15UnsafeDir ++ file
+              appendFileLn manualFile $ aFile
+              appendFileLn manualFile $ show (errFun, absFun)
+              appendFileLn manualFile "^^^^^"
+              appendFileLn manualFile ""
+              return ()
 
       return ()
 
@@ -164,7 +176,8 @@ evalMain = do
   let whatTrips = filter (\(_, m) -> m == NoBarMark) markedTrips
   let synTrips = filter (\(_, m) -> m == SyntaxMark) markedTrips
 
-  checkeds <- mapM (checkTriple table logs . fst) $ take 500 okayTrips
+  -- checkeds <- mapM (checkTriple table logs . fst) $ take 100 okayTrips
+  checkeds <- mapM (checkTriple table logs . fst) okayTrips
 
   -- mapM_ (putStrLn . show) checkeds
 
