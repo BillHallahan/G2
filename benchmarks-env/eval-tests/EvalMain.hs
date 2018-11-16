@@ -2,7 +2,9 @@ module EvalMain where
 
 import Control.Exception
 
-import Data.List
+import Data.List hiding (lookup)
+
+import Prelude hiding (lookup)
 
 -- import Data.Map hiding (map)
 import Data.Set as Set hiding (map, filter)
@@ -133,18 +135,21 @@ checkTriple ::
     -> (String, String, String) -> IO ()
 checkTriple table logs (log, errFun, absFun)
   | Just file <- fileFromLog log
+  , Just sid <- lookup file table
   , Just aftLogs <- afterLogs file table logs
   , Just flPairs <- mapM (\l -> fileFromLog l >>= return . (,) l) aftLogs = do
 
       checkRes <- linearLogsFind (file, errFun, absFun) flPairs
       _ <- case checkRes of
         Nothing -> do
+          appendFileLn nothingFile $ "ID: " ++ sid
           appendFileLn nothingFile $ wi15UnsafeDir ++ file
           appendFileLn nothingFile $ show (errFun, absFun)
           appendFileLn nothingFile "^^^^^"
           appendFileLn nothingFile ""
           return ()
         Just (aFile, True) -> do
+          appendFileLn goodFile $ "ID: " ++ sid
           appendFileLn goodFile $ wi15UnsafeDir ++ file
           appendFileLn goodFile $ aFile
           appendFileLn goodFile $ show (errFun, absFun)
@@ -154,6 +159,7 @@ checkTriple table logs (log, errFun, absFun)
         Just (aFile, False) -> do
           case (errFun, absFun) of
             ("kmeans1", "map") -> do
+              appendFileLn etcFile $ "ID: " ++ sid
               appendFileLn etcFile $ wi15UnsafeDir ++ file
               appendFileLn etcFile $ aFile
               appendFileLn etcFile $ show (errFun, absFun)
@@ -161,6 +167,7 @@ checkTriple table logs (log, errFun, absFun)
               appendFileLn etcFile ""
               return ()
             _ -> do
+              appendFileLn manualFile $ "ID: " ++ sid
               appendFileLn manualFile $ wi15UnsafeDir ++ file
               appendFileLn manualFile $ aFile
               appendFileLn manualFile $ show (errFun, absFun)

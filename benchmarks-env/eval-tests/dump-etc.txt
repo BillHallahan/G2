@@ -1,978 +1,1174 @@
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T17.55.56.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-14T13.02.39.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.07.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.26.37.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T05.59.47.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.58.50.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T05.27.14.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 32
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T22.27.24.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T22.27.33.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.17.54.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 36
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T04.42.16.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T17.30.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-17T00.06.34.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-19T18.58.52.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.44.22.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 07
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T08.14.56.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T17.56.17.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T10.05.34.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 26
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-21T03.35.33.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-21T03.38.32.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 58
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T04.59.57.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.58.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.45.19.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 07
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T20.28.21.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.27.09.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 36
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T17.23.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T17.30.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 58
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T04.53.31.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 32
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T07.20.23.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T22.27.33.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.37.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 07
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T20.21.18.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.12.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-18T06.49.56.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T05.28.10.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.57.14.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 58
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.41.50.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.39.14.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.28.57.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.55.00.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 07
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T08.26.28.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.58.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.20.19.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.29.26.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.34.18.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T22.20.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-21T01.07.02.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.09.10.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-17T00.05.52.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T13.51.09.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.54.43.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.34.05.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.58.07.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 32
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T07.23.07.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T22.27.33.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.29.50.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.16.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-18T20.29.48.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-21T01.07.02.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T10.06.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.18.18.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 58
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T04.52.25.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.13.11.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 36
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T04.48.20.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T17.30.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-16T09.00.23.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-16T11.39.07.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.58.48.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-21T01.07.02.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T19.00.28.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 32
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T22.41.39.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T22.43.24.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.37.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.20.19.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 07
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T08.17.23.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-16T10.55.34.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-16T11.39.07.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.40.55.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-17T00.07.19.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T09.00.12.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T05.38.28.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.56.24.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T10.46.55.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 58
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.43.24.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.07.11.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-19T23.08.36.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.42.17.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.40.55.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.56.15.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.09.34.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.08.24.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 58
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.01.06.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.08.53.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.31.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T05.28.10.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.28.55.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-18T20.10.10.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T05.49.31.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.27.09.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.33.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.52.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.13.05.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.24.36.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.19.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.22.15.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.12.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 07
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T20.31.50.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.19.54.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-13T08.34.03.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-18T03.45.01.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.58.10.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-17T00.02.03.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 58
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.35.13.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.15.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.19.11.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.54.43.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.20.39.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T22.20.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-21T01.07.02.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.37.55.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.45.24.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 36
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T18.09.32.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T18.09.53.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T19.00.28.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-16T08.58.16.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-16T11.39.07.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.21.10.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.23.04.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T09.19.36.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T13.53.15.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.48.47.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.07.11.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.06.43.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T10.52.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 36
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-14T22.48.03.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T17.30.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T05.22.16.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T04.28.24.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.48.47.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 32
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T22.39.37.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T22.43.24.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 58
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T04.56.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 36
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.18.54.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T17.30.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.09.10.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.09.34.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.33.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-19T23.08.29.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T04.26.48.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 07
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T20.31.50.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.59.23.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.08.47.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T10.52.44.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.43.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.26.46.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T05.32.52.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T05.18.33.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.56.15.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T04.30.49.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-17T00.12.57.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 32
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T07.15.22.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T22.27.33.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 26
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-21T03.36.55.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-21T03.38.32.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T17.56.17.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.58.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.58.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 07
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T20.20.38.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.07.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T10.48.49.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.22.46.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T16.53.08.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.39.57.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.46.01.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.38.35.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-18T23.08.23.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T16.53.08.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T10.51.43.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-16T11.08.46.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-16T11.39.07.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.26.37.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.36.26.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.40.02.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T07.00.18.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.28.57.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.34.18.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.28.55.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.06.49.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.51.57.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-16T10.54.06.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-16T11.39.07.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.58.48.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-21T01.07.02.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-18T03.37.58.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.55.00.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.31.45.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.30.49.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T05.27.14.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.19.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.29.26.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.59.23.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.44.22.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.30.49.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.58.07.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.26.46.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.24.36.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 05
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.52.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.22.15.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.27.53.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 25
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.58.55.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.19.46.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 61
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.29.50.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.08.38.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.08.47.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 50
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T22.19.46.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-17T00.12.57.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 36
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T17.27.00.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T17.30.20.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-17T00.06.34.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 34
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-16T11.06.34.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-16T11.38.48.lhs
 ("kmeans1","map")
 ^^^^^
 
+ID: 02
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-17T00.07.19.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_KMeans.lhs-2015-03-17T00.14.01.lhs
 ("kmeans1","map")
