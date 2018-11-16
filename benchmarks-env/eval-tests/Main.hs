@@ -64,6 +64,13 @@ main = do
   mapM_ (putStrLn . show) absBenches
   -}
 
+  {-
+  trips <- loadTriples
+  mapM_ (putStrLn . show) trips
+
+  putStrLn $ show $ length trips
+  -}
+
   evalMain
 
 

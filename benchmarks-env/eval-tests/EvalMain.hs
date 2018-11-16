@@ -68,7 +68,17 @@ absErrExists :: String -> String -> IO Bool
 absErrExists log errFun = do
   path <- recoverSafeUnsafePath log
   raw <- readFile path
-  let exists = ("| " ++ errFun) `isInfixOf` raw
+  let exists = (("| " ++ errFun) `isInfixOf` raw)
+                || (errFun == "mapReduce" &&
+                      ("  kvm " `isInfixOf` raw
+                      || "  kvs " `isInfixOf` raw
+                      || "  kvsm " `isInfixOf` raw
+                      || " then collapse " `isInfixOf` raw))
+                || (errFun == "kmeans1" &&
+                      ("  normalize " `isInfixOf` raw
+                      || "  newClusters " `isInfixOf` raw
+                      || "  fm " `isInfixOf` raw
+                      || "  fr " `isInfixOf` raw))
   evaluate exists
 
 syntaxErrExists :: String -> IO Bool
@@ -147,8 +157,8 @@ checkTriple table logs (log, errFun, absFun)
               appendFileLn etcFile $ wi15UnsafeDir ++ file
               appendFileLn etcFile $ aFile
               appendFileLn etcFile $ show (errFun, absFun)
-              appendFileLn manualFile "^^^^^"
-              appendFileLn manualFile ""
+              appendFileLn etcFile "^^^^^"
+              appendFileLn etcFile ""
               return ()
             _ -> do
               appendFileLn manualFile $ wi15UnsafeDir ++ file

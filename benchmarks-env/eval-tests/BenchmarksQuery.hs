@@ -31,7 +31,8 @@ extractWhen1Group group =
     (errFun, absFun)
 
 whenPat2 :: String
-whenPat2 = "0m.*\nmakes.*\n.*\n.*\n.*\n.*"
+-- whenPat2 = "0m.*\nmakes.*\n.*\n.*\n.*\n.*"
+whenPat2 = "0m.*\nmakes.*\n(.*\n)*when\n.*"
 -- whenPat2 = "0m.*\nmakes.*\n.*"
 
 extractWhen2Group :: String -> (String, String)
