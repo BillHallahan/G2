@@ -42,6 +42,12 @@ goodFile = "dump-good.txt"
 manualFile :: String
 manualFile = "dump-manual.txt"
 
+whatFile :: String
+whatFile = "dump-what.txt"
+
+syntaxFile :: String
+syntaxFile = "dump-syntax.txt"
+
 appendFileLn :: String -> String -> IO ()
 appendFileLn file text = appendFile file (text ++ "\n")
 
@@ -123,18 +129,21 @@ checkTriple table logs (log, errFun, absFun)
           appendFileLn nothingFile $ wi15UnsafeDir ++ file
           appendFileLn nothingFile $ show (errFun, absFun)
           appendFileLn nothingFile "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          appendFileLn nothingFile ""
           return ()
         Just (aFile, True) -> do
           appendFileLn goodFile $ wi15UnsafeDir ++ file
           appendFileLn goodFile $ aFile
           appendFileLn goodFile $ show (errFun, absFun)
           appendFileLn goodFile "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          appendFileLn goodFile ""
           return ()
         Just (aFile, False) -> do
           appendFileLn manualFile $ wi15UnsafeDir ++ file
           appendFileLn manualFile $ aFile
           appendFileLn manualFile $ show (errFun, absFun)
-          appendFileLn manual "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          appendFileLn manualFile "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+          appendFileLn manualFile ""
           return ()
 
       return ()
@@ -155,9 +164,17 @@ evalMain = do
   let whatTrips = filter (\(_, m) -> m == NoBarMark) markedTrips
   let synTrips = filter (\(_, m) -> m == SyntaxMark) markedTrips
 
-  checkeds <- mapM (checkTriple table logs . fst) $ take 50 okayTrips
+  checkeds <- mapM (checkTriple table logs . fst) $ take 500 okayTrips
 
   -- mapM_ (putStrLn . show) checkeds
+
+  -- Dump the what things
+  mapM_ (appendFileLn whatFile . show . fst) whatTrips
+
+  mapM_ (appendFileLn syntaxFile . show . fst) synTrips
+
+
+  -- Dump the syntax errors
 
   return ()
   
