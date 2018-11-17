@@ -186,26 +186,33 @@ evalMain = do
   logs <- loadLogs
   trips <- loadTriples
 
+  let nubbedTrips = nubBy (\(a, b, c) (d, e, f) -> (a, b) == (d, e)) trips
+
   -- Mark the triples
-  markedTrips <- mapM markTriple trips
+  markedTrips <- mapM markTriple nubbedTrips
+  let okayTrips = map fst $ filter (\(_, m) -> m == OkayMark) markedTrips
+  let whatTrips = map fst $ filter (\(_, m) -> m == NoBarMark) markedTrips
+  let synTrips = map fst $ filter (\(_, m) -> m == SyntaxMark) markedTrips
+  
 
-  let okayTrips = filter (\(_, m) -> m == OkayMark) markedTrips
-  let whatTrips = filter (\(_, m) -> m == NoBarMark) markedTrips
-  let synTrips = filter (\(_, m) -> m == SyntaxMark) markedTrips
+  putStrLn $ "okays: " ++ (show $ length okayTrips)
+  putStrLn $ "what: " ++ (show $ length whatTrips)
+  putStrLn $ "syns: " ++ (show $ length synTrips)
+  putStrLn $ "nubbed: " ++ (show $ length nubbedTrips)
 
-  -- checkeds <- mapM (checkTriple table logs . fst) $ take 100 okayTrips
-  checkeds <- mapM (checkTriple table logs . fst) okayTrips
+  -- checkeds <- mapM (checkTriple table logs) $ take 100 okayTrips
+  checkeds <- mapM (checkTriple table logs) okayTrips
 
   -- mapM_ (putStrLn . show) checkeds
 
   -- Dump the what things
-  mapM_ (appendFileLn whatFile . show . fst) whatTrips
+  mapM_ (appendFileLn whatFile . show) whatTrips
 
-  mapM_ (appendFileLn syntaxFile . show . fst) synTrips
+  mapM_ (appendFileLn syntaxFile . show) synTrips
 
+  mapM_ (appendFileLn "dump-raw.txt" . show) checkeds
 
   -- Dump the syntax errors
 
   return ()
-  
 
