@@ -1,3 +1,6 @@
 ("KMeans.lhs-2015-03-15T05.49.35.lhs.log","kmeans1","map")
 ("KMeans.lhs-2015-03-15T05.50.06.lhs.log","kmeans1","map")
 ("KMeans.lhs-2015-03-15T05.51.17.lhs.log","kmeans1","map")
+("KMeans.lhs-2015-03-15T05.49.35.lhs.log","kmeans1","map")
+("KMeans.lhs-2015-03-15T05.50.06.lhs.log","kmeans1","map")
+("KMeans.lhs-2015-03-15T05.51.17.lhs.log","kmeans1","map")
