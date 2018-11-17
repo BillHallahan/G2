@@ -247,7 +247,7 @@ ID: 62
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.05.15.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.05.29.lhs
 ("replicate","replicate")
-DDD
+FFF
 ^^^^^
 
 ID: 08
@@ -261,7 +261,7 @@ ID: 62
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T17.05.17.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T17.05.31.lhs
 ("replicate","replicate")
-DDD
+FFF
 ^^^^^
 
 ID: 02
@@ -352,7 +352,7 @@ ID: 33
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T19.58.29.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
 ("concat","foldr")
-DDD
+AAA
 ^^^^^
 
 ID: 45
@@ -478,7 +478,7 @@ ID: 33
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T19.55.23.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
 ("concat","foldr")
-DDD
+AAA
 ^^^^^
 
 ID: 01
@@ -1009,7 +1009,7 @@ ID: 17
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.23.35.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T02.35.58.lhs
 ("concat","foldr")
-DDD
+CCC
 ^^^^^
 
 ID: 12
@@ -1086,7 +1086,7 @@ ID: 62
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.01.32.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.05.29.lhs
 ("replicate","replicate")
-DDD
+FFF
 ^^^^^
 
 ID: 33
@@ -1142,7 +1142,7 @@ ID: 62
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T17.01.39.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T17.05.31.lhs
 ("replicate","replicate")
-DDD
+FFF
 ^^^^^
 
 ID: 33
@@ -1205,7 +1205,7 @@ ID: 17
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.14.11.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.15.59.lhs
 ("concat2","foldr")
-DDD
+CCC
 ^^^^^
 
 ID: 33
@@ -1219,7 +1219,7 @@ ID: 08
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-21T01.10.21.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-21T06.40.26.lhs
 ("concat","foldr")
-DDD
+CCC
 ^^^^^
 
 ID: 39
@@ -1450,7 +1450,7 @@ ID: 33
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T20.03.41.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
 ("concat","foldr")
-DDD
+AAA
 ^^^^^
 
 ID: 27
@@ -1506,7 +1506,7 @@ ID: 33
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T19.52.47.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
 ("concat","foldr")
-DDD
+AAA
 ^^^^^
 
 ID: 09
