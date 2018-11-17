@@ -821,6 +821,7 @@ ID: 46
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T05.53.59.lhs
 /home/celery/foo/yale/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T13.25.25.lhs
 ("prop_zipWith","zipWith")
+EEE
 ^^^^^
 
 ID: 45
