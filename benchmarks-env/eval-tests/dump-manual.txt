@@ -64,12 +64,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.42.19
 ("expand","map")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 61
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.26.37.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 36
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T18.44.00.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T18.45.21.lhs
@@ -154,24 +157,30 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16
 ("expand","map")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 26
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-21T03.35.33.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-21T03.38.32.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 45
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.51.45.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
 ("mapReduce","expand")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 58
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T04.59.57.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 48
 benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T00.52.40.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-14T00.49.06.lhs
@@ -220,12 +229,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.3
 ("prop_concat2","length")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 58
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T04.53.31.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 08
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.45.57.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.48.03.lhs
@@ -298,12 +310,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T18.5
 ("zipWith","implies")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 50
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.58.59.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 01
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T02.34.17.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/List.lhs-2015-03-20T02.49.24.lhs
@@ -358,24 +373,30 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
 ("concat","$")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 45
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.51.45.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
 ("mapReduce","expand")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 33
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T21.48.06.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
 ("concat","$")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 32
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T07.23.07.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T22.27.33.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 33
 benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.58.16.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T00.17.41.lhs
@@ -586,12 +607,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T07.32.50
 ("mapReduce","group")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 05
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.08.53.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 17
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.09.31.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.47.03.lhs
@@ -640,12 +664,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
 ("concat","$")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 61
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.27.09.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 43
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.27.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
@@ -670,12 +697,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.5
 ("prop_concat2_1","concat2")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 61
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T17.24.36.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 43
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.49.38.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
@@ -712,24 +742,30 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.26.53.lhs
 ("concat","addl")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 25
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T06.58.10.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T21.14.27.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 39
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.31.46.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.47.48.lhs
 ("kmeans","repeat")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 58
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.35.13.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.49.35.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 17
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.03.46.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.07.25.lhs
@@ -766,24 +802,30 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16
 ("expand","map")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 36
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T18.09.32.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T18.09.53.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 35
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T05.36.56.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T07.16.42.lhs
 ("prop_size","l3")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 05
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T14.21.10.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 46
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T05.53.59.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T13.25.25.lhs
@@ -874,12 +916,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
 ("concat","$")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 36
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-14T22.48.03.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T17.30.20.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 35
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T05.43.52.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T07.16.42.lhs
@@ -922,12 +967,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T00.17.41
 ("expand","map")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 05
 benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-17T15.21.33.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-17T15.25.18.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 17
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.39.40.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
@@ -958,6 +1006,7 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.04.14.lhs
 ("append","foldr")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 45
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.39.40.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
@@ -970,6 +1019,8 @@ benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-20T17.36.42.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 17
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.23.35.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T02.35.58.lhs
@@ -1018,12 +1069,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.23.44
 ("mapReduce","group")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 50
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T23.58.45.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 46
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T05.53.59.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T13.25.25.lhs
@@ -1084,6 +1138,7 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18
 ("distance","$")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 09
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.18.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.39.lhs
@@ -1096,6 +1151,8 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18
 ("distance","zipWith")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 00
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T00.38.40.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T00.40.14.lhs
@@ -1150,12 +1207,15 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.26.53.lhs
 ("concat","addl")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 50
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.28.57.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-21T00.11.56.lhs
 ("kmeans1","Timeout!")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 17
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.07.07.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.07.22.lhs
@@ -1204,6 +1264,7 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18
 ("distance","$")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 09
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.32.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.39.lhs
@@ -1216,6 +1277,8 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18
 ("distance","zipWith")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 39
 benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T02.09.51.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T02.26.46.lhs
@@ -1444,6 +1507,7 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18
 ("distance","$")
 ^^^^^
 
+<<<<<<< HEAD
 ID: 09
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.13.lhs
 benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.39.lhs
@@ -1456,6 +1520,8 @@ benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18
 ("distance","zipWith")
 ^^^^^
 
+=======
+>>>>>>> 47ff1f50080bf730e7890724a97c32546943b6a4
 ID: 17
 benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T04.40.07.lhs
 benchmarks-env/liquidhaskell-study/wi15/safe/MapReduce.lhs-2015-03-16T19.22.38.lhs

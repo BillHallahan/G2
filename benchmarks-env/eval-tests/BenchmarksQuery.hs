@@ -48,7 +48,8 @@ parseWhenPairs raw =
   let groups2 = raw =~ whenPat2 :: [[String]] in
   let extracts1 = map extractWhen1Group $ concat groups1 in
   let extracts2 = map extractWhen2Group $ concat groups2 in
-    nub $ filter (\(_, w) -> length w /= 0) $ extracts1 ++ extracts2
+    -- nub $ filter (\(_, w) -> length w /= 0) $ extracts1 ++ extracts2
+    take 1 $ filter (\(_, w) -> length w /= 0) $ extracts1 ++ extracts2
 
 -- All the bench files
 allBenches :: IO [String]
@@ -91,8 +92,9 @@ blackSet = Set.fromList []
 loadTriples :: IO [(String, String, String)]
 loadTriples = do
   benches <- loadBenches
-  let rawTrips = concatMap (\(b, ws) -> map (\(e, a) -> (b, e, a)) ws) benches
-  let cleanTrips = filter (\(_, e, _) -> not $ member e blackSet) rawTrips
-  return cleanTrips
+  -- let rawTrips = concatMap (\(b, ws) -> map (\(e, a) -> (b, e, a)) ws) benches
+  -- let cleanTrips = filter (\(_, e, _) -> not $ member e blackSet) rawTrips
+  let trips = map (\(f, ps) -> let (e, a) = head ps in (f, e, a)) benches
+  return trips
 
 
