@@ -6,8 +6,6 @@ data Peano = Succ Peano | Zero
 add :: Peano -> Peano -> Peano
 add Zero p = p
 add (Succ p) p2 = add' p (Succ p2)
-  Case
-  DataAlt
 
 {-@ measure toInt @-}
 toInt :: Peano -> Int

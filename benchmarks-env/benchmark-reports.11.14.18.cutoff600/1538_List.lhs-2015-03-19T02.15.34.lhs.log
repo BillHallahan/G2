@@ -1,0 +1,142 @@
+1538
+List.lhs-2015-03-19T02.15.34.lhs
+(229, '21-41')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.15.34.lhs:229:21-41: Error: Liquid Type Mismatch', ' 229 | concat (x :+: xs) = prepend x (concat xs)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mconcat (Emp :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: Emp)) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: (Emp :+: Emp)) = 0 :+: Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = 0 :+: (0 :+: Emp)
+violating concat's refinement type
+Concrete
+
+
+time = 45.24039912223816
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 355,Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.15.34.lhs:229:21-41: Error: Liquid Type Mismatch
+ 
+ 229 | concat (x :+: xs) = prepend x (concat xs)
+                           ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == size x + size ?a
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sizes ?b}
+  
+   In Context
+     xs : {v : (List (List a)) | 0 <= size v}
+      
+     ?b : {?b : (List (List a)) | 0 <= size ?b}
+      
+     x : {v : (List a) | 0 <= size v}
+      
+     ?a : {?a : (List a) | size ?a == sizes xs
+                           && 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.15.34.lhs:232:24-47: Error: Liquid Type Mismatch
+ 
+ 232 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?g}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     List.l2 : {List.l2 : (List Int) | size List.l2 == 2
+                                       && 0 <= size List.l2}
+      
+     ?g : {?g : Bool | Prop ?g <=> ?h == ?c}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?b
+                                    && sizes v == size List.l0 + size ?b
+                                    && 0 <= size v}
+      
+     List.l3 : {List.l3 : (List Int) | size List.l3 == 3
+                                       && 0 <= size List.l3}
+      
+     ?f : {?f : (List Int) | size ?f == sizes xss
+                             && 0 <= size ?f}
+      
+     ?c : {?c : Int | ?c == (6 : int)}
+      
+     ?h : {?h : Int | ?h == size ?f}
+      
+     ?e : {?e : (List (List Int)) | size ?e == 1 + size ?d
+                                    && sizes ?e == size List.l3 + size ?d
+                                    && 0 <= size ?e}
+      
+     ?b : {?b : (List (List Int)) | size ?b == 1 + size ?a
+                                    && sizes ?b == size List.l1 + size ?a
+                                    && 0 <= size ?b}
+      
+     List.l0 : {List.l0 : (List Int) | size List.l0 == 0
+                                       && 0 <= size List.l0}
+      
+     ?d : {?d : (List (List Int)) | size ?d == 0
+                                    && sizes ?d == 0
+                                    && 0 <= size ?d}
+      
+     ?a : {?a : (List (List Int)) | size ?a == 1 + size ?e
+                                    && sizes ?a == size List.l2 + size ?e
+                                    && 0 <= size ?a}
+      
+     List.l1 : {List.l1 : (List Int) | size List.l1 == 1
+                                       && 0 <= size List.l1}

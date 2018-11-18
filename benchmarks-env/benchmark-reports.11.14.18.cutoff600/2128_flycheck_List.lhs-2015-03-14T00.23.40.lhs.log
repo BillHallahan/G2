@@ -1,0 +1,140 @@
+2128
+flycheck_List.lhs-2015-03-14T00.23.40.lhs
+(228, '1-12')
+concatHelper
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.23.40.lhs:228:1-12: Error: Liquid Type Mismatch', ' 228 | concatHelper x1 Emp = x1']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mconcatHelper Emp Emp = Emp
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp Emp = Emp
+violating concatHelper's refinement type
+Concrete
+
+concatHelper (0 :+: (0 :+: Emp)) Emp = 0 :+: (0 :+: Emp)
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: Emp)) Emp = 0 :+: (0 :+: Emp)
+violating concatHelper's refinement type
+Concrete
+
+concatHelper (0 :+: (0 :+: (0 :+: Emp))) Emp = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: Emp))) Emp = 0 :+: (0 :+: (0 :+: Emp))
+violating concatHelper's refinement type
+Concrete
+
+concatHelper (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: Emp)))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: Emp)))
+violating concatHelper's refinement type
+Concrete
+
+concatHelper (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))
+violating concatHelper's refinement type
+Concrete
+
+concatHelper Emp (Emp :+: Emp) = Emp
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) Emp Emp = Emp
+violating concatHelper's refinement type
+Concrete
+
+concatHelper (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+makes a call to
+concatHelper (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) Emp = 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))
+violating concatHelper's refinement type
+Concrete
+
+
+time = 7.213823318481445
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 323,Just 252,Just 318]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.23.40.lhs:228:1-12: Error: Liquid Type Mismatch
+ 
+ 228 | concatHelper x1 Emp = x1
+       ^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | VV == x1
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == 1 + size ?a}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+      
+     x1 : {v : (List a) | 0 <= size v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.23.40.lhs:229:32-61: Error: Liquid Type Mismatch
+ 
+ 229 | concatHelper x1  (x2 :+: xs) = concatHelper (append x1 x2) xs
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == 1 + size xs
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == 1 + size ?a}
+  
+   In Context
+     xs : {v : (List (List a)) | 0 <= size v}
+      
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T00.23.40.lhs:238:24-47: Error: Liquid Type Mismatch
+ 
+ 238 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?c}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Bool | Prop ?c <=> ?a == ?b}
+      
+     ?b : {?b : Int | ?b == (6 : int)}
+      
+     ?d : {?d : (List Int) | 0 <= size ?d}
+      
+     ?a : {?a : Int | ?a == size ?d}
