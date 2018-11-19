@@ -17,23 +17,15 @@ import G2.Internals.Config
 import G2.Internals.Execution.Reducer
 import G2.Internals.Execution.Rules
 import G2.Internals.Language
-import qualified G2.Internals.Language.ApplyTypes as AT
 import qualified G2.Internals.Language.ExprEnv as E
 import qualified G2.Internals.Language.Stack as S
-import G2.Internals.Liquid.AddLHTC
 import G2.Internals.Liquid.Annotations
-import G2.Internals.Liquid.Types
 import G2.Internals.Solver hiding (Assert)
 
-import Data.List
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
-import Data.Ord
 import Data.Semigroup
 import qualified Data.Text as T
-
-import Debug.Trace
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -62,7 +54,6 @@ lhReduce' State { expr_env = eenv
                 , curr_expr = CurrExpr Evaluate vv@(Let _ (Assert _ _ _))
                 , name_gen = ng
                 , known_values = kv
-                , apply_types = at
                 , exec_stack = stck
                 , track = tr } =
         let
@@ -79,16 +70,14 @@ lhReduce' State { expr_env = eenv
                         , []
                         , tr))
                        er
-            sb = symbState eenv vv ng at stck tr
+            sb = symbState eenv vv ng stck tr
         in
         Just $ (r, states ++ maybeToList sb)
 -- We override the default Let case, so we can add function bindings
 -- to our list of abstractable functions
 lhReduce' State { expr_env = eenv
-                , type_env = tenv
                 , curr_expr = CurrExpr Evaluate (Let b e)
                 , name_gen = ng
-                , known_values = kv
                 , exec_stack = stck
                 , track = tr } =
     let 
@@ -134,14 +123,12 @@ lhReduce' State { expr_env = eenv
 
 lhReduce' _ = Nothing
 
-symbState :: ExprEnv -> Expr -> NameGen -> ApplyTypes -> S.Stack Frame -> LHTracker -> Maybe (ReduceResult LHTracker)
+symbState :: ExprEnv -> Expr -> NameGen -> S.Stack Frame -> LHTracker -> Maybe (ReduceResult LHTracker)
 symbState eenv 
-          cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars, returns = ret})) e _)) 
-          ng at stck 
+          cexpr@(Let [(b, _)] (Assert (Just (FuncCall {funcName = fn, arguments = ars })) e _)) 
+          ng stck 
           tr@(LHTracker { abstractable = ns
-                        , abstract_calls = abs_c
-                        , last_var = Just last_v
-                        , annotations = annm }) =
+                        , abstract_calls = abs_c }) =
     let
         cexprT = returnType cexpr
 
@@ -176,7 +163,7 @@ symbState eenv
     case not (hasTyBottom cexprT) && fn `elem` ns of
         True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng'', stck, [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars ++ lamI, returns = Var i}):abs_c})
         False -> Nothing
-symbState _ _ _ _ _ _ = Nothing
+symbState _ _ _ _ _ = Nothing
 
 -- Creates Lambda bindings to saturate the type of the given Typed thing,
 -- and a list of the bindings so they can be used elsewhere
@@ -203,8 +190,8 @@ tysBoundByStack' eenv s (TyFun _ t)
 tysBoundByStack' eenv s (TyForAll b t)
     | NamedTyBndr i <- b
     , Just (ApplyFrame e, s') <- S.pop s
-    , Just t <- getTypeExpr eenv e =
-        (i, t):tysBoundByStack' eenv s' t
+    , Just t' <- getTypeExpr eenv e =
+        (i, t'):tysBoundByStack' eenv s' t'
     | Just (_, s') <- S.pop s =  tysBoundByStack' eenv s' t
 tysBoundByStack' _ _ _ = []
 
@@ -213,7 +200,7 @@ getTypeExpr eenv (Var (Id n _)) =
     case E.lookup n eenv of
         Just e -> getTypeExpr eenv e
         Nothing -> Nothing
-getTypeExpr eenv (Type t) = Just t
+getTypeExpr _ (Type t) = Just t
 getTypeExpr _ _ = Nothing
 
 -- Counts the maximal number of Vars with names in the ExprEnv
@@ -232,53 +219,37 @@ initialTrack eenv (Assume _ e) = initialTrack eenv e
 initialTrack eenv (Assert _ _ e) = initialTrack eenv e
 initialTrack _ _ = 0
 
-mkInferredAssumptions :: [Expr] -> [Expr] -> [Expr]
-mkInferredAssumptions ars_ret es = mkInferredAssumptions' (reverse ars_ret) es
-
-
-mkInferredAssumptions' :: [Expr] -> [Expr] -> [Expr]
-mkInferredAssumptions' _ [] = []
-mkInferredAssumptions' ret_ars (e:es) =
-    let
-        cl = countLams e
-        app = e:reverse (take cl ret_ars)
-    in
-    (mkApp app):mkInferredAssumptions' ret_ars es
-
-countLams :: Expr -> Int
-countLams (Lam _ _ e) = 1 + countLams e
-countLams _ = 0
-
 data LHTracker = LHTracker { abstractable :: [Name]
                            , abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name
                            , annotations :: AnnotMap } deriving (Eq, Show)
 
 instance Named LHTracker where
-    names (LHTracker {abstractable = abst, abstract_calls = abs_c, last_var = n, annotations = annots}) = 
-        names abst ++ names abs_c ++ names n ++ names annots
+    names (LHTracker {abstractable = abst, abstract_calls = abs_c, last_var = n, annotations = anns}) = 
+        names abst ++ names abs_c ++ names n ++ names anns
     
-    rename old new (LHTracker {abstractable = abst, abstract_calls = abs_c, last_var = n, annotations = annots}) =
+    rename old new (LHTracker {abstractable = abst, abstract_calls = abs_c, last_var = n, annotations = anns}) =
         LHTracker { abstractable = rename old new abst
                   , abstract_calls = rename old new abs_c
                   , last_var = rename old new n
-                  , annotations = rename old new annots }
+                  , annotations = rename old new anns }
     
-    renames hm (LHTracker {abstractable = abst, abstract_calls = abs_c, last_var = n, annotations = annots}) =
+    renames hm (LHTracker {abstractable = abst, abstract_calls = abs_c, last_var = n, annotations = anns}) =
         LHTracker { abstractable = renames hm abst
                   , abstract_calls = renames hm abs_c
                   , last_var = renames hm n
-                  , annotations = renames hm annots }
+                  , annotations = renames hm anns }
 
 instance ASTContainer LHTracker Expr where
-    containedASTs (LHTracker {abstract_calls = abs_c, annotations = annots}) = containedASTs abs_c ++ containedASTs annots
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
-        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns}) =
+        containedASTs abs_c ++ containedASTs anns
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns}) =
+        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f anns}
 
 instance ASTContainer LHTracker Type where
-    containedASTs (LHTracker {abstract_calls = abs_c, annotations = annots}) = containedASTs abs_c ++ containedASTs annots
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = annots}) =
-        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f annots}
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns}) = containedASTs abs_c ++ containedASTs anns
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns}) =
+        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f anns}
 
 data LHRed con = LHRed con Config
 
@@ -317,7 +288,7 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
     -- If we start trying to execute a state with more than the maximal number
     -- of rules applied, we throw it away.
     discardOnStart (LHLimitByAcceptedHalter co) (Just v) _ s = num_steps s > v + co
-    discardOnStart _ Nothing _ s = False
+    discardOnStart _ Nothing _ _ = False
 
     -- Find all accepted states with the (current) minimal number of abstracted functions
     -- Then, get the minimal number of steps taken by one of those states
@@ -326,7 +297,7 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
         Just . minimum . map num_steps
             $ allMin (length . abstract_calls . track) acc
     
-    stopRed _ Nothing _ s = Continue
+    stopRed _ Nothing _ _ = Continue
     stopRed (LHLimitByAcceptedHalter co) (Just nAcc) _ s =
         if num_steps s > nAcc + co then Switch else Continue
     
@@ -340,15 +311,15 @@ instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
 
     orderStates _ _ = num_steps
 
-    updateSelected _ _ (Processed { accepted = acc}) s = ()
+    updateSelected _ _ _ _ = ()
 
 
 allMin :: Ord b => (a -> b) -> [a] -> [a]
-allMin f s =
+allMin f xs =
     let
-        minT = minimum $ map f s
+        minT = minimum $ map f xs
     in
-    filter (\s -> minT == (f $ s)) s
+    filter (\s -> minT == (f s)) xs
 
 -- | Halt if we abstract more calls than some other already accepted state
 data LHAbsHalter = LHAbsHalter T.Text (Maybe T.Text) ExprEnv

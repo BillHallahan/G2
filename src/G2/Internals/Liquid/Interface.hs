@@ -14,7 +14,6 @@ import G2.Internals.Execution
 
 import G2.Internals.Liquid.AddLHTC
 import G2.Internals.Liquid.AddOrdToNum
-import G2.Internals.Liquid.Annotations
 import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.ConvertCurrExpr
 import G2.Internals.Liquid.Measures
@@ -27,16 +26,12 @@ import G2.Internals.Solver hiding (solve)
 
 import G2.Lib.Printers
 
-import Language.Haskell.Liquid.Constraint.Generate
-import Language.Haskell.Liquid.Constraint.ToFixpoint
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types hiding (Config, cls, names)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
 import qualified Language.Haskell.Liquid.UX.Config as LHC
 
-import Language.Fixpoint.Solver
-import qualified Language.Fixpoint.Types as F
 import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Control.Exception

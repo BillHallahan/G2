@@ -66,7 +66,7 @@ valToExpr' locM spn@(Span {start = stloc}) (n, ast) = do
     case (e, t) of
         (Just e', Just t') -> do
             let i = Id (Name "ret" Nothing 0 Nothing) t'
-            let ai = leadingLamUsesIds e' -- assertionLamIds e'
+            let ai = leadingLamUsesIds e'
             dm <- dictMapFromIds (map snd ai)
 
             ce <- convertSpecType dm M.empty (map snd ai) (Just i) ast
@@ -78,14 +78,6 @@ valToExpr' locM spn@(Span {start = stloc}) (n, ast) = do
 lhCleanAnnotMaps :: LHOutput -> AnnInfo SpecType
 lhCleanAnnotMaps (LHOutput {cgI = cgi, solution = sol}) =
     applySolution sol $ closeAnnots $ annotMap cgi
-
-assertionLamIds :: Expr -> [(LamUse, Id)]
-assertionLamIds = assertionLamIds' . inLams
-
-assertionLamIds' :: Expr -> [(LamUse, Id)]
-assertionLamIds' (Let _ (Assume _ (Assert _ a _))) = leadingLamUsesIds a
-assertionLamIds' (Let _ (Assert _ a _)) = leadingLamUsesIds a
-assertionLamIds' _ = []
 
 addIds :: Expr -> [(LamUse, Id)] -> Expr
 addIds e ((u, i):is) = Lam u i $ addIds e is
@@ -126,7 +118,7 @@ pickOneA :: [(t, Annot t1)] -> [(t, Annot t1)]
 pickOneA xas = case (rs, ds, ls, us) of
                  (x:_, _, _, _) -> [x]
                  (_, x:_, _, _) -> [x]
-                 (_, _, x:_, _) -> trace ("Loc") []
+                 (_, _, _:_, _) -> trace ("Loc") []
                  (_, _, _, x:_) -> [x]
 
                  -- (_, x:_, _, _) -> [x]

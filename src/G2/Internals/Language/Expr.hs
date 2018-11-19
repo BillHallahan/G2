@@ -343,31 +343,31 @@ etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
         -- We use the map to track if recursive lookups are actually decreasing arity,
         -- and prevent an infinite loop
         validN :: ExprEnv -> M.Map Name Int -> Int -> Expr -> Int
-        validN _ m 0 _ = n'
-        validN eenv m i (Lam _ _ e') = validN eenv m (i - 1) e'
-        validN eenv m i (Var (Id v _))
+        validN _ _ 0 _ = n'
+        validN eenv' m i (Lam _ _ e') = validN eenv' m (i - 1) e'
+        validN eenv' m i (Var (Id v _))
             | Just i' <- M.lookup v m
-            , Just e' <- E.lookup v eenv =
-                if i >= i' then n' - i `min` i' else validN eenv m' i e'
-            | Just e' <- E.lookup v eenv = validN eenv m' i e'
+            , Just e' <- E.lookup v eenv' =
+                if i >= i' then n' - i `min` i' else validN eenv' m' i e'
+            | Just e' <- E.lookup v eenv' = validN eenv' m' i e'
             | otherwise = n'
             where
                 m' = M.insert v i m
-        validN eenv m i (App e' _) = validN eenv m (i + 1) e'
-        validN eenv m i (Let b e') =
+        validN eenv' m i (App e' _) = validN eenv' m (i + 1) e'
+        validN eenv' m i (Let b e') =
             let
-                eenv' = E.insertExprs (map (\(i, e'') -> (idName i, e'')) b) eenv
+                eenv'' = E.insertExprs (map (\(i', e'') -> (idName i', e'')) b) eenv'
             in
-            validN eenv' m i e'
-        validN _ m i _ = n' - i
+            validN eenv'' m i e'
+        validN _ _ i _ = n' - i
 
         addLamApps :: [Name] -> Type -> Expr -> Expr
-        addLamApps [] _ e = e
-        addLamApps (_:ns) (TyForAll (NamedTyBndr b) t') e =
-            Lam TypeL b (App (addLamApps ns t' e) (Var b))
-        addLamApps (n':ns) (TyFun t t') e =
-            Lam TermL (Id n' t) (App (addLamApps ns t' e) (Var (Id n' t)))
-        addLamApps _ _ e = e
+        addLamApps [] _ e' = e'
+        addLamApps (_:ns) (TyForAll (NamedTyBndr b) t') e' =
+            Lam TypeL b (App (addLamApps ns t' e') (Var b))
+        addLamApps (ln:ns) (TyFun t t') e' =
+            Lam TermL (Id ln t) (App (addLamApps ns t' e') (Var (Id ln t)))
+        addLamApps _ _ e' = e'
 
 
 -- | Forces the complete evaluation of an expression

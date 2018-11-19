@@ -10,7 +10,6 @@ import G2.Internals.Liquid.Conversion
 import G2.Internals.Liquid.Types
 
 import Control.Monad.Extra
-import Data.Monoid
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -53,7 +52,6 @@ modifyInputExpr i@(Id n _) = do
 modifyInputExpr' :: Id -> Expr -> LHStateM (Id, [Name])
 modifyInputExpr' i e = do
     (e', ns) <- rebindFuncs e
-    -- e'' <- e' adjustLetsForAbstract e'
     e''' <- letLiftFuncs e'
 
     newI <- freshSeededIdN (idName i) (typeOf i)
@@ -82,40 +80,6 @@ replaceVarWithName n new = modify (replaceVarWithName' n new)
 replaceVarWithName' :: Name -> Expr -> Expr -> Expr
 replaceVarWithName' n new v@(Var (Id n' _)) = if n == n' then new else v
 replaceVarWithName' _ _ e = e
-
--- Modifies Let's in the CurrExpr to have Asserts in functions, if they are self recursive.
--- Furthermore, distinguishes between the first call to a function,
--- and those that are recursive.
-adjustLetsForAbstract :: Expr -> LHStateM Expr 
-adjustLetsForAbstract = modifyM adjustLetsForAbstract'
-
-adjustLetsForAbstract' :: Expr -> LHStateM Expr 
-adjustLetsForAbstract' (Let b e) = do
-    b' <- return . concat =<< mapM (uncurry adjustLetsForAbstract'') b
-    return $ Let b' e
-adjustLetsForAbstract' e = return e
-
-adjustLetsForAbstract'' :: Id -> Expr -> LHStateM [(Id, Expr)]
-adjustLetsForAbstract'' i e
-    | hasFuncType i
-    , selfRecursive e = do
-        i' <- freshIdN (typeOf i)
-        let ce = replaceASTs (Var i) (Var i') e
-
-
-        e' <- insertInLamsE (\as ee -> do
-                    r <- freshIdN (typeOf ee)
-                    let fc = FuncCall { funcName = idName i, arguments = map Var as, returns = Var r}
-                    true <- mkTrueE
-
-                    return $ Let [(r, ee)] $ Assert (Just fc) true (Var r)) ce
-
-        return [(i, e'), (i', ce)]
-    | otherwise = return [(i, e)]
-    where
-        selfRecursive :: Expr -> Bool
-        selfRecursive (Var i') = i == i'
-        selfRecursive e = getAny $ evalChildren (Any . selfRecursive) e
 
 -- We want to get all function calls into Let Bindings.
 -- This is a bit tricky- we can't just get all calls at once,

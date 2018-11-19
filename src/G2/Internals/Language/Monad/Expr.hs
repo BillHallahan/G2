@@ -23,8 +23,6 @@ import G2.Internals.Language.Support
 import G2.Internals.Language.Monad.AST
 import G2.Internals.Language.Monad.Support
 
-import qualified Data.HashMap.Lazy as HM
-
 appKVTEnv :: ExState s m => (KnownValues -> TypeEnv -> a) -> m a
 appKVTEnv f = do
     kv <- knownValues

@@ -54,9 +54,9 @@ addTypeLamsLet = modifyM addTypeLamsLet'
 
 addTypeLamsLet' :: Expr -> LHStateM Expr
 addTypeLamsLet' (Let be e) = do
-    be' <- mapM (\(b, e) -> do
-            e' <- addTypeLams e
-            return (b, e')
+    be' <- mapM (\(b, e') -> do
+            e'' <- addTypeLams e'
+            return (b, e'')
         ) be
     return (Let be' e)
 addTypeLamsLet' e = return e
@@ -93,7 +93,7 @@ addLHTCExprEnvNextLams (App e1 e2) = do
     (e1', m1) <- addLHTCExprEnvNextLams e1
     (e2', m2) <- addLHTCExprEnvNextLams e2
     return (App e1' e2', M.union m1 m2)
-addLHTCExprEnvNextLams e@(Lam TypeL i le) = addLHTCExprEnvLams [] e
+addLHTCExprEnvNextLams e@(Lam TypeL _ _) = addLHTCExprEnvLams [] e
 addLHTCExprEnvNextLams (Lam TermL i e) = do
     (e', m) <- addLHTCExprEnvNextLams e
     return (Lam TermL i e', m)
@@ -148,7 +148,7 @@ addLHTCExprPasses m = modifyAppTopE (addLHTCExprPasses' m)
 
 addLHTCExprPasses' :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprPasses' m a@(App _ _)
-    | a'@(Data _:_) <- unApp a  = return a
+    | (Data _:_) <- unApp a  = return a
     | otherwise = do
         let a' = unApp a
         a'' <- addLHTCExprPasses'' m [] a'

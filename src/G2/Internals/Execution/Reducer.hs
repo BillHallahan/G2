@@ -47,12 +47,8 @@ import G2.Lib.Printers
 
 import Data.Foldable
 import qualified Data.HashSet as S
-import Data.List
 import qualified Data.Map as M
-import Data.Ord
 import System.Directory
-
-import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -324,8 +320,8 @@ instance Halter MaxOutputsHalter (Maybe Int) t where
 data SwitchEveryNHalter = SwitchEveryNHalter Int
 
 instance Halter SwitchEveryNHalter Int t where
-    initHalt (SwitchEveryNHalter sw) config _ = sw
-    updatePerStateHalt (SwitchEveryNHalter sw) hv _ _ = sw
+    initHalt (SwitchEveryNHalter sw) _ _ = sw
+    updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
     stopRed _ i _ _ = if i <= 0 then Switch else Continue
     stepHalter _ i _ _ = i - 1
 
@@ -374,7 +370,7 @@ halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> In
 halterSub1 _ h _ _ = h - 1
 
 halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> HaltC
-halterIsZero _ 0 _ s = Discard
+halterIsZero _ 0 _ _ = Discard
 halterIsZero _ _ _ _ = Continue
 
 --------
@@ -396,10 +392,10 @@ runReducer red hal ord config s =
                      , order_val = initPerStateOrder ord config s
                      , cases = []}
     in
-     mapM (\ExState {state = s, cases = c} -> return (c, s)) =<< runReducer' red hal ord config pr s' M.empty 
+     mapM (\ExState {state = st, cases = c} -> return (c, st)) =<< runReducer' red hal ord config pr s' M.empty 
 
 runReducer' :: (Reducer r t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> Processed (ExState hv sov t) -> ExState hv sov t -> M.Map b [ExState hv sov t] -> IO [ExState hv sov t]
-runReducer' red hal ord config pr rs@(ExState { state = s, halter_val = h_val, order_val = o_val, cases = is }) xs
+runReducer' red hal ord config pr rs@(ExState { state = s, halter_val = h_val, cases = is }) xs
     | hc == Accept =
         let
             pr' = pr {accepted = rs:accepted pr}
@@ -444,7 +440,7 @@ runReducer' red hal ord config pr rs@(ExState { state = s, halter_val = h_val, o
         
         let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs mod_info
 
-        runReducerList red hal ord config pr xs'
+        runReducerList red' hal ord config pr xs'
     where
         hc = stopRed hal h_val ps s
         ps = processedToState pr
@@ -471,35 +467,9 @@ processedToState (Processed {accepted = app, discarded = dis}) =
 minState :: Ord b => M.Map b [ExState hv sov t] -> Maybe ((ExState hv sov t), M.Map b [ExState hv sov t])
 minState m =
     case M.minViewWithKey m of
-      Just ((k, x:xs), m') -> Just (x, M.insert k xs m)
+      Just ((k, x:xs), _) -> Just (x, M.insert k xs m)
       Just ((_, []), m') -> minState m'
       Nothing -> Nothing
-    -- let
-    --     pr' = processedToState pr
-    --     xs' = minAndRestBy (uncurry (\sov -> orderStates or sov pr' . state)) 
-    --             $ map (\s' -> (order_val s', s')) xs
-    -- in
-    -- case xs' of
-    --     (Just (_, s), xs'') -> (Just s, map snd xs'')
-    --     (Nothing, xs'') -> (Nothing, map snd xs'')
-
-numStates :: M.Map b [ExState hv sov t] -> Int
-numStates = sum . M.map length
-
--- Finds the minimal element in a (nonempty) list.  Returns a list consisting of all other
--- elements from the original list (not necessarily in the same order.)
-minAndRestBy :: Ord b => (a -> b) -> [a] -> (Maybe a, [a])
-minAndRestBy _ [] = (Nothing, [])
-minAndRestBy f (x:xs) = go (f x) x [] xs
-    where
-        go _ x ys [] = (Just x, ys)
-        go fx x ys (x':xs) =
-            let
-                fx' = f x'
-            in
-            case fx < fx' of
-                True -> go fx x (x':ys) xs
-                False -> go fx' x' (x:ys) xs
 
 outputState :: String -> [Int] -> State t -> IO ()
 outputState fdn is s = do

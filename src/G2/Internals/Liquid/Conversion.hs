@@ -256,7 +256,7 @@ convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
 
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
-convertSpecType m bt _ r st@(RAppTy {rt_arg = arg, rt_res = res, rt_reft = reft})
+convertSpecType _ _ _ r (RAppTy { })
     | Just r' <- r = mkTrueE
         -- t <- unsafeSpecTypeToType st
         -- argsPred <- polyPredFunc2 [res] t m bt r'
@@ -273,23 +273,6 @@ convertSpecType _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
 convertSpecType _ _ _ _ st@(RAppTy {}) = error $ "RAppTy " ++ show st
 convertSpecType _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ st = error $ "Bad st = " ++ show st
-
-polyPredFunc2 :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
-polyPredFunc2 as ty m bt b = do
-    dict <- lhTCDict m ty
-    error (show dict)
-    as' <- mapM (polyPredLam m bt) as
-
-    bool <- tyBoolT
-
-    let ar1 = Type (typeOf b)
-        ars = [dict] ++ as' ++ [Var b]
-        t = TyForAll (NamedTyBndr b) $ foldr1 TyFun $ map typeOf ars ++ [bool]
-
-    lhPP <- lhPPM
-    
-    return $ mkApp $ Var (Id lhPP t):ar1:ars
-
 
 polyPredFunc :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc as ty m bt b = do
@@ -431,7 +414,7 @@ convertLHExpr m bt _ (PAtom brel e1 e2) = do
 
     let t' = typeOf e1'
 
-    dict <- brelTCDict brel m t'
+    dict <- brelTCDict m t'
 
     return $ mkApp [brel', Type t', dict, e1', e2']
 convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
@@ -652,8 +635,8 @@ convertBrel' f = do
 
     return $ Var $ Id n t
 
-brelTCDict :: Brel -> DictMaps -> Type -> LHStateM Expr
-brelTCDict b = lhTCDict
+brelTCDict :: DictMaps -> Type -> LHStateM Expr
+brelTCDict = lhTCDict
 
 lhFunc :: Brel -> Bool
 lhFunc Ref.Eq = True
