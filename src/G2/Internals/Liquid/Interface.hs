@@ -123,7 +123,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     -- these lists will work, without us having to modify all of G2 to account
     -- for the LH typeclass.
     let final_state = track_state { known_values = mkv
-                                  , type_classes = mtc
+                                  , type_classes = unionTypeClasses mtc (type_classes track_state)
                                   , apply_types = mat}
 
 

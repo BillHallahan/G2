@@ -5,6 +5,7 @@
 module G2.Internals.Language.TypeClasses ( TypeClasses (..)
                                          , Class (..)
                                          , initTypeClasses
+                                         , unionTypeClasses
                                          , isTypeClassNamed
                                          , isTypeClass
                                          , eqTCDict
@@ -48,6 +49,9 @@ initTypeClasses nsi =
              $ map (\(n, i) -> (n, Class { insts = mapMaybe (nameIdToTypeId n) nsi, typ_ids = i } )) ns
     in
     coerce $ M.fromList nsi'
+
+unionTypeClasses :: TypeClasses -> TypeClasses -> TypeClasses
+unionTypeClasses (TypeClasses tc) (TypeClasses tc') = TypeClasses (M.union tc tc')
 
 nameIdToTypeId :: Name -> (Name, Id, [Id]) -> Maybe (Type, Id)
 nameIdToTypeId nm (n, i, _) =
