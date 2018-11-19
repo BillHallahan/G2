@@ -142,7 +142,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                       :<~> limHalt
                       :<~> SwitchEveryNHalter (switch_after config)
                       :<~> AcceptHalter) 
-                    NextOrderer 
+                    limOrd 
                     con' (pres_names ++ names annm) config final_state
               else run 
                     (NonRedPCRed config

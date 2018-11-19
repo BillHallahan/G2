@@ -124,9 +124,9 @@ liquidTests =
                 , checkLiquid "tests/Liquid" "tests/Liquid/Peano.hs" "fromInt" 600 2 [RForAll (\[x, y] -> isInt x (\x' -> x' == 0)  && y `eqIgT` zeroPeano), AtLeast 1]
 
                 , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/GetNth.hs" "getNthInt" 2700 3 [AtLeast 3, RForAll getNthErrors]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 2000 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
+                , checkLiquidWithCutOff "tests/Liquid" "tests/Liquid/GetNth.hs" "sumC" 2000 1000 2 [AtLeast 3, RForAll (\[_, y] -> isInt y $ (==) 0)]
                 , checkLiquidWithNoCutOff "tests/Liquid" "tests/Liquid/GetNth.hs" "getNth" 2700 4 [AtLeast 3]
-                , checkLiquid "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 4 [AtLeast 3]
+                , checkLiquidWithCutOff "tests/Liquid" "tests/Liquid/GetNth.hs" "sumCList" 2000 1000 4 [AtLeast 3]
 
                 , checkLiquid "tests/Liquid" "tests/Liquid/DataRefTest.hs" "addMaybe" 1000 3 
                     [AtLeast 1, RForAll (\[_, y, z] -> isInt y $ \y' -> appNthArgIs z (\z' -> isInt z' $ \z'' -> z'' <= y') 2)]
@@ -481,6 +481,9 @@ checkLiquidWithNoCutOff proj fp entry stps i reqList =
 
 checkLiquid :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquid proj fp entry stps i reqList = checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps}) reqList
+
+checkLiquidWithCutOff :: FilePath -> FilePath -> String -> Int -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
+checkLiquidWithCutOff proj fp entry stps co i reqList = checkLiquidWithConfig proj fp entry i (mkConfigTest {steps = stps, cut_off = co}) reqList
 
 checkLiquidWithConfig :: FilePath -> FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquidWithConfig proj fp entry i config reqList = do
