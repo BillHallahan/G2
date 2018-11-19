@@ -36,3 +36,12 @@ r x = foldl (\acc _ -> x :+: acc) Emp [1]
 {-@ r2 :: {l: (List Int) | 1 = (size l)} @-}
 r2 :: List Int
 r2 = foldl (\acc _ -> 1 :+: acc) Emp [1]
+
+
+
+{-@ badRep :: n:Nat -> a -> {l: (List a) | n = (size l)} @-}
+badRep :: Int -> a -> List a
+badRep 0 _ = Emp
+badRep n x = x :+: badRep (n + 1) x
+
+

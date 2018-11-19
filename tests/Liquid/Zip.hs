@@ -3,7 +3,7 @@
 {-@ LIQUID "--prune-unsorted" @-}
 module Zip where
 
-import Prelude hiding (head, zip, concat)
+import Prelude hiding (head, zip, concat, replicate)
 
 {-@ measure size @-}
 {-@ size :: [a] -> Nat @-}
@@ -38,3 +38,8 @@ append [] [] = []
 append xs [] = xs
 append [] ys = ys
 append (x:xs) ys  = x:append xs ys
+
+{-@ replicate :: n:Int -> a -> { xs:[a] | size xs == n } @-}
+replicate :: Int -> a -> [a]
+replicate 0 x = []
+replicate n x = x:replicate n x

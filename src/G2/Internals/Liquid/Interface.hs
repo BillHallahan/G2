@@ -134,7 +134,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     ret <- if higherOrderSolver config == AllFuncs
               then run 
-                    (NonRedPCRed config -- NonRedPCRed config
+                    (NonRedPCRed config
                       :<~| LHRed con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
@@ -145,7 +145,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     NextOrderer 
                     con' (pres_names ++ names annm) config final_state
               else run 
-                    (NonRedPCRed config -- NonRedPCRed config
+                    (NonRedPCRed config
                       :<~| TaggerRed state_name tr_ng
                       :<~| LHRed con' config) 
                     (DiscardIfAcceptedTag state_name
@@ -299,7 +299,7 @@ printAbs fi = do
     let fn = T.intercalate ", " $ map func fi
 
     if length fi > 0 then do
-        putStrLn "when"
+        putStrLn "if"
         mapM_ printFuncInfo fi
         if length fi > 1 then do
             TI.putStrLn $ "Strengthen the refinement types of " `T.append`
