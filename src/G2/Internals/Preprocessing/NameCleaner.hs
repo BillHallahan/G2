@@ -14,7 +14,7 @@ module G2.Internals.Preprocessing.NameCleaner
     , allowedSymbol
     ) where
 
-import qualified Data.List as L
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 
@@ -40,30 +40,28 @@ allowedName (Name n m _ _) =
     && (T.head n) `elem` allowedStartSymbols
 
 cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> State t
-cleanNames s = cleanNames' s (L.nub $ allNames s)
+cleanNames s@State {name_gen = ng} = renames hns (s {name_gen = ng'})
+  where
+    (ns, ng') = createNamePairs ng . filter (not . allowedName) $ allNames s
+    hns = HM.fromList ns
 
-cleanNames' :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name] -> State t
-cleanNames' s [] = s
-cleanNames' s@State {name_gen = ng} (name@(Name n m i l):ns) 
-    | allowedName name = cleanNames' s ns
-    | otherwise =
-    let
-        n' = T.filter (\x -> x `elem` allowedSymbol) n
-        m' = fmap (T.filter $ \x -> x `elem` allowedSymbol) m
+createNamePairs :: NameGen -> [Name] -> ([(Name, Name)], NameGen)
+createNamePairs ing ins = go ing [] ins
+    where
+        go :: NameGen -> [(Name, Name)] -> [Name] -> ([(Name, Name)], NameGen)
+        go ng rns [] = (rns, ng)
+        go ng rns (name@(Name n m i l):ns) =
+            let
+                n' = T.filter (\x -> x `elem` allowedSymbol) n
+                m' = fmap (T.filter $ \x -> x `elem` allowedSymbol) m
 
-        -- No reserved symbols start with a $, so this ensures both uniqueness
-        -- and starting with an allowed symbol
-        n'' = "$" `T.append` n'
+                -- No reserved symbols start with a $, so this ensures both uniqueness
+                -- and starting with an allowed symbol
+                n'' = "$" `T.append` n'
 
-        (new_name, ng') = freshSeededName (Name n'' m' i l) ng
-
-        new_state = rename name new_name 
-                  $ s { name_gen = ng'}
-    in
-    cleanNames' new_state ns
-
--- allNames :: State -> [Name]
--- allNames s = exprNames s ++ E.keys (expr_env s)
+                (new_name, ng') = freshSeededName (Name n'' m' i l) ng
+            in
+            go ng' ((name, new_name):rns) ns
 
 allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
 allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)
