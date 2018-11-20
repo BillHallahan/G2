@@ -161,7 +161,7 @@ createLHTCFuncs' lhm n adt = do
     let lhdv = map Var lhd
 
 
-    let fs = map (\(n, t) -> Var (Id n t)) [ (eqN, (typeOf eq))
+    let fs = map (\(n', t) -> Var (Id n' t)) [ (eqN, (typeOf eq))
                                            , (neN, (typeOf ne))
                                            , (ltN, (typeOf lt))
                                            , (leN, (typeOf le))
@@ -280,15 +280,14 @@ lhEqFunc ldm _ _ dc ba1 = do
 
 eqLHFuncCall :: LHDictMap -> Id -> Id -> LHStateM Expr
 eqLHFuncCall ldm i1 i2
-    | TyCon _ _ <- tyAppCenter t
-    , ts <- tyAppArgs t  = do
+    | TyCon _ _ <- tyAppCenter t = do
         lhe <- lhEqM
 
         i <- freshIdN TYPE
         b <- tyBoolT
 
         let lhv = App (Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b)))) (Type t)
-        lhd <- lhTCDict'' ldm t
+        lhd <- lhTCDict' ldm t
 
         return $ foldl' App (App lhv lhd) [Var i1, Var i2]
 
@@ -298,7 +297,7 @@ eqLHFuncCall ldm i1 i2
         i <- freshIdN TYPE
         b <- tyBoolT
 
-        lhd <- lhTCDict'' ldm t
+        lhd <- lhTCDict' ldm t
 
         let lhv = App (Var (Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
         return $ App (App (App lhv lhd) (Var i1)) (Var i2)
@@ -377,7 +376,7 @@ createOrdFunc pr n adt = do
     return e'
 
 mkOrdCases :: Primitive -> KnownValues -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
-mkOrdCases pr kv i1 i2 n adt@(DataTyCon { data_cons = [dc]})
+mkOrdCases pr kv i1 i2 n (DataTyCon { data_cons = [dc]})
     | n == KV.tyInt kv = mkPrimOrdCases pr TyLitInt i1 i2 dc
     | n == KV.tyFloat kv = mkPrimOrdCases pr TyLitFloat i1 i2 dc
     | n == KV.tyDouble kv = mkPrimOrdCases pr TyLitDouble i1 i2 dc
@@ -455,7 +454,7 @@ lhPPCall lhm fnm t
         lhpp <- lhPPM
 
         let lhv = Var $ Id lhpp TyUnknown
-        dict <- lhTCDict'' lhm t
+        dict <- lhTCDict' lhm t
         undefs <- mapM (lhPPCall lhm fnm) ts
 
         return . mkApp $ lhv:[Type t, dict] ++ undefs -- ++ [Var i]

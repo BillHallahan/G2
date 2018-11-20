@@ -111,7 +111,7 @@ addCurrExprAssumption ifi = do
     fi <- fixedInputs
     is <- inputIds
 
-    lh <- mapM (lhTCDict'' M.empty) $ mapMaybe typeType fi
+    lh <- mapM (lhTCDict' M.empty) $ mapMaybe typeType fi
 
     let (typs, ars) = span isType $ fi ++ map Var is
 

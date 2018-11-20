@@ -161,7 +161,7 @@ symbState eenv
     -- There may be TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && fn `elem` ns of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng'', stck, [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars ++ lamI, returns = Var i}):abs_c})
+        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng''', stck, [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars ++ lamI, returns = Var i}):abs_c})
         False -> Nothing
 symbState _ _ _ _ _ = Nothing
 

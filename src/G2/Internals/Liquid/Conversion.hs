@@ -11,7 +11,7 @@ module G2.Internals.Liquid.Conversion ( LHDictMap
                                        , specTypeToType
                                        , unsafeSpecTypeToType
                                        , symbolName
-                                       , lhTCDict'') where
+                                       , lhTCDict') where
 
 import G2.Internals.Language
 import qualified G2.Internals.Language.KnownValues as KV
@@ -256,21 +256,19 @@ convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
 
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
-convertSpecType _ _ _ r (RAppTy { })
-    | Just r' <- r = mkTrueE
+convertSpecType _ _ _ _ (RAppTy { }) = mkTrueE
+    -- | Just  <- r = mkTrueE
         -- t <- unsafeSpecTypeToType st
         -- argsPred <- polyPredFunc2 [res] t m bt r'
         -- return argsPred
-    | otherwise = mkTrueE
+    -- | otherwise = mkTrueE
 convertSpecType _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
 convertSpecType _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
 convertSpecType _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
 convertSpecType _ _ _ _ st@(RAllS {}) = error $ "RAllS " ++ show st
-convertSpecType _ _ _ _ st@(RApp {}) = error $ "RApp " ++ show st
 convertSpecType _ _ _ _ st@(RAllE {}) = error $ "RAllE " ++ show st
 convertSpecType _ _ _ _ st@(REx {}) = error $ "REx " ++ show st
 convertSpecType _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
-convertSpecType _ _ _ _ st@(RAppTy {}) = error $ "RAppTy " ++ show st
 convertSpecType _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ st = error $ "Bad st = " ++ show st
 
@@ -638,12 +636,6 @@ convertBrel' f = do
 brelTCDict :: DictMaps -> Type -> LHStateM Expr
 brelTCDict = lhTCDict
 
-lhFunc :: Brel -> Bool
-lhFunc Ref.Eq = True
-lhFunc Ref.Ueq = True
-lhFunc Ref.Ne = True
-lhFunc _ = False
-
 bopTCDict :: Bop -> DictMaps -> Type -> LHStateM Expr
 bopTCDict Ref.Mod = integralDict
 bopTCDict _ = numDict
@@ -656,16 +648,8 @@ lhTCDict m t = do
         Just e -> return e
         Nothing -> return $ Var (Id (Name "BAD 3" Nothing 0 Nothing) TyUnknown)
 
-lhTCDict' :: DictMaps -> Type -> LHStateM Expr
+lhTCDict' :: LHDictMap -> Type -> LHStateM Expr
 lhTCDict' m t = do
-    lh <- lhTCM
-    tc <- typeClassInstTC (lh_dicts m) lh t
-    case tc of
-        Just e -> return e
-        Nothing -> error $ "No lh dict " ++ show lh ++ "\n" ++ show t ++ "\n" ++ show m
-
-lhTCDict'' :: LHDictMap -> Type -> LHStateM Expr
-lhTCDict'' m t = do
     lh <- lhTCM
     tc <- typeClassInstTC m lh t
     case tc of
@@ -688,14 +672,3 @@ integralDict m t = do
     case tc of
         Just e -> return e
         Nothing -> return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown)
-
-ordDict :: DictMaps -> Type -> LHStateM Expr
-ordDict m t = do
-    ord <- ordTCM
-    tc <- typeClassInstTC (ord_dicts m) ord t
-    case tc of
-        Just e -> return e
-        Nothing -> do
-            numD <- numDict m t
-            ordFrom <- lhNumOrdM
-            return $ App (Var ordFrom) numD

@@ -31,7 +31,7 @@ createMeasures meas = do
         mvNames = filter (flip notElem eenvk) $ varNames meas'
 
     meenv' <- mapM (uncurry insertMeasureM) meas'
-    meenv'' <- doRenamesN mvNames meenv'
+    _ <- doRenamesN mvNames meenv'
 
     return ()
 
