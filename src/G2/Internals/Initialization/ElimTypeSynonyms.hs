@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Internals.Initialization.ElimTypeSynonyms where
+module G2.Internals.Initialization.ElimTypeSynonyms ( elimTypeSyms
+                                                    , elimTypeSymsTEnv) where
 
 import G2.Internals.Language
 
@@ -10,15 +11,17 @@ elimTypeSyms :: ASTContainer m Type => TypeEnv -> m -> m
 elimTypeSyms tenv = modifyASTs (elimTypeSyms' tenv)
 
 elimTypeSyms' :: TypeEnv -> Type -> Type
-elimTypeSyms' tenv t@(TyCon n _) =
-    case M.lookup n tenv of
-        Just (TypeSynonym {synonym_of = st}) -> st
-        _ -> t
+elimTypeSyms' tenv t
+    | (TyCon n _) <- tyAppCenter t
+    , ts <- tyAppArgs t
+    , Just (TypeSynonym { bound_ids = is, synonym_of = st }) <- M.lookup n tenv
+    , length ts == length is =
+    foldr (uncurry replaceASTs) st $ zip (map TyVar is) ts
 elimTypeSyms' _ t = t
 
 elimTypeSymsTEnv :: TypeEnv -> TypeEnv
 elimTypeSymsTEnv tenv = elimTypeSyms tenv . M.filter (not . typeSym) $ tenv
 
 typeSym :: AlgDataTy -> Bool
-typeSym (TypeSynonym _) = True
+typeSym (TypeSynonym _ _) = True
 typeSym _ = False

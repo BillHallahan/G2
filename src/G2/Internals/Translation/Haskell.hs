@@ -55,7 +55,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import System.Directory
 
-
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
     dflags <- getSessionDynFlags
@@ -374,10 +373,12 @@ mkTyCon nm tm t = case dcs of
                             False -> case isTypeSynonymTyCon t of
                                     True -> 
                                         let
-                                            st = fromJust $ synTyConRhs_maybe t
+                                            (tv, st) = fromJust $ synTyConDefn_maybe t
                                             st' = mkType tm st
+                                            tv' = map (mkId tm) tv
                                         in
-                                        (nm, tm, Just $ G2.TypeSynonym {G2.synonym_of = st'}, Nothing)
+                                        (nm, tm, Just $ G2.TypeSynonym { G2.bound_ids = tv'
+                                                                       , G2.synonym_of = st'}, Nothing)
                                     False -> (nm, tm, Nothing, Nothing)
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 

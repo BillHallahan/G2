@@ -385,15 +385,15 @@ instance Named FuncCall where
 instance Named AlgDataTy where
     names (DataTyCon ns dc) = names ns ++ names dc
     names (NewTyCon ns dc rt) = names ns ++ names dc ++ names rt
-    names (TypeSynonym st) = names st
+    names (TypeSynonym is st) = names is ++ names st
 
     rename old new (DataTyCon n dc) = DataTyCon (rename old new n) (rename old new dc)
     rename old new (NewTyCon n dc rt) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt)
-    rename old new (TypeSynonym st) = (TypeSynonym (rename old new st))
+    rename old new (TypeSynonym is st) = (TypeSynonym (rename old new is) (rename old new st))
 
     renames hm (DataTyCon n dc) = DataTyCon (renames hm n) (renames hm dc)
     renames hm (NewTyCon n dc rt) = NewTyCon (renames hm n) (renames hm dc) (renames hm rt)
-    renames hm (TypeSynonym st) = TypeSynonym (renames hm st)
+    renames hm (TypeSynonym is st) = TypeSynonym (renames hm is) (renames hm st)
 
 instance Named KnownValues where
     names (KnownValues {

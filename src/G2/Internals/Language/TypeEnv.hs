@@ -44,7 +44,8 @@ data AlgDataTy = DataTyCon { bound_ids :: [Id]
                | NewTyCon { bound_ids :: [Id]
                           , data_con :: DataCon
                           , rep_type :: Type }
-               | TypeSynonym { synonym_of :: Type
+               | TypeSynonym { bound_ids :: [Id]
+                             , synonym_of :: Type
                              } deriving (Show, Eq, Read)
 
 nameModMatch :: Name -> TypeEnv -> Maybe Name
@@ -61,12 +62,10 @@ argTypesTEnv' _ = []
 dataCon :: AlgDataTy -> [DataCon]
 dataCon (DataTyCon {data_cons = dc}) = dc
 dataCon (NewTyCon {data_con = dc}) = [dc]
-dataCon (TypeSynonym _) = []
+dataCon (TypeSynonym {}) = []
 
 boundIds :: AlgDataTy -> [Id]
-boundIds dc@(DataTyCon {}) = bound_ids dc
-boundIds dc@(NewTyCon {}) = bound_ids dc
-boundIds (TypeSynonym {}) = []
+boundIds = bound_ids
 
 dcName :: DataCon -> Name
 dcName (DataCon n _) = n
@@ -91,7 +90,7 @@ getDataCons n tenv =
     case M.lookup n tenv of
         Just (DataTyCon _ dc) -> Just dc
         Just (NewTyCon _ dc _) -> Just [dc]
-        Just (TypeSynonym (TyCon n' _)) -> getDataCons n' tenv
+        Just (TypeSynonym _ (TyCon n' _)) -> getDataCons n' tenv
         _ -> Nothing
 
 baseDataCons :: [DataCon] -> [DataCon]
@@ -163,17 +162,17 @@ instance ASTContainer AlgDataTy Expr where
 instance ASTContainer AlgDataTy Type where
     containedASTs (DataTyCon ns dcs) = containedASTs ns ++ containedASTs dcs
     containedASTs (NewTyCon ns dcs r) = containedASTs ns ++ containedASTs dcs ++ containedASTs r
-    containedASTs (TypeSynonym st) = containedASTs st
+    containedASTs (TypeSynonym _ st) = containedASTs st
 
     modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs)
     modifyContainedASTs f (NewTyCon ns dcs rt) = NewTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) (modifyContainedASTs f rt)
-    modifyContainedASTs f (TypeSynonym st) = TypeSynonym (modifyContainedASTs f st)
+    modifyContainedASTs f (TypeSynonym is st) = TypeSynonym is (modifyContainedASTs f st)
 
 instance ASTContainer AlgDataTy DataCon where
     containedASTs (DataTyCon _ dcs) = dcs
     containedASTs (NewTyCon _ dcs _) = [dcs]
-    containedASTs (TypeSynonym _) = []
+    containedASTs (TypeSynonym _ _) = []
 
     modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon ns (modifyContainedASTs f dcs)
     modifyContainedASTs f (NewTyCon ns dc rt) = NewTyCon ns (modifyContainedASTs f dc) rt
-    modifyContainedASTs _ st@(TypeSynonym _) = st
+    modifyContainedASTs _ st@(TypeSynonym _ _) = st
