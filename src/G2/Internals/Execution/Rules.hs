@@ -346,6 +346,16 @@ stdReduceBase redEx _ s@State { exec_stack = estk
 
   | Just red <- redEx s = red
 
+  | CurrExpr Evaluate (SymGen t) <- cexpr =
+      let
+          (n, ngen') = freshSeededString "symG" ngen
+          i = Id n t
+
+          eenv' = E.insertSymbolic n i eenv
+      in
+      (RuleSymGen, [(eenv', CurrExpr Evaluate (Var i), [], [], Nothing, ngen', estk, [i], [], tr)])
+
+
   | CurrExpr Evaluate expr <- cexpr =
       let (rule, eval_results) = stdReduceEvaluate eenv expr tenv kv ngen
           states = map (\(eenv', cexpr', paths', ngen', f) ->

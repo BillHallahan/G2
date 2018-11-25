@@ -24,6 +24,7 @@ isExprValueForm (App f a) eenv = case unApp (App f a) of
 isExprValueForm (Let _ _) _ = False
 isExprValueForm (Case _ _ _) _ = False
 isExprValueForm (Cast e (t :~ _)) eenv = not (hasFuncType t) && isExprValueForm e eenv
+isExprValueForm (SymGen _) _ = False
 isExprValueForm (Assume _ _) _ = False
 isExprValueForm (Assert _ _ _) _ = False
 isExprValueForm _ _ = True

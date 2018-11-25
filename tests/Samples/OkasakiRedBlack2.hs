@@ -25,6 +25,12 @@ insert x t = makeBlack (ins t)
 
         makeBlack (N _ l y r) = N B l y r
 
+insertInt :: Int -> Tree Int -> Tree Int
+insertInt = insert
+
+assume_insert :: Int -> Tree Int -> Tree Int -> Bool
+assume_insert _ t _ = inv1 t
+
 balance :: Color -> Tree a -> a -> Tree a -> Tree a
 balance B (N R (N R a x b) y c) z d = N R (N B a x b) y (N B c z d)
 balance B (N R a x (N R b y c)) z d = N R (N B a x b) y (N B c z d)
@@ -58,15 +64,14 @@ blackHeight (N c t1 _ t2) =
                                 else if c == B
                                     then Just (n + 1)
                                     else Just n
+        _ -> Nothing
 
 -- Properties that can be checked with G2
-prop_inv1 :: Ord a => a -> Tree a -> Bool
-prop_inv1 x t = inv1 t ==> inv1 (insert x t)
+prop_inv1 :: Int -> Tree Int -> Bool
+prop_inv1 x t = inv1 (insert x t)
 
-prop_inv2 :: Ord a => a -> Tree a -> Bool
-prop_inv2 x t = inv2 t ==> inv2 (insert x t)
+prop_inv2 :: Int -> Tree Int -> Bool
+prop_inv2 x t = inv2 (insert x t)
 
-(==>) :: Bool -> Bool -> Bool
-False ==> _ = True
-True ==> True = True
-_ ==> _ = False
+assume_inv :: Int -> Tree Int -> Bool -> Bool
+assume_inv _ t _ = inv1 t

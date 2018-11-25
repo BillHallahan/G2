@@ -16,8 +16,6 @@ f x = x + g 5
 g :: Int -> Int
 g x = x + x
 
-
-
 data List a = Emp
             | (:+:) a (List a)
               deriving (Eq, Ord, Show)
@@ -56,3 +54,12 @@ g3 x = x
 {-@ h :: {x:Int | x == 8} @-}
 h :: Int
 h = 6 + 2
+
+{-@ f4 :: {x:Int | x == 0} @-}
+f4 :: Int
+f4 = g2
+
+{-@ g4 :: Int @-}
+g4 :: Int
+g4 = 0
+

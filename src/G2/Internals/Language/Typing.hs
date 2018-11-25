@@ -170,6 +170,7 @@ instance Typed Expr where
     typeOf' m (Cast _ (_ :~ t')) = tyVarRename m t'
     typeOf' m (Coercion (_ :~ t')) = tyVarRename m t'
     typeOf' m (Tick _ e) = typeOf' m e
+    typeOf' _ (SymGen t) = t
     typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ e) = typeOf' m e
 

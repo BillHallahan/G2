@@ -132,36 +132,42 @@ symbState eenv
     let
         cexprT = returnType cexpr
 
-
         -- We have to retype this Id, so it has the correct type in the Symbolic Id list
         idToT = tysBoundByStack eenv stck cexpr
         cexprT' = foldr (uncurry retype) cexprT idToT
-        (i, ng') = freshId cexprT' ng
+        -- (i, ng') = freshId cexprT' ng
+        sg = SymGen cexprT'
 
         -- Create lambdas, to gobble up any ApplyFrames left on the stack
-        (lams, ng'') = tyBindings ng' cexpr
+        (lams, ng'') = tyBindings ng cexpr
 
         -- If the type of b is not the same as cexprT's type, we have no assumption,
         -- so we get a new b.  Otherwise, we just keep our current b,
         -- in case it is used in the assertion
         (b', ng''') = if typeOf b == cexprT then (b, ng'') else freshId cexprT ng''
 
-        -- inferred = maybe [] (map snd) $ lookupAnnotAtLoc last_v annm
-        -- inferredExprs = mkInferredAssumptions (ars ++ [ret]) inferred
-        -- inferred' = foldr Assume (Var b) $ e:inferredExprs
-
-        -- cexpr' = Let [(b, atf (Var i))] $ inferred'
-        cexpr' = lams $ Let [(b', Var i)] $ Assume e (Var b')
+        cexpr' = lams $ Assume e (Var b')
 
         -- We add the Id's from the newly created Lambdas to the arguments list
         lamI = map Var $ leadingLamIds cexpr'
 
-        eenv' = E.insertSymbolic (idName i) i eenv
+        eenv' = E.insert (idName b') sg eenv
     in
     -- There may be TyBottom in the return type, in the case we have hit an error
     -- In this case, we cannot branch into a symbolic state
     case not (hasTyBottom cexprT) && fn `elem` ns of
-        True -> Just (eenv', CurrExpr Evaluate cexpr', [], [], Nothing, ng''', stck, [i], [], tr {abstract_calls = (FuncCall {funcName = fn, arguments = ars ++ lamI, returns = Var i}):abs_c})
+        True -> Just ( eenv'
+                     , CurrExpr Evaluate cexpr'
+                     , []
+                     , []
+                     , Nothing
+                     , ng'''
+                     , stck
+                     , []
+                     , []
+                     , tr { abstract_calls = (FuncCall {funcName = fn, arguments = ars ++ lamI
+                          , returns = Var b'}):abs_c}
+                     )
         False -> Nothing
 symbState _ _ _ _ _ = Nothing
 

@@ -111,12 +111,14 @@ idName (Id name _) = name
 
  10. @`Tick` `Tickish` `Expr`@ records some extra information into an `Expr`.
 
- 11. @`Assume` b e@ takes a boolean typed expression @b@,
+ 11. @`SymGen` `Type`@ evaluates to a fresh symbolic variable of the given type.
+
+ 12. @`Assume` b e@ takes a boolean typed expression @b@,
      and an expression of arbitrary type @e@.
      During exectuion, @b@ is reduced to SWHNF, and assumed.
      Then, execution continues with @b@.
 
- 12. @`Assert` fc b e@ is similar to `Assume`, but asserts the @b@ holds.
+ 13. @`Assert` fc b e@ is similar to `Assume`, but asserts the @b@ holds.
      The `Maybe` `FuncCall` allows us to optionally indicate that the
      assertion is related to a specific function. -}
 data Expr = Var Id
@@ -131,6 +133,7 @@ data Expr = Var Id
           | Cast Expr Coercion
           | Coercion Coercion
           | Tick Tickish Expr
+          | SymGen Type
           | Assume Expr Expr
           | Assert (Maybe FuncCall) Expr Expr
           deriving (Show, Eq, Read, Generic)

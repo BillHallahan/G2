@@ -471,6 +471,9 @@ minState m =
       Just ((_, []), m') -> minState m'
       Nothing -> Nothing
 
+numStates :: M.Map b [ExState hv sov t] -> Int
+numStates = sum . map length . M.elems
+
 outputState :: String -> [Int] -> State t -> IO ()
 outputState fdn is s = do
     let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is

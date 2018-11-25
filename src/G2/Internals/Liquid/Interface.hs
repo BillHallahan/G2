@@ -338,7 +338,7 @@ parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
     let
         t = case fmap typeOf $ E.lookup n (expr_env s) of
                   Just t' -> t'
-                  Nothing -> error "Unknown type for abstracted function"
+                  Nothing -> error $ "Unknown type for abstracted function " ++ show n
     in
     FuncInfo { func = nameOcc n
              , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n t)) ars)
