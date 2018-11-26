@@ -45,7 +45,7 @@ main = do
         (Just lhfile, Just lhfun) -> do
           runSingleLHFun proj lhfile lhfun libs lhlibs as
         _ -> do
-          runGHC as
+          runWithArgs as
 
 doTimeout :: Int -> IO a -> IO ()
 doTimeout secs action = do
@@ -77,8 +77,8 @@ runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
     (in_out, entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
     printLHOut entry in_out
 
-runGHC :: [String] -> IO ()
-runGHC as = do
+runWithArgs :: [String] -> IO ()
+runWithArgs as = do
 
   let (proj:src:entry:tail_args) = as
 
@@ -103,31 +103,14 @@ runGHC as = do
     let (init_state, entry_f) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                                (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
 
-    SomeSMTSolver con <- getSMT config
-    let con' = GroupRelated (ADTSolver :?> con)
+    in_out <- runG2WithConfig init_state config
 
-    let tr_ng = mkNameGen ()
-    let state_name = Name "state" Nothing 0 Nothing
+    -- SomeSMTSolver con <- getSMT config
+    -- let con' = GroupRelated (ADTSolver :?> con)
 
-    in_out <- if higherOrderSolver config == AllFuncs
-              then run 
-                  (NonRedPCRed config
-                    :<~| StdRed con' config) 
-                  (MaxOutputsHalter 
-                    :<~> ZeroHalter
-                    :<~> AcceptHalter)
-                  NextOrderer
-                  con' [] config init_state
-              else run
-                  (NonRedPCRed config
-                    :<~| TaggerRed state_name tr_ng
-                    :<~| StdRed con' config) 
-                  (DiscardIfAcceptedTag state_name 
-                    :<~> MaxOutputsHalter 
-                    :<~> ZeroHalter
-                    :<~> AcceptHalter)
-                  NextOrderer
-                  con' [] config init_state
+    -- case initRedHaltOrd con' config of
+    --     (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
+    --         in_out <- runG2 red hal ord con' [] config init_state
 
     case validate config of
         True -> do
@@ -136,10 +119,6 @@ runGHC as = do
 
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
         False -> return ()
-
-    -- putStrLn "----------------\n----------------"
-
-    closeIO con
 
     printFuncCalls config entry_f in_out
 

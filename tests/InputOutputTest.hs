@@ -33,40 +33,19 @@ checkInputOutputWithConfig proj src md entry i req config = do
 checkInputOutput' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO (Either SomeException Bool)
 checkInputOutput' proj src md entry i req config = try (checkInputOutput'' proj src md entry i req config)
 
-checkInputOutput'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String ] -> Config -> IO Bool
+checkInputOutput'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO Bool
 checkInputOutput'' proj src md entry i req config = do
     (mb_modname, binds, tycons, cls, _, ex) <- translateLoaded proj src [] False config
 
     let (init_state, _) = initState binds tycons cls Nothing Nothing Nothing False (T.pack entry) mb_modname ex config
     
-    SomeSMTSolver con <- getSMT config
-    let con' = GroupRelated (ADTSolver :?> con)
+    r <- runG2WithConfig init_state config
 
     let chAll = checkExprAll req
-
-    r <- if higherOrderSolver config == AllFuncs
-          then run 
-              (NonRedPCRed config
-                :<~| StdRed con' config) 
-              (MaxOutputsHalter 
-                :<~> ZeroHalter
-                :<~> AcceptHalter)
-              NextOrderer
-              con' [] config init_state
-          else run
-              (NonRedPCRed config
-                :<~| StdRed con' config) 
-              (MaxOutputsHalter 
-                :<~> ZeroHalter
-                :<~> AcceptHalter)
-              NextOrderer
-              con' [] config init_state
     mr <- validateStates proj src md entry chAll [] r
     let io = map (\(_, i', o, _) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
-
-    closeIO con
     
     return $ mr && chEx
 

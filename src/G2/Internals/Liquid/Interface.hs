@@ -128,7 +128,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let (limHalt, limOrd) = limitByAccepted (cut_off config)
 
     ret <- if higherOrderSolver config == AllFuncs
-              then run 
+              then runG2
                     (NonRedPCRed config
                       :<~| LHRed con' config) 
                     (MaxOutputsHalter 
@@ -139,7 +139,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                       :<~> AcceptHalter) 
                     limOrd 
                     con' (pres_names ++ names annm) config final_state
-              else run 
+              else runG2
                     (NonRedPCRed config
                       :<~| TaggerRed state_name tr_ng
                       :<~| LHRed con' config) 

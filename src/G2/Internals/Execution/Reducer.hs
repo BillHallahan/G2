@@ -1,7 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Internals.Execution.Reducer ( Reducer (..)
@@ -11,6 +13,10 @@ module G2.Internals.Execution.Reducer ( Reducer (..)
                                       , Processed (..)
                                       , ReducerRes (..)
                                       , HaltC (..)
+
+                                      , SomeReducer (..)
+                                      , SomeHalter (..)
+                                      , SomeOrderer (..)
 
                                       -- Reducers
                                       , RCombiner (..)
@@ -129,6 +135,15 @@ class Ord b => Orderer or sov b t | or -> sov, or -> b where
 
     -- | Run on the selected state, to update it's sov field
     updateSelected :: or -> sov -> Processed (State t) -> State t -> sov
+
+data SomeReducer t where
+    SomeReducer :: forall r t . Reducer r t => r -> SomeReducer t
+
+data SomeHalter t where
+    SomeHalter :: forall h hv t . Halter h hv t => h -> SomeHalter t
+
+data SomeOrderer t where
+    SomeOrderer :: forall or sov b t . Orderer or sov b t => or -> SomeOrderer t
 
 -- | Combines reducers in various ways
 data RCombiner r1 r2 = r1 :<~ r2 -- ^ Apply r2, followed by r1.  Takes the leftmost update to r1

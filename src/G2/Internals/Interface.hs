@@ -2,7 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Internals.Interface ( initState
-                              , run
+                              , initRedHaltOrd
+                              , runG2WithConfig
+                              , runG2
                               , Config) where
 
 import G2.Internals.Config.Config
@@ -22,7 +24,7 @@ import G2.Internals.Execution.Rules
 import G2.Internals.Execution.PrimitiveEval
 import G2.Internals.Execution.Memory
 
-import G2.Internals.Solver.Interface
+import G2.Internals.Solver
 
 import G2.Internals.Postprocessing.Interface
 
@@ -93,25 +95,60 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
  }
  , ie)
 
+initRedHaltOrd :: Solver conv => conv -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+initRedHaltOrd conv config =
+    let
+        tr_ng = mkNameGen ()
+        state_name = Name "state" Nothing 0 Nothing
+    in
+    if higherOrderSolver config == AllFuncs
+        then ( SomeReducer
+                 (NonRedPCRed config
+                 :<~| StdRed conv config)
+             , SomeHalter
+                 (MaxOutputsHalter 
+                 :<~> ZeroHalter
+                 :<~> AcceptHalter)
+             , SomeOrderer $ NextOrderer)
+        else ( SomeReducer
+                 (NonRedPCRed config
+                 :<~| TaggerRed state_name tr_ng
+                 :<~| StdRed conv config)
+             , SomeHalter
+                 (DiscardIfAcceptedTag state_name 
+                 :<~> MaxOutputsHalter 
+                 :<~> ZeroHalter
+                 :<~> AcceptHalter)
+             , SomeOrderer $ NextOrderer)
+
 mkExprEnv :: Program -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
+runG2WithConfig :: State () -> Config -> IO [(State (), [Expr], Expr, Maybe FuncCall)]
+runG2WithConfig state config = do
+    SomeSMTSolver con <- getSMT config
+    let con' = GroupRelated (ADTSolver :?> con)
 
-run :: (Named hv, Show t
-       , Named t
-       , ASTContainer hv Expr
-       , ASTContainer t Expr
-       , ASTContainer hv Type
-       , ASTContainer t Type
-       , Reducer r t
-       , Halter h hv t
-       , Orderer or sov b t
-       , Solver solver) => r -> h -> or ->
-    solver -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
-run red hal ord con pns config (is@State { type_env = tenv
+    in_out <- case initRedHaltOrd con' config of
+                (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
+                    runG2 red hal ord con' [] config state
+
+    closeIO con
+
+    return in_out
+
+runG2 :: ( Named t
+         , ASTContainer t Expr
+         , ASTContainer t Type
+         , Reducer r t
+         , Halter h hv t
+         , Orderer or sov b t
+         , Solver solver) => r -> h -> or ->
+         solver -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
+runG2 red hal ord con pns config (is@State { type_env = tenv
                                              , known_values = kv
                                              , apply_types = at
                                              , type_classes = tc }) = do
