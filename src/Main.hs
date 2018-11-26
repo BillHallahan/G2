@@ -105,13 +105,6 @@ runWithArgs as = do
 
     in_out <- runG2WithConfig init_state config
 
-    -- SomeSMTSolver con <- getSMT config
-    -- let con' = GroupRelated (ADTSolver :?> con)
-
-    -- case initRedHaltOrd con' config of
-    --     (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-    --         in_out <- runG2 red hal ord con' [] config init_state
-
     case validate config of
         True -> do
             r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
