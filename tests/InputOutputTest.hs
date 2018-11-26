@@ -8,12 +8,10 @@ import Control.Exception
 import qualified Data.Text as T
 
 import G2.Internals.Config
-import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
 import G2.Internals.Liquid.Interface
 import G2.Internals.Translation
-import G2.Internals.Solver
 
 import Reqs
 

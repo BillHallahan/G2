@@ -15,11 +15,9 @@ import G2.Lib.Printers
 
 import G2.Internals.Config.Config
 import G2.Internals.Config.Interface
-import G2.Internals.Execution
 import G2.Internals.Interface
 import G2.Internals.Language
 import G2.Internals.Translation
-import G2.Internals.Solver
 
 import G2.Internals.Liquid.Interface
 
