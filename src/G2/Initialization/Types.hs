@@ -2,13 +2,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Initialization.Types ( SimpleState (..)
-                                         , SimpleStateM (..)
-                                         , runSimpleStateM
-                                         , evalSimpleStateM
-                                         , execSimpleStateM
-                                         , typeClasses
-                                         , putTypeClasses
-                                         , putKnownValues ) where
+                               , SimpleStateM (..)
+                               , runSimpleStateM
+                               , evalSimpleStateM
+                               , execSimpleStateM
+                               , typeClasses
+                               , putTypeClasses
+                               , putKnownValues ) where
 
 import qualified Control.Monad.State.Lazy as SM
 

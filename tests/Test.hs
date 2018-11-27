@@ -6,7 +6,7 @@ module Main where
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import G2.Config.Config
+import G2.Config
 
 import G2.Interface
 import G2.Language as G2

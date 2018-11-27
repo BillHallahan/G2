@@ -13,8 +13,7 @@ import qualified Data.Text as T
 
 import G2.Lib.Printers
 
-import G2.Config.Config
-import G2.Config.Interface
+import G2.Config
 import G2.Interface
 import G2.Language
 import G2.Translation
