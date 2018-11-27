@@ -1,45 +1,45 @@
-module G2.Internals.Translation.Cabal.Interface
-  ( unpackTarSameDir
-  , unpackTar
-  , module G2.Internals.Translation.Cabal.Downloader
-  , module G2.Internals.Translation.Cabal.Parser
-  ) where
+module G2.Internals.Translation.Cabal.Interface where
 
-import qualified System.Process as P
-import qualified Distribution.Package as D
-import qualified Distribution.PackageDescription as D
-import qualified Data.Map as M
-import qualified System.FilePath as F
+import Distribution.Compiler
+import Distribution.PackageDescription
+import Distribution.PackageDescription.Configuration
+import Distribution.PackageDescription.Parse
+import Distribution.Simple.Configure
+import Distribution.Simple.InstallDirs
+import Distribution.Simple.LocalBuildInfo
+import Distribution.Simple.Program.Db
+import Distribution.Simple.Setup
+import Distribution.Simple.SrcDist
+import Distribution.Verbosity
 
-import G2.Internals.Translation.Cabal.Downloader
-import G2.Internals.Translation.Cabal.Parser
+getLocalBuildInfo :: FilePath -> IO LocalBuildInfo
+getLocalBuildInfo target = do
+    gpd <- readPackageDescription silent target
 
-unpackTar :: FilePath -> FilePath -> IO ()
-unpackTar tar_file destination = P.callProcess "tar" flags >> return ()
-  where
-    flags = [ "-zxf"
-            , tar_file
-            , "-C"
-            , F.dropFileName destination ]
+    print gpd
 
-unpackTarSameDir :: FilePath -> IO ()
-unpackTarSameDir tar_file = unpackTar tar_file $ F.dropFileName tar_file
+    let hbi = emptyHookedBuildInfo
+        pkgdb = defaultProgramDb
+        cf = defaultConfigFlags pkgdb
 
-newtype DependencyGraph = DependencyGraph
-  { un_graph :: M.Map D.PackageIdentifier [D.Dependency]
-  } deriving (Show, Eq, Read)
+    print cf
 
-insertNode :: D.PackageIdentifier -> [D.Dependency] -> DependencyGraph
-           -> DependencyGraph
-insertNode key values graph = graph { un_graph = un_graph' }
-  where
-    un_graph' = M.insert key values $ un_graph graph
+    configure (gpd, hbi) cf
 
-isVersionOk :: D.PackageIdentifier -> D.Dependency -> Bool
-isVersionOk package_id dependency = undefined
-  where
-    ranges = undefined
+getPackageDescription :: FilePath -> IO PackageDescription
+getPackageDescription target = do
+    gpd <- readPackageDescription silent target
 
+    return $ flattenPackageDescription gpd
 
-run :: FilePath -> IO ()
-run target = undefined
+runCabal :: FilePath -> IO ()
+runCabal target = do
+    insdir <- defaultInstallDirs GHC False False
+    let insdir' = substituteInstallDirTemplates [] insdir
+    print $ fromPathTemplate (libsubdir insdir')
+    print $ fromPathTemplate (includedir insdir')
+    --lbi <- getLocalBuildInfo target
+    pd <- getPackageDescription target
+    mapM_ (print . targetBuildDepends) $ allBuildInfo pd
+    -- print $ allBuildInfo pd
+    return ()

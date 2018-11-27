@@ -23,6 +23,8 @@ import G2.Internals.Liquid.Interface
 
 main :: IO ()
 main = do
+  runCabal "G2.cabal"
+
   as <- getArgs
   let (proj:_) = as
 
