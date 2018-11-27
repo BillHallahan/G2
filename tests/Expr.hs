@@ -2,8 +2,8 @@
 
 module Expr (exprTests) where
 
-import G2.Internals.Language
-import qualified G2.Internals.Language.ExprEnv as E
+import G2.Language
+import qualified G2.Language.ExprEnv as E
 
 import Test.Tasty
 import Test.Tasty.HUnit

@@ -5,7 +5,7 @@ module TestUtils where
 import Data.Monoid
 import qualified Data.Text as T
 
-import G2.Internals.Language
+import G2.Language
 
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'

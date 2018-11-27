@@ -9,18 +9,18 @@ module G2.Lib.Printers ( mkCleanExprHaskell
                        , ppPathCond
                        , pprExecStateStr) where
 
-import G2.Internals.Execution.Memory
-import qualified G2.Internals.Language.ApplyTypes as AT
-import G2.Internals.Language.Expr
-import qualified G2.Internals.Language.ExprEnv as E
-import G2.Internals.Language.KnownValues
-import G2.Internals.Language.Naming
-import qualified G2.Internals.Language.PathConds as PC
-import G2.Internals.Language.TypeClasses
-import G2.Internals.Language.Typing
-import G2.Internals.Language.Stack
-import G2.Internals.Language.Syntax
-import G2.Internals.Language.Support
+import G2.Execution.Memory
+import qualified G2.Language.ApplyTypes as AT
+import G2.Language.Expr
+import qualified G2.Language.ExprEnv as E
+import G2.Language.KnownValues
+import G2.Language.Naming
+import qualified G2.Language.PathConds as PC
+import G2.Language.TypeClasses
+import G2.Language.Typing
+import G2.Language.Stack
+import G2.Language.Syntax
+import G2.Language.Support
 
 import Data.Char
 import Data.Coerce

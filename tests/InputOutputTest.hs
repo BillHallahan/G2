@@ -7,11 +7,11 @@ import Test.Tasty.HUnit
 import Control.Exception
 import qualified Data.Text as T
 
-import G2.Internals.Config
-import G2.Internals.Interface
-import G2.Internals.Language
-import G2.Internals.Liquid.Interface
-import G2.Internals.Translation
+import G2.Config
+import G2.Interface
+import G2.Language
+import G2.Liquid.Interface
+import G2.Translation
 
 import Reqs
 

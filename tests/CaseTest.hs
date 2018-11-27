@@ -2,7 +2,7 @@
 
 module CaseTest where
 
-import G2.Internals.Language
+import G2.Language
 import TestUtils
 
 exists1 :: [Expr] -> Bool

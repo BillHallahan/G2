@@ -2,7 +2,7 @@
 
 module HigherOrderMathTest where
 
-import G2.Internals.Language
+import G2.Language
 
 import TestUtils
 

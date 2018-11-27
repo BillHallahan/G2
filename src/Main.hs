@@ -13,13 +13,13 @@ import qualified Data.Text as T
 
 import G2.Lib.Printers
 
-import G2.Internals.Config.Config
-import G2.Internals.Config.Interface
-import G2.Internals.Interface
-import G2.Internals.Language
-import G2.Internals.Translation
+import G2.Config.Config
+import G2.Config.Interface
+import G2.Interface
+import G2.Language
+import G2.Translation
 
-import G2.Internals.Liquid.Interface
+import G2.Liquid.Interface
 
 main :: IO ()
 main = do

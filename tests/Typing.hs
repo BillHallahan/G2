@@ -4,7 +4,7 @@ module Typing (typingTests) where
 
 import Prelude hiding (either, maybe)
 
-import G2.Internals.Language
+import G2.Language
 
 import Test.Tasty
 import Test.Tasty.HUnit

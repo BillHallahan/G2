@@ -2,7 +2,7 @@ module Reqs ( Reqs (..)
             , checkExprGen
             , checkAbsLHExprGen ) where
 
-import G2.Internals.Language
+import G2.Language
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs

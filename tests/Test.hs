@@ -6,12 +6,12 @@ module Main where
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import G2.Internals.Config.Config
+import G2.Config.Config
 
-import G2.Internals.Interface
-import G2.Internals.Language as G2
-import G2.Internals.Translation
-import G2.Internals.Liquid.Interface
+import G2.Interface
+import G2.Language as G2
+import G2.Translation
+import G2.Liquid.Interface
 
 import Control.Exception
 import Data.Maybe

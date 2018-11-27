@@ -3,7 +3,7 @@
 
 module GetNthTest where
 
-import G2.Internals.Language
+import G2.Language
 import TestUtils
 
 data CList a = Cons a (CList a) | Nil
