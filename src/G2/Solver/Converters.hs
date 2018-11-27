@@ -117,7 +117,7 @@ checkModel' con s (i:is) pc
     | otherwise =  do
         (m, av) <- getModelVal con s i pc
         case m of
-            Just m' -> checkModel' con (s {model = M.union m' (model s), arbValueGen = av}) is pc
+            Just m' -> checkModel' con (s {model = M.union m' (model s), arb_value_gen = av}) is pc
             Nothing -> return (UNSAT, Nothing)
 
 getModelVal :: SMTConverter con ast out io => con -> State t -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
@@ -127,12 +127,12 @@ getModelVal con s (Id n _) pc = do
     case PC.null pc of
                 True -> 
                     let
-                        (e, av) = arbValue t (type_env s) (arbValueGen s)
+                        (e, av) = arbValue t (type_env s) (arb_value_gen s)
                     in
                     return (Just $ M.singleton n' e, av) 
                 False -> do
                     m <- checkNumericConstraints con pc
-                    return (m, arbValueGen s)
+                    return (m, arb_value_gen s)
 
 checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 checkNumericConstraints con pc = do

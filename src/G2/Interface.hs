@@ -85,7 +85,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , apply_types = at
     , exec_stack = Stack.empty
     , model = M.empty
-    , arbValueGen = arbValueInit
+    , arb_value_gen = arbValueInit
     , known_values = kv'
     , cleaned_names = M.empty
     , rules = []

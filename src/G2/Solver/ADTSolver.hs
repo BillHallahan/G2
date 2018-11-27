@@ -72,10 +72,10 @@ addADTs :: Name -> Name -> [Type] -> Kind -> State t -> PathConds -> (Result, St
 addADTs n tn ts k s pc
     | PC.null pc =
         let
-            (bse, av) = arbValue (mkTyApp (TyCon tn k:ts)) (type_env s) (arbValueGen s)
+            (bse, av) = arbValue (mkTyApp (TyCon tn k:ts)) (type_env s) (arb_value_gen s)
             m' = M.singleton n bse
         in
-        (SAT, s {model = M.union m' (model s), arbValueGen = av})
+        (SAT, s {model = M.union m' (model s), arb_value_gen = av})
     | Just (dcs@(fdc:_), bi) <- findConsistent' (known_values s) (type_env s) pc =
     let        
         eenv = expr_env s
@@ -91,7 +91,7 @@ addADTs n tn ts k s pc
         vs = map (\(n', t') -> 
                 case E.lookup n' eenv of
                     Just e -> e
-                    Nothing -> fst $ arbValue t' (type_env s) (arbValueGen s)) $ zip ns ts''
+                    Nothing -> fst $ arbValue t' (type_env s) (arb_value_gen s)) $ zip ns ts''
         
         dc = mkApp $ fdc:map Type ts2 ++ vs
 

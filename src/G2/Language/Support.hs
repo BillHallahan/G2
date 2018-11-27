@@ -56,7 +56,7 @@ data State t = State { expr_env :: E.ExprEnv
                      , apply_types :: AT.ApplyTypes
                      , exec_stack :: Stack Frame
                      , model :: Model
-                     , arbValueGen :: ArbValueGen
+                     , arb_value_gen :: ArbValueGen
                      , known_values :: KnownValues
                      , cleaned_names :: CleanedNames
                      , rules :: ![Rule]
@@ -122,11 +122,6 @@ lookupFuncInterps name (FuncInterps fs) = M.lookup name fs
 insertFuncInterps :: Name -> (Name, Interp) -> FuncInterps -> FuncInterps
 insertFuncInterps fun int (FuncInterps fs) = FuncInterps (M.insert fun int fs)
 
--- | You can also join function interpretation tables
--- Note: only reasonable if the union of their key set all map to the same elements.
-unionFuncInterps :: FuncInterps -> FuncInterps -> FuncInterps
-unionFuncInterps (FuncInterps fs1) (FuncInterps fs2) = FuncInterps $ M.union fs1 fs2
-
 -- | These are stack frames.  They are used to guide evaluation.
 data Frame = CaseFrame Id [Alt]
            | ApplyFrame Expr
@@ -165,7 +160,7 @@ renameState old new_seed s =
              , deepseq_walkers = rename old new (deepseq_walkers s)
              , exec_stack = exec_stack s
              , model = model s
-             , arbValueGen = arbValueGen s
+             , arb_value_gen = arb_value_gen s
              , known_values = rename old new (known_values s)
              , cleaned_names = M.insert new old (cleaned_names s)
              , rules = rules s
@@ -214,7 +209,7 @@ instance Named t => Named (State t) where
                , deepseq_walkers = rename old new (deepseq_walkers s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
-               , arbValueGen = arbValueGen s
+               , arb_value_gen = arb_value_gen s
                , known_values = rename old new (known_values s)
                , cleaned_names = M.insert new old (cleaned_names s)
                , rules = rules s
@@ -243,7 +238,7 @@ instance Named t => Named (State t) where
                , deepseq_walkers = renames hm (deepseq_walkers s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
-               , arbValueGen = arbValueGen s
+               , arb_value_gen = arb_value_gen s
                , known_values = renames hm (known_values s)
                , cleaned_names = foldr (\(old, new) -> M.insert new old) (cleaned_names s) (HM.toList hm)
                , rules = rules s

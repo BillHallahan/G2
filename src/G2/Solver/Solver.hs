@@ -46,7 +46,7 @@ solveRelated' :: Solver a => a -> State t -> Model -> [Id] -> [PathConds] -> IO 
 solveRelated' _ s m is [] =
     let 
         is' = filter (\i -> idName i `M.notMember` m) is
-        nv = map (\(Id n t) -> (n, fst $ arbValue t (type_env s) (arbValueGen s))) is'
+        nv = map (\(Id n t) -> (n, fst $ arbValue t (type_env s) (arb_value_gen s))) is'
         m' = foldr (\(n, v) -> M.insert n v) m nv
     in
     return (SAT, Just m')
