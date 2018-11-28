@@ -98,8 +98,13 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
 
               , ("quotInteger#", Prim Quot TyBottom)
 
+              , ("float2Int#", Prim ToInt TyBottom)
+              , ("int2Float#", Prim IntToFloat TyBottom)
               , ("fromIntToFloat", Prim IntToFloat TyBottom)
+              , ("double2Int#", Prim ToInt TyBottom)
+              , ("int2Double#", Prim IntToDouble TyBottom)
               , ("fromIntToDouble", Prim IntToDouble TyBottom)
+
               , ("absentErr", Prim Error TyBottom)
               , ("error", Prim Error TyBottom)
               , ("errorWithoutStackTrace", Prim Error TyBottom)

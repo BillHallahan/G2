@@ -173,6 +173,7 @@ data Primitive = Ge
                | IntToDouble
                | FromInteger
                | ToInteger
+               | ToInt
                | Error
                | Undefined
                | BindFunc
