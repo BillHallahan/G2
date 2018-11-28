@@ -22,16 +22,30 @@ checkInputOutputWithConfig :: FilePath -> FilePath -> String -> String -> Int ->
 checkInputOutputWithConfig proj src md entry i req config = do
     r <- checkInputOutput' proj src md entry i req config
 
-    let b = case r of
-            Left _ -> False
-            Right b' -> b'
+    let (b, e) = case r of
+            Left e' -> (False, "\n" ++ show e')
+            Right (b', s') -> (b', concatMap (\(_, inp, out, _) -> "\n" ++ show inp ++ "\n" ++ show out) s')
 
-    return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b 
+    return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
 
-checkInputOutput' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO (Either SomeException Bool)
+checkInputOutput' :: FilePath 
+                  -> FilePath 
+                  -> String 
+                  -> String 
+                  -> Int 
+                  -> [Reqs String] 
+                  -> Config 
+                  -> IO (Either SomeException (Bool, [(State (), [Expr], Expr, Maybe FuncCall)]))
 checkInputOutput' proj src md entry i req config = try (checkInputOutput'' proj src md entry i req config)
 
-checkInputOutput'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO Bool
+checkInputOutput'' :: FilePath 
+                   -> FilePath 
+                   -> String 
+                   -> String 
+                   -> Int 
+                   -> [Reqs String] 
+                   -> Config 
+                   -> IO (Bool, [(State (), [Expr], Expr, Maybe FuncCall)])
 checkInputOutput'' proj src md entry i req config = do
     (mb_modname, binds, tycons, cls, _, ex) <- translateLoaded proj src [] False config
 
@@ -45,7 +59,7 @@ checkInputOutput'' proj src md entry i req config = do
 
     let chEx = checkExprInOutCount io i req
     
-    return $ mr && chEx
+    return $ (mr && chEx, r)
 
 ------------
 
@@ -60,7 +74,7 @@ checkInputOutputLHWithConfig proj src md entry i req config = do
             Left _ -> False
             Right b' -> b'
 
-    return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b 
+    return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b
 
 checkInputOutputLH' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO (Either SomeException Bool)
 checkInputOutputLH' proj src md entry i req config = try (checkInputOutputLH'' proj src md entry i req config)

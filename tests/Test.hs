@@ -427,10 +427,10 @@ primTests =
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "integerToFloatList" 150000 1 [AtLeast 1]
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
 
-            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "int2FloatTest" 1000 1 [AtLeast 1]
-            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "int2DoubleTest" 1000 1 [AtLeast 1]
-            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "float2IntTest" 1000 1 [AtLeast 1]
-            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "double2IntTest" 1000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "int2FloatTest" 1000 2 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "int2DoubleTest" 1000 2 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "float2IntTest" 1000 2 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "double2IntTest" 1000 2 [AtLeast 1]
         ]
 
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
