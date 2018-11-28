@@ -1,13 +1,13 @@
 module Prim3 where
 
-int2FloatTest :: Float -> Bool
-int2FloatTest x = fromEnum x == 597
+float2IntTest :: Float -> Bool
+float2IntTest x = fromEnum x == 597
 
-int2DoubleTest :: Double -> Bool
-int2DoubleTest x = fromEnum x == 597
+double2IntTest :: Double -> Bool
+double2IntTest x = fromEnum x == 597
 
-float2IntTest :: Int -> Bool
-float2IntTest x = toEnum x == (597 :: Float)
+int2FloatTest :: Int -> Bool
+int2FloatTest x = toEnum x == (597 :: Float)
 
-double2IntTest :: Int -> Bool
-double2IntTest x = toEnum x == (597 :: Double)
+int2DoubleTest :: Int -> Bool
+int2DoubleTest x = toEnum x == (597 :: Double)
