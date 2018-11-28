@@ -386,9 +386,9 @@ testFileTests =
                                                                                                                                        , RExists (\[_, y] -> isError y)]
                 , checkInputOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/BadCoerce.hs" "BadCoerce" "f" 400 3 [AtLeast 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Expr.hs" 400 Nothing Nothing "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
-                -- , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [AtLeast 2
-                --                                                                                                                 , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
-                --                                                                                                                 , RExists (\[x, _] -> x /= Lit (LitInt 0))]
+                -- , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [ AtLeast 2
+    --                                                                                                                   , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
+    --                                                                                                                   , RExists (\[x, _] -> x /= Lit (LitInt 0))]
                 -- , checkExpr "tests/TestFiles/" "tests/TestFiles/HigherOrderList.hs" 400 Nothing Nothing "g" 3 [AtLeast  10] 
                 
         ]
@@ -417,20 +417,20 @@ primTests :: IO TestTree
 primTests =
     return . testGroup "Prims"
         =<< sequence [
-              checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "quotI1" 1000 3 [AtLeast 4]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "quotI2" 1000 3 [AtLeast 4]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "remI1" 1000 3 [AtLeast 4]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "remI2" 1000 3 [AtLeast 3]
+              checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "quotI1" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "quotI2" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "remI1" 1000 3 [AtLeast 4]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "remI2" 1000 3 [AtLeast 3]
 
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "p1List" 300000 1 [AtLeast 1]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "p2List" 700000 1 [AtLeast 1]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "integerToFloatList" 150000 1 [AtLeast 1]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "p1List" 300000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "p2List" 700000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "integerToFloatList" 150000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
 
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim3.hs" "Prim3" "int2FloatTest" 1000 1 [AtLeast 1]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim3.hs" "Prim3" "int2DoubleTest" 1000 1 [AtLeast 1]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim3.hs" "Prim3" "float2IntTest" 1000 1 [AtLeast 1]
-            , checkInputOutput "tests/TestFiles/" "tests/TestFiles/Prim3.hs" "Prim3" "double2IntTest" 1000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "int2FloatTest" 1000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "int2DoubleTest" 1000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "float2IntTest" 1000 1 [AtLeast 1]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "double2IntTest" 1000 1 [AtLeast 1]
         ]
 
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
