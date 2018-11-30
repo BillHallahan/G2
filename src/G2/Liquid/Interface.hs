@@ -41,8 +41,6 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 
-import System.Directory
-
 import qualified GHC as GHC
 import Var
 
@@ -343,49 +341,3 @@ parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
     FuncInfo { func = nameOcc n
              , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n t)) ars)
              , funcReturn = T.pack $ mkCleanExprHaskell s out }
-
-testLiquidFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
-               -> IO [LHReturn]
-testLiquidFile proj fp libs lhlibs config = do
-    lh_config <- getOpts []
-    ghci_cg <- getGHCInfos lh_config proj [fp] lhlibs
-
-    tgt_transv <- translateLoadedV proj fp libs False config
-
-    let (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_lhs, tgt_ns, ex) = tgt_transv
-    let tgt_trans = (mb_modname, pre_bnds, pre_tycons, pre_cls, tgt_ns, ex)
-
-    putStrLn $ "******** Liquid File Test: *********"
-    putStrLn fp
-
-    let whitelist = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++
-                    ['_', '\'']
-
-    let blacklist = [
-                      -- "group"
-                      -- "toList",
-                      -- "expand"
-                      -- "minKeyList",
-                      -- "minKeyMap"
-                    ]
-
-    let cleaned_tgt_lhs = filter (\n -> not $ elem n blacklist) $ 
-                          filter (\n -> T.all (`elem` whitelist) n) tgt_lhs
-
-    fmap concat $ mapM (\e -> do
-        putStrLn $ show e
-        runLHCore e tgt_trans ghci_cg config >>= (return . uncurry (flip parseLHOut) ))
-                       cleaned_tgt_lhs
-
-testLiquidDir :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Config
-              -> IO [(FilePath, [LHReturn])]
-testLiquidDir proj dir libs lhlibs config = do
-  raw_files <- listDirectory dir
-  let hs_files = filter (\a -> (".hs" `isSuffixOf` a) || (".lhs" `isSuffixOf` a)) raw_files
-  
-  results <- mapM (\fle -> do
-      res <- testLiquidFile proj fle libs lhlibs config
-      return (fle, res)
-    ) hs_files
-
-  return results

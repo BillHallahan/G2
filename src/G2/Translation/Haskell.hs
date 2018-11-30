@@ -75,6 +75,14 @@ rawDump fp = do
 type NameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 type TypeNameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 
+type ExportedName = G2.Name
+data CompileClosure = CompileClosure { mod_name :: Maybe String
+                                     , tycon_data :: [[TyCon]]
+                                     , bindings :: [([CoreBind], Maybe ModBreaks)]
+                                     , cls_inst :: [ClsInst]
+                                     , mod_details :: [ModDetails]
+                                     , exported_names :: [ExportedName]}
+
 equivMods :: HM.HashMap T.Text T.Text
 equivMods = HM.fromList
             [ ("GHC.Classes2", "GHC.Classes")
@@ -90,13 +98,18 @@ equivMods = HM.fromList
 hskToG2 :: Maybe HscTarget -> FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
     IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String], [ExportedName])
 hskToG2 hsc proj src nm tm simpl = do
-    (mb_modname, sums_gutss, _, c, m_dets, ex) <- mkCompileClosure hsc proj src simpl
+    CompileClosure { mod_name = mb_modname
+                   , tycon_data = sums_gutss
+                   , bindings = bnds
+                   , cls_inst = c
+                   , mod_details = m_dets
+                   , exported_names = ex } <- mkCompileClosure hsc proj src simpl
     
-    let (nm2, binds) = mapAccumR (\nm' (_, _, b, br) -> mapAccumR (\v -> mkBinds v tm br) nm' b) nm sums_gutss
+    let (nm2, binds) = mapAccumR (\nm' (b, br) -> mapAccumR (\v -> mkBinds v tm br) nm' b) nm bnds
     let binds' = concat binds
 
     let m_dets_tycon = map (typeEnvTyCons . md_types) m_dets
-    let ((nm3, tm2), tycons) = mapAccumR (\(nm', tm') (_, t, _, _) -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm2, tm) sums_gutss
+    let ((nm3, tm2), tycons) = mapAccumR (\(nm', tm') t -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm2, tm) sums_gutss
     let ((nm4, tm3), tycons') = mapAccumR (\(nm', tm') t -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm3, tm2) m_dets_tycon
     let tycons'' = catMaybes $ concat tycons ++ concat tycons'
 
@@ -105,12 +118,11 @@ hskToG2 hsc proj src nm tm simpl = do
     let tgt_lhs = map (occNameString . nameOccName . V.varName) $
           filter ((== mb_modname) . fmap (moduleNameString . moduleName) . nameModule_maybe . V.varName) $
           concatMap bindersOf $
-          concatMap (\(_, _, bs, _) -> bs) sums_gutss
+          concatMap fst bnds
 
     return (mb_modname, binds', tycons'', classes, nm4, tm3, tgt_lhs, ex)
 
-type ExportedName = G2.Name
-type CompileClosure = (Maybe String, [(ModSummary, [TyCon], [CoreBind], Maybe ModBreaks)], HscEnv, [ClsInst], [ModDetails], [ExportedName])
+-- type CompileClosure = (Maybe String, [([TyCon], [CoreBind], Maybe ModBreaks)], [ClsInst], [ModDetails], [ExportedName])
 
 loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool -> Ghc SuccessFlag
 loadProj hsc proj src gflags simpl = do
@@ -123,6 +135,7 @@ loadProj hsc proj src gflags simpl = do
     let dflags = beta_flags' { hscTarget = case hsc of
                                                 Just hsc' -> hsc'
                                                 _ -> hscTarget beta_flags'
+                             , includePaths = includePaths beta_flags'
                              , importPaths = [proj]
 
                              , simplPhases = if simpl then simplPhases beta_flags' else 0
@@ -139,7 +152,7 @@ loadProj hsc proj src gflags simpl = do
 
 mkCompileClosure :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO CompileClosure
 mkCompileClosure hsc proj src simpl = do
-    (mb_modname, mod_graph, mod_gutss, mod_breaks, env) <- runGhc (Just libdir) $ do
+    (mb_modname, mod_gutss, mod_breaks, env) <- runGhc (Just libdir) $ do
         _ <- loadProj hsc proj src [] simpl
         env <- getSession
         -- Now that things are loaded, make the compilation closure.
@@ -154,12 +167,12 @@ mkCompileClosure hsc proj src simpl = do
                                      $ filter ((== Just src) . ml_hs_file . ms_location)
                                      $ map (pm_mod_summary) pmods
 
-        return (mb_modname, mod_graph, mod_gutss, mod_breaks, env)
+        return (mb_modname, mod_gutss, mod_breaks, env)
 
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
     smpl_gutss <- mapM (hscSimplify env) mod_gutss
-    tidy_pgms <- mapM (tidyProgram env) smpl_gutss-- (if simpl then smpl_gutss else mod_gutss)
+    tidy_pgms <- mapM (tidyProgram env) smpl_gutss
     let cg_gutss = map fst tidy_pgms
     let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
     let (tcss, bindss) = unzip tcss_pgms
@@ -171,7 +184,13 @@ mkCompileClosure hsc proj src simpl = do
 
     let exported = concatMap exportedNames mod_gutss
 
-    return (mb_modname, zip4 mod_graph tcss bindss mod_breaks, env, cls_insts, mod_dets, exported)
+    -- return (mb_modname, zip3 tcss bindss mod_breaks, cls_insts, mod_dets, exported)
+    return CompileClosure { mod_name = mb_modname
+                          , tycon_data = tcss
+                          , bindings = zip bindss mod_breaks
+                          , cls_inst = cls_insts
+                          , mod_details = mod_dets
+                          , exported_names = exported }
 
 mkBinds :: NameMap -> TypeNameMap -> Maybe ModBreaks -> CoreBind -> (NameMap, [(G2.Id, G2.Expr)])
 mkBinds nm tm mb (NonRec var expr) = 

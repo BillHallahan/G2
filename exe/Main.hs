@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Main (main, plugin) where
 
 import DynFlags
 
@@ -20,6 +20,8 @@ import G2.Translation
 
 import G2.Liquid.Interface
 
+import ToLamG
+
 main :: IO ()
 main = do
   as <- getArgs
@@ -27,22 +29,15 @@ main = do
 
   let m_liquid_file = mkLiquid as
   let m_liquid_func = mkLiquidFunc as
-  let m_filetest = mkLiquidFileTest as
-  let m_dirtest = mkLiquidDirTest as
 
   let libs = maybeToList $ mkMapSrc as
   let lhlibs = maybeToList $ mkLiquidLibs as
 
-  case m_filetest of
-    Just lhfile -> do
-      runSingleLHFile proj lhfile libs lhlibs as
-    Nothing -> case m_dirtest of
-      Just dir -> runMultiLHFile proj dir libs lhlibs as
-      Nothing -> case (m_liquid_file, m_liquid_func) of
-        (Just lhfile, Just lhfun) -> do
-          runSingleLHFun proj lhfile lhfun libs lhlibs as
-        _ -> do
-          runWithArgs as
+  case (m_liquid_file, m_liquid_func) of
+      (Just lhfile, Just lhfun) -> do
+        runSingleLHFun proj lhfile lhfun libs lhlibs as
+      _ -> do
+        runWithArgs as
 
 doTimeout :: Int -> IO a -> IO ()
 doTimeout secs action = do
@@ -52,20 +47,6 @@ doTimeout secs action = do
     Nothing -> do
       putStrLn "Timeout!"
       return ()
-
-runMultiLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
-runMultiLHFile proj lhdir libs lhlibs ars = do
-  config <- getConfig ars
-  doTimeout (timeLimit config) $ do
-    _ <- testLiquidDir proj lhdir libs lhlibs config
-    return ()
-
-runSingleLHFile :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> [String] -> IO ()
-runSingleLHFile proj lhfile libs lhlibs ars = do
-  config <- getConfig ars
-  doTimeout (timeLimit config) $ do
-    in_out <- testLiquidFile proj lhfile libs lhlibs config
-    printParsedLHOut in_out
 
 runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO()
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
@@ -162,9 +143,3 @@ mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing
 
 mkLiquidLibs :: [String] -> Maybe String
 mkLiquidLibs a = strArg "liquid-libs" a M.empty Just Nothing
-
-mkLiquidFileTest :: [String] -> Maybe String
-mkLiquidFileTest a = strArg "liquid-file-test" a M.empty Just Nothing
-
-mkLiquidDirTest :: [String] -> Maybe String
-mkLiquidDirTest a = strArg "liquid-dir-test" a M.empty Just Nothing
