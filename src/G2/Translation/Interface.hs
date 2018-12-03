@@ -18,7 +18,7 @@ translateLibs' :: NameMap -> TypeNameMap -> Bool -> (Program, [ProgramType], [(N
 translateLibs' nm tnm _ pptn _ [] ex = return (pptn, nm, tnm, ex)
 translateLibs' nm tnm simpl (prog, tys, cls) hsc (f:fs) ex = do
   let guess_dir = dropWhileEnd (/= '/') f
-  (_, n_prog, n_tys, n_cls, new_nm, new_tnm, _, ex') <- hskToG2 hsc guess_dir f nm tnm simpl
+  (_, n_prog, n_tys, n_cls, new_nm, new_tnm, ex') <- hskToG2FromFile hsc guess_dir f nm tnm simpl
   
   translateLibs' new_nm new_tnm simpl (prog ++ n_prog, tys ++ n_tys, cls ++ n_cls) hsc fs (ex ++ ex')
   
@@ -52,7 +52,7 @@ translateLoadedV proj src libs simpl config = do
   let merged_lib = mergeTranslates ([base_trans', lib_transs])
 
   -- Now the stuff with the actual target
-  (mb_modname, tgt_prog, tgt_tys, tgt_cls, _, _, tgt_lhs, h_exp) <- hskToG2 (Just HscInterpreted) proj src lib_nm lib_tnm simpl
+  (mb_modname, tgt_prog, tgt_tys, tgt_cls, _, _, h_exp) <- hskToG2FromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
   let tgt_trans = (tgt_prog, tgt_tys, tgt_cls)
   let (merged_prog, merged_tys, merged_cls) = mergeTranslates [tgt_trans, merged_lib]
 

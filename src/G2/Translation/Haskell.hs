@@ -5,6 +5,8 @@ module G2.Translation.Haskell
     ( CompileClosure
     , loadProj
     , mkCompileClosureFromFile
+    , mkCompileClosure
+    , hskToG2FromFile
     , hskToG2
     , mkIOString
     , prim_list
@@ -95,16 +97,20 @@ equivMods = HM.fromList
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")]
 
-hskToG2 :: Maybe HscTarget -> FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
-    IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [String], [ExportedName])
-hskToG2 hsc proj src nm tm simpl = do
-    CompileClosure { mod_name = mb_modname
-                   , tycon_data = sums_gutss
-                   , bindings = bnds
-                   , cls_inst = c
-                   , mod_details = m_dets
-                   , exported_names = ex } <- mkCompileClosureFromFile hsc proj src simpl
-    
+hskToG2FromFile :: Maybe HscTarget -> FilePath -> FilePath -> NameMap -> TypeNameMap -> Bool -> 
+    IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [ExportedName])
+hskToG2FromFile hsc proj src nm tm simpl = do
+    comp_cl <- mkCompileClosureFromFile hsc proj src simpl
+    hskToG2 nm tm comp_cl
+
+hskToG2 :: NameMap -> TypeNameMap -> CompileClosure ->
+    IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], NameMap, TypeNameMap, [ExportedName])
+hskToG2 nm tm (CompileClosure { mod_name = mb_modname
+                              , tycon_data = sums_gutss
+                              , bindings = bnds
+                              , cls_inst = c
+                              , mod_details = m_dets
+                              , exported_names = ex }) = do
     let (nm2, binds) = mapAccumR (\nm' (b, br) -> mapAccumR (\v -> mkBinds v tm br) nm' b) nm bnds
     let binds' = concat binds
 
@@ -115,12 +121,7 @@ hskToG2 hsc proj src nm tm simpl = do
 
     let classes = map (mkClass tm2) c
 
-    let tgt_lhs = map (occNameString . nameOccName . V.varName) $
-          filter ((== mb_modname) . fmap (moduleNameString . moduleName) . nameModule_maybe . V.varName) $
-          concatMap bindersOf $
-          concatMap fst bnds
-
-    return (mb_modname, binds', tycons'', classes, nm4, tm3, tgt_lhs, ex)
+    return (mb_modname, binds', tycons'', classes, nm4, tm3, ex)
 
 loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool -> Ghc SuccessFlag
 loadProj hsc proj src gflags simpl = do
