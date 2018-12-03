@@ -20,7 +20,7 @@ import G2.Translation
 
 import G2.Liquid.Interface
 
-import ToLamG
+import G2.Plugin
 
 main :: IO ()
 main = do

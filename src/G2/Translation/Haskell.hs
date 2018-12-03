@@ -163,14 +163,15 @@ mkCompileClosureFromFile hsc proj src simpl = do
 
         return (env, mod_gutss)
 
-    mkCompileClosure env mod_gutss
+    smpl_gutss <- mapM (hscSimplify env) mod_gutss
+
+    mkCompileClosure env smpl_gutss
 
 mkCompileClosure :: HscEnv -> [ModGuts] -> IO CompileClosure
 mkCompileClosure env mod_gutss = do
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
-    smpl_gutss <- mapM (hscSimplify env) mod_gutss
-    tidy_pgms <- mapM (tidyProgram env) smpl_gutss
+    tidy_pgms <- mapM (tidyProgram env) mod_gutss
     let cg_gutss = map fst tidy_pgms
     let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
     let (tcss, bindss) = unzip tcss_pgms
