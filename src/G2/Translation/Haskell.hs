@@ -4,7 +4,7 @@
 module G2.Translation.Haskell
     ( CompileClosure
     , loadProj
-    , mkCompileClosure
+    , mkCompileClosureFromFile
     , hskToG2
     , mkIOString
     , prim_list
@@ -103,7 +103,7 @@ hskToG2 hsc proj src nm tm simpl = do
                    , bindings = bnds
                    , cls_inst = c
                    , mod_details = m_dets
-                   , exported_names = ex } <- mkCompileClosure hsc proj src simpl
+                   , exported_names = ex } <- mkCompileClosureFromFile hsc proj src simpl
     
     let (nm2, binds) = mapAccumR (\nm' (b, br) -> mapAccumR (\v -> mkBinds v tm br) nm' b) nm bnds
     let binds' = concat binds
@@ -121,8 +121,6 @@ hskToG2 hsc proj src nm tm simpl = do
           concatMap fst bnds
 
     return (mb_modname, binds', tycons'', classes, nm4, tm3, tgt_lhs, ex)
-
--- type CompileClosure = (Maybe String, [([TyCon], [CoreBind], Maybe ModBreaks)], [ClsInst], [ModDetails], [ExportedName])
 
 loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool -> Ghc SuccessFlag
 loadProj hsc proj src gflags simpl = do
@@ -150,9 +148,9 @@ loadProj hsc proj src gflags simpl = do
     _ <- setTargets [target]
     load LoadAllTargets
 
-mkCompileClosure :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO CompileClosure
-mkCompileClosure hsc proj src simpl = do
-    (mb_modname, mod_gutss, mod_breaks, env) <- runGhc (Just libdir) $ do
+mkCompileClosureFromFile :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO CompileClosure
+mkCompileClosureFromFile hsc proj src simpl = do
+    (env, mod_gutss) <- runGhc (Just libdir) $ do
         _ <- loadProj hsc proj src [] simpl
         env <- getSession
         -- Now that things are loaded, make the compilation closure.
@@ -161,14 +159,13 @@ mkCompileClosure hsc proj src simpl = do
         tmods <- mapM typecheckModule pmods
         dmods <- mapM desugarModule tmods
         let mod_gutss = map coreModule dmods
-        let mod_breaks = map mg_modBreaks mod_gutss
 
-        let mb_modname = listToMaybe $ map (moduleNameString . moduleName . ms_mod)
-                                     $ filter ((== Just src) . ml_hs_file . ms_location)
-                                     $ map (pm_mod_summary) pmods
+        return (env, mod_gutss)
 
-        return (mb_modname, mod_gutss, mod_breaks, env)
+    mkCompileClosure env mod_gutss
 
+mkCompileClosure :: HscEnv -> [ModGuts] -> IO CompileClosure
+mkCompileClosure env mod_gutss = do
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
     smpl_gutss <- mapM (hscSimplify env) mod_gutss
@@ -179,12 +176,15 @@ mkCompileClosure hsc proj src simpl = do
 
     let mod_dets = map snd tidy_pgms
 
+    let mod_breaks = map mg_modBreaks mod_gutss
+
     -- Get TypeClasses
     let cls_insts = concatMap mg_insts mod_gutss
 
     let exported = concatMap exportedNames mod_gutss
 
-    -- return (mb_modname, zip3 tcss bindss mod_breaks, cls_insts, mod_dets, exported)
+    let mb_modname = listToMaybe . map (moduleNameString . moduleName . mg_module) $ mod_gutss
+
     return CompileClosure { mod_name = mb_modname
                           , tycon_data = tcss
                           , bindings = zip bindss mod_breaks

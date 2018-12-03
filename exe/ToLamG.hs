@@ -10,4 +10,8 @@ addOutputLamG _ todo = do
     return $ CoreDoPluginPass "Outputs LamG" outputLamG:todo
 
 outputLamG :: ModGuts -> CoreM ModGuts
-outputLamG = return
+outputLamG mg = do
+	hsc <- getHscEnv
+
+	
+	return mg
