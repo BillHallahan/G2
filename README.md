@@ -42,7 +42,7 @@ It is capable of generating assertion failure counterexamples and solving for hi
 
 ###### Arguments:
 
-* `--n` number of reduction steps to run`
+* `--n` number of reduction steps to run
 * `--max-outputs` number of inputs/results to display
 * `--smt` Pass "z3" or "cvc4" to select a solver [Default: Z3]
 * `--time` Set a timeout in seconds
@@ -52,5 +52,6 @@ It is capable of generating assertion failure counterexamples and solving for hi
 #### Authors
 * Bill Hallahan (Yale)
 * Anton Xue (Yale)
+* Maxwell Troy Bland (UCSD)
 * Ranjit Jhala (UCSD)
 * Ruzica Piskac (Yale)

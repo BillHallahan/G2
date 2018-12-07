@@ -10,5 +10,4 @@ twice f x = f (f x)
 
 {-@ test :: Nat -> Nat @-}
 test :: Int -> Int 
-test n = twice negg n 
-
+test n = twice negg n
