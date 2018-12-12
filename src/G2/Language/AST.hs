@@ -160,6 +160,7 @@ instance AST Expr where
     children (Coercion _) = []
     children (Type _) = []
     children (Tick _ e) = [e]
+    children (NonDet es) = es
     children (SymGen _) = []
     children (Assume e e') = [e, e']
     children (Assert _ e e') = [e, e']
@@ -173,6 +174,7 @@ instance AST Expr where
         mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
     modifyChildren f (Cast e c) = Cast (f e) c
     modifyChildren f (Tick t e) = Tick t (f e)
+    modifyChildren f (NonDet es) = NonDet (map f es)
     modifyChildren f (Assume e e') = Assume (f e) (f e')
     modifyChildren f (Assert is e e') = Assert is (f e) (f e')
     modifyChildren _ e = e
@@ -231,6 +233,7 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (Cast e c) = Cast (modifyContainedASTs f e) (modifyContainedASTs f c)
     modifyContainedASTs f (Coercion c) = Coercion (modifyContainedASTs f c)
     modifyContainedASTs f (Tick t e) = Tick t (modifyContainedASTs f e)
+    modifyContainedASTs f (NonDet es) = NonDet (modifyContainedASTs f es)
     modifyContainedASTs f (SymGen t) = SymGen (f t)
     modifyContainedASTs f (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs f (Assert is e e') = 

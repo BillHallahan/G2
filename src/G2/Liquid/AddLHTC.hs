@@ -119,6 +119,9 @@ addLHTCExprEnvNextLams e@(Coercion _) = return (e, M.empty)
 addLHTCExprEnvNextLams (Tick t e) = do
     (e', m) <- addLHTCExprEnvNextLams e
     return (Tick t e', m)
+addLHTCExprEnvNextLams (NonDet es) = do
+    (es', ms) <- return . unzip =<< mapM addLHTCExprEnvNextLams es
+    return (NonDet es', foldr M.union M.empty ms)
 addLHTCExprEnvNextLams e@(SymGen _) = return (e, M.empty)
 addLHTCExprEnvNextLams (Assume e1 e2) = do
     (e1', m1) <- addLHTCExprEnvNextLams e1

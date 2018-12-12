@@ -54,6 +54,7 @@ data Rule = RuleEvalVal
           | RuleReturnAppSymbFunc
           | RuleReturnReplaceSymbFunc
 
+          | RuleNonDet
           | RuleSymGen
 
           | RuleReturnCurrExprFr

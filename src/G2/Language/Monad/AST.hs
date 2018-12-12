@@ -52,6 +52,7 @@ instance ASTM Expr where
         e' <- f e
         return $ Cast e' c
     modifyChildrenM f (Tick t e) = return . Tick t =<< f e
+    modifyChildrenM f (NonDet es) = return . NonDet =<< mapM f es
     modifyChildrenM f (Assume e1 e2) = do
         e1' <- f e1
         e2' <- f e2
@@ -107,6 +108,7 @@ instance ASTContainerM Expr Type where
         return $ Cast e' c'
     modifyContainedASTsM f (Coercion c) = return . Coercion =<< modifyContainedASTsM f c
     modifyContainedASTsM f (Tick t e) = return . Tick t =<< modifyContainedASTsM f e
+    modifyContainedASTsM f (NonDet es) = return . NonDet =<< modifyContainedASTsM f es
     modifyContainedASTsM f (Assume e1 e2) = do
         e1' <- modifyContainedASTsM f e1
         e2' <- modifyContainedASTsM f e2

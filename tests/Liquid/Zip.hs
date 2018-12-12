@@ -43,3 +43,13 @@ append (x:xs) ys  = x:append xs ys
 replicate :: Int -> a -> [a]
 replicate 0 x = []
 replicate n x = x:replicate n x
+
+
+{-@ incr2 :: x:Int -> { y:Int | y == x + 2} @-}
+incr2 :: Int -> Int
+incr2 x = incr (incr x)
+
+-- {-@ incr :: x:Int -> { y:Int | y == x + 1 } @-}
+{-@ incr :: x:Int -> { y:Int | y > x } @-}
+incr :: Int -> Int
+incr x = x + 1

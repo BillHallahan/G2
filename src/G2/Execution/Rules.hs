@@ -346,6 +346,9 @@ stdReduceBase redEx _ s@State { exec_stack = estk
 
   | Just red <- redEx s = red
 
+  | CurrExpr Evaluate (NonDet es) <- cexpr =
+      (RuleNonDet, map (\e -> (eenv, CurrExpr Evaluate e, [], [], Nothing, ngen, estk, [], [], tr)) es)
+
   | CurrExpr Evaluate (SymGen t) <- cexpr =
       let
           (n, ngen') = freshSeededString "symG" ngen

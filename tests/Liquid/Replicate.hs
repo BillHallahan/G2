@@ -42,6 +42,6 @@ r2 = foldl (\acc _ -> 1 :+: acc) Emp [1]
 {-@ badRep :: n:Nat -> a -> {l: (List a) | n = (size l)} @-}
 badRep :: Int -> a -> List a
 badRep 0 _ = Emp
-badRep n x = x :+: badRep (n + 1) x
+badRep n x = x :+: x :+: badRep (n - 1) x
 
 
