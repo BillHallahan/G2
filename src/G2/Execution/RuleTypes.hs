@@ -60,6 +60,8 @@ data Rule = RuleEvalVal
           | RuleReturnCurrExprFr
 
           | RuleError
+          
+          | RuleOther
            deriving (Show, Eq, Read)
 
 instance AST e => ASTContainer Rule e where

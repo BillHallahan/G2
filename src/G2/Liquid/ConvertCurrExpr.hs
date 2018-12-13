@@ -118,7 +118,7 @@ addCurrExprAssumption ifi = do
     case assumpt of
         Just assumpt' -> do
             let appAssumpt = mkApp $ assumpt':typs ++ lh ++ ars
-            let ce' = Assume appAssumpt ce
+            let ce' = Assume Nothing appAssumpt ce
             putCurrExpr (CurrExpr er ce')
         Nothing -> return ()
 

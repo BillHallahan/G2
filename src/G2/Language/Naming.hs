@@ -191,6 +191,9 @@ instance Named Expr where
             go (Type t) = names t
             go (Cast _ c) = names c
             go (Coercion c) = names c
+            go (Tick t _) = names t
+            go (SymGen t) = names t
+            go (Assume is _ _) = names is
             go (Assert is _ _) = names is
             go _ = []
 
@@ -208,6 +211,9 @@ instance Named Expr where
         go (Type t) = Type (rename old new t)
         go (Cast e c) = Cast e (rename old new c)
         go (Coercion c) = Coercion (rename old new c)
+        go (Tick t e) = Tick (rename old new t) e
+        go (SymGen t) = SymGen (rename old new t)
+        go (Assume is e e') = Assume (rename old new is) e e'
         go (Assert is e e') = Assert (rename old new is) e e'
         go e = e
 
@@ -227,6 +233,9 @@ instance Named Expr where
             go (Type t) = Type (renames hm t)
             go (Cast e c) = Cast e (renames hm c)
             go (Coercion c) = Coercion (renames hm c)
+            go (Tick t e) = Tick (renames hm t) e
+            go (SymGen t) = SymGen (renames hm t)
+            go (Assume is e e') = Assume (renames hm is) e e'
             go (Assert is e e') = Assert (renames hm is) e e'
             go e = e
 
@@ -373,6 +382,16 @@ instance Named Coercion where
     names (t1 :~ t2) = names t1 ++ names t2
     rename old new (t1 :~ t2) = rename old new t1 :~ rename old new t2
     renames hm (t1 :~ t2) = renames hm t1 :~ renames hm t2
+
+instance Named Tickish where
+    names (Breakpoint _) = []
+    names (NamedLoc n) = [n]
+
+    rename _ _ bp@(Breakpoint _) = bp
+    rename old new (NamedLoc n) = NamedLoc $ rename old new n
+
+    renames _ bp@(Breakpoint _) = bp
+    renames hm (NamedLoc n) = NamedLoc $ renames hm n
 
 instance Named FuncCall where
     names (FuncCall {funcName = n, arguments = as, returns = r}) = n:names as ++ names r

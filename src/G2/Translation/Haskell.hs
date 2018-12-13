@@ -489,10 +489,10 @@ absVarLoc' (G2.Tick (G2.Breakpoint s) e) = do
 
     e' <- absVarLoc' e
     return $ G2.Tick t' e'
-absVarLoc' (G2.Assume e1 e2) = do
+absVarLoc' (G2.Assume fc e1 e2) = do
     e1' <- absVarLoc' e1
     e2' <- absVarLoc' e2
-    return $ G2.Assume e1' e2'
+    return $ G2.Assume fc e1' e2'
 absVarLoc' (G2.Assert fc e1 e2) = do
     e1' <- absVarLoc' e1
     e2' <- absVarLoc' e2

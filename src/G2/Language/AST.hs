@@ -162,8 +162,8 @@ instance AST Expr where
     children (Tick _ e) = [e]
     children (NonDet es) = es
     children (SymGen _) = []
-    children (Assume e e') = [e, e']
-    children (Assert _ e e') = [e, e']
+    children (Assume is e e') = containedASTs is ++ [e, e']
+    children (Assert is e e') = containedASTs is ++ [e, e']
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
     modifyChildren f (Lam u b e) = Lam u b (f e)
@@ -175,8 +175,8 @@ instance AST Expr where
     modifyChildren f (Cast e c) = Cast (f e) c
     modifyChildren f (Tick t e) = Tick t (f e)
     modifyChildren f (NonDet es) = NonDet (map f es)
-    modifyChildren f (Assume e e') = Assume (f e) (f e')
-    modifyChildren f (Assert is e e') = Assert is (f e) (f e')
+    modifyChildren f (Assume is e e') = Assume (modifyContainedASTs f is) (f e) (f e')
+    modifyChildren f (Assert is e e') = Assert (modifyContainedASTs f is) (f e) (f e')
     modifyChildren _ e = e
 
 instance AST Type where
@@ -218,7 +218,7 @@ instance ASTContainer Expr Type where
     containedASTs (Type t) = [t]
     containedASTs (Tick _ e) = containedASTs e
     containedASTs (SymGen t) = [t]
-    containedASTs (Assume e e') = containedASTs e ++ containedASTs e'
+    containedASTs (Assume is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
     containedASTs (Assert is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
     containedASTs _ = []
 
@@ -235,7 +235,7 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (Tick t e) = Tick t (modifyContainedASTs f e)
     modifyContainedASTs f (NonDet es) = NonDet (modifyContainedASTs f es)
     modifyContainedASTs f (SymGen t) = SymGen (f t)
-    modifyContainedASTs f (Assume e e') = Assume (modifyContainedASTs f e) (modifyContainedASTs f e')
+    modifyContainedASTs f (Assume is e e') = Assume (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs f (Assert is e e') = 
         Assert (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs _ e = e

@@ -95,13 +95,14 @@ library
                        , G2.Initialization.MkCurrExpr
                        , G2.Initialization.StructuralEq
 
+                       , G2.Liquid.AddCFBranch
                        , G2.Liquid.AddLHTC
                        , G2.Liquid.AddOrdToNum
                        , G2.Liquid.Annotations
                        , G2.Liquid.Conversion
                        , G2.Liquid.ConvertCurrExpr
+                       , G2.Liquid.LHReducers
                        , G2.Liquid.Measures
-                       , G2.Liquid.Rules
                        , G2.Liquid.Simplify
                        , G2.Liquid.SpecialAsserts
                        , G2.Liquid.TCGen

@@ -174,7 +174,7 @@ instance Typed Expr where
     typeOf' _ (NonDet []) = TyBottom
     typeOf' _ (SymGen t) = t
     typeOf' m (Assert _ _ e) = typeOf' m e
-    typeOf' m (Assume _ e) = typeOf' m e
+    typeOf' m (Assume _ _ e) = typeOf' m e
 
 passedArgs :: Expr -> [Expr]
 passedArgs = reverse . passedArgs'

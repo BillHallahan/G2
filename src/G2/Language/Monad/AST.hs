@@ -53,14 +53,16 @@ instance ASTM Expr where
         return $ Cast e' c
     modifyChildrenM f (Tick t e) = return . Tick t =<< f e
     modifyChildrenM f (NonDet es) = return . NonDet =<< mapM f es
-    modifyChildrenM f (Assume e1 e2) = do
+    modifyChildrenM f (Assume is e1 e2) = do
+        is' <- modifyContainedASTsM f is
         e1' <- f e1
         e2' <- f e2
-        return $ Assume e1' e2'
+        return $ Assume is' e1' e2'
     modifyChildrenM f (Assert is e1 e2) = do
+        is' <- modifyContainedASTsM f is
         e1' <- f e1
         e2' <- f e2
-        return $ Assert is e1' e2'
+        return $ Assert is' e1' e2'
     modifyChildrenM _ e = return e
 
 instance ASTM Type where
@@ -109,10 +111,11 @@ instance ASTContainerM Expr Type where
     modifyContainedASTsM f (Coercion c) = return . Coercion =<< modifyContainedASTsM f c
     modifyContainedASTsM f (Tick t e) = return . Tick t =<< modifyContainedASTsM f e
     modifyContainedASTsM f (NonDet es) = return . NonDet =<< modifyContainedASTsM f es
-    modifyContainedASTsM f (Assume e1 e2) = do
+    modifyContainedASTsM f (Assume is e1 e2) = do
+        is' <- modifyContainedASTsM f is
         e1' <- modifyContainedASTsM f e1
         e2' <- modifyContainedASTsM f e2
-        return $ Assume e1' e2'
+        return $ Assume is' e1' e2'
     modifyContainedASTsM f (Assert is e1 e2) = do
         is' <- modifyContainedASTsM f is
         e1' <- modifyContainedASTsM f e1
@@ -164,6 +167,12 @@ instance ASTContainerM Coercion Type where
         t1' <- f t1
         t2' <- f t2
         return $ t1' :~ t2'
+
+instance ASTContainerM FuncCall Expr where
+    modifyContainedASTsM f fc@(FuncCall { arguments = as, returns = r}) = do
+        as' <- modifyContainedASTsM f as
+        r' <- modifyContainedASTsM f r
+        return $ fc { arguments = as', returns = r' }
 
 instance ASTContainerM FuncCall Type where
     modifyContainedASTsM f fc@(FuncCall { arguments = as, returns = r}) = do

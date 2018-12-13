@@ -35,7 +35,7 @@ mkCurrExpr m_assume m_assert s m_mod tc ng eenv walkers kv config =
                 id_name = Id name (typeOf strict_app_ex)
                 var_name = Var id_name
 
-                assume_ex = mkAssumeAssert Assume m_assume m_mod var_ids var_name var_name eenv
+                assume_ex = mkAssumeAssert (Assume Nothing) m_assume m_mod var_ids var_name var_name eenv
                 assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod var_ids assume_ex var_name eenv
 
                 retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex

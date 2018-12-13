@@ -527,7 +527,7 @@ stdReduceEvaluate eenv cast@(Cast e coer) _ _ ngen =
                           , ngen
                           , Just frame)])
 
-stdReduceEvaluate eenv (Assume pre lexpr) _ _ ngen =
+stdReduceEvaluate eenv (Assume _ pre lexpr) _ _ ngen =
     let frame = AssumeFrame lexpr
     in (RuleEvalAssume, [( eenv
                          , CurrExpr Evaluate pre

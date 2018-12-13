@@ -138,7 +138,7 @@ data Expr = Var Id
           | Tick Tickish Expr
           | NonDet [Expr]
           | SymGen Type
-          | Assume Expr Expr
+          | Assume (Maybe FuncCall) Expr Expr
           | Assert (Maybe FuncCall) Expr Expr
           deriving (Show, Eq, Read, Generic)
 
@@ -202,7 +202,9 @@ data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic)
 instance Hashable DataCon
 
 -- | AltMatches.
-data AltMatch = DataAlt DataCon [Id] -- ^ Match a datacon.  The number of `Id`s must match the number of term arguments for the datacon.
+data AltMatch = DataAlt DataCon [Id] -- ^ Match a datacon. The number of `Id`s
+                                     -- must match the number of term arguments
+                                     -- for the datacon.
               | LitAlt Lit
               | Default
               deriving (Show, Eq, Read, Generic)
@@ -257,7 +259,12 @@ type Kind = Type
 
 instance Hashable Type
 
-data Tickish = Breakpoint Span deriving (Show, Eq, Read, Generic)
+data Tickish = Breakpoint Span -- ^ A breakpoint for the GHC Debugger
+             | NamedLoc Name -- ^ A G2 specific tick, intended to allow,
+                             -- in concert with a @`Reducer`@, for domain
+                             -- specific modifications to a
+                             -- @`State`@'s tracking field.
+             deriving (Show, Eq, Read, Generic)
 
 instance Hashable Tickish
 

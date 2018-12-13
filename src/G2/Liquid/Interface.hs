@@ -12,12 +12,13 @@ import qualified G2.Language.ExprEnv as E
 
 import G2.Execution
 
+import G2.Liquid.AddCFBranch
 import G2.Liquid.AddLHTC
 import G2.Liquid.AddOrdToNum
 import G2.Liquid.Conversion
 import G2.Liquid.ConvertCurrExpr
+import G2.Liquid.LHReducers
 import G2.Liquid.Measures
-import G2.Liquid.Rules
 import G2.Liquid.Simplify
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCGen
@@ -93,7 +94,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     let lh_state = createLHState meenv mkv ng_state'
 
-    let (abs_fun, merged_state) = runLHStateM (initializeLH ghci_cg ifi) lh_state
+    let (cfn, merged_state) = runLHStateM (initializeLH ghci_cg ifi) lh_state
 
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
@@ -102,8 +103,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     let annm = annots merged_state
 
-    let track_state = merged_state' {track = LHTracker { abstractable = abs_fun
-                                                       , abstract_calls = []
+    let track_state = merged_state' {track = LHTracker { abstract_calls = []
                                                        , last_var = Nothing
                                                        , annotations = annm} }
 
@@ -128,7 +128,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     ret <- if higherOrderSolver config == AllFuncs
               then runG2
                     (NonRedPCRed config
-                      :<~| LHRed con' config) 
+                      :<~| LHRed cfn con' config) 
                     (MaxOutputsHalter 
                       :<~> ZeroHalter 
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
@@ -140,7 +140,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
               else runG2
                     (NonRedPCRed config
                       :<~| TaggerRed state_name tr_ng
-                      :<~| LHRed con' config) 
+                      :<~| LHRed cfn con' config) 
                     (DiscardIfAcceptedTag state_name
                       :<~> MaxOutputsHalter 
                       :<~> ZeroHalter 
@@ -166,7 +166,7 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     return (states, ifi)
 
-initializeLH :: [LHOutput] -> Lang.Id -> LHStateM [Lang.Name]
+initializeLH :: [LHOutput] -> Lang.Id -> LHStateM Lang.Name
 initializeLH ghci_cg ifi = do
     let ghcInfos = map ghcI ghci_cg
 
@@ -190,7 +190,9 @@ initializeLH ghci_cg ifi = do
 
     ns <- convertCurrExpr ifi
 
-    return ns
+    cfn <- addCounterfactualBranch ns
+
+    return cfn
 
 getGHCInfos :: LHC.Config -> FilePath -> [FilePath] -> [FilePath] -> IO [LHOutput]
 getGHCInfos config proj fp lhlibs = do
