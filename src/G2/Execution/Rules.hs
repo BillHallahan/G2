@@ -340,7 +340,7 @@ stdReduceBase redEx _ s@State { exec_stack = estk
        , []
        , tr)])
   | CurrExpr Evaluate expr <- cexpr
-  , isExprValueForm expr eenv =
+  , isExprValueForm eenv expr =
       -- Our current thing is a value form, which means we can return it.
       (RuleEvalVal, [(eenv, CurrExpr Return expr, [], [], Nothing, ngen, estk, [],  [], tr) ])
 
@@ -451,7 +451,7 @@ stdReduceEvaluate eenv (Var v) _ _ ngen = case E.lookup (idName v) eenv of
       -- expression that it points to. After the evaluation,
       -- we pop the stack to add a redirection pointer into the heap.
       let
-          (r, frame) = if isExprValueForm expr eenv 
+          (r, frame) = if isExprValueForm eenv expr 
                        then ( RuleEvalVarVal (idName v), Nothing) 
                        else ( RuleEvalVarNonVal (idName v)
                             , Just $ UpdateFrame (idName v))
@@ -607,7 +607,7 @@ reduceCase eenv mexpr bind alts ngen
   -- If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
   -- path constraints.
-  | isExprValueForm mexpr eenv
+  | isExprValueForm eenv mexpr
   , dalts <- dataAlts alts
   , lalts <- litAlts alts
   , defs <- defaultAlts alts
@@ -624,7 +624,7 @@ reduceCase eenv mexpr bind alts ngen
   -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
   -- is only done when the matching expression is NOT in value form. Value
   -- forms should be handled by other RuleEvalCase* rules.
-  | not (isExprValueForm mexpr eenv) =
+  | not (isExprValueForm eenv mexpr) =
       let frame = CaseFrame bind alts
       in ( RuleEvalCaseNonVal
          , [( eenv

@@ -13,22 +13,22 @@ import qualified G2.Language.ExprEnv as E
 --   `App`, which involves pushing the RHS onto the `Stack`, if the center is not a Prim or DataCon
 --   `Let`, which involves binding the binds into the eenv
 --   `Case`, which involves pattern decomposition and stuff.
-isExprValueForm :: Expr -> E.ExprEnv -> Bool
-isExprValueForm (Var var) eenv =
+isExprValueForm :: E.ExprEnv -> Expr -> Bool
+isExprValueForm eenv (Var var) =
     E.lookup (idName var) eenv == Nothing || E.isSymbolic (idName var) eenv
-isExprValueForm (App f a) eenv = case unApp (App f a) of
-    (Prim _ _:xs) -> all (flip isExprValueForm eenv) xs
+isExprValueForm eenv (App f a) = case unApp (App f a) of
+    (Prim _ _:xs) -> all (isExprValueForm eenv) xs
     (Data _:_) -> True
     ((Var _):_) -> False
     _ -> False
-isExprValueForm (Let _ _) _ = False
-isExprValueForm (Case _ _ _) _ = False
-isExprValueForm (Cast e (t :~ _)) eenv = not (hasFuncType t) && isExprValueForm e eenv
-isExprValueForm (Tick _ _) _ = False
-isExprValueForm (NonDet _) _ = False
-isExprValueForm (SymGen _) _ = False
-isExprValueForm (Assume _ _ _) _ = False
-isExprValueForm (Assert _ _ _) _ = False
+isExprValueForm _ (Let _ _) = False
+isExprValueForm _ (Case _ _ _) = False
+isExprValueForm eenv (Cast e (t :~ _)) = not (hasFuncType t) && isExprValueForm eenv e
+isExprValueForm _ (Tick _ _) = False
+isExprValueForm _ (NonDet _) = False
+isExprValueForm _ (SymGen _) = False
+isExprValueForm _ (Assume _ _ _) = False
+isExprValueForm _ (Assert _ _ _) = False
 isExprValueForm _ _ = True
 
 -- | Is the execution state in a value form of some sort? This would entail:

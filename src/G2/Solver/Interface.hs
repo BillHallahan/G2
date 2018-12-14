@@ -43,7 +43,7 @@ subVar' em eenv tc is v@(Var i@(Id n _))
         subVar' em eenv tc (i:is) $ filterTC tc e
     | i `notElem` is
     , Just e <- E.lookup n eenv
-    , (isExprValueForm e eenv && notLam e) || isApp e || isVar e =
+    , (isExprValueForm eenv e && notLam e) || isApp e || isVar e =
         subVar' em eenv tc (i:is) $ filterTC tc e
     -- case M.lookup n em of
     --     Just e -> trace ("e1 = " ++ show e) subVar' em eenv tc (i:is) $ filterTC tc e
