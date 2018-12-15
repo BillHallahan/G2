@@ -103,21 +103,21 @@ initRedHaltOrd conv config =
     in
     if higherOrderSolver config == AllFuncs
         then ( SomeReducer
-                 (NonRedPCRed config
-                 :<~| StdRed conv config)
+                 (NonRedPCRed
+                 :<~| StdRed conv)
              , SomeHalter
-                 (MaxOutputsHalter 
-                 :<~> ZeroHalter
+                 (MaxOutputsHalter (maxOutputs config)
+                 :<~> ZeroHalter (steps config)
                  :<~> AcceptHalter)
              , SomeOrderer $ NextOrderer)
         else ( SomeReducer
-                 (NonRedPCRed config
+                 (NonRedPCRed
                  :<~| TaggerRed state_name tr_ng
-                 :<~| StdRed conv config)
+                 :<~| StdRed conv)
              , SomeHalter
                  (DiscardIfAcceptedTag state_name 
-                 :<~> MaxOutputsHalter 
-                 :<~> ZeroHalter
+                 :<~> MaxOutputsHalter (maxOutputs config) 
+                 :<~> ZeroHalter (steps config)
                  :<~> AcceptHalter)
              , SomeOrderer $ NextOrderer)
 

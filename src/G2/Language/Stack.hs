@@ -4,10 +4,14 @@
 module G2.Language.Stack
     ( Stack
     , empty
+    , null
     , push
     , pop
     , popN
     , toList) where
+
+import Prelude hiding (null)
+import qualified Data.List as L
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -15,9 +19,13 @@ import G2.Language.Syntax
 
 newtype Stack a = Stack [a] deriving (Show, Eq, Read)
 
--- | Is the `Stack` empty?
+-- | Get an empty `Stack`.
 empty :: Stack a
 empty = Stack []
+
+-- | Is the `Stack` empty?
+null :: Stack a -> Bool
+null = L.null . toList
 
 -- | Push a `Frame` onto the `Stack`.
 push :: a -> Stack a -> Stack a

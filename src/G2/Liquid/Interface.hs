@@ -127,10 +127,10 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
 
     ret <- if higherOrderSolver config == AllFuncs
               then runG2
-                    (NonRedPCRed config
-                      :<~| LHRed cfn con' config) 
-                    (MaxOutputsHalter 
-                      :<~> ZeroHalter 
+                    (NonRedPCRed
+                      :<~| LHRed cfn con') 
+                    (MaxOutputsHalter (maxOutputs config)
+                      :<~> ZeroHalter (steps config)
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
                       :<~> limHalt
                       :<~> SwitchEveryNHalter (switch_after config)
@@ -138,12 +138,12 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
                     limOrd 
                     con' (pres_names ++ names annm) config final_state
               else runG2
-                    (NonRedPCRed config
+                    (NonRedPCRed
                       :<~| TaggerRed state_name tr_ng
-                      :<~| LHRed cfn con' config) 
+                      :<~| LHRed cfn con') 
                     (DiscardIfAcceptedTag state_name
-                      :<~> MaxOutputsHalter 
-                      :<~> ZeroHalter 
+                      :<~> MaxOutputsHalter (maxOutputs config)
+                      :<~> ZeroHalter (steps config)
                       :<~> LHAbsHalter entry mb_modname (expr_env init_state)
                       :<~> limHalt
                       :<~> SwitchEveryNHalter (switch_after config)

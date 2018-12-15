@@ -23,6 +23,6 @@ runNDepthNoConstraintChecks config states d = runNDepthNCC' $ map (\s -> (s, d))
     runNDepthNCC' [] = []
     runNDepthNCC' ((rss, 0):xs) = rss : runNDepthNCC' xs
     runNDepthNCC' ((s, n):xs) =
-        let reduceds = reduceNoConstraintChecks (stdReduce config) undefined s
+        let reduceds = reduceNoConstraintChecks stdReduce s
             mod_info = map (\s' -> (s', n - 1)) reduceds
         in runNDepthNCC' (mod_info ++ xs)

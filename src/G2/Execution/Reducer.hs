@@ -7,47 +7,51 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Execution.Reducer ( Reducer (..)
-                                      , Halter (..)
-                                      , Orderer (..)
+                            , Halter (..)
+                            , Orderer (..)
 
-                                      , Processed (..)
-                                      , ReducerRes (..)
-                                      , HaltC (..)
+                            , Processed (..)
+                            , ReducerRes (..)
+                            , HaltC (..)
 
-                                      , SomeReducer (..)
-                                      , SomeHalter (..)
-                                      , SomeOrderer (..)
+                            , SomeReducer (..)
+                            , SomeHalter (..)
+                            , SomeOrderer (..)
 
-                                      -- Reducers
-                                      , RCombiner (..)
-                                      , StdRed (..)
-                                      , NonRedPCRed (..)
-                                      , TaggerRed (..)
+                            -- Reducers
+                            , RCombiner (..)
+                            , StdRed (..)
+                            , NonRedPCRed (..)
+                            , TaggerRed (..)
 
-                                      -- Halters
-                                      , AcceptHalter (..)
-                                      , HCombiner (..)
-                                      , ZeroHalter (..)
-                                      , DiscardIfAcceptedTag (..)
-                                      , MaxOutputsHalter (..)
-                                      , SwitchEveryNHalter (..)
+                            , (<~)
+                            , (<~?)
+                            , (<~|)
 
-                                      -- Orderers
-                                      , NextOrderer (..)
-                                      , PickLeastUsedOrderer (..)
+                            -- Halters
+                            , AcceptHalter (..)
+                            , HCombiner (..)
+                            , ZeroHalter (..)
+                            , DiscardIfAcceptedTag (..)
+                            , MaxOutputsHalter (..)
+                            , SwitchEveryNHalter (..)
 
-                                      , halterSub1
-                                      , halterIsZero
+                            -- Orderers
+                            , NextOrderer (..)
+                            , PickLeastUsedOrderer (..)
 
-                                      , reduce
-                                      , runReducer ) where
+                            , halterSub1
+                            , halterIsZero
+
+                            , reduce
+                            , runReducer ) where
 
 import qualified G2.Language.ApplyTypes as AT
 import qualified G2.Language.ExprEnv as E
 import G2.Config
 import G2.Execution.Rules
 import G2.Language
-import G2.Language.Stack as Stck
+import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
 
@@ -103,7 +107,7 @@ class Reducer r t where
 -- To create a new Halter, define some new type, and use it as h.
 class Halter h hv t | h -> hv where
     -- | Initializes each state halter value
-    initHalt :: h -> Config -> State t -> hv
+    initHalt :: h -> State t -> hv
 
     -- | Runs whenever we switch to evaluating a different state,
     -- to update the halter value of that new state
@@ -127,7 +131,7 @@ class Halter h hv t | h -> hv where
 -- To create a new reducer, define some new type, and use it as or.
 class Ord b => Orderer or sov b t | or -> sov, or -> b where
     -- | Initializing the per state ordering value 
-    initPerStateOrder :: or -> Config -> State t -> sov
+    initPerStateOrder :: or -> State t -> sov
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
@@ -172,6 +176,19 @@ instance (Reducer r1 t, Reducer r2 t) => Reducer (RCombiner r1 r2) t where
                 return (rr1, s'', r1' :<~| r2')
             _ -> return (rr2, s', r1 :<~| r2')
 
+-- | Combines two @`SomeReducer`@s with a @`:<~`@
+(<~) :: SomeReducer t -> SomeReducer t -> SomeReducer t
+SomeReducer r1 <~ SomeReducer r2 = SomeReducer (r1 :<~ r2)
+
+-- | Combines two @`SomeReducer`@s with a @`:<~?`@
+(<~?) :: SomeReducer t -> SomeReducer t -> SomeReducer t
+SomeReducer r1 <~? SomeReducer r2 = SomeReducer (r1 :<~? r2)
+
+-- | Combines two @`SomeReducer`@s with a @`:<~|`@
+(<~|) :: SomeReducer t -> SomeReducer t -> SomeReducer t
+SomeReducer r1 <~| SomeReducer r2 = SomeReducer (r1 :<~| r2)
+
+
 redRulesToStates :: Reducer r t => r -> [State t] -> IO (ReducerRes, [State t], r)
 redRulesToStates r s = do
     rs <- mapM (redRules r) s
@@ -181,16 +198,16 @@ redRulesToStates r s = do
 
     return $ (rf, concat s', head r')
 
-data StdRed con = StdRed con Config
+data StdRed con = StdRed con
 
 instance Solver con => Reducer (StdRed con) () where
-    redRules stdr@(StdRed solver config) s = do
-        (r, s') <- reduce (stdReduce config) solver config s
+    redRules stdr@(StdRed solver) s = do
+        (r, s') <- reduce stdReduce solver s
         
         return (if r == RuleIdentity then Finished else InProgress, s', stdr)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
-data NonRedPCRed = NonRedPCRed Config
+data NonRedPCRed = NonRedPCRed
 
 instance Reducer NonRedPCRed t where
     redRules nrpr s@(State { expr_env = eenv
@@ -264,10 +281,10 @@ instance (Named a, Named b) => Named (C a b) where
     renames hm (C a b) = C (renames hm a) (renames hm b)
 
 instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 hv2) t where
-    initHalt (h1 :<~> h2) config s =
+    initHalt (h1 :<~> h2) s =
         let
-            hv1 = initHalt h1 config s
-            hv2 = initHalt h2 config s
+            hv1 = initHalt h1 s
+            hv2 = initHalt h2 s
         in
         C hv1 hv2
 
@@ -303,7 +320,7 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
 data AcceptHalter = AcceptHalter
 
 instance Halter AcceptHalter () t where
-    initHalt _ _ _ = ()
+    initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
     stopRed _ _ _ s =
         case isExecValueForm s && true_assert s of
@@ -312,18 +329,18 @@ instance Halter AcceptHalter () t where
     stepHalter _ _ _ _ = ()
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
-data ZeroHalter = ZeroHalter
+data ZeroHalter = ZeroHalter Int
 
 instance Halter ZeroHalter Int t where
-    initHalt _ config _ = steps config
+    initHalt (ZeroHalter n) _ = n
     updatePerStateHalt _ hv _ _ = hv
     stopRed = halterIsZero
     stepHalter = halterSub1
 
-data MaxOutputsHalter = MaxOutputsHalter
+data MaxOutputsHalter = MaxOutputsHalter (Maybe Int)
 
 instance Halter MaxOutputsHalter (Maybe Int) t where
-    initHalt _ config _ = maxOutputs config
+    initHalt (MaxOutputsHalter m) _ = m
     updatePerStateHalt _ hv _ _ = hv
     stopRed _ m (Processed {accepted = acc}) _ =
         case m of
@@ -335,7 +352,7 @@ instance Halter MaxOutputsHalter (Maybe Int) t where
 data SwitchEveryNHalter = SwitchEveryNHalter Int
 
 instance Halter SwitchEveryNHalter Int t where
-    initHalt (SwitchEveryNHalter sw) _ _ = sw
+    initHalt (SwitchEveryNHalter sw) _ = sw
     updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
     stopRed _ i _ _ = if i <= 0 then Switch else Continue
     stepHalter _ i _ _ = i - 1
@@ -346,7 +363,7 @@ instance Halter SwitchEveryNHalter Int t where
 data DiscardIfAcceptedTag = DiscardIfAcceptedTag Name 
 
 instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
-    initHalt _ _ _ = S.empty
+    initHalt _ _ = S.empty
     
     -- updatePerStateHalt gets the intersection of the accepted States Tags,
     -- and the Tags of the State being evaluated.
@@ -369,7 +386,7 @@ instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
 data NextOrderer = NextOrderer
 
 instance Orderer NextOrderer () Int t where
-    initPerStateOrder _ _ _ = ()
+    initPerStateOrder _ _ = ()
     orderStates _ _ _ = 0
     updateSelected _ v _ _ = v
 
@@ -377,7 +394,7 @@ instance Orderer NextOrderer () Int t where
 data PickLeastUsedOrderer = PickLeastUsedOrderer
 
 instance Orderer PickLeastUsedOrderer Int Int t where
-    initPerStateOrder _ _ _ = 0
+    initPerStateOrder _ _ = 0
     orderStates _ v _ = v
     updateSelected _ v _ _ = v + 1
 
@@ -391,10 +408,10 @@ halterIsZero _ _ _ _ = Continue
 --------
 --------
 
-reduce :: Solver solver => (State t -> (Rule, [ReduceResult t])) -> solver -> Config -> State t -> IO (Rule, [State t])
-reduce red con config s = do
+reduce :: Solver solver => (State t -> (Rule, [ReduceResult t])) -> solver -> State t -> IO (Rule, [State t])
+reduce red con s = do
     let (rule, res) = red s
-    sts <- resultsToState con config rule s res
+    sts <- resultsToState con rule s res
     return (rule, sts)
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
@@ -403,8 +420,8 @@ runReducer red hal ord config s =
     let
         pr = Processed {accepted = [], discarded = []}
         s' = ExState { state = s
-                     , halter_val = initHalt hal config s
-                     , order_val = initPerStateOrder ord config s
+                     , halter_val = initHalt hal s
+                     , order_val = initPerStateOrder ord s
                      , cases = []}
     in
      mapM (\ExState {state = st, cases = c} -> return (c, st)) =<< runReducer' red hal ord config pr s' M.empty 

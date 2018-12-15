@@ -18,7 +18,6 @@ module G2.Execution.Rules
   , reduceLam
   ) where
 
-import G2.Config.Config
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
@@ -227,16 +226,16 @@ lookupForPrim e _ = e
 -- | Result of a Evaluate reduction.
 type ReduceResult t = (E.ExprEnv, CurrExpr, [Constraint], [Assertion], Maybe FuncCall, NameGen, S.Stack Frame, [Id], [Expr], t)
 
-reduceNoConstraintChecks :: (State t -> (Rule, [ReduceResult t])) -> Config -> State t -> [State t]
-reduceNoConstraintChecks red config s =
+reduceNoConstraintChecks :: (State t -> (Rule, [ReduceResult t])) -> State t -> [State t]
+reduceNoConstraintChecks red s =
     let
         (rule, res) = red s
     in
-    map (resultToState config s rule) res
+    map (resultToState s rule) res
 
-resultsToState :: Solver solver => solver -> Config -> Rule -> State t -> [ReduceResult t] -> IO [State t]
-resultsToState _ _ _ _ [] = return []
-resultsToState con config rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _, _, _, _):xs)
+resultsToState :: Solver solver => solver -> Rule -> State t -> [ReduceResult t] -> IO [State t]
+resultsToState _ _ _ [] = return []
+resultsToState con rule s@(State {known_values = kv}) (red@(_, _, pc, asserts, ais, _, _, _, _, _):xs)
     | not (null pc) = do
             -- Optimization
             -- We replace the path_conds with only those that are directly
@@ -250,9 +249,9 @@ resultsToState con config rule s@(State {known_values = kv}) (red@(_, _, pc, ass
             res <- check con s rel_pc
 
             if res == SAT then
-                return . (:) s' =<< resultsToState con config rule s xs
+                return . (:) s' =<< resultsToState con rule s xs
             else
-                resultsToState con config rule s xs
+                resultsToState con rule s xs
     | not (null asserts) && not (true_assert s) = do
         let assertS = s' { path_conds = foldr (PC.insert kv) (path_conds s') asserts, true_assert = True, assert_ids = ais }
         let assertSRel = PC.relevant kv asserts (path_conds assertS)
@@ -267,14 +266,14 @@ resultsToState con config rule s@(State {known_values = kv}) (red@(_, _, pc, ass
         finalS <- filterM (\(s_, pc_) -> return . isSat =<< check con s_ pc_) potentialS
         let finalS' = map fst finalS
 
-        return . (++) finalS' =<< resultsToState con config rule s xs
-    | otherwise = return . (:) s' =<< resultsToState con config rule s xs
+        return . (++) finalS' =<< resultsToState con rule s xs
+    | otherwise = return . (:) s' =<< resultsToState con rule s xs
     where
-        !s' = resultToState config s rule red
+        !s' = resultToState s rule red
 
 {-# INLINE resultToState #-}
-resultToState :: Config -> State t -> Rule -> ReduceResult t -> State t
-resultToState _ s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
+resultToState :: State t -> Rule -> ReduceResult t -> State t
+resultToState s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
     s {
         expr_env = eenv
       , curr_expr = cexpr
@@ -288,11 +287,11 @@ resultToState _ s r (eenv, cexpr, pc, _, _, ng, st, is, non_red_pc, tv) =
 
 -- | stdReduce
 -- Interprets Haskell with no special semantics.
-stdReduce :: Config -> State t -> (Rule, [ReduceResult t])
+stdReduce :: State t -> (Rule, [ReduceResult t])
 stdReduce = stdReduceBase (const Nothing)
 
-stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> Config -> State t -> (Rule, [ReduceResult t])
-stdReduceBase redEx _ s@State { exec_stack = estk
+stdReduceBase :: (State t -> Maybe (Rule, [ReduceResult t])) -> State t -> (Rule, [ReduceResult t])
+stdReduceBase redEx s@State { exec_stack = estk
                               , expr_env = eenv
                               , type_env = tenv
                               , curr_expr = cexpr

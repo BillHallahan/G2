@@ -13,7 +13,6 @@ module G2.Liquid.LHReducers ( LHRed (..)
 
                             , limitByAccepted) where
 
-import G2.Config
 import G2.Execution.Reducer
 import G2.Execution.Rules
 import G2.Language
@@ -43,7 +42,7 @@ import qualified Data.Text as T
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: Name -> Config -> State LHTracker -> (Rule, [ReduceResult LHTracker])
+lhReduce :: Name -> State LHTracker -> (Rule, [ReduceResult LHTracker])
 lhReduce cfn = stdReduceBase (lhReduce' cfn)
 
 lhReduce' :: Name -> State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
@@ -115,11 +114,11 @@ instance ASTContainer LHTracker Type where
     modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns}) =
         lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f anns}
 
-data LHRed con = LHRed Name con Config
+data LHRed con = LHRed Name con
 
 instance Solver con => Reducer (LHRed con) LHTracker where
-    redRules lhr@(LHRed cfn solver config) s = do
-        (r, s') <- reduce (lhReduce cfn config) solver config s
+    redRules lhr@(LHRed cfn solver) s = do
+        (r, s') <- reduce (lhReduce cfn) solver s
 
         return $ (if r == RuleIdentity then Finished else InProgress, s', lhr)
 
@@ -147,7 +146,7 @@ limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
 data LHLimitByAcceptedHalter = LHLimitByAcceptedHalter Int
 
 instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
-    initHalt _ _ _ = Nothing
+    initHalt _ _ = Nothing
 
     -- If we start trying to execute a state with more than the maximal number
     -- of rules applied, we throw it away.
@@ -171,7 +170,7 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
 data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer Int
  
 instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
-    initPerStateOrder _ _ _ = ()
+    initPerStateOrder _ _ = ()
 
     orderStates _ _ = num_steps
 
@@ -191,7 +190,7 @@ data LHAbsHalter = LHAbsHalter T.Text (Maybe T.Text) ExprEnv
 instance Halter LHAbsHalter Int LHTracker where
     -- We initialize the maximal number of abstracted variables,
     -- to the number of variables in the entry function
-    initHalt (LHAbsHalter entry modn eenv) _ _ =
+    initHalt (LHAbsHalter entry modn eenv) _ =
         let 
             fe = case E.occLookup entry modn eenv of
                 Just e -> e
