@@ -200,7 +200,7 @@ redRulesToStates r s = do
 
 data StdRed con = StdRed con
 
-instance Solver con => Reducer (StdRed con) () where
+instance Solver con => Reducer (StdRed con) t where
     redRules stdr@(StdRed solver) s = do
         (r, s') <- reduce stdReduce solver s
         
