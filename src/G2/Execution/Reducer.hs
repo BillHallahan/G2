@@ -230,13 +230,17 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
         in
         map (uncurry RC) $ zip rv1' rv2'
 
+{-# INLINE (<~) #-}
+-- | Combines two @`SomeReducer`@s with a @`:<~`@
 (<~) :: SomeReducer t -> SomeReducer t -> SomeReducer t
 SomeReducer r1 <~ SomeReducer r2 = SomeReducer (r1 :<~ r2)
 
+{-# INLINE (<~?) #-}
 -- | Combines two @`SomeReducer`@s with a @`:<~?`@
 (<~?) :: SomeReducer t -> SomeReducer t -> SomeReducer t
 SomeReducer r1 <~? SomeReducer r2 = SomeReducer (r1 :<~? r2)
 
+{-# INLINE (<~|) #-}
 -- | Combines two @`SomeReducer`@s with a @`:<~|`@
 (<~|) :: SomeReducer t -> SomeReducer t -> SomeReducer t
 SomeReducer r1 <~| SomeReducer r2 = SomeReducer (r1 :<~| r2)

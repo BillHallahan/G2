@@ -12,7 +12,9 @@ class AST t => ASTM t where
     modifyChildrenM :: Monad m => (t -> m t) -> t -> m t
 
 modifyM :: (ASTM t, Monad m) => (t -> m t) -> t -> m t
-modifyM f t = modifyChildrenM (modifyM f) =<< f t
+modifyM f t = go t
+    where
+        go t' = modifyChildrenM go =<< f t'
 
 modifyFixM :: (ASTM t, Monad m, Eq t) => (t -> m t) -> t -> m t
 modifyFixM f e = do

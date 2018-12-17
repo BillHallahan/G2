@@ -1,8 +1,9 @@
 -- | Defines typeclasses and functions for ease of AST manipulation.
 
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module G2.Language.AST
     ( AST (..)
@@ -43,7 +44,9 @@ class AST t where
 -- | Calls the given function on the given node, and all of the descendants
 -- in a recursive, top down, manner.
 modify :: AST t => (t -> t) -> t -> t
-modify f t = modifyChildren (modify f) (f t)
+modify f t = go t
+    where
+        go t' = modifyChildren go (f t')
 
 {-# SPECIALISE modify :: (Expr -> Expr) -> Expr -> Expr #-}
 {-# SPECIALISE modify :: (Type -> Type) -> Type -> Type #-}
@@ -52,12 +55,11 @@ modify f t = modifyChildren (modify f) (f t)
 -- Children have access to the mconcated results from higher in the tree
 -- The head of the tree is given mempty.
 modifyMonoid :: (AST t, Monoid a) => (a -> t -> (t, a)) -> t -> t
-modifyMonoid f = go f mempty
+modifyMonoid f = go mempty
   where
-    go :: (AST t, Monoid a) => (a -> t -> (t, a)) -> a -> t -> t
-    go g m t = let (t', m') = g m t
-                   ms = m `mappend` m'
-               in modifyChildren (go g ms) t'
+    go m t = let (t', m') = f m t
+                 ms = m `mappend` m'
+             in modifyChildren (go ms) t'
 
 -- | Runs the given function f on the node t, t until t = f t, then does the
 -- same on all decendants of t recursively.
@@ -90,7 +92,9 @@ modifyFixMonoid f = go f mempty
 -- | Recursively runs the given function on each node, top down. Uses mappend
 -- to combine the results after evaluation of the entire tree.
 eval :: (AST t, Monoid a) => (t -> a) -> t -> a
-eval f t = (f t) `mappend` (evalChildren (eval f) t)
+eval f t = go t
+    where
+        go t' = f t' `mappend` evalChildren go t'
 
 -- | Recursively runs the given function on each node, top down.  We collect
 -- information using on Monoid, and also pass another monoid that can help 
