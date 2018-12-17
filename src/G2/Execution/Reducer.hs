@@ -70,7 +70,6 @@ data ExState rv hv sov t = ExState { state :: State t
                                    , reducer_val :: rv
                                    , halter_val :: hv
                                    , order_val :: sov
-                                   , cases :: [Int]
                                    }
 
 -- | Keeps track of type a's that have either been accepted or dropped
@@ -231,7 +230,6 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
         in
         map (uncurry RC) $ zip rv1' rv2'
 
--- | Combines two @`SomeReducer`@s with a @`:<~`@
 (<~) :: SomeReducer t -> SomeReducer t -> SomeReducer t
 SomeReducer r1 <~ SomeReducer r2 = SomeReducer (r1 :<~ r2)
 
@@ -501,17 +499,16 @@ reduce red con s = do
     return (rule, sts)
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> State t -> IO [([Int], State t)]
+runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> State t -> IO [State t]
 runReducer red hal ord config s =
     let
         pr = Processed {accepted = [], discarded = []}
         s' = ExState { state = s
                      , reducer_val = initReducer red s
                      , halter_val = initHalt hal s
-                     , order_val = initPerStateOrder ord s
-                     , cases = []}
+                     , order_val = initPerStateOrder ord s }
     in
-     mapM (\ExState {state = st, cases = c} -> return (c, st)) =<< runReducer' red hal ord config pr s' M.empty 
+     mapM (\ExState {state = st} -> return st) =<< runReducer' red hal ord config pr s' M.empty 
 
 runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
             => r 
@@ -522,7 +519,7 @@ runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             -> ExState rv hv sov t 
             -> M.Map b [ExState rv hv sov t] 
             -> IO [ExState rv hv sov t]
-runReducer' red hal ord config pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, cases = is }) xs
+runReducer' red hal ord config pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) xs
     | hc == Accept =
         let
             pr' = pr {accepted = rs:accepted pr}
@@ -552,20 +549,14 @@ runReducer' red hal ord config pr rs@(ExState { state = s, reducer_val = r_val, 
             then runReducer' red hal ord config pr rs''' xs'
             else runReducerList red hal ord config (pr {discarded = rs''':discarded pr}) xs'
     | otherwise = do
-        case logStates config of
-            Just f -> outputState f is s
-            Nothing -> return ()
-
         (_, reduceds, red') <- redRules red r_val s
         let reduceds' = map (\r -> r {num_steps = num_steps r + 1}) reduceds
 
-        let isred = if length (reduceds') > 1 then zip (map Just [1..]) reduceds' else zip (repeat Nothing) reduceds'
         let red_vs = updateReducerVals red r_val reduceds' ++ repeat (error "Insufficient list returned by updateReducerVals")
         
-        let mod_info = map (\(r_val', (i, s')) -> rs { state = s'
-                                                     , reducer_val = r_val'
-                                                     , halter_val = stepHalter hal h_val ps s'
-                                                     , cases = is ++ maybe [] (\i' -> [i']) i}) $ zip red_vs isred
+        let mod_info = map (\(r_val', s') -> rs { state = s'
+                                                , reducer_val = r_val'
+                                                , halter_val = stepHalter hal h_val ps s'}) $ zip red_vs reduceds'
         
         let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs mod_info
 

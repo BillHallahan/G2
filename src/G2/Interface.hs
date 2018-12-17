@@ -2,10 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Interface ( initState
-                              , initRedHaltOrd
-                              , runG2WithConfig
-                              , runG2
-                              , Config) where
+                    , initRedHaltOrd
+                    , runG2WithConfig
+                    , runG2WithSomes
+                    , runG2
+                    , Config) where
 
 import G2.Config.Config
 
@@ -102,18 +103,19 @@ initRedHaltOrd conv config =
         state_name = Name "state" Nothing 0 Nothing
     in
     if higherOrderSolver config == AllFuncs
-        then ( SomeReducer
-                 (NonRedPCRed
-                 :<~| StdRed conv)
+        then (SomeReducer (NonRedPCRed)
+                 <~| (case logStates config of
+                        Just fp -> SomeReducer (StdRed conv :<~ Logger fp)
+                        Nothing -> SomeReducer (StdRed conv))
              , SomeHalter
                  (MaxOutputsHalter (maxOutputs config)
                  :<~> ZeroHalter (steps config)
                  :<~> AcceptHalter)
              , SomeOrderer $ NextOrderer)
-        else ( SomeReducer
-                 (NonRedPCRed
-                 :<~| TaggerRed state_name tr_ng
-                 :<~| StdRed conv)
+        else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
+                 <~| (case logStates config of
+                        Just fp -> SomeReducer (StdRed conv :<~ Logger fp)
+                        Nothing -> SomeReducer (StdRed conv))
              , SomeHalter
                  (DiscardIfAcceptedTag state_name 
                  :<~> MaxOutputsHalter (maxOutputs config) 
@@ -133,12 +135,29 @@ runG2WithConfig state config = do
     let con' = GroupRelated (ADTSolver :?> con)
 
     in_out <- case initRedHaltOrd con' config of
-                (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-                    runG2 red hal ord con' [] config state
+                (red, hal, ord) ->
+                    runG2WithSomes red hal ord con' [] config state
 
     closeIO con
 
     return in_out
+
+runG2WithSomes :: ( Named t
+                  , ASTContainer t Expr
+                  , ASTContainer t Type
+                  , Solver solver)
+               => (SomeReducer t)
+               -> (SomeHalter t)
+               -> (SomeOrderer t)
+               -> solver
+               -> [Name]
+               -> Config
+               -> State t
+               -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
+runG2WithSomes red hal ord con pns config state =
+    case (red, hal, ord) of
+        (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
+            runG2 red' hal' ord' con pns config state
 
 runG2 :: ( Named t
          , ASTContainer t Expr
@@ -158,11 +177,11 @@ runG2 red hal ord con pns config (is@State { type_env = tenv
 
     exec_states <- runExecution red hal ord config preproc_state
 
-    let ident_states = filter (isExecValueForm . snd) exec_states
-    let ident_states' = filter (true_assert . snd) ident_states
+    let ident_states = filter isExecValueForm exec_states
+    let ident_states' = filter true_assert ident_states
 
     ident_states'' <- 
-        mapM (\(_, s) -> do
+        mapM (\s -> do
             (_, m) <- solve con s (symbolic_ids s) (path_conds s)
             return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states'

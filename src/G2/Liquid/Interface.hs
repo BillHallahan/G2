@@ -126,29 +126,34 @@ runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
     let (limHalt, limOrd) = limitByAccepted (cut_off config)
 
     ret <- if higherOrderSolver config == AllFuncs
-              then runG2
-                    (NonRedPCRed
-                      :<~| LHRed cfn con') 
-                    (MaxOutputsHalter (maxOutputs config)
-                      :<~> ZeroHalter (steps config)
-                      :<~> LHAbsHalter entry mb_modname (expr_env init_state)
-                      :<~> limHalt
-                      :<~> SwitchEveryNHalter (switch_after config)
-                      :<~> AcceptHalter) 
-                    limOrd 
+              then runG2WithSomes
+                    (SomeReducer NonRedPCRed
+                      <~| (case logStates config of
+                            Just fp -> SomeReducer (LHRed cfn con' :<~ Logger fp)
+                            Nothing -> SomeReducer (LHRed cfn con')))
+                    (SomeHalter
+                      (MaxOutputsHalter (maxOutputs config)
+                        :<~> ZeroHalter (steps config)
+                        :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                        :<~> limHalt
+                        :<~> SwitchEveryNHalter (switch_after config)
+                        :<~> AcceptHalter))
+                    (SomeOrderer limOrd)
                     con' (pres_names ++ names annm) config final_state
-              else runG2
-                    (NonRedPCRed
-                      :<~| TaggerRed state_name tr_ng
-                      :<~| LHRed cfn con') 
-                    (DiscardIfAcceptedTag state_name
-                      :<~> MaxOutputsHalter (maxOutputs config)
-                      :<~> ZeroHalter (steps config)
-                      :<~> LHAbsHalter entry mb_modname (expr_env init_state)
-                      :<~> limHalt
-                      :<~> SwitchEveryNHalter (switch_after config)
-                      :<~> AcceptHalter) 
-                    limOrd 
+              else runG2WithSomes
+                    (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
+                      <~| (case logStates config of
+                            Just fp -> SomeReducer (LHRed cfn con' :<~ Logger fp)
+                            Nothing -> SomeReducer (LHRed cfn con')))
+                    (SomeHalter
+                      (DiscardIfAcceptedTag state_name
+                        :<~> MaxOutputsHalter (maxOutputs config)
+                        :<~> ZeroHalter (steps config)
+                        :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                        :<~> limHalt
+                        :<~> SwitchEveryNHalter (switch_after config)
+                        :<~> AcceptHalter))
+                    (SomeOrderer limOrd)
                     con' (pres_names ++ names annm) config final_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
