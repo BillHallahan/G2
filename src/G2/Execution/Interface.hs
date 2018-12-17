@@ -13,7 +13,7 @@ import G2.Execution.Rules
 import G2.Language.Support
 
 {-# INLINE runExecution #-}
-runExecution :: (Reducer r t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> State t -> IO [([Int], State t)]
+runExecution :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> State t -> IO [([Int], State t)]
 runExecution = runReducer
 
 runNDepthNoConstraintChecks :: Config -> [State t] -> Int -> [State t]

@@ -143,7 +143,7 @@ runG2WithConfig state config = do
 runG2 :: ( Named t
          , ASTContainer t Expr
          , ASTContainer t Type
-         , Reducer r t
+         , Reducer r rv t
          , Halter h hv t
          , Orderer or sov b t
          , Solver solver) => r -> h -> or ->

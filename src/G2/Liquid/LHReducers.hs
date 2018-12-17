@@ -116,8 +116,10 @@ instance ASTContainer LHTracker Type where
 
 data LHRed con = LHRed Name con
 
-instance Solver con => Reducer (LHRed con) LHTracker where
-    redRules lhr@(LHRed cfn solver) s = do
+instance Solver con => Reducer (LHRed con) () LHTracker where
+    initReducer _ _ = ()
+
+    redRules lhr@(LHRed cfn solver) _ s = do
         (r, s') <- reduce (lhReduce cfn) solver s
 
         return $ (if r == RuleIdentity then Finished else InProgress, s', lhr)
