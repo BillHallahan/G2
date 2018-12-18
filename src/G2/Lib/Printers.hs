@@ -25,6 +25,7 @@ import G2.Language.Support
 import Data.Char
 import Data.Coerce
 import Data.List
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 
@@ -373,5 +374,5 @@ pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
 pprPathCondStr (PCExists p) = show p
 
 pprCleanedNamesStr :: CleanedNames -> String
-pprCleanedNamesStr = injNewLine . map show . M.toList
+pprCleanedNamesStr = injNewLine . map show . HM.toList
 

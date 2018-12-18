@@ -34,6 +34,7 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
 import qualified G2.Language.SymLinks as Sym
 
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 import Data.Maybe
@@ -88,7 +89,7 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , model = M.empty
     , arb_value_gen = arbValueInit
     , known_values = kv'
-    , cleaned_names = M.empty
+    , cleaned_names = HM.empty
     , rules = []
     , num_steps = 0
     , track = ()

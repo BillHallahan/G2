@@ -99,7 +99,7 @@ data Interp = StdInterp | UnInterp deriving (Show, Eq, Read)
 type Walkers = M.Map Name Id
 
 -- Map new names to old ones
-type CleanedNames = M.Map Name Name
+type CleanedNames = HM.HashMap Name Name
 
 data ArbValueGen = ArbValueGen { intGen :: Integer
                                , floatGen :: Rational
@@ -162,7 +162,7 @@ renameState old new_seed s =
              , model = model s
              , arb_value_gen = arb_value_gen s
              , known_values = rename old new (known_values s)
-             , cleaned_names = M.insert new old (cleaned_names s)
+             , cleaned_names = HM.insert new old (cleaned_names s)
              , rules = rules s
              , num_steps = num_steps s
              , track = rename old new (track s)
@@ -211,7 +211,7 @@ instance Named t => Named (State t) where
                , model = rename old new (model s)
                , arb_value_gen = arb_value_gen s
                , known_values = rename old new (known_values s)
-               , cleaned_names = M.insert new old (cleaned_names s)
+               , cleaned_names = HM.insert new old (cleaned_names s)
                , rules = rules s
                , num_steps = num_steps s
                , track = rename old new (track s)
@@ -240,7 +240,7 @@ instance Named t => Named (State t) where
                , model = renames hm (model s)
                , arb_value_gen = arb_value_gen s
                , known_values = renames hm (known_values s)
-               , cleaned_names = foldr (\(old, new) -> M.insert new old) (cleaned_names s) (HM.toList hm)
+               , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names s) (HM.toList hm)
                , rules = rules s
                , num_steps = num_steps s
                , track = renames hm (track s)

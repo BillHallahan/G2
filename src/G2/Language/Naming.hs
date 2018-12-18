@@ -92,10 +92,10 @@ mkNameGen nmd =
         allNames = names nmd
     in
     NameGen {
-          max_uniq = 
-            (foldr (\(Name n m i _) hm -> HM.insertWith max (n, m) (i + 1) hm) 
-                HM.empty allNames
-            )
+          max_uniq = HM.fromListWith max $ map (\(Name n m i _) -> ((n, m), i + 1)) allNames
+            -- (foldr (\(Name n m i _) hm -> HM.insertWith max (n, m) (i + 1) hm) 
+            --     HM.empty allNames
+            -- )
             , dc_children = HM.empty
     }
 
