@@ -72,10 +72,12 @@ negatePC (ExtCond e b) = ExtCond e (not b)
 negatePC (ConsCond dc e b) = ConsCond dc e (not b)
 negatePC pc = pc
 
+{-# INLINE toMap #-}
 toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet PathCond, [Name])
 toMap = coerce
 
--- Constructs an empty `PathConds`.
+{-# INLINE empty #-}
+-- | Constructs an empty `PathConds`.
 empty :: PathConds
 empty = PathConds M.empty
 
@@ -113,9 +115,11 @@ insert'' :: [Name] -> Maybe (HS.HashSet PathCond, [Name]) -> Maybe (HS.HashSet P
 insert'' ns Nothing = Just (HS.empty, ns)
 insert'' ns (Just (p', ns')) = Just (p', ns ++ ns')
 
+{-# INLINE number #-}
 number :: PathConds -> Int
 number = length . toList
 
+{-# INLINE null #-}
 null :: PathConds -> Bool
 null = M.null . toMap
 
@@ -125,26 +129,30 @@ relevant :: KV.KnownValues -> [PathCond] -> PathConds -> PathConds
 relevant kv pc pcs = 
     case concatMap (varNamesInPC kv) pc of
         [] -> fromList kv pc
-        rel -> scc kv rel pcs
+        rel -> scc rel pcs
 
 -- Returns a list of PathConds, where the union of the output PathConds
 -- is the input PathConds, and the PathCond are seperated into there SCCs
 relatedSets :: KV.KnownValues -> PathConds -> [PathConds]
 relatedSets kv pc@(PathConds pcm) = 
     let
-        epc = PathConds $ M.filterWithKey (\k _ -> not (isJust k)) pcm
+        epc = case M.lookup Nothing pcm of
+                Just v -> PathConds $ M.singleton Nothing v
+                Nothing -> PathConds M.empty
+
+        ns = catMaybes $ M.keys pcm
     in
-    if null epc then relatedSets' kv pc [] else epc:relatedSets' kv pc []
+    if null epc then relatedSets' kv pc ns else epc:relatedSets' kv pc ns
 
 relatedSets' :: KV.KnownValues -> PathConds -> [Name] -> [PathConds]
-relatedSets' kv pc@(PathConds pcm) ns =
-    case catMaybes (M.keys pcm) L.\\ ns of
+relatedSets' kv pc ns =
+    case ns of
       k:_ ->
           let
-              s = scc kv [k] pc
+              s = scc [k] pc
               ns' = concat $ map' (varNamesInPC kv) s
           in
-          s:relatedSets' kv pc (k:ns ++ ns')
+          s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []
 
 
@@ -172,26 +180,27 @@ varIdsInAltMatch _ = []
 varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
 varNamesInPC kv = P.map idName . varIdsInPC kv
 
-scc :: KV.KnownValues -> [Name] -> PathConds -> PathConds
-scc kv ns (PathConds pc) = PathConds $ scc' kv ns pc M.empty
+{-# INLINE scc #-}
+scc :: [Name] -> PathConds -> PathConds
+scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
 
-scc' :: KV.KnownValues
-     -> [Name]
+scc' :: [Name]
      -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
      -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
      -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
-scc' _ [] _ pc = pc
-scc' kv (n:ns) pc newpc =
+scc' [] _ pc = pc
+scc' (n:ns) pc newpc =
     -- Check if we already inserted the name information
     case M.lookup (Just n) newpc of
-        Just _ -> scc' kv ns pc newpc
+        Just _ -> scc' ns pc newpc
         Nothing ->
             -- If we didn't, lookup info to insert,
             -- and add names to the list of names to search
             case M.lookup (Just n) pc of
-                Just pcn@(_, ns') -> scc' kv (ns ++ ns') pc (M.insert (Just n) pcn newpc)
-                Nothing -> scc' kv ns pc newpc
+                Just pcn@(_, ns') -> scc' (ns ++ ns') pc (M.insert (Just n) pcn newpc)
+                Nothing -> scc' ns pc newpc
 
+{-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap
 

@@ -64,10 +64,16 @@ modifyMonoid f = go mempty
 -- | Runs the given function f on the node t, t until t = f t, then does the
 -- same on all decendants of t recursively.
 modifyFix :: (AST t, Eq t) => (t -> t) -> t -> t
-modifyFix f t = let t' = f t
-                in if t == t'
-                    then modifyChildren (modifyFix f) t'
-                    else modifyFix f t'
+modifyFix f t = go t
+    where
+        go t' = let t'' = f t'
+                in if t' == t'' then modifyChildren go t'' else go t''
+
+-- modifyFix :: (AST t, Eq t) => (t -> t) -> t -> t
+-- modifyFix f t = let t' = f t
+--                 in if t == t'
+--                     then modifyChildren (modifyFix f) t'
+--                     else modifyFix f t'
 
 -- | Runs the given function f on the node t, t until t = f t
 modifyContainedFix :: (AST t, Eq t, Show t) => (t -> t) -> t -> t
@@ -112,7 +118,7 @@ evalMonoid f = go f mempty
 -- | Evaluates all children of the given AST node with the given monoid,
 -- and `mconcat`s the results
 evalChildren :: (AST t, Monoid a) => (t -> a) -> t -> a
-evalChildren f = mconcat . (map f) . children
+evalChildren f = mconcat . map f . children
 
 -- | For types that may contain ASTs, but that are not ASTs themselves. Such types
 -- may include environments, State, functors, etc.
