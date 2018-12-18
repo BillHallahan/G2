@@ -322,7 +322,8 @@ getProcessHandles pr = do
 
 getSMT :: Config -> IO SomeSMTSolver
 getSMT (Config {smt = ConZ3}) = do
-    hhp <- getZ3ProcessHandles
+    hhp@(h_in, _, _) <- getZ3ProcessHandles
+    hPutStr h_in "(set-option :pp.decimal true)"
     return $ SomeSMTSolver (Z3 hhp)
 getSMT (Config {smt = ConCVC4}) = do
     hhp <- getCVC4ProcessHandles

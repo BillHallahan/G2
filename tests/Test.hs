@@ -10,7 +10,6 @@ import G2.Config
 
 import G2.Interface
 import G2.Language as G2
-import G2.Translation
 import G2.Liquid.Interface
 
 import Control.Exception
@@ -387,7 +386,7 @@ testFileTests =
                 , checkInputOutput "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/BadCoerce.hs" "BadCoerce" "f" 400 3 [AtLeast 1]
                 , checkExpr "tests/TestFiles/" "tests/TestFiles/Expr.hs" 400 Nothing Nothing "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
 
-                , checkInputOutput "tests/TestFiles/" "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 4 [AtLeast 1]
+                -- , checkInputOutput "tests/TestFiles/" "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 4 [AtLeast 1]
                 -- , checkExpr "tests/TestFiles/Coercions" "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [ AtLeast 2
     --                                                                                                                   , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
     --                                                                                                                   , RExists (\[x, _] -> x /= Lit (LitInt 0))]
@@ -461,14 +460,11 @@ testFile :: String -> String -> Maybe String -> Maybe String -> Maybe String -> 
 testFile proj src m_assume m_assert m_reaches entry config =
     try (testFileWithConfig proj src m_assume m_assert m_reaches entry config)
 
-testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO ([([Expr], Expr)])
+testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO [([Expr], Expr)]
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
-    (mb_modname, binds, tycons, cls, _, ex) <- translateLoaded proj src [] True config
+    r <- doTimeout (timeLimit config) $ runG2FromFile proj src [] (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) config
 
-    let (init_state, _) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) mb_modname ex config
-    r <- runG2WithConfig init_state config
-
-    return $ map (\(_, i, o, _) -> (i, o)) r
+    return $ map (\(_, i, o, _) -> (i, o)) $ maybe (error "Timeout") fst r
 
 checkLiquidWithNoCutOff :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquidWithNoCutOff proj fp entry stps i reqList =
@@ -485,8 +481,9 @@ checkLiquidWithConfig proj fp entry i config reqList = do
     res <- findCounterExamples' proj fp (T.pack entry) [] [] config
 
     let (ch, r) = case res of
-                Left e -> (False, Left e)
-                Right exprs -> (checkExprGen (map (\(_, inp, out, _) -> inp ++ [out]) exprs) i reqList, Right ())
+                Nothing -> (False, Right ())
+                Just (Left e) -> (False, Left e)
+                Just (Right exprs) -> (checkExprGen (map (\(_, inp, out, _) -> inp ++ [out]) exprs) i reqList, Right ())
 
     return . testCase fp
         $ assertBool ("Liquid test for file " ++ fp ++ 
@@ -500,8 +497,9 @@ checkAbsLiquidWithConfig proj fp entry i config reqList = do
     res <- findCounterExamples' proj fp (T.pack entry) [] [] config
 
     let (ch, r) = case res of
-                Left e -> (False, Left e)
-                Right exprs ->
+                Nothing -> (False, Right [])
+                Just (Left e) -> (False, Left e)
+                Just (Right exprs) ->
                     let
                         te = checkAbsLHExprGen (map (\(s, inp, out, _) -> (s, inp, out)) exprs) i reqList
                     in
@@ -512,17 +510,11 @@ checkAbsLiquidWithConfig proj fp entry i config reqList = do
                       " with function " ++ entry ++ " failed.\n" ++ show r) ch
 
 
-findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Either SomeException [(State [FuncCall], [Expr], Expr, Maybe FuncCall)])
-findCounterExamples' proj fp entry libs lhlibs config = try (return . fst =<< findCounterExamples proj fp entry libs lhlibs config)
+findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Maybe (Either SomeException [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]))
+findCounterExamples' proj fp entry libs lhlibs config = doTimeout (timeLimit config) $ try (return . fst =<< findCounterExamples proj fp entry libs lhlibs config)
 
 errors :: [Expr] -> Bool
 errors e =
     case last e of
         Prim Error _ -> True
         _ -> False
-
-mkConfigTest :: Config
-mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs }
-
-mkConfigTestWithMap :: Config
-mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ [mapLib]}

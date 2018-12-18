@@ -5,7 +5,6 @@ module Main (main, plugin) where
 import DynFlags
 
 import System.Environment
-import System.Timeout
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -39,21 +38,13 @@ main = do
       _ -> do
         runWithArgs as
 
-doTimeout :: Int -> IO a -> IO ()
-doTimeout secs action = do
-  res <- timeout (secs * 1000 * 1000) action -- timeout takes micros.
-  case res of
-    Just _ -> return ()
-    Nothing -> do
-      putStrLn "Timeout!"
-      return ()
-
-runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO()
+runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO ()
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
-  doTimeout (timeLimit config) $ do
+  _ <- doTimeout (timeLimit config) $ do
     (in_out, entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
     printLHOut entry in_out
+  return ()
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
@@ -73,15 +64,18 @@ runWithArgs as = do
   let libs = maybeToList m_mapsrc
 
   config <- getConfig as
-  doTimeout (timeLimit config) $ do
-    (mb_modname, pre_binds, pre_tycons, pre_cls, _, ex) <- translateLoaded proj src libs True config
+  _ <- doTimeout (timeLimit config) $ do
+    (in_out, entry_f@(Id (Name _ mb_modname _ _) _)) <-
+        runG2FromFile proj src libs (fmap T.pack m_assume)
+                  (fmap T.pack m_assert) (fmap T.pack m_reaches) 
+                  (isJust m_assert || isJust m_reaches || m_retsTrue) 
+                  tentry config
+    -- (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src libs True config
 
-    let (binds, tycons, cls) = (pre_binds, pre_tycons, pre_cls)
+    -- let (init_state, entry_f) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
+    --                            (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
 
-    let (init_state, entry_f) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
-                               (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
-
-    in_out <- runG2WithConfig init_state config
+    -- in_out <- runG2WithConfig init_state config
 
     case validate config of
         True -> do
@@ -92,6 +86,8 @@ runWithArgs as = do
         False -> return ()
 
     printFuncCalls config entry_f in_out
+
+  return ()
 
 printFuncCalls :: Config -> Id -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO ()
 printFuncCalls config entry =

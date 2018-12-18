@@ -80,7 +80,7 @@ boolExpr = do
     case n of
         "true" -> return (VBool True)
         "false" -> return (VBool False)
-        _ -> error "Bad bool expr"
+        _ -> error $ "Bad bool expr"
 
 parensConsName :: Parsec String st String
 parensConsName = parens parensConsName <|> consName
@@ -122,6 +122,7 @@ doubleFloatExprRat = do
 doubleFloatExprDec :: Parser SMTAST
 doubleFloatExprDec = do
     r <- doubleFloat
+    _ <- optionMaybe (reserved "?")
     return (VDouble r)
 
 doubleFloat :: Parser Rational

@@ -1,8 +1,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Interface ( initState
+module G2.Interface ( doTimeout
+                    , maybeDoTimeout
+                    , initState
                     , initRedHaltOrd
+                    , runG2FromFile
                     , runG2WithConfig
                     , runG2WithSomes
                     , runG2
@@ -25,6 +28,8 @@ import G2.Execution.Rules
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
 
+import G2.Translation
+
 import G2.Solver
 
 import G2.Postprocessing.Interface
@@ -40,8 +45,30 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe T.Text
-          -> Maybe T.Text -> Maybe T.Text -> Bool -> T.Text -> Maybe T.Text -> [Name]
+import System.Timeout
+
+type AssumeFunc = T.Text
+type AssertFunc = T.Text
+type ReachFunc = T.Text
+
+type StartFunc = T.Text
+type ModuleName = Maybe T.Text 
+
+doTimeout :: Int -> IO a -> IO (Maybe a)
+doTimeout secs action = do
+  res <- timeout (secs * 1000 * 1000) action -- timeout takes micros.
+  case res of
+    Just _ -> return res
+    Nothing -> do
+      putStrLn "Timeout!"
+      return Nothing
+
+maybeDoTimeout :: Maybe Int -> IO a -> IO (Maybe a)
+maybeDoTimeout (Just secs) = doTimeout secs
+maybeDoTimeout Nothing = fmap Just
+
+initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
+          -> Maybe AssertFunc -> Maybe ReachFunc -> Bool -> StartFunc -> ModuleName -> [Name]
           -> Config -> (State (), Id)
 initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNames config =
     let
@@ -129,6 +156,26 @@ mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
+
+runG2FromFile :: FilePath
+              -> FilePath
+              -> [FilePath]
+              -> Maybe AssumeFunc
+              -> Maybe AssertFunc
+              -> Maybe ReachFunc
+              -> Bool
+              -> StartFunc
+              -> Config
+              -> IO ([(State (), [Expr], Expr, Maybe FuncCall)], Id)
+runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
+    (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src libs True config
+
+    let (init_state, entry_f) = initState binds tycons cls m_assume m_assert m_reach 
+                               def_assert f mb_modname ex config
+
+    r <- runG2WithConfig init_state config
+
+    return (r, entry_f)
 
 runG2WithConfig :: State () -> Config -> IO [(State (), [Expr], Expr, Maybe FuncCall)]
 runG2WithConfig state config = do

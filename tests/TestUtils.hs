@@ -5,7 +5,15 @@ module TestUtils where
 import Data.Monoid
 import qualified Data.Text as T
 
+import G2.Config
 import G2.Language
+
+mkConfigTest :: Config
+mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs
+                           , timeLimit = 20 } 
+
+mkConfigTestWithMap :: Config
+mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ [mapLib]}
 
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'

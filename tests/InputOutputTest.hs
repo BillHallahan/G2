@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-module InputOutputTest where
+module InputOutputTest ( checkInputOutput
+                       , checkInputOutputLH ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -14,17 +15,19 @@ import G2.Liquid.Interface
 import G2.Translation
 
 import Reqs
+import TestUtils
 
 checkInputOutput :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
-checkInputOutput proj src md entry stps i req = checkInputOutputWithConfig proj src md entry i req (mkConfigDef {steps = stps})
+checkInputOutput proj src md entry stps i req = checkInputOutputWithConfig proj src md entry i req (mkConfigTest {steps = stps})
 
 checkInputOutputWithConfig :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
 checkInputOutputWithConfig proj src md entry i req config = do
-    r <- checkInputOutput' proj src md entry i req config
+    r <- doTimeout (timeLimit config) $ checkInputOutput' proj src md entry i req config
 
     let (b, e) = case r of
-            Left e' -> (False, "\n" ++ show e')
-            Right (b', s') -> (b', concatMap (\(_, inp, out, _) -> "\n" ++ show inp ++ "\n" ++ show out) s')
+            Nothing -> (False, "\nTimeout")
+            Just (Left e') -> (False, "\n" ++ show e')
+            Just (Right (b', s')) -> (b', concatMap (\(_, inp, out, _) -> "\n" ++ show inp ++ "\n" ++ show out) s')
 
     return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
 
@@ -47,7 +50,7 @@ checkInputOutput'' :: FilePath
                    -> Config 
                    -> IO (Bool, [(State (), [Expr], Expr, Maybe FuncCall)])
 checkInputOutput'' proj src md entry i req config = do
-    (mb_modname, binds, tycons, cls, _, ex) <- translateLoaded proj src [] False config
+    (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src [] False config
 
     let (init_state, _) = initState binds tycons cls Nothing Nothing Nothing False (T.pack entry) mb_modname ex config
     
@@ -64,15 +67,15 @@ checkInputOutput'' proj src md entry i req config = do
 ------------
 
 checkInputOutputLH :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
-checkInputOutputLH proj src md entry stps i req = checkInputOutputLHWithConfig proj src md entry i req (mkConfigDef {steps = stps})
+checkInputOutputLH proj src md entry stps i req = checkInputOutputLHWithConfig proj src md entry i req (mkConfigTest {steps = stps})
 
 checkInputOutputLHWithConfig :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
 checkInputOutputLHWithConfig proj src md entry i req config = do
-    r <- checkInputOutputLH' proj src md entry i req config
+    r <- doTimeout (timeLimit config) $ checkInputOutputLH' proj src md entry i req config
 
     let b = case r of
-            Left _ -> False
-            Right b' -> b'
+            Just (Right b') -> b'
+            _ -> False
 
     return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b
 

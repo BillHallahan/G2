@@ -33,13 +33,13 @@ mergeTranslates ((prog, tys, cls):ts) =
   in (prog', tys1, cls1)
 
 translateLoaded :: FilePath -> FilePath -> [FilePath] -> Bool -> Config
-                -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name], [Name])
+                -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name])
 translateLoaded proj src libs simpl config = do
-  (mb_modname, final_prog, final_tys, classes, target_nm, ex) <- translateLoadedV proj src libs simpl config
-  return (mb_modname, final_prog, final_tys, classes, target_nm, ex)
+  (mb_modname, final_prog, final_tys, classes, ex) <- translateLoadedV proj src libs simpl config
+  return (mb_modname, final_prog, final_tys, classes, ex)
 
 translateLoadedV :: FilePath -> FilePath -> [FilePath] -> Bool -> Config
-                 -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name], [Name])
+                 -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name])
 translateLoadedV proj src libs simpl config = do
   ((base_prog, base_tys, base_cls), b_nm, b_tnm, b_exp) <- translateLibs specialConstructors specialTypeNames simpl Nothing (base config)-- ["../base-4.9.1.0/Control/Exception/Base.hs", base]
 
@@ -56,8 +56,6 @@ translateLoadedV proj src libs simpl config = do
   let tgt_trans = (tgt_prog, tgt_tys, tgt_cls)
   let (merged_prog, merged_tys, merged_cls) = mergeTranslates [tgt_trans, merged_lib]
 
-  let ns = map (idName . fst) $ concat tgt_prog
-
   -- final injection phase
   -- let (near_final_prog, final_tys) = primInject (merged_prog, merged_tys)
   let (near_final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys
@@ -66,5 +64,5 @@ translateLoadedV proj src libs simpl config = do
 
   final_prog <- absVarLoc near_final_prog
 
-  return (fmap T.pack mb_modname, final_prog, final_tys, final_merged_cls, ns, b_exp ++ lib_exp ++ h_exp)
+  return (fmap T.pack mb_modname, final_prog, final_tys, final_merged_cls, b_exp ++ lib_exp ++ h_exp)
 

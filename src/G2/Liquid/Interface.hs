@@ -74,11 +74,11 @@ findCounterExamples proj fp entry libs lhlibs config = do
 
     runLHCore entry tgt_trans ghc_cg' config'
 
-runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name], [Name])
+runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
                     -> [LHOutput]
                     -> Config
                     -> IO ([(State [FuncCall], [Expr], Expr, Maybe FuncCall)], Lang.Id)
-runLHCore entry (mb_modname, prog, tys, cls, _, ex) ghci_cg config = do
+runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     let (init_state, ifi) = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
 
