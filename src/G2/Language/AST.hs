@@ -69,12 +69,6 @@ modifyFix f t = go t
         go t' = let t'' = f t'
                 in if t' == t'' then modifyChildren go t'' else go t''
 
--- modifyFix :: (AST t, Eq t) => (t -> t) -> t -> t
--- modifyFix f t = let t' = f t
---                 in if t == t'
---                     then modifyChildren (modifyFix f) t'
---                     else modifyFix f t'
-
 -- | Runs the given function f on the node t, t until t = f t
 modifyContainedFix :: (AST t, Eq t, Show t) => (t -> t) -> t -> t
 modifyContainedFix f t = let t' = f t

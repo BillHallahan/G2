@@ -122,7 +122,7 @@ instance Solver con => Reducer (LHRed con) () LHTracker where
     redRules lhr@(LHRed cfn solver) _ s = do
         (r, s') <- reduce (lhReduce cfn) solver s
 
-        return $ (if r == RuleIdentity then Finished else InProgress, s', lhr)
+        return $ (if r == RuleIdentity then Finished else InProgress, zip s' (repeat ()), lhr)
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)

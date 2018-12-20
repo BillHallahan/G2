@@ -10,7 +10,7 @@ import G2.Language
 
 mkConfigTest :: Config
 mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs
-                           , timeLimit = 20 } 
+                           , timeLimit = 30 } 
 
 mkConfigTestWithMap :: Config
 mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ [mapLib]}
