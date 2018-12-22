@@ -139,7 +139,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con' (pres_names ++ names annm) config final_state
+                    con' (pres_names ++ names annm) final_state
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -154,7 +154,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con' (pres_names ++ names annm) config final_state
+                    con' (pres_names ++ names annm) final_state
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of

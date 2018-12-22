@@ -49,7 +49,6 @@ module G2.Execution.Reducer ( Reducer (..)
 
 import qualified G2.Language.ApplyTypes as AT
 import qualified G2.Language.ExprEnv as E
-import G2.Config
 import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Stack as Stck
@@ -513,8 +512,8 @@ reduce red con s = do
     return (rule, sts)
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> Config -> State t -> IO [State t]
-runReducer red hal ord config s =
+runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> IO [State t]
+runReducer red hal ord s =
     let
         pr = Processed {accepted = [], discarded = []}
         s' = ExState { state = s
@@ -522,25 +521,24 @@ runReducer red hal ord config s =
                      , halter_val = initHalt hal s
                      , order_val = initPerStateOrder ord s }
     in
-     mapM (\ExState {state = st} -> return st) =<< runReducer' red hal ord config pr s' M.empty 
+     mapM (\ExState {state = st} -> return st) =<< runReducer' red hal ord pr s' M.empty 
 
 runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
             => r 
             -> h 
             -> or 
-            -> Config 
             -> Processed (ExState rv hv sov t) 
             -> ExState rv hv sov t 
             -> M.Map b [ExState rv hv sov t] 
             -> IO [ExState rv hv sov t]
-runReducer' red hal ord config pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) xs
+runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) xs
     | hc == Accept =
         let
             pr' = pr {accepted = rs:accepted pr}
             jrs = minState xs
         in
         case jrs of
-            Just (rs', xs') -> return . (:) rs =<< runReducer' red hal ord config pr' (updateExStateHalter hal pr' rs') xs'
+            Just (rs', xs') -> return . (:) rs =<< runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') xs'
             Nothing -> return [rs]
     | hc == Discard =
         let
@@ -548,7 +546,7 @@ runReducer' red hal ord config pr rs@(ExState { state = s, reducer_val = r_val, 
             jrs = minState xs
         in
         case jrs of
-            Just (rs', xs') -> runReducer' red hal ord config pr' (updateExStateHalter hal pr' rs') xs'
+            Just (rs', xs') -> runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') xs'
             Nothing -> return []
     | hc == Switch =
         let
@@ -560,8 +558,8 @@ runReducer' red hal ord config pr rs@(ExState { state = s, reducer_val = r_val, 
             rs''' = rs'' { halter_val = updatePerStateHalt hal (halter_val rs'') ps (state rs'') }
         in
         if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
-            then runReducer' red hal ord config pr rs''' xs'
-            else runReducerList red hal ord config (pr {discarded = rs''':discarded pr}) xs'
+            then runReducer' red hal ord pr rs''' xs'
+            else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs'
     | otherwise = do
         (_, reduceds, red') <- redRules red r_val s
         let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
@@ -574,7 +572,7 @@ runReducer' red hal ord config pr rs@(ExState { state = s, reducer_val = r_val, 
         
         let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs mod_info
 
-        runReducerList red' hal ord config pr xs'
+        runReducerList red' hal ord pr xs'
     where
         hc = stopRed hal h_val ps s
         ps = processedToState pr
@@ -583,13 +581,12 @@ runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                => r 
                -> h 
                -> or 
-               -> Config 
                -> Processed (ExState rv hv sov t)
                -> M.Map b [ExState rv hv sov t]
                -> IO [ExState rv hv sov t]
-runReducerList red hal ord config pr m =
+runReducerList red hal ord pr m =
     case minState m of
-        Just (x, m') -> runReducer' red hal ord config pr x m'
+        Just (x, m') -> runReducer' red hal ord pr x m'
         Nothing -> return []
 
 updateExStateHalter :: Halter h hv t

@@ -184,7 +184,7 @@ runG2WithConfig state config = do
 
     in_out <- case initRedHaltOrd con' config of
                 (red, hal, ord) ->
-                    runG2WithSomes red hal ord con' [] config state
+                    runG2WithSomes red hal ord con' [] state
 
     closeIO con
 
@@ -199,13 +199,12 @@ runG2WithSomes :: ( Named t
                -> (SomeOrderer t)
                -> solver
                -> [Name]
-               -> Config
                -> State t
                -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
-runG2WithSomes red hal ord con pns config state =
+runG2WithSomes red hal ord con pns state =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-            runG2 red' hal' ord' con pns config state
+            runG2 red' hal' ord' con pns state
 
 runG2 :: ( Named t
          , ASTContainer t Expr
@@ -214,16 +213,16 @@ runG2 :: ( Named t
          , Halter h hv t
          , Orderer or sov b t
          , Solver solver) => r -> h -> or ->
-         solver -> [Name] -> Config -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
-runG2 red hal ord con pns config (is@State { type_env = tenv
-                                             , known_values = kv
-                                             , apply_types = at
-                                             , type_classes = tc }) = do
+         solver -> [Name] -> State t -> IO [(State t, [Expr], Expr, Maybe FuncCall)]
+runG2 red hal ord con pns (is@State { type_env = tenv
+                                    , known_values = kv
+                                    , apply_types = at
+                                    , type_classes = tc }) = do
     let swept = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is
 
     let preproc_state = runPreprocessing swept
 
-    exec_states <- runExecution red hal ord config preproc_state
+    exec_states <- runExecution red hal ord preproc_state
 
     let ident_states = filter isExecValueForm exec_states
     let ident_states' = filter true_assert ident_states
