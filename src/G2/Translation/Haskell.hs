@@ -345,7 +345,8 @@ mkAltMatch _ _ (DEFAULT) _ = G2.Default
 mkType :: TypeNameMap -> Type -> G2.Type
 mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v-- (mkName (V.varName v)) (mkType (varType v))
 mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
-mkType tm (ForAllTy (Anon t) ty) = G2.TyFun (mkType tm t) (mkType tm ty)
+mkType tm (FunTy t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
+-- mkType tm (ForAllTy (Anon t) ty) = G2.TyFun (mkType tm t) (mkType tm ty)
 mkType tm (ForAllTy b ty) = G2.TyForAll (mkTyBinder tm b) (mkType tm ty)
 mkType _ (LitTy _) = G2.TyBottom
 mkType _ (CastTy _ _) = error "mkType: CastTy"
@@ -391,6 +392,7 @@ mkTyCon nm tm t = case dcs of
                                                      , Just $ [(mkId tm'' . dataConWorkId) dc])
                                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                                             TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
+                                            SumTyCon {} -> error "Unhandled TyCon SumTyCon"
                             False -> case isTypeSynonymTyCon t of
                                     True -> 
                                         let
@@ -421,10 +423,8 @@ mkData nm tm datacon = G2.DataCon name ty
 mkDataName :: NameMap -> DataCon -> G2.Name
 mkDataName nm datacon = (flip mkNameLookup nm . dataConName) datacon
 
-mkTyBinder :: TypeNameMap -> TyBinder -> G2.TyBinder
-mkTyBinder tm (Anon t) = G2.AnonTyBndr (mkType tm t)
-mkTyBinder tm (Named v _) = G2.NamedTyBndr (mkId tm v)
-
+mkTyBinder :: TypeNameMap -> TyVarBinder -> G2.TyBinder
+mkTyBinder tm (TvBndr v _) = G2.NamedTyBndr (mkId tm v)
 prim_list :: [String]
 prim_list = [">=", ">", "==", "/=", "<=", "<",
              "&&", "||", "not",
@@ -447,7 +447,7 @@ exportedNames :: ModGuts -> [ExportedName]
 exportedNames = concatMap availInfoNames . mg_exports
 
 availInfoNames :: AvailInfo -> [ExportedName]
-availInfoNames (Avail _ n) = [mkName n]
+availInfoNames (Avail n) = [mkName n]
 availInfoNames (AvailTC n ns _) = mkName n:map mkName ns
 
 -- | absVarLoc'

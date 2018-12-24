@@ -7,13 +7,13 @@ It is capable of generating assertion failure counterexamples and solving for hi
 ---
 
 #### Dependencies
-* GHC 8.0.2: https://www.haskell.org/ghc/
+* GHC 8.2.2: https://www.haskell.org/ghc/
 * Custom Haskell Standard Library: https://github.com/AntonXue/base-4.9.1.0
-* Z3 Theorem Prover: https://github.com/Z3Prover/z3
+* Z3 SMT Solver: https://github.com/Z3Prover/z3
 
 ---
 #### Setup:
-1) Install GHC 8.0.2 (other GHC 8 versions might also work)
+1) Install GHC 8.2.2 (other GHC 8 versions might also work)
 2) Install Z3
 3) Pull the Custom Haskell Standard Library (optional)
 4) Add a file to the G2 folder, called g2.cfg that contains:

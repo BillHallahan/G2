@@ -14,7 +14,6 @@ plugin = defaultPlugin { installCoreToDos = addOutputLamG }
 
 addOutputLamG :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 addOutputLamG cl todo = do
-    reinitializeGlobals
     let fdr = strArg "out" cl M.empty id "g2_out"
     return $ todo ++ [CoreDoPluginPass "Outputs LamG" (outputLamG fdr)]
 

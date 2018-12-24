@@ -121,10 +121,6 @@ library
                        , G2.Solver.ParseSMT
                        , G2.Solver.SMT2
 
-                       , G2.Translation.Cabal
-                       , G2.Translation.Cabal.Downloader
-                       , G2.Translation.Cabal.Interface
-                       , G2.Translation.Cabal.Parser
                        , G2.Translation.Haskell
                        , G2.Translation.HaskellCheck
                        , G2.Translation.InjectSpecials
@@ -134,24 +130,23 @@ library
   build-depends:         array
                        , base >= 4.8 && < 5
                        , bytestring
-                       , Cabal
                        , containers >= 0.5 && < 0.6
                        , directory
                        , extra
                        , filepath
                        , ghc-paths >= 0.1 && < 0.2
-                       , ghc
+                       , ghc == 8.2.2
                        , hashable
                        , hpc
                        , HTTP
-                       , liquidhaskell == 0.8.0.5
-                       , liquid-fixpoint == 0.7.0.5
+                       , liquidhaskell == 0.8.2.2
+                       , liquid-fixpoint >= 0.7.0.7
                        , MissingH
                        , mtl
                        , reducers
                        , regex-compat
                        , parsec
-                       , process
+                       , process >=1 && <1.7
                        , text
                        , time >= 1.6
                        , unordered-containers
@@ -177,8 +172,8 @@ executable G2
                        , hashable
                        , hpc
                        , HTTP
-                       , liquidhaskell == 0.8.0.5
-                       , liquid-fixpoint == 0.7.0.5
+                       , liquidhaskell
+                       , liquid-fixpoint
                        , MissingH
                        , mtl
                        , reducers
@@ -209,8 +204,8 @@ test-suite test
                        , hashable
                        , hpc
                        , HTTP
-                       , liquidhaskell == 0.8.0.5
-                       , liquid-fixpoint == 0.7.0.5
+                       , liquidhaskell
+                       , liquid-fixpoint
                        , MissingH
                        , mtl
                        , reducers
