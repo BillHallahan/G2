@@ -35,7 +35,7 @@ mkConfigDef :: Config
 mkConfigDef = mkConfig [] M.empty
 
 mapLib :: String
-mapLib = "../base-4.9.1.0/Data/Map.hs"
+mapLib = "../base-4.9.1.0/Data/Internal/Map.hs"
 
 mkConfig :: [String] -> M.Map String [String] -> Config
 mkConfig as m = Config {

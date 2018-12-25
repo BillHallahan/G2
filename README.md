@@ -23,7 +23,7 @@ It is capable of generating assertion failure counterexamples and solving for hi
   ```
   base = ../base-4.9.1.0/Control/Exception/Base.hs
        , ../base-4.9.1.0/Prelude.hs
-       , ../base-4.9.1.0/Data/Map.hs
+       , ../base-4.9.1.0/Data/Internal/Map.hs
 
   n = 1000
   time = 300

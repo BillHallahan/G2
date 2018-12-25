@@ -343,10 +343,9 @@ mkAltMatch _ _ (LitAlt lit) _ = G2.LitAlt (mkLit lit)
 mkAltMatch _ _ (DEFAULT) _ = G2.Default
 
 mkType :: TypeNameMap -> Type -> G2.Type
-mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v-- (mkName (V.varName v)) (mkType (varType v))
+mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v
 mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
 mkType tm (FunTy t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
--- mkType tm (ForAllTy (Anon t) ty) = G2.TyFun (mkType tm t) (mkType tm ty)
 mkType tm (ForAllTy b ty) = G2.TyForAll (mkTyBinder tm b) (mkType tm ty)
 mkType _ (LitTy _) = G2.TyBottom
 mkType _ (CastTy _ _) = error "mkType: CastTy"
