@@ -27,7 +27,7 @@ checkInputOutputWithConfig proj src md entry i req config = do
     let (b, e) = case r of
             Nothing -> (False, "\nTimeout")
             Just (Left e') -> (False, "\n" ++ show e')
-            Just (Right (b', s')) -> (b', "")
+            Just (Right (b', _)) -> (b', "")
 
     return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
 

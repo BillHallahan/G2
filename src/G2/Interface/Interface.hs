@@ -9,6 +9,7 @@ module G2.Interface.Interface ( doTimeout
                               , runG2WithConfig
                               , runG2WithSomes
                               , runG2
+                              , runG2All
                               , Config) where
 
 import G2.Config.Config
@@ -43,6 +44,7 @@ import qualified G2.Language.SymLinks as Sym
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
+import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -216,17 +218,30 @@ runG2 :: ( Named t
          , Orderer or sov b t
          , Solver solver) => r -> h -> or ->
          solver -> [Name] -> State t -> IO [ExecRes t]
-runG2 red hal ord con pns (is@State { type_env = tenv
-                                    , known_values = kv
-                                    , apply_types = at
-                                    , type_classes = tc }) = do
+runG2 red hal ord con pns s =
+    return . exec_res =<< runG2All red hal ord con pns s
+
+-- | Runs G2, returning both fully executed states,
+-- and states that have only been partially executed.
+runG2All :: ( Named t
+            , ASTContainer t Expr
+            , ASTContainer t Type
+            , Reducer r rv t
+            , Halter h hv t
+            , Orderer or sov b t
+            , Solver solver) => r -> h -> or ->
+            solver -> [Name] -> State t -> IO (ExecOut t)
+runG2All red hal ord con pns (is@State { type_env = tenv
+                                       , known_values = kv
+                                       , apply_types = at
+                                       , type_classes = tc }) = do
     let swept = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is
 
     let preproc_state = runPreprocessing swept
 
     exec_states <- runExecution red hal ord preproc_state
 
-    let ident_states = filter isExecValueForm exec_states
+    let (ident_states, non_ident_states) = L.partition isExecValueForm exec_states
     let ident_states' = filter true_assert ident_states
 
     ident_states'' <- 
@@ -247,12 +262,12 @@ runG2 red hal ord con pns (is@State { type_env = tenv
     let sm' = map (\sm''@(ExecRes {final_state = s}) -> runPostprocessing s sm'') sm
 
     let sm'' = map (\ExecRes { final_state = s
-                        , conc_args = es
-                        , conc_out = e
-                        , violated = ais } ->
-                            ExecRes { final_state = s
-                                    , conc_args = fixed_inputs s ++ es
-                                    , conc_out = evalPrims kv tenv e
-                                    , violated = evalPrims kv tenv ais }) sm'
+                             , conc_args = es
+                             , conc_out = e
+                             , violated = ais } ->
+                                  ExecRes { final_state = s
+                                          , conc_args = fixed_inputs s ++ es
+                                          , conc_out = evalPrims kv tenv e
+                                          , violated = evalPrims kv tenv ais }) sm'
 
-    return sm''
+    return $ ExecOut { exec_res = sm'', in_progress = non_ident_states }
