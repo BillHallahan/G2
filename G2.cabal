@@ -95,6 +95,9 @@ library
                        , G2.Initialization.MkCurrExpr
                        , G2.Initialization.StructuralEq
 
+                       , G2.Interface.Interface
+                       , G2.Interface.OutputTypes
+
                        , G2.Liquid.AddCFBranch
                        , G2.Liquid.AddLHTC
                        , G2.Liquid.AddOrdToNum

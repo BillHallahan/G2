@@ -1,5 +1,5 @@
 module G2.Translation.HaskellCheck ( validateStates
-                                             , runHPC) where
+                                   , runHPC) where
 
 import DynFlags
 import GHC hiding (Name)
@@ -12,6 +12,7 @@ import Text.Regex
 import Unsafe.Coerce
 
 import G2.Initialization.MkCurrExpr
+import G2.Interface.OutputTypes
 import G2.Language
 import G2.Translation.Haskell
 import G2.Lib.Printers
@@ -20,13 +21,13 @@ import Control.Exception
 
 import System.Process
 
-validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [(State t, [Expr], Expr, Maybe FuncCall)] -> IO Bool
+validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
 validateStates proj src modN entry chAll ghflags in_out = do
-    return . all id =<< mapM (\(s, i, o, _) -> runCheck proj src modN entry chAll ghflags s i o) in_out
+    return . all id =<< mapM (runCheck proj src modN entry chAll ghflags) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> IO Bool
-runCheck proj src modN entry chAll gflags s ars out = do
+runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> IO Bool
+runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s ars out)
 
     v' <- unsafeCoerce v :: IO (Either SomeException Bool)
