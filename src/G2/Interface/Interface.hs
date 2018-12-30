@@ -3,8 +3,15 @@
 
 module G2.Interface.Interface ( doTimeout
                               , maybeDoTimeout
+
+                              , initStateSimple
                               , initState
+                              
                               , initRedHaltOrd
+                              
+                              , initialStateFromFileSimple
+                              , initialStateFromFile
+
                               , runG2FromFile
                               , runG2WithConfig
                               , runG2WithSomes
@@ -71,10 +78,20 @@ maybeDoTimeout :: Maybe Int -> IO a -> IO (Maybe a)
 maybeDoTimeout (Just secs) = doTimeout secs
 maybeDoTimeout Nothing = fmap Just
 
+initStateSimple :: Program
+                -> [ProgramType]
+                -> [(Name, Id, [Id])]
+                -> StartFunc
+                -> ModuleName
+                -> [Name]
+                -> (State (), Id)
+initStateSimple prog prog_typ cls f m_mod tgtNames =
+    initState prog prog_typ cls Nothing Nothing False f m_mod tgtNames mkConfigDef
+
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
-          -> Maybe AssertFunc -> Maybe ReachFunc -> Bool -> StartFunc -> ModuleName -> [Name]
+          -> Maybe AssertFunc -> Bool -> StartFunc -> ModuleName -> [Name]
           -> Config -> (State (), Id)
-initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNames config =
+initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
@@ -96,11 +113,9 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
         tc' = IT.type_classes s'
 
         (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert f m_mod tc ng' eenv' ds_walkers kv config
-
-        eenv'' = checkReaches eenv' tenv' kv m_reaches m_mod
     in
     (State {
-      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv'' is
+      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
@@ -127,6 +142,12 @@ initState prog prog_typ cls m_assume m_assert m_reaches useAssert f m_mod tgtNam
     , tags = S.empty
  }
  , ie)
+
+initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
+initCheckReaches s@(State { expr_env = eenv
+                          , type_env = tenv
+                          , known_values = kv }) m_mod reaches =
+    s {expr_env = checkReaches eenv tenv kv reaches m_mod }
 
 initRedHaltOrd :: Solver conv => conv -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
 initRedHaltOrd conv config =
@@ -161,6 +182,32 @@ mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
+initialStateFromFileSimple :: FilePath
+                   -> FilePath
+                   -> [FilePath]
+                   -> StartFunc
+                   -> IO (State (), Id)
+initialStateFromFileSimple proj src libs f =
+    initialStateFromFile proj src libs Nothing Nothing Nothing False f mkConfigDef
+
+initialStateFromFile :: FilePath
+                     -> FilePath
+                     -> [FilePath]
+                     -> Maybe AssumeFunc
+                     -> Maybe AssertFunc
+                     -> Maybe ReachFunc
+                     -> Bool
+                     -> StartFunc
+                     -> Config
+                     -> IO (State (), Id)
+initialStateFromFile proj src libs m_assume m_assert m_reach def_assert f config = do
+    (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src libs True config
+    let (init_s, ent_f) = initState binds tycons cls m_assume m_assert def_assert
+                                    f mb_modname ex config
+        reaches_state = initCheckReaches init_s mb_modname m_reach
+
+    return (reaches_state, ent_f)
+
 runG2FromFile :: FilePath
               -> FilePath
               -> [FilePath]
@@ -172,10 +219,8 @@ runG2FromFile :: FilePath
               -> Config
               -> IO ([ExecRes ()], Id)
 runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
-    (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src libs True config
-
-    let (init_state, entry_f) = initState binds tycons cls m_assume m_assert m_reach 
-                               def_assert f mb_modname ex config
+    (init_state, entry_f) <- initialStateFromFile proj src libs m_assume
+                                    m_assert m_reach def_assert f config
 
     r <- runG2WithConfig init_state config
 

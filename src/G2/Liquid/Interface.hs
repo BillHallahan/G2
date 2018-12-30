@@ -79,7 +79,7 @@ runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [
                     -> Config
                     -> IO ([ExecRes [FuncCall]], Lang.Id)
 runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
-    let (init_state, ifi) = initState prog tys cls Nothing Nothing Nothing True entry mb_modname ex config
+    let (init_state, ifi) = initState prog tys cls Nothing Nothing True entry mb_modname ex config
     let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
 
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = cleaned_state
