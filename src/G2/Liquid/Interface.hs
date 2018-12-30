@@ -107,8 +107,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                                                        , last_var = Nothing
                                                        , annotations = annm} }
 
-    SomeSMTSolver con <- getSMT config
-    let con' = GroupRelated (ADTSolver :?> con)
+    SomeSolver con <- initSolver config
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not
@@ -129,8 +128,8 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
               then runG2WithSomes
                     (SomeReducer NonRedPCRed
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (LHRed cfn con' :<~ Logger fp)
-                            Nothing -> SomeReducer (LHRed cfn con')))
+                            Just fp -> SomeReducer (LHRed cfn con :<~ Logger fp)
+                            Nothing -> SomeReducer (LHRed cfn con)))
                     (SomeHalter
                       (MaxOutputsHalter (maxOutputs config)
                         :<~> ZeroHalter (steps config)
@@ -139,12 +138,12 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con' (pres_names ++ names annm) final_st
+                    con (pres_names ++ names annm) final_st
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (LHRed cfn con' :<~ Logger fp)
-                            Nothing -> SomeReducer (LHRed cfn con')))
+                            Just fp -> SomeReducer (LHRed cfn con :<~ Logger fp)
+                            Nothing -> SomeReducer (LHRed cfn con)))
                     (SomeHalter
                       (DiscardIfAcceptedTag state_name
                         :<~> MaxOutputsHalter (maxOutputs config)
@@ -154,7 +153,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con' (pres_names ++ names annm) final_st
+                    con (pres_names ++ names annm) final_st
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -174,7 +173,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
     -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
 
-    closeIO con
+    close con
 
     return (states, ifi)
 

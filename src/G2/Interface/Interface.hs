@@ -8,6 +8,7 @@ module G2.Interface.Interface ( doTimeout
                               , initState
                               
                               , initRedHaltOrd
+                              , initSolver
                               
                               , initialStateFromFileSimple
                               , initialStateFromFile
@@ -176,6 +177,12 @@ initRedHaltOrd conv config =
                  :<~> AcceptHalter)
              , SomeOrderer $ NextOrderer)
 
+initSolver :: Config -> IO SomeSolver
+initSolver config = do
+    SomeSMTSolver con <- getSMT config
+    let con' = GroupRelated (ADTSolver :?> con)
+    return (SomeSolver con')
+
 mkExprEnv :: Program -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
 
@@ -228,14 +235,13 @@ runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
 
 runG2WithConfig :: State () -> Config -> IO [ExecRes ()]
 runG2WithConfig state config = do
-    SomeSMTSolver con <- getSMT config
-    let con' = GroupRelated (ADTSolver :?> con)
+    SomeSolver con <- initSolver config
 
-    in_out <- case initRedHaltOrd con' config of
+    in_out <- case initRedHaltOrd con config of
                 (red, hal, ord) ->
-                    runG2WithSomes red hal ord con' [] state
+                    runG2WithSomes red hal ord con [] state
 
-    closeIO con
+    close con
 
     return in_out
 

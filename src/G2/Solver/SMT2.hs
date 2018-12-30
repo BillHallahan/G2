@@ -39,10 +39,12 @@ data SomeSMTSolver where
 instance Solver Z3 where
     check solver _ pc = checkConstraints solver pc
     solve = checkModel
+    close = closeIO
 
 instance Solver CVC4 where
     check solver _ pc = checkConstraints solver pc
     solve = checkModel
+    close = closeIO
 
 instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     getIO (Z3 hhp) = hhp
@@ -421,8 +423,8 @@ getLinesMatchParens' h_out n = do
     _ <- evaluate (length out)
 
     let open = countElem '(' out
-    let close = countElem ')' out
-    let n' = n + open - close
+    let clse = countElem ')' out
+    let n' = n + open - clse
 
     if n' == 0 then
         return out

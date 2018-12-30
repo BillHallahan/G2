@@ -1,9 +1,11 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 
 module G2.Solver.Solver ( Solver (..)
-                                  , Result (..)
-                                  , GroupRelated (..)
-                                  , CombineSolvers (..)) where
+                        , SomeSolver (..)
+                        , Result (..)
+                        , GroupRelated (..)
+                        , CombineSolvers (..)) where
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
@@ -19,9 +21,19 @@ data Result = SAT
 class Solver solver where
     -- | Checks if the given `PathConds` are satisfiable
     check :: forall t . solver -> State t -> PathConds -> IO Result
+    
     -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
     -- The model must contain, at a minimum, a value for each passed `Id`
     solve :: forall t . solver -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
+
+    -- | Cleans up when the solver is no longer needed.  Default implementation
+    -- does nothing
+    close :: solver -> IO ()
+    close _ = return ()
+
+data SomeSolver where
+    SomeSolver :: forall solver
+                . Solver solver => solver -> SomeSolver
 
 -- | Splits path constraints before sending them to the rest of the solvers
 data GroupRelated a = GroupRelated a
@@ -61,6 +73,7 @@ solveRelated' solver s m is (p:ps) = do
 instance Solver solver => Solver (GroupRelated solver) where
     check (GroupRelated s) = checkRelated s
     solve (GroupRelated s) = solveRelated s
+    close (GroupRelated s) = close s
 
 
 -- | Allows solvers to be combined, to exploit different solvers abilities
@@ -98,3 +111,10 @@ instance (Solver a, Solver b) => Solver (CombineSolvers a b) where
 
     solve (a :<? b) = solveWithEither b a
     solve (a :?> b) = solveWithEither a b
+
+    close (a :<? b) = do
+        close a
+        close b
+    close (a :?> b) = do
+        close a
+        close b
