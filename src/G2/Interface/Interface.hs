@@ -17,7 +17,6 @@ module G2.Interface.Interface ( doTimeout
                               , runG2WithConfig
                               , runG2WithSomes
                               , runG2
-                              , runG2All
                               , Config) where
 
 import G2.Config.Config
@@ -33,7 +32,6 @@ import G2.Preprocessing.Interface
 
 import G2.Execution.Interface
 import G2.Execution.Reducer
-import G2.Execution.Rules
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
 
@@ -52,7 +50,6 @@ import qualified G2.Language.SymLinks as Sym
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
-import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -85,9 +82,10 @@ initStateSimple :: Program
                 -> StartFunc
                 -> ModuleName
                 -> [Name]
+                -> Config
                 -> (State (), Id)
-initStateSimple prog prog_typ cls f m_mod tgtNames =
-    initState prog prog_typ cls Nothing Nothing False f m_mod tgtNames mkConfigDef
+initStateSimple prog prog_typ cls f m_mod tgtNames config =
+    initState prog prog_typ cls Nothing Nothing False f m_mod tgtNames config
 
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
           -> Maybe AssertFunc -> Bool -> StartFunc -> ModuleName -> [Name]
@@ -193,9 +191,10 @@ initialStateFromFileSimple :: FilePath
                    -> FilePath
                    -> [FilePath]
                    -> StartFunc
+                   -> Config
                    -> IO (State (), Id)
-initialStateFromFileSimple proj src libs f =
-    initialStateFromFile proj src libs Nothing Nothing Nothing False f mkConfigDef
+initialStateFromFileSimple proj src libs f config =
+    initialStateFromFile proj src libs Nothing Nothing Nothing False f config
 
 initialStateFromFile :: FilePath
                      -> FilePath
@@ -261,6 +260,8 @@ runG2WithSomes red hal ord con pns state =
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
             runG2 red' hal' ord' con pns state
 
+-- | Runs G2, returning both fully executed states,
+-- and states that have only been partially executed.
 runG2 :: ( Named t
          , ASTContainer t Expr
          , ASTContainer t Type
@@ -269,46 +270,32 @@ runG2 :: ( Named t
          , Orderer or sov b t
          , Solver solver) => r -> h -> or ->
          solver -> [Name] -> State t -> IO [ExecRes t]
-runG2 red hal ord con pns s =
-    return . exec_res =<< runG2All red hal ord con pns s
-
--- | Runs G2, returning both fully executed states,
--- and states that have only been partially executed.
-runG2All :: ( Named t
-            , ASTContainer t Expr
-            , ASTContainer t Type
-            , Reducer r rv t
-            , Halter h hv t
-            , Orderer or sov b t
-            , Solver solver) => r -> h -> or ->
-            solver -> [Name] -> State t -> IO (ExecOut t)
-runG2All red hal ord con pns (is@State { type_env = tenv
-                                       , known_values = kv
-                                       , apply_types = at
-                                       , type_classes = tc }) = do
+runG2 red hal ord con pns (is@State { type_env = tenv
+                                    , known_values = kv
+                                    , apply_types = at
+                                    , type_classes = tc }) = do
     let swept = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is
 
     let preproc_state = runPreprocessing swept
 
     exec_states <- runExecution red hal ord preproc_state
 
-    let (ident_states, non_ident_states) = L.partition isExecValueForm exec_states
-    let ident_states' = filter true_assert ident_states
+    let ident_states = filter true_assert exec_states
 
-    ident_states'' <- 
+    ident_states' <- 
         mapM (\s -> do
             (_, m) <- solve con s (symbolic_ids s) (path_conds s)
             return . fmap (\m' -> s {model = m'}) $ m
-            ) $ ident_states'
+            ) $ ident_states
 
-    let ident_states''' = catMaybes ident_states''
+    let ident_states'' = catMaybes ident_states'
 
     let sm = map (\s -> 
               let (es, e, ais) = subModel s in
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
-                        , violated = ais }) $ ident_states'''
+                        , violated = ais }) $ ident_states''
 
     let sm' = map (\sm''@(ExecRes {final_state = s}) -> runPostprocessing s sm'') sm
 
@@ -321,4 +308,4 @@ runG2All red hal ord con pns (is@State { type_env = tenv
                                           , conc_out = evalPrims kv tenv e
                                           , violated = evalPrims kv tenv ais }) sm'
 
-    return $ ExecOut { exec_res = sm'', in_progress = non_ident_states }
+    return sm''

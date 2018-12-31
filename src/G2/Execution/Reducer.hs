@@ -11,6 +11,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , Orderer (..)
 
                             , Processed (..)
+                            , mapProcessed
+
                             , ReducerRes (..)
                             , HaltC (..)
 
@@ -40,9 +42,6 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- Orderers
                             , NextOrderer (..)
                             , PickLeastUsedOrderer (..)
-
-                            , halterSub1
-                            , halterIsZero
 
                             , reduce
                             , runReducer ) where
@@ -74,6 +73,10 @@ data ExState rv hv sov t = ExState { state :: State t
 -- | Keeps track of type a's that have either been accepted or dropped
 data Processed a = Processed { accepted :: [a]
                              , discarded :: [a] }
+
+mapProcessed :: (a -> b) -> Processed a -> Processed b
+mapProcessed f pr = Processed { accepted = map f (accepted pr)
+                              , discarded = map f (discarded pr)}
 
 -- | Used by Reducers to indicate their progress reducing.
 data ReducerRes = NoProgress | InProgress | Finished deriving (Eq, Ord, Show, Read)
@@ -434,6 +437,13 @@ instance Halter ZeroHalter Int t where
     stopRed = halterIsZero
     stepHalter = halterSub1
 
+halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> Int
+halterSub1 _ h _ _ = h - 1
+
+halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> HaltC
+halterIsZero _ 0 _ _ = Discard
+halterIsZero _ _ _ _ = Continue
+
 data MaxOutputsHalter = MaxOutputsHalter (Maybe Int)
 
 instance Halter MaxOutputsHalter (Maybe Int) t where
@@ -495,13 +505,6 @@ instance Orderer PickLeastUsedOrderer Int Int t where
     orderStates _ v _ = v
     updateSelected _ v _ _ = v + 1
 
-halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> Int
-halterSub1 _ h _ _ = h - 1
-
-halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> HaltC
-halterIsZero _ 0 _ _ = Discard
-halterIsZero _ _ _ _ = Continue
-
 --------
 --------
 
@@ -521,7 +524,7 @@ runReducer red hal ord s =
                      , halter_val = initHalt hal s
                      , order_val = initPerStateOrder ord s }
     in
-     mapM (\ExState {state = st} -> return st) =<< runReducer' red hal ord pr s' M.empty 
+    mapM (\ExState {state = st} -> return st) =<< runReducer' red hal ord pr s' M.empty 
 
 runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
             => r 
