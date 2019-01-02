@@ -83,7 +83,7 @@ sampleTests =
 
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1000 Nothing Nothing "cfmapInt" 3 [AtLeast 10, RForAll cfmapTest]
                 , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 1600 Nothing Nothing "cfmapIntX" 3 [AtLeast 10, RForAll cfmapTest]
-                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 800 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 3, RForAll cfmapTest]
+                , checkExpr "tests/Samples/" "tests/Samples/GetNthPoly.hs" 600 Nothing Nothing "cfmapIntCListInt" 3 [AtLeast 2, RForAll cfmapTest]
 
                 , checkExprReaches "tests/Samples/" "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth" 3 [AtLeast 8, RForAll errors]
 
@@ -460,11 +460,18 @@ testFile :: String -> String -> Maybe String -> Maybe String -> Maybe String -> 
 testFile proj src m_assume m_assert m_reaches entry config =
     try (testFileWithConfig proj src m_assume m_assert m_reaches entry config)
 
-testFileWithConfig :: String -> String -> Maybe String -> Maybe String -> Maybe String -> String -> Config -> IO [([Expr], Expr)]
+testFileWithConfig :: String
+                   -> String
+                   -> Maybe String
+                   -> Maybe String
+                   -> Maybe String
+                   -> String
+                   -> Config
+                   -> IO [([Expr], Expr)]
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     r <- doTimeout (timeLimit config) $ runG2FromFile proj src [] (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) config
 
-    return $ map (\(_, i, o, _) -> (i, o)) $ maybe (error "Timeout") fst r
+    return $ map (\(ExecRes { conc_args = i, conc_out = o}) -> (i, o)) $ maybe (error "Timeout") fst r
 
 checkLiquidWithNoCutOff :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquidWithNoCutOff proj fp entry stps i reqList =
@@ -483,7 +490,10 @@ checkLiquidWithConfig proj fp entry i config reqList = do
     let (ch, r) = case res of
                 Nothing -> (False, Right ())
                 Just (Left e) -> (False, Left e)
-                Just (Right exprs) -> (checkExprGen (map (\(_, inp, out, _) -> inp ++ [out]) exprs) i reqList, Right ())
+                Just (Right exprs) -> (checkExprGen
+                                        (map (\(ExecRes { conc_args = inp, conc_out = out})
+                                                -> inp ++ [out]) exprs
+                                        ) i reqList, Right ())
 
     return . testCase fp
         $ assertBool ("Liquid test for file " ++ fp ++ 
@@ -501,7 +511,11 @@ checkAbsLiquidWithConfig proj fp entry i config reqList = do
                 Just (Left e) -> (False, Left e)
                 Just (Right exprs) ->
                     let
-                        te = checkAbsLHExprGen (map (\(s, inp, out, _) -> (s, inp, out)) exprs) i reqList
+                        te = checkAbsLHExprGen
+                                (map (\(ExecRes { final_state = s, conc_args = inp, conc_out = out})
+                                        -> (s, inp, out)
+                                     ) exprs
+                                ) i reqList
                     in
                     (null te, Right te)
 
@@ -510,7 +524,13 @@ checkAbsLiquidWithConfig proj fp entry i config reqList = do
                       " with function " ++ entry ++ " failed.\n" ++ show r) ch
 
 
-findCounterExamples' :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (Maybe (Either SomeException [(State [FuncCall], [Expr], Expr, Maybe FuncCall)]))
+findCounterExamples' :: FilePath
+                     -> FilePath
+                     -> T.Text
+                     -> [FilePath]
+                     -> [FilePath]
+                     -> Config
+                     -> IO (Maybe (Either SomeException [ExecRes [FuncCall]]))
 findCounterExamples' proj fp entry libs lhlibs config = doTimeout (timeLimit config) $ try (return . fst =<< findCounterExamples proj fp entry libs lhlibs config)
 
 errors :: [Expr] -> Bool

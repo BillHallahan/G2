@@ -27,7 +27,7 @@ checkInputOutputWithConfig proj src md entry i req config = do
     let (b, e) = case r of
             Nothing -> (False, "\nTimeout")
             Just (Left e') -> (False, "\n" ++ show e')
-            Just (Right (b', s')) -> (b', concatMap (\(_, inp, out, _) -> "\n" ++ show inp ++ "\n" ++ show out) s')
+            Just (Right (b', _)) -> (b', "")
 
     return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
 
@@ -38,7 +38,7 @@ checkInputOutput' :: FilePath
                   -> Int 
                   -> [Reqs String] 
                   -> Config 
-                  -> IO (Either SomeException (Bool, [(State (), [Expr], Expr, Maybe FuncCall)]))
+                  -> IO (Either SomeException (Bool, [ExecRes ()]))
 checkInputOutput' proj src md entry i req config = try (checkInputOutput'' proj src md entry i req config)
 
 checkInputOutput'' :: FilePath 
@@ -48,17 +48,17 @@ checkInputOutput'' :: FilePath
                    -> Int 
                    -> [Reqs String] 
                    -> Config 
-                   -> IO (Bool, [(State (), [Expr], Expr, Maybe FuncCall)])
+                   -> IO (Bool, [ExecRes ()])
 checkInputOutput'' proj src md entry i req config = do
     (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src [] False config
 
-    let (init_state, _) = initState binds tycons cls Nothing Nothing Nothing False (T.pack entry) mb_modname ex config
+    let (init_state, _) = initState binds tycons cls Nothing Nothing False (T.pack entry) mb_modname ex config
     
     r <- runG2WithConfig init_state config
 
     let chAll = checkExprAll req
     mr <- validateStates proj src md entry chAll [] r
-    let io = map (\(_, i', o, _) -> i' ++ [o]) r
+    let io = map (\(ExecRes { conc_args = i', conc_out = o}) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
     
@@ -89,7 +89,7 @@ checkInputOutputLH'' proj src md entry i req config = do
     let chAll = checkExprAll req
 
     mr <- validateStates proj src md entry chAll [] r
-    let io = map (\(_, i', o, _) -> i' ++ [o]) r
+    let io = map (\(ExecRes { conc_args = i', conc_out = o}) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
     return $ mr && chEx

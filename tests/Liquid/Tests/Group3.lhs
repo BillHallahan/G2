@@ -61,7 +61,7 @@ f39 :: M.Map Int Int
 f39 = M.fromList []
 
 
-{-@ f2 :: [Int] @-}
+{-@ f2 :: Int -> [Int] @-}
 f2 :: Int -> [Int]
 f2 x = fromList2
 
