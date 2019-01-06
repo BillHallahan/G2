@@ -167,15 +167,21 @@ class Named a where
     renames hm e = HM.foldrWithKey (\k v -> rename k v) e hm
 
 instance Named Name where
+    {-# INLINE names #-}
     names n = [n]
+    {-# INLINE rename #-}
     rename old (Name nn nm ni _) n@(Name _ _ _ l) = if old == n then Name nn nm ni l else n
+    {-# INLINE renames #-}
     renames hm n@(Name _ _ _ l) =
         case HM.lookupDefault n n hm of
             Name n' m' i _ -> Name n' m' i l
 
 instance Named Id where
+    {-# INLINE names #-}
     names (Id n t) = n:names t
+    {-# INLINE rename #-}
     rename old new (Id n t) = Id (rename old new n) (rename old new t)
+    {-# INLINE renames #-}
     renames hm (Id n t) = Id (renames hm n) (renames hm t)
 
 instance Named Expr where
@@ -341,29 +347,38 @@ renamesIdInType :: HM.HashMap Name Name -> Id -> Id
 renamesIdInType hm (Id n t) = Id (renames hm n) t
 
 instance Named Alt where
+    {-# INLINE names #-}
     names (Alt am e) = names am ++ names e
 
+    {-# INLINE rename #-}
     rename old new (Alt am e) = Alt (rename old new am) (rename old new e)
 
+    {-# INLINE renames #-}
     renames hm (Alt am e) = Alt (renames hm am) (renames hm e)
 
 instance Named DataCon where
+    {-# INLINE names #-}
     names (DataCon n t) = n:names t
 
+    {-# INLINE rename #-}
     rename old new (DataCon n t) =
         DataCon (rename old new n) (rename old new t)
 
+    {-# INLINE renames #-}
     renames hm (DataCon n t) =
         DataCon (renames hm n) (renames hm t)
 
 instance Named AltMatch where
+    {-# INLINE names #-}
     names (DataAlt dc i) = names dc ++ names i
     names _ = []
 
+    {-# INLINE rename #-}
     rename old new (DataAlt dc i) =
         DataAlt (rename old new dc) (rename old new i)
     rename _ _ am = am
 
+    {-# INLINE renames #-}
     renames hm (DataAlt dc i) =
         DataAlt (renames hm dc) (renames hm i)
     renames _ am = am
@@ -565,34 +580,52 @@ instance Named KnownValues where
                         })
 
 instance Named a => Named [a] where
+    {-# INLINE names #-}
     names = foldMap names
+    {-# INLINE rename #-}
     rename old new = fmap (rename old new)
+    {-# INLINE renames #-}
     renames hm = fmap (renames hm)
 
 
 instance Named a => Named (Maybe a) where
+    {-# INLINE names #-}
     names = foldMap names
+    {-# INLINE rename #-}
     rename old new = fmap (rename old new)
+    {-# INLINE renames #-}
     renames hm = fmap (renames hm)
 
 instance Named a => Named (M.Map k a) where
+    {-# INLINE names #-}
     names = foldMap names
+    {-# INLINE rename #-}
     rename old new = fmap (rename old new)
+    {-# INLINE renames #-}
     renames hm = fmap (renames hm)
 
 instance Named a => Named (HM.HashMap k a) where
+    {-# INLINE names #-}
     names = foldMap names
+    {-# INLINE rename #-}
     rename old new = fmap (rename old new)
+    {-# INLINE renames #-}
     renames hm = fmap (renames hm)
 
 instance Named () where
+    {-# INLINE names #-}
     names _ = []
+    {-# INLINE rename #-}
     rename _ _ = id
+    {-# INLINE renames #-}
     renames _ = id
 
 instance (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
-    names = names . HS.toList 
+    {-# INLINE names #-}
+    names = names . HS.toList
+    {-# INLINE rename #-}
     rename old new = HS.map (rename old new)
+    {-# INLINE renames #-}
     renames hm = HS.map (renames hm)
 
 instance (Named a, Named b) => Named (a, b) where
@@ -616,11 +649,15 @@ instance (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) 
     renames hm (a, b, c, d, e) = (renames hm a, renames hm b, renames hm c, renames hm d, renames hm e)
 
 instance Named Int where
+    {-# INLINE names #-}
     names _ = []
+    {-# INLINE rename #-}
     rename _ _ = id
 
 instance Named T.Text where
+    {-# INLINE names #-}
     names _ = []
+    {-# INLINE rename #-}
     rename _ _ = id
 
 freshSeededString :: T.Text -> NameGen -> (Name, NameGen)

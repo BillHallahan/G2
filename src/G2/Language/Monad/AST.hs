@@ -46,10 +46,7 @@ instance ASTM Expr where
         return . Let bind' =<< f e
     modifyChildrenM f (Case m b as) = do
         m' <- f m
-        return . Case m' b =<< mapAlt f as
-        where
-            mapAlt :: Monad m => (Expr -> m Expr) -> [Alt] -> m [Alt]
-            mapAlt g alts = mapM (\(Alt ac e) -> return . Alt ac =<< g e) alts
+        return . Case m' b =<< modifyContainedASTsM f as
     modifyChildrenM  f (Cast e c) = do
         e' <- f e
         return $ Cast e' c
@@ -138,6 +135,7 @@ instance (ASTContainerM c t, ASTContainerM d t) => ASTContainerM (c, d) t where
         return (x', y')
 
 instance ASTContainerM Id Expr where
+    {-# INLINE modifyContainedASTsM #-}
     modifyContainedASTsM _ i = return i
 
 instance ASTContainerM Id Type where
@@ -148,8 +146,21 @@ instance ASTContainerM TyBinder Type where
     modifyContainedASTsM f (NamedTyBndr i) =
         return . NamedTyBndr =<< modifyContainedASTsM f i
 
+instance ASTContainerM DataCon Expr where
+    {-# INLINE modifyContainedASTsM #-}
+    modifyContainedASTsM _ dc = return dc
+
 instance ASTContainerM DataCon Type where
     modifyContainedASTsM f (DataCon n t) = return . DataCon n =<< f t
+
+instance ASTContainerM AltMatch Expr where
+    {-# INLINE modifyContainedASTsM #-}
+    modifyContainedASTsM _ am = return am
+
+instance ASTContainerM Alt Expr where
+    modifyContainedASTsM f (Alt a e) = do
+        e' <- modifyContainedASTsM f e
+        return $ Alt a e'
 
 instance ASTContainerM AltMatch Type where
     modifyContainedASTsM f (DataAlt dc i) = do
