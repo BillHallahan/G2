@@ -16,13 +16,14 @@ module G2.Preprocessing.NameCleaner
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
+import qualified Data.HashSet as S
 import qualified Data.Text as T
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 
-allowedStartSymbols :: [Char]
-allowedStartSymbols =
+allowedStartSymbols :: S.HashSet Char
+allowedStartSymbols = S.fromList $
     ['a'..'z'] ++ ['A'..'Z']
     ++ ['~', '!', '$', '%', '^', '&', '*'
        -- We eliminate '_' so we can use '_' to seperate in string conversions
@@ -30,14 +31,14 @@ allowedStartSymbols =
        --, '_'
        , '-', '+', '=', '<', '>', '?', '/']
 
-allowedSymbol :: [Char]
-allowedSymbol = allowedStartSymbols ++ ['0'..'9'] ++ ['@', '.']
+allowedSymbol :: S.HashSet Char
+allowedSymbol = allowedStartSymbols `S.union` S.fromList (['0'..'9'] ++ ['@', '.'])
 
 allowedName :: Name -> Bool
 allowedName (Name n m _ _) =
-       T.all (`elem` allowedSymbol) n
-    && T.all (`elem` allowedSymbol) (maybe "" (id) m)
-    && (T.head n) `elem` allowedStartSymbols
+       T.all (`S.member` allowedSymbol) n
+    && T.all (`S.member` allowedSymbol) (maybe "" (id) m)
+    && (T.head n) `S.member` allowedStartSymbols
 
 cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> State t
 cleanNames s@State {name_gen = ng} = renames hns (s {name_gen = ng'})
@@ -52,8 +53,8 @@ createNamePairs ing ins = go ing [] ins
         go ng rns [] = (rns, ng)
         go ng rns (name@(Name n m i l):ns) =
             let
-                n' = T.filter (\x -> x `elem` allowedSymbol) n
-                m' = fmap (T.filter $ \x -> x `elem` allowedSymbol) m
+                n' = T.filter (\x -> x `S.member` allowedSymbol) n
+                m' = fmap (T.filter $ \x -> x `S.member` allowedSymbol) m
 
                 -- No reserved symbols start with a $, so this ensures both uniqueness
                 -- and starting with an allowed symbol
