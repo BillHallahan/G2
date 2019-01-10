@@ -23,7 +23,9 @@ module G2.Translation.Haskell
     , TypeNameMap
     ) where
 
-import qualified G2.Language as G2
+import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..), ProgramType)
+import qualified G2.Language.Syntax as G2
+-- import qualified G2.Language.Typing as G2
 
 import Avail
 import qualified Class as C
@@ -56,6 +58,21 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import System.Directory
+
+
+-- Copying from Language.Typing so the thing we stuff into Ghc
+-- does not have to rely on Language.Typing, which depends on other things.
+mkG2TyApp :: [G2.Type] -> G2.Type
+mkG2TyApp [] = G2.TYPE
+mkG2TyApp (t:[]) = t
+mkG2TyApp (t1:t2:ts) = mkG2TyApp (G2.TyApp t1 t2 : ts)
+
+mkG2TyCon :: G2.Name
+        -> [G2.Type]
+        -> G2.Kind
+        -> G2.Type
+mkG2TyCon n ts k = mkG2TyApp $ G2.TyCon n k:ts
+
 
 mkIOString :: (Outputable a) => a -> IO String
 mkIOString obj = runGhc (Just libdir) $ do
@@ -358,7 +375,7 @@ mkType tm (TyConApp tc ts)
             _ -> error "mkType: non-arity 2 FunTyCon from GHC"
     | G2.Name n _ _ _ <- mkName $ tyConName tc
     , n == "TYPE" = G2.TYPE
-    | otherwise = G2.mkTyCon (mkTyConName tm tc) (map (mkType tm) ts) (mkType tm $ tyConKind tc) 
+    | otherwise = mkG2TyCon (mkTyConName tm tc) (map (mkType tm) ts) (mkType tm $ tyConKind tc) 
 
 mkTyCon :: NameMap -> TypeNameMap -> TyCon -> ((NameMap, TypeNameMap), Maybe G2.ProgramType)
 mkTyCon nm tm t = case dcs of

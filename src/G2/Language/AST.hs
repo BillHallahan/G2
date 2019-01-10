@@ -27,6 +27,7 @@ module G2.Language.AST
     ) where
 
 import G2.Language.Syntax
+import G2.Language.AlgDataTy
 
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -430,6 +431,32 @@ instance ASTContainer Int Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
+
+-- AlgDataTy
+instance ASTContainer AlgDataTy Expr where
+    containedASTs _ = []
+
+    modifyContainedASTs _ a = a
+
+instance ASTContainer AlgDataTy Type where
+    containedASTs (DataTyCon ns dcs) = containedASTs ns ++ containedASTs dcs
+    containedASTs (NewTyCon ns dcs r) = containedASTs ns ++ containedASTs dcs ++ containedASTs r
+    containedASTs (TypeSynonym _ st) = containedASTs st
+
+    modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs)
+    modifyContainedASTs f (NewTyCon ns dcs rt) = NewTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) (modifyContainedASTs f rt)
+    modifyContainedASTs f (TypeSynonym is st) = TypeSynonym is (modifyContainedASTs f st)
+
+instance ASTContainer AlgDataTy DataCon where
+    containedASTs (DataTyCon _ dcs) = dcs
+    containedASTs (NewTyCon _ dcs _) = [dcs]
+    containedASTs (TypeSynonym _ _) = []
+
+    modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon ns (modifyContainedASTs f dcs)
+    modifyContainedASTs f (NewTyCon ns dc rt) = NewTyCon ns (modifyContainedASTs f dc) rt
+    modifyContainedASTs _ st@(TypeSynonym _ _) = st
+
+
 -- ====== --
 -- AST Helper functions
 -- ====== --
@@ -441,3 +468,6 @@ replaceASTs old new = modifyContainedASTs (replaceASTs' old new)
 
 replaceASTs' :: (Eq e, AST e) => e -> e -> e -> e
 replaceASTs' old new e = if e == old then new else modifyChildren (replaceASTs' old new) e
+
+
+

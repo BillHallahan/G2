@@ -1,52 +1,45 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module G2.Language.TypeEnv ( ProgramType
-                                     , TypeEnv
-                                     , AlgDataTy (..)
-                                     , nameModMatch
-                                     , argTypesTEnv
-                                     , dataCon
-                                     , boundIds
-                                     , isPolyAlgDataTy
-                                     , isDataTyCon
-                                     , isNewTyCon
-                                     , newTyConRepType
-                                     , getDataCons
-                                     , baseDataCons
-                                     , getCastedAlgDataTy
-                                     , getDataCon
-                                     , getDataConNameMod
-                                     , getDataConNameMod'
-                                     , dataConArgs
-                                     , dcName
-                                     , retypeAlgDataTy) where
+module G2.Language.TypeEnv
+  ( ProgramType
+  , TypeEnv
+  , AlgDataTy (..)
+  , nameModMatch
+  , argTypesTEnv
+  , dataCon
+  , boundIds
+  , isPolyAlgDataTy
+  , isDataTyCon
+  , isNewTyCon
+  , newTyConRepType
+  , getDataCons
+  , baseDataCons
+  , getCastedAlgDataTy
+  , getDataCon
+  , getDataConNameMod
+  , getDataConNameMod'
+  , dataConArgs
+  , dcName
+  , retypeAlgDataTy
+  , module G2.Language.AlgDataTy
+  ) where
 
 import G2.Language.AST
 import G2.Language.Syntax
 import G2.Language.Typing
+import G2.Language.AlgDataTy
 
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-type ProgramType = (Name, AlgDataTy)
 
 -- | The type environment maps names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
 -- and we only store those information accordingly.
 type TypeEnv = M.Map Name AlgDataTy
 
--- | Algebraic data types are types constructed with parametrization of some
--- names over types, and a list of data constructors for said type.
-data AlgDataTy = DataTyCon { bound_ids :: [Id]
-                           , data_cons :: [DataCon] }
-               | NewTyCon { bound_ids :: [Id]
-                          , data_con :: DataCon
-                          , rep_type :: Type }
-               | TypeSynonym { bound_ids :: [Id]
-                             , synonym_of :: Type
-                             } deriving (Show, Eq, Read)
 
 nameModMatch :: Name -> TypeEnv -> Maybe Name
 nameModMatch (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m' ) . M.keys
@@ -154,25 +147,4 @@ retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
 retypeAlgDataTy ts adt =
     foldr (uncurry retype) adt $ zip (bound_ids adt) ts
 
-instance ASTContainer AlgDataTy Expr where
-    containedASTs _ = []
 
-    modifyContainedASTs _ a = a
-
-instance ASTContainer AlgDataTy Type where
-    containedASTs (DataTyCon ns dcs) = containedASTs ns ++ containedASTs dcs
-    containedASTs (NewTyCon ns dcs r) = containedASTs ns ++ containedASTs dcs ++ containedASTs r
-    containedASTs (TypeSynonym _ st) = containedASTs st
-
-    modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs)
-    modifyContainedASTs f (NewTyCon ns dcs rt) = NewTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) (modifyContainedASTs f rt)
-    modifyContainedASTs f (TypeSynonym is st) = TypeSynonym is (modifyContainedASTs f st)
-
-instance ASTContainer AlgDataTy DataCon where
-    containedASTs (DataTyCon _ dcs) = dcs
-    containedASTs (NewTyCon _ dcs _) = [dcs]
-    containedASTs (TypeSynonym _ _) = []
-
-    modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon ns (modifyContainedASTs f dcs)
-    modifyContainedASTs f (NewTyCon ns dc rt) = NewTyCon ns (modifyContainedASTs f dc) rt
-    modifyContainedASTs _ st@(TypeSynonym _ _) = st
