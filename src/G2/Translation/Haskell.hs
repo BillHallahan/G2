@@ -6,6 +6,7 @@ module G2.Translation.Haskell
     , loadProj
     , mkCompileClosureFromFile
     , mkCompileClosure
+    , mkCompileClosure'
     , hskToG2FromFile
     , hskToG2
     , mkIOString
@@ -189,20 +190,25 @@ mkCompileClosure env mod_gutss = do
     -- Perform simplification and tidying, which is necessary for getting the
     -- typeclass selector functions.
     tidy_pgms <- mapM (tidyProgram env) mod_gutss
+    mkCompileClosure' env tidy_pgms
+
+mkCompileClosure' :: HscEnv -> [(CgGuts, ModDetails)] -> IO CompileClosure
+mkCompileClosure' env tidy_pgms = do
     let cg_gutss = map fst tidy_pgms
+    let mod_dets = map snd tidy_pgms
+
     let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
     let (tcss, bindss) = unzip tcss_pgms
 
-    let mod_dets = map snd tidy_pgms
 
-    let mod_breaks = map mg_modBreaks mod_gutss
+    let mod_breaks = map cg_modBreaks cg_gutss
 
     -- Get TypeClasses
-    let cls_insts = concatMap mg_insts mod_gutss
+    let cls_insts = concatMap md_insts mod_dets
 
-    let exported = concatMap exportedNames mod_gutss
+    let exported = concatMap exportedNames mod_dets
 
-    let mb_modname = listToMaybe . map (moduleNameString . moduleName . mg_module) $ mod_gutss
+    let mb_modname = listToMaybe . map (moduleNameString . moduleName . cg_module) $ cg_gutss
 
     return CompileClosure { mod_name = mb_modname
                           , tycon_data = tcss
@@ -459,8 +465,8 @@ mkClass tm (ClsInst { is_cls = c, is_dfun = dfun }) =
     (flip mkNameLookup tm . C.className $ c, mkId tm dfun, map (mkId tm) $ C.classTyVars c)
 
 
-exportedNames :: ModGuts -> [ExportedName]
-exportedNames = concatMap availInfoNames . mg_exports
+exportedNames :: ModDetails -> [ExportedName]
+exportedNames = concatMap availInfoNames . md_exports
 
 availInfoNames :: AvailInfo -> [ExportedName]
 availInfoNames (Avail n) = [mkName n]
