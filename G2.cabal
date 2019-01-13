@@ -130,6 +130,7 @@ library
                        , G2.Translation.InjectSpecials
                        , G2.Translation.Interface
                        , G2.Translation.PrimInject
+                       , G2.Translation.TransTypes
 
   build-depends:         array
                        , base >= 4.8 && < 5

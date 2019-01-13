@@ -10,6 +10,7 @@ import G2.Language
 import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
+import G2.Translation.TransTypes
 
 translateLibs :: NameMap -> TypeNameMap -> Bool -> Maybe HscTarget -> [FilePath] -> IO ((Program, [ProgramType], [(Name, Id, [Id])]), NameMap, TypeNameMap, [Name])
 translateLibs nm tm simpl hsc fs = translateLibs' nm tm simpl ([], [], []) hsc fs []
