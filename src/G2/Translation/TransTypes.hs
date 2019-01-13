@@ -3,7 +3,6 @@ module G2.Translation.TransTypes where
 import CoreSyn
 import GHC
 import HscTypes
-import TyCon
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
@@ -27,6 +26,19 @@ data CompileClosure = CompileClosure
   , exported_names :: [ExportedName]
   }
 
+
+data ModDetailsCompileClosure = ModDetailsCompileClosure
+  { mod_det_cls_insts :: [ClsInst]
+  , mod_det_tyenv :: TypeEnv
+  , mod_det_exports :: [ExportedName]
+  }
+
+data CgGutsCompileClosure = CgGutsCompileClosure
+  { cg_mod_name :: Maybe String
+  , cg_bindings :: [CoreBind]
+  , cg_breaks :: Maybe ModBreaks
+  , cg_tycons :: [TyCon]
+  } 
 
 
 

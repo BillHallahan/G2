@@ -19,6 +19,8 @@ addOutputLamG cl todo = do
 
 outputLamG :: FilePath -> ModGuts -> CoreM ModGuts
 outputLamG fdr mg = do
+  undefined
+  {-
     liftIO $ createDirectoryIfMissing True fdr
 
     -- Write the information needed by G2
@@ -28,3 +30,4 @@ outputLamG fdr mg = do
     liftIO $ writeFile (fdr </> name ++ ".g2i") (show c)
 
     return mg
+  -}
