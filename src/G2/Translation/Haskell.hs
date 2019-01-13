@@ -280,6 +280,75 @@ mkModDetCompileClosure moddet =
     , G2.mod_det_exports = exportedNames moddet
     }
 
+
+
+-- Compilation pipeline with ModGuts
+
+
+mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2
+mergeExtractedG2s [] = G2.emptyExtractedG2
+mergeExtractedG2s (g2:g2s) =
+  let g2' = mergeExtractedG2s g2s in
+    G2.ExtractedG2
+      { G2.exg2_binds = G2.exg2_binds g2 ++ G2.exg2_binds g2'
+      , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
+      , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
+      , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2' }
+
+
+
+
+modGutsClosureToG2 :: G2.NameMap -> G2.TypeNameMap -> G2.ModGutsClosure
+  -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+modGutsClosureToG2 nm tm mgcc =
+  let breaks = G2.mgcc_breaks mgcc in
+  -- Do the binds
+  let (nm2, binds) = foldr (\b (nm', bs) ->
+                              let (nm'', bs') = mkBinds nm' tm breaks b in
+                                (nm'', bs ++ bs'))
+                           (nm, [])
+                           (G2.mgcc_binds mgcc) in
+  -- Do the tycons
+  let raw_tycons = G2.mgcc_tycons mgcc ++ typeEnvTyCons (G2.mgcc_type_env mgcc) in
+  let (nm3, tm2, tycons) = foldr (\tc (nm', tm', tcs) ->
+                                  let ((nm'', tm''), mb_t) = mkTyCon nm' tm' tc in
+                                    (nm'', tm'', maybeToList mb_t ++ tcs))
+                                (nm2, tm, [])
+                                raw_tycons in
+  -- Do the class
+  let classes = map (mkClass tm2) $ G2.mgcc_cls_insts mgcc in
+
+  -- Do the exports
+  let exports = G2.mgcc_exports mgcc in
+    (nm3, tm2,
+        G2.ExtractedG2
+          { G2.exg2_binds = binds
+          , G2.exg2_tycons = tycons
+          , G2.exg2_classes = classes
+          , G2.exg2_exports = exports })
+  
+
+
+-- This one will need to do the Tidy program stuff
+mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
+mkModGutsClosure hsc modguts = do
+  (cgguts, moddets) <- tidyProgram hsc modguts
+  return
+    G2.ModGutsClosure
+      { G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
+      , G2.mgcc_binds = cg_binds cgguts
+      , G2.mgcc_tycons = cg_tycons cgguts
+      , G2.mgcc_breaks = cg_modBreaks cgguts
+      , G2.mgcc_cls_insts = md_insts moddets
+      , G2.mgcc_type_env = md_types moddets
+      , G2.mgcc_exports = exportedNames moddets
+      }
+
+
+
+----------------
+-- Translating the individual components in CoreSyn, etc into G2 Core
+
 mkBinds :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreBind -> (G2.NameMap, [(G2.Id, G2.Expr)])
 mkBinds nm tm mb (NonRec var expr) = 
     let
