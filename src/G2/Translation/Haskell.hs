@@ -262,8 +262,6 @@ mkCompileClosure' env tidy_pgms = do
                              , G2.exported_names = exported }
 
 
-
-
 mkCgGutsCompileClosure :: CgGuts -> G2.CgGutsCompileClosure
 mkCgGutsCompileClosure cgguts =
   G2.CgGutsCompileClosure
@@ -283,6 +281,20 @@ mkModDetCompileClosure moddet =
 
 
 -- Compilation pipeline with ModGuts
+hskToG2ViaModGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> IO G2.ExtractedG2
+hskToG2ViaModGutsFromFile hsc proj src nm tm simpl = do
+  closures <- mkModGutsClosuresFromFile hsc proj src simpl
+  return $ hskToG2ViaModGuts nm tm closures
+   
+
+hskToG2ViaModGuts :: G2.NameMap -> G2.TypeNameMap -> [G2.ModGutsClosure] -> G2.ExtractedG2
+hskToG2ViaModGuts nm tm modgutss =
+  let (nm2, tm2, closures) = foldr (\m (nm', tm', cls) ->
+                                let (nm'', tm'', mc) = modGutsClosureToG2 nm' tm' m in
+                                  (nm'', tm'', mc : cls))
+                                (nm, tm, [])
+                                modgutss in
+    mergeExtractedG2s closures
 
 
 mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2
@@ -294,8 +306,6 @@ mergeExtractedG2s (g2:g2s) =
       , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
       , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2' }
-
-
 
 
 modGutsClosureToG2 :: G2.NameMap -> G2.TypeNameMap -> G2.ModGutsClosure
@@ -328,11 +338,30 @@ modGutsClosureToG2 nm tm mgcc =
           , G2.exg2_exports = exports })
   
 
+mkModGutsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO [G2.ModGutsClosure]
+mkModGutsClosuresFromFile hsc proj src simpl = do
+  (env, modgutss) <- runGhc (Just libdir) $ do
+      _ <- loadProj hsc proj src [] simpl
+      env <- getSession
+
+      mod_graph <- getModuleGraph
+      parsed_mods <- mapM parseModule mod_graph
+      typed_mods <- mapM typecheckModule parsed_mods
+      desug_mods <- mapM desugarModule typed_mods
+      return (env, map coreModule desug_mods)
+
+  if simpl then do
+    simpls <- mapM (hscSimplify env) modgutss
+    closures <- mapM (mkModGutsClosure env) simpls
+    return closures
+  else do
+    closures <- mapM (mkModGutsClosure env) modgutss
+    return closures
 
 -- This one will need to do the Tidy program stuff
 mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
-mkModGutsClosure hsc modguts = do
-  (cgguts, moddets) <- tidyProgram hsc modguts
+mkModGutsClosure env modguts = do
+  (cgguts, moddets) <- tidyProgram env modguts
   return
     G2.ModGutsClosure
       { G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
