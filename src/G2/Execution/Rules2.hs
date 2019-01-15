@@ -73,7 +73,7 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }])
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s n stck'
     | Lam u i e <- ce = return $ retLam s u i e
-    -- | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ce e stck'
+    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ce e stck'
     | Just rs <- retReplaceSymbFunc s ce = return rs
     | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ce i a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ce c stck'
@@ -569,7 +569,7 @@ retUpdateFrame s@(State { expr_env = eenv
 
 retApplyFrame :: State t -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t])
 retApplyFrame s@(State { expr_env = eenv }) e1 e2 stck'
-    | Var (Id n _):_ <- unApp e2
+    | Var (Id n _):_ <- unApp e1
     , E.isSymbolic n eenv = 
         ( RuleReturnEApplySym
         , [s { curr_expr = CurrExpr Return (App e1 e2)
