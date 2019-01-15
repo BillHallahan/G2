@@ -104,7 +104,7 @@ initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config 
 
         ng = mkNameGen (prog, prog_typ)
 
-        (s', ft, at, ds_walkers) = runInitialization eenv tenv ng kv tc ts tgtNames -- (filter (\(Name n _ _ _) -> n == "genZ" || n == "absInt" || n == "addInt") tgtNames)
+        (s', ft, at, ds_walkers) = runInitialization eenv tenv ng kv tc ts tgtNames
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'

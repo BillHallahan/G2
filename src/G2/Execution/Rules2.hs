@@ -8,9 +8,7 @@ module G2.Execution.Rules2 ( module G2.Execution.RuleTypes
                            , retLam
                            , evalLet
                            , evalCase
-                           , reduceType
                            , evalCast
-                           , reduceCoercion
                            , evalTick
                            , evalNonDet
                            , evalSymGen
@@ -98,8 +96,6 @@ reduceNewPC solver
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
-        -- Switching which of the following two lines is commented turns this on/off
-        -- let s'' = s'
         let new_pc = foldr (PC.insert kv) spc $ pc
             s' = s { path_conds = new_pc}
 
@@ -459,9 +455,6 @@ liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
 liftSymDefAltPCs mexpr lit@(LitAlt _) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ Default = Nothing
 
-reduceType :: State t -> Type -> (Rule, [State t])
-reduceType = undefined
-
 evalCast :: State t -> Expr -> Coercion -> (Rule, [State t])
 evalCast s@(State { name_gen = ng
                   , exec_stack = stck }) e c
@@ -477,9 +470,6 @@ evalCast s@(State { name_gen = ng
         cast = Cast e c
         (cast', ng') = splitCast ng cast
         frame = CastFrame c
-
-reduceCoercion :: State t -> Coercion -> (Rule, [State t])
-reduceCoercion = undefined
 
 evalTick :: State t -> Tickish -> Expr -> (Rule, [State t])
 evalTick s _ e = (RuleTick, [ s { curr_expr = CurrExpr Evaluate e }])
@@ -648,7 +638,7 @@ retReplaceSymbFunc s@(State { expr_env = eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
                , name_gen = ng'
                , symbolic_ids = new_sym_id:symbolic_ids s
-               , non_red_path_conds = nrpc_e:non_red_path_conds s }])
+               , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }])
     | otherwise = Nothing
 
 isApplyFrame :: Frame -> Bool
