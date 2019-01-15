@@ -128,8 +128,8 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
               then runG2WithSomes
                     (SomeReducer NonRedPCRed
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (LHRed cfn con :<~ Logger fp)
-                            Nothing -> SomeReducer (LHRed cfn con)))
+                            Just fp -> SomeReducer (StdRed con :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed con :<~| LHRed cfn)))
                     (SomeHalter
                       (MaxOutputsHalter (maxOutputs config)
                         :<~> ZeroHalter (steps config)
@@ -142,8 +142,8 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (LHRed cfn con :<~ Logger fp)
-                            Nothing -> SomeReducer (LHRed cfn con)))
+                            Just fp -> SomeReducer (StdRed con :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed con :<~| LHRed cfn)))
                     (SomeHalter
                       (DiscardIfAcceptedTag state_name
                         :<~> MaxOutputsHalter (maxOutputs config)

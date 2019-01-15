@@ -43,13 +43,11 @@ module G2.Execution.Reducer ( Reducer (..)
                             , NextOrderer (..)
                             , PickLeastUsedOrderer (..)
 
-                            , reduce
                             , runReducer ) where
 
 import qualified G2.Language.ApplyTypes as AT
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Execution.Rules as Old
-import G2.Execution.Rules2
+import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Stack as Stck
 import G2.Solver
@@ -508,11 +506,6 @@ instance Orderer PickLeastUsedOrderer Int Int t where
 
 --------
 --------
-reduce :: Solver solver => (State t -> (Rule, [Old.ReduceResult t])) -> solver -> State t -> IO (Rule, [State t])
-reduce red con s = do
-    let (rule, res) = red s
-    sts <- Old.resultsToState con rule s res
-    return (rule, sts)
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
 runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> IO [State t]

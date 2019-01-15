@@ -18,7 +18,6 @@ import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Annotations
-import G2.Solver hiding (Assert)
 
 import Data.Monoid
 import Data.Semigroup
@@ -42,32 +41,16 @@ import qualified Data.Text as T
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-lhReduce :: Name -> State LHTracker -> (Rule, [ReduceResult LHTracker])
-lhReduce cfn = stdReduceBase (lhReduce' cfn)
-
-lhReduce' :: Name -> State LHTracker -> Maybe (Rule, [ReduceResult LHTracker])
-lhReduce' cfn State { expr_env = eenv
-                    , curr_expr = CurrExpr Evaluate (Tick (NamedLoc tn) e@(Assume fc _ _))
-                    , name_gen = ng
-                    , exec_stack = stck
-                    , track = tr@(LHTracker { abstract_calls = abs_c } )}
+lhReduce :: Name -> State LHTracker -> Maybe (Rule, [State LHTracker])
+lhReduce cfn s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc tn) e@(Assume fc _ _))
+                      , track = tr@(LHTracker { abstract_calls = abs_c } )})
                     | cfn == tn =
-                        let
-                            s = ( eenv
-                                , CurrExpr Evaluate e
-                                , []
-                                , []
-                                , Nothing
-                                , ng
-                                , stck
-                                , []
-                                , []
-                                , tr { abstract_calls = maybe abs_c (:abs_c) fc })
-                        in
-                        Just (RuleOther, [s])
+                        Just ( RuleOther
+                             , [s { curr_expr = CurrExpr Evaluate e
+                                  , track = tr { abstract_calls = maybe abs_c (:abs_c) fc }}])
                     | otherwise = Nothing
 
-lhReduce' _ _ = Nothing
+lhReduce _ _ = Nothing
 
 -- Counts the maximal number of Vars with names in the ExprEnv
 -- that could be evaluated along any one path in the function
@@ -114,15 +97,17 @@ instance ASTContainer LHTracker Type where
     modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns}) =
         lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f anns}
 
-data LHRed con = LHRed Name con
+data LHRed = LHRed Name
 
-instance Solver con => Reducer (LHRed con) () LHTracker where
+instance Reducer LHRed () LHTracker where
     initReducer _ _ = ()
 
-    redRules lhr@(LHRed cfn solver) _ s = do
-        (r, s') <- reduce (lhReduce cfn) solver s
-
-        return $ (if r == RuleIdentity then Finished else InProgress, zip s' (repeat ()), lhr)
+    redRules lhr@(LHRed cfn) _ s = do
+        case lhReduce cfn s of
+            Just (_, s') -> 
+                return $ ( InProgress
+                         , zip s' (repeat ()), lhr)
+            Nothing -> return (Finished, [(s, ())], lhr)
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
