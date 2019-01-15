@@ -3,9 +3,6 @@
 module G2.Execution.Rules2 ( module G2.Execution.RuleTypes
                            , stdReduce
                            , evalVar
-                           , reduceLit
-                           , evalPrimSt
-                           , reduceData
                            , evalApp
                            , evalLam
                            , retLam
@@ -32,12 +29,8 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
 import G2.Solver hiding (Assert)
 
-import qualified G2.Execution.Rules as Old
-
 import Control.Monad.Extra
 import Data.Maybe
-
-import Debug.Trace
 
 stdReduce :: Solver solver => solver -> State t -> IO (Rule, [(State t, ())])
 stdReduce solver s = do
@@ -48,19 +41,13 @@ stdReduce solver s = do
 stdReduce' :: Solver solver => solver -> State t -> IO (Rule, [State t])
 stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce })
     | Var i  <- ce = return $ evalVar s i
-    -- | Lit l <- ce = return $ reduceLit s l
-    -- | Prim p t <- ce = return $ evalPrim s p t
-    -- | Data dc <- ce = return $ reduceData s dc
     | App e1 e2 <- ce = return $ evalApp s e1 e2
-    -- | Lam u i e <- ce = return $ evalLam s u i e
     | Let b e <- ce = return $ evalLet s b e
     | Case e i a <- ce = do
         let (r, xs) = evalCase s e i a
         xs' <- mapMaybeM (reduceNewPC solver) xs
         return (r, xs')
-    -- | Type t <- ce = return $ reduceType s t
     | Cast e c <- ce = return $ evalCast s e c
-    -- | Coercion c <- ce = return $ reduceCoercion s c
     | Tick t e <- ce = return $ evalTick s t e
     | NonDet es <- ce = return $ evalNonDet s es
     | SymGen t <- ce = return $ evalSymGen s t
@@ -90,7 +77,6 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
         xs' <- mapMaybeM (reduceNewPC solver) xs
         return (r, xs')
     | Nothing <- frstck = return (RuleIdentity, [s])
-    -- | otherwise = reduce2 (Old.stdReduce) solver s
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
@@ -127,12 +113,6 @@ reduceNewPC solver
             return Nothing
     | otherwise = return  $ Just s
 
-reduce2 :: Solver solver => (State t -> (Rule, [Old.ReduceResult t])) -> solver -> State t -> IO (Rule, [State t])
-reduce2 red con s = do
-    let (rule, res) = red s
-    sts <- Old.resultsToState con rule s res
-    return (rule, sts)
-
 evalVar :: State t -> Id -> (Rule, [State t])
 evalVar s@(State { expr_env = eenv
                  , exec_stack = stck })
@@ -155,15 +135,6 @@ evalVar s@(State { expr_env = eenv
         (r, [s { curr_expr = CurrExpr Evaluate e
                , exec_stack = stck' }])
     | otherwise = error  $ "evalVar: bad input." ++ show i
-
-reduceLit :: State t -> Lit -> (Rule, [State t])
-reduceLit = undefined
-
-evalPrimSt :: State t -> Primitive -> Type -> (Rule, [(State t, ())])
-evalPrimSt _ = undefined
-
-reduceData :: State t -> DataCon -> (Rule, [State t])
-reduceData = undefined
 
 -- | If we have a primitive operator, we are at a point where either:
 --    (1) We can concretely evaluate the operator, or
