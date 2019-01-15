@@ -34,6 +34,8 @@ data Rule = RuleEvalVal
           | RuleReturnEUpdateVar Name
           | RuleReturnEUpdateNonVar Name
 
+          | RuleReturnAppSWHNF
+
           | RuleReturnECase
 
           | RuleReturnCast
@@ -60,6 +62,12 @@ data Rule = RuleEvalVal
           | RuleReturnCurrExprFr
 
           | RuleError
+
+          | RuleBind
+
+          | RuleReturn
+
+          | RuleTick
           
           | RuleOther
            deriving (Show, Eq, Read)

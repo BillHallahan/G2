@@ -262,6 +262,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     input_str = pprInputIdsStr (symbolic_ids ex_state)
     funcs_str = pprFuncTableStr (func_table ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
+    non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     walkers_str = show (deepseq_walkers ex_state)
     appty_str = show (apply_types ex_state)
@@ -287,6 +288,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , walkers_str
                , "----- [Paths] ---------------------"
                , paths_str
+               , "----- [Non Red Paths] ---------------------"
+               , non_red_paths_str
                , "----- [True Assert] ---------------------"
                , "True Assert = " ++ show (true_assert ex_state)
                , "----- [Assert Ids] ---------------------"

@@ -19,6 +19,7 @@ module G2.Language.Naming
     , exprNames
     , typeNames
 
+    , renameExprs
     , renameExpr
     , renameVars
 
@@ -247,6 +248,9 @@ instance Named Expr where
 
             goAlt :: Alt -> Alt
             goAlt (Alt am e) = Alt (renames hm am) e
+
+renameExprs :: ASTContainer m Expr => [(Name, Name)] -> m -> m
+renameExprs n a = foldr (\(old, new) -> renameExpr old new) a n
 
 -- | Rename only the names in an `Expr` that are the `Name` of an `Id`/`Let`/`Data`/`Case` Binding.
 -- Does not change Types.

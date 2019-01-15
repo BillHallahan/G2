@@ -48,7 +48,8 @@ module G2.Execution.Reducer ( Reducer (..)
 
 import qualified G2.Language.ApplyTypes as AT
 import qualified G2.Language.ExprEnv as E
-import G2.Execution.Rules
+import qualified G2.Execution.Rules as Old
+import G2.Execution.Rules2
 import G2.Language
 import qualified G2.Language.Stack as Stck
 import G2.Solver
@@ -273,9 +274,9 @@ instance Solver con => Reducer (StdRed con) () t where
     initReducer _ _ = ()
 
     redRules stdr@(StdRed solver) _ s = do
-        (r, s') <- reduce stdReduce solver s
+        (r, s') <- stdReduce solver s
         
-        return (if r == RuleIdentity then Finished else InProgress, zip s' (repeat ()), stdr)
+        return (if r == RuleIdentity then Finished else InProgress, s', stdr)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed
@@ -507,11 +508,10 @@ instance Orderer PickLeastUsedOrderer Int Int t where
 
 --------
 --------
-
-reduce :: Solver solver => (State t -> (Rule, [ReduceResult t])) -> solver -> State t -> IO (Rule, [State t])
+reduce :: Solver solver => (State t -> (Rule, [Old.ReduceResult t])) -> solver -> State t -> IO (Rule, [State t])
 reduce red con s = do
     let (rule, res) = red s
-    sts <- resultsToState con rule s res
+    sts <- Old.resultsToState con rule s res
     return (rule, sts)
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States

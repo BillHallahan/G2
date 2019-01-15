@@ -24,6 +24,7 @@ library
                        , G2.Execution.NormalForms
                        , G2.Execution.Reducer
                        , G2.Execution.Rules
+                       , G2.Execution.Rules2
                        , G2.Execution.RuleTypes
 
                        , G2.Initialization.Interface

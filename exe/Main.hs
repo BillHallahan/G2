@@ -101,9 +101,14 @@ printFuncCalls config entry =
         ppStatePiece (printRelExprEnv config) "rel expr_env" $ ppRelExprEnv s
         ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s
         ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s
+
+        -- putStrLn $ intercalate "\n" $ map show $ PC.toList $ path_conds s
         -- print $ model s
         -- print inArg
         -- print ex
+        -- putStrLn "------"
+        -- print $ conc_args execr
+        -- print $ conc_out execr
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 
