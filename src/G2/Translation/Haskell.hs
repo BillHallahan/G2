@@ -8,6 +8,8 @@ module G2.Translation.Haskell
     , mkCompileClosure'
     , hskToG2FromFile
     , hskToG2
+    , hskToG2ViaModGuts
+    , hskToG2ViaModGutsFromFile
     , mkIOString
     , prim_list
     , rawDump
@@ -281,20 +283,21 @@ mkModDetCompileClosure moddet =
 
 
 -- Compilation pipeline with ModGuts
-hskToG2ViaModGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> IO G2.ExtractedG2
+hskToG2ViaModGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaModGutsFromFile hsc proj src nm tm simpl = do
   closures <- mkModGutsClosuresFromFile hsc proj src simpl
   return $ hskToG2ViaModGuts nm tm closures
    
 
-hskToG2ViaModGuts :: G2.NameMap -> G2.TypeNameMap -> [G2.ModGutsClosure] -> G2.ExtractedG2
+hskToG2ViaModGuts :: G2.NameMap -> G2.TypeNameMap -> [G2.ModGutsClosure]
+  -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaModGuts nm tm modgutss =
   let (nm2, tm2, closures) = foldr (\m (nm', tm', cls) ->
                                 let (nm'', tm'', mc) = modGutsClosureToG2 nm' tm' m in
                                   (nm'', tm'', mc : cls))
                                 (nm, tm, [])
                                 modgutss in
-    mergeExtractedG2s closures
+    (nm2, tm2, mergeExtractedG2s closures)
 
 
 mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2
@@ -302,7 +305,8 @@ mergeExtractedG2s [] = G2.emptyExtractedG2
 mergeExtractedG2s (g2:g2s) =
   let g2' = mergeExtractedG2s g2s in
     G2.ExtractedG2
-      { G2.exg2_binds = G2.exg2_binds g2 ++ G2.exg2_binds g2'
+      { G2.exg2_mod_names = G2.exg2_mod_names g2 ++ G2.exg2_mod_names g2' -- order matters
+      , G2.exg2_binds = G2.exg2_binds g2 ++ G2.exg2_binds g2'
       , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
       , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2' }
@@ -332,7 +336,8 @@ modGutsClosureToG2 nm tm mgcc =
   let exports = G2.mgcc_exports mgcc in
     (nm3, tm2,
         G2.ExtractedG2
-          { G2.exg2_binds = binds
+          { G2.exg2_mod_names = maybeToList $ fmap T.pack $ G2.mgcc_mod_name mgcc
+          , G2.exg2_binds = binds
           , G2.exg2_tycons = tycons
           , G2.exg2_classes = classes
           , G2.exg2_exports = exports })
