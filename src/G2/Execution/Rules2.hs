@@ -89,9 +89,9 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
         let (r, xs) = retCurrExpr s ce e stck'
         xs' <- mapMaybeM (reduceNewPC solver) xs
         return (r, xs')
-    -- | Nothing <- frstck = return (RuleIdentity, [s])
-    | otherwise = reduce2 (Old.stdReduce) solver s
-    -- | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
+    | Nothing <- frstck = return (RuleIdentity, [s])
+    -- | otherwise = reduce2 (Old.stdReduce) solver s
+    | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
 
