@@ -27,32 +27,6 @@ data ModGutsClosure = ModGutsClosure
   }
 
 
--- Data necessary from Ghc to compile Haskell module(s) into G2 Core
-data CompileClosure = CompileClosure
-  { mod_name :: Maybe String
-  , tycon_data :: [[TyCon]]
-  , bindings :: [([CoreBind], Maybe ModBreaks)]
-  , cls_inst :: [ClsInst]
-  , mod_det_types :: [TypeEnv]
-  , exported_names :: [ExportedName]
-  }
-
-
-data ModDetailsCompileClosure = ModDetailsCompileClosure
-  { mod_det_cls_insts :: [ClsInst]
-  , mod_det_tyenv :: TypeEnv
-  , mod_det_exports :: [ExportedName]
-  }
-
-
-data CgGutsCompileClosure = CgGutsCompileClosure
-  { cg_mod_name :: Maybe String
-  , cg_bindings :: [CoreBind]
-  , cg_breaks :: Maybe ModBreaks
-  , cg_tycons :: [TyCon]
-  } 
-
-
 data ModDetailsClosure = ModDetailsClosure
   { mdcc_cls_insts :: [ClsInst]
   , mdcc_type_env :: TypeEnv
@@ -65,6 +39,37 @@ data CgGutsClosure = CgGutsClosure
   , cgcc_breaks :: Maybe ModBreaks
   , cgcc_tycons :: [TyCon]
   }
+
+
+emptyModGutsClosure :: ModGutsClosure
+emptyModGutsClosure =
+  ModGutsClosure
+    { mgcc_mod_name = Nothing
+    , mgcc_binds = []
+    , mgcc_tycons = []
+    , mgcc_breaks = Nothing
+    , mgcc_cls_insts = []
+    , mgcc_type_env = emptyTypeEnv
+    , mgcc_exports = []
+    }
+
+emptyModDetailsClosure :: ModDetailsClosure
+emptyModDetailsClosure =
+  ModDetailsClosure
+    { mdcc_cls_insts = []
+    , mdcc_type_env = emptyTypeEnv
+    , mdcc_exports = []
+    }
+
+emptyCgGutsClosure :: CgGutsClosure
+emptyCgGutsClosure =
+  CgGutsClosure
+    { cgcc_mod_name = Nothing
+    , cgcc_binds = []
+    , cgcc_breaks = Nothing
+    , cgcc_tycons = []
+    }
+
 
 data ExtractedG2 = ExtractedG2
   { exg2_mod_names :: [T.Text]

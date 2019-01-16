@@ -3,13 +3,10 @@
 -- | Haskell Translation
 module G2.Translation.Haskell
     ( loadProj
-    , mkCompileClosureFromFile
-    , mkCompileClosure
-    , mkCompileClosure'
-    , hskToG2FromFile
-    , hskToG2
     , hskToG2ViaModGuts
     , hskToG2ViaModGutsFromFile
+    , hskToG2ViaCgGutsModDetails
+    , hskToG2ViaCgGutsModDetailsFromFile
     , mkIOString
     , prim_list
     , rawDump
@@ -105,85 +102,6 @@ equivMods = HM.fromList
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")]
 
-hskToG2FromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> 
-    IO (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], G2.NameMap, G2.TypeNameMap, [G2.ExportedName])
-hskToG2FromFile hsc proj src nm tm simpl = do
-    comp_cl <- mkCompileClosureFromFile hsc proj src simpl
-    return $ hskToG2 nm tm comp_cl
-
-hskToG2 :: G2.NameMap -> G2.TypeNameMap -> G2.CompileClosure ->
-    (Maybe String, G2.Program, [G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], G2.NameMap, G2.TypeNameMap, [G2.ExportedName])
-hskToG2 nm tm (G2.CompileClosure { G2.mod_name = mb_modname
-                                 , G2.tycon_data = sums_gutss
-                                 , G2.bindings = bnds
-                                 , G2.cls_inst = c
-                                 , G2.mod_det_types = mod_det_types
-                                 , G2.exported_names = ex }) =
-    let (nm2, binds) = mapAccumR (\nm' (b, br) -> mapAccumR (\v -> mkBinds v tm br) nm' b) nm bnds in
-    let binds' = concat binds in
-
-    let m_dets_tycon = map typeEnvTyCons mod_det_types in
-    let ((nm3, tm2), tycons) = mapAccumR (\(nm', tm') t -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm2, tm) sums_gutss in
-    let ((nm4, tm3), tycons') = mapAccumR (\(nm', tm') t -> mapAccumR (uncurry mkTyCon) (nm', tm') t) (nm3, tm2) m_dets_tycon in
-    let tycons'' = catMaybes $ concat tycons ++ concat tycons' in
-
-    let classes = map (mkClass tm2) c in
-
-      (mb_modname, binds', tycons'', classes, nm4, tm3, ex)
-
-
-
-
-cgGutsClosureToPartialG2 :: G2.NameMap -> G2.TypeNameMap -> G2.CgGutsCompileClosure
-  -> (G2.NameMap, G2.TypeNameMap, (Maybe String, G2.Binds, [Maybe G2.ProgramType]))
-cgGutsClosureToPartialG2 nm tm cgguts_cc =
-  let breaks = G2.cg_breaks cgguts_cc in
-  let (nm2, binds) =
-        foldr (\b (nm', bs) ->
-                  let (nm'', b') = mkBinds nm' tm breaks b in (nm'', b' ++ bs))
-              (nm, [])
-              $ G2.cg_bindings cgguts_cc in
-  let (nm3, tm2, tycons) =
-        foldr (\t (nm', tm', tys) ->
-                  let ((nm'', tm''), ty) = mkTyCon nm' tm' t in (nm'', tm'', ty : tys))
-              (nm2, tm, [])
-              $ G2.cg_tycons cgguts_cc in
-    (nm3, tm2, (G2.cg_mod_name cgguts_cc, binds, tycons))
-
-
-modDetailsClosureToPartialG2 :: G2.NameMap -> G2.TypeNameMap -> G2.ModDetailsCompileClosure
-  -> (G2.NameMap, G2.TypeNameMap,
-      ([Maybe G2.ProgramType], [(G2.Name, G2.Id, [G2.Id])], [G2.ExportedName]))
-modDetailsClosureToPartialG2 nm tm moddet_cc =
-  let (nm2, tm2, tycons) =
-        foldr (\t (nm', tm', tys) ->
-                  let ((nm'', tm''), ty) = mkTyCon nm' tm' t in (nm'', tm'', ty : tys))
-              (nm, tm, [])
-              $ typeEnvTyCons $ G2.mod_det_tyenv moddet_cc in
-
-  let classes = map (mkClass tm2) $ G2.mod_det_cls_insts moddet_cc in
-    (nm2, tm2, (tycons, classes, G2.mod_det_exports moddet_cc))
-
-
-cgGutsModDetClosuresToG2 :: G2.NameMap
-  -> G2.TypeNameMap
-  -> G2.CgGutsCompileClosure
-  -> G2.ModDetailsCompileClosure
-  -> (Maybe String,
-            G2.Program,
-            [G2.ProgramType],
-            [(G2.Name, G2.Id, [G2.Id])],
-            G2.NameMap, G2.TypeNameMap,
-            [G2.ExportedName])
-cgGutsModDetClosuresToG2 nm tm cg_cc mod_cc =
-  let (nm2, tm2, (cg_name, cg_binds, cg_tycons)) = cgGutsClosureToPartialG2 nm tm cg_cc in
-  let (nm3, tm3, (md_tycons, md_classes, md_exps)) = modDetailsClosureToPartialG2 nm2 tm2 mod_cc in
-    (cg_name, [cg_binds], concatMap maybeToList $ cg_tycons ++ md_tycons, md_classes, nm3, tm3, md_exps)
-
-
-
-
-
 
 loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool -> Ghc SuccessFlag
 loadProj hsc proj src gflags simpl = do
@@ -211,73 +129,73 @@ loadProj hsc proj src gflags simpl = do
     _ <- setTargets [target]
     load LoadAllTargets
 
-mkCompileClosureFromFile :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO G2.CompileClosure
-mkCompileClosureFromFile hsc proj src simpl = do
-    (env, mod_gutss) <- runGhc (Just libdir) $ do
-        _ <- loadProj hsc proj src [] simpl
-        env <- getSession
-        -- Now that things are loaded, make the compilation closure.
-        mod_graph <- getModuleGraph
-        pmods <- mapM parseModule mod_graph
-        tmods <- mapM typecheckModule pmods
-        dmods <- mapM desugarModule tmods
-        let mod_gutss = map coreModule dmods
-
-        return (env, mod_gutss)
-
-    smpl_gutss <- mapM (hscSimplify env) mod_gutss
-
-    mkCompileClosure env smpl_gutss
-
-mkCompileClosure :: HscEnv -> [ModGuts] -> IO G2.CompileClosure
-mkCompileClosure env mod_gutss = do
-    -- Perform simplification and tidying, which is necessary for getting the
-    -- typeclass selector functions.
-    tidy_pgms <- mapM (tidyProgram env) mod_gutss
-    mkCompileClosure' env tidy_pgms
-
-mkCompileClosure' :: HscEnv -> [(CgGuts, ModDetails)] -> IO G2.CompileClosure
-mkCompileClosure' env tidy_pgms = do
-    let cg_gutss = map fst tidy_pgms
-    let mod_dets = map snd tidy_pgms
-
-    let tcss_pgms = map (\c -> (cg_tycons c, cg_binds c)) cg_gutss
-    let (tcss, bindss) = unzip tcss_pgms
 
 
-    let mod_breaks = map cg_modBreaks cg_gutss
-
-    -- Get TypeClasses
-    let cls_insts = concatMap md_insts mod_dets
-
-    let exported = concatMap exportedNames mod_dets
-
-    let mod_det_types = map md_types mod_dets
-
-    let mb_modname = listToMaybe . map (moduleNameString . moduleName . cg_module) $ cg_gutss
-
-    return G2.CompileClosure { G2.mod_name = mb_modname
-                             , G2.tycon_data = tcss
-                             , G2.bindings = zip bindss mod_breaks
-                             , G2.cls_inst = cls_insts
-                             , G2.mod_det_types = mod_det_types
-                             , G2.exported_names = exported }
+-- Compilation pipeline with CgGuts
+hskToG2ViaCgGutsModDetailsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+hskToG2ViaCgGutsModDetailsFromFile hsc proj src nm tm simpl = do
+  closures <-mkCgGutsModDetailsClosuresFromFile hsc proj src simpl
+  return $ hskToG2ViaCgGutsModDetails nm tm closures
 
 
-mkCgGutsCompileClosure :: CgGuts -> G2.CgGutsCompileClosure
-mkCgGutsCompileClosure cgguts =
-  G2.CgGutsCompileClosure
-    { G2.cg_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
-    , G2.cg_bindings = cg_binds cgguts
-    , G2.cg_breaks = cg_modBreaks cgguts
-    , G2.cg_tycons = cg_tycons cgguts }
+hskToG2ViaCgGutsModDetails :: G2.NameMap -> G2.TypeNameMap -> [(G2.CgGutsClosure, G2.ModDetailsClosure)]
+  -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+hskToG2ViaCgGutsModDetails nm tm pairs = do
+  let (nm2, tm2, exg2s) = foldr (\(c, m) (nm', tm', exs) ->
+                            let mgcc = cgGutsModDetailsClosureToModGutsClosure c m in
+                            let (nm'', tm'', g2) = modGutsClosureToG2 nm' tm' mgcc in
+                              (nm'', tm'', g2 : exs))
+                            (nm, tm, [])
+                            pairs in
+    (nm2, tm2, mergeExtractedG2s exg2s)
 
-mkModDetCompileClosure :: ModDetails -> G2.ModDetailsCompileClosure
-mkModDetCompileClosure moddet =
-  G2.ModDetailsCompileClosure
-    { G2.mod_det_cls_insts = md_insts moddet
-    , G2.mod_det_tyenv = md_types moddet
-    , G2.mod_det_exports = exportedNames moddet
+
+cgGutsModDetailsClosureToModGutsClosure :: G2.CgGutsClosure -> G2.ModDetailsClosure -> G2.ModGutsClosure
+cgGutsModDetailsClosureToModGutsClosure cg md =
+  G2.ModGutsClosure
+    { G2.mgcc_mod_name = G2.cgcc_mod_name cg
+    , G2.mgcc_binds = G2.cgcc_binds cg
+    , G2.mgcc_tycons = G2.cgcc_tycons cg
+    , G2.mgcc_breaks = G2.cgcc_breaks cg
+    , G2.mgcc_cls_insts = G2.mdcc_cls_insts md
+    , G2.mgcc_type_env = G2.mdcc_type_env md
+    , G2.mgcc_exports = G2.mdcc_exports md
+    }
+
+
+mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> Bool 
+  -> IO [(G2.CgGutsClosure, G2.ModDetailsClosure)]
+mkCgGutsModDetailsClosuresFromFile hsc proj src simpl = do
+  (env, modgutss) <- runGhc (Just libdir) $ do
+      _ <- loadProj hsc proj src [] simpl
+      env <- getSession
+
+      mod_graph <- getModuleGraph
+      parsed_mods <- mapM parseModule mod_graph
+      typed_mods <- mapM typecheckModule parsed_mods
+      desug_mods <- mapM desugarModule typed_mods
+      return (env, map coreModule desug_mods)
+
+  simplgutss <- mapM (if simpl then hscSimplify env else return . id) modgutss
+  tidys <- mapM (tidyProgram env) simplgutss
+  let pairs = map (\(cg, md) -> (mkCgGutsClosure cg, mkModDetailsClosure md)) tidys
+  return pairs
+
+
+mkCgGutsClosure :: CgGuts -> G2.CgGutsClosure
+mkCgGutsClosure cgguts =
+  G2.CgGutsClosure
+    { G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
+    , G2.cgcc_binds = cg_binds cgguts
+    , G2.cgcc_breaks = cg_modBreaks cgguts
+    , G2.cgcc_tycons = cg_tycons cgguts }
+
+mkModDetailsClosure :: ModDetails -> G2.ModDetailsClosure
+mkModDetailsClosure moddet =
+  G2.ModDetailsClosure
+    { G2.mdcc_cls_insts = md_insts moddet
+    , G2.mdcc_type_env = md_types moddet
+    , G2.mdcc_exports = exportedNames moddet
     }
 
 
@@ -292,24 +210,14 @@ hskToG2ViaModGutsFromFile hsc proj src nm tm simpl = do
 hskToG2ViaModGuts :: G2.NameMap -> G2.TypeNameMap -> [G2.ModGutsClosure]
   -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaModGuts nm tm modgutss =
-  let (nm2, tm2, closures) = foldr (\m (nm', tm', cls) ->
+  let (nm2, tm2, exg2s) = foldr (\m (nm', tm', cls) ->
                                 let (nm'', tm'', mc) = modGutsClosureToG2 nm' tm' m in
                                   (nm'', tm'', mc : cls))
                                 (nm, tm, [])
                                 modgutss in
-    (nm2, tm2, mergeExtractedG2s closures)
+    (nm2, tm2, mergeExtractedG2s exg2s)
 
 
-mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2
-mergeExtractedG2s [] = G2.emptyExtractedG2
-mergeExtractedG2s (g2:g2s) =
-  let g2' = mergeExtractedG2s g2s in
-    G2.ExtractedG2
-      { G2.exg2_mod_names = G2.exg2_mod_names g2 ++ G2.exg2_mod_names g2' -- order matters
-      , G2.exg2_binds = G2.exg2_binds g2 ++ G2.exg2_binds g2'
-      , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
-      , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
-      , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2' }
 
 
 modGutsClosureToG2 :: G2.NameMap -> G2.TypeNameMap -> G2.ModGutsClosure
@@ -379,6 +287,17 @@ mkModGutsClosure env modguts = do
       }
 
 
+-- Merging, order matters!
+mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2
+mergeExtractedG2s [] = G2.emptyExtractedG2
+mergeExtractedG2s (g2:g2s) =
+  let g2' = mergeExtractedG2s g2s in
+    G2.ExtractedG2
+      { G2.exg2_mod_names = G2.exg2_mod_names g2 ++ G2.exg2_mod_names g2' -- order matters
+      , G2.exg2_binds = G2.exg2_binds g2 ++ G2.exg2_binds g2'
+      , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
+      , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
+      , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2' }
 
 ----------------
 -- Translating the individual components in CoreSyn, etc into G2 Core
