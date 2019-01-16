@@ -55,6 +55,11 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce })
 stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
                            , exec_stack = stck })
     | Prim Error _ <- ce
+    , Just (AssertFrame is _, stck') <- S.pop stck =
+        return (RuleError, [s { exec_stack = stck'
+                              , true_assert = True
+                              , assert_ids = is }])
+    | Prim Error _ <- ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }])
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s n stck'
     | Lam u i e <- ce = return $ retLam s u i e
