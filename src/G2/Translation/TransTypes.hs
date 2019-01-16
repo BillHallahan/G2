@@ -82,7 +82,8 @@ data ExtractedG2 = ExtractedG2
 emptyExtractedG2 :: ExtractedG2
 emptyExtractedG2 =
   ExtractedG2
-    { exg2_binds = []
+    { exg2_mod_names = []
+    , exg2_binds = []
     , exg2_tycons = []
     , exg2_classes = []
     , exg2_exports = [] }
