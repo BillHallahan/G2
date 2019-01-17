@@ -59,7 +59,6 @@ library
                        , G2.Language.Primitives
                        , G2.Language.Stack
                        , G2.Language.Support
-                       , G2.Language.SymLinks
                        , G2.Language.Syntax
                        , G2.Language.TypeClasses
                        , G2.Language.TypeEnv

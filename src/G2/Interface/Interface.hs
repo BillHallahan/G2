@@ -46,7 +46,6 @@ import G2.Postprocessing.Interface
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
-import qualified G2.Language.SymLinks as Sym
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
@@ -126,7 +125,6 @@ initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config 
     , input_ids = is
     , fixed_inputs = f_i
     , symbolic_ids = is
-    , sym_links = Sym.empty
     , func_table = ft
     , deepseq_walkers = ds_walkers
     , apply_types = at
