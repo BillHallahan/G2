@@ -5,8 +5,6 @@ module G2.Execution.Interface
     , stdReduce
     ) where
 
-import G2.Config.Config
-
 import G2.Execution.Reducer
 import G2.Execution.Rules
 import G2.Language.Support

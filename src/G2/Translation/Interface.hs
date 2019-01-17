@@ -3,6 +3,7 @@ module G2.Translation.Interface where
 import DynFlags
 
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
 
 import G2.Config
@@ -10,6 +11,7 @@ import G2.Language
 import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
+import G2.Translation.TransTypes
 
 translateLibs :: NameMap -> TypeNameMap -> Bool -> Maybe HscTarget -> [FilePath] -> IO ((Program, [ProgramType], [(Name, Id, [Id])]), NameMap, TypeNameMap, [Name])
 translateLibs nm tm simpl hsc fs = translateLibs' nm tm simpl ([], [], []) hsc fs []
@@ -18,8 +20,14 @@ translateLibs' :: NameMap -> TypeNameMap -> Bool -> (Program, [ProgramType], [(N
 translateLibs' nm tnm _ pptn _ [] ex = return (pptn, nm, tnm, ex)
 translateLibs' nm tnm simpl (prog, tys, cls) hsc (f:fs) ex = do
   let guess_dir = dropWhileEnd (/= '/') f
-  (_, n_prog, n_tys, n_cls, new_nm, new_tnm, ex') <- hskToG2FromFile hsc guess_dir f nm tnm simpl
-  
+  -- (_, n_prog, n_tys, n_cls, new_nm, new_tnm, ex') <- hskToG2FromFile hsc guess_dir f nm tnm simpl
+  -- (new_nm, new_tnm, exg2) <- hskToG2ViaModGutsFromFile hsc guess_dir f nm tnm simpl
+  (new_nm, new_tnm, exg2) <- hskToG2ViaCgGutsModDetailsFromFile hsc guess_dir f nm tnm simpl
+  let n_prog = [exg2_binds exg2]
+  let n_tys = exg2_tycons exg2
+  let n_cls = exg2_classes exg2
+  let ex' = exg2_exports exg2
+
   translateLibs' new_nm new_tnm simpl (prog ++ n_prog, tys ++ n_tys, cls ++ n_cls) hsc fs (ex ++ ex')
   
 mergeTranslates :: [(Program, [ProgramType], [(Name, Id, [Id])])] -> (Program, [ProgramType], [(Name, Id, [Id])])
@@ -52,7 +60,17 @@ translateLoadedV proj src libs simpl config = do
   let merged_lib = mergeTranslates ([base_trans', lib_transs])
 
   -- Now the stuff with the actual target
-  (mb_modname, tgt_prog, tgt_tys, tgt_cls, _, _, h_exp) <- hskToG2FromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
+  -- (mb_modname, tgt_prog, tgt_tys, tgt_cls, _, _, h_exp) <- hskToG2FromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
+
+  -- (_, _, exg2) <- hskToG2ViaModGutsFromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
+  (_, _, exg2) <- hskToG2ViaCgGutsModDetailsFromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
+  let mb_modname = listToMaybe $ exg2_mod_names exg2
+  let tgt_prog = [exg2_binds exg2]
+  let tgt_tys = exg2_tycons exg2
+  let tgt_cls = exg2_classes exg2
+  let h_exp = exg2_exports exg2
+
+
   let tgt_trans = (tgt_prog, tgt_tys, tgt_cls)
   let (merged_prog, merged_tys, merged_cls) = mergeTranslates [tgt_trans, merged_lib]
 
@@ -64,5 +82,5 @@ translateLoadedV proj src libs simpl config = do
 
   final_prog <- absVarLoc near_final_prog
 
-  return (fmap T.pack mb_modname, final_prog, final_tys, final_merged_cls, b_exp ++ lib_exp ++ h_exp)
+  return (mb_modname, final_prog, final_tys, final_merged_cls, b_exp ++ lib_exp ++ h_exp)
 
