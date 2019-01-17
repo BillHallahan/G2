@@ -2,9 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Language.TypeEnv
-  ( ProgramType
-  , TypeEnv
-  , AlgDataTy (..)
+  ( TypeEnv
   , nameModMatch
   , argTypesTEnv
   , dataCon
