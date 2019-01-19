@@ -80,7 +80,7 @@ data ExtractedG2 = ExtractedG2
   , exg2_tycons :: [G2.ProgramType]
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id])]
   , exg2_exports :: [ExportedName]
-  }
+  } deriving (Eq, Show, Read)
 
 emptyExtractedG2 :: ExtractedG2
 emptyExtractedG2 =
