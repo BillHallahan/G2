@@ -5,8 +5,8 @@ module G2.Translation.Haskell
     ( loadProj
     , hskToG2ViaModGuts
     , hskToG2ViaModGutsFromFile
-    , hskToG2ViaCgGutsModDetails
-    , hskToG2ViaCgGutsModDetailsFromFile
+    , hskToG2ViaCgGuts
+    , hskToG2ViaCgGutsFromFile
     , mkIOString
     , prim_list
     , rawDump
@@ -132,15 +132,15 @@ loadProj hsc proj src gflags simpl = do
 
 
 -- Compilation pipeline with CgGuts
-hskToG2ViaCgGutsModDetailsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaCgGutsModDetailsFromFile hsc proj src nm tm simpl = do
+hskToG2ViaCgGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+hskToG2ViaCgGutsFromFile hsc proj src nm tm simpl = do
   closures <-mkCgGutsModDetailsClosuresFromFile hsc proj src simpl
-  return $ hskToG2ViaCgGutsModDetails nm tm closures
+  return $ hskToG2ViaCgGuts nm tm closures
 
 
-hskToG2ViaCgGutsModDetails :: G2.NameMap -> G2.TypeNameMap -> [(G2.CgGutsClosure, G2.ModDetailsClosure)]
+hskToG2ViaCgGuts :: G2.NameMap -> G2.TypeNameMap -> [(G2.CgGutsClosure, G2.ModDetailsClosure)]
   -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaCgGutsModDetails nm tm pairs = do
+hskToG2ViaCgGuts nm tm pairs = do
   let (nm2, tm2, exg2s) = foldr (\(c, m) (nm', tm', exs) ->
                             let mgcc = cgGutsModDetailsClosureToModGutsClosure c m in
                             let (nm'', tm'', g2) = modGutsClosureToG2 nm' tm' mgcc in
