@@ -7,6 +7,8 @@ module G2.Translation.Haskell
     , hskToG2ViaModGutsFromFile
     , hskToG2ViaCgGuts
     , hskToG2ViaCgGutsFromFile
+    , mkCgGutsClosure
+    , mkModDetailsClosure
     , mkIOString
     , prim_list
     , rawDump
