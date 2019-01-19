@@ -11,11 +11,13 @@ configName = "g2.cfg"
 
 getConfig :: [String] -> IO Config
 getConfig ars = do
-    ex <- configExists
+    let con = strArg "config" ars M.empty id configName
+
+    ex <- configExists con
 
     case ex of
         True -> do
-            conf <- parseConfig configName
+            conf <- parseConfig con
 
             case conf of
                 Right conf' -> return (mkConfig ars conf')
@@ -25,12 +27,12 @@ getConfig ars = do
                     return (mkConfig ars M.empty)
         False -> return (mkConfig ars M.empty)
 
-configExists :: IO Bool
-configExists = do
-    ex <- doesFileExist configName
+configExists :: FilePath -> IO Bool
+configExists cn = do
+    ex <- doesFileExist cn
 
     case ex of
         True -> return ()
-        False -> putStrLn $ "Configuration file " ++ configName ++ " missing"
+        False -> putStrLn $ "Configuration file " ++ cn ++ " missing"
 
     return ex
