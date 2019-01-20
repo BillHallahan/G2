@@ -1,13 +1,16 @@
 module G2.Translation.TransTypes where
 
 import CoreSyn
-import GHC
+-- import GHC
 import HscTypes
+import InstEnv
+import TyCon
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
-import qualified G2.Language as G2
+import qualified G2.Language.Syntax as G2
+import qualified G2.Language.AlgDataTy as G2
 
 type NameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 
@@ -77,7 +80,7 @@ data ExtractedG2 = ExtractedG2
   , exg2_tycons :: [G2.ProgramType]
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id])]
   , exg2_exports :: [ExportedName]
-  }
+  } deriving (Eq, Show, Read)
 
 emptyExtractedG2 :: ExtractedG2
 emptyExtractedG2 =

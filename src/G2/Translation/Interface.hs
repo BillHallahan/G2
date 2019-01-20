@@ -22,7 +22,7 @@ translateLibs' nm tnm simpl (prog, tys, cls) hsc (f:fs) ex = do
   let guess_dir = dropWhileEnd (/= '/') f
   -- (_, n_prog, n_tys, n_cls, new_nm, new_tnm, ex') <- hskToG2FromFile hsc guess_dir f nm tnm simpl
   -- (new_nm, new_tnm, exg2) <- hskToG2ViaModGutsFromFile hsc guess_dir f nm tnm simpl
-  (new_nm, new_tnm, exg2) <- hskToG2ViaCgGutsModDetailsFromFile hsc guess_dir f nm tnm simpl
+  (new_nm, new_tnm, exg2) <- hskToG2ViaCgGutsFromFile hsc guess_dir f nm tnm simpl
   let n_prog = [exg2_binds exg2]
   let n_tys = exg2_tycons exg2
   let n_cls = exg2_classes exg2
@@ -63,7 +63,7 @@ translateLoadedV proj src libs simpl config = do
   -- (mb_modname, tgt_prog, tgt_tys, tgt_cls, _, _, h_exp) <- hskToG2FromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
 
   -- (_, _, exg2) <- hskToG2ViaModGutsFromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
-  (_, _, exg2) <- hskToG2ViaCgGutsModDetailsFromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
+  (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) proj src lib_nm lib_tnm simpl
   let mb_modname = listToMaybe $ exg2_mod_names exg2
   let tgt_prog = [exg2_binds exg2]
   let tgt_tys = exg2_tycons exg2
