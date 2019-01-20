@@ -110,7 +110,7 @@ initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config 
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
-        (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert f m_mod tc ng' eenv' ds_walkers kv config
+        (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert (idName ie) m_mod tc ng' eenv' ds_walkers kv config
     in
     (State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is

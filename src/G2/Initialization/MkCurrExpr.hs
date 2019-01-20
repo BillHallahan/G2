@@ -12,13 +12,15 @@ import qualified G2.Language.ExprEnv as E
 import Data.List
 import qualified Data.Text as T
 
-mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> T.Text -> Maybe T.Text
+mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Name -> Maybe T.Text
            -> TypeClasses -> NameGen -> ExprEnv -> Walkers
            -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
-mkCurrExpr m_assume m_assert s m_mod tc ng eenv walkers kv config =
-    case findFunc s m_mod eenv of
-        Left (f, ex) -> 
+mkCurrExpr m_assume m_assert n m_mod tc ng eenv walkers kv config =
+    case E.lookup n eenv of
+        Just ex ->
             let
+                f = Id n (typeOf ex)
+
                 typs = argTys $ typeOf ex
 
                 (typsE, typs') = instantitateTypes tc kv typs
@@ -43,7 +45,7 @@ mkCurrExpr m_assume m_assert s m_mod tc ng eenv walkers kv config =
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
             (let_ex, is, typsE, ng'')
-        Right s' -> error s'
+        Nothing -> error "mkCurrExpr: Bad Name"
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs ng [] = ([], [], ng)
