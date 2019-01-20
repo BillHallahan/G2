@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Initialization.MkCurrExpr ( mkCurrExpr
-                                              , checkReaches
-                                              , findFunc
-                                              , instantiateArgTypes ) where
+                                    , checkReaches
+                                    , findFunc
+                                    , instantiateArgTypes ) where
 
 import G2.Config
 import G2.Language
