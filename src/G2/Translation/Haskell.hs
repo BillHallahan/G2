@@ -434,8 +434,9 @@ mkLit (MachWord64 i) = G2.LitInt (fromInteger i)
 mkLit (MachFloat rat) = G2.LitFloat rat
 mkLit (MachDouble rat) = G2.LitDouble rat
 mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
-mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
-mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
+mkLit _ = G2.LitInt 0
+-- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
+-- mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
 mkBind :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreBind -> [(G2.Id, G2.Expr)]
 mkBind nm tm mb (NonRec var expr) = [(mkId tm var, mkExpr nm tm mb expr)]
@@ -500,7 +501,12 @@ mkTyCon nm tm t = case dcs of
                                                                           , G2.rep_type = mkType tm rhst}
                                                      , Just $ [(mkId tm'' . dataConWorkId) dc])
                                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
-                                            TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
+                                            -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
+                                            TupleTyCon { data_con = dc, tup_sort = ts } ->
+                                              ( nm'
+                                              , tm'
+                                              , Just $ G2.DataTyCon bv $ [mkData nm' tm dc]
+                                              , Nothing)
                                             SumTyCon {} -> error "Unhandled TyCon SumTyCon"
                             False -> case isTypeSynonymTyCon t of
                                     True -> 
