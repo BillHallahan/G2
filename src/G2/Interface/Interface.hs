@@ -4,8 +4,10 @@
 module G2.Interface.Interface ( doTimeout
                               , maybeDoTimeout
 
-                              , initStateSimple
                               , initState
+                              , initState'
+                              , initStateFromSimpleState
+                              , initStateFromSimpleState'
                               , initSimpleState
                               
                               , initRedHaltOrd
@@ -76,24 +78,37 @@ maybeDoTimeout :: Maybe Int -> IO a -> IO (Maybe a)
 maybeDoTimeout (Just secs) = doTimeout secs
 maybeDoTimeout Nothing = fmap Just
 
-initStateSimple :: Program
-                -> [ProgramType]
-                -> [(Name, Id, [Id])]
-                -> StartFunc
-                -> ModuleName
-                -> [Name]
-                -> Config
-                -> (State (), Id)
-initStateSimple prog prog_typ cls f m_mod tgtNames config =
-    initState prog prog_typ cls Nothing Nothing False f m_mod tgtNames config
-
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
           -> Maybe AssertFunc -> Bool -> StartFunc -> ModuleName -> [Name]
           -> Config -> (State (), Id)
 initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config =
     let
         s = initSimpleState prog prog_typ cls
+    in
+    initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config
 
+initState' :: Program
+           -> [ProgramType]
+           -> [(Name, Id, [Id])]
+           -> StartFunc
+           -> ModuleName
+           -> [Name]
+           -> Config
+           -> (State (), Id)
+initState' prog prog_typ cls =
+    initState prog prog_typ cls Nothing Nothing False
+
+initStateFromSimpleState :: IT.SimpleState
+                         -> Maybe AssumeFunc
+                         -> Maybe AssertFunc
+                         -> Bool
+                         -> StartFunc
+                         -> ModuleName
+                         -> [Name]
+                         -> Config
+                         -> (State (), Id)
+initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
+    let
         (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
               Left ie' -> ie'
               Right errs -> error errs
@@ -135,6 +150,15 @@ initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config 
     , tags = S.empty
  }
  , ie)
+
+initStateFromSimpleState' :: IT.SimpleState
+                          -> StartFunc
+                          -> ModuleName
+                          -> [Name]
+                          -> Config
+                          -> (State (), Id)
+initStateFromSimpleState' s =
+    initStateFromSimpleState s Nothing Nothing False
 
 initSimpleState :: Program
                 -> [ProgramType]
