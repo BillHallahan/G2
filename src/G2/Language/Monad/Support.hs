@@ -50,7 +50,7 @@ class ExState s m => FullState s m | m -> s where
     putTypeClasses :: TypeClasses -> m ()
 
     inputIds :: m InputIds
-    fixedInputs :: m [Expr]
+    -- fixedInputs :: m [Expr]
 
 instance ExState (State t) (StateM t) where
     exprEnv = readRecord expr_env
@@ -72,7 +72,7 @@ instance FullState (State t) (StateM t) where
     putTypeClasses = rep_type_classesM
 
     inputIds = readRecord input_ids
-    fixedInputs = readRecord fixed_inputs
+    -- fixedInputs = readRecord fixed_inputs
 
 runStateM :: StateM t a -> State t -> (a, State t)
 runStateM (StateM s) s' = SM.runState s s'

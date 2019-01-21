@@ -160,7 +160,7 @@ instance FullState LHState LHStateM where
     putTypeClasses = rep_type_classesM
 
     inputIds = return . input_ids =<< SM.get
-    fixedInputs = return . fixed_inputs =<< SM.get
+    -- fixedInputs = return . fixed_inputs =<< SM.get
 
 runLHStateM :: LHStateM a -> LHState -> (a, LHState)
 runLHStateM (LHStateM s) s' = SM.runState s s'
@@ -230,8 +230,8 @@ rep_type_classesM tc = do
 input_ids :: LHState -> L.InputIds
 input_ids = liftState L.input_ids
 
-fixed_inputs :: LHState -> [L.Expr]
-fixed_inputs = liftState L.fixed_inputs
+-- fixed_inputs :: LHState -> [L.Expr]
+-- fixed_inputs = liftState L.fixed_inputs
 
 liftLHState :: (LHState -> a) -> LHStateM a
 liftLHState f = return . f =<< SM.get

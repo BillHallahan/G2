@@ -123,10 +123,10 @@ initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config 
     , assert_ids = Nothing
     , type_classes = tc'
     , input_ids = is
-    , fixed_inputs = f_i
+    -- , fixed_inputs = f_i
     , symbolic_ids = is
     , func_table = ft
-    , deepseq_walkers = ds_walkers
+    -- , deepseq_walkers = ds_walkers
     , apply_types = at
     , exec_stack = Stack.empty
     , model = M.empty

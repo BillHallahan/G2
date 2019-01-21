@@ -20,7 +20,7 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
                                        , curr_expr = cexpr
                                        , path_conds = pc
                                        , symbolic_ids = iids
-                                       , deepseq_walkers = dsw
+                                       -- , deepseq_walkers = dsw
                                        , exec_stack = es
                                        , known_values = kv
                                        }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
@@ -28,7 +28,7 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
   where
     state' = state { expr_env = eenv'
                    , type_env = tenv'
-                   , deepseq_walkers = dsw'
+                   --, deepseq_walkers = dsw'
                    }
 
     active = activeNames tenv eenv S.empty $ names cexpr ++
@@ -44,7 +44,7 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
     eenv' = E.filterWithKey (\n _ -> isActive n) eenv
     tenv' = M.filterWithKey (\n _ -> isActive n) tenv
 
-    dsw' = M.filterWithKey (\n _ -> isActive n) dsw
+    -- dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
 activeNames :: TypeEnv -> ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
 activeNames _ _ explored [] = explored
