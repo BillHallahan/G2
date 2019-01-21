@@ -20,6 +20,7 @@ module G2.Translation.Haskell
     , mkSpan
     , mkRealSpan
     , absVarLoc
+    , readFileExtractedG2
     ) where
 
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..), ProgramType)
@@ -459,8 +460,10 @@ mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
 mkType tm (FunTy t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
 mkType tm (ForAllTy b ty) = G2.TyForAll (mkTyBinder tm b) (mkType tm ty)
 mkType _ (LitTy _) = G2.TyBottom
-mkType _ (CastTy _ _) = error "mkType: CastTy"
-mkType _ (CoercionTy _) = error "mkType: Coercion"
+-- mkType _ (CastTy _ _) = error "mkType: CastTy"
+mkType _ (CastTy _ _) = G2.TyUnknown
+mkType _ (CoercionTy _) = G2.TyUnknown
+-- mkType _ (CoercionTy _) = error "mkType: Coercion"
 mkType tm (TyConApp tc ts)
     | isFunTyCon tc
     , length ts == 2 =
@@ -628,5 +631,11 @@ absLoc l@G2.Loc {G2.file = f} = do
 
 -- When we don't want the 
 
+
+-- Loading stuff
+readFileExtractedG2 :: FilePath -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+readFileExtractedG2 file = do
+  contents <- readFile file
+  return $ read contents
 
 
