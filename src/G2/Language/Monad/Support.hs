@@ -3,12 +3,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Language.Monad.Support ( StateM
-                                           , ExState (..)
-                                           , FullState (..)
-                                           , runStateM
-                                           , readRecord
-                                           , withNG
-                                           , mapCurrExpr ) where
+                                 , ExState (..)
+                                 , FullState (..)
+                                 , runStateM
+                                 , readRecord
+                                 , withNG
+                                 , mapCurrExpr ) where
 
 import qualified Control.Monad.State.Lazy as SM
 
@@ -39,15 +39,16 @@ class SM.MonadState s m => ExState s m | m -> s where
     putNameGen :: NameGen -> m ()
 
     knownValues :: m KnownValues
+    putKnownValues :: KnownValues -> m ()
+
+    typeClasses :: m TypeClasses
+    putTypeClasses :: TypeClasses -> m ()
 
 -- Extends `ExState`, allowing access to a more complete set of the
 -- components in the `State`.
 class ExState s m => FullState s m | m -> s where
     currExpr :: m CurrExpr
     putCurrExpr :: CurrExpr -> m ()
-
-    typeClasses :: m TypeClasses
-    putTypeClasses :: TypeClasses -> m ()
 
     inputIds :: m InputIds
     fixedInputs :: m [Expr]
@@ -63,13 +64,14 @@ instance ExState (State t) (StateM t) where
     putNameGen = rep_name_genM
 
     knownValues = readRecord known_values
+    putKnownValues = rep_known_valuesM
+
+    typeClasses = readRecord type_classes
+    putTypeClasses = rep_type_classesM
 
 instance FullState (State t) (StateM t) where
     currExpr = readRecord curr_expr
     putCurrExpr = rep_curr_exprM
-
-    typeClasses = readRecord type_classes
-    putTypeClasses = rep_type_classesM
 
     inputIds = readRecord input_ids
     fixedInputs = readRecord fixed_inputs
@@ -101,6 +103,11 @@ rep_name_genM :: NameGen -> StateM t ()
 rep_name_genM ng = do
     s <- SM.get
     SM.put $ s {name_gen = ng}
+
+rep_known_valuesM :: KnownValues -> StateM t ()
+rep_known_valuesM kv = do
+    s <- SM.get
+    SM.put $ s {known_values = kv}
 
 rep_type_classesM :: TypeClasses -> StateM t ()
 rep_type_classesM tc = do

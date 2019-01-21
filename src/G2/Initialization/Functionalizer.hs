@@ -34,7 +34,6 @@
 
 module G2.Initialization.Functionalizer (functionalize) where
 
-import G2.Initialization.Types
 import G2.Language hiding (State (..))
 import qualified G2.Language.ApplyTypes as AT
 import qualified G2.Language.ExprEnv as E
@@ -43,7 +42,7 @@ import G2.Language.Monad
 import Data.List
 import qualified Data.Map as M
 
-functionalize :: [Type] -> [Name] -> SimpleStateM (FuncInterps, AT.ApplyTypes)
+functionalize :: ExState s m => [Type] -> [Name] -> m (FuncInterps, AT.ApplyTypes)
 functionalize ts tgtNames = do
     -- Get names for all need apply type
     eenv <- exprEnv
@@ -59,15 +58,15 @@ functionalize ts tgtNames = do
     return (fi, at)
 
 -- creates ApplyType names for the given types
-applyTypeNames :: [Type] -> SimpleStateM [(Type, Name)]
+applyTypeNames :: ExState s m => [Type] -> m [(Type, Name)]
 applyTypeNames ts = do
         applyNames <- freshSeededStringsN (replicate (length ts) "applyTy")
         return $ zip ts applyNames
 
 -- Updates the ExprEnv and TypeEnv with ApplyTypes and Apply Functions
 -- creates FuncInterps and ApplyTypes tables
-mkApplyFuncAndTypes :: [(Type, Name)] -> [Name] ->
-                       SimpleStateM (FuncInterps, AT.ApplyTypes)
+mkApplyFuncAndTypes :: ExState s m => [(Type, Name)] -> [Name] ->
+                       m (FuncInterps, AT.ApplyTypes)
 mkApplyFuncAndTypes tyn tgtNames = do
     eenv' <- return . E.filterWithKey (\n _ -> n `elem` tgtNames) =<< exprEnv
 
@@ -77,9 +76,9 @@ mkApplyFuncAndTypes tyn tgtNames = do
 
     mkApplyFuncAndTypes' tyn funcT (FuncInterps M.empty) (AT.empty)
 
-mkApplyFuncAndTypes' :: [(Type, Name)]
+mkApplyFuncAndTypes' :: ExState s m => [(Type, Name)]
                      -> [(Name, Type)] -> FuncInterps -> AT.ApplyTypes
-                     -> SimpleStateM (FuncInterps, AT.ApplyTypes)
+                     -> m (FuncInterps, AT.ApplyTypes)
 mkApplyFuncAndTypes' [] _ fi at = return (fi, at)
 mkApplyFuncAndTypes' ((t, n):xs) funcT (FuncInterps fi) at = do
     let funcFolds = foldr (\(n', t') accs ->
@@ -116,7 +115,7 @@ mkApplyFuncAndTypes' ((t, n):xs) funcT (FuncInterps fi) at = do
     mkApplyFuncAndTypes' xs funcT (FuncInterps fi') at2
 
 -- Makes a function to map the apply types to the cooresponding Apply Functions
-mkApplyTypeMap :: [(Name, (Name, Type, M.Map Name Type))] -> Type -> Type -> SimpleStateM Expr
+mkApplyTypeMap :: ExState s m => [(Name, (Name, Type, M.Map Name Type))] -> Type -> Type -> m Expr
 mkApplyTypeMap appToFunc appT funcT = do
     caseId <- freshIdN appT
     lamId <- freshIdN appT

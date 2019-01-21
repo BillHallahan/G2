@@ -12,22 +12,22 @@ import G2.Initialization.InitVarLocs
 import G2.Initialization.StructuralEq
 import G2.Initialization.Types
 
-runInitialization :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> TypeClasses -> [Type] -> [Name] ->
+runInitialization :: SimpleState -> [Type] -> [Name] ->
     (SimpleState, FuncInterps, ApplyTypes, Walkers)
-runInitialization eenv tenv ng kv tc ts tgtNames =
+runInitialization s@(SimpleState { expr_env = eenv
+                                 , type_env = tenv
+                                 , name_gen = ng }) ts tgtNames =
     let
         eenv2 = elimTypeSyms tenv eenv
         tenv2 = elimTypeSymsTEnv tenv
         (eenv3, ng2, ds_walkers) = createDeepSeqWalks eenv2 tenv2 ng
 
-        s = SimpleState { expr_env = eenv3
-                        , type_env = tenv2
-                        , name_gen = ng2
-                        , known_values = kv
-                        , type_classes = tc }
+        s' = s { expr_env = eenv3
+               , type_env = tenv2
+               , name_gen = ng2 }
 
-        s' = execSimpleStateM (createStructEqFuncs ts) s
-        ((ft, at), s'') = runSimpleStateM (functionalize ts tgtNames) s'
-        s''' = elimTicks . initVarLocs $ s''
+        s'' = execSimpleStateM (createStructEqFuncs ts) s'
+        ((ft, at), s''') = runSimpleStateM (functionalize ts tgtNames) s''
+        s'''' = elimTicks . initVarLocs $ s'''
     in
-    (s''', ft, at, ds_walkers)
+    (s'''', ft, at, ds_walkers)

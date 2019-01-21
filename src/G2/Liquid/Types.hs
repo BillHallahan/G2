@@ -151,13 +151,14 @@ instance ExState LHState LHStateM where
     putNameGen = rep_name_genM
 
     knownValues = return . known_values =<< SM.get
+    putKnownValues = rep_known_valuesM
+
+    typeClasses = return . type_classes =<< SM.get
+    putTypeClasses = rep_type_classesM
 
 instance FullState LHState LHStateM where
     currExpr = return . curr_expr =<< SM.get
     putCurrExpr = rep_curr_exprM
-
-    typeClasses = return . type_classes =<< SM.get
-    putTypeClasses = rep_type_classesM
 
     inputIds = return . input_ids =<< SM.get
     fixedInputs = return . fixed_inputs =<< SM.get
@@ -206,6 +207,13 @@ rep_name_genM ng = do
 
 known_values :: LHState -> L.KnownValues
 known_values = liftState L.known_values
+
+rep_known_valuesM :: L.KnownValues -> LHStateM ()
+rep_known_valuesM kv = do
+    lh_s <- SM.get
+    let s = state lh_s
+    let s' = s {L.known_values = kv}
+    SM.put $ lh_s {state = s'}
 
 curr_expr :: LHState -> L.CurrExpr
 curr_expr = liftState L.curr_expr

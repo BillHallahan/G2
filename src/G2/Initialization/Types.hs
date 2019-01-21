@@ -6,15 +6,13 @@ module G2.Initialization.Types ( SimpleState (..)
                                , runSimpleStateM
                                , evalSimpleStateM
                                , execSimpleStateM
-                               , typeClasses
-                               , putTypeClasses
                                , putKnownValues ) where
 
 import qualified Control.Monad.State.Lazy as SM
 
 import qualified G2.Language as L
 import G2.Language.AST
-import G2.Language.Monad hiding (typeClasses, putTypeClasses)
+import G2.Language.Monad
 import G2.Language.Syntax
 
 data SimpleState = SimpleState { expr_env :: L.ExprEnv
@@ -39,6 +37,10 @@ instance ExState SimpleState SimpleStateM where
     putNameGen = rep_name_genM
 
     knownValues = return . known_values =<< SM.get
+    putKnownValues = rep_known_valuesM
+
+    typeClasses = return . type_classes =<< SM.get
+    putTypeClasses = rep_type_classesM
 
 runSimpleStateM :: SimpleStateM a -> SimpleState -> (a, SimpleState)
 runSimpleStateM (SimpleStateM s) s' = SM.runState s s'
@@ -64,18 +66,15 @@ rep_name_genM ng = do
     s <- SM.get
     SM.put $ s {name_gen = ng}
 
-typeClasses :: SimpleStateM L.TypeClasses
-typeClasses = return . type_classes =<< SM.get
-
-putTypeClasses :: L.TypeClasses -> SimpleStateM ()
-putTypeClasses tc = do
-    s <- SM.get
-    SM.put $ s {type_classes = tc}
-
-putKnownValues :: L.KnownValues -> SimpleStateM ()
-putKnownValues kv = do
+rep_known_valuesM :: L.KnownValues -> SimpleStateM ()
+rep_known_valuesM kv = do
     s <- SM.get
     SM.put $ s {known_values = kv}
+
+rep_type_classesM :: L.TypeClasses -> SimpleStateM ()
+rep_type_classesM tc = do
+    s <- SM.get
+    SM.put $ s {type_classes = tc}
 
 instance ASTContainer SimpleState Expr where
     containedASTs s =  containedASTs (expr_env s)

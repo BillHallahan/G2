@@ -3,7 +3,6 @@
 
 module G2.Initialization.StructuralEq (createStructEqFuncs) where
 
-import qualified G2.Initialization.Types as IT
 import G2.Language
 import G2.Language.Monad
 import G2.Language.KnownValues
@@ -22,7 +21,7 @@ import qualified Data.Text as T
 -- those higher order functions are not checked for equality, and do not prevent
 -- the overall ADTs from being called structurally equal.
 -- Returns the name of the typeclass, and the function that checks for structural equality. 
-createStructEqFuncs :: [Type] -> IT.SimpleStateM ()
+createStructEqFuncs :: ExState s m => [Type] -> m ()
 createStructEqFuncs ts = do
     -- Create a name for the new type class, adt, and datacon
     tcn <- freshSeededStringN "structEq"
@@ -42,7 +41,7 @@ createStructEqFuncs ts = do
     -- Update KnownValues
     kv <- knownValues
     let kv' = kv { structEqTC = tcn, structEqFunc = ex }
-    IT.putKnownValues kv'
+    putKnownValues kv'
 
     tenv <- typeEnv
     -- For efficiency, we only generate structural equality when it's needed
@@ -58,13 +57,13 @@ createStructEqFuncs ts = do
     ns' <- freshSeededNamesN ns
     let nsT = zip tenvK $ map (flip Id (TyCon tcn TYPE)) ns'
 
-    tc <- IT.typeClasses
+    tc <- typeClasses
     tci <- freshIdN TYPE
 
     ins <- genInsts tcn nsT t dc $ M.toList tenv'
 
     let tc' = coerce . M.insert tcn (Class { insts = ins, typ_ids = [tci] }) $ coerce tc
-    IT.putTypeClasses tc'
+    putTypeClasses tc'
 
     F.mapM_ (\(n, n', adt) -> createStructEqFunc dcn n n' adt) $ zip3 ns' tenvK tenvV
 
@@ -73,7 +72,7 @@ tcaName (TyCon n _) = Just n
 tcaName (TyApp t _) = tcaName t
 tcaName _ = Nothing
 
-genExtractor :: Type -> DataCon  -> IT.SimpleStateM Name
+genExtractor :: ExState s m => Type -> DataCon  -> m Name
 genExtractor t dc = do
     lami <- freshIdN t
     ci <- freshIdN t
@@ -93,7 +92,7 @@ genExtractor t dc = do
     return extractN
 
 
-genInsts :: Name -> [(Name, Id)] -> Type -> DataCon -> [(Name, AlgDataTy)] -> IT.SimpleStateM [(Type, Id)]
+genInsts :: ExState s m => Name -> [(Name, Id)] -> Type -> DataCon -> [(Name, AlgDataTy)] -> m [(Type, Id)]
 genInsts _ _ _ _ [] = return []
 genInsts tcn nsT t dc ((n@(Name n' _ _ _), adt):xs) = do
     let bn = map idName $ bound_ids adt
@@ -124,7 +123,7 @@ genInsts tcn nsT t dc ((n@(Name n' _ _ _), adt):xs) = do
     return $ (mkTyApp (TyCon n bnvK:bnv), Id dn t):xs'
 
 
-createStructEqFunc :: Name -> Name -> Name -> AlgDataTy -> IT.SimpleStateM ()
+createStructEqFunc :: ExState s m => Name -> Name -> Name -> AlgDataTy -> m ()
 createStructEqFunc dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
     ns' <- freshSeededNamesN $ map idName ns
     let t = mkFullAppedTyCon tn (map (TyVar . flip Id TYPE) ns') TYPE
@@ -168,7 +167,7 @@ createStructEqFunc dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
     insertE fn e''
 createStructEqFunc _ _ _ (TypeSynonym {}) = error "Type synonym in createStructEqFunc"
 
-createStructEqFuncDC :: Type -> [Id] -> [Id] -> [(Name, (Id, Id))] -> [DataCon] -> IT.SimpleStateM Expr
+createStructEqFuncDC :: ExState s m => Type -> [Id] -> [Id] -> [(Name, (Id, Id))] -> [DataCon] -> m Expr
 createStructEqFuncDC t bt bd bm dc = do
     lam1I <- freshIdN t
     lam2I <- freshIdN t
@@ -181,7 +180,7 @@ createStructEqFuncDC t bt bd bm dc = do
     let e' = mkLams (map (TermL,) bd) e
     return $ mkLams (map (TypeL,) bt) e'
 
-createStructEqFuncDCAlt :: Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> IT.SimpleStateM Alt
+createStructEqFuncDCAlt :: ExState s m => Expr -> Type -> [(Name, (Id, Id))] ->  DataCon -> m Alt
 createStructEqFuncDCAlt e2 t bm dc@(DataCon _ _) = do
     false <- mkFalseE
 
@@ -197,7 +196,7 @@ createStructEqFuncDCAlt e2 t bm dc@(DataCon _ _) = do
 
     return $ Alt (DataAlt dc bs) (Case e2 b [alt2, altD])
 
-boundChecks :: [Id] -> [Id] -> [(Name, (Id, Id))] -> IT.SimpleStateM Expr
+boundChecks :: ExState s m => [Id] -> [Id] -> [(Name, (Id, Id))] -> m Expr
 boundChecks is1 is2 bm = do
     andE <- mkAndE
     true <- mkTrueE
@@ -206,11 +205,11 @@ boundChecks is1 is2 bm = do
 
     return $ foldr (\e -> App (App andE e)) true bc
 
-boundCheck :: [(Name, (Id, Id))] -> Id -> Id -> IT.SimpleStateM Expr
+boundCheck :: ExState s m => [(Name, (Id, Id))] -> Id -> Id -> m Expr
 boundCheck bm i1 i2 = do
     structEqCheck bm (typeOf i1) i1 i2
 
-structEqCheck :: [(Name, (Id, Id))] -> Type -> Id -> Id -> IT.SimpleStateM Expr
+structEqCheck :: ExState s m => [(Name, (Id, Id))] -> Type -> Id -> Id -> m Expr
 structEqCheck bm t i1 i2
     | TyCon _ _ <- tyAppCenter t = do
     kv <- knownValues
@@ -242,15 +241,15 @@ structEqCheck _ TyLitChar i1 i2 = do
     eq <- mkEqPrimCharE
     return $ App (App eq (Var i1)) (Var i2)
 structEqCheck _ (TyForAll _ _) _ _ = mkTrueE
-structEqCheck _ (TyFun _ _) i1 i2 = return $ App (App (Prim BindFunc TyUnknown) (Var i1)) (Var i2) -- mkTrueE
+structEqCheck _ (TyFun _ _) i1 i2 = return $ App (App (Prim BindFunc TyUnknown) (Var i1)) (Var i2)
 structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t
 
-dictForType :: [(Name, (Id, Id))] -> Type -> IT.SimpleStateM Expr
+dictForType :: ExState s m => [(Name, (Id, Id))] -> Type -> m Expr
 dictForType bm t
     | TyCon _ _ <- tyAppCenter t
     , ts <- tyAppArgs t = do
     kv <- knownValues
-    tc <- IT.typeClasses
+    tc <- typeClasses
 
     ds <- mapM (dictForType bm) ts
 

@@ -6,6 +6,7 @@ module G2.Interface.Interface ( doTimeout
 
                               , initStateSimple
                               , initState
+                              , initSimpleState
                               
                               , initRedHaltOrd
                               , initSolver
@@ -91,33 +92,28 @@ initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
           -> Config -> (State (), Id)
 initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config =
     let
-        eenv = mkExprEnv prog
-        tenv = mkTypeEnv prog_typ
-        tc = initTypeClasses cls
-        kv = initKnownValues eenv tenv
+        s = initSimpleState prog prog_typ cls
 
-        (ie, fe) = case findFunc f m_mod eenv of
+        (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
               Left ie' -> ie'
-              Right s -> error s
-        (_, ts) = instantiateArgTypes tc kv fe
+              Right errs -> error errs
+        (_, ts) = instantiateArgTypes (IT.type_classes s) (IT.known_values s) fe
 
-        ng = mkNameGen (prog, prog_typ)
-
-        (s', ft, at, ds_walkers) = runInitialization eenv tenv ng kv tc ts tgtNames
+        (s', ft, at, ds_walkers) = runInitialization s ts tgtNames
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
-        (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert (idName ie) m_mod tc ng' eenv' ds_walkers kv config
+        (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert (idName ie) m_mod tc' ng' eenv' ds_walkers kv' config
     in
     (State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , name_gen =  ng''
-    , path_conds = PC.fromList kv $ map PCExists is
+    , path_conds = PC.fromList kv' $ map PCExists is
     , non_red_path_conds = []
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
@@ -139,6 +135,24 @@ initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config 
     , tags = S.empty
  }
  , ie)
+
+initSimpleState :: Program
+                -> [ProgramType]
+                -> [(Name, Id, [Id])]
+                -> IT.SimpleState
+initSimpleState prog prog_typ cls =
+    let
+        eenv = mkExprEnv prog
+        tenv = mkTypeEnv prog_typ
+        tc = initTypeClasses cls
+        kv = initKnownValues eenv tenv
+        ng = mkNameGen (prog, prog_typ)
+    in
+    IT.SimpleState { IT.expr_env = eenv
+                   , IT.type_env = tenv
+                   , IT.name_gen = ng
+                   , IT.known_values = kv
+                   , IT.type_classes = tc }
 
 initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
