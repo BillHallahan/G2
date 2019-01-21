@@ -1,9 +1,7 @@
 module G2.Initialization.Interface where
 
-import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Support hiding (State (..))
-import G2.Language.TypeClasses
 import G2.Initialization.DeepSeqWalks
 import G2.Initialization.ElimTicks
 import G2.Initialization.ElimTypeSynonyms
