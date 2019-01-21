@@ -216,10 +216,10 @@ ppExprEnv s@(State {expr_env = eenv}) =
 -- | ppRelExprEnv
 -- Prints all variable definitions from the expression environment,
 -- that are required to understand the curr expr and path constraints
-ppRelExprEnv :: State t -> String
-ppRelExprEnv s =
+ppRelExprEnv :: State t -> Bindings -> String
+ppRelExprEnv s bindings =
     let
-        s' = markAndSweep s
+        (s', bindings') = markAndSweep s bindings
     in
     ppExprEnv s'
 
@@ -264,7 +264,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
-    walkers_str = show (deepseq_walkers ex_state)
+    -- walkers_str = show (deepseq_walkers ex_state)
     appty_str = show (apply_types ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     model_str = pprModelStr (model ex_state)
@@ -285,8 +285,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , "----- [Func Table] ----------------"
                , funcs_str
                , "----- [Walkers] -------------------"
-               , walkers_str
-               , "----- [Paths] ---------------------"
+               -- , walkers_str
+               -- , "----- [Paths] ---------------------"
                , paths_str
                , "----- [Non Red Paths] ---------------------"
                , non_red_paths_str

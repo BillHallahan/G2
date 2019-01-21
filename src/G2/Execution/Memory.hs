@@ -11,25 +11,26 @@ import G2.Language.ExprEnv as E
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 
-markAndSweep :: State t -> State t
+markAndSweep :: State t -> Bindings -> (State t, Bindings)
 markAndSweep = markAndSweepPreserving []
 
-markAndSweepPreserving :: [Name] -> State t -> State t
+markAndSweepPreserving :: [Name] -> State t -> Bindings -> (State t, Bindings)
 markAndSweepPreserving ns (state@State { expr_env = eenv
                                        , type_env = tenv
                                        , curr_expr = cexpr
                                        , path_conds = pc
                                        , symbolic_ids = iids
-                                       , deepseq_walkers = dsw
+                                       -- , deepseq_walkers = dsw
                                        , exec_stack = es
                                        , known_values = kv
-                                       }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
-                               state'
+                                       }) (bindings@Bindings {deepseq_walkers = dsw}) = -- error $ show $ length $ take 20 $ PC.toList path_conds
+                               (state', bindings')
   where
     state' = state { expr_env = eenv'
                    , type_env = tenv'
-                   , deepseq_walkers = dsw'
+                   --, deepseq_walkers = dsw'
                    }
+    bindings' = bindings { deepseq_walkers = dsw'}
 
     active = activeNames tenv eenv S.empty $ names cexpr ++
                                                    names es ++

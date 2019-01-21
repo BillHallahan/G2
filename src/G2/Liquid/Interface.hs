@@ -79,8 +79,9 @@ runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [
                     -> Config
                     -> IO ([ExecRes [FuncCall]], Lang.Id)
 runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
-    let (init_state, ifi) = initState prog tys cls Nothing Nothing True entry mb_modname ex config
-    let cleaned_state = (markAndSweepPreserving (reqNames init_state) init_state) { type_env = type_env init_state }
+    let (init_state, ifi, bindings) = initState prog tys cls Nothing Nothing True entry mb_modname ex config
+    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state) init_state bindings)
+    let cleaned_state = init_state' { type_env = type_env init_state } 
 
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = cleaned_state
 
@@ -94,7 +95,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
 
     let lh_state = createLHState meenv mkv ng_state'
 
-    let (cfn, merged_state) = runLHStateM (initializeLH ghci_cg ifi) lh_state
+    let (cfn, merged_state) = runLHStateM (initializeLH ghci_cg ifi bindings') lh_state
 
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
@@ -138,7 +139,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st
+                    con (pres_names ++ names annm) final_st bindings'
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -153,7 +154,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st
+                    con (pres_names ++ names annm) final_st bindings'
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -177,8 +178,8 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
 
     return (states, ifi)
 
-initializeLH :: [LHOutput] -> Lang.Id -> LHStateM Lang.Name
-initializeLH ghci_cg ifi = do
+initializeLH :: [LHOutput] -> Lang.Id -> Bindings -> LHStateM Lang.Name
+initializeLH ghci_cg ifi bindings = do
     let ghcInfos = map ghcI ghci_cg
 
     addLHTC
@@ -199,7 +200,7 @@ initializeLH ghci_cg ifi = do
     -- so we apply the simplification first
     simplify
 
-    ns <- convertCurrExpr ifi
+    ns <- convertCurrExpr ifi bindings
 
     cfn <- addCounterfactualBranch ns
 

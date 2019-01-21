@@ -46,10 +46,10 @@ data State t = State { expr_env :: E.ExprEnv
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
                      , input_ids :: InputIds
-                     , fixed_inputs :: [Expr]
+                     -- , fixed_inputs :: [Expr]
                      , symbolic_ids :: SymbolicIds
                      , func_table :: FuncInterps
-                     , deepseq_walkers :: Walkers
+                     -- , deepseq_walkers :: Walkers
                      , apply_types :: AT.ApplyTypes
                      , exec_stack :: Stack Frame
                      , model :: Model
@@ -61,6 +61,8 @@ data State t = State { expr_env :: E.ExprEnv
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
                      , track :: t
                      } deriving (Show, Eq, Read)
+
+data Bindings = Bindings { deepseq_walkers :: Walkers, fixed_inputs :: [Expr] } deriving (Show, Eq, Read)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
 -- function being symbolically executed
@@ -149,11 +151,11 @@ renameState old new_seed s =
              , assert_ids = rename old new (assert_ids s)
              , type_classes = rename old new (type_classes s)
              , input_ids = rename old new (input_ids s)
-             , fixed_inputs = rename old new (fixed_inputs s)
+             -- , fixed_inputs = rename old new (fixed_inputs s)
              , symbolic_ids = rename old new (symbolic_ids s)
              , func_table = rename old new (func_table s)
              , apply_types = rename old new (apply_types s)
-             , deepseq_walkers = rename old new (deepseq_walkers s)
+             -- , deepseq_walkers = rename old new (deepseq_walkers s)
              , exec_stack = exec_stack s
              , model = model s
              , arb_value_gen = arb_value_gen s
@@ -172,11 +174,11 @@ instance Named t => Named (State t) where
             ++ names (assert_ids s)
             ++ names (type_classes s)
             ++ names (input_ids s)
-            ++ names (fixed_inputs s)
+            -- ++ names (fixed_inputs s)
             ++ names (symbolic_ids s)
             ++ names (func_table s)
             ++ names (apply_types s)
-            ++ names (deepseq_walkers s)
+            -- ++ names (deepseq_walkers s)
             ++ names (exec_stack s)
             ++ names (model s)
             ++ names (known_values s)
@@ -196,11 +198,11 @@ instance Named t => Named (State t) where
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
                , input_ids = rename old new (input_ids s)
-               , fixed_inputs = rename old new (fixed_inputs s)
+               -- , fixed_inputs = rename old new (fixed_inputs s)
                , symbolic_ids = rename old new (symbolic_ids s)
                , func_table = rename old new (func_table s)
                , apply_types = rename old new (apply_types s)
-               , deepseq_walkers = rename old new (deepseq_walkers s)
+               -- , deepseq_walkers = rename old new (deepseq_walkers s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
                , arb_value_gen = arb_value_gen s
@@ -224,11 +226,11 @@ instance Named t => Named (State t) where
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
                , input_ids = renames hm (input_ids s)
-               , fixed_inputs = renames hm (fixed_inputs s)
+               -- , fixed_inputs = renames hm (fixed_inputs s)
                , symbolic_ids = renames hm (symbolic_ids s)
                , func_table = renames hm (func_table s)
                , apply_types = renames hm (apply_types s)
-               , deepseq_walkers = renames hm (deepseq_walkers s)
+               -- , deepseq_walkers = renames hm (deepseq_walkers s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
                , arb_value_gen = arb_value_gen s
@@ -246,7 +248,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ input_ids s) ++
-                      (containedASTs $ fixed_inputs s) ++
+                      -- (containedASTs $ fixed_inputs s) ++
                       (containedASTs $ symbolic_ids s) ++
                       (containedASTs $ exec_stack s) ++
                       (containedASTs $ track s)
@@ -257,7 +259,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , input_ids = modifyContainedASTs f $ input_ids s
-                                , fixed_inputs = modifyContainedASTs f $ fixed_inputs s
+                                -- , fixed_inputs = modifyContainedASTs f $ fixed_inputs s
                                 , symbolic_ids = modifyContainedASTs f $ symbolic_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s }
@@ -270,7 +272,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . input_ids) s) ++
-                      ((containedASTs . fixed_inputs) s) ++
+                      -- ((containedASTs . fixed_inputs) s) ++
                       ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . exec_stack) s) ++
                       (containedASTs $ track s)
@@ -282,10 +284,35 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , input_ids = (modifyContainedASTs f . input_ids) s
-                                , fixed_inputs = (modifyContainedASTs f . fixed_inputs) s
+                                -- , fixed_inputs = (modifyContainedASTs f . fixed_inputs) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s }
+
+instance Named Bindings where
+    names b = names (fixed_inputs b)
+            ++ names (deepseq_walkers b)
+
+    rename old new b =
+        Bindings { fixed_inputs = rename old new (fixed_inputs b)
+               , deepseq_walkers = rename old new (deepseq_walkers b)
+               }
+
+    renames hm b =
+        Bindings { fixed_inputs = renames hm (fixed_inputs b)
+               , deepseq_walkers = renames hm (deepseq_walkers b)
+               }
+
+instance ASTContainer Bindings Expr where
+    containedASTs b = (containedASTs $ fixed_inputs b)
+
+    modifyContainedASTs f b = b {fixed_inputs = modifyContainedASTs f $ fixed_inputs b}
+
+instance ASTContainer Bindings Type where
+    containedASTs b = ((containedASTs . fixed_inputs) b)
+
+    modifyContainedASTs f b = b { fixed_inputs = (modifyContainedASTs f . fixed_inputs) b}
+
 
 instance ASTContainer CurrExpr Expr where
     containedASTs (CurrExpr _ e) = [e]
