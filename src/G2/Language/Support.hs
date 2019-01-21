@@ -289,6 +289,31 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s }
 
+instance Named Bindings where
+    names b = names (fixed_inputs b)
+            ++ names (deepseq_walkers b)
+
+    rename old new b =
+        Bindings { fixed_inputs = rename old new (fixed_inputs b)
+               , deepseq_walkers = rename old new (deepseq_walkers b)
+               }
+
+    renames hm b =
+        Bindings { fixed_inputs = renames hm (fixed_inputs b)
+               , deepseq_walkers = renames hm (deepseq_walkers b)
+               }
+
+instance ASTContainer Bindings Expr where
+    containedASTs b = (containedASTs $ fixed_inputs b)
+
+    modifyContainedASTs f b = b {fixed_inputs = modifyContainedASTs f $ fixed_inputs b}
+
+instance ASTContainer Bindings Type where
+    containedASTs b = ((containedASTs . fixed_inputs) b)
+
+    modifyContainedASTs f b = b { fixed_inputs = (modifyContainedASTs f . fixed_inputs) b}
+
+
 instance ASTContainer CurrExpr Expr where
     containedASTs (CurrExpr _ e) = [e]
     modifyContainedASTs f (CurrExpr er e) = CurrExpr er (f e)

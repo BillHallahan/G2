@@ -82,13 +82,13 @@ initStateSimple :: Program
                 -> ModuleName
                 -> [Name]
                 -> Config
-                -> (State (), Id)
+                -> (State (), Id, Bindings)
 initStateSimple prog prog_typ cls f m_mod tgtNames config =
     initState prog prog_typ cls Nothing Nothing False f m_mod tgtNames config
 
 initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
           -> Maybe AssertFunc -> Bool -> StartFunc -> ModuleName -> [Name]
-          -> Config -> (State (), Id)
+          -> Config -> (State (), Id, Bindings)
 initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config =
     let
         eenv = mkExprEnv prog
@@ -138,7 +138,10 @@ initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config 
     , track = ()
     , tags = S.empty
  }
- , ie)
+ , ie
+ , Bindings {
+    deepseq_walkers = ds_walkers
+  , fixed_inputs = f_i})
 
 initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
@@ -190,7 +193,7 @@ initialStateFromFileSimple :: FilePath
                    -> [FilePath]
                    -> StartFunc
                    -> Config
-                   -> IO (State (), Id)
+                   -> IO (State (), Id, Bindings)
 initialStateFromFileSimple proj src libs f config =
     initialStateFromFile proj src libs Nothing Nothing Nothing False f config
 
@@ -203,14 +206,14 @@ initialStateFromFile :: FilePath
                      -> Bool
                      -> StartFunc
                      -> Config
-                     -> IO (State (), Id)
+                     -> IO (State (), Id, Bindings)
 initialStateFromFile proj src libs m_assume m_assert m_reach def_assert f config = do
     (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src libs True config
-    let (init_s, ent_f) = initState binds tycons cls m_assume m_assert def_assert
+    let (init_s, ent_f, bindings) = initState binds tycons cls m_assume m_assert def_assert
                                     f mb_modname ex config
         reaches_state = initCheckReaches init_s mb_modname m_reach
 
-    return (reaches_state, ent_f)
+    return (reaches_state, ent_f, bindings)
 
 runG2FromFile :: FilePath
               -> FilePath
@@ -223,20 +226,20 @@ runG2FromFile :: FilePath
               -> Config
               -> IO ([ExecRes ()], Id)
 runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
-    (init_state, entry_f) <- initialStateFromFile proj src libs m_assume
+    (init_state, entry_f, bindings) <- initialStateFromFile proj src libs m_assume
                                     m_assert m_reach def_assert f config
 
-    r <- runG2WithConfig init_state config
+    r <- runG2WithConfig init_state config bindings
 
     return (r, entry_f)
 
-runG2WithConfig :: State () -> Config -> IO [ExecRes ()]
-runG2WithConfig state config = do
+runG2WithConfig :: State () -> Config -> Bindings -> IO [ExecRes ()]
+runG2WithConfig state config bindings = do
     SomeSolver con <- initSolver config
 
     in_out <- case initRedHaltOrd con config of
                 (red, hal, ord) ->
-                    runG2WithSomes red hal ord con [] state
+                    runG2WithSomes red hal ord con [] state bindings
 
     close con
 
@@ -252,11 +255,12 @@ runG2WithSomes :: ( Named t
                -> solver
                -> [Name]
                -> State t
+               -> Bindings
                -> IO [ExecRes t]
-runG2WithSomes red hal ord con pns state =
+runG2WithSomes red hal ord con pns state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-            runG2 red' hal' ord' con pns state
+            runG2 red' hal' ord' con pns state bindings
 
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
@@ -267,12 +271,12 @@ runG2 :: ( Named t
          , Halter h hv t
          , Orderer or sov b t
          , Solver solver) => r -> h -> or ->
-         solver -> [Name] -> State t -> IO [ExecRes t]
+         solver -> [Name] -> State t -> Bindings -> IO [ExecRes t]
 runG2 red hal ord con pns (is@State { type_env = tenv
                                     , known_values = kv
                                     , apply_types = at
-                                    , type_classes = tc }) = do
-    let swept = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is
+                                    , type_classes = tc }) bindings = do
+    let (swept, bindings') = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is bindings
 
     let preproc_state = runPreprocessing swept
 
@@ -293,17 +297,20 @@ runG2 red hal ord con pns (is@State { type_env = tenv
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
-                        , violated = ais }) $ ident_states''
+                        , violated = ais
+                        , exec_bindings = bindings'}) $ ident_states''
 
     let sm' = map (\sm''@(ExecRes {final_state = s}) -> runPostprocessing s sm'') sm
 
     let sm'' = map (\ExecRes { final_state = s
                              , conc_args = es
                              , conc_out = e
-                             , violated = ais } ->
+                             , violated = ais
+                             , exec_bindings = b} ->
                                   ExecRes { final_state = s
-                                          , conc_args = fixed_inputs s ++ es
+                                          , conc_args = fixed_inputs b ++ es
                                           , conc_out = evalPrims kv tenv e
-                                          , violated = evalPrims kv tenv ais }) sm'
+                                          , violated = evalPrims kv tenv ais
+                                          , exec_bindings = b}) sm'
 
     return sm''

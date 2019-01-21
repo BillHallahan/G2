@@ -216,10 +216,10 @@ ppExprEnv s@(State {expr_env = eenv}) =
 -- | ppRelExprEnv
 -- Prints all variable definitions from the expression environment,
 -- that are required to understand the curr expr and path constraints
-ppRelExprEnv :: State t -> String
-ppRelExprEnv s =
+ppRelExprEnv :: State t -> Bindings -> String
+ppRelExprEnv s bindings =
     let
-        s' = markAndSweep s
+        (s', bindings') = markAndSweep s bindings
     in
     ppExprEnv s'
 

@@ -52,9 +52,9 @@ checkInputOutput'' :: FilePath
 checkInputOutput'' proj src md entry i req config = do
     (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src [] True config
 
-    let (init_state, _) = initState binds tycons cls Nothing Nothing False (T.pack entry) mb_modname ex config
+    let (init_state, _, bindings) = initState binds tycons cls Nothing Nothing False (T.pack entry) mb_modname ex config
     
-    r <- runG2WithConfig init_state config
+    r <- runG2WithConfig init_state config bindings
 
     let chAll = checkExprAll req
     mr <- validateStates proj src md entry chAll [] r
