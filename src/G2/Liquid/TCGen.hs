@@ -17,10 +17,10 @@ import qualified Data.Text as T
 -- | Creates an LHState.  This involves building a TCValue, and
 -- creating the new LH TC which checks equality, and has a function to
 -- check refinements of polymophic types
-createLHState :: Measures -> KnownValues -> State [FuncCall] -> LHState
-createLHState meenv mkv s =
+createLHState :: Measures -> KnownValues -> State [FuncCall] -> Bindings -> LHState
+createLHState meenv mkv s b =
     let
-        (tcv, s') = runStateM (createTCValues mkv) s
+        (tcv, (s', b')) = runStateM (createTCValues mkv) s b
 
         lh_s = consLHState s' meenv tcv
     in

@@ -46,10 +46,8 @@ data State t = State { expr_env :: E.ExprEnv
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
                      , input_ids :: InputIds
-                     -- , fixed_inputs :: [Expr]
                      , symbolic_ids :: SymbolicIds
                      , func_table :: FuncInterps
-                     -- , deepseq_walkers :: Walkers
                      , apply_types :: AT.ApplyTypes
                      , exec_stack :: Stack Frame
                      , model :: Model

@@ -93,7 +93,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
 
     let ng_state' = ng_state {track = []}
 
-    let lh_state = createLHState meenv mkv ng_state'
+    let lh_state = createLHState meenv mkv ng_state' bindings'
 
     let (cfn, merged_state) = runLHStateM (initializeLH ghci_cg ifi bindings') lh_state
 
@@ -165,11 +165,13 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     let states = map (\(ExecRes { final_state = s
                                 , conc_args = es
                                 , conc_out = e
-                                , violated = ais}) ->
+                                , violated = ais
+                                , exec_bindings = b}) ->
                           (ExecRes { final_state = s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}
                                    , conc_args = es
                                    , conc_out = e
-                                   , violated = ais })) ret'
+                                   , violated = ais
+                                   , exec_bindings = b})) ret'
 
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
     -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
