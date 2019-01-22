@@ -149,11 +149,9 @@ renameState old new_seed s =
              , assert_ids = rename old new (assert_ids s)
              , type_classes = rename old new (type_classes s)
              , input_ids = rename old new (input_ids s)
-             -- , fixed_inputs = rename old new (fixed_inputs s)
              , symbolic_ids = rename old new (symbolic_ids s)
              , func_table = rename old new (func_table s)
              , apply_types = rename old new (apply_types s)
-             -- , deepseq_walkers = rename old new (deepseq_walkers s)
              , exec_stack = exec_stack s
              , model = model s
              , arb_value_gen = arb_value_gen s
@@ -172,11 +170,9 @@ instance Named t => Named (State t) where
             ++ names (assert_ids s)
             ++ names (type_classes s)
             ++ names (input_ids s)
-            -- ++ names (fixed_inputs s)
             ++ names (symbolic_ids s)
             ++ names (func_table s)
             ++ names (apply_types s)
-            -- ++ names (deepseq_walkers s)
             ++ names (exec_stack s)
             ++ names (model s)
             ++ names (known_values s)
@@ -196,11 +192,9 @@ instance Named t => Named (State t) where
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
                , input_ids = rename old new (input_ids s)
-               -- , fixed_inputs = rename old new (fixed_inputs s)
                , symbolic_ids = rename old new (symbolic_ids s)
                , func_table = rename old new (func_table s)
                , apply_types = rename old new (apply_types s)
-               -- , deepseq_walkers = rename old new (deepseq_walkers s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
                , arb_value_gen = arb_value_gen s
@@ -224,11 +218,9 @@ instance Named t => Named (State t) where
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
                , input_ids = renames hm (input_ids s)
-               -- , fixed_inputs = renames hm (fixed_inputs s)
                , symbolic_ids = renames hm (symbolic_ids s)
                , func_table = renames hm (func_table s)
                , apply_types = renames hm (apply_types s)
-               -- , deepseq_walkers = renames hm (deepseq_walkers s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
                , arb_value_gen = arb_value_gen s
@@ -246,7 +238,6 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ input_ids s) ++
-                      -- (containedASTs $ fixed_inputs s) ++
                       (containedASTs $ symbolic_ids s) ++
                       (containedASTs $ exec_stack s) ++
                       (containedASTs $ track s)
@@ -257,7 +248,6 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , input_ids = modifyContainedASTs f $ input_ids s
-                                -- , fixed_inputs = modifyContainedASTs f $ fixed_inputs s
                                 , symbolic_ids = modifyContainedASTs f $ symbolic_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s }
@@ -270,7 +260,6 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . input_ids) s) ++
-                      -- ((containedASTs . fixed_inputs) s) ++
                       ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . exec_stack) s) ++
                       (containedASTs $ track s)
@@ -282,7 +271,6 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , input_ids = (modifyContainedASTs f . input_ids) s
-                                -- , fixed_inputs = (modifyContainedASTs f . fixed_inputs) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s }

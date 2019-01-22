@@ -55,37 +55,33 @@ class ExState s m => FullState s m | m -> s where
     fixedInputs :: m [Expr]
 
 instance ExState (State t, Bindings) (StateM t) where
-    exprEnv = readRecord (\(s, b) -> expr_env s)
+    exprEnv = readRecord (\(s, _) -> expr_env s)
     putExprEnv = rep_expr_envM
 
-    typeEnv = readRecord (\(s, b) -> type_env s)
+    typeEnv = readRecord (\(s, _) -> type_env s)
     putTypeEnv = rep_type_envM
 
-    nameGen = readRecord (\(s, b) -> name_gen s)
+    nameGen = readRecord (\(s, _) -> name_gen s)
     putNameGen = rep_name_genM
 
-    knownValues = readRecord (\(s, b) -> known_values s)
+    knownValues = readRecord (\(s, _) -> known_values s)
     putKnownValues = rep_known_valuesM
 
-    typeClasses = readRecord (\(s, b) -> type_classes s)
+    typeClasses = readRecord (\(s, _) -> type_classes s)
     putTypeClasses = rep_type_classesM
 
 instance FullState (State t, Bindings) (StateM t) where
-    currExpr = readRecord (\(s, b) -> curr_expr s)
+    currExpr = readRecord (\(s, _) -> curr_expr s)
     putCurrExpr = rep_curr_exprM
 
-    inputIds = readRecord (\(s, b) -> input_ids s)
-    fixedInputs = readRecord (\(s,b) -> fixed_inputs b)
+    inputIds = readRecord (\(s, _) -> input_ids s)
+    fixedInputs = readRecord (\(_,b) -> fixed_inputs b)
 
 runStateM :: StateM t a -> State t -> Bindings -> (a, (State t, Bindings))
 runStateM (StateM s) s' b = SM.runState s (s', b)
 
 readRecord :: SM.MonadState s m => (s -> r) -> m r
 readRecord f = return . f =<< SM.get
-
--- f =<< SM.get = do
-    -- x <- SM.get -- (s,b)
-    --f (s,b)
 
 rep_expr_envM :: ExprEnv -> StateM t ()
 rep_expr_envM eenv = do
