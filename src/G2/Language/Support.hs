@@ -25,7 +25,7 @@ import G2.Language.Stack
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
-import G2.Language.PathConds hiding (map)
+import G2.Language.PathConds hiding (map, filter)
 import G2.Execution.RuleTypes
 
 import qualified Data.Map as M

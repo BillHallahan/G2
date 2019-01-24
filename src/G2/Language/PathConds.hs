@@ -12,6 +12,7 @@ module G2.Language.PathConds ( PathCond (..)
                                        , fromList
                                        , map
                                        , map'
+                                       , filter
                                        , insert
                                        , null
                                        , number
@@ -35,7 +36,7 @@ import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
-import Prelude hiding (map, null)
+import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
 
 -- In the implementation:
@@ -89,6 +90,12 @@ map f = PathConds . M.map (\(pc, ns) -> (HS.map f pc, ns)) . toMap
 
 map' :: (PathCond -> a) -> PathConds -> [a]
 map' f = L.map f . toList
+
+filter :: (PathCond -> Bool) -> PathConds -> PathConds
+filter f = PathConds 
+         . M.filter (not . HS.null . fst)
+         . M.map (\(pc, ns) -> (HS.filter f pc, ns))
+         . toMap
 
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each

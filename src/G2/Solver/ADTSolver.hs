@@ -12,7 +12,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
-import G2.Language.PathConds hiding (map, null)
+import G2.Language.PathConds hiding (map, filter, null)
 import qualified G2.Language.PathConds as PC
 import G2.Language.Typing
 import G2.Solver.Solver
