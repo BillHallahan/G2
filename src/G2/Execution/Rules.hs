@@ -577,14 +577,15 @@ retAssertFrame s e1 ais e2 stck =
         s' = s { curr_expr = CurrExpr Evaluate e2
                , exec_stack = stck}
 
-        cond = [ExtCond e1 True]
+        condt = [ExtCond e1 True]
+        condf = [ExtCond e1 False]
 
         strue = NewPC { state = s'
-                      , new_pcs = cond }
+                      , new_pcs = condt }
 
         sfalse = NewPC { state = s' { true_assert = True
                                     , assert_ids = ais }
-                       , new_pcs = map PC.negatePC cond }
+                       , new_pcs = condf }
     in
     ( RuleReturnCAssert
     , [strue, sfalse] )

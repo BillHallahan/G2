@@ -7,11 +7,9 @@ module G2.Language.PathConds ( PathCond (..)
                                        , Constraint
                                        , Assertion
                                        , PathConds
-                                       , negatePC
                                        , empty
                                        , fromList
                                        , map
-                                       , map'
                                        , filter
                                        , insert
                                        , null
@@ -67,12 +65,6 @@ type Assertion = PathCond
 
 instance Hashable PathCond
 
-negatePC :: PathCond -> PathCond
-negatePC (AltCond am e b) = AltCond am e (not b)
-negatePC (ExtCond e b) = ExtCond e (not b)
-negatePC (ConsCond dc e b) = ConsCond dc e (not b)
-negatePC pc = pc
-
 {-# INLINE toMap #-}
 toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet PathCond, [Name])
 toMap = coerce
@@ -85,11 +77,8 @@ empty = PathConds M.empty
 fromList :: KV.KnownValues -> [PathCond] -> PathConds
 fromList kv = coerce . foldr (insert kv) empty
 
-map :: (PathCond -> PathCond) -> PathConds -> PathConds
-map f = PathConds . M.map (\(pc, ns) -> (HS.map f pc, ns)) . toMap
-
-map' :: (PathCond -> a) -> PathConds -> [a]
-map' f = L.map f . toList
+map :: (PathCond -> a) -> PathConds -> [a]
+map f = L.map f . toList
 
 filter :: (PathCond -> Bool) -> PathConds -> PathConds
 filter f = PathConds 
@@ -157,7 +146,7 @@ relatedSets' kv pc ns =
       k:_ ->
           let
               s = scc [k] pc
-              ns' = concat $ map' (varNamesInPC kv) s
+              ns' = concat $ map (varNamesInPC kv) s
           in
           s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []

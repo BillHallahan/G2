@@ -99,7 +99,7 @@ solveRelated' sol s m is [] =
     in
     return (SAT, Just m', sol)
 solveRelated' sol s m is (p:ps) = do
-    let is' = concat $ PC.map' (PC.varIdsInPC (known_values s)) p
+    let is' = concat $ PC.map (PC.varIdsInPC (known_values s)) p
     let is'' = ids p
     rm <- solveTr sol s is' p
     case rm of
