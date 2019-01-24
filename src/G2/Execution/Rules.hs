@@ -112,7 +112,7 @@ reduceNewPC solver
             return $ Just s'
         else
             return Nothing
-    | otherwise = return  $ Just s
+    | otherwise = return $ Just s
 
 evalVar :: State t -> Id -> (Rule, [State t])
 evalVar s@(State { expr_env = eenv

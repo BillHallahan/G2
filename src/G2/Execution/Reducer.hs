@@ -105,10 +105,6 @@ class Reducer r rv t | r -> rv where
     initReducer :: r -> State t -> rv
 
     -- | Takes a State, and performs the appropriate Reduction Rule
-    -- Note: You can define this function to make use of redRulesUpdatingRV's
-    -- default implementation, but only call redRulesUpdatingRV.
-    -- redRules can do strictly less than redRulesUpdatingRV, and so it's
-    -- default implementation is incomplete
     redRules :: r -> rv -> State t -> IO (ReducerRes, [(State t, rv)], r)
 
     -- | Gives an opportunity to update with all States and Reducer Val's,
