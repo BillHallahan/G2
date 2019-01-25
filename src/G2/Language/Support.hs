@@ -51,9 +51,7 @@ data State t = State { expr_env :: E.ExprEnv
                      , apply_types :: AT.ApplyTypes
                      , exec_stack :: Stack Frame
                      , model :: Model
-                     -- , arb_value_gen :: ArbValueGen
                      , known_values :: KnownValues
-                     , cleaned_names :: CleanedNames
                      , rules :: ![Rule]
                      , num_steps :: !Int -- Invariant: The length of the rules list
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
@@ -63,6 +61,7 @@ data State t = State { expr_env :: E.ExprEnv
 data Bindings = Bindings { deepseq_walkers :: Walkers
                          , fixed_inputs :: [Expr]
                          , arb_value_gen :: ArbValueGen 
+                         , cleaned_names :: CleanedNames
                          } deriving (Show, Eq, Read)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
@@ -157,9 +156,7 @@ renameState old new_seed s =
              , apply_types = rename old new (apply_types s)
              , exec_stack = exec_stack s
              , model = model s
-             -- , arb_value_gen = arb_value_gen s
              , known_values = rename old new (known_values s)
-             , cleaned_names = HM.insert new old (cleaned_names s)
              , rules = rules s
              , num_steps = num_steps s
              , track = rename old new (track s)
@@ -179,7 +176,6 @@ instance Named t => Named (State t) where
             ++ names (exec_stack s)
             ++ names (model s)
             ++ names (known_values s)
-            ++ names (cleaned_names s)
             ++ names (track s)
 
     rename old new s =
@@ -200,9 +196,7 @@ instance Named t => Named (State t) where
                , apply_types = rename old new (apply_types s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
-               -- , arb_value_gen = arb_value_gen s
                , known_values = rename old new (known_values s)
-               , cleaned_names = HM.insert new old (cleaned_names s)
                , rules = rules s
                , num_steps = num_steps s
                , track = rename old new (track s)
@@ -226,9 +220,7 @@ instance Named t => Named (State t) where
                , apply_types = renames hm (apply_types s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
-               -- , arb_value_gen = arb_value_gen s
                , known_values = renames hm (known_values s)
-               , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names s) (HM.toList hm)
                , rules = rules s
                , num_steps = num_steps s
                , track = renames hm (track s)
@@ -281,17 +273,20 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
 instance Named Bindings where
     names b = names (fixed_inputs b)
             ++ names (deepseq_walkers b)
+            ++ names (cleaned_names b)
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
                  , deepseq_walkers = rename old new (deepseq_walkers b)
                  , arb_value_gen = arb_value_gen b
+                 , cleaned_names = HM.insert new old (cleaned_names b)
                  }
 
     renames hm b =
         Bindings { fixed_inputs = renames hm (fixed_inputs b)
                , deepseq_walkers = renames hm (deepseq_walkers b)
                , arb_value_gen = arb_value_gen b
+               , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
                }
 
 instance ASTContainer Bindings Expr where

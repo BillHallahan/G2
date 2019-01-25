@@ -266,7 +266,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     tc_str = pprTCStr (type_classes ex_state)
     -- walkers_str = show (deepseq_walkers ex_state)
     appty_str = show (apply_types ex_state)
-    cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
+    -- cleaned_str = pprCleanedNamesStr (cleaned_names ex_state)
     model_str = pprModelStr (model ex_state)
     rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
@@ -284,9 +284,9 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , input_str
                , "----- [Func Table] ----------------"
                , funcs_str
-               , "----- [Walkers] -------------------"
+               --, "----- [Walkers] -------------------"
                -- , walkers_str
-               -- , "----- [Paths] ---------------------"
+               , "----- [Paths] ---------------------"
                , paths_str
                , "----- [Non Red Paths] ---------------------"
                , non_red_paths_str
@@ -298,8 +298,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , tc_str
                , "----- [Apply Types] ---------------------"
                , appty_str
-               , "----- [Cleaned] -------------------"
-               , cleaned_str
+               --, "----- [Cleaned] -------------------"
+               -- , cleaned_str
                , "----- [Model] -------------------"
                , model_str
                , "----- [Rules] -------------------"

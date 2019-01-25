@@ -140,7 +140,6 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , exec_stack = Stack.empty
     , model = M.empty
     , known_values = kv'
-    , cleaned_names = HM.empty
     , rules = []
     , num_steps = 0
     , track = ()
@@ -150,7 +149,8 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
  , Bindings {
     deepseq_walkers = ds_walkers
   , fixed_inputs = f_i
-  , arb_value_gen = arbValueInit})
+  , arb_value_gen = arbValueInit
+  , cleaned_names = HM.empty})
 
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc
@@ -336,7 +336,9 @@ runG2 red hal ord con pns (is@State { type_env = tenv
                         , violated = ais
                         , exec_bindings = bindings'}) $ ident_states''
 
-    let sm' = map (\sm''@(ExecRes {final_state = s}) -> runPostprocessing s sm'') sm
+    let sm' = map (\sm''@(ExecRes {final_state = s
+                                  , exec_bindings = b}) -> 
+                                   runPostprocessing s b sm'') sm
 
     let sm'' = map (\ExecRes { final_state = s
                              , conc_args = es
