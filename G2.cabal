@@ -82,7 +82,9 @@ library
 
                        , G2.Postprocessing.Interface
 
+                       , G2.Preprocessing.AdjustTypes
                        , G2.Preprocessing.Interface
+                       , G2.Preprocessing.NameCleaner
 
                        , G2.Solver
                        , G2.Solver.Interface
@@ -112,9 +114,6 @@ library
 
                        , G2.Postprocessing.NameSwitcher
                        , G2.Postprocessing.Undefunctionalize
-
-                       , G2.Preprocessing.AdjustTypes
-                       , G2.Preprocessing.NameCleaner
 
                        , G2.Solver.ADTSolver
                        , G2.Solver.Converters
