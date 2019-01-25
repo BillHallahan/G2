@@ -53,6 +53,7 @@ import Data.List
 import Data.List.Utils
 import qualified Data.Map as M
 import qualified Data.Text as T
+import Data.Tuple
 
 nameOcc :: Name -> T.Text
 nameOcc (Name occ _ _ _) = occ
@@ -748,14 +749,15 @@ childrenNamesNew n ns ng =
     (fns, NameGen hm chm')
 
 
--- Allows mapping, while passing a NameGen along
+-- | Allows mapping, while passing a NameGen along
 mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)
-mapNG f xs ng = mapNG' f (reverse xs) ng []
+mapNG f xs ng = swap $ mapAccumR (\xs' ng' -> swap $ f ng' xs') ng xs -- mapNG' f (reverse xs) ng []
+{-# INLINE mapNG #-}
 
-mapNG' :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> [b] -> ([b], NameGen)
-mapNG' _ [] ng xs = (xs, ng)
-mapNG' f (x:xs) ng xs' =
-    let
-        (x', ng') = f x ng
-    in
-    mapNG' f xs ng' (x':xs')
+-- mapNG' :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> [b] -> ([b], NameGen)
+-- mapNG' _ [] ng xs = (xs, ng)
+-- mapNG' f (x:xs) ng xs' =
+--     let
+--         (x', ng') = f x ng
+--     in
+--     mapNG' f xs ng' (x':xs')
