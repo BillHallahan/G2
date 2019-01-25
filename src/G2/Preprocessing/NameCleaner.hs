@@ -10,6 +10,7 @@
 
 module G2.Preprocessing.NameCleaner
     ( cleanNames
+    , cleanNames'
     , allowedStartSymbols
     , allowedSymbol
     ) where
@@ -40,11 +41,22 @@ allowedName (Name n m _ _) =
     && T.all (`S.member` allowedSymbol) (maybe "" (id) m)
     && (T.head n) `S.member` allowedStartSymbols
 
+-- Note that the list of names in cleanNames is NOT the list of all names in the State.
+-- For efficiencies reasons, we aim to clean only those names that may be used
+-- in the SMT formulas.  For this reason, cleanNames is not defined in terms of
+-- the more general cleanNames'.
+
 cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> State t
 cleanNames s@State {name_gen = ng} = renames hns (s {name_gen = ng'})
   where
     (ns, ng') = createNamePairs ng . filter (not . allowedName) $ allNames s
     hns = HM.fromList ns
+
+cleanNames' :: Named n => NameGen -> n -> (n, NameGen)
+cleanNames' ng n = (renames hns n, ng')
+    where
+      (ns, ng') = createNamePairs ng . filter (not . allowedName) $ names n
+      hns = HM.fromList ns
 
 createNamePairs :: NameGen -> [Name] -> ([(Name, Name)], NameGen)
 createNamePairs ing ins = go ing [] ins
