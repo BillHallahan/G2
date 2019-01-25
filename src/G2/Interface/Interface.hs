@@ -114,7 +114,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
               Right errs -> error errs
         (_, ts) = instantiateArgTypes (IT.type_classes s) (IT.known_values s) fe
 
-        (s', ft, at, ds_walkers) = runInitialization s ts tgtNames
+        (s', ft, at, ds_walkers) = runInitialization s ts (S.fromList tgtNames)
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'

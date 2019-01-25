@@ -10,7 +10,9 @@ import G2.Initialization.InitVarLocs
 import G2.Initialization.StructuralEq
 import G2.Initialization.Types
 
-runInitialization :: SimpleState -> [Type] -> [Name] ->
+import Data.HashSet
+
+runInitialization :: SimpleState -> [Type] -> HashSet Name ->
     (SimpleState, FuncInterps, ApplyTypes, Walkers)
 runInitialization s@(SimpleState { expr_env = eenv
                                  , type_env = tenv
