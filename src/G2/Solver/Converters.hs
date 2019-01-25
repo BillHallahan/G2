@@ -103,36 +103,36 @@ checkConstraints con pc = do
     checkSat con (getIO con) formula
 
 -- | Checks if the constraints are satisfiable, and returns a model if they are
-checkModel :: SMTConverter con ast out io => con -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
-checkModel con s is pc = return . fmap liftCasts =<< checkModel' con s is pc
+checkModel :: SMTConverter con ast out io => con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+checkModel con s b is pc = return . fmap liftCasts =<< checkModel' con s b is pc
 
 -- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
-checkModel' :: SMTConverter con ast out io => con -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
-checkModel' _ s [] _ = do
+checkModel' :: SMTConverter con ast out io => con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+checkModel' _ s _ [] _ = do
     return (SAT, Just $ model s)
-checkModel' con s (i:is) pc
-    | (idName i) `M.member` (model s) = checkModel' con s is pc
+checkModel' con s b (i:is) pc
+    | (idName i) `M.member` (model s) = checkModel' con s b is pc
     | otherwise =  do
-        (m, av) <- getModelVal con s i pc
+        (m, av) <- getModelVal con s b i pc
         case m of
-            Just m' -> checkModel' con (s {model = M.union m' (model s), arb_value_gen = av}) is pc
+            Just m' -> checkModel' con (s {model = M.union m' (model s)}) (b {arb_value_gen = av}) is pc
             Nothing -> return (UNSAT, Nothing)
 
-getModelVal :: SMTConverter con ast out io => con -> State t -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
-getModelVal con s (Id n _) pc = do
+getModelVal :: SMTConverter con ast out io => con -> State t -> Bindings -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
+getModelVal con s b (Id n _) pc = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
      
     case PC.null pc of
                 True -> 
                     let
-                        (e, av) = arbValue t (type_env s) (arb_value_gen s)
+                        (e, av) = arbValue t (type_env s) (arb_value_gen b)
                     in
                     return (Just $ M.singleton n' e, av) 
                 False -> do
                     m <- checkNumericConstraints con pc
-                    return (m, arb_value_gen s)
+                    return (m, arb_value_gen b)
 
 checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 checkNumericConstraints con pc = do

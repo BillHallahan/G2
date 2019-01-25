@@ -51,7 +51,7 @@ data State t = State { expr_env :: E.ExprEnv
                      , apply_types :: AT.ApplyTypes
                      , exec_stack :: Stack Frame
                      , model :: Model
-                     , arb_value_gen :: ArbValueGen
+                     -- , arb_value_gen :: ArbValueGen
                      , known_values :: KnownValues
                      , cleaned_names :: CleanedNames
                      , rules :: ![Rule]
@@ -60,7 +60,10 @@ data State t = State { expr_env :: E.ExprEnv
                      , track :: t
                      } deriving (Show, Eq, Read)
 
-data Bindings = Bindings { deepseq_walkers :: Walkers, fixed_inputs :: [Expr] } deriving (Show, Eq, Read)
+data Bindings = Bindings { deepseq_walkers :: Walkers
+                         , fixed_inputs :: [Expr]
+                         , arb_value_gen :: ArbValueGen 
+                         } deriving (Show, Eq, Read)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
 -- function being symbolically executed
@@ -154,7 +157,7 @@ renameState old new_seed s =
              , apply_types = rename old new (apply_types s)
              , exec_stack = exec_stack s
              , model = model s
-             , arb_value_gen = arb_value_gen s
+             -- , arb_value_gen = arb_value_gen s
              , known_values = rename old new (known_values s)
              , cleaned_names = HM.insert new old (cleaned_names s)
              , rules = rules s
@@ -197,7 +200,7 @@ instance Named t => Named (State t) where
                , apply_types = rename old new (apply_types s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
-               , arb_value_gen = arb_value_gen s
+               -- , arb_value_gen = arb_value_gen s
                , known_values = rename old new (known_values s)
                , cleaned_names = HM.insert new old (cleaned_names s)
                , rules = rules s
@@ -223,7 +226,7 @@ instance Named t => Named (State t) where
                , apply_types = renames hm (apply_types s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
-               , arb_value_gen = arb_value_gen s
+               -- , arb_value_gen = arb_value_gen s
                , known_values = renames hm (known_values s)
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names s) (HM.toList hm)
                , rules = rules s
@@ -281,12 +284,14 @@ instance Named Bindings where
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
-               , deepseq_walkers = rename old new (deepseq_walkers b)
-               }
+                 , deepseq_walkers = rename old new (deepseq_walkers b)
+                 , arb_value_gen = arb_value_gen b
+                 }
 
     renames hm b =
         Bindings { fixed_inputs = renames hm (fixed_inputs b)
                , deepseq_walkers = renames hm (deepseq_walkers b)
+               , arb_value_gen = arb_value_gen b
                }
 
 instance ASTContainer Bindings Expr where

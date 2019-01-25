@@ -29,7 +29,7 @@ class Solver solver where
     
     -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
     -- The model must contain, at a minimum, a value for each passed `Id`
-    solve :: forall t . solver -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
+    solve :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
 
     -- | Cleans up when the solver is no longer needed.  Default implementation
     -- does nothing
@@ -48,7 +48,7 @@ class TrSolver solver where
     -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
     -- The model must contain, at a minimum, a value for each passed `Id`
     -- Allows modifying the solver, to track some state.
-    solveTr :: forall t . solver -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model, solver)
+    solveTr :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, solver)
 
     -- | Cleans up when the solver is no longer needed.  Default implementation
     -- does nothing
@@ -60,7 +60,7 @@ newtype Tr solver = Tr { unTr :: solver }
 
 instance Solver solver => TrSolver (Tr solver) where
     checkTr (Tr sol) s pc = return . (, Tr sol) =<< check sol s pc
-    solveTr (Tr sol) s is pc = return . (\(r, m) -> (r, m, Tr sol)) =<< solve sol s is pc
+    solveTr (Tr sol) s b is pc = return . (\(r, m) -> (r, m, Tr sol)) =<< solve sol s b is pc
     closeTr = close . unTr
 
 data SomeSolver where
@@ -86,38 +86,38 @@ checkRelated' sol s (p:ps) = do
         SAT -> checkRelated' sol' s ps
         r -> return (r, sol')
 
-solveRelated :: TrSolver a => a -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
-solveRelated sol s is pc = do
-    solveRelated' sol s M.empty is $ PC.relatedSets (known_values s) pc
+solveRelated :: TrSolver a => a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
+solveRelated sol s b is pc = do
+    solveRelated' sol s b M.empty is $ PC.relatedSets (known_values s) pc
 
-solveRelated' :: TrSolver a => a -> State t -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
-solveRelated' sol s m is [] =
+solveRelated' :: TrSolver a => a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
+solveRelated' sol s b m is [] =
     let 
         is' = filter (\i -> idName i `M.notMember` m) is
-        nv = map (\(Id n t) -> (n, fst $ arbValue t (type_env s) (arb_value_gen s))) is'
+        nv = map (\(Id n t) -> (n, fst $ arbValue t (type_env s) (arb_value_gen b))) is'
         m' = foldr (\(n, v) -> M.insert n v) m nv
     in
     return (SAT, Just m', sol)
-solveRelated' sol s m is (p:ps) = do
+solveRelated' sol s b m is (p:ps) = do
     let is' = concat $ PC.map (PC.varIdsInPC (known_values s)) p
     let is'' = ids p
-    rm <- solveTr sol s is' p
+    rm <- solveTr sol s b is' p
     case rm of
-        (SAT, Just m', sol') -> solveRelated' sol' s (M.union m m') (is ++ is'') ps
+        (SAT, Just m', sol') -> solveRelated' sol' s b (M.union m m') (is ++ is'') ps
         rm' -> return rm'
 
 instance Solver solver => Solver (GroupRelated solver) where
     check (GroupRelated sol) s pc = return . fst =<< checkRelated (Tr sol) s pc
-    solve (GroupRelated sol) s is pc =
-        return . (\(r, m, _) -> (r, m)) =<< solveRelated (Tr sol) s is pc
+    solve (GroupRelated sol) s b is pc =
+        return . (\(r, m, _) -> (r, m)) =<< solveRelated (Tr sol) s b is pc
     close (GroupRelated s) = close s
 
 instance TrSolver solver => TrSolver (GroupRelated solver) where
     checkTr (GroupRelated sol) s pc = do
         (r, sol') <- checkRelated sol s pc
         return (r, GroupRelated sol')
-    solveTr (GroupRelated sol) s is pc = do
-        (r, m, sol') <- solveRelated sol s is pc
+    solveTr (GroupRelated sol) s b is pc = do
+        (r, m, sol') <- solveRelated sol s b is pc
         return (r, m, GroupRelated sol')
     closeTr (GroupRelated s) = closeTr s
 
@@ -138,14 +138,14 @@ checkWithEither a b s pc = do
                 Unknown ub -> return $ (Unknown $ ua ++ ",\n" ++ ub, a' :?> b')
                 rb' -> return (rb', a' :?> b')
 
-solveWithEither :: (TrSolver a, TrSolver b) => a -> b -> State t -> [Id] -> PathConds -> IO (Result, Maybe Model, CombineSolvers a b)
-solveWithEither a b s is pc = do
-    ra <- solveTr a s is pc 
+solveWithEither :: (TrSolver a, TrSolver b) => a -> b -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, CombineSolvers a b)
+solveWithEither a b s binds is pc = do
+    ra <- solveTr a s binds is pc 
     case ra of
         (SAT, m, a') -> return (SAT, m, a' :?> b)
         (UNSAT, m, a') -> return (UNSAT, m, a' :?> b)
         (Unknown ua, _, a') -> do
-            rb <- solveTr b s is pc
+            rb <- solveTr b s binds is pc
             case rb of
                 (Unknown ub, _, b') -> return $ (Unknown $ ua ++ ",\n" ++ ub, Nothing, a' :?> b')
                 (r, m, b') -> return (r, m, a' :?> b')
@@ -154,10 +154,10 @@ instance (Solver a, Solver b) => Solver (CombineSolvers a b) where
     check (a :<? b) s pc = return . fst =<< checkWithEither (Tr b) (Tr a) s pc
     check (a :?> b) s pc = return . fst =<< checkWithEither (Tr a) (Tr b) s pc
 
-    solve (a :<? b) s is pc =
-        return . (\(r, m, _) -> (r, m)) =<< solveWithEither (Tr b) (Tr a) s is pc
-    solve (a :?> b) s is pc =
-        return . (\(r, m, _) -> (r, m)) =<< solveWithEither (Tr a) (Tr b) s is pc
+    solve (a :<? b) s binds is pc =
+        return . (\(r, m, _) -> (r, m)) =<< solveWithEither (Tr b) (Tr a) s binds is pc
+    solve (a :?> b) s binds is pc =
+        return . (\(r, m, _) -> (r, m)) =<< solveWithEither (Tr a) (Tr b) s binds is pc
 
     close (a :<? b) = do
         close a
@@ -174,12 +174,12 @@ instance (TrSolver a, TrSolver b) => TrSolver (CombineSolvers a b) where
             b' :<? a' -> return (r, a' :?> b')
     checkTr (a :?> b) s pc = checkWithEither a b s pc
 
-    solveTr (a :<? b) s is pc = do
-        (r, m, sol') <- solveWithEither b a s is pc
+    solveTr (a :<? b) s binds is pc = do
+        (r, m, sol') <- solveWithEither b a s binds is pc
         case sol' of
             b' :?> a' -> return (r, m, a' :<? b')
             b' :<? a' -> return (r, m, a' :?> b')
-    solveTr (a :?> b) s is pc = solveWithEither a b s is pc
+    solveTr (a :?> b) s binds is pc = solveWithEither a b s binds is pc
 
     closeTr (a :<? b) = do
         closeTr a

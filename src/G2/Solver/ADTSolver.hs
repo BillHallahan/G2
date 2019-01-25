@@ -27,7 +27,7 @@ data ADTSolver = ADTSolver
 
 instance Solver ADTSolver where
     check _ s = return . checkConsistency (known_values s) (type_env s)
-    solve _ s is = solveADTs s (nub is)
+    solve _ s b is = solveADTs s b (nub is)
 
 -- | Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
@@ -97,31 +97,31 @@ findConsistent''' dcs ((ConsCond  dc _ False):pc) =
 findConsistent''' dcs [] = Just dcs
 findConsistent''' _ _ = Nothing
 
-solveADTs :: State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
-solveADTs s [Id n t] pc
+solveADTs :: State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+solveADTs s b [Id n t] pc
     -- We can't use the ADT solver when we have a Boolean, because the RHS of the
     -- DataAlt might be a primitive.
     | TyCon tn k <- tyAppCenter t
     , ts <- tyAppArgs t
     , t /= tyBool (known_values s)  =
     do
-        let (r, s') = addADTs n tn ts k s pc
+        let (r, s', _) = addADTs n tn ts k s b pc
 
         case r of
             SAT -> return (r, Just . liftCasts $ model s')
             r' -> return (r', Nothing)
-solveADTs _ _ _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
+solveADTs _ _ _ _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
 
 -- | Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: Name -> Name -> [Type] -> Kind -> State t -> PathConds -> (Result, State t)
-addADTs n tn ts k s pc
+addADTs :: Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result, State t, Bindings)
+addADTs n tn ts k s b pc
     | PC.null pc =
         let
-            (bse, av) = arbValue (mkTyApp (TyCon tn k:ts)) (type_env s) (arb_value_gen s)
+            (bse, av) = arbValue (mkTyApp (TyCon tn k:ts)) (type_env s) (arb_value_gen b)
             m' = M.singleton n bse
         in
-        (SAT, s {model = M.union m' (model s), arb_value_gen = av})
+        (SAT, (s {model = M.union m' (model s)}), (b {arb_value_gen = av}))
     | Just (dcs@(fdc:_), bi) <- findConsistent' (known_values s) (type_env s) pc =
     let        
         eenv = expr_env s
@@ -137,16 +137,16 @@ addADTs n tn ts k s pc
         vs = map (\(n', t') -> 
                 case E.lookup n' eenv of
                     Just e -> e
-                    Nothing -> fst $ arbValue t' (type_env s) (arb_value_gen s)) $ zip ns ts''
+                    Nothing -> fst $ arbValue t' (type_env s) (arb_value_gen b)) $ zip ns ts''
         
         dc = mkApp $ fdc:map Type ts2 ++ vs
 
         m = M.insert n dc (model s)
     in
     case not . Pre.null $ dcs of
-        True -> (SAT, s {model = M.union m (model s)})
-        False -> (UNSAT, s)
-    | otherwise = (UNSAT, s)
+        True -> (SAT, s {model = M.union m (model s)}, b)
+        False -> (UNSAT, s, b)
+    | otherwise = (UNSAT, s, b)
 
 -- Various helper functions
 

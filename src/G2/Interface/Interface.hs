@@ -134,14 +134,11 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , assert_ids = Nothing
     , type_classes = tc'
     , input_ids = is
-    -- , fixed_inputs = f_i
     , symbolic_ids = is
     , func_table = ft
-    -- , deepseq_walkers = ds_walkers
     , apply_types = at
     , exec_stack = Stack.empty
     , model = M.empty
-    , arb_value_gen = arbValueInit
     , known_values = kv'
     , cleaned_names = HM.empty
     , rules = []
@@ -152,7 +149,8 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
  , ie
  , Bindings {
     deepseq_walkers = ds_walkers
-  , fixed_inputs = f_i})
+  , fixed_inputs = f_i
+  , arb_value_gen = arbValueInit})
 
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc
@@ -324,7 +322,7 @@ runG2 red hal ord con pns (is@State { type_env = tenv
 
     ident_states' <- 
         mapM (\s -> do
-            (_, m) <- solve con s (symbolic_ids s) (path_conds s)
+            (_, m) <- solve con s bindings' (symbolic_ids s) (path_conds s)
             return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states
 
