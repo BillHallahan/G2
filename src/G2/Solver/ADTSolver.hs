@@ -12,7 +12,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
-import G2.Language.PathConds hiding (map, null)
+import G2.Language.PathConds hiding (map, filter, null)
 import qualified G2.Language.PathConds as PC
 import G2.Language.Typing
 import G2.Solver.Solver
@@ -50,6 +50,52 @@ findConsistent kv tenv = fmap fst . findConsistent' kv tenv
 head' :: [a] -> Maybe a
 head' (x:_) = Just x
 head' _ = Nothing
+
+findConsistent' :: KnownValues -> TypeEnv -> PathConds -> Maybe ([Expr], [(Id, Type)])
+findConsistent' kv tenv pc =
+    let
+        pc' = unsafeElimCast $ toList pc
+
+        -- Adding Coercions
+        pcNT = fmap pcInCastType . head' $ toList pc
+        cons = findConsistent'' tenv pc'
+    in
+    case cons of
+        Just (cons', bi) ->
+            let
+                cons'' = simplifyCasts . map (castReturnType $ fromJust pcNT) $ cons'
+            in
+            -- We can't use the ADT solver when we have a Boolean, because the RHS of the
+            -- DataAlt might be a primitive.
+            if any isExtCond pc' || pcNT == Just (tyBool kv) then Nothing else Just (cons'', bi)
+        Nothing -> Nothing
+
+findConsistent'' :: TypeEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
+findConsistent'' tenv pc =
+    let
+        t = pcVarType pc
+        cons = maybe Nothing (flip getCastedAlgDataTy tenv) t
+    
+    in
+    case cons of 
+        Just (DataTyCon _ dc, bi) ->
+            let
+                cons' = fmap (map Data) $ findConsistent''' dc pc
+            in
+            maybe Nothing (Just . (, bi)) cons'
+        _ -> Nothing
+
+findConsistent''' :: [DataCon] -> [PathCond] -> Maybe [DataCon]
+findConsistent''' dcs ((AltCond (DataAlt dc _) _ True):pc) =
+    findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
+findConsistent''' dcs ((AltCond (DataAlt dc _) _ False):pc) =
+    findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
+findConsistent''' dcs ((ConsCond dc _ True):pc) =
+    findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
+findConsistent''' dcs ((ConsCond  dc _ False):pc) =
+    findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
+findConsistent''' dcs [] = Just dcs
+findConsistent''' _ _ = Nothing
 
 solveADTs :: State t -> [Id] -> PathConds -> IO (Result, Maybe Model)
 solveADTs s [Id n t] pc
@@ -101,53 +147,6 @@ addADTs n tn ts k s pc
         True -> (SAT, s {model = M.union m (model s)})
         False -> (UNSAT, s)
     | otherwise = (UNSAT, s)
-
-findConsistent' :: KnownValues -> TypeEnv -> PathConds -> Maybe ([Expr], [(Id, Type)])
-findConsistent' kv tenv pc =
-    let
-        pc' = unsafeElimCast $ toList pc
-
-        -- Adding Coercions
-        pcNT = fmap pcInCastType . head' $ toList pc
-        cons = findConsistent'' tenv pc'
-    in
-    case cons of
-        Just (cons', bi) ->
-            let
-                cons'' = simplifyCasts . map (castReturnType $ fromJust pcNT) $ cons'
-            in
-            -- We can't use the ADT solver when we have a Boolean, because the RHS of the
-            -- DataAlt might be a primitive.
-            if any isExtCond pc' || pcNT == Just (tyBool kv) then Nothing else Just (cons'', bi)
-        Nothing -> Nothing
-
-findConsistent'' :: TypeEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
-findConsistent'' tenv pc =
-    let
-        t = pcVarType pc
-        cons = maybe Nothing (flip getCastedAlgDataTy tenv) t
-    
-    in
-    case cons of 
-        Just (DataTyCon _ dc, bi) ->
-            let
-                cons' = fmap (map Data) $ findConsistent''' dc pc
-            in
-            maybe Nothing (Just . (, bi)) cons'
-        _ -> Nothing
-
-findConsistent''' :: [DataCon] -> [PathCond] -> Maybe [DataCon]
-findConsistent''' dcs ((AltCond (DataAlt dc _) _ True):pc) =
-    findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
-findConsistent''' dcs ((AltCond (DataAlt dc _) _ False):pc) =
-    findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
-findConsistent''' dcs ((ConsCond dc _ True):pc) =
-    findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
-findConsistent''' dcs ((ConsCond  dc _ False):pc) =
-    findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
-findConsistent''' dcs [] = Just dcs
-findConsistent''' _ _ = Nothing
-
 
 -- Various helper functions
 

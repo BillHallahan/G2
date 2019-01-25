@@ -1,9 +1,7 @@
 module G2.Initialization.Interface where
 
-import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Support hiding (State (..))
-import G2.Language.TypeClasses
 import G2.Initialization.DeepSeqWalks
 import G2.Initialization.ElimTicks
 import G2.Initialization.ElimTypeSynonyms
@@ -12,7 +10,9 @@ import G2.Initialization.InitVarLocs
 import G2.Initialization.StructuralEq
 import G2.Initialization.Types
 
-runInitialization :: SimpleState -> [Type] -> [Name] ->
+import Data.HashSet
+
+runInitialization :: SimpleState -> [Type] -> HashSet Name ->
     (SimpleState, FuncInterps, ApplyTypes, Walkers)
 runInitialization s@(SimpleState { expr_env = eenv
                                  , type_env = tenv

@@ -41,8 +41,9 @@ import G2.Language.Monad
 
 import Data.List
 import qualified Data.Map as M
+import qualified Data.HashSet as S
 
-functionalize :: ExState s m => [Type] -> [Name] -> m (FuncInterps, AT.ApplyTypes)
+functionalize :: ExState s m => [Type] -> S.HashSet Name -> m (FuncInterps, AT.ApplyTypes)
 functionalize ts tgtNames = do
     -- Get names for all need apply type
     eenv <- exprEnv
@@ -65,10 +66,10 @@ applyTypeNames ts = do
 
 -- Updates the ExprEnv and TypeEnv with ApplyTypes and Apply Functions
 -- creates FuncInterps and ApplyTypes tables
-mkApplyFuncAndTypes :: ExState s m => [(Type, Name)] -> [Name] ->
+mkApplyFuncAndTypes :: ExState s m => [(Type, Name)] -> S.HashSet Name ->
                        m (FuncInterps, AT.ApplyTypes)
 mkApplyFuncAndTypes tyn tgtNames = do
-    eenv' <- return . E.filterWithKey (\n _ -> n `elem` tgtNames) =<< exprEnv
+    eenv' <- return . E.filterWithKey (\n _ -> n `S.member` tgtNames) =<< exprEnv
 
     -- This just gets passed around unmodified in mkApplyFuncTypes'
     -- but precomputing is faster

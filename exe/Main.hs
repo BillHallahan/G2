@@ -23,6 +23,7 @@ import G2.Plugin
 
 main :: IO ()
 main = do
+
   as <- getArgs
   let (proj:_) = as
 
