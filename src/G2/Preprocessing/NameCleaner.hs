@@ -11,6 +11,7 @@
 module G2.Preprocessing.NameCleaner
     ( cleanNames
     , cleanNames'
+    , cleanNamesFromList
     , allowedStartSymbols
     , allowedSymbol
     ) where
@@ -57,6 +58,12 @@ cleanNames' ng n = (renames hns n, ng')
     where
       (ns, ng') = createNamePairs ng . filter (not . allowedName) $ names n
       hns = HM.fromList ns
+
+cleanNamesFromList :: Named n => NameGen -> [Name] -> n -> (n, NameGen)
+cleanNamesFromList ng ns n = (renames hns n, ng')
+    where
+      (ns', ng') = createNamePairs ng . filter (not . allowedName) $ names ns
+      hns = HM.fromList ns'
 
 createNamePairs :: NameGen -> [Name] -> ([(Name, Name)], NameGen)
 createNamePairs ing ins = go ing [] ins
