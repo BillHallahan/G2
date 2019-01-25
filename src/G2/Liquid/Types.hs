@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module G2.Liquid.Types ( LHOutput (..)
                                  , Measures
@@ -122,55 +123,55 @@ deconsLHState (LHState { state = s
 
 measuresM :: LHStateM Measures
 measuresM = do
-    lh_s <- SM.get
+    (lh_s, _) <- SM.get
     return $ measures lh_s
 
 assumptionsM :: LHStateM Assumptions
 assumptionsM = do
-    lh_s <- SM.get
+    (lh_s, _) <- SM.get
     return $ assumptions lh_s
 
 annotsM :: LHStateM AnnotMap
 annotsM = do
-    lh_s <- SM.get
+    (lh_s, _) <- SM.get
     return $ annots lh_s
 
-newtype LHStateM a = LHStateM { unSM :: (SM.State LHState a) } deriving (Applicative, Functor, Monad)
+newtype LHStateM a = LHStateM { unSM :: (SM.State (LHState, L.Bindings) a) } deriving (Applicative, Functor, Monad)
 
-instance SM.MonadState LHState LHStateM where
+instance SM.MonadState (LHState, L.Bindings) LHStateM where
     state f = LHStateM (SM.state f) 
 
-instance ExState LHState LHStateM where
-    exprEnv = return . expr_env =<< SM.get
+instance ExState (LHState, L.Bindings) LHStateM where
+    exprEnv = readRecord $ expr_env . fst
     putExprEnv = rep_expr_envM
 
-    typeEnv = return . type_env =<< SM.get
+    typeEnv = readRecord $ type_env . fst
     putTypeEnv = rep_type_envM
 
-    nameGen = return . name_gen =<< SM.get
+    nameGen = readRecord $ name_gen . fst
     putNameGen = rep_name_genM
 
-    knownValues = return . known_values =<< SM.get
+    knownValues = readRecord $ known_values . fst
     putKnownValues = rep_known_valuesM
 
-    typeClasses = return . type_classes =<< SM.get
+    typeClasses = readRecord $ type_classes . fst
     putTypeClasses = rep_type_classesM
 
-instance FullState LHState LHStateM where
-    currExpr = return . curr_expr =<< SM.get
+instance FullState (LHState, L.Bindings) LHStateM where
+    currExpr = readRecord $ curr_expr . fst
     putCurrExpr = rep_curr_exprM
 
-    inputIds = return . input_ids =<< SM.get
-    -- fixedInputs = return . fixed_inputs =<< SM.get
+    inputIds = readRecord $ input_ids . fst
+    fixedInputs = readRecord $ L.fixed_inputs . snd
 
-runLHStateM :: LHStateM a -> LHState -> (a, LHState)
-runLHStateM (LHStateM s) s' = SM.runState s s'
+runLHStateM :: LHStateM a -> LHState -> L.Bindings -> (a, (LHState, L.Bindings))
+runLHStateM (LHStateM s) lh_s b = SM.runState s (lh_s, b)
 
-evalLHStateM :: LHStateM a -> LHState -> a
-evalLHStateM s = fst . runLHStateM s
+evalLHStateM :: LHStateM a -> LHState -> L.Bindings -> a
+evalLHStateM s = (\lh_s b -> fst (runLHStateM s lh_s b))
 
-execLHStateM :: LHStateM a -> LHState -> LHState
-execLHStateM s = snd . runLHStateM s
+execLHStateM :: LHStateM a -> LHState -> L.Bindings -> LHState
+execLHStateM s = (\lh_s b -> fst (snd (runLHStateM s lh_s b)))
 
 liftState :: (L.State [L.FuncCall] -> a) -> LHState -> a
 liftState f = f . state
@@ -180,69 +181,68 @@ expr_env = liftState L.expr_env
 
 rep_expr_envM :: L.ExprEnv -> LHStateM ()
 rep_expr_envM eenv = do
-    lh_s <- SM.get
+    (lh_s, b) <- SM.get
     let s = state lh_s
     let s' = s {L.expr_env = eenv}
-    SM.put $ lh_s {state = s'}
+    SM.put $ (lh_s {state = s'}, b)
 
 type_env :: LHState -> L.TypeEnv
 type_env = liftState L.type_env
 
 rep_type_envM :: L.TypeEnv -> LHStateM ()
 rep_type_envM tenv = do
-    lh_s <- SM.get
+    (lh_s, b) <- SM.get
     let s = state lh_s
     let s' = s {L.type_env = tenv}
-    SM.put $ lh_s {state = s'}
+    SM.put $ (lh_s {state = s'}, b)
 
 name_gen :: LHState -> L.NameGen
 name_gen = liftState L.name_gen
 
 rep_name_genM :: L.NameGen -> LHStateM ()
 rep_name_genM ng = do
-    lh_s <- SM.get
+    (lh_s, b) <- SM.get
     let s = state lh_s
     let s' = s {L.name_gen = ng}
-    SM.put $ lh_s {state = s'}
+    SM.put $ (lh_s {state = s'}, b)
 
 known_values :: LHState -> L.KnownValues
 known_values = liftState L.known_values
 
 rep_known_valuesM :: L.KnownValues -> LHStateM ()
 rep_known_valuesM kv = do
-    lh_s <- SM.get
+    (lh_s, b) <- SM.get
     let s = state lh_s
     let s' = s {L.known_values = kv}
-    SM.put $ lh_s {state = s'}
+    SM.put $ (lh_s {state = s'}, b)
 
 curr_expr :: LHState -> L.CurrExpr
 curr_expr = liftState L.curr_expr
 
 rep_curr_exprM :: L.CurrExpr -> LHStateM ()
 rep_curr_exprM ce = do
-    lh_s <- SM.get
+    (lh_s, b) <- SM.get
     let s = state lh_s
     let s' = s {L.curr_expr = ce}
-    SM.put $ lh_s {state = s'}
+    SM.put $ (lh_s {state = s'}, b)
 
 type_classes :: LHState -> L.TypeClasses
 type_classes = liftState L.type_classes
 
 rep_type_classesM :: L.TypeClasses -> LHStateM ()
 rep_type_classesM tc = do
-    lh_s <- SM.get
+    (lh_s,b) <- SM.get
     let s = state lh_s
     let s' = s {L.type_classes = tc}
-    SM.put $ lh_s {state = s'}
+    SM.put $ (lh_s {state = s'}, b)
 
 input_ids :: LHState -> L.InputIds
 input_ids = liftState L.input_ids
 
--- fixed_inputs :: LHState -> [L.Expr]
--- fixed_inputs = liftState L.fixed_inputs
-
 liftLHState :: (LHState -> a) -> LHStateM a
-liftLHState f = return . f =<< SM.get
+liftLHState f = do
+    (lh_s, _) <- SM.get
+    return (f lh_s) 
 
 lookupMeasure :: L.Name -> LHState -> Maybe L.Expr
 lookupMeasure n = E.lookup n . measures
@@ -252,38 +252,38 @@ lookupMeasureM n = liftLHState (lookupMeasure n)
 
 insertMeasureM :: L.Name -> L.Expr -> LHStateM ()
 insertMeasureM n e = do
-    lh_s <- SM.get
+    (lh_s,b) <- SM.get
     let meas = measures lh_s
     let meas' = E.insert n e meas
-    SM.put $ lh_s {measures = meas'}
+    SM.put $ (lh_s {measures = meas'}, b)
 
 mapMeasuresM :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
 mapMeasuresM f = do
-    s@(LHState { measures = meas }) <- SM.get
+    (s@(LHState { measures = meas }), b) <- SM.get
     meas' <- E.mapM f meas
-    SM.put $ s { measures = meas' }
+    SM.put $ (s { measures = meas' }, b)
 
 lookupAssumptionM :: L.Name -> LHStateM (Maybe L.Expr)
 lookupAssumptionM n = liftLHState (M.lookup n . assumptions)
 
 insertAssumptionM :: L.Name -> L.Expr -> LHStateM ()
 insertAssumptionM n e = do
-    lh_s <- SM.get
+    (lh_s, b) <- SM.get
     let assumpt = assumptions lh_s
     let assumpt' = M.insert n e assumpt
-    SM.put $ lh_s {assumptions = assumpt'}
+    SM.put $ (lh_s {assumptions = assumpt'}, b)
 
 mapAssumptionsM :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
 mapAssumptionsM f = do
-    s@(LHState { assumptions = assumpt }) <- SM.get
+    (s@(LHState { assumptions = assumpt }), b) <- SM.get
     assumpt' <- mapM f assumpt
-    SM.put $ s { assumptions = assumpt' }
+    SM.put $ (s { assumptions = assumpt' },b)
 
 insertAnnotM :: L.Span -> Maybe T.Text -> L.Expr -> LHStateM ()
 insertAnnotM spn t e = do
-    s@(LHState { annots = an }) <- SM.get
+    (s@(LHState { annots = an }),b) <- SM.get
     let an' = AM . HM.insertWith (++) spn [(t, e)] . unAnnotMap $ an
-    SM.put $ s {annots = an'}
+    SM.put $ (s {annots = an'}, b)
 
 lookupAnnotM :: L.Name -> LHStateM (Maybe [(Maybe T.Text, L.Expr)])
 lookupAnnotM (L.Name _ _ _ (Just (L.Span {L.start = l}))) =
@@ -297,9 +297,9 @@ lookupAnnotM _ = return Nothing
 
 mapAnnotsExpr :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
 mapAnnotsExpr f = do
-    lh_s <- SM.get
+    (lh_s, b) <- SM.get
     annots' <- modifyContainedASTsM f (annots lh_s)
-    SM.put $ lh_s {annots = annots'}
+    SM.put $ (lh_s {annots = annots'}, b)
 
 -- | andM
 -- The version of 'and' in the measures
@@ -330,7 +330,9 @@ iffM = do
     return (L.mkIff m)
 
 liftTCValues :: (TCValues -> a) -> LHStateM a
-liftTCValues f = return . f . tcvalues =<< SM.get
+liftTCValues f = do
+    (lh_s, _) <- SM.get
+    return (f (tcvalues lh_s))
 
 lhTCM :: LHStateM L.Name
 lhTCM = liftTCValues lhTC

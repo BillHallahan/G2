@@ -95,7 +95,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
 
     let lh_state = createLHState meenv mkv ng_state' bindings'
 
-    let (cfn, merged_state) = runLHStateM (initializeLH ghci_cg ifi bindings') lh_state
+    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH ghci_cg ifi bindings') lh_state bindings'
 
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
@@ -139,7 +139,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st bindings'
+                    con (pres_names ++ names annm) final_st bindings''
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -154,7 +154,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st bindings'
+                    con (pres_names ++ names annm) final_st bindings''
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
