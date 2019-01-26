@@ -105,7 +105,7 @@ class Reducer r rv t | r -> rv where
     initReducer :: r -> State t -> rv
 
     -- | Takes a State, and performs the appropriate Reduction Rule
-    redRules :: r -> rv -> State t -> IO (ReducerRes, [(State t, rv)], r)
+    redRules :: r -> rv -> State t -> Bindings -> IO (ReducerRes, [(State t, rv)], r)
 
     -- | Gives an opportunity to update with all States and Reducer Val's,
     -- output by all Reducer's, visible
@@ -194,29 +194,29 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
         in
         RC rv1 rv2
 
-    redRules (r1 :<~ r2) (RC rv1 rv2) s = do
-        (rr2, srv2, r2') <- redRules r2 rv2 s
-        (rr1, srv1, r1') <- redRulesToStates r1 rv1 srv2
+    redRules (r1 :<~ r2) (RC rv1 rv2) s b = do
+        (rr2, srv2, r2') <- redRules r2 rv2 s b
+        (rr1, srv1, r1') <- redRulesToStates r1 rv1 srv2 b
 
         return (progPrioritizer rr1 rr2, srv1, r1' :<~ r2')
 
-    redRules (r1 :<~? r2) (RC rv1 rv2) s = do
-        (rr2, srv2, r2') <- redRules r2 rv2 s
+    redRules (r1 :<~? r2) (RC rv1 rv2) s b = do
+        (rr2, srv2, r2') <- redRules r2 rv2 s b
         let (s', rv2') = unzip srv2
 
         case rr2 of
             NoProgress -> do
-                (rr1, ss, r1') <- redRulesToStates r1 rv1 srv2
+                (rr1, ss, r1') <- redRulesToStates r1 rv1 srv2 b
                 return (rr1, ss, r1' :<~? r2')
             _ -> return (rr2, zip s' (map (uncurry RC) (zip (repeat rv1) rv2')), r1 :<~? r2')
 
-    redRules (r1 :<~| r2) (RC rv1 rv2) s = do
-        (rr2, srv2, r2') <- redRules r2 rv2 s
+    redRules (r1 :<~| r2) (RC rv1 rv2) s b = do
+        (rr2, srv2, r2') <- redRules r2 rv2 s b
         let (s', rv2') = unzip srv2
 
         case rr2 of
             Finished -> do
-                (rr1, ss, r1') <- redRulesToStates r1 rv1 srv2
+                (rr1, ss, r1') <- redRulesToStates r1 rv1 srv2 b
                 return (rr1, ss, r1' :<~| r2')
             _ -> return (rr2, zip s' (map (uncurry RC) (zip (repeat rv1) rv2')), r1 :<~| r2')
 
@@ -236,10 +236,10 @@ updateWithAllRC r1 r2 srv =
     in
     map (uncurry RC) $ zip rv1' rv2'
 
-redRulesToStates :: Reducer r rv t => r -> rv -> [(State t, rv2)] -> IO (ReducerRes, [(State t, RC rv rv2)], r)
-redRulesToStates r rv1 s = do
+redRulesToStates :: Reducer r rv t => r -> rv -> [(State t, rv2)] -> Bindings -> IO (ReducerRes, [(State t, RC rv rv2)], r)
+redRulesToStates r rv1 s b = do
     rs <- mapM (\(is, rv2) -> do
-                (rr_, is', r') <- redRules r rv1 is
+                (rr_, is', r') <- redRules r rv1 is b
                 return (rr_, map (\(is'', rv1') -> (is'', RC rv1' rv2) ) is', r')) s
     let (rr, s', r') = unzip3 rs
 
@@ -267,7 +267,7 @@ data StdRed con = StdRed con
 instance Solver con => Reducer (StdRed con) () t where
     initReducer _ _ = ()
 
-    redRules stdr@(StdRed solver) _ s = do
+    redRules stdr@(StdRed solver) _ s _ = do
         (r, s') <- stdReduce solver s
         
         return (if r == RuleIdentity then Finished else InProgress, s', stdr)
@@ -285,7 +285,7 @@ instance Reducer NonRedPCRed () t where
                               , non_red_path_conds = nr:nrs
                               , apply_types = at
                               , input_ids = is
-                              , symbolic_ids = si }) = do
+                              , symbolic_ids = si }) _ = do
         let stck' = Stck.push (CurrExprFrame cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nr
@@ -299,7 +299,7 @@ instance Reducer NonRedPCRed () t where
                    , symbolic_ids = AT.typeToAppType at si }
 
         return (InProgress, [(s', ())], nrpr)
-    redRules nrpr _ s = return (Finished, [(s, ())], nrpr)
+    redRules nrpr _ s _ = return (Finished, [(s, ())], nrpr)
 
 higherOrderToAppTys :: ASTContainer m Expr => ExprEnv -> ApplyTypes -> m -> m
 higherOrderToAppTys eenv at = modifyASTs (higherOrderToAppTys' eenv at)
@@ -318,7 +318,7 @@ data TaggerRed = TaggerRed Name NameGen
 instance Reducer TaggerRed () t where
     initReducer _ _ = ()
 
-    redRules tr@(TaggerRed n ng) _ s@(State {tags = ts}) =
+    redRules tr@(TaggerRed n ng) _ s@(State {tags = ts}) _ =
         let
             (n'@(Name n_ m_ _ _), ng') = freshSeededName n ng
         in
@@ -333,20 +333,20 @@ data Logger = Logger String
 instance Reducer Logger [Int] t where
     initReducer _ _ = []
 
-    redRules l@(Logger fn) li s = do
-        outputState fn li s
+    redRules l@(Logger fn) li s b = do
+        outputState fn li s b
         return (NoProgress, [(s, li)], l)
     
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
 
-outputState :: String -> [Int] -> State t -> IO ()
-outputState fdn is s = do
+outputState :: String -> [Int] -> State t -> Bindings -> IO ()
+outputState fdn is s b = do
     let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
     createDirectoryIfMissing True dir
 
     let fn = dir ++ "state" ++ show (length $ rules s) ++ ".txt"
-    let write = pprExecStateStr s
+    let write = pprExecStateStr s b
     writeFile fn write
 
     putStrLn fn
@@ -504,8 +504,8 @@ instance Orderer PickLeastUsedOrderer Int Int t where
 --------
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> IO [State t]
-runReducer red hal ord s =
+runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings -> IO [State t]
+runReducer red hal ord s b =
     let
         pr = Processed {accepted = [], discarded = []}
         s' = ExState { state = s
@@ -513,7 +513,7 @@ runReducer red hal ord s =
                      , halter_val = initHalt hal s
                      , order_val = initPerStateOrder ord s }
     in
-    mapM (\ExState {state = st} -> return st) =<< runReducer' red hal ord pr s' M.empty 
+    mapM (\ExState {state = st} -> return st) =<< runReducer' red hal ord pr s' b M.empty 
 
 runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
             => r 
@@ -521,16 +521,17 @@ runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             -> or 
             -> Processed (ExState rv hv sov t) 
             -> ExState rv hv sov t 
+            -> Bindings
             -> M.Map b [ExState rv hv sov t] 
             -> IO [ExState rv hv sov t]
-runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) xs
+runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) b xs
     | hc == Accept =
         let
             pr' = pr {accepted = rs:accepted pr}
             jrs = minState xs
         in
         case jrs of
-            Just (rs', xs') -> return . (:) rs =<< runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') xs'
+            Just (rs', xs') -> return . (:) rs =<< runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
             Nothing -> return [rs]
     | hc == Discard =
         let
@@ -538,7 +539,7 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
             jrs = minState xs
         in
         case jrs of
-            Just (rs', xs') -> runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') xs'
+            Just (rs', xs') -> runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
             Nothing -> return []
     | hc == Switch =
         let
@@ -550,10 +551,10 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
             rs''' = rs'' { halter_val = updatePerStateHalt hal (halter_val rs'') ps (state rs'') }
         in
         if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
-            then runReducer' red hal ord pr rs''' xs'
-            else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs'
+            then runReducer' red hal ord pr rs''' b xs'
+            else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
     | otherwise = do
-        (_, reduceds, red') <- redRules red r_val s
+        (_, reduceds, red') <- redRules red r_val s b
         let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
 
         let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
@@ -564,7 +565,7 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
         
         let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs mod_info
 
-        runReducerList red' hal ord pr xs'
+        runReducerList red' hal ord pr xs' b
     where
         hc = stopRed hal h_val ps s
         ps = processedToState pr
@@ -575,10 +576,11 @@ runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                -> or 
                -> Processed (ExState rv hv sov t)
                -> M.Map b [ExState rv hv sov t]
+               -> Bindings
                -> IO [ExState rv hv sov t]
-runReducerList red hal ord pr m =
+runReducerList red hal ord pr m binds =
     case minState m of
-        Just (x, m') -> runReducer' red hal ord pr x m'
+        Just (x, m') -> runReducer' red hal ord pr x binds m'
         Nothing -> return []
 
 updateExStateHalter :: Halter h hv t
