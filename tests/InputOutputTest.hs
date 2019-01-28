@@ -53,6 +53,7 @@ checkInputOutput'' proj src md entry i req config = do
     (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src [] True config
 
     let (init_state, _, bindings) = initState binds tycons cls Nothing Nothing False (T.pack entry) mb_modname ex config
+    putStrLn "test"
     
     r <- runG2WithConfig init_state config bindings
 
