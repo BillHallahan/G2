@@ -135,7 +135,6 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , type_classes = tc'
     , input_ids = is
     , symbolic_ids = is
-    , func_table = ft
     , apply_types = at
     , exec_stack = Stack.empty
     , model = M.empty
@@ -144,13 +143,14 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , num_steps = 0
     , track = ()
     , tags = S.empty
- }
- , ie
- , Bindings {
+    }
+    , ie
+    , Bindings {
     deepseq_walkers = ds_walkers
-  , fixed_inputs = f_i
-  , arb_value_gen = arbValueInit
-  , cleaned_names = HM.empty})
+    , fixed_inputs = f_i
+    , arb_value_gen = arbValueInit
+    , cleaned_names = HM.empty
+    , func_table = ft})
 
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc

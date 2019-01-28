@@ -219,7 +219,7 @@ ppExprEnv s@(State {expr_env = eenv}) =
 ppRelExprEnv :: State t -> Bindings -> String
 ppRelExprEnv s bindings =
     let
-        (s', bindings') = markAndSweep s bindings
+        (s', _) = markAndSweep s bindings
     in
     ppExprEnv s'
 
@@ -260,7 +260,7 @@ pprExecStateStr ex_state = injNewLine acc_strs
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen ex_state)
     input_str = pprInputIdsStr (symbolic_ids ex_state)
-    funcs_str = pprFuncTableStr (func_table ex_state)
+    -- funcs_str = pprFuncTableStr (func_table ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
@@ -282,8 +282,8 @@ pprExecStateStr ex_state = injNewLine acc_strs
                , names_str
                , "----- [Input Ids] -----------------"
                , input_str
-               , "----- [Func Table] ----------------"
-               , funcs_str
+               -- , "----- [Func Table] ----------------"
+               -- , funcs_str
                --, "----- [Walkers] -------------------"
                -- , walkers_str
                , "----- [Paths] ---------------------"

@@ -47,7 +47,7 @@ data State t = State { expr_env :: E.ExprEnv
                      , type_classes :: TypeClasses
                      , input_ids :: InputIds
                      , symbolic_ids :: SymbolicIds
-                     , func_table :: FuncInterps
+                     -- , func_table :: FuncInterps
                      , apply_types :: AT.ApplyTypes
                      , exec_stack :: Stack Frame
                      , model :: Model
@@ -62,6 +62,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , fixed_inputs :: [Expr]
                          , arb_value_gen :: ArbValueGen 
                          , cleaned_names :: CleanedNames
+                         , func_table :: FuncInterps
                          } deriving (Show, Eq, Read)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
@@ -152,7 +153,7 @@ renameState old new_seed s =
              , type_classes = rename old new (type_classes s)
              , input_ids = rename old new (input_ids s)
              , symbolic_ids = rename old new (symbolic_ids s)
-             , func_table = rename old new (func_table s)
+             -- , func_table = rename old new (func_table s)
              , apply_types = rename old new (apply_types s)
              , exec_stack = exec_stack s
              , model = model s
@@ -171,7 +172,7 @@ instance Named t => Named (State t) where
             ++ names (type_classes s)
             ++ names (input_ids s)
             ++ names (symbolic_ids s)
-            ++ names (func_table s)
+            -- ++ names (func_table s)
             ++ names (apply_types s)
             ++ names (exec_stack s)
             ++ names (model s)
@@ -192,7 +193,7 @@ instance Named t => Named (State t) where
                , type_classes = rename old new (type_classes s)
                , input_ids = rename old new (input_ids s)
                , symbolic_ids = rename old new (symbolic_ids s)
-               , func_table = rename old new (func_table s)
+               -- , func_table = rename old new (func_table s)
                , apply_types = rename old new (apply_types s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
@@ -216,7 +217,7 @@ instance Named t => Named (State t) where
                , type_classes = renames hm (type_classes s)
                , input_ids = renames hm (input_ids s)
                , symbolic_ids = renames hm (symbolic_ids s)
-               , func_table = renames hm (func_table s)
+               -- , func_table = renames hm (func_table s)
                , apply_types = renames hm (apply_types s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
@@ -274,12 +275,14 @@ instance Named Bindings where
     names b = names (fixed_inputs b)
             ++ names (deepseq_walkers b)
             ++ names (cleaned_names b)
+            ++ names (func_table b)
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
                  , deepseq_walkers = rename old new (deepseq_walkers b)
                  , arb_value_gen = arb_value_gen b
                  , cleaned_names = HM.insert new old (cleaned_names b)
+                 , func_table = rename old new (func_table b)
                  }
 
     renames hm b =
@@ -287,6 +290,7 @@ instance Named Bindings where
                , deepseq_walkers = renames hm (deepseq_walkers b)
                , arb_value_gen = arb_value_gen b
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
+               , func_table = renames hm (func_table b)
                }
 
 instance ASTContainer Bindings Expr where
