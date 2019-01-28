@@ -135,7 +135,6 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , type_classes = tc'
     , input_ids = is
     , symbolic_ids = is
-    , apply_types = at
     , exec_stack = Stack.empty
     , model = M.empty
     , known_values = kv'
@@ -150,7 +149,8 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , fixed_inputs = f_i
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
-    , func_table = ft})
+    , func_table = ft
+    , apply_types = at})
 
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc
@@ -310,8 +310,8 @@ runG2 :: ( Named t
          solver -> [Name] -> State t -> Bindings -> IO [ExecRes t]
 runG2 red hal ord con pns (is@State { type_env = tenv
                                     , known_values = kv
-                                    , apply_types = at
-                                    , type_classes = tc }) bindings = do
+                                    , type_classes = tc }) 
+                          (bindings@Bindings { apply_types = at}) = do
     let (swept, bindings') = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is bindings
 
     let preproc_state = runPreprocessing swept

@@ -97,15 +97,15 @@ runWithArgs as = do
 printFuncCalls :: Config -> Id -> [ExecRes t] -> IO ()
 printFuncCalls config entry =
     mapM_ (\execr@(ExecRes { final_state = s, exec_bindings = b }) -> do
-        let funcCall = mkCleanExprHaskell s
+        let funcCall = mkCleanExprHaskell s b
                      . foldl (\a a' -> App a a') (Var entry) $ (conc_args execr)
 
-        let funcOut = mkCleanExprHaskell s $ (conc_out execr)
+        let funcOut = mkCleanExprHaskell s b $ (conc_out execr)
 
-        ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s
+        ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s b
         ppStatePiece (printRelExprEnv config) "rel expr_env" $ ppRelExprEnv s b
-        ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s
-        ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s
+        ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s b
+        ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s b
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 

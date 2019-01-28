@@ -80,14 +80,14 @@ runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [
                     -> IO ([ExecRes [FuncCall]], Lang.Id)
 runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     let (init_state, ifi, bindings) = initState prog tys cls Nothing Nothing True entry mb_modname ex config
-    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state) init_state bindings)
+    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state bindings) init_state bindings)
     let cleaned_state = init_state' { type_env = type_env init_state } 
 
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = cleaned_state
 
     let renme = E.keys np_eenv -- \\ nub (Lang.names (type_classes no_part_state))
     let ((meenv, mkv, mtc, mat), ng') = doRenames renme np_ng 
-            (np_eenv, known_values no_part_state, type_classes no_part_state, apply_types no_part_state)
+            (np_eenv, known_values no_part_state, type_classes no_part_state, apply_types bindings')
             
     let ng_state = no_part_state {name_gen = ng'}
 
@@ -100,7 +100,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
 
-    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
+    let pres_names = reqNames merged_state' bindings'' ++ names tcv ++ names mkv
 
     let annm = annots merged_state
 
@@ -116,8 +116,8 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     -- these lists will work, without us having to modify all of G2 to account
     -- for the LH typeclass.
     let final_st = track_state { known_values = mkv
-                               , type_classes = unionTypeClasses mtc (type_classes track_state)
-                               , apply_types = mat}
+                               , type_classes = unionTypeClasses mtc (type_classes track_state)}
+    let bindings''' = bindings { apply_types = mat}
 
 
     let tr_ng = mkNameGen ()
@@ -139,7 +139,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st bindings''
+                    con (pres_names ++ names annm) final_st bindings'''
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -154,7 +154,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st bindings''
+                    con (pres_names ++ names annm) final_st bindings'''
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -237,11 +237,11 @@ funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 measureSpecs = concatMap (gsMeasures . spec)
 
-reqNames :: State t -> [Name]
+reqNames :: State t -> Bindings -> [Name]
 reqNames (State { expr_env = eenv
                 , type_classes = tc
-                , known_values = kv
-                , apply_types = at }) = 
+                , known_values = kv}) 
+         (Bindings {apply_types = at}) = 
     Lang.names [ mkGe eenv
                , mkGt eenv
                , mkEq eenv
@@ -330,17 +330,18 @@ parseLHOut _ [] = []
 parseLHOut entry ((ExecRes { final_state = s
                            , conc_args = inArg
                            , conc_out = ex
-                           , violated = ais }):xs) =
+                           , violated = ais
+                           , exec_bindings = b}):xs) =
   let 
       tl = parseLHOut entry xs
-      funcCall = T.pack $ mkCleanExprHaskell s 
+      funcCall = T.pack $ mkCleanExprHaskell s b 
                . foldl (\a a' -> App a a') (Var entry) $ inArg
-      funcOut = T.pack $ mkCleanExprHaskell s $ ex
+      funcOut = T.pack $ mkCleanExprHaskell s b $ ex
 
       called = FuncInfo {func = nameOcc $ idName entry, funcArgs = funcCall, funcReturn = funcOut}
-      viFunc = fmap (parseLHFuncTuple s) ais
+      viFunc = fmap (parseLHFuncTuple s b) ais
 
-      abstr = map (parseLHFuncTuple s) $ track s
+      abstr = map (parseLHFuncTuple s b) $ track s
   in
   LHReturn { calledFunc = called
            , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc
@@ -350,13 +351,13 @@ sameFuncNameArgs :: FuncInfo -> Maybe FuncInfo -> Bool
 sameFuncNameArgs _ Nothing = False
 sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = f2, funcArgs = fa2})) = f1 == f2 && fa1 == fa2
 
-parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
-parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
+parseLHFuncTuple :: State t -> Bindings -> FuncCall -> FuncInfo
+parseLHFuncTuple s b (FuncCall {funcName = n, arguments = ars, returns = out}) =
     let
         t = case fmap typeOf $ E.lookup n (expr_env s) of
                   Just t' -> t'
                   Nothing -> error $ "Unknown type for abstracted function " ++ show n
     in
     FuncInfo { func = nameOcc n
-             , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n t)) ars)
-             , funcReturn = T.pack $ mkCleanExprHaskell s out }
+             , funcArgs = T.pack $ mkCleanExprHaskell s b (foldl' App (Var (Id n t)) ars)
+             , funcReturn = T.pack $ mkCleanExprHaskell s b out }

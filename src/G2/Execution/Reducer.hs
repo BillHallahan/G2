@@ -283,9 +283,9 @@ instance Reducer NonRedPCRed () t where
                               , exec_stack = stck
                               , path_conds = pc
                               , non_red_path_conds = nr:nrs
-                              , apply_types = at
                               , input_ids = is
-                              , symbolic_ids = si }) _ = do
+                              , symbolic_ids = si })
+                      (Bindings { apply_types = at}) = do
         let stck' = Stck.push (CurrExprFrame cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nr
