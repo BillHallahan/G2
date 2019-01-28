@@ -27,6 +27,7 @@ data ModGutsClosure = ModGutsClosure
   , mgcc_cls_insts :: [ClsInst]
   , mgcc_type_env :: TypeEnv
   , mgcc_exports :: [ExportedName]
+  , mgcc_deps :: [String]
   }
 
 
@@ -34,6 +35,7 @@ data ModDetailsClosure = ModDetailsClosure
   { mdcc_cls_insts :: [ClsInst]
   , mdcc_type_env :: TypeEnv
   , mdcc_exports :: [ExportedName]
+  , mdcc_deps :: [String]
   }
 
 data CgGutsClosure = CgGutsClosure
@@ -80,6 +82,7 @@ data ExtractedG2 = ExtractedG2
   , exg2_tycons :: [G2.ProgramType]
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id])]
   , exg2_exports :: [ExportedName]
+  , exg2_deps :: [T.Text]
   } deriving (Eq, Show, Read)
 
 emptyExtractedG2 :: ExtractedG2
@@ -89,6 +92,7 @@ emptyExtractedG2 =
     , exg2_binds = []
     , exg2_tycons = []
     , exg2_classes = []
-    , exg2_exports = [] }
+    , exg2_exports = []
+    , exg2_deps = [] }
 
 

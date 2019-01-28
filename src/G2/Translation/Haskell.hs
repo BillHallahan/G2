@@ -9,6 +9,7 @@ module G2.Translation.Haskell
     , hskToG2ViaCgGutsFromFile
     , mkCgGutsClosure
     , mkModDetailsClosure
+    , mergeExtractedG2s
     , mkIOString
     , prim_list
     , rawDump
@@ -21,6 +22,7 @@ module G2.Translation.Haskell
     , mkRealSpan
     , absVarLoc
     , readFileExtractedG2
+    , mergeFileExtractedG2s
     ) where
 
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..), ProgramType)
@@ -163,6 +165,7 @@ cgGutsModDetailsClosureToModGutsClosure cg md =
     , G2.mgcc_cls_insts = G2.mdcc_cls_insts md
     , G2.mgcc_type_env = G2.mdcc_type_env md
     , G2.mgcc_exports = G2.mdcc_exports md
+    , G2.mgcc_deps = G2.mdcc_deps md
     }
 
 
@@ -181,7 +184,7 @@ mkCgGutsModDetailsClosuresFromFile hsc proj src simpl = do
 
   simplgutss <- mapM (if simpl then hscSimplify env else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\(cg, md) -> (mkCgGutsClosure cg, mkModDetailsClosure md)) tidys
+  let pairs = map (\((cg, md), mg) -> (mkCgGutsClosure cg, mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 
 
@@ -193,12 +196,14 @@ mkCgGutsClosure cgguts =
     , G2.cgcc_breaks = cg_modBreaks cgguts
     , G2.cgcc_tycons = cg_tycons cgguts }
 
-mkModDetailsClosure :: ModDetails -> G2.ModDetailsClosure
-mkModDetailsClosure moddet =
+
+mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
+mkModDetailsClosure deps moddet =
   G2.ModDetailsClosure
     { G2.mdcc_cls_insts = md_insts moddet
     , G2.mdcc_type_env = md_types moddet
     , G2.mdcc_exports = exportedNames moddet
+    , G2.mdcc_deps = map (moduleNameString . fst) $ dep_mods deps
     }
 
 
@@ -245,13 +250,15 @@ modGutsClosureToG2 nm tm mgcc =
 
   -- Do the exports
   let exports = G2.mgcc_exports mgcc in
+  let deps = fmap T.pack $ G2.mgcc_deps mgcc in
     (nm3, tm2,
         G2.ExtractedG2
           { G2.exg2_mod_names = maybeToList $ fmap T.pack $ G2.mgcc_mod_name mgcc
           , G2.exg2_binds = binds
           , G2.exg2_tycons = tycons
           , G2.exg2_classes = classes
-          , G2.exg2_exports = exports })
+          , G2.exg2_exports = exports
+          , G2.exg2_deps = deps })
   
 
 mkModGutsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO [G2.ModGutsClosure]
@@ -287,6 +294,7 @@ mkModGutsClosure env modguts = do
       , G2.mgcc_cls_insts = md_insts moddets
       , G2.mgcc_type_env = md_types moddets
       , G2.mgcc_exports = exportedNames moddets
+      , G2.mgcc_deps = map (moduleNameString . fst) $ dep_mods $ mg_deps modguts
       }
 
 
@@ -300,7 +308,8 @@ mergeExtractedG2s (g2:g2s) =
       , G2.exg2_binds = G2.exg2_binds g2 ++ G2.exg2_binds g2'
       , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
-      , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2' }
+      , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2'
+      , G2.exg2_deps = G2.exg2_deps g2 ++ G2.exg2_deps g2' }
 
 ----------------
 -- Translating the individual components in CoreSyn, etc into G2 Core
@@ -637,5 +646,28 @@ readFileExtractedG2 :: FilePath -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG
 readFileExtractedG2 file = do
   contents <- readFile file
   return $ read contents
+
+
+-- Merge nm2 into nm1
+rewrireNameMap :: (T.Text, Maybe T.Text) -> G2.Name -> G2.NameMap -> G2.NameMap
+rewrireNameMap key val@(G2.Name occ mod unq span) nameMap =
+  case HM.lookup (occ, mod) nameMap of
+    Nothing -> HM.insert key val nameMap
+    Just new -> HM.insert key new nameMap
+
+mergeNameMap :: G2.NameMap -> G2.NameMap -> G2.NameMap
+mergeNameMap nm1 = foldr (\(key, name) nm1' -> rewrireNameMap key name nm1') nm1 . HM.toList
+
+
+-- Favors earlier in the list
+mergeFileExtractedG2s :: [(G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)]
+    -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+mergeFileExtractedG2s [] = (HM.empty, HM.empty, G2.emptyExtractedG2)
+mergeFileExtractedG2s (ex : []) = ex
+mergeFileExtractedG2s ((nm1, tnm1, ex1) : (nm2, tnm2, ex2) : exs) =
+  let nm' = mergeNameMap nm1 nm2 in
+  let tnm' = mergeNameMap tnm1 tnm2 in
+  let ex' = mergeExtractedG2s [ex1, ex2] in
+    mergeFileExtractedG2s $ (nm', tnm', ex') : exs
 
 
