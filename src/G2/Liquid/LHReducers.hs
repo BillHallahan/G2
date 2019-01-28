@@ -102,12 +102,12 @@ data LHRed = LHRed Name
 instance Reducer LHRed () LHTracker where
     initReducer _ _ = ()
 
-    redRules lhr@(LHRed cfn) _ s _ = do
+    redRules lhr@(LHRed cfn) _ s b = do
         case lhReduce cfn s of
             Just (_, s') -> 
                 return $ ( InProgress
-                         , zip s' (repeat ()), lhr)
-            Nothing -> return (Finished, [(s, ())], lhr)
+                         , zip3 s' (repeat b) (repeat ()), lhr)
+            Nothing -> return (Finished, [(s, b, ())], lhr)
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
