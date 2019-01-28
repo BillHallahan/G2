@@ -161,7 +161,7 @@ instance FullState (LHState, L.Bindings) LHStateM where
     currExpr = readRecord $ curr_expr . fst
     putCurrExpr = rep_curr_exprM
 
-    inputIds = readRecord $ input_ids . fst
+    inputIds = readRecord $ L.input_ids . snd
     fixedInputs = readRecord $ L.fixed_inputs . snd
 
 runLHStateM :: LHStateM a -> LHState -> L.Bindings -> (a, (LHState, L.Bindings))
@@ -235,9 +235,6 @@ rep_type_classesM tc = do
     let s = state lh_s
     let s' = s {L.type_classes = tc}
     SM.put $ (lh_s {state = s'}, b)
-
-input_ids :: LHState -> L.InputIds
-input_ids = liftState L.input_ids
 
 liftLHState :: (LHState -> a) -> LHStateM a
 liftLHState f = do

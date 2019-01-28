@@ -74,7 +74,7 @@ instance FullState (State t, Bindings) (StateM t) where
     currExpr = readRecord (\(s, _) -> curr_expr s)
     putCurrExpr = rep_curr_exprM
 
-    inputIds = readRecord (\(s, _) -> input_ids s)
+    inputIds = readRecord (\(_, b) -> input_ids b)
     fixedInputs = readRecord (\(_,b) -> fixed_inputs b)
 
 runStateM :: StateM t a -> State t -> Bindings -> (a, (State t, Bindings))

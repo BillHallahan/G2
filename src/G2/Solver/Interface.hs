@@ -17,13 +17,13 @@ import G2.Solver.Solver
 
 import qualified Data.Map as M
 
-subModel :: State t -> ([Expr], Expr, Maybe FuncCall)
+subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
-                , input_ids = is
                 , assert_ids = ais
                 , type_classes = tc
-                , model = m}) =
+                , model = m}) 
+          (Bindings {input_ids = is}) =
     let
         ais' = fmap (subVarFuncCall m eenv tc) ais
     in

@@ -133,7 +133,6 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc'
-    , input_ids = is
     , symbolic_ids = is
     , exec_stack = Stack.empty
     , model = M.empty
@@ -150,7 +149,8 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , func_table = ft
-    , apply_types = at})
+    , apply_types = at
+    , input_ids = is})
 
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc
@@ -329,7 +329,7 @@ runG2 red hal ord con pns (is@State { type_env = tenv
     let ident_states'' = catMaybes ident_states'
 
     let sm = map (\s -> 
-              let (es, e, ais) = subModel s in
+              let (es, e, ais) = subModel s bindings' in
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
