@@ -23,6 +23,10 @@ import G2.Plugin
 
 main :: IO ()
 main = do
+  -- base <- readFileExtractedG2 "/home/celery/foo/yale/dump-base/GHC.Base.g2i"
+  -- putStrLn $ show base
+
+  -- error "HELLO!"
 
   as <- getArgs
   let (proj:_) = as
