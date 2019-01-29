@@ -23,8 +23,11 @@ import G2.Plugin
 
 main :: IO ()
 main = do
-  -- base <- readFileExtractedG2 "/home/celery/foo/yale/dump-base/GHC.Base.g2i"
-  -- putStrLn $ show base
+  -- base <- readFileExtractedG2 "/home/celery/Desktop/ghc-dump-dir/GHC.Base.g2i"
+  -- libs <- readAllExtractedG2s "/home/celery/Desktop/ghc-dump-dir" "Prelude.g2i"
+  -- let mergeds = mergeFileExtractedG2s libs
+  -- putStrLn $ show mergeds
+  -- putStrLn $ show $ length libs
 
   -- error "HELLO!"
 

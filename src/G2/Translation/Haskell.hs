@@ -22,6 +22,7 @@ module G2.Translation.Haskell
     , mkRealSpan
     , absVarLoc
     , readFileExtractedG2
+    , readAllExtractedG2s
     , mergeFileExtractedG2s
     ) where
 
@@ -59,6 +60,7 @@ import Data.Foldable
 import Data.List
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import System.Directory
 
@@ -646,6 +648,28 @@ readFileExtractedG2 :: FilePath -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG
 readFileExtractedG2 file = do
   contents <- readFile file
   return $ read contents
+
+readAllExtractedG2s :: FilePath -> FilePath -> IO [(G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)]
+readAllExtractedG2s root file = go [file] HS.empty []
+  where
+    go :: [FilePath]
+        -> HS.HashSet FilePath
+        -> [(G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)]
+        -> IO [(G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)]
+    go [] _ accum = return accum
+    go (tgt : todos) visited accum =
+      let absPath = root ++ "/" ++ tgt in
+      if HS.member absPath visited then
+        go todos visited accum
+      else do
+        (nameMap, tyNameMap, exg2) <- readFileExtractedG2 absPath
+        -- Dependencies are relative paths
+        let deps = map (\d -> (T.unpack d) ++ ".g2i") $ G2.exg2_deps exg2
+
+        let todos' = todos ++ deps
+        let visited' = HS.insert absPath visited
+        let accum' = accum ++ [(nameMap, tyNameMap, exg2)]
+        go todos' visited' accum'
 
 
 -- Merge nm2 into nm1
