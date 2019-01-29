@@ -49,8 +49,8 @@ translateLoaded :: FilePath -> FilePath -> [FilePath] -> Bool -> Config
                 -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name])
 translateLoaded proj src libs simpl config = do
   -- (mb_modname, final_prog, final_tys, classes, ex) <- translateLoadedV proj src libs simpl config
-  let prefix = "/home/celery/foo/yale/dump-base/"
-  contents <- getDirectoryContents prefix
+  -- let prefix = "/home/celery/foo/yale/dump-base/"
+  -- contents <- getDirectoryContents prefix
 
   -- let libs = map (\c -> prefix ++ c) $ filter (\c -> c /= "." && c /= "..") contents
   -- (mb_modname, final_prog, final_tys, classes, ex) <- translateLoadedD proj src libs simpl config
