@@ -215,6 +215,7 @@ instance ASTContainer Expr Type where
     containedASTs (Var i) = containedASTs i
     containedASTs (Prim _ t) = [t]
     containedASTs (Data dc) = containedASTs dc
+    containedASTs (App e1 e2) = containedASTs e1 ++ containedASTs e2
     containedASTs (Lam _ b e) = containedASTs b ++ containedASTs e
     containedASTs (Let bnd e) = containedASTs bnd ++ containedASTs e
     containedASTs (Case e i as) = containedASTs e ++ containedASTs i ++ containedASTs as
@@ -222,6 +223,7 @@ instance ASTContainer Expr Type where
     containedASTs (Coercion c) = containedASTs c
     containedASTs (Type t) = [t]
     containedASTs (Tick _ e) = containedASTs e
+    containedASTs (NonDet es) = containedASTs es
     containedASTs (SymGen t) = [t]
     containedASTs (Assume is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
     containedASTs (Assert is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'

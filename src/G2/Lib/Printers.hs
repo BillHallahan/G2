@@ -7,7 +7,8 @@ module G2.Lib.Printers ( mkCleanExprHaskell
                        , ppCurrExpr
                        , ppPathConds
                        , ppPathCond
-                       , pprExecStateStr) where
+                       , pprExecStateStr
+                       , pprExecEEnvStr) where
 
 import G2.Execution.Memory
 import qualified G2.Language.ApplyTypes as AT

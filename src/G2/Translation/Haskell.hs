@@ -529,8 +529,8 @@ mkTyCon nm tm t = case dcs of
                                             st' = mkType tm st
                                             tv' = map (mkId tm) tv
                                         in
-                                        (nm, tm, Just $ G2.TypeSynonym { G2.bound_ids = tv'
-                                                                       , G2.synonym_of = st'}, Nothing)
+                                        (nm, tm', Just $ G2.TypeSynonym { G2.bound_ids = tv'
+                                                                         , G2.synonym_of = st'}, Nothing)
                                     False -> (nm, tm, Nothing, Nothing)
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
