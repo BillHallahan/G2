@@ -18,6 +18,7 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , toMap) where
 
 import G2.Language.AST
+import G2.Language.KnownValues (KnownValues)
 import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Typing
@@ -78,8 +79,8 @@ lookupTCDict tc n t =
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
 lookupTCDicts n = fmap insts . M.lookup n . coerce
 
-lookupTCDictsTypes :: Name -> TypeClasses -> Maybe [Type]
-lookupTCDictsTypes n = fmap (map fst) . lookupTCDicts n
+lookupTCDictsTypes :: TypeClasses -> Name -> Maybe [Type]
+lookupTCDictsTypes tc = fmap (map fst) . flip lookupTCDicts tc
 
 -- tcDicts
 tcDicts :: TypeClasses -> [Id]
@@ -111,51 +112,56 @@ typeClassInst tc m tcn t
 typeClassInst _ _ _ _ = Nothing
 
 -- satisfyingTCTypes
--- Finds all types/dict pairs that satisfy the given TC requirements for each polymorphic argument
--- returns a list of tuples, where each tuple (i, t) corresponds to a TyVar Id i,
--- and a list of acceptable types
-satisfyingTCTypes :: TypeClasses -> [Type] -> [(Id, [Type])]
-satisfyingTCTypes tc ts =
+-- Finds types/dict pairs that satisfy the given TC requirements for the given polymorphic argument
+-- returns a list of acceptable types
+satisfyingTCTypes :: KnownValues -> TypeClasses -> Id -> [Type] -> [Type]
+satisfyingTCTypes kv tc i ts =
     let
-        tcReq = satisfyTCReq tc ts
-
-        tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDictsTypes tc) ns)) tcReq
+        tcReq = satisfyTCReq tc i ts
     in
-    map (uncurry substKind) $ map (\(i, ts') -> (i, inter ts')) tcReqTS
+    substKind i . inter kv $ mapMaybe (lookupTCDictsTypes tc) tcReq
 
-inter :: Eq a => [[a]] -> [a]
-inter [] = []
-inter xs = foldr1 intersect xs
+inter :: KnownValues -> [[Type]] -> [Type]
+inter kv [] = [tyInt kv]
+inter _ xs = foldr1 intersect xs
 
-substKind :: Id -> [Type] -> (Id, [Type])
-substKind i@(Id _ t) ts = (i, map (\t' -> case t' of 
-                                            TyCon n _ -> TyCon n (tyFunToTyApp t)
-                                            t'' -> t'') ts)
+substKind :: Id -> [Type] -> [Type]
+substKind (Id _ t) ts = map (\t' -> case t' of 
+                                        TyCon n _ -> TyCon n (tyFunToTyApp t)
+                                        t'' -> t'') ts
 
 tyFunToTyApp :: Type -> Type
 tyFunToTyApp (TyFun t1 (TyFun t2 t3)) = TyApp (TyApp (tyFunToTyApp t1) (tyFunToTyApp t2)) (tyFunToTyApp t3)
 tyFunToTyApp t = modifyChildren tyFunToTyApp t
 
 -- satisfyingTCReq
--- Finds the names of the required typeclasses for each TyVar Id
+-- Finds the names of the required typeclasses for a TyVar Id
 -- See satisfyingTCTypes
-satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
-satisfyTCReq tc ts =
-    map (\(i, ts') -> (i, mapMaybe (tyConAppName . tyAppCenter) ts'))
-    $ mapMaybe toIdTypeTup
-    $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
-    $ filter (isTypeClass tc) ts
+satisfyTCReq :: TypeClasses -> Id -> [Type] -> [Name]
+satisfyTCReq tc i =
+    mapMaybe (tyConAppName . tyAppCenter) . filter (isFor i) . filter (isTypeClass tc)
+    where
+      isFor :: Id -> Type -> Bool
+      isFor ii (TyApp (TyCon _ _) (TyVar ii')) = ii == ii'
+      isFor _ _ = False
 
-toIdTypeTup :: [Type] -> Maybe (Id, [Type])
-toIdTypeTup ts@(TyApp (TyCon _ _) (TyVar i):_) = Just (i, ts)
-toIdTypeTup _ = Nothing
+-- satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
+-- satisfyTCReq tc ts =
+--     map (\(i, ts') -> (i, mapMaybe (tyConAppName . tyAppCenter) ts'))
+--     $ mapMaybe toIdTypeTup
+--     $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
+--     $ filter (isTypeClass tc) ts
+
+-- toIdTypeTup :: [Type] -> Maybe (Id, [Type])
+-- toIdTypeTup ts@(TyApp (TyCon _ _) (TyVar i):_) = Just (i, ts)
+-- toIdTypeTup _ = Nothing
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments
 satisfyingTC :: TypeClasses -> [Type] -> [(Id, Type)] -> [Id]
 satisfyingTC  tc ts it =
     let
-        tcReq = satisfyTCReq tc ts
+        tcReq = map (\(i, _) -> (i, satisfyTCReq tc i ts)) it
     in
     concat
     $ mapMaybe 

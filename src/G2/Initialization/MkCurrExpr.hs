@@ -107,14 +107,10 @@ instantitateTypes tc kv ts =
 
         -- Get non-TyForAll type reqs, identify typeclasses
         ts' = map typeAnonType $ filter (not . typeNamed) ts
-        tcSat = satisfyingTCTypes tc ts'
-
-        -- If a type has no type class constraints, it will not be returned by satisfyingTCTypes.
-        -- So we re-add it here
-        tcSat' = reAddNoCons kv tcSat tv
+        tcSat = map (\i -> (i, satisfyingTCTypes kv tc i ts')) tv
 
         -- TyForAll type reqs
-        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat'
+        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
         tvt = map (\(i, t) -> (TyVar i, t)) tv'
         -- Dictionary arguments
         vi = satisfyingTC tc ts' tv'
@@ -130,13 +126,6 @@ pickForTyVar kv ts
     | Just t <- find ((==) (tyInt kv)) ts = t
     | t:_ <- ts = t
     | otherwise = error "No type found in pickForTyVar"
-
-reAddNoCons :: KnownValues -> [(Id, [Type])] -> [Id] -> [(Id, [Type])]
-reAddNoCons _ _ [] = []
-reAddNoCons kv it (i:xs) =
-    case lookup i it of
-        Just ts -> (i, ts):reAddNoCons kv it xs
-        Nothing -> (i, [tyInt kv]):reAddNoCons kv it xs
 
 typeNamedId :: ArgType -> Id
 typeNamedId (NamedType i) = i
