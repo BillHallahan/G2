@@ -31,6 +31,8 @@ module G2.Language.Typing
     , isTyVar
     , hasTyBottom
     , tyVars
+    , tyVarIds
+    , tyVarNames
     , hasTyFuns
     , isPolyFunc
     , numArgs
@@ -379,6 +381,18 @@ tyVars = evalASTs tyVars'
 tyVars' :: Type -> [Type]
 tyVars' t@(TyVar _) = [t]
 tyVars' _ = []
+
+-- | Returns a list of all tyVars Ids
+tyVarIds :: ASTContainer m Type => m -> [Id]
+tyVarIds = evalASTs tyVarIds'
+
+tyVarIds' :: Type -> [Id]
+tyVarIds' (TyVar i) = [i]
+tyVarIds' _ = []
+
+-- | Returns a list of all tyVars Names
+tyVarNames :: ASTContainer m Type => m -> [Name]
+tyVarNames = map idName . tyVarIds
 
 -- | hasTyFuns
 hasTyFuns :: ASTContainer m Type => m -> Bool

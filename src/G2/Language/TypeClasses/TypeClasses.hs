@@ -142,7 +142,7 @@ satisfyTCReq tc i =
     mapMaybe (tyConAppName . tyAppCenter) . filter (isFor i) . filter (isTypeClass tc)
     where
       isFor :: Id -> Type -> Bool
-      isFor ii (TyApp (TyCon _ _) (TyVar ii')) = ii == ii'
+      isFor ii (TyApp (TyCon _ _) a) = ii `elem` tyVarIds a
       isFor _ _ = False
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
