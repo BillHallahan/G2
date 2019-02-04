@@ -70,8 +70,8 @@ isTypeClass _ _ = False
 -- Returns the dictionary for the given typeclass and Type,
 -- if one exists
 lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
-lookupTCDict tc (Name n _ _ _) t =
-    case (fmap (insts . snd) $ find (\(Name n' _ _ _, _) -> n == n') (M.toList ((coerce :: TypeClasses -> TCType) tc))) of
+lookupTCDict tc n t =
+    case fmap insts $ M.lookup n (toMap tc) of
         Just c -> fmap snd $ find (\(t', _) -> PresType t .:: t') c
         Nothing -> Nothing
 
@@ -84,10 +84,6 @@ lookupTCDictsTypes n = fmap (map fst) . lookupTCDicts n
 -- tcDicts
 tcDicts :: TypeClasses -> [Id]
 tcDicts = map snd . concatMap insts . M.elems . coerce
-
-toIdTypeTup :: [Type] -> Maybe (Id, [Type])
-toIdTypeTup ts@(TyApp (TyCon _ _) (TyVar i):_) = Just (i, ts)
-toIdTypeTup _ = Nothing
 
 tyConAppName :: Type -> Maybe Name
 tyConAppName (TyCon n _) = Just n
@@ -149,6 +145,10 @@ satisfyTCReq tc ts =
     $ mapMaybe toIdTypeTup
     $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
     $ filter (isTypeClass tc) ts
+
+toIdTypeTup :: [Type] -> Maybe (Id, [Type])
+toIdTypeTup ts@(TyApp (TyCon _ _) (TyVar i):_) = Just (i, ts)
+toIdTypeTup _ = Nothing
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments
