@@ -113,7 +113,7 @@ instantitateTypes tc kv ts =
         tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
         tvt = map (\(i, t) -> (TyVar i, t)) tv'
         -- Dictionary arguments
-        vi = satisfyingTC tc ts' tv'
+        vi = concatMap (uncurry (satisfyingTC tc ts')) tv'
 
         ex = map (Type . snd) tv' ++ map Var vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt

@@ -145,29 +145,14 @@ satisfyTCReq tc i =
       isFor ii (TyApp (TyCon _ _) (TyVar ii')) = ii == ii'
       isFor _ _ = False
 
--- satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
--- satisfyTCReq tc ts =
---     map (\(i, ts') -> (i, mapMaybe (tyConAppName . tyAppCenter) ts'))
---     $ mapMaybe toIdTypeTup
---     $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
---     $ filter (isTypeClass tc) ts
-
--- toIdTypeTup :: [Type] -> Maybe (Id, [Type])
--- toIdTypeTup ts@(TyApp (TyCon _ _) (TyVar i):_) = Just (i, ts)
--- toIdTypeTup _ = Nothing
-
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments
-satisfyingTC :: TypeClasses -> [Type] -> [(Id, Type)] -> [Id]
-satisfyingTC  tc ts it =
+satisfyingTC :: TypeClasses -> [Type] -> Id -> Type -> [Id]
+satisfyingTC  tc ts i t =
     let
-        tcReq = map (\(i, _) -> (i, satisfyTCReq tc i ts)) it
+        tcReq = satisfyTCReq tc i ts
     in
-    concat
-    $ mapMaybe 
-        (\(i, t) -> fmap (mapMaybe (\n -> lookupTCDict tc n t))
-                         (lookup i tcReq)
-        ) it
+    mapMaybe (\n -> lookupTCDict tc n t) tcReq
 
 toMap :: TypeClasses -> M.Map Name Class
 toMap = coerce
