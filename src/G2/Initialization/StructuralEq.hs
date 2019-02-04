@@ -7,7 +7,6 @@ import G2.Language
 import G2.Language.Monad
 import G2.Language.KnownValues
 
-import Data.Coerce
 import qualified Data.Foldable as F
 import Data.List
 import qualified Data.Map as M
