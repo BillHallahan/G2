@@ -9,7 +9,6 @@ import G2.Liquid.Conversion
 import G2.Liquid.TCValues
 import G2.Liquid.Types
 
-import Data.Coerce
 import Data.Foldable
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -90,7 +89,7 @@ createLHTCFuncs = do
     tc <- typeClasses
     tcn <- lhTCM
     tci <- freshIdN TYPE
-    let tc' = coerce . M.insert tcn (Class { insts = lhtc, typ_ids = [tci] }) $ coerce tc
+    let tc' = insertClass tcn (Class { insts = lhtc, typ_ids = [tci] }) tc
     putTypeClasses tc'
 
     -- Now, we do the work of actually generating all the code/functions for the typeclass

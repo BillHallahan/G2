@@ -21,7 +21,7 @@ mkCurrExpr m_assume m_assert n m_mod tc ng eenv walkers kv config =
             let
                 f = Id n (typeOf ex)
 
-                typs = argTys $ typeOf ex
+                typs = spArgumentTypes ex
 
                 (typsE, typs') = instantitateTypes tc kv typs
 
@@ -93,23 +93,20 @@ findFunc s m_mod eenv =
                              " in module " ++ (T.unpack m)
 
 
--- distinguish between where a Type is being bound and where it is just the type (see argTys)
-data TypeBT = B Id | T Type deriving (Show, Eq)
-
 instantiateArgTypes :: TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
 instantiateArgTypes tc kv e =
     let
-        typs = argTys $ typeOf e
+        typs = spArgumentTypes e
     in
     instantitateTypes tc kv typs
 
-instantitateTypes :: TypeClasses -> KnownValues -> [TypeBT] -> ([Expr], [Type])
+instantitateTypes :: TypeClasses -> KnownValues -> [ArgType] -> ([Expr], [Type])
 instantitateTypes tc kv ts = 
     let
-        tv = map (typeTBId) $ filter (typeB) ts
+        tv = map (typeNamedId) $ filter (typeNamed) ts
 
         -- Get non-TyForAll type reqs, identify typeclasses
-        ts' = map typeTBType $ filter (not . typeB) ts
+        ts' = map typeAnonType $ filter (not . typeNamed) ts
         tcSat = satisfyingTCTypes tc ts'
 
         -- If a type has no type class constraints, it will not be returned by satisfyingTCTypes.
@@ -120,7 +117,7 @@ instantitateTypes tc kv ts =
         tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat'
         tvt = map (\(i, t) -> (TyVar i, t)) tv'
         -- Dictionary arguments
-        vi = satisfyingTC tc ts' tv'-- map (\(_, (_, i)) -> i) tv'
+        vi = satisfyingTC tc ts' tv'
 
         ex = map (Type . snd) tv' ++ map Var vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
@@ -141,22 +138,17 @@ reAddNoCons kv it (i:xs) =
         Just ts -> (i, ts):reAddNoCons kv it xs
         Nothing -> (i, [tyInt kv]):reAddNoCons kv it xs
 
-argTys :: Type -> [TypeBT]
-argTys (TyForAll (NamedTyBndr i) t') = (B i):argTys t'
-argTys (TyFun t t') = (T t):argTys t'
-argTys _ = []
+typeNamedId :: ArgType -> Id
+typeNamedId (NamedType i) = i
+typeNamedId (AnonType _) = error "No Id in T"
 
-typeTBId :: TypeBT -> Id
-typeTBId (B i) = i
-typeTBId (T _) = error "No Id in T"
+typeAnonType :: ArgType -> Type
+typeAnonType (NamedType _) = error "No type in NamedType"
+typeAnonType (AnonType t) = t 
 
-typeTBType :: TypeBT -> Type
-typeTBType (B _) = error "No type in B"
-typeTBType (T t) = t 
-
-typeB :: TypeBT -> Bool
-typeB (B _) = True
-typeB _ = False
+typeNamed :: ArgType -> Bool
+typeNamed (NamedType _) = True
+typeNamed _ = False
 
 checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ _ Nothing _ = eenv

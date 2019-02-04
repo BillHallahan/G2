@@ -36,7 +36,6 @@ import qualified Language.Haskell.Liquid.UX.Config as LHC
 import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Control.Exception
-import Data.Coerce
 import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -263,7 +262,7 @@ reqNames (State { expr_env = eenv
     Lang.names 
       (M.filterWithKey 
           (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == structEqTC kv) 
-          (coerce tc :: M.Map Name Class)
+          (toMap tc)
       )
     ++ Lang.names at
 

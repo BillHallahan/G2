@@ -2,27 +2,29 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module G2.Language.TypeClasses ( TypeClasses (..)
-                                         , Class (..)
-                                         , initTypeClasses
-                                         , unionTypeClasses
-                                         , isTypeClassNamed
-                                         , isTypeClass
-                                         , eqTCDict
-                                         , numTCDict
-                                         , ordTCDict
-                                         , integralTCDict
-                                         , structEqTCDict
-                                         , lookupTCDict
-                                         , lookupTCDicts
-                                         , lookupEqDicts
-                                         , lookupStructEqDicts
-                                         , tcDicts
-                                         , concreteSatEq
-                                         , concreteSatStructEq
-                                         , typeClassInst
-                                         , satisfyingTCTypes
-                                         , satisfyingTC) where
+module G2.Language.TypeClasses ( TypeClasses
+                               , Class (..)
+                               , initTypeClasses
+                               , insertClass
+                               , unionTypeClasses
+                               , isTypeClassNamed
+                               , isTypeClass
+                               , eqTCDict
+                               , numTCDict
+                               , ordTCDict
+                               , integralTCDict
+                               , structEqTCDict
+                               , lookupTCDict
+                               , lookupTCDicts
+                               , lookupEqDicts
+                               , lookupStructEqDicts
+                               , tcDicts
+                               , concreteSatEq
+                               , concreteSatStructEq
+                               , typeClassInst
+                               , satisfyingTCTypes
+                               , satisfyingTC
+                               , toMap) where
 
 import G2.Language.AST
 import G2.Language.KnownValues
@@ -49,6 +51,9 @@ initTypeClasses nsi =
              $ map (\(n, i) -> (n, Class { insts = mapMaybe (nameIdToTypeId n) nsi, typ_ids = i } )) ns
     in
     coerce $ M.fromList nsi'
+
+insertClass :: Name -> Class -> TypeClasses -> TypeClasses
+insertClass n c (TypeClasses tc) = TypeClasses (M.insert n c tc)
 
 unionTypeClasses :: TypeClasses -> TypeClasses -> TypeClasses
 unionTypeClasses (TypeClasses tc) (TypeClasses tc') = TypeClasses (M.union tc tc')
@@ -144,38 +149,6 @@ lookupTCDictsTypes n = fmap (map fst) . lookupTCDicts n
 tcDicts :: TypeClasses -> [Id]
 tcDicts = map snd . concatMap insts . M.elems . coerce
 
--- satisfyingTCTypes
--- Finds all types/dict pairs that satisfy the given TC requirements for each polymorphic argument
--- returns a list of tuples, where each tuple (i, t) corresponds to a TyVar Id i,
--- and a list of acceptable types
-satisfyingTCTypes :: TypeClasses -> [Type] -> [(Id, [Type])]
-satisfyingTCTypes tc ts =
-    let
-        tcReq = satisfyTCReq tc ts
-
-        tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDictsTypes tc) ns)) tcReq
-    in
-    map (uncurry substKind) $ map (\(i, ts') -> (i, inter ts')) tcReqTS
-
-substKind :: Id -> [Type] -> (Id, [Type])
-substKind i@(Id _ t) ts = (i, map (\t' -> case t' of 
-                                            TyCon n _ -> TyCon n (tyFunToTyApp t)
-                                            t'' -> t'') ts)
-
-tyFunToTyApp :: Type -> Type
-tyFunToTyApp (TyFun t1 (TyFun t2 t3)) = TyApp (TyApp (tyFunToTyApp t1) (tyFunToTyApp t2)) (tyFunToTyApp t3)
-tyFunToTyApp t = modifyChildren tyFunToTyApp t
-
--- satisfyingTCReq
--- Finds the names of the required typeclasses for each TyVar Id
--- See satisfyingTCTypes
-satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
-satisfyTCReq tc ts =
-    map (\(i, ts') -> (i, mapMaybe (tyConAppName . tyAppCenter) ts'))
-    $ mapMaybe toIdTypeTup
-    $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
-    $ filter (isTypeClass tc) ts
-
 toIdTypeTup :: [Type] -> Maybe (Id, [Type])
 toIdTypeTup ts@(TyApp (TyCon _ _) (TyVar i):_) = Just (i, ts)
 toIdTypeTup _ = Nothing
@@ -226,6 +199,38 @@ typeClassInst tc m tcn t
             Nothing -> Nothing
 typeClassInst _ _ _ _ = Nothing
 
+-- satisfyingTCTypes
+-- Finds all types/dict pairs that satisfy the given TC requirements for each polymorphic argument
+-- returns a list of tuples, where each tuple (i, t) corresponds to a TyVar Id i,
+-- and a list of acceptable types
+satisfyingTCTypes :: TypeClasses -> [Type] -> [(Id, [Type])]
+satisfyingTCTypes tc ts =
+    let
+        tcReq = satisfyTCReq tc ts
+
+        tcReqTS = map (\(i, ns) -> (i, mapMaybe (flip lookupTCDictsTypes tc) ns)) tcReq
+    in
+    map (uncurry substKind) $ map (\(i, ts') -> (i, inter ts')) tcReqTS
+
+substKind :: Id -> [Type] -> (Id, [Type])
+substKind i@(Id _ t) ts = (i, map (\t' -> case t' of 
+                                            TyCon n _ -> TyCon n (tyFunToTyApp t)
+                                            t'' -> t'') ts)
+
+tyFunToTyApp :: Type -> Type
+tyFunToTyApp (TyFun t1 (TyFun t2 t3)) = TyApp (TyApp (tyFunToTyApp t1) (tyFunToTyApp t2)) (tyFunToTyApp t3)
+tyFunToTyApp t = modifyChildren tyFunToTyApp t
+
+-- satisfyingTCReq
+-- Finds the names of the required typeclasses for each TyVar Id
+-- See satisfyingTCTypes
+satisfyTCReq :: TypeClasses -> [Type] -> [(Id, [Name])]
+satisfyTCReq tc ts =
+    map (\(i, ts') -> (i, mapMaybe (tyConAppName . tyAppCenter) ts'))
+    $ mapMaybe toIdTypeTup
+    $ groupBy (\t1 t2 -> tyAppArgs t1 == tyAppArgs t2)
+    $ filter (isTypeClass tc) ts
+
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments
 satisfyingTC :: TypeClasses -> [Type] -> [(Id, Type)] -> [Id]
@@ -238,3 +243,6 @@ satisfyingTC  tc ts it =
         (\(i, t) -> fmap (mapMaybe (\n -> lookupTCDict tc n t))
                          (lookup i tcReq)
         ) it
+
+toMap :: TypeClasses -> M.Map Name Class
+toMap = coerce
