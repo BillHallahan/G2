@@ -115,7 +115,7 @@ instantitateTypes tc kv ts =
         -- Dictionary arguments
         vi = concatMap (uncurry (satisfyingTC tc ts')) tv'
 
-        ex = map (Type . snd) tv' ++ map Var vi
+        ex = map (Type . snd) tv' ++ vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
     in
     (ex, tss)

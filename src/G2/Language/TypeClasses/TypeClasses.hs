@@ -147,12 +147,14 @@ satisfyTCReq tc i =
 
 -- Given a list of type arguments and a mapping of TyVar Ids to actual Types
 -- Gives the required TC's to pass to any TC arguments
-satisfyingTC :: TypeClasses -> [Type] -> Id -> Type -> [Id]
+satisfyingTC :: TypeClasses -> [Type] -> Id -> Type -> [Expr]
 satisfyingTC  tc ts i t =
     let
         tcReq = satisfyTCReq tc i ts
     in
-    mapMaybe (\n -> lookupTCDict tc n t) tcReq
+    map (\n -> case lookupTCDict tc n t of
+                    Just i' -> Var i'
+                    Nothing -> error "No typeclass found.") tcReq
 
 toMap :: TypeClasses -> M.Map Name Class
 toMap = coerce
