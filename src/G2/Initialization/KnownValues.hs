@@ -65,8 +65,8 @@ initKnownValues eenv tenv =
 
 exprWithStrName :: E.ExprEnv -> T.Text -> Name
 exprWithStrName eenv s =
-  case E.toList $ E.filterWithKey (\(Name n _ _ _) _ -> n == s) eenv of
-    (n, _):_ -> n
+  case filter (\(Name n _ _ _) -> n == s) $ E.keys eenv of
+    n:_ -> n
     _ -> error $ "No expr found in exprWithStrName " ++ (show $ T.unpack s)
 
 typeWithStrName :: TypeEnv -> T.Text -> Name
