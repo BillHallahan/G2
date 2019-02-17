@@ -7,7 +7,6 @@ import G2.Language
 import G2.Language.Monad
 import G2.Language.KnownValues
 
-import Data.Coerce
 import qualified Data.Foldable as F
 import Data.List
 import qualified Data.Map as M
@@ -62,7 +61,7 @@ createStructEqFuncs ts = do
 
     ins <- genInsts tcn nsT t dc $ M.toList tenv'
 
-    let tc' = coerce . M.insert tcn (Class { insts = ins, typ_ids = [tci] }) $ coerce tc
+    let tc' = insertClass tcn (Class { insts = ins, typ_ids = [tci] }) tc
     putTypeClasses tc'
 
     F.mapM_ (\(n, n', adt) -> createStructEqFunc dcn n n' adt) $ zip3 ns' tenvK tenvV

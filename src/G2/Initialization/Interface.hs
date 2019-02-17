@@ -16,15 +16,18 @@ runInitialization :: SimpleState -> [Type] -> HashSet Name ->
     (SimpleState, FuncInterps, ApplyTypes, Walkers)
 runInitialization s@(SimpleState { expr_env = eenv
                                  , type_env = tenv
-                                 , name_gen = ng }) ts tgtNames =
+                                 , name_gen = ng 
+                                 , type_classes = tc }) ts tgtNames =
     let
         eenv2 = elimTypeSyms tenv eenv
         tenv2 = elimTypeSymsTEnv tenv
+        tc2 = elimTypeSyms tenv tc
         (eenv3, ng2, ds_walkers) = createDeepSeqWalks eenv2 tenv2 ng
 
         s' = s { expr_env = eenv3
                , type_env = tenv2
-               , name_gen = ng2 }
+               , name_gen = ng2
+               , type_classes = tc2 }
 
         s'' = execSimpleStateM (createStructEqFuncs ts) s'
         ((ft, at), s''') = runSimpleStateM (functionalize ts tgtNames) s''

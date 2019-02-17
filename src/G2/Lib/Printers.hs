@@ -7,7 +7,8 @@ module G2.Lib.Printers ( mkCleanExprHaskell
                        , ppCurrExpr
                        , ppPathConds
                        , ppPathCond
-                       , pprExecStateStr) where
+                       , pprExecStateStr
+                       , pprExecEEnvStr) where
 
 import G2.Execution.Memory
 import qualified G2.Language.ApplyTypes as AT
@@ -23,7 +24,6 @@ import G2.Language.Syntax
 import G2.Language.Support
 
 import Data.Char
-import Data.Coerce
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
@@ -344,7 +344,7 @@ pprPathsStr paths = injNewLine cond_strs
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
   where
-    cond_strs = map show $ M.toList $ ((coerce tc) :: M.Map Name Class)
+    cond_strs = map show $ M.toList $ toMap tc
 
 pprInputIdsStr :: InputIds -> String
 pprInputIdsStr i = injNewLine id_strs

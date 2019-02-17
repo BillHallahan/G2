@@ -21,7 +21,7 @@ mkCurrExpr m_assume m_assert n m_mod tc ng eenv walkers kv config =
             let
                 f = Id n (typeOf ex)
 
-                typs = argTys $ typeOf ex
+                typs = spArgumentTypes ex
 
                 (typsE, typs') = instantitateTypes tc kv typs
 
@@ -93,36 +93,29 @@ findFunc s m_mod eenv =
                              " in module " ++ (T.unpack m)
 
 
--- distinguish between where a Type is being bound and where it is just the type (see argTys)
-data TypeBT = B Id | T Type deriving (Show, Eq)
-
 instantiateArgTypes :: TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
 instantiateArgTypes tc kv e =
     let
-        typs = argTys $ typeOf e
+        typs = spArgumentTypes e
     in
     instantitateTypes tc kv typs
 
-instantitateTypes :: TypeClasses -> KnownValues -> [TypeBT] -> ([Expr], [Type])
+instantitateTypes :: TypeClasses -> KnownValues -> [ArgType] -> ([Expr], [Type])
 instantitateTypes tc kv ts = 
     let
-        tv = map (typeTBId) $ filter (typeB) ts
+        tv = map (typeNamedId) $ filter (typeNamed) ts
 
         -- Get non-TyForAll type reqs, identify typeclasses
-        ts' = map typeTBType $ filter (not . typeB) ts
-        tcSat = satisfyingTCTypes tc ts'
-
-        -- If a type has no type class constraints, it will not be returned by satisfyingTCTypes.
-        -- So we re-add it here
-        tcSat' = reAddNoCons kv tcSat tv
+        ts' = map typeAnonType $ filter (not . typeNamed) ts
+        tcSat = map (\i -> (i, satisfyingTCTypes kv tc i ts')) tv
 
         -- TyForAll type reqs
-        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat'
+        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
         tvt = map (\(i, t) -> (TyVar i, t)) tv'
         -- Dictionary arguments
-        vi = satisfyingTC tc ts' tv'-- map (\(_, (_, i)) -> i) tv'
+        vi = concatMap (uncurry (satisfyingTC tc ts')) tv'
 
-        ex = map (Type . snd) tv' ++ map Var vi
+        ex = map (Type . snd) tv' ++ vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
     in
     (ex, tss)
@@ -134,29 +127,17 @@ pickForTyVar kv ts
     | t:_ <- ts = t
     | otherwise = error "No type found in pickForTyVar"
 
-reAddNoCons :: KnownValues -> [(Id, [Type])] -> [Id] -> [(Id, [Type])]
-reAddNoCons _ _ [] = []
-reAddNoCons kv it (i:xs) =
-    case lookup i it of
-        Just ts -> (i, ts):reAddNoCons kv it xs
-        Nothing -> (i, [tyInt kv]):reAddNoCons kv it xs
+typeNamedId :: ArgType -> Id
+typeNamedId (NamedType i) = i
+typeNamedId (AnonType _) = error "No Id in T"
 
-argTys :: Type -> [TypeBT]
-argTys (TyForAll (NamedTyBndr i) t') = (B i):argTys t'
-argTys (TyFun t t') = (T t):argTys t'
-argTys _ = []
+typeAnonType :: ArgType -> Type
+typeAnonType (NamedType _) = error "No type in NamedType"
+typeAnonType (AnonType t) = t 
 
-typeTBId :: TypeBT -> Id
-typeTBId (B i) = i
-typeTBId (T _) = error "No Id in T"
-
-typeTBType :: TypeBT -> Type
-typeTBType (B _) = error "No type in B"
-typeTBType (T t) = t 
-
-typeB :: TypeBT -> Bool
-typeB (B _) = True
-typeB _ = False
+typeNamed :: ArgType -> Bool
+typeNamed (NamedType _) = True
+typeNamed _ = False
 
 checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ _ Nothing _ = eenv

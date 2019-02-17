@@ -22,6 +22,7 @@ module G2.Translation.Haskell
     , mkRealSpan
     , absVarLoc
     , readFileExtractedG2
+    , readAllExtractedG2s
     , mergeFileExtractedG2s
     ) where
 
@@ -59,6 +60,7 @@ import Data.Foldable
 import Data.List
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import System.Directory
 
@@ -497,39 +499,40 @@ mkTyCon nm tm t = case dcs of
 
     bv = map (mkId tm) $ tyConTyVars t
 
-    (nm'', tm'', dcs, dcsf) = case isAlgTyCon t of 
-                            True -> case algTyConRhs t of
-                                            DataTyCon { data_cons = dc } -> 
-                                                ( nm'
-                                                , tm'
-                                                , Just $ G2.DataTyCon bv $ map (mkData nm' tm) dc
-                                                , Just $ map (mkId tm'' . dataConWorkId) dc)
-                                            NewTyCon { data_con = dc
-                                                     , nt_rhs = rhst} -> 
-                                                     ( nm'
-                                                     , tm'
-                                                     , Just $ G2.NewTyCon { G2.bound_ids = bv
-                                                                          , G2.data_con = mkData nm' tm dc
-                                                                          , G2.rep_type = mkType tm rhst}
-                                                     , Just $ [(mkId tm'' . dataConWorkId) dc])
-                                            AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
-                                            -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
-                                            TupleTyCon { data_con = dc, tup_sort = ts } ->
-                                              ( nm'
-                                              , tm'
-                                              , Just $ G2.DataTyCon bv $ [mkData nm' tm dc]
-                                              , Nothing)
-                                            SumTyCon {} -> error "Unhandled TyCon SumTyCon"
-                            False -> case isTypeSynonymTyCon t of
-                                    True -> 
-                                        let
-                                            (tv, st) = fromJust $ synTyConDefn_maybe t
-                                            st' = mkType tm st
-                                            tv' = map (mkId tm) tv
-                                        in
-                                        (nm, tm, Just $ G2.TypeSynonym { G2.bound_ids = tv'
-                                                                       , G2.synonym_of = st'}, Nothing)
-                                    False -> (nm, tm, Nothing, Nothing)
+    (nm'', tm'', dcs, dcsf) =
+        case isAlgTyCon t of 
+            True -> case algTyConRhs t of
+                            DataTyCon { data_cons = dc } -> 
+                                ( nm'
+                                , tm'
+                                , Just $ G2.DataTyCon bv $ map (mkData nm' tm) dc
+                                , Just $ map (mkId tm'' . dataConWorkId) dc)
+                            NewTyCon { data_con = dc
+                                     , nt_rhs = rhst} -> 
+                                     ( nm'
+                                     , tm'
+                                     , Just $ G2.NewTyCon { G2.bound_ids = bv
+                                                          , G2.data_con = mkData nm' tm dc
+                                                          , G2.rep_type = mkType tm rhst}
+                                     , Just $ [(mkId tm'' . dataConWorkId) dc])
+                            AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
+                            -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
+                            TupleTyCon { data_con = dc, tup_sort = ts } ->
+                              ( nm'
+                              , tm'
+                              , Just $ G2.DataTyCon bv $ [mkData nm' tm dc]
+                              , Nothing)
+                            SumTyCon {} -> error "Unhandled TyCon SumTyCon"
+            False -> case isTypeSynonymTyCon t of
+                    True -> 
+                        let
+                            (tv, st) = fromJust $ synTyConDefn_maybe t
+                            st' = mkType tm st
+                            tv' = map (mkId tm) tv
+                        in
+                        (nm, tm', Just $ G2.TypeSynonym { G2.bound_ids = tv'
+                                                        , G2.synonym_of = st'}, Nothing)
+                    False -> (nm, tm, Nothing, Nothing)
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
 mkTyConName :: G2.TypeNameMap -> TyCon -> G2.Name
@@ -646,6 +649,28 @@ readFileExtractedG2 :: FilePath -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG
 readFileExtractedG2 file = do
   contents <- readFile file
   return $ read contents
+
+readAllExtractedG2s :: FilePath -> FilePath -> IO [(G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)]
+readAllExtractedG2s root file = go [file] HS.empty []
+  where
+    go :: [FilePath]
+        -> HS.HashSet FilePath
+        -> [(G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)]
+        -> IO [(G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)]
+    go [] _ accum = return accum
+    go (tgt : todos) visited accum =
+      let absPath = root ++ "/" ++ tgt in
+      if HS.member absPath visited then
+        go todos visited accum
+      else do
+        (nameMap, tyNameMap, exg2) <- readFileExtractedG2 absPath
+        -- Dependencies are relative paths
+        let deps = map (\d -> (T.unpack d) ++ ".g2i") $ G2.exg2_deps exg2
+
+        let todos' = todos ++ deps
+        let visited' = HS.insert absPath visited
+        let accum' = accum ++ [(nameMap, tyNameMap, exg2)]
+        go todos' visited' accum'
 
 
 -- Merge nm2 into nm1
