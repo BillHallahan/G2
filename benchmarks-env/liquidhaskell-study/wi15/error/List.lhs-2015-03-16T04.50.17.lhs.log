@@ -1,0 +1,28 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T04.50.17.lhs:221:32: Error: Bad Type Specification
+ List.concat :: xss:(List (List a)) -> {v : (List a) | size v == sizeXs xss
+                                                       && sizexs == 0 <=> v == List.Emp}
+     Sort Error in Refinement: {xs##0 : (List.List  a_a1dC) | (size xs##0 == sizeXs xss
+                                                               && sizexs == 0 <=> xs##0 == List.Emp##rXo)}
+     Unbound Symbol sizexs
+ Perhaps you meant: sizeXs

@@ -1,0 +1,111 @@
+10162
+KMeans.lhs-2015-03-20T00.24.22.lhs
+(149, '30-42')
+centroid
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T00.24.22.lhs:149:30-42: Error: Liquid Type Mismatch', ' 149 | centroid n p sz = map (\\x -> x `divide` sz) p']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mcentroid 0 ((0.0) :+: Emp) 0 = error
+makes a call to
+divide (0.0) 0 = error
+violating divide's refinement type
+Concrete
+
+centroid 0 ((0.0) :+: ((0.0) :+: Emp)) 0 = error
+makes a call to
+divide (0.0) 0 = error
+violating divide's refinement type
+Concrete
+
+
+5.761694669723511
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 372,Just 148,Just 149,Just 150,Just 151,Just 31]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T00.24.22.lhs:149:30-42: Error: Liquid Type Mismatch
+ 
+ 149 | centroid n p sz = map (\x -> x `divide` sz) p
+                                    ^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == sz}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV /= 0}
+  
+   In Context
+     sz : Int
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T00.24.22.lhs:187:21-41: Error: Liquid Type Mismatch
+ 
+ 187 | kmeans1 k n ps cs = normalize newClusters
+                           ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T00.24.22.lhs:193:21-38: Error: Liquid Type Mismatch
+ 
+ 193 |     fr wp1 wp2    = mergeCluster n wp1 wp2
+                           ^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : Int
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV > 0}
+  
+   In Context
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T00.24.22.lhs:193:21-42: Error: Liquid Type Mismatch
+ 
+ 193 |     fr wp1 wp2    = mergeCluster n wp1 wp2
+                           ^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : Int
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV > 0}
+  
+   In Context

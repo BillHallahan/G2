@@ -1,0 +1,119 @@
+3755
+flycheck_List.lhs-2015-03-20T00.39.29.lhs
+(227, '24-47')
+prop_concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.39.29.lhs:227:24-47: Error: Liquid Type Mismatch', ' 227 | prop_concat = lAssert (length (concat xss) == 6)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mprop_concat = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (l1 :+: (l2 :+: (l3 :+: Emp)))) = 0 :+: (0 :+: (0 :+: Emp))
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+
+time = 7.5424089431762695
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 252,Just 351]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.39.29.lhs:225:10-24: Error: Liquid Type Mismatch
+ 
+ 225 | concat = foldr joinL Emp
+                ^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == ssize ?a}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.39.29.lhs:227:24-47: Error: Liquid Type Mismatch
+ 
+ 227 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?f}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     List.l2 : {List.l2 : (List Int) | size List.l2 == 2
+                                       && 0 <= size List.l2}
+      
+     ?g : {?g : (List Int) | size ?g == ssize xss
+                             && 0 <= size ?g}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?h
+                                    && ssize v == size List.l0 + size ?h
+                                    && 0 <= size v}
+      
+     List.l3 : {List.l3 : (List Int) | size List.l3 == 3
+                                       && 0 <= size List.l3}
+      
+     ?f : {?f : Bool | Prop ?f <=> ?c == ?b}
+      
+     ?c : {?c : Int | size ?g == ?c}
+      
+     ?h : {?h : (List (List Int)) | size ?h == 1 + size ?d
+                                    && ssize ?h == size List.l1 + size ?d
+                                    && 0 <= size ?h}
+      
+     ?e : {?e : (List (List Int)) | size ?e == 1 + size ?a
+                                    && ssize ?e == size List.l3 + size ?a
+                                    && 0 <= size ?e}
+      
+     ?b : {?b : Int | ?b == (6 : int)}
+      
+     List.l0 : {List.l0 : (List Int) | size List.l0 == 0
+                                       && 0 <= size List.l0}
+      
+     ?d : {?d : (List (List Int)) | size ?d == 1 + size ?e
+                                    && ssize ?d == size List.l2 + size ?e
+                                    && 0 <= size ?d}
+      
+     ?a : {?a : (List (List Int)) | size ?a == 0
+                                    && ssize ?a == 0
+                                    && 0 <= size ?a}
+      
+     List.l1 : {List.l1 : (List Int) | size List.l1 == 1
+                                       && 0 <= size List.l1}

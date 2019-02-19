@@ -1,0 +1,43 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T20.20.56.lhs:95:25-77: Error: GHC Error
+ 
+ 95 |                         distanceMap <- M.map (\py -> distance n p py) centers
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match type ‘Map Center b0’ with ‘Int’
+Expected type: Map Center Double
+               -> (Double -> Map Center b0) -> Center
+  Actual type: Map Center Double
+               -> (Double -> Map Center b0) -> Map Center b0
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T20.20.56.lhs:96:35-45: Error: GHC Error
+ 
+ 96 |                         minKeyMap distanceMap
+                                        ^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘Map (Map Center b0) v0’
+            with actual type ‘Double’

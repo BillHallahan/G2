@@ -1,0 +1,36 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/MapReduce.lhs-2015-03-20T23.11.16.lhs:70:5: Error: Cannot parse specification:
+ 
+ 70 | {-@ @-}
+          ^
+ 
+     unexpected end of input
+     expecting "assume", "assert", "autosize", "Local", "axiomatize", "measure", "inline", "bound", "class", "instance", "import", "data", "include", "invariant", "using", "type", "predicate", "expression", "embed", "qualif", "Decrease", "LAZYVAR", "Strict", "Lazy", "LIQUID", "(", white space or "::"
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/MapReduce.lhs-2015-03-20T23.11.16.lhs:71:43: Error: Cannot parse specification:
+ 
+ 71 | {-@ collapse  :: (v -> v -> v) -> M.Map k {m:List v | m != empty} -> M.Map k v @-}
+                                                ^
+ 
+     Leftover while parsing

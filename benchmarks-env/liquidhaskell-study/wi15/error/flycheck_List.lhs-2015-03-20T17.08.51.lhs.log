@@ -1,0 +1,28 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T17.08.51.lhs:217:46: Error: Refinement Type Alias cannot be used in this context
+ 
+ 217 | {-@ measure sumsize      :: List (List a) -> Nat
+                                                    ^
+ 
+ Type alias: Nat
+ Defined at: /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/.stack-work/install/x86_64-linux/lts-5.15/7.10.3/share/x86_64-linux-ghc-7.10.3/liquidhaskell-0.6.0.0/include/Prelude.spec:38:6

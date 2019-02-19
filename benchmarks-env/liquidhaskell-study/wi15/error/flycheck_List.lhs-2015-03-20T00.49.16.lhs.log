@@ -1,0 +1,37 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.49.16.lhs:217:13-57: Error: Specified Type Does Not Refine Haskell Type for List.map'
+ 
+ 217 | {-@ map' :: (List a -> Nat) -> List (List a) -> List Nat @-}
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a.
+(List.List a -> GHC.Types.Int)
+-> List.List (List.List a) -> List.List GHC.Types.Int
+  
+ is inconsistent with the Haskell type
+  
+     forall t a. GHC.Num.Num a => (t -> a) -> List.List t -> List.List a
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.49.16.lhs:218:1-4

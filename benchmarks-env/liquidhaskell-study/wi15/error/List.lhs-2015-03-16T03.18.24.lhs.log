@@ -1,0 +1,54 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T03.18.24.lhs:143:24-34: Error: GHC Error
+ 
+ 143 | replicate n x = x :+: (replicate n-1 x)
+                              ^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘List a’
+            with actual type ‘a0 -> List a0’
+Relevant bindings include
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T03.18.24.lhs:143:13)
+  replicate :: Int -> a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T03.18.24.lhs:142:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T03.18.24.lhs:222:21-30: Error: GHC Error
+ 
+ 222 | concat (l :+: ls) = listHead l :+: concat(listTail l :+: ls) 
+                           ^^^^^^^^^^
+ 
+     Couldn't match expected type ‘a’ with actual type ‘List a1’
+  ‘a’ is a rigid type variable bound by
+      the type signature for concat :: List (List a) -> List a
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T03.18.24.lhs:44:14
+Relevant bindings include
+  ls :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T03.18.24.lhs:222:15)
+  l :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T03.18.24.lhs:222:9)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T03.18.24.lhs:221:1)

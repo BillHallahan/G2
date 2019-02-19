@@ -1,0 +1,78 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T07.56.34.lhs:23:1-5: Error: GHC Error
+ 
+ 23 | empty     :: List a
+      ^^^^^
+ 
+     The type signature for ‘empty’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T07.56.34.lhs:24:1-3: Error: GHC Error
+ 
+ 24 | add       :: a -> List a -> List a
+      ^^^
+ 
+     The type signature for ‘add’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T07.56.34.lhs:25:1-9: Error: GHC Error
+ 
+ 25 | singleton :: a -> List a
+      ^^^^^^^^^
+ 
+     The type signature for ‘singleton’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T07.56.34.lhs:26:1-9: Error: GHC Error
+ 
+ 26 | replicate :: Int -> a -> List a
+      ^^^^^^^^^
+ 
+     The type signature for ‘replicate’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T07.56.34.lhs:27:1-3: Error: GHC Error
+ 
+ 27 | map       :: (a -> b) -> List a -> List b
+      ^^^
+ 
+     The type signature for ‘map’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T07.56.34.lhs:28:1-7: Error: GHC Error
+ 
+ 28 | zipWith   :: (a -> b -> c) -> List a -> List b -> List c
+      ^^^^^^^
+ 
+     The type signature for ‘zipWith’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T07.56.34.lhs:29:1-6: Error: GHC Error
+ 
+ 29 | concat    :: List (List a) -> List a
+      ^^^^^^
+ 
+     The type signature for ‘concat’ lacks an accompanying binding

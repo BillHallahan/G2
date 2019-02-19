@@ -1,0 +1,37 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T01.19.36.lhs:194:16-65: Error: Specified Type Does Not Refine Haskell Type for List.zipWith
+ 
+ 194 | {-@ zipWith :: (a -> b -> c) -> validList -> validList -> List c @-}
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a b c validList.
+(a -> b -> c) -> validList -> validList -> List.List c
+  
+ is inconsistent with the Haskell type
+  
+     forall a b c.
+(a -> b -> c) -> List.List a -> List.List b -> List.List c
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T01.19.36.lhs:195:1-7

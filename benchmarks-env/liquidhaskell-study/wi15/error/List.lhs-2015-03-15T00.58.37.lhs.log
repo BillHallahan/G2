@@ -1,0 +1,27 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T00.58.37.lhs:89:16: Error: Bad Type Specification
+ List.length :: l:(List a) -> {v : Int | v >= 0
+                                         && Prop v == size l}
+     Sort Error in Refinement: {v##16 : int | (v##16 >= 0
+                                               && Prop v##16 == size l)}
+     Cannot unify GHC.Types.Bool with int

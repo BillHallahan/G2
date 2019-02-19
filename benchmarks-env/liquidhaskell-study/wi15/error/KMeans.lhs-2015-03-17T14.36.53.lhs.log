@@ -1,0 +1,39 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-17T14.36.53.lhs:95:36-59: Error: GHC Error
+ 
+ 95 | nearest k n centers p = minKeyMap (map distance n p centers)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘Point -> Centering -> Map Center v0’
+            with actual type ‘List (Point -> Point -> Double)’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-17T14.36.53.lhs:95:49: Error: GHC Error
+ 
+ 95 | nearest k n centers p = minKeyMap (map distance n p centers)
+                                                      ^
+ 
+     Couldn't match expected type ‘List Int’ with actual type ‘Int’

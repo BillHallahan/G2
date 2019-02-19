@@ -1,0 +1,152 @@
+4166
+flycheck_List.lhs-2015-03-16T04.55.50.lhs
+(228, '24-47')
+prop_concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T04.55.50.lhs:228:24-47: Error: Liquid Type Mismatch', ' 228 | prop_concat = lAssert (length (concat xss) == 6)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mprop_concat = error
+makes a call to
+die (lh lhEqBool lhNeBool lhLtBool lhLeBool lhGtBool lhGeBool lhPPBool) ("Assert Fails!") = error
+violating die's refinement type
+when
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: ((1 :+: Emp) :+: ((2 :+: (1 :+: Emp)) :+: ((3 :+: (2 :+: (1 :+: Emp))) :+: Emp)))) = Emp
+Strengthen the refinement type of concat to eliminate this possibility
+Abstract
+
+
+time = 10.591104507446289
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 252,Just 270]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T04.55.50.lhs:228:24-47: Error: Liquid Type Mismatch
+ 
+ 228 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?d}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     List.l2 : {List.l2 : (List Int) | size List.l2 == 2
+                                       && 0 <= size List.l2}
+      
+     ?g : {?g : Int | ?g >= 0
+                      && ?g == size ?f}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?a
+                                    && sizeXs v == size List.l0 + sizeXs ?a
+                                    && 0 <= size v}
+      
+     List.l3 : {List.l3 : (List Int) | size List.l3 == 3
+                                       && 0 <= size List.l3}
+      
+     ?f : {?f : (List Int) | (size ?f == sizeXs xss
+                              && size ?f == 0 => sizeXs xss == 0)
+                             && 0 <= size ?f}
+      
+     ?c : {?c : (List (List Int)) | size ?c == 0
+                                    && sizeXs ?c == 0
+                                    && 0 <= size ?c}
+      
+     ?h : {?h : (List (List Int)) | size ?h == 1 + size ?e
+                                    && sizeXs ?h == size List.l2 + sizeXs ?e
+                                    && 0 <= size ?h}
+      
+     ?e : {?e : (List (List Int)) | size ?e == 1 + size ?c
+                                    && sizeXs ?e == size List.l3 + sizeXs ?c
+                                    && 0 <= size ?e}
+      
+     ?b : {?b : Int | ?b == (6 : int)}
+      
+     List.l0 : {List.l0 : (List Int) | size List.l0 == 0
+                                       && 0 <= size List.l0}
+      
+     ?d : {?d : Bool | Prop ?d <=> ?g == ?b}
+      
+     ?a : {?a : (List (List Int)) | size ?a == 1 + size ?h
+                                    && sizeXs ?a == size List.l1 + sizeXs ?h
+                                    && 0 <= size ?a}
+      
+     List.l1 : {List.l1 : (List Int) | size List.l1 == 1
+                                       && 0 <= size List.l1}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T04.55.50.lhs:231:25-47: Error: Liquid Type Mismatch
+ 
+ 231 | prop_concat2 = lAssert (length (concat yss) > 0)
+                               ^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?e}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?g : {?g : (List (List Int)) | size ?g == 1 + size ?f
+                                    && sizeXs ?g == size List.l0 + sizeXs ?f
+                                    && 0 <= size ?g}
+      
+     ?f : {?f : (List (List Int)) | size ?f == 0
+                                    && sizeXs ?f == 0
+                                    && 0 <= size ?f}
+      
+     yss : {yss : (List (List Int)) | size yss == 1 + size ?c
+                                      && sizeXs yss == size List.l1 + sizeXs ?c
+                                      && 0 <= size yss}
+      
+     ?c : {?c : (List (List Int)) | size ?c == 1 + size ?g
+                                    && sizeXs ?c == size List.l0 + sizeXs ?g
+                                    && 0 <= size ?c}
+      
+     ?e : {?e : Bool | Prop ?e <=> ?a > ?b}
+      
+     ?b : {?b : Int | ?b == (0 : int)}
+      
+     List.l0 : {List.l0 : (List Int) | size List.l0 == 0
+                                       && 0 <= size List.l0}
+      
+     ?d : {?d : (List Int) | (size ?d == sizeXs yss
+                              && size ?d == 0 => sizeXs yss == 0)
+                             && 0 <= size ?d}
+      
+     ?a : {?a : Int | ?a >= 0
+                      && ?a == size ?d}
+      
+     List.l1 : {List.l1 : (List Int) | size List.l1 == 1
+                                       && 0 <= size List.l1}

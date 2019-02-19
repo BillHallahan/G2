@@ -1,0 +1,29 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/MapReduce.lhs-2015-03-19T09.26.37.lhs:70:43: Error: Malformed Type Alias Application
+ 
+ 70 | {-@ collapse  :: (v -> v -> v) -> M.Map k ListN v 2 -> M.Map k v @-}
+                                                ^
+ 
+ Type alias: ListN
+ Defined at: List.lhs:83:10
+ Expects 2 arguments, but is given 0

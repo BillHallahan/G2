@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.12.53.lhs:213:13: Error: Bad Type Specification
+ List.join :: x1:(List a) -> x2:(List a) -> {v : (List a) | size x1 + size x2 == size z}
+     Sort Error in Refinement: {x3##0 : (List.List  a_a1eE) | size x1 + size x2 == size z}
+     Unbound Symbol z
+ Perhaps you meant: x2, x1

@@ -1,0 +1,56 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T00.27.19.lhs:89:32-34: Error: GHC Error
+ 
+ 89 | length            :: List a -> Nat
+                                     ^^^
+ 
+     Not in scope: type constructor or class ‘Nat’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T00.27.19.lhs:221:21-24: Error: GHC Error
+ 
+ 221 | concat (l :+: ls) = head l :+: concat(tail l :+: ls) 
+                           ^^^^
+ 
+     Ambiguous occurrence ‘head’
+It could refer to either ‘head’,
+                         defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T00.27.19.lhs:214:1
+                      or ‘head’,
+                         imported from ‘Prelude’ at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T00.27.19.lhs:34:1-78
+                         (and originally defined in ‘GHC.List’)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T00.27.19.lhs:221:39-42: Error: GHC Error
+ 
+ 221 | concat (l :+: ls) = head l :+: concat(tail l :+: ls) 
+                                             ^^^^
+ 
+     Ambiguous occurrence ‘tail’
+It could refer to either ‘tail’,
+                         defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T00.27.19.lhs:217:1
+                      or ‘tail’,
+                         imported from ‘Prelude’ at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T00.27.19.lhs:34:1-78
+                         (and originally defined in ‘GHC.List’)

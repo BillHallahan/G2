@@ -1,0 +1,31 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-13T03.42.07.lhs:93:16: Error: Bad Type Specification
+ KMeans.nearest :: r:{v : Int | v >= 0} -> n:{v : Int | v >= 0} -> (Map {v : Int | 0 <= v
+                                                                                   && v < k} {v : (List Double) | size v == n}) -> {v : (List Double) | size v == n} -> {v : Int | 0 <= v
+                                                                                                                                                                                   && v < k
+                                                                                                                                                                                   && v < n
+                                                                                                                                                                                   && v < r}
+     Sort Error in Refinement: {v##0 : int | (0 <= v##0
+                                              && v##0 < k)}
+     Unbound Symbol k
+ Perhaps you meant: n, r

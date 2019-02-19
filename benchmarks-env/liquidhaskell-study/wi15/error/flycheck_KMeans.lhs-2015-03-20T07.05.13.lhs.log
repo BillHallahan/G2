@@ -1,0 +1,32 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T07.05.13.lhs:94:94: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyMap $ M.foldrWithKey (\cen key map -> M.insert cen (distance n k p) map) M.empty centers
+                                                                                                   ^
+ 
+     Couldn't match type ‘Int’ with ‘List Double’
+Expected type: Point
+  Actual type: Int

@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-21T02.33.02.lhs:161:12: Error: Bad Type Specification
+ List.map :: (a -> b) -> {v : (List a) | k == size v} -> {u : (List b) | k == size u}
+     Sort Error in Refinement: {v##3 : (List.List  a_a1e0) | k == size v##3}
+     Unbound Symbol k
+ Perhaps you meant: len, cmp, snd, fst

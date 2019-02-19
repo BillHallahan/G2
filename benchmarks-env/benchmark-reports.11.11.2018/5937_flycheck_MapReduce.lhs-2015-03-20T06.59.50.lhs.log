@@ -1,0 +1,146 @@
+5937
+flycheck_MapReduce.lhs-2015-03-20T06.59.50.lhs
+(71, '21-28')
+collapse
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T06.59.50.lhs:71:21-28: Error: Liquid Type Mismatch', ' 71 | collapse f = M.map (foldr1 f)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mcollapse undefined (fromList ([(0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse undefined (fromList ([(0, 0 :+: Emp), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse asTypeOf (fromList ([(0, 0 :+: (0 :+: Emp)), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) asTypeOf Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse asTypeOf (fromList ([(0, 0 :+: (0 :+: (0 :+: Emp))), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) asTypeOf Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse asTypeOf (fromList ([(0, 0 :+: (0 :+: (0 :+: (0 :+: Emp)))), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) asTypeOf Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse asTypeOf (fromList ([(0, 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) asTypeOf Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse asTypeOf (fromList ([(0, 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) asTypeOf Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse undefined (fromList ([(0, 0 :+: Emp), (0, 0 :+: Emp), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) undefined Emp = error
+violating foldr1's refinement type
+Concrete
+
+collapse asTypeOf (fromList ([(0, 0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))), (0, Emp)])) = error
+makes a call to
+foldr1 (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) asTypeOf Emp = error
+violating foldr1's refinement type
+Concrete
+
+
+ERROR:
+
+9.919360876083374
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 66,Just 4,Just 7]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T06.59.50.lhs:29:13-29: Error: Liquid Type Mismatch
+ 
+ 29 |     kvs   = expand      fm xs     -- step 1
+                  ^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | VV == xs
+                           && 0 <= size VV
+                           && 0 <= sizes VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV > 0}
+  
+   In Context
+     xs : {v : (List a) | 0 <= size v
+                          && 0 <= sizes v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T06.59.50.lhs:30:13-27: Error: Liquid Type Mismatch
+ 
+ 30 |     kvsm  = group       kvs       -- step 2
+                  ^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List (a, b)) | VV == kvs
+                                && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List (a, b)) | size VV > 0}
+  
+   In Context
+     kvs : {kvs : (List (a, b)) | 0 <= size kvs}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T06.59.50.lhs:71:21-28: Error: Liquid Type Mismatch
+ 
+ 71 | collapse f = M.map (foldr1 f)
+                          ^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | 0 <= size VV
+                           && 0 <= sizes VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV > 0}
+  
+   In Context

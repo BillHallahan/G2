@@ -1,0 +1,40 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T20.21.18.lhs:291:33-44: Error: GHC Error
+ 
+ 291 | concat (x1 :+: (x2 :+: xs )) =  concatHelper 
+                                       ^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘List a’
+            with actual type ‘List a0 -> List (List a0) -> List a0’
+Relevant bindings include
+  xs :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T20.21.18.lhs:291:24)
+  x2 :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T20.21.18.lhs:291:17)
+  x1 :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T20.21.18.lhs:291:9)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T20.21.18.lhs:289:1)

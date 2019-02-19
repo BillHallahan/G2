@@ -1,0 +1,1614 @@
+4494
+flycheck_List.lhs-2015-03-20T17.07.04.lhs
+(235, '22-32')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T17.07.04.lhs:235:22-32: Error: Liquid Type Mismatch', ' 235 | concat (x :+: xs) = (helper x xs)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mconcat (Emp :+: Emp) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: ((0 :+: (0 :+: (0 :+: (0 :+: Emp)))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp))))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: Emp) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: (0 :+: Emp)) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))) :+: ((0 :+: (0 :+: (0 :+: Emp))) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: ((0 :+: Emp) :+: ((0 :+: Emp) :+: (Emp :+: Emp)))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))) :+: ((0 :+: (0 :+: Emp)) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp))))))) :+: ((0 :+: Emp) :+: (Emp :+: Emp))) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: (0 :+: Emp)))))))) :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+
+42.3662645816803
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 360,Just 349,Just 351]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T17.07.04.lhs:196:40-60: Error: Liquid Type Mismatch
+ 
+ 196 | zipWith f _          _          = die  "Bad call to zipWith"
+                                              ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?b
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : [Char] | ?b ~~ ?a
+                         && len ?b == strLen ?a
+                         && len ?b >= 0}
+      
+     ?a : {?a : Addr# | ?a ~~ "Bad call to zipWith"
+                        && strLen ?a == 19}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T17.07.04.lhs:235:22-32: Error: Liquid Type Mismatch
+ 
+ 235 | concat (x :+: xs) = (helper x xs)
+                            ^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV > 0
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == listOfListsSize ?a}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}

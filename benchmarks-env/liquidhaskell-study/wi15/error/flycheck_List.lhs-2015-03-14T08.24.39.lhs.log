@@ -1,0 +1,62 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:35-65: Error: GHC Error
+ 
+ 238 | sample2 f (x1 :+: (x2 :+: xs )) = sample2 ((append x1 x2) :+: xs)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘List a’
+            with actual type ‘List (List a1) -> List a’
+Relevant bindings include
+  xs :: List (List a1)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:27)
+  x2 :: List a1
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:20)
+  x1 :: List a1
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:12)
+  f :: List a1 -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:9)
+  sample2 :: (List a1 -> List a) -> List (List a1) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:236:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:44-64: Error: GHC Error
+ 
+ 238 | sample2 f (x1 :+: (x2 :+: xs )) = sample2 ((append x1 x2) :+: xs)
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘List a1 -> List a’
+            with actual type ‘List (List a1)’
+Relevant bindings include
+  xs :: List (List a1)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:27)
+  x2 :: List a1
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:20)
+  x1 :: List a1
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:12)
+  f :: List a1 -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:238:9)
+  sample2 :: (List a1 -> List a) -> List (List a1) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.24.39.lhs:236:1)

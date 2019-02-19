@@ -1,0 +1,121 @@
+4481
+flycheck_List.lhs-2015-03-21T04.32.31.lhs
+(257, '24-47')
+prop_concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T04.32.31.lhs:257:24-47: Error: Liquid Type Mismatch', ' 257 | prop_concat = lAssert (length (concat xss) == 6)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-21T04.32.31.lhs:245:13-18: Error: Multiple specifications for `llsize` :
+    Conflicting definitions at
+     
+    * /home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-21T04.32.31.lhs:247:1-6
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+2.4144058227539062
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 416,Just 395,Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T04.32.31.lhs:253:1-6: Error: Liquid Type Mismatch
+ 
+ 253 | concat ((:+:) Emp xss) = concat xss
+       ^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == llsize ?a}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T04.32.31.lhs:253:26-35: Error: Liquid Type Mismatch
+ 
+ 253 | concat ((:+:) Emp xss) = concat xss
+                                ^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == llsize xss
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == llsize ?a}
+  
+   In Context
+     xss : {v : (List (List a)) | 0 <= size v}
+      
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T04.32.31.lhs:257:24-47: Error: Liquid Type Mismatch
+ 
+ 257 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?g}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?g : {?g : Bool | Prop ?g <=> ?e == ?h}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?a
+                                    && 0 <= size v}
+      
+     ?f : {?f : (List (List Int)) | size ?f == 1 + size ?c
+                                    && 0 <= size ?f}
+      
+     ?c : {?c : (List (List Int)) | size ?c == 1 + size ?d
+                                    && 0 <= size ?c}
+      
+     ?h : {?h : Int | ?h == (6 : int)}
+      
+     ?e : {?e : Int | ?e == size ?b
+                      && ?e >= 0}
+      
+     ?b : {?b : (List Int) | size ?b == llsize xss
+                             && 0 <= size ?b}
+      
+     ?d : {?d : (List (List Int)) | size ?d == 0
+                                    && 0 <= size ?d}
+      
+     ?a : {?a : (List (List Int)) | size ?a == 1 + size ?f
+                                    && 0 <= size ?a}

@@ -1,0 +1,89 @@
+1332
+List.lhs-2015-03-16T06.17.20.lhs
+(223, '1-6')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.17.20.lhs:223:1-6: Error: Liquid Type Mismatch', ' 223 | concat empty \t    \t\t= Emp']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:223:14: warning: [-Wtabs]
+    Tab character found here, and in 9 further locations.
+    Please use spaces instead.
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:224:1: warning: [-Woverlapping-patterns]
+    Pattern match is redundant
+    In an equation for ‘concat’: concat (l :+: ls) = ...
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:223:14: warning: [-Wtabs]
+    Tab character found here, and in 9 further locations.
+    Please use spaces instead.
+
+liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:224:1: warning: [-Woverlapping-patterns]
+    Pattern match is redundant
+    In an equation for ‘concat’: concat (l :+: ls) = ...
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
+    constructor List.:+: :: x:a -> xs:(List a) -> {VV : (List a) | sizeAll VV == size x + sizeAll xs
+                                                                   && size VV == 1 + size xs}
+    Sort Error in Refinement: {VV : (List.List a_a1WU) | (sizeAll VV == size x + sizeAll xs
+                                                          && size VV == 1 + size xs)}
+    Cannot unify (List.List @(42)) with a_a1WU in expression: sizeAll VV,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T06.17.20.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
+    constructor List.Emp :: {VV : (List a) | sizeAll VV == 0
+                                             && size VV == 0}
+    Sort Error in Refinement: {VV : (List.List a_a1WU) | (sizeAll VV == 0
+                                                          && size VV == 0)}
+    Cannot unify (List.List @(42)) with a_a1WU in expression: sizeAll VV]
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 364]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T06.17.20.lhs:223:1-6: Error: Liquid Type Mismatch
+ 
+ 223 | concat empty 	    		= Emp
+       ^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == 0
+                           && sizeAll VV == 0
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sizeAll empty}
+  
+   In Context
+     empty : {empty : (List (List a)) | 0 <= size empty}

@@ -1,0 +1,40 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-16T08.22.04.lhs:94:63-72: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyMap . foldl (\map (num, cor) -> Map.insert num (distance n p cor) map) Map.empty centers2
+                                                                    ^^^^^^^^^^
+ 
+     Not in scope: ‘Map.insert’
+Perhaps you meant ‘M.insert’ (imported from Data.Map)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-16T08.22.04.lhs:94:102-110: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyMap . foldl (\map (num, cor) -> Map.insert num (distance n p cor) map) Map.empty centers2
+                                                                                                           ^^^^^^^^^
+ 
+     Not in scope: ‘Map.empty’
+Perhaps you meant ‘M.empty’ (imported from Data.Map)

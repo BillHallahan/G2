@@ -1,0 +1,89 @@
+4257
+flycheck_List.lhs-2015-03-16T05.11.18.lhs
+(224, '1-6')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T05.11.18.lhs:224:1-6: Error: Liquid Type Mismatch', ' 224 | concat ((x :+: Emp) :+: Emp) = x :+: Emp']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mconcat Emp = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: Emp) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: Emp)) = error
+makes a call to
+patError = undefined
+violating patError's refinement type
+Concrete
+
+
+14.483314037322998
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 385,Just 377]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T05.11.18.lhs:224:1-6: Error: Liquid Type Mismatch
+ 
+ 224 | concat ((x :+: Emp) :+: Emp) = x :+: Emp
+       ^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == 1 + size ?e
+                           && sizeXs VV == size x + sizeXs ?e
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | sizeXs ?d > 0 => sizeXs ?d == size VV}
+  
+   In Context
+     ?c : {?c : (List (List a)) | size ?c == 1 + size ?b
+                                  && sizeXs ?c == size ?a + sizeXs ?b
+                                  && 0 <= size ?c}
+      
+     ?e : {?e : (List a) | (sizeXs ?c > 0 => sizeXs ?c == size ?e)
+                           && 0 <= size ?e}
+      
+     ?b : {?b : (List (List a)) | 0 <= size ?b}
+      
+     x : a
+      
+     ?d : {?d : (List (List a)) | 0 <= size ?d}
+      
+     ?a : {?a : (List a) | 0 <= size ?a}

@@ -1,0 +1,122 @@
+8607
+flycheck_KMeans.lhs-2015-03-20T00.49.53.lhs
+(201, '22-39')
+kmeans1
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T00.49.53.lhs:201:22-39: Error: Liquid Type Mismatch', ' 201 |     fr wp1 wp2     = mergeCluster n wp1 wp2']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mTimeout!
+
+time = 120.28861474990845
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 32,Just 114,Just 115,Just 119,Just 121,Just 123,Just 61]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T00.49.53.lhs:192:21-41: Error: Liquid Type Mismatch
+ 
+ 192 | kmeans1 k n ps cs = normalize newClusters
+                           ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T00.49.53.lhs:197:41-42: Error: Liquid Type Mismatch
+ 
+ 197 |     newClusters    = mapReduce (fm k n) fr ps
+                                               ^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == cludim ?a}
+  
+   In Context
+     ?a : (Int, (List Double))
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T00.49.53.lhs:199:33-46: Error: Liquid Type Mismatch
+ 
+ 199 |     fm k n p       = singleton (nearest k n cs p, (1 :: Int, p))
+                                       ^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | 0 <= VV
+                      && VV < k}
+  
+   not a subtype of Required type
+     VV : {VV : Int | 0 <= VV
+                      && VV < k}
+  
+   In Context
+     k : {k : Int | k >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T00.49.53.lhs:201:22-39: Error: Liquid Type Mismatch
+ 
+ 201 |     fr wp1 wp2     = mergeCluster n wp1 wp2
+                            ^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T00.49.53.lhs:201:22-43: Error: Liquid Type Mismatch
+ 
+ 201 |     fr wp1 wp2     = mergeCluster n wp1 wp2
+                            ^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | size VV == n
+                                && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == cludim wp1}
+  
+   In Context
+     n : {n : Int | n >= 0}
+      
+     wp1 : (Int, (List Double))

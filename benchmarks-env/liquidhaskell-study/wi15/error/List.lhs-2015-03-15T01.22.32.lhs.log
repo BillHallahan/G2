@@ -1,0 +1,29 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-15T01.22.32.lhs:214:15: Error: Bad Type Specification
+ List.concat :: li:(List (List a)) -> {l : (List a) | size l >= 0
+                                                      && size == nestedSize li}
+     Sort Error in Refinement: {l##0 : (List.List  a_a1dR) | (size l##0 >= 0
+                                                              && size == nestedSize li)}
+     Cannot unify func(0, [(List.List  @(44)); int]) with int
+  because
+Invalid Relation size == nestedSize li with operand types func(1, [(List.List  @(0)); int]) and int

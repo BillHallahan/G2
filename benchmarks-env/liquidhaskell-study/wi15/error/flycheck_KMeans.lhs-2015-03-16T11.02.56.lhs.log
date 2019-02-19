@@ -1,0 +1,27 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T11.02.56.lhs:133:22: Error: Cannot parse specification:
+ 
+ 133 | {-@ mergeCluster :: n:Nat -> {(xN, xP):Cluster} -> {(yN, yP):Cluster} -> {(zN, zP):Cluster | size zP = size xP && size xP = size yP @-}
+                            ^
+ 
+     Leftover while parsing

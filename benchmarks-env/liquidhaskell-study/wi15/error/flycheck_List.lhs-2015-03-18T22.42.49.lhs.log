@@ -1,0 +1,54 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T22.42.49.lhs:224:15-16: Error: GHC Error
+ 
+ 224 |     xss     = l0 :+: l1 :+: l2 :+: l3 :+: Emp
+                     ^^
+ 
+     Not in scope: ‘l0’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T22.42.49.lhs:224:22-23: Error: GHC Error
+ 
+ 224 |     xss     = l0 :+: l1 :+: l2 :+: l3 :+: Emp
+                            ^^
+ 
+     Not in scope: ‘l1’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T22.42.49.lhs:224:29-30: Error: GHC Error
+ 
+ 224 |     xss     = l0 :+: l1 :+: l2 :+: l3 :+: Emp
+                                   ^^
+ 
+     Not in scope: ‘l2’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T22.42.49.lhs:224:36-37: Error: GHC Error
+ 
+ 224 |     xss     = l0 :+: l1 :+: l2 :+: l3 :+: Emp
+                                          ^^
+ 
+     Not in scope: ‘l3’

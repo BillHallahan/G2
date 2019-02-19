@@ -1,0 +1,83 @@
+9106
+flycheck_List.lhs-2015-03-20T22.42.29.lhs
+(230, '29-36')
+prop_zipWith
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T22.42.29.lhs:230:29-36: Error: Liquid Type Mismatch', ' 230 |   | length xs >  1 = lastL (tailL xs)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mTimeout!
+
+time = 120.55867505073547
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 311,Just 252]
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T22.42.29.lhs:235:33-41
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T22.42.29.lhs:241:24-32
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T22.42.29.lhs:241:43-50
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T22.42.29.lhs:230:29-36: Error: Liquid Type Mismatch
+ 
+ 230 |   | length xs >  1 = lastL (tailL xs)
+                                   ^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | VV == ?a
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV > 0}
+  
+   In Context
+     ?a : {?a : (List a) | size ?a >= 0
+                           && 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T22.42.29.lhs:250:24-47: Error: Liquid Type Mismatch
+ 
+ 250 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?a}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Int | ?c == (6 : int)}
+      
+     ?b : {?b : Int | ?b == size ?d}
+      
+     ?d : {?d : (List Int) | 0 <= size ?d}
+      
+     ?a : {?a : Bool | Prop ?a <=> ?b == ?c}

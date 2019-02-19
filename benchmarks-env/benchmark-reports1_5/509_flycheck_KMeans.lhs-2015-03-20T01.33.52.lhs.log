@@ -1,0 +1,80 @@
+509
+flycheck_KMeans.lhs-2015-03-20T01.33.52.lhs
+(196, '26-60')
+kmeans1
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.33.52.lhs:196:26-60: Error: Liquid Type Mismatch', ' 196 |     normalize k n      = M.map (\\(sz, p) -> centroid n p sz)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+liquidhaskell-study/wi15/MapReduce.lhs:58:49: Error: GHC Error
+    Not in scope: type constructor or class
+ matchTyCon ` ListNE '
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 117,Just 118,Just 39]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.33.52.lhs:196:26-60: Error: Liquid Type Mismatch
+ 
+ 196 |     normalize k n      = M.map (\(sz, p) -> centroid n p sz)
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.33.52.lhs:200:37-50: Error: Liquid Type Mismatch
+ 
+ 200 |     fm k n p           = singleton (nearest k n cs p, (1 :: Int, p))
+                                           ^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | 0 <= VV
+                      && VV < k}
+  
+   not a subtype of Required type
+     VV : {VV : Int | 0 <= VV
+                      && VV < k}
+  
+   In Context
+     k : {k : Int | k >= 0}

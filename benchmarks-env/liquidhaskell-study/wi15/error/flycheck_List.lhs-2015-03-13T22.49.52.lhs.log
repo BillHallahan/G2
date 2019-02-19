@@ -1,0 +1,31 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/.stack-work/install/x86_64-linux/lts-5.15/7.10.3/share/x86_64-linux-ghc-7.10.3/liquidhaskell-0.6.0.0/include/GHC/List.spec:10:17: Error: Bad Invariant Specification
+     invariant  {VV : [a] | length VV == len VV}
+     Sort Error in Refinement: {VV : [a_xo] | length VV == len VV}
+     Cannot unify List.List with fix$36$$91$$93$
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-13T22.49.52.lhs:89:13: Error: Bad Measure Specification
+     measure  length
+     Unbound Symbol help
+ Perhaps you meant: head

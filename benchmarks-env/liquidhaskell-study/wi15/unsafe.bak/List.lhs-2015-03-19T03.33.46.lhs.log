@@ -1,0 +1,65 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 330]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.33.46.lhs:230:15-78: Error: Liquid Type Mismatch
+ 
+ 230 | concat lsts = reverseList $ concatRec (reverseList (map reverseList lsts)) Emp
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == sizeOfConcat ?a + size ?c
+                           && size VV == sizeOfConcat ?a
+                           && size VV == size ?d + size ?c
+                           && size VV == size ?c + size ?d
+                           && size VV == size ?d
+                           && 0 <= size VV
+                           && 0 <= sizeOfConcat VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sizeOfConcat lsts}
+  
+   In Context
+     ?c : {?c : (List a) | size ?c == 0
+                           && sizeOfConcat ?c == 0
+                           && 0 <= size ?c
+                           && 0 <= sizeOfConcat ?c}
+      
+     ?b : {?b : (List (List a)) | size ?b == size lsts
+                                  && 0 <= size ?b
+                                  && 0 <= sizeOfConcat ?b}
+      
+     lsts : {lsts : (List (List a)) | 0 <= size lsts
+                                      && 0 <= sizeOfConcat lsts}
+      
+     ?d : {?d : (List a) | size ?d == sizeOfConcat ?a + size ?c
+                           && 0 <= size ?d
+                           && 0 <= sizeOfConcat ?d}
+      
+     ?a : {?a : (List (List a)) | size ?a == size ?b
+                                  && 0 <= size ?a
+                                  && 0 <= sizeOfConcat ?a}

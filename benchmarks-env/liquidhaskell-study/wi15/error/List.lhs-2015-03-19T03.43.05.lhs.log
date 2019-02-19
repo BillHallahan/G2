@@ -1,0 +1,78 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.43.05.lhs:102:23-28: Error: GHC Error
+ 
+ 102 | prop_size  = lAssert (length l3 == 3)
+                             ^^^^^^
+ 
+     Not in scope: ‘length’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.43.05.lhs:151:36-41: Error: GHC Error
+ 
+ 151 | prop_replicate n x = lAssert (n == length (replicate n x))
+                                          ^^^^^^
+ 
+     Not in scope: ‘length’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.43.05.lhs:166:26-31: Error: GHC Error
+ 
+ 166 | prop_map f xs = lAssert (length xs == length (map f xs))
+                                ^^^^^^
+ 
+     Not in scope: ‘length’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.43.05.lhs:166:39-44: Error: GHC Error
+ 
+ 166 | prop_map f xs = lAssert (length xs == length (map f xs))
+                                             ^^^^^^
+ 
+     Not in scope: ‘length’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.43.05.lhs:200:28-33: Error: GHC Error
+ 
+ 200 | prop_zipWith xs = lAssert (length xs == length x2s)
+                                  ^^^^^^
+ 
+     Not in scope: ‘length’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.43.05.lhs:200:41-46: Error: GHC Error
+ 
+ 200 | prop_zipWith xs = lAssert (length xs == length x2s)
+                                               ^^^^^^
+ 
+     Not in scope: ‘length’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T03.43.05.lhs:218:24-29: Error: GHC Error
+ 
+ 218 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^
+ 
+     Not in scope: ‘length’

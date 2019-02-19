@@ -1,0 +1,35 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-21T03.12.47.lhs:224:16-80: Error: Specified Type Does Not Refine Haskell Type for List.addList
+ 
+ 224 | {-@ addList :: v1:List a -> v2:List b -> {v3:List c| size c == size a + size b} @-}
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a b c. List.List a -> List.List b -> List.List c
+  
+ is inconsistent with the Haskell type
+  
+     forall t. List.List t -> List.List t -> List.List t
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-21T03.12.47.lhs:225:1-7

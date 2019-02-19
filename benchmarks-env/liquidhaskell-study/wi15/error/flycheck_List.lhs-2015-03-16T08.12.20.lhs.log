@@ -1,0 +1,42 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.12.20.lhs:223:35: Error: GHC Error
+ 
+ 223 | concat ((x :+: y) :+: xs) = x :+: y :+: concat xs
+                                         ^
+ 
+     Couldn't match expected type ‘a’ with actual type ‘List a’
+  ‘a’ is a rigid type variable bound by
+      the type signature for concat :: List (List a) -> List a
+      at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.12.20.lhs:44:14
+Relevant bindings include
+  xs :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.12.20.lhs:223:23)
+  y :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.12.20.lhs:223:16)
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.12.20.lhs:223:10)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T08.12.20.lhs:222:1)

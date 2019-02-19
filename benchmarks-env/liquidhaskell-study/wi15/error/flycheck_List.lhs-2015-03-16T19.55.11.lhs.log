@@ -1,0 +1,115 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:125:9-10: Error: GHC Error
+ 
+ 125 | empty = []
+               ^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[t1]’
+Relevant bindings include
+  empty :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:125:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:128:12-20: Error: GHC Error
+ 
+ 128 | add x xs = [x] ++ xs
+                  ^^^^^^^^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[a]’
+Relevant bindings include
+  xs :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:128:7)
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:128:5)
+  add :: a -> List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:128:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:128:19-20: Error: GHC Error
+ 
+ 128 | add x xs = [x] ++ xs
+                         ^^
+ 
+     Couldn't match expected type ‘[a]’ with actual type ‘List a’
+Relevant bindings include
+  xs :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:128:7)
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:128:5)
+  add :: a -> List a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:128:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:131:15-17: Error: GHC Error
+ 
+ 131 | singleton x = [x]
+                     ^^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[a]’
+Relevant bindings include
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:131:11)
+  singleton :: a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:131:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:144:17-18: Error: GHC Error
+ 
+ 144 | 	|n==0 = []
+                       ^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[t0]’
+Relevant bindings include
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:143:13)
+  replicate :: Int -> a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:143:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:145:22-40: Error: GHC Error
+ 
+ 145 | 	|otherwise = x:replicate (n-1) x
+                            ^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[a]’
+Relevant bindings include
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:143:13)
+  replicate :: Int -> a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:143:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:145:24-40: Error: GHC Error
+ 
+ 145 | 	|otherwise = x:replicate (n-1) x
+                              ^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘[a]’ with actual type ‘List a’
+Relevant bindings include
+  x :: a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:143:13)
+  replicate :: Int -> a -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T19.55.11.lhs:143:1)

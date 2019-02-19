@@ -1,0 +1,38 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-16T03.18.18.lhs:70:18-74: Error: Specified Type Does Not Refine Haskell Type for MapReduce.collapse
+ 
+ 70 | {-@ collapse  :: (v -> v -> v) -> {x:M.Map k (y) | y=List v} -> M.Map k v @-}
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall v k y.
+(v -> v -> v) -> Data.Map.Base.Map k y -> Data.Map.Base.Map k v
+  
+ is inconsistent with the Haskell type
+  
+     forall v k.
+(v -> v -> v)
+-> Data.Map.Base.Map k (List.List v) -> Data.Map.Base.Map k v
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-16T03.18.18.lhs:71:1-8

@@ -1,0 +1,80 @@
+10701
+flycheck_List.lhs-2015-03-20T01.16.21.lhs
+(232, '30-60')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T01.16.21.lhs:232:30-60: Error: Liquid Type Mismatch', ' 232 | concat (xs :+: ys :+: xss) = concat ((append xs ys) :+: xss)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T01.16.21.lhs:146:1: warning: [-Wtabs]
+    Tab character found here, and in one further location.
+    Please use spaces instead.
+
+liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T01.16.21.lhs:146:1: warning: [-Wtabs]
+    Tab character found here, and in one further location.
+    Please use spaces instead.
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T01.16.21.lhs:64:13-16: Error: Multiple specifications for `size` :
+    Conflicting definitions at
+     
+    * /home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T01.16.21.lhs:222:1-4
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+time = 2.004192352294922
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 370]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T01.16.21.lhs:232:30-60: Error: Liquid Type Mismatch
+ 
+ 232 | concat (xs :+: ys :+: xss) = concat ((append xs ys) :+: xss)
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == sumSize ?a
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sumSize ?c}
+  
+   In Context
+     xss : {v : (List (List a)) | 0 <= size v}
+      
+     ?c : {?c : (List (List a)) | 0 <= size ?c}
+      
+     ?b : {?b : (List a) | 0 <= size ?b}
+      
+     ?a : {?a : (List (List a)) | size ?a == 1 + size xss
+                                  && sumSize ?a == sumSize xss + size ?b
+                                  && 0 <= size ?a}

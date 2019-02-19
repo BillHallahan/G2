@@ -1,0 +1,101 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:225:23-27: Error: GHC Error
+ 
+ 225 | append xs ys = foldr1 (:+:) ys xs
+                             ^^^^^
+ 
+     Couldn't match type ‘List ([t] -> [t])’ with ‘[t] -> [t]’
+Expected type: ([t] -> [t]) -> ([t] -> [t]) -> [t] -> [t]
+  Actual type: ([t] -> [t])
+               -> List ([t] -> [t]) -> List ([t] -> [t])
+Relevant bindings include
+  ys :: [t]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:225:11)
+  xs :: [t]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:225:8)
+  append :: [t] -> [t] -> [t]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:223:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:225:29-30: Error: GHC Error
+ 
+ 225 | append xs ys = foldr1 (:+:) ys xs
+                                   ^^
+ 
+     Couldn't match expected type ‘List ([t] -> [t])’
+            with actual type ‘[t]’
+Relevant bindings include
+  ys :: [t]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:225:11)
+  xs :: [t]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:225:8)
+  append :: [t] -> [t] -> [t]
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:223:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:21-40: Error: GHC Error
+ 
+ 229 | concat (x :+: xs) = append x (concat xs)
+                           ^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘List a’ with actual type ‘[t0]’
+Relevant bindings include
+  xs :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:15)
+  x :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:9)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:228:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:28: Error: GHC Error
+ 
+ 229 | concat (x :+: xs) = append x (concat xs)
+                                  ^
+ 
+     Couldn't match expected type ‘[t0]’ with actual type ‘List a’
+Relevant bindings include
+  xs :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:15)
+  x :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:9)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:228:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:31-39: Error: GHC Error
+ 
+ 229 | concat (x :+: xs) = append x (concat xs)
+                                     ^^^^^^^^^
+ 
+     Couldn't match expected type ‘[t0]’ with actual type ‘List a’
+Relevant bindings include
+  xs :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:15)
+  x :: List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:229:9)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T02.00.36.lhs:228:1)

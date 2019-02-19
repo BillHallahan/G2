@@ -1,0 +1,63 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:216:18: Error: GHC Error
+ 
+ 216 | concat l = (head l) :+: concat (tail l) 
+                        ^
+ 
+     Couldn't match expected type ‘[a]’ with actual type ‘List (List a)’
+Relevant bindings include
+  l :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:216:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:215:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:216:33-38: Error: GHC Error
+ 
+ 216 | concat l = (head l) :+: concat (tail l) 
+                                       ^^^^^^
+ 
+     Couldn't match expected type ‘List (List a)’
+            with actual type ‘[a0]’
+Relevant bindings include
+  l :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:216:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:215:1)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:216:38: Error: GHC Error
+ 
+ 216 | concat l = (head l) :+: concat (tail l) 
+                                            ^
+ 
+     Couldn't match expected type ‘[a0]’
+            with actual type ‘List (List a)’
+Relevant bindings include
+  l :: List (List a)
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:216:8)
+  concat :: List (List a) -> List a
+    (bound at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T19.12.10.lhs:215:1)

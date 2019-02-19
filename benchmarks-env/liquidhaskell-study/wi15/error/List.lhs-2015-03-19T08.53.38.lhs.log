@@ -1,0 +1,36 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T08.53.38.lhs:224:15-53: Error: Specified Type Does Not Refine Haskell Type for List.concat
+ 
+ 224 | {-@ concat :: ls:List (List a) -> listN a (sizeR ls) @-}
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a listN sizeR ls.
+List.List (List.List a) -> listN a (sizeR ls)
+  
+ is inconsistent with the Haskell type
+  
+     forall a. List.List (List.List a) -> List.List a
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T08.53.38.lhs:225:1-6

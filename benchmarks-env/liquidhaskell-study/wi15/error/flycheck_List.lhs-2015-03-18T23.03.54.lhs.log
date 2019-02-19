@@ -1,0 +1,28 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-18T23.03.54.lhs:95:36: Error: Cannot parse specification:
+ 
+ 95 | {-@ length :: {v:ListN a N|  v=(N :+: xs:ListN a N-1)} -> Nat @-}
+                                         ^
+ 
+     unexpected "+"
+     expecting "(", "func", "[", "int", "Integer", "Int", "real", "bool", "num", letter, "_" or "@"

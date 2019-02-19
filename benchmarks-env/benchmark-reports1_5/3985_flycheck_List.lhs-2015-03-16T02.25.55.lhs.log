@@ -1,0 +1,124 @@
+3985
+flycheck_List.lhs-2015-03-16T02.25.55.lhs
+(220, '13-33')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.25.55.lhs:220:13-33: Error: Liquid Type Mismatch', ' 220 | concat xs = foldr1 (cons_list) xs']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mconcat (Emp :+: Emp) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: Emp) = Emp
+violating concat's refinement type
+Concrete
+
+concat Emp = error
+makes a call to
+foldr1 fs? fs? Emp = error
+violating foldr1's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: Emp))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: Emp))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp))))) = Emp
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: (Emp :+: Emp)))))) = Emp
+violating concat's refinement type
+Concrete
+
+
+ERROR:
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 358,Just 359,Just 252]
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.25.55.lhs:142:30-42
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.25.55.lhs:144:11
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.25.55.lhs:146:40-57
+WARNING: Found false in /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.25.55.lhs:147:26-41
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.25.55.lhs:220:13-33: Error: Liquid Type Mismatch
+ 
+ 220 | concat xs = foldr1 (cons_list) xs
+                   ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV > 0}
+  
+   In Context
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T02.25.55.lhs:225:24-47: Error: Liquid Type Mismatch
+ 
+ 225 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?a}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?c : {?c : Int | ?c == (6 : int)}
+      
+     ?b : {?b : Int | ?b == size ?d}
+      
+     ?d : {?d : (List Int) | size ?d > 0
+                             && 0 <= size ?d}
+      
+     ?a : {?a : Bool | Prop ?a <=> ?b == ?c}

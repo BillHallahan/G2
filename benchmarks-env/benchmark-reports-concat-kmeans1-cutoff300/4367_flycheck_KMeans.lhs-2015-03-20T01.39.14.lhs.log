@@ -1,0 +1,1489 @@
+4367
+flycheck_KMeans.lhs-2015-03-20T01.39.14.lhs
+(188, '21-41')
+kmeans1
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.39.14.lhs:188:21-41: Error: Liquid Type Mismatch', ' 188 | kmeans1 k n ps cs = normalize newClusters']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mThe call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 1 1 Emp (fromList []) = fromList ([(0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([(0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = fromList ([((-1), Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 1 1 Emp (fromList []) = fromList ([(0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([(0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 1 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = fromList ([(0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 1 1 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([(0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 2 (((0.0) :+: ((0.0) :+: Emp)) :+: Emp) (fromList []) = fromList ([((-1), Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = fromList ([((-1), Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 1 1 Emp (fromList []) = fromList ([(0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: Emp)), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: (Emp :+: Emp)) (fromList []) = fromList ([((-1), Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp)))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: ((0.0) :+: Emp))), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 1 (((0.0) :+: Emp) :+: Emp) (fromList []) = fromList ([(0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: Emp), (0, Emp), (0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, Emp), (0, Emp), (0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 Emp (fromList []) = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), Emp), (0, (0.0) :+: Emp), (0, Emp), (0, Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 1 1 Emp (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: ((0.0) :+: Emp))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([((-1), (0.0) :+: ((0.0) :+: ((0.0) :+: ((0.0) :+: Emp))))])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([(0, (0.0) :+: Emp), (0, Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, (0.0) :+: Emp), (0, Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+The call
+kmeans1 0 0 (Emp :+: Emp) (fromList []) = fromList ([(0, Emp), (0, (0.0) :+: Emp)])
+violates kmeans1's refinement type
+when
+map fs? fs? (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) fs? newClusters = fromList ([(0, Emp), (0, (0.0) :+: Emp)])
+Strengthen the refinement type of map to eliminate this possibility
+Abstract
+
+
+48.71530604362488
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 373,Just 149,Just 155,Just 31]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.39.14.lhs:136:1-12: Error: Liquid Type Mismatch
+ 
+ 136 | mergeCluster n (n1, p1) (n2, p2) = (n1 + n2, zipWith (+) p1 p2)
+       ^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (Int, (List Double)) | snd VV == ?c
+                                       && fst VV == ?d
+                                       && x_Tuple22 VV == ?c
+                                       && x_Tuple21 VV == ?d}
+  
+   not a subtype of Required type
+     VV : {VV : (Int, (List Double)) | (size (snd ?b) < size (snd ?a) => size (snd VV) == size (snd ?b))
+                                       && (not (size (snd ?b) < size (snd ?a)) => size (snd VV) == size (snd ?a))}
+  
+   In Context
+     n2 : Int
+      
+     p1 : {p1 : (List Double) | 0 <= size p1}
+      
+     ?c : {?c : (List Double) | size ?c == size p1
+                                && 0 <= size ?c}
+      
+     n1 : Int
+      
+     ?b : (Int, (List Double))
+      
+     ?d : {?d : Int | ?d == n1 + n2}
+      
+     ?a : (Int, (List Double))
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.39.14.lhs:136:46-62: Error: Liquid Type Mismatch
+ 
+ 136 | mergeCluster n (n1, p1) (n2, p2) = (n1 + n2, zipWith (+) p1 p2)
+                                                    ^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | VV == p2
+                                && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == size p1}
+  
+   In Context
+     p1 : {p1 : (List Double) | 0 <= size p1}
+      
+     p2 : {p2 : (List Double) | 0 <= size p2}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.39.14.lhs:150:30-42: Error: Liquid Type Mismatch
+ 
+ 150 | centroid n p sz = map (\x -> x `divide` sz) p
+                                    ^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == sz}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV /= 0}
+  
+   In Context
+     sz : Int
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-20T01.39.14.lhs:188:21-41: Error: Liquid Type Mismatch
+ 
+ 188 | kmeans1 k n ps cs = normalize newClusters
+                           ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List Double) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List Double) | size VV == n}
+  
+   In Context
+     n : {n : Int | n >= 0}

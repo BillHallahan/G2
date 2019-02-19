@@ -1,0 +1,51 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T09.38.17.lhs:95:29-69: Error: GHC Error
+ 
+ 95 |                             map (\x1 x2 -> (x1, distance n p x2)) kvs
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match type ‘List b0’ with ‘Int’
+Expected type: List (Point -> (t0, Double)) -> List b0 -> Center
+  Actual type: List (Point -> (t0, Double)) -> List b0 -> List b0
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T09.38.17.lhs:95:67-69: Error: GHC Error
+ 
+ 95 |                             map (\x1 x2 -> (x1, distance n p x2)) kvs
+                                                                        ^^^
+ 
+     Couldn't match expected type ‘List t0’
+            with actual type ‘[(Center, Point)]’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T09.38.17.lhs:96:51-53: Error: GHC Error
+ 
+ 96 |                             minKeyMap (M.fromList kvs)
+                                                        ^^^
+ 
+     Couldn't match type ‘Int’ with ‘List b0’
+Expected type: [(List b0, Point)]
+  Actual type: [(Center, Point)]

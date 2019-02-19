@@ -1,0 +1,138 @@
+9557
+flycheck_List.lhs-2015-03-14T08.10.43.lhs
+(252, '14-54')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.10.43.lhs:252:14-54: Error: Liquid Type Mismatch', ' 252 | concat  xs = foldr (\\ls res -> (append ls res)) Emp xs ']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mG2: ERROR OCCURRED IN LIQUIDHASKELL
+/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T08.10.43.lhs:235:13-19: Error: Multiple specifications for `sample2` :
+    Conflicting definitions at
+     
+    * /home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-14T08.10.43.lhs:236:1-7
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+2.190534830093384
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 320,Just 273,Just 276,Just 252]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.10.43.lhs:247:1-4: Error: Liquid Type Mismatch
+ 
+ 247 | sum3 Emp =0
+       ^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == (0 : int)}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV == sample size ?a}
+  
+   In Context
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.10.43.lhs:248:19-38: Error: Liquid Type Mismatch
+ 
+ 248 | sum3 (x :+: xs) = length x + (sum3 xs)
+                         ^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Int | VV == ?c + ?b}
+  
+   not a subtype of Required type
+     VV : {VV : Int | VV == sample size ?a}
+  
+   In Context
+     xs : {v : (List (List a)) | 0 <= size v}
+      
+     ?c : {?c : Int | ?c == size x}
+      
+     ?b : {?b : Int | ?b == sample size xs}
+      
+     x : {v : (List a) | 0 <= size v}
+      
+     ?a : {?a : (List (List a)) | 0 <= size ?a}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.10.43.lhs:252:14-54: Error: Liquid Type Mismatch
+ 
+ 252 | concat  xs = foldr (\ls res -> (append ls res)) Emp xs 
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | sample2 size xs == size VV}
+  
+   In Context
+     xs : {v : (List (List a)) | 0 <= size v}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-14T08.10.43.lhs:260:24-47: Error: Liquid Type Mismatch
+ 
+ 260 | prop_concat = lAssert (length (concat xss) == 6)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : Bool | VV == ?b}
+  
+   not a subtype of Required type
+     VV : {VV : Bool | Prop VV}
+  
+   In Context
+     ?g : {?g : (List Int) | sample2 size xss == size ?g
+                             && 0 <= size ?g}
+      
+     xss : {v : (List (List Int)) | size v == 1 + size ?h
+                                    && 0 <= size v}
+      
+     ?f : {?f : Int | ?f == size ?g}
+      
+     ?c : {?c : (List (List Int)) | size ?c == 1 + size ?e
+                                    && 0 <= size ?c}
+      
+     ?h : {?h : (List (List Int)) | size ?h == 1 + size ?a
+                                    && 0 <= size ?h}
+      
+     ?e : {?e : (List (List Int)) | size ?e == 0
+                                    && 0 <= size ?e}
+      
+     ?b : {?b : Bool | Prop ?b <=> ?f == ?d}
+      
+     ?d : {?d : Int | ?d == (6 : int)}
+      
+     ?a : {?a : (List (List Int)) | size ?a == 1 + size ?c
+                                    && 0 <= size ?a}

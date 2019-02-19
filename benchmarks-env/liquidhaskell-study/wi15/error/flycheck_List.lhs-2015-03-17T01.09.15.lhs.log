@@ -1,0 +1,37 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-17T01.09.15.lhs:155:23-39: Error: Specified Type Does Not Refine Haskell Type for List.prop_replicate
+ 
+ 155 | {-@ prop_replicate :: Nat -> a -> TRUE @-}
+                             ^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a. GHC.Types.Int -> a -> GHC.Types.Bool
+  
+ is inconsistent with the Haskell type
+  
+     forall t a.
+(GHC.Classes.Eq a, GHC.Num.Num a) =>
+a -> t -> GHC.Types.Bool
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-17T01.09.15.lhs:156:1-14

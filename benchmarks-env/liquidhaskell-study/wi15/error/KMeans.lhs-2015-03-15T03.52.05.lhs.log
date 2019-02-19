@@ -1,0 +1,25 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T03.52.05.lhs:133:21: Error: Bad Type Specification
+ KMeans.mergeCluster :: {v : Int | v >= 0} -> c1:(Int, (List Double)) -> c2:{VV : (Int, (List Double)) | size snd c1 == size snd VV} -> {VV : (Int, (List Double)) | fst VV == fst c1 + fst c2}
+     Sort Error in Refinement: {VV : (Tuple  int  (List.List  real)) | size snd c1 == size snd VV}
+     Sort func(0, [(List.List  @(42)); int]) is not a function with at least 2 arguments

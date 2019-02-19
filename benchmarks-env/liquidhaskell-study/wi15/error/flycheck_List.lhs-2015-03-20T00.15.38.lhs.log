@@ -1,0 +1,39 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.15.38.lhs:217:13: Error: Cannot promote Haskell function sumSize to logic
+     Cannot transform to Logic:	case ds_d1wY of lq_anf$ {
+  List.Emp -> List.length xs;
+  List.:+: lq_anf$ lq_anf$ ->
+    case xs of lq_anf$ {
+      List.Emp -> List.length ds_d1wY;
+      List.:+: lq_anf$ lq_anf$ ->
+        let {
+          lq_anf$ :: GHC.Types.Int
+          [LclId, Str=DmdType]
+          lq_anf$ = List.length xs } in
+        let {
+          lq_anf$ :: GHC.Types.Int
+          [LclId, Str=DmdType]
+          lq_anf$ = List.sumSize ds_d1wY } in
+        GHC.Num.+ lq_anf$ lq_anf$
+    }
+}

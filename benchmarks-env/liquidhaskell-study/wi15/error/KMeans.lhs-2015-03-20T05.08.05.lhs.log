@@ -1,0 +1,50 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T05.08.05.lhs:94:25-73: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyMap . M.fromList . map f (M.toList centers)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match type ‘a0 -> c0’ with ‘Int’
+Expected type: Center
+  Actual type: a0 -> c0
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T05.08.05.lhs:94:50-73: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyMap . M.fromList . map f (M.toList centers)
+                                                       ^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘a0 -> [(c0, v0)]’
+            with actual type ‘List (Center, Double)’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T05.08.05.lhs:94:57-72: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyMap . M.fromList . map f (M.toList centers)
+                                                              ^^^^^^^^^^^^^^^^
+ 
+     Couldn't match expected type ‘List (Center, Point)’
+            with actual type ‘[(Center, Point)]’

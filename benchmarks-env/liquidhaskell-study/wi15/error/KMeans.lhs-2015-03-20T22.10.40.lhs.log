@@ -1,0 +1,31 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-20T22.10.40.lhs:94:83-88: Error: GHC Error
+ 
+ 94 | nearest k n centers p = minKeyList $ map (\(a, b) -> (a, distance n p b)) centers.toList
+                                                                                        ^^^^^^
+ 
+     Not in scope: ‘toList’
+Perhaps you meant ‘M.toList’ (imported from Data.Map)

@@ -1,0 +1,56 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-19T19.27.44.lhs:94:25-35: Error: GHC Error
+ 
+ 94 | nearest k n centers p = clusterList centers
+                              ^^^^^^^^^^^
+ 
+     Not in scope: ‘clusterList’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-19T19.27.44.lhs:95:1-12: Error: GHC Error
+ 
+ 95 | centerToList :: CenteringKN k n -> [(k, PointN n)]
+      ^^^^^^^^^^^^
+ 
+     The type signature for ‘centerToList’ lacks an accompanying binding
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-19T19.27.44.lhs:95:17-27: Error: GHC Error
+ 
+ 95 | centerToList :: CenteringKN k n -> [(k, PointN n)]
+                      ^^^^^^^^^^^
+ 
+     Not in scope: type constructor or class ‘CenteringKN’
+Perhaps you meant ‘Centering’ (line 56)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-19T19.27.44.lhs:95:41-46: Error: GHC Error
+ 
+ 95 | centerToList :: CenteringKN k n -> [(k, PointN n)]
+                                              ^^^^^^
+ 
+     Not in scope: type constructor or class ‘PointN’
+Perhaps you meant ‘Point’ (line 39)

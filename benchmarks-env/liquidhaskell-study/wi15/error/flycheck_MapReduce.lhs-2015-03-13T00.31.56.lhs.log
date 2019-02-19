@@ -1,0 +1,25 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-13T00.31.56.lhs:70:18: Error: Bad Type Specification
+ MapReduce.collapse :: (a -> a -> a) -> {m : (Map b (List a)) | size m > 0} -> (Map b a)
+     Sort Error in Refinement: {m##4 : (Data.Map.Base.Map  k_amxP  (List.List  v_amxO)) | size m##4 > 0}
+     Cannot unify List.List with (Data.Map.Base.Map  k_amxP)

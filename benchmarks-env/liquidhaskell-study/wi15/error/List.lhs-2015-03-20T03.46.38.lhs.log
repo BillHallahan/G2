@@ -1,0 +1,35 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.46.38.lhs:91:26-46: Error: Specified Type Does Not Refine Haskell Type for List.length
+ 
+ 91 | {-@ length            :: la:List a -> size la @-}
+                               ^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall a size la. List.List a -> size la
+  
+ is inconsistent with the Haskell type
+  
+     forall a. List.List a -> GHC.Types.Int
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.46.38.lhs:93:1-6

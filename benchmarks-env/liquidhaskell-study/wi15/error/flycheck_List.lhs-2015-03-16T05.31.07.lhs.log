@@ -1,0 +1,25 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-16T05.31.07.lhs:224:15: Error: Bad Invariant Specification
+     invariant  {v : (List a) | emptyL v == 1 <=> size > 0}
+     Sort Error in Refinement: {v##0 : (List.List  a_xo) | (emptyL v##0 == 1 <=> size > 0)}
+     Invalid Relation size > 0 with operand types func(1, [(List.List  @(0)); int]) and int

@@ -1,0 +1,65 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T19.39.06.lhs:90:21: Error: GHC Error
+ 
+ 90 | length Emp        = 0
+                          ^
+ 
+     No instance for (Num size) arising from the literal ‘0’
+Possible fix:
+  add (Num size) to the context of
+    the type signature for length :: List a -> size
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T19.39.06.lhs:163:36-37: Error: GHC Error
+ 
+ 163 | prop_map f xs = lAssert (length xs == length (map f xs))
+                                          ^^
+ 
+     No instance for (Eq a0) arising from a use of ‘==’
+The type variable ‘a0’ is ambiguous
+Note: there are several potential instances:
+  instance Eq a => Eq (Maybe a) -- Defined in ‘GHC.Base’
+  instance Eq a => Eq (Ratio a) -- Defined in ‘GHC.Real’
+  instance Eq Ordering -- Defined in ‘GHC.Classes’
+  ...plus 25 others
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T19.39.06.lhs:197:38-39: Error: GHC Error
+ 
+ 197 | prop_zipWith xs = lAssert (length xs == length x2s)
+                                            ^^
+ 
+     Could not deduce (Eq a1) arising from a use of ‘==’
+from the context (Num a)
+  bound by the inferred type of
+           prop_zipWith :: Num a => List a -> Bool
+  at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T19.39.06.lhs:(197,1)-(199,35)
+The type variable ‘a1’ is ambiguous
+Note: there are several potential instances:
+  instance Eq a => Eq (Maybe a) -- Defined in ‘GHC.Base’
+  instance Eq a => Eq (Ratio a) -- Defined in ‘GHC.Real’
+  instance Eq Ordering -- Defined in ‘GHC.Classes’
+  ...plus 25 others

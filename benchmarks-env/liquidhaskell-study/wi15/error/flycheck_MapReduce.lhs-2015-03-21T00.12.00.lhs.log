@@ -1,0 +1,49 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-21T00.12.00.lhs:30:6-10: Error: GHC Error
+ 
+ 30 |     (M.Map k l)     = group       kvs       -- step 2
+           ^^^^^
+ 
+     Not in scope: data constructor ‘M.Map’
+Perhaps you meant variable ‘M.map’ (imported from Data.Map)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-21T00.12.00.lhs:31:35-38: Error: GHC Error
+ 
+ 31 |     kvm      = if length (M.elems kvsm) > 0
+                                        ^^^^
+ 
+     Not in scope: ‘kvsm’
+Perhaps you meant one of these: ‘kvs’ (line 29), ‘kvm’ (line 31)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-21T00.12.00.lhs:32:33-36: Error: GHC Error
+ 
+ 32 |                then collapse fr kvsm      -- step 3
+                                      ^^^^
+ 
+     Not in scope: ‘kvsm’
+Perhaps you meant one of these: ‘kvs’ (line 29), ‘kvm’ (line 31)

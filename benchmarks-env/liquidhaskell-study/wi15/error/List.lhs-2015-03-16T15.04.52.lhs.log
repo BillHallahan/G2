@@ -1,0 +1,35 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T15.04.52.lhs:219:5: Error: Cannot parse specification:
+ 
+ 219 |     myfoldr a b Emp        = b
+           ^
+ 
+     Leftover while parsing
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-16T15.04.52.lhs:224:47: Error: Cannot parse specification:
+ 
+ 224 | {-@ concat :: lsts:(List (List a)) -> ListN a {myfoldr (\x -> (+) (size x)) 0 lsts} @-}
+                                                     ^
+ 
+     Leftover while parsing

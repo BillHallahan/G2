@@ -1,0 +1,46 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T05.47.21.lhs:54:19-24: Error: GHC Error
+ 
+ 54 | data List a = Emp dsfdsf sfaf safsa 
+                        ^^^^^^
+ 
+     Not in scope: type variable ‘dsfdsf’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T05.47.21.lhs:54:26-29: Error: GHC Error
+ 
+ 54 | data List a = Emp dsfdsf sfaf safsa 
+                               ^^^^
+ 
+     Not in scope: type variable ‘sfaf’
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T05.47.21.lhs:54:31-35: Error: GHC Error
+ 
+ 54 | data List a = Emp dsfdsf sfaf safsa 
+                                    ^^^^^
+ 
+     Not in scope: type variable ‘safsa’

@@ -1,0 +1,29 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mpandoc: Could not parse YAML header: UnexpectedEvent {_received = Just EventDocumentStart, _expected = Just EventStreamEnd} "source" (line 218, column 1)
+RESULT: Safe
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0mpandoc: Could not parse YAML header: UnexpectedEvent {_received = Just EventDocumentStart, _expected = Just EventStreamEnd} "source" (line 216, column 1)
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;92m
+**** RESULT: SAFE **************************************************************
+[0m

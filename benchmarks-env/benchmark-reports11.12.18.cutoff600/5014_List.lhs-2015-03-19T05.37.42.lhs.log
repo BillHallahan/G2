@@ -1,0 +1,88 @@
+5014
+List.lhs-2015-03-19T05.37.42.lhs
+(227, '23-48')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T05.37.42.lhs:227:23-48: Error: Liquid Type Mismatch', ' 227 | concat (x   :+: xs) = concatHelper x (concat xs)']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mconcat ((0 :+: Emp) :+: Emp) = 0 :+: Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: Emp) :+: Emp) = 0 :+: Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: Emp)) :+: Emp) = 0 :+: (0 :+: Emp)
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: Emp)) :+: Emp) = 0 :+: (concatHelper1 (0 :+: Emp) Emp)
+violating concat's refinement type
+Concrete
+
+concat (Emp :+: (Emp :+: Emp)) = Emp
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) (Emp :+: (Emp :+: Emp)) = Emp
+violating concat's refinement type
+Concrete
+
+concat ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = 0 :+: (0 :+: (0 :+: Emp))
+makes a call to
+concat (lh lhEqInt lhNeInt lhLtInt lhLeInt lhGtInt lhGeInt lhPPInt) ((0 :+: (0 :+: (0 :+: Emp))) :+: Emp) = 0 :+: (concatHelper1 (0 :+: (0 :+: Emp)) Emp)
+violating concat's refinement type
+Concrete
+
+
+46.327757120132446
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 359]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-19T05.37.42.lhs:227:23-48: Error: Liquid Type Mismatch
+ 
+ 227 | concat (x   :+: xs) = concatHelper x (concat xs)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == size x + size ?a
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == nestedSize ?b}
+  
+   In Context
+     xs : {v : (List (List a)) | 0 <= size v}
+      
+     ?b : {?b : (List (List a)) | 0 <= size ?b}
+      
+     x : {v : (List a) | 0 <= size v}
+      
+     ?a : {?a : (List a) | size ?a == nestedSize xs
+                           && 0 <= size ?a}

@@ -1,0 +1,98 @@
+6515
+flycheck_List.lhs-2015-03-21T03.57.24.lhs
+(207, '40-60')
+zipWith
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T03.57.24.lhs:207:40-60: Error: Liquid Type Mismatch', ' 207 | zipWith f _          _          = die  "Bad call to zipWith"']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mG2: ERROR OCCURRED IN LIQUIDHASKELL
+[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-21T03.57.24.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
+    constructor List.:+: :: x:a -> xs:(List a) -> {VV : (List a) | listOfListsSize VV == size x + listOfListsSize xs
+                                                                   && getTailSize VV == size xs
+                                                                   && size VV == 1 + size xs}
+    Sort Error in Refinement: {VV : (List.List a_a1WT) | ((listOfListsSize VV == size x + listOfListsSize xs
+                                                           && getTailSize VV == size xs)
+                                                          && size VV == 1 + size xs)}
+    Cannot unify (List.List @(42)) with a_a1WT in expression: listOfListsSize VV,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-21T03.57.24.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
+    constructor List.Emp :: {VV : (List a) | listOfListsSize VV == 0
+                                             && getTailSize VV == 0
+                                             && size VV == 0}
+    Sort Error in Refinement: {VV : (List.List a_a1WT) | ((listOfListsSize VV == 0
+                                                           && getTailSize VV == 0)
+                                                          && size VV == 0)}
+    Cannot unify (List.List @(42)) with a_a1WT in expression: listOfListsSize VV]
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+time = 2.5376944541931152
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 293,Just 311,Just 313]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T03.57.24.lhs:204:55-69: Error: Liquid Type Mismatch
+ 
+ 204 |                                        then f x y :+: zipWith f xs ys
+                                                             ^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | VV == ys
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | getTailSize xs == 0 <=> getTailSize VV == 0}
+  
+   In Context
+     xs : {v : (List a) | 0 <= size v}
+      
+     ys : {ys : (List a) | 0 <= size ys}
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-21T03.57.24.lhs:207:40-60: Error: Liquid Type Mismatch
+ 
+ 207 | zipWith f _          _          = die  "Bad call to zipWith"
+                                              ^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : [Char] | VV == ?a
+                         && len VV >= 0}
+  
+   not a subtype of Required type
+     VV : {VV : [Char] | false}
+  
+   In Context
+     ?b : {?b : Addr# | ?b ~~ "Bad call to zipWith"
+                        && strLen ?b == 19}
+      
+     ?a : {?a : [Char] | ?a ~~ ?b
+                         && len ?a == strLen ?b
+                         && len ?a >= 0}

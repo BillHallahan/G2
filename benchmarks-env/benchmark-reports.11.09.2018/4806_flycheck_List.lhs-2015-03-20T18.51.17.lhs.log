@@ -1,0 +1,88 @@
+4806
+flycheck_List.lhs-2015-03-20T18.51.17.lhs
+(225, '30-61')
+concat
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T18.51.17.lhs:225:30-61: Error: Liquid Type Mismatch', " 225 | concat (xs :+: ys :+: xss) = concat ((concat' xs ys) :+: xss)"]
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0m
+ERROR:
+
+liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T18.51.17.lhs:145:1: warning: [-Wtabs]
+    Tab character found here, and in one further location.
+    Please use spaces instead.
+
+liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T18.51.17.lhs:145:1: warning: [-Wtabs]
+    Tab character found here, and in one further location.
+    Please use spaces instead.
+G2: ERROR OCCURRED IN LIQUIDHASKELL
+[/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T18.51.17.lhs:55:15-30: Error: Illegal type specification for `constructor List.:+:`
+    constructor List.:+: :: x:a -> xs:(List a) -> {VV : (List a) | sumsize VV == size x + sumsize xs
+                                                                   && size VV == 1 + size xs}
+    Sort Error in Refinement: {VV : (List.List a_a1WT) | (sumsize VV == size x + sumsize xs
+                                                          && size VV == 1 + size xs)}
+    Cannot unify (List.List @(42)) with a_a1WT in expression: sumsize VV,/home/mbland/G2_Root/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T18.51.17.lhs:54:15-17: Error: Illegal type specification for `constructor List.Emp`
+    constructor List.Emp :: {VV : (List a) | sumsize VV == 0
+                                             && size VV == 0}
+    Sort Error in Refinement: {VV : (List.List a_a1WT) | (sumsize VV == 0
+                                                          && size VV == 0)}
+    Cannot unify (List.List @(42)) with a_a1WT in expression: sumsize VV]
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Liquid/Interface.hs:77:29 in main:G2.Internals.Liquid.Interface
+
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 359]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T18.51.17.lhs:225:30-61: Error: Liquid Type Mismatch
+ 
+ 225 | concat (xs :+: ys :+: xss) = concat ((concat' xs ys) :+: xss)
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | size VV == sumsize ?a
+                           && 0 <= size VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV == sumsize ?c}
+  
+   In Context
+     xss : {v : (List (List a)) | 0 <= size v}
+      
+     ?c : {?c : (List (List a)) | 0 <= size ?c}
+      
+     ?b : {?b : (List a) | 0 <= size ?b}
+      
+     ?a : {?a : (List (List a)) | size ?a == 1 + size xss
+                                  && sumsize ?a == size ?b + sumsize xss
+                                  && 0 <= size ?a}

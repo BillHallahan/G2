@@ -1,0 +1,29 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/List.lhs-2015-03-20T03.32.50.lhs:194:16: Error: Bad Type Specification
+ List.zipWith :: (a -> b -> c) -> {v : (List a) | v == List a
+                                                  && size v >= 0} -> {v : (List b) | v == List a
+                                                                                     && size v >= 0} -> (List c)
+     Sort Error in Refinement: {v##0 : (List.List  a_a1dS) | (v##0 == List a
+                                                              && size v##0 >= 0)}
+     Unbound Symbol List
+ Perhaps you meant: fst

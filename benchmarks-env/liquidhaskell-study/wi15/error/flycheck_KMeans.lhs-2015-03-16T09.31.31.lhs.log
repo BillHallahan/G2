@@ -1,0 +1,44 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T09.31.31.lhs:94:28-52: Error: GHC Error
+ 
+ 94 | nearest k n centers p = do kvs <- M.assocs (centers)
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+     Couldn't match type ‘[b0]’ with ‘Int’
+Expected type: [(Center, Point)]
+               -> ((Center, Point) -> [b0]) -> Center
+  Actual type: [(Center, Point)]
+               -> ((Center, Point) -> [b0]) -> [b0]
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_KMeans.lhs-2015-03-16T09.31.31.lhs:95:38-44: Error: GHC Error
+ 
+ 95 |                            minKeyMap centers                           
+                                           ^^^^^^^
+ 
+     Couldn't match type ‘Int’ with ‘[b0]’
+Expected type: Map [b0] Point
+  Actual type: Centering

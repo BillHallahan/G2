@@ -1,0 +1,26 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-12T18.59.17.lhs:193:16: Error: Bad Type Specification
+ List.zipWith :: (a -> b -> c) -> v1:(List a) -> {v2 : (List b) | size v1 == size v2} -> {v3 : (List c) | size v2 == size v3}
+     Sort Error in Refinement: {v3##5 : (List.List  c_a1dP) | size v2 == size v3##5}
+     Unbound Symbol v2
+ Perhaps you meant: v1

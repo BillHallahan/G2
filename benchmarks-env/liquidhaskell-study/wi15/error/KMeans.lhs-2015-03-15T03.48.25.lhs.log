@@ -1,0 +1,42 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T03.48.25.lhs:133:21-134: Error: Specified Type Does Not Refine Haskell Type for KMeans.mergeCluster
+ 
+ 133 | {-@ mergeCluster :: n:Nat -> c1:Cluster -> c2{c2: Cluster | (fst c1) == (fst c2)} -> {c3:Cluster | (fst c3) == ((fst c1) + (fst c2))} @-}
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+ The Liquid type
+  
+     forall c2.
+GHC.Types.Int
+-> (GHC.Types.Int, List.List GHC.Types.Double)
+-> c2 (GHC.Types.Int, List.List GHC.Types.Double)
+-> (GHC.Types.Int, List.List GHC.Types.Double)
+  
+ is inconsistent with the Haskell type
+  
+     GHC.Types.Int
+-> (GHC.Types.Int, List.List GHC.Types.Double)
+-> (GHC.Types.Int, List.List GHC.Types.Double)
+-> (GHC.Types.Int, List.List GHC.Types.Double)
+  
+ defined at /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/KMeans.lhs-2015-03-15T03.48.25.lhs:134:1-12

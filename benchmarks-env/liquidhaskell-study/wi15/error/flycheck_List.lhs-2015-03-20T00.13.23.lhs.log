@@ -1,0 +1,40 @@
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;95m
+**** RESULT: ERROR *************************************************************
+[0m
+
+Invalid Source
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.13.23.lhs:217:31-34: Error: GHC Error
+ 
+ 217 | prop_join  = lAssert (length (join l1 l2) == 3)
+                                     ^^^^
+ 
+     Not in scope: ‘join’
+Perhaps you meant ‘joinL’ (line 214)
+
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_List.lhs-2015-03-20T00.13.23.lhs:220:16-19: Error: GHC Error
+ 
+ 220 | concat = foldr join Emp
+                      ^^^^
+ 
+     Not in scope: ‘join’
+Perhaps you meant ‘joinL’ (line 214)
