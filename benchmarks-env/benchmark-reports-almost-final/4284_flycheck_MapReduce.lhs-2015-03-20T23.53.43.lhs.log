@@ -1,0 +1,59 @@
+4284
+flycheck_MapReduce.lhs-2015-03-20T23.53.43.lhs
+(32, '21-36')
+mapReduce
+[' /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T23.53.43.lhs:32:21-36: Error: Liquid Type Mismatch', ' 32 |                then collapse fr kvsm      ']
+
+LiquidHaskell Copyright 2013-17 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  A-Normalization ****************************************************
+[0m[1;90m 
+[0mG2: exprToSMT: unhandled Expr: Lam TermL (Id (Name "d" Nothing 1 Nothing) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)))) (Lam TermL (Id (Name "fs?" Nothing 87689 Nothing) (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)))) (Case (Var (Id (Name "fs?" Nothing 87689 Nothing) (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE))))) (Id (Name "fs?" Nothing 87690 Nothing) (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)))) [Alt (DataAlt (DataCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 0 Nothing) TYPE)) (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 0 Nothing) TYPE))))) []) (App (Data (DataCon (Name "$I" (Just "GHC.Types") 0 (Just (Span {start = Loc {line = 17, col = 12, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) (TyFun TyLitInt (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802160 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))) (Lit (LitInt 0))),Alt (DataAlt (DataCon (Name "$" (Just "GHC.Types") 1 Nothing) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 0 Nothing) TYPE)) (TyFun (TyVar (Id (Name "a" Nothing 0 Nothing) TYPE)) (TyFun (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 0 Nothing) TYPE))) (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 0 Nothing) TYPE))))))) [Id (Name "y" (Just "") 0 Nothing) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)),Id (Name "ys" (Just "") 0 Nothing) (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)))]) (App (App (App (App (Var (Id (Name "+" (Just "GHC.Num") 8214565720323802703 (Just (Span {start = Loc {line = 36, col = 5, file = "../../base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 36, col = 39, file = "../../base-4.9.1.0/GHC/Num.hs"}}))) (TyForAll (NamedTyBndr (Id (Name "fs?" Nothing 87691 Nothing) TYPE)) (TyFun (TyApp (TyCon (Name "Num" (Just "GHC.Num") 8214565720323802704 (Just (Span {start = Loc {line = 33, col = 1, file = "../../base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 58, col = 56, file = "../../base-4.9.1.0/GHC/Num.hs"}}))) (TyApp TYPE TYPE)) (TyVar (Id (Name "fs?" Nothing 87691 Nothing) TYPE))) (TyFun (TyVar (Id (Name "fs?" Nothing 87691 Nothing) TYPE)) (TyFun (TyVar (Id (Name "fs?" Nothing 87691 Nothing) TYPE)) (TyVar (Id (Name "fs?" Nothing 87691 Nothing) TYPE)))))))) (Type (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802160 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE))) (Var (Id (Name "$fNumInt" (Just "GHC.Num") 8214565720323802696 (Just (Span {start = Loc {line = 69, col = 11, file = "../../base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 69, col = 18, file = "../../base-4.9.1.0/GHC/Num.hs"}}))) (TyApp (TyCon (Name "Num" (Just "GHC.Num") 8214565720323802704 (Just (Span {start = Loc {line = 33, col = 1, file = "../../base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 58, col = 56, file = "../../base-4.9.1.0/GHC/Num.hs"}}))) (TyFun TYPE (TyCon (Name "Constraint" (Just "GHC.Types") 3674937295934324920 Nothing) TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802160 Nothing) TYPE))))) (App (Data (DataCon (Name "$I" (Just "GHC.Types") 0 (Just (Span {start = Loc {line = 17, col = 12, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) (TyFun TyLitInt (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802160 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))) (Lit (LitInt 1)))) (App (App (App (Var (Id (Name "len" (Just "") 0 Nothing) (TyForAll (NamedTyBndr (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)) (TyFun (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE))) (TyFun (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE))) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323802160 (Just (Span {start = Loc {line = 17, col = 1, file = "../../base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 17, col = 19, file = "../../base-4.9.1.0/GHC/Types2.hs"}}))) TYPE)))))) (Type (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)))) (Var (Id (Name "d" Nothing 1 Nothing) (TyApp (TyCon (Name "lh" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)))))) (Var (Id (Name "ys" (Just "") 0 Nothing) (TyApp (TyCon (Name "$" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 8646911284551352344 Nothing) TYPE)))))))]))
+CallStack (from HasCallStack):
+  error, called at src/G2/Internals/Solver/Converters.hs:354:15 in main:G2.Internals.Solver.Converters
+
+time = 5.442215442657471
+
+LIQUID_OUT:
+LiquidHaskell Copyright 2009-15 Regents of the University of California. All Rights Reserved.
+
+[1;94m
+**** DONE:  Extracted Core using GHC *******************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  Uniqify & Rename ***************************************************
+[0m[1;90m 
+[0mRESULT: Unsafe [Just 5]
+[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** START: pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  pandoc *************************************************************
+[0m[1;90m 
+[0m[1;94m
+**** DONE:  annotate ***********************************************************
+[0m[1;90m 
+[0m[1;91m
+**** RESULT: UNSAFE ************************************************************
+[0m
+
+ /home/gridaphobe/src/liquidhaskell/benchmarks/ucsd/wi15/final/liquid-cache/flycheck_MapReduce.lhs-2015-03-20T23.53.43.lhs:32:21-36: Error: Liquid Type Mismatch
+ 
+ 32 |                then collapse fr kvsm      -- step 3
+                          ^^^^^^^^^^^^^^^^
+ 
+   Inferred type
+     VV : {VV : (List a) | 0 <= size VV
+                           && 0 <= sizes VV}
+  
+   not a subtype of Required type
+     VV : {VV : (List a) | size VV > 0}
+  
+   In Context

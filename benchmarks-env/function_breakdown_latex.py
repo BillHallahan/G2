@@ -49,8 +49,18 @@ stepexhaustion = 0
 total = 0
 stats = defaultdict(lambda: defaultdict(int))
 onlyfiles = [f for f in listdir(sys.argv[1]) if isfile(join(sys.argv[1], f))]
+
+seen = set()
+
 for file in onlyfiles:
     t = read_target(sys.argv[1], file)
+
+    if (t.func_name, t.file_name) in seen:
+        continue;
+    else:
+        seen.add((t.func_name, t.file_name));
+
+
     with open(join(sys.argv[1], file)) as wholeoutput:
         add_time = False
 
