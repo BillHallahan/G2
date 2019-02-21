@@ -23,29 +23,39 @@ import G2.Internals.Solver
 
 import G2.Internals.Liquid.Interface
 
+import Evals.EvalMain
+
+
 main :: IO ()
 main = do
+
   as <- getArgs
-  let (proj:_) = as
 
-  let m_liquid_file = mkLiquid as
-  let m_liquid_func = mkLiquidFunc as
-  let m_filetest = mkLiquidFileTest as
-  let m_dirtest = mkLiquidDirTest as
+  if ["eval"] == as then do
+    evalMain
 
-  let libs = maybeToList $ mkMapSrc as
-  let lhlibs = maybeToList $ mkLiquidLibs as
+  else do
 
-  case m_filetest of
-    Just lhfile -> do
-      runSingleLHFile proj lhfile libs lhlibs as
-    Nothing -> case m_dirtest of
-      Just dir -> runMultiLHFile proj dir libs lhlibs as
-      Nothing -> case (m_liquid_file, m_liquid_func) of
-        (Just lhfile, Just lhfun) -> do
-          runSingleLHFun proj lhfile lhfun libs lhlibs as
-        _ -> do
-          runGHC as
+    let (proj:_) = as
+
+    let m_liquid_file = mkLiquid as
+    let m_liquid_func = mkLiquidFunc as
+    let m_filetest = mkLiquidFileTest as
+    let m_dirtest = mkLiquidDirTest as
+
+    let libs = maybeToList $ mkMapSrc as
+    let lhlibs = maybeToList $ mkLiquidLibs as
+
+    case m_filetest of
+      Just lhfile -> do
+        runSingleLHFile proj lhfile libs lhlibs as
+      Nothing -> case m_dirtest of
+        Just dir -> runMultiLHFile proj dir libs lhlibs as
+        Nothing -> case (m_liquid_file, m_liquid_func) of
+          (Just lhfile, Just lhfun) -> do
+            runSingleLHFun proj lhfile lhfun libs lhlibs as
+          _ -> do
+            runGHC as
 
 doTimeout :: Int -> IO a -> IO ()
 doTimeout secs action = do

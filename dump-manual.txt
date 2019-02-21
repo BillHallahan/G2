@@ -1,0 +1,1200 @@
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T03.08.22.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T03.24.07.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.04.31.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.05.00.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 34
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T08.47.38.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T08.50.25.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 09
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T20.57.38.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T20.58.30.lhs
+("mergeCluster","zipWith")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T01.20.15.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T01.39.53.lhs
+("prop_map","map")
+^^^^^
+
+ID: 19
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-21T06.11.58.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-21T06.15.45.lhs
+("expand","implies")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T17.47.38.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T17.48.49.lhs
+("prop_map","map")
+^^^^^
+
+ID: 34
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T08.48.47.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T08.50.25.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 35
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T05.44.39.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T07.16.42.lhs
+("prop_size","l3")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T01.20.15.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T01.39.53.lhs
+("prop_zipWith","zipWith")
+^^^^^
+
+ID: 07
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.21.19.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.42.19.lhs
+("expand","map")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T18.44.00.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T18.45.21.lhs
+("concat","foldr")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T00.23.55.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.05.00.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 43
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.49.48.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
+("prop_concat2_2","concat2")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-12T01.19.53.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T01.39.53.lhs
+("prop_zipWith","zipWith")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.21.02.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.11.57.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.14.41.lhs
+("group","foldr")
+^^^^^
+
+ID: 02
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T02.20.21.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T02.22.38.lhs
+("cons_list","foldr")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.14.52.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
+("expand","map")
+^^^^^
+
+ID: 43
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.27.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
+("prop_concat2_1","concat2")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.06.53.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.07.25.lhs
+("expand","map")
+^^^^^
+
+ID: 61
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T22.45.49.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T22.48.14.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 08
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.13.32.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.19.30.lhs
+("replicate","foldl")
+^^^^^
+
+ID: 43
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.49.38.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
+("prop_concat2_2","concat2")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T00.18.44.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T00.20.35.lhs
+("expand","map")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.51.45.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
+("mapReduce","expand")
+^^^^^
+
+ID: 48
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T00.52.40.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-14T00.49.06.lhs
+("expand","map")
+^^^^^
+
+ID: 08
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.15.17.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.19.30.lhs
+("replicate","foldl")
+^^^^^
+
+ID: 35
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T05.44.30.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T07.16.42.lhs
+("prop_size","l3")
+^^^^^
+
+ID: 19
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-21T06.11.29.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-21T06.15.45.lhs
+("expand","implies")
+^^^^^
+
+ID: 31
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-17T00.14.16.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-17T00.18.16.lhs
+("expand","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T23.13.24.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T00.17.41.lhs
+("expand","map")
+^^^^^
+
+ID: 00
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T01.50.57.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T21.05.30.lhs
+("prop_join","joinL")
+^^^^^
+
+ID: 43
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.31.05.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.31.20.lhs
+("prop_concat2","length")
+^^^^^
+
+ID: 08
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.45.57.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.48.03.lhs
+("concat","foldr")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.05.15.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.05.29.lhs
+("replicate","replicate")
+^^^^^
+
+ID: 08
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.40.29.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.44.15.lhs
+("concat","foldr")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T17.05.17.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T17.05.31.lhs
+("replicate","replicate")
+^^^^^
+
+ID: 02
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T06.39.13.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T06.41.04.lhs
+("prop_zipWith","zipWith")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.18.59.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 00
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T00.39.29.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T00.40.14.lhs
+("prop_concat","concat")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.26.37.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T18.30.41.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.58.08.lhs
+("concat","foldll")
+^^^^^
+
+ID: 34
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T08.48.39.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T08.50.25.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 54
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T06.52.49.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T06.57.08.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T18.55.22.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T18.56.01.lhs
+("zipWith","implies")
+^^^^^
+
+ID: 01
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T02.34.17.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/safe/List.lhs-2015-03-20T02.49.24.lhs
+("prop_concat","concat")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.41.43.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.41.23.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.41.39.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
+("expand","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T19.58.29.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","foldr")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T01.40.29.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T17.48.49.lhs
+("prop_map","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T20.42.41.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T00.54.31.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T01.08.07.lhs
+("kmeans","repeat")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.17.32.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T21.48.06.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.58.16.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T00.17.41.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.43.09.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
+("expand","map")
+^^^^^
+
+ID: 09
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T07.02.44.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T07.03.56.lhs
+("expand","map")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T17.58.04.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T17.58.43.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T00.17.59.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T00.20.35.lhs
+("expand","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.20.33.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T19.26.44.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.26.53.lhs
+("concat","addl")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T04.37.15.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T04.37.33.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 39
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T01.49.52.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T01.50.46.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 39
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T01.52.52.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T01.55.04.lhs
+("expand","map")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.49.45.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/safe/flycheck_MapReduce.lhs-2015-03-16T21.47.17.lhs
+("expand","map")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T19.30.12.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.26.53.lhs
+("concat","foldr")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T19.55.23.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","foldr")
+^^^^^
+
+ID: 01
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T02.48.22.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/safe/List.lhs-2015-03-20T02.49.24.lhs
+("prop_concat","concat")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T03.08.39.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T03.24.07.lhs
+("expand","map")
+^^^^^
+
+ID: 12
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.04.14.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.05.59.lhs
+("prepend","foldr")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T04.06.25.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/safe/MapReduce.lhs-2015-03-16T21.47.56.lhs
+("expand","map")
+^^^^^
+
+ID: 00
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T22.28.40.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T22.38.41.lhs
+("prop_zipWith","length")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T20.38.55.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.27.43.lhs
+("expand","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T20.13.23.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.27.43.lhs
+("expand","map")
+^^^^^
+
+ID: 46
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T12.54.24.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T13.25.25.lhs
+("prop_map","map")
+^^^^^
+
+ID: 19
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-21T06.17.29.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-21T06.24.47.lhs
+("expand","implies")
+^^^^^
+
+ID: 48
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T00.53.15.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-14T00.49.06.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T17.18.45.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/safe/MapReduce.lhs-2015-03-16T19.22.38.lhs
+("expand","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.21.18.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T01.15.35.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.05.00.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 31
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-17T00.13.56.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-17T00.18.16.lhs
+("expand","map")
+^^^^^
+
+ID: 08
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.41.35.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.44.15.lhs
+("concat","foldr")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.03.31.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.07.25.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.34.58.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.47.03.lhs
+("expand","map")
+^^^^^
+
+ID: 34
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T08.47.45.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T08.50.25.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.12.12.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.14.41.lhs
+("group","foldr")
+^^^^^
+
+ID: 57
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T19.33.25.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T20.46.31.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T00.25.03.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.05.00.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 60
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T07.29.49.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T07.32.50.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.09.31.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.47.03.lhs
+("expand","map")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-12T01.19.53.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T01.39.53.lhs
+("prop_map","map")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T18.12.46.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T18.30.38.lhs
+("prop_concat","length")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.38.25.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.24.08.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.03.42.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.37.33.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.16.16.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 43
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.27.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
+("prop_concat2_2","concat2")
+^^^^^
+
+ID: 07
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.13.03.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.42.19.lhs
+("expand","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.40.03.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.50.09.lhs
+("expand","map")
+^^^^^
+
+ID: 43
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.17.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
+("prop_concat2_1","concat2")
+^^^^^
+
+ID: 43
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.49.38.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
+("prop_concat2_1","concat2")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.39.40.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
+("mapReduce","expand")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T18.13.21.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T18.30.38.lhs
+("prop_concat","length")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T17.33.06.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
+("expand","map")
+^^^^^
+
+ID: 39
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T00.58.32.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T01.21.58.lhs
+("concat","foldr")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T19.31.38.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.26.53.lhs
+("concat","addl")
+^^^^^
+
+ID: 39
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.31.46.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T05.47.48.lhs
+("kmeans","repeat")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.03.46.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.07.25.lhs
+("expand","map")
+^^^^^
+
+ID: 05
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T11.48.35.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T11.49.49.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T20.01.49.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T20.02.31.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T17.18.13.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
+("expand","map")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T18.15.01.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T18.30.38.lhs
+("prop_concat","length")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.12.12.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.14.41.lhs
+("expand","map")
+^^^^^
+
+ID: 35
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T05.36.56.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T07.16.42.lhs
+("prop_size","l3")
+^^^^^
+
+ID: 46
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T05.53.59.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T13.25.25.lhs
+("prop_zipWith","zipWith")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.38.59.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 48
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T00.54.36.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-14T00.49.06.lhs
+("expand","map")
+^^^^^
+
+ID: 57
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T19.32.49.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T20.46.31.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.51.53.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T20.00.53.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T20.02.31.lhs
+("expand","map")
+^^^^^
+
+ID: 08
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.16.32.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-20T23.19.30.lhs
+("replicate","foldl")
+^^^^^
+
+ID: 31
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-17T00.15.08.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-17T00.18.16.lhs
+("expand","map")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T18.13.38.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T18.30.38.lhs
+("prop_concat","length")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T18.55.30.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-12T18.56.01.lhs
+("zipWith","implies")
+^^^^^
+
+ID: 48
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T00.54.18.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-14T00.49.06.lhs
+("expand","map")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.34.45.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.52.39.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T20.12.11.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T20.38.55.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 34
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T08.48.35.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T08.49.45.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.04.19.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 35
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T05.43.52.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T07.16.42.lhs
+("prop_size","l3")
+^^^^^
+
+ID: 49
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.08.53.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.10.53.lhs
+("expand","map")
+^^^^^
+
+ID: 09
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T06.56.20.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T06.56.46.lhs
+("expand","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T23.45.12.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T00.17.41.lhs
+("expand","map")
+^^^^^
+
+ID: 31
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-17T00.16.20.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-17T00.18.16.lhs
+("expand","map")
+^^^^^
+
+ID: 35
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.03.54.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.10.24.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.57.05.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T00.17.41.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T04.39.40.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.15.32.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T01.40.03.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.05.00.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T19.57.13.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T19.57.42.lhs
+("expand","map")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T19.31.14.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.26.53.lhs
+("concat","foldr")
+^^^^^
+
+ID: 12
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T01.58.06.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.04.14.lhs
+("append","foldr")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.23.35.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-16T02.35.58.lhs
+("concat","foldr")
+^^^^^
+
+ID: 12
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.04.20.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.05.59.lhs
+("prepend","foldr")
+^^^^^
+
+ID: 34
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T08.47.32.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T08.49.45.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T20.40.19.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T00.20.58.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.05.00.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 35
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.06.09.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.10.24.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T01.40.03.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.04.31.lhs
+("expand","implies")
+^^^^^
+
+ID: 07
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T09.06.15.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.23.44.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 46
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T05.53.59.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T13.25.25.lhs
+("prop_map","map")
+^^^^^
+
+ID: 07
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.09.35.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.10.22.lhs
+("expand","map")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T03.08.39.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T03.24.07.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.01.32.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-19T17.05.29.lhs
+("replicate","replicate")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.46.50.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.50.09.lhs
+("expand","map")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.06.31.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.14.41.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.58.26.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T20.02.31.lhs
+("expand","map")
+^^^^^
+
+ID: 48
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T00.53.26.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-14T00.49.06.lhs
+("expand","map")
+^^^^^
+
+ID: 07
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.13.32.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T08.42.19.lhs
+("expand","map")
+^^^^^
+
+ID: 09
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.18.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.39.lhs
+("distance","$")
+^^^^^
+
+ID: 00
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T00.38.40.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-20T00.40.14.lhs
+("prop_concat","concat")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T17.01.39.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T17.05.31.lhs
+("replicate","replicate")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.55.38.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T00.17.41.lhs
+("expand","map")
+^^^^^
+
+ID: 48
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T01.12.10.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-14T00.49.06.lhs
+("expand","map")
+^^^^^
+
+ID: 09
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T07.11.58.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T07.12.10.lhs
+("expand","map")
+^^^^^
+
+ID: 35
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-20T23.42.55.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-21T00.10.24.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 45
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.45.43.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-13T00.49.22.lhs
+("expand","map")
+^^^^^
+
+ID: 43
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.17.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-18T05.50.32.lhs
+("prop_concat2_2","concat2")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.25.19.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.26.53.lhs
+("concat","addl")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.07.07.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.07.22.lhs
+("prop_concat2","length")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.14.11.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_List.lhs-2015-03-15T23.15.59.lhs
+("concat2","foldr")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T22.55.03.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T00.17.41.lhs
+("expand","map")
+^^^^^
+
+ID: 08
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-21T01.10.21.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-21T06.40.26.lhs
+("concat","foldr")
+^^^^^
+
+ID: 39
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T06.42.27.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-16T22.02.10.lhs
+("kmeans","repeat")
+^^^^^
+
+ID: 46
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T12.54.24.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-16T13.25.25.lhs
+("prop_zipWith","zipWith")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.34.29.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.37.03.lhs
+("expand","map")
+^^^^^
+
+ID: 09
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.32.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_KMeans.lhs-2015-03-20T18.11.39.lhs
+("distance","$")
+^^^^^
+
+ID: 39
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T02.09.51.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-15T02.26.46.lhs
+("expand","map")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.32.57.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.37.03.lhs
+("expand","map")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T19.58.52.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T20.02.31.lhs
+("expand","map")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T18.44.52.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T18.45.21.lhs
+("concat","foldr")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.20.13.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.47.03.lhs
+("expand","map")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T18.12.48.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T18.30.41.lhs
+("prop_concat","length")
+^^^^^
+
+ID: 62
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T00.54.33.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-20T01.08.08.lhs
+("kmeans","repeat")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.32.08.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T03.37.03.lhs
+("expand","map")
+^^^^^
+
+ID: 27
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T03.08.22.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-16T03.24.07.lhs
+("expand","map")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-15T17.43.41.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-15T17.44.14.lhs
+("kmeans","repeat")
+^^^^^
+
+ID: 05
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T11.44.34.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-17T11.49.49.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-18T21.51.24.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T20.13.23.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-19T20.38.55.lhs
+("mapReduce","group")
+^^^^^
+
+ID: 07
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/KMeans.lhs-2015-03-19T20.31.50.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/safe/KMeans.lhs-2015-03-19T20.32.20.lhs
+("mergeCluster","zipWith")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.10.57.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.22.20.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 36
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T19.28.18.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-15T20.26.53.lhs
+("concat","addl")
+^^^^^
+
+ID: 17
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T00.25.03.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/flycheck_MapReduce.lhs-2015-03-16T02.04.31.lhs
+("expand","map")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.55.18.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 33
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T02.24.41.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/List.lhs-2015-03-19T03.22.58.lhs
+("concat","$")
+^^^^^
+
+ID: 57
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T20.55.12.lhs
+/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/unsafe/MapReduce.lhs-2015-03-20T21.00.57.lhs
+("mapReduce","group")
+^^^^^
+

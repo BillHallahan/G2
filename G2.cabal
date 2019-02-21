@@ -37,8 +37,10 @@ executable G2
                        , mtl
                        , reducers
                        , regex-compat
+                       , regex-posix
                        , parsec
                        , process
+                       , split
                        , text
                        , time >= 1.6
                        , unordered-containers

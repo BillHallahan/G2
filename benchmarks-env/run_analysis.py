@@ -8,6 +8,7 @@ from shutil import move
 from os import fdopen, remove
 from ast import literal_eval
 from multiprocessing.dummy import Pool
+from random import shuffle
 
 STUDY_DIR = './liquidhaskell-study/wi15/unsafe/'
 
@@ -113,9 +114,10 @@ def run_g2(g2_dir: str, test_dir: str, target_dir: str, recurs_n: int, cut_off: 
         test_dir, recurs_n, cut_off, target_file, con_comline(target.func_name)
     )
     startTime = time.time()
-    proc = subprocess.Popen(cmd, shell=True, encoding='UTF-8', cwd=g2_dir, stdout=subprocess.PIPE,
+    proc = subprocess.Popen(cmd, shell=True, cwd=g2_dir, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, stdin=subprocess.PIPE)
     (res, err) = proc.communicate()
+    (res, err) = (str(res, 'UTF-8'), str(err, 'UTF-8'))
     res = res + err
     #proc.stdin.close()
     #proc.wait()
@@ -199,7 +201,7 @@ def collect_reports_deprecated():
         if file.endswith(".log"):
             try:
                 cmd = "grep -h -A2 'Liquid Type Mismatch' %s" % STUDY_DIR + file
-                newlogs = subprocess.check_output(cmd, shell=True, encoding='UTF-8').split('--')
+                newlogs = str(subprocess.check_output(cmd, shell=True),'UTF-8').split('--')
                 logs.extend(newlogs)
             except:
                 pass
@@ -227,7 +229,11 @@ def collect_reports_deprecated():
 
     targets = []
     files_and_funcs = []
-    for i, t in enumerate(targets_raw):
+
+    en_tr = list(enumerate(targets_raw))
+    shuffle(en_tr)
+
+    for i, t in en_tr:
         if i not in targets_done:
             parse_target = parse_target_data(t, i)
             file_hash = parse_target.get_file_hash()
@@ -240,7 +246,7 @@ def collect_reports_deprecated():
     # Targets are printed with four fields, and then two spaces and there is the G2 Report
     #for t in targets:
     #    create_g2_report(t)
-    pool = Pool(12)
+    pool = Pool(3)
     results = pool.map(create_g2_report, targets)
 
 if __name__ == '__main__':
