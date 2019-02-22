@@ -19,7 +19,8 @@ import G2.Internals.Liquid.Types
 
 import Debug.Trace
 
-lhDir = "/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/"
+-- lhDir = "/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/"
+lhDir = "/home/celery/foo/G2/benchmarks-env/liquidhaskell-study/wi15/"
 
 lhLibs = map (\f -> lhDir ++ f) ["List.lhs"]
 

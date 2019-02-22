@@ -15,10 +15,12 @@ import Text.Regex.Posix
 import Text.Regex
 
 reportsDir :: String
-reportsDir = "/home/pldi-g2/G2/benchmarks-env/benchmark-reports/"
+-- reportsDir = "/home/pldi-g2/G2/benchmarks-env/benchmark-reports/"
+reportsDir = "/home/celery/foo/G2/benchmarks-env/benchmark-reports/"
 
 benchFile :: String
-benchFile = "/home/pldi-g2/G2/benchmarks-env/bench-pairs.txt"
+-- benchFile = "/home/pldi-g2/G2/benchmarks-env/bench-pairs.txt"
+benchFile = "/home/celery/foo/G2/benchmarks-env/bench-pairs.txt"
 
 -- Regex magic
 
