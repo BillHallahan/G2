@@ -8,16 +8,16 @@ import Data.Map as Map hiding (member, map, filter)
 import Data.Set as Set hiding (map, filter)
 
 tableFile :: String
--- tableFile = "/home/pldi-g2/G2/benchmarks-env/id-file-pairs.txt"
-tableFile = "/home/celery/foo/G2/benchmarks-env/id-file-pairs.txt"
+tableFile = "/home/pldi-g2/G2/benchmarks-env/id-file-pairs.txt"
+-- tableFile = "/home/celery/foo/G2/benchmarks-env/id-file-pairs.txt"
 
 badLogsFile :: String
--- badLogsFile = "/home/pldi-g2/G2/benchmarks-env/bad-logs.txt"
-badLogsFile = "/home/celery/foo/G2/benchmarks-env/bad-logs.txt"
+badLogsFile = "/home/pldi-g2/G2/benchmarks-env/bad-logs.txt"
+-- badLogsFile = "/home/celery/foo/G2/benchmarks-env/bad-logs.txt"
 
 wi15Dir :: String
--- wi15Dir = "/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/"
-wi15Dir = "/home/celery/foo/G2/benchmarks-env/liquidhaskell-study/wi15/"
+wi15Dir = "/home/pldi-g2/G2/benchmarks-env/liquidhaskell-study/wi15/"
+-- wi15Dir = "/home/celery/foo/G2/benchmarks-env/liquidhaskell-study/wi15/"
 
 wi15SafeDir :: String
 wi15SafeDir = wi15Dir ++ "safe/"
