@@ -30,11 +30,11 @@ import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
 
-stdReduce :: Solver solver => solver -> State t -> Bindings -> IO (Rule, [(State t, Bindings, ())])
-stdReduce solver s b = do
+stdReduce :: Solver solver => solver -> State t -> IO (Rule, [(State t, ())])
+stdReduce solver s = do
     (r, s') <- stdReduce' solver s
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
-    return (r, zip3 s'' (repeat b) (repeat ()))
+    return (r, zip s'' (repeat ()))
 
 stdReduce' :: Solver solver => solver -> State t -> IO (Rule, [State t])
 stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce })

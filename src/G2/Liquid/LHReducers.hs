@@ -106,8 +106,8 @@ instance Reducer LHRed () LHTracker where
         case lhReduce cfn s of
             Just (_, s') -> 
                 return $ ( InProgress
-                         , zip3 s' (repeat b) (repeat ()), lhr)
-            Nothing -> return (Finished, [(s, b, ())], lhr)
+                         , zip s' (repeat ()), b, lhr)
+            Nothing -> return (Finished, [(s, ())], b, lhr)
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
