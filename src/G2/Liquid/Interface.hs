@@ -90,20 +90,17 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
             (np_eenv, known_values no_part_state, type_classes no_part_state, apply_types bindings')
     
     let ng_bindings = bindings' {name_gen = ng'}
-    --let ng_state = no_part_state {name_gen = ng'}
 
     let ng_state = no_part_state {track = []}
-    -- let ng_state' = ng_state {track = []}
 
-    let (lh_state, bindings'') = createLHState meenv mkv ng_state ng_bindings
-    --let lh_state = createLHState meenv mkv ng_state' bindings'
+    let (lh_state, lh_bindings) = createLHState meenv mkv ng_state ng_bindings
 
-    let (cfn, (merged_state, bindings''')) = runLHStateM (initializeLH ghci_cg ifi bindings'') lh_state bindings''
+    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH ghci_cg ifi bindings'') lh_state lh_bindings
 
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
 
-    let pres_names = reqNames merged_state' bindings''' ++ names tcv ++ names mkv
+    let pres_names = reqNames merged_state' bindings'' ++ names tcv ++ names mkv
 
     let annm = annots merged_state
 
@@ -120,7 +117,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     -- for the LH typeclass.
     let final_st = track_state { known_values = mkv
                                , type_classes = unionTypeClasses mtc (type_classes track_state)}
-    let bindings'''' = bindings''' { apply_types = mat}
+    let final_bindings = bindings'' { apply_types = mat}
 
 
     let tr_ng = mkNameGen ()
@@ -142,7 +139,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st bindings''''
+                    con (pres_names ++ names annm) final_st final_bindings 
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -157,7 +154,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st bindings''''
+                    con (pres_names ++ names annm) final_st final_bindings
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
