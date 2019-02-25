@@ -30,56 +30,56 @@ import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
 
-stdReduce :: Solver solver => solver -> State t -> IO (Rule, [(State t, ())])
-stdReduce solver s = do
-    (r, s') <- stdReduce' solver s
+stdReduce :: Solver solver => solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
+stdReduce solver s b = do
+    (r, s', b') <- stdReduce' solver s b
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
-    return (r, zip s'' (repeat ()))
+    return (r, zip s'' (repeat ()), b')
 
-stdReduce' :: Solver solver => solver -> State t -> IO (Rule, [State t])
-stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce })
-    | Var i  <- ce = return $ evalVar s i
-    | App e1 e2 <- ce = return $ evalApp s e1 e2
-    | Let b e <- ce = return $ evalLet s b e
+stdReduce' :: Solver solver => solver -> State t -> Bindings -> IO (Rule, [State t], Bindings)
+stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce }) bindings
+    | Var i  <- ce = return $ evalVar s bindings i
+    | App e1 e2 <- ce = return $ evalApp s bindings e1 e2
+    | Let b e <- ce = return $ evalLet s bindings b e
     | Case e i a <- ce = do
-        let (r, xs) = evalCase s e i a
+        let (r, xs, bindings') = evalCase s bindings e i a
         xs' <- mapMaybeM (reduceNewPC solver) xs
-        return (r, xs')
-    | Cast e c <- ce = return $ evalCast s e c
-    | Tick t e <- ce = return $ evalTick s t e
-    | NonDet es <- ce = return $ evalNonDet s es
-    | SymGen t <- ce = return $ evalSymGen s t
-    | Assume fc e1 e2 <- ce = return $ evalAssume s fc e1 e2
-    | Assert fc e1 e2 <- ce = return $ evalAssert s fc e1 e2
-    | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }])
+        return (r, xs', bindings')
+    | Cast e c <- ce = return $ evalCast s bindings e c
+    | Tick t e <- ce = return $ evalTick s bindings t e
+    | NonDet es <- ce = return $ evalNonDet s bindings es
+    | SymGen t <- ce = return $ evalSymGen s bindings t
+    | Assume fc e1 e2 <- ce = return $ evalAssume s bindings fc e1 e2
+    | Assert fc e1 e2 <- ce = return $ evalAssert s bindings fc e1 e2
+    | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], bindings)
 stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
-                           , exec_stack = stck })
+                           , exec_stack = stck }) bindings
     | Prim Error _ <- ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
-                              , assert_ids = is }])
+                              , assert_ids = is }], bindings)
     | Prim Error _ <- ce
-    , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }])
-    | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s n stck'
-    | Lam u i e <- ce = return $ retLam s u i e
-    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ce e stck'
-    | Just rs <- retReplaceSymbFunc s ce = return rs
-    | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ce i a stck'
-    | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ce c stck'
+    , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], bindings)
+    | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s bindings n stck'
+    | Lam u i e <- ce = return $ retLam s bindings u i e
+    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s bindings ce e stck'
+    | Just rs <- retReplaceSymbFunc s bindings ce = return rs
+    | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s bindings ce i a stck'
+    | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s bindings ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs) = retAssumeFrame s ce e stck'
         xs' <- mapMaybeM (reduceNewPC solver) xs
-        return (r, xs')
+        return (r, xs', bindings)
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, xs) = retAssertFrame s ce ais e stck'
         xs' <- mapMaybeM (reduceNewPC solver) xs
-        return (r, xs')
+        return (r, xs', bindings)
     | Just (CurrExprFrame e, stck') <- frstck = do
         let (r, xs) = retCurrExpr s ce e stck'
         xs' <- mapMaybeM (reduceNewPC solver) xs
-        return (r, xs')
-    | Nothing <- frstck = return (RuleIdentity, [s])
+        return (r, xs', bindings)
+    | Nothing <- frstck = return (RuleIdentity, [s], bindings)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
@@ -114,12 +114,12 @@ reduceNewPC solver
             return Nothing
     | otherwise = return $ Just s
 
-evalVar :: State t -> Id -> (Rule, [State t])
+evalVar :: State t -> Bindings -> Id -> (Rule, [State t], Bindings)
 evalVar s@(State { expr_env = eenv
                  , exec_stack = stck })
-          i
+        b i
     | E.isSymbolic (idName i) eenv =
-        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}])
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], b)
     | Just e <- E.lookup (idName i) eenv =
         -- If the target in our environment is already a value form, we do not
         -- need to push additional redirects for updating later on.
@@ -134,7 +134,7 @@ evalVar s@(State { expr_env = eenv
                                 , S.push (UpdateFrame (idName i)) stck)
         in
         (r, [s { curr_expr = CurrExpr Evaluate e
-               , exec_stack = stck' }])
+               , exec_stack = stck' }], b)
     | otherwise = error  $ "evalVar: bad input." ++ show i
 
 -- | If we have a primitive operator, we are at a point where either:
@@ -142,20 +142,22 @@ evalVar s@(State { expr_env = eenv
 --    (2) We have a symbolic value, and no evaluation is possible, so we return
 -- If we do not have a primitive operator, we go into the center of the apps,
 -- to evaluate the function call
-evalApp :: State t -> Expr -> Expr -> (Rule, [State t])
+evalApp :: State t -> Bindings -> Expr -> Expr -> (Rule, [State t], Bindings)
 evalApp s@(State { expr_env = eenv
                  , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck })
-          e1 e2
+        b e1 e2
     | (App (Prim BindFunc _) (Var i1)) <- e1
     , v2 <- e2 =
         ( RuleBind
         , [s { expr_env = E.insert (idName i1) v2 eenv
-             , curr_expr = CurrExpr Return (mkTrue kv tenv) }])
+             , curr_expr = CurrExpr Return (mkTrue kv tenv) }]
+        , b)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
-        , [s { curr_expr = CurrExpr Return (App e1 e2) }])
+        , [s { curr_expr = CurrExpr Return (App e1 e2) }]
+        , b)
     | (Prim prim ty):ar <- unApp (App e1 e2) = 
         let
             ar' = map (lookupForPrim eenv) ar
@@ -163,7 +165,8 @@ evalApp s@(State { expr_env = eenv
             exP = evalPrims kv tenv appP
         in
         ( RuleEvalPrimToNorm
-        , [s { curr_expr = CurrExpr Return exP }])
+        , [s { curr_expr = CurrExpr Return exP }]
+        , b)
     | otherwise =
         let
             frame = ApplyFrame e2
@@ -171,7 +174,8 @@ evalApp s@(State { expr_env = eenv
         in
         ( RuleEvalApp e2
         , [s { curr_expr = CurrExpr Evaluate e1
-             , exec_stack = stck' }])
+             , exec_stack = stck' }]
+        , b)
 
 lookupForPrim :: ExprEnv -> Expr -> Expr
 lookupForPrim eenv v@(Var (Id _ _)) = repeatedLookup eenv v
@@ -191,10 +195,10 @@ repeatedLookup _ e = e
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
 
-retLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
+retLam :: State t -> Bindings -> LamUse -> Id -> Expr -> (Rule, [State t], Bindings)
 retLam s@(State { expr_env = eenv
-                , exec_stack = stck
-                , name_gen = ng })
+                , exec_stack = stck })
+       b@(Bindings {name_gen = ng})
        u i e
     | TypeL <- u
     , Just (ApplyFrame tf, stck') <- S.pop stck =
@@ -209,8 +213,8 @@ retLam s@(State { expr_env = eenv
             ( RuleReturnEApplyLamType news
             , [s { expr_env = eenv'
                  , curr_expr = CurrExpr Evaluate e''
-                 , name_gen = ng'
-                 , exec_stack = stck' }])
+                 , exec_stack = stck' }]
+            , b {name_gen = ng'})
         Nothing -> error "retLam: Bad type"
     | TermL <- u
     , Just (ApplyFrame ae, stck') <- S.pop stck =
@@ -221,8 +225,8 @@ retLam s@(State { expr_env = eenv
         ( RuleReturnEApplyLamExpr news
         , [s { expr_env = eenv'
              , curr_expr = CurrExpr Evaluate e'
-             , name_gen = ng'
-             , exec_stack = stck' }])
+             , exec_stack = stck' }]
+        , b { name_gen = ng'})
     | otherwise = error "retLam: Bad type"
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
@@ -230,29 +234,29 @@ traceType _ (Type t) = Just t
 traceType eenv (Var (Id n _)) = traceType eenv =<< E.lookup n eenv
 traceType _ _ = Nothing
 
-evalLet :: State t -> Binds -> Expr -> (Rule, [State t])
-evalLet s@(State { expr_env = eenv
-                   , name_gen = ng }) b e =
+evalLet :: State t -> Bindings -> Binds -> Expr -> (Rule, [State t], Bindings)
+evalLet s@(State { expr_env = eenv }) 
+        bindings@(Bindings { name_gen = ng }) binds e =
     let
-        (b_lhs, b_rhs) = unzip b
+        (binds_lhs, binds_rhs) = unzip binds
 
-        olds = map idName b_lhs
+        olds = map idName binds_lhs
         (news, ng') = freshSeededNames olds ng
 
         e' = renameExprs (zip olds news) e
-        b_rhs' = renameExprs (zip olds news) b_rhs
+        binds_rhs' = renameExprs (zip olds news) binds_rhs
 
-        eenv' = E.insertExprs (zip news b_rhs') eenv
+        eenv' = E.insertExprs (zip news binds_rhs') eenv
     in
     (RuleEvalLet news, [s { expr_env = eenv'
-                          , curr_expr = CurrExpr Evaluate e'
-                          , name_gen = ng'}])
+                          , curr_expr = CurrExpr Evaluate e'}]
+                     , bindings {name_gen = ng'})
 
 -- | Handle the Case forms of Evaluate.
-evalCase :: State t -> Expr -> Id -> [Alt] -> (Rule, [NewPC t])
+evalCase :: State t -> Bindings -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], Bindings)
 evalCase s@(State { expr_env = eenv
-                  , name_gen = ng
                   , exec_stack = stck })
+         b@(Bindings {name_gen = ng})
          mexpr bind alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -263,7 +267,7 @@ evalCase s@(State { expr_env = eenv
           expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseLit
          , [newPCEmpty $ s { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate expr' }])
+                           , curr_expr = CurrExpr Evaluate expr' }], b)
 
   -- Is the current expression able to match a data consturctor based `Alt`?
   -- If so, then we bind all the parameters to the appropriate arguments and
@@ -286,8 +290,8 @@ evalCase s@(State { expr_env = eenv
       in 
          ( RuleEvalCaseData news
          , [newPCEmpty $ s { expr_env = eenv'
-                           , curr_expr = CurrExpr Evaluate expr''
-                           , name_gen = ng' }] )
+                           , curr_expr = CurrExpr Evaluate expr''}] 
+         , b { name_gen = ng'})
 
   -- We are not able to match any constructor but don't have a symbolic variable?
   -- We hit a DEFAULT instead.
@@ -300,7 +304,7 @@ evalCase s@(State { expr_env = eenv
           expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseDefault
          , [newPCEmpty $ s { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate expr' }])
+                           , curr_expr = CurrExpr Evaluate expr' }], b)
 
   -- If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
@@ -311,11 +315,11 @@ evalCase s@(State { expr_env = eenv
   , defs <- defaultAlts alts
   , (length dalts + length lalts + length defs) > 0 =
       let
-          dsts_cs = liftSymDataAlt s mexpr bind dalts
+          (dsts_cs, b') = liftSymDataAlt s b mexpr bind dalts
           lsts_cs = liftSymLitAlt s mexpr bind lalts
           def_sts = liftSymDefAlt s mexpr bind alts
       in
-      (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts)
+      (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts, b')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -327,7 +331,7 @@ evalCase s@(State { expr_env = eenv
       in ( RuleEvalCaseNonVal
          , [newPCEmpty $ s { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
-                           , exec_stack = S.push frame stck }])
+                           , exec_stack = S.push frame stck }], b)
 
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 
@@ -372,14 +376,19 @@ defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
-liftSymDataAlt :: State t -> Expr -> Id -> [(DataCon, [Id], Expr)] -> [NewPC t]
-liftSymDataAlt s mexpr cvar = map (liftSymDataAlt' s mexpr cvar)
+liftSymDataAlt :: State t -> Bindings -> Expr -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], Bindings)
+liftSymDataAlt _ b _ _ [] = ([], b)
+liftSymDataAlt s b mexpr cvar (x:xs) = 
+        (x':newPCs, b'') 
+    where
+        (x', b') = liftSymDataAlt' s b mexpr cvar x
+        (newPCs, b'') = liftSymDataAlt s b' mexpr cvar xs
 
-liftSymDataAlt' :: State t -> Expr -> Id -> (DataCon, [Id], Expr) -> NewPC t
-liftSymDataAlt' s@(State { expr_env = eenv 
-                         , name_gen = ngen })
+liftSymDataAlt' :: State t -> Bindings -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, Bindings)
+liftSymDataAlt' s@(State { expr_env = eenv })
+                b@(Bindings { name_gen = ngen })
                 mexpr cvar (dcon, params, aexpr) =
-        NewPC { state = res, new_pcs = [cond'] }
+        (NewPC { state = res, new_pcs = [cond'] }, b')
   where
 
     -- Make sure that the parameters do not conflict in their symbolic reps.
@@ -411,8 +420,8 @@ liftSymDataAlt' s@(State { expr_env = eenv
     binds = [(cvar, mexpr)]
     aexpr'' = liftCaseBinds binds aexpr'
     res = s { expr_env = eenv'
-            , curr_expr = CurrExpr Evaluate aexpr''
-            , name_gen = ngen' }
+            , curr_expr = CurrExpr Evaluate aexpr''}
+    b' = b {name_gen = ngen'}
 
 
 liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]
@@ -460,35 +469,36 @@ liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
 liftSymDefAltPCs mexpr lit@(LitAlt _) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ Default = Nothing
 
-evalCast :: State t -> Expr -> Coercion -> (Rule, [State t])
-evalCast s@(State { name_gen = ng
-                  , exec_stack = stck }) e c
+evalCast :: State t -> Bindings -> Expr -> Coercion -> (Rule, [State t], Bindings)
+evalCast s@(State { exec_stack = stck }) 
+         b@(Bindings {name_gen = ng }) e c
     | cast /= cast' =
         ( RuleEvalCastSplit
-        , [ s { curr_expr = CurrExpr Evaluate $ simplifyCasts cast'
-              , name_gen = ng' }])
+        , [ s { curr_expr = CurrExpr Evaluate $ simplifyCasts cast' }]
+        , b { name_gen = ng' })
     | otherwise =
         ( RuleEvalCast
         , [s { curr_expr = CurrExpr Evaluate $ simplifyCasts e
-             , exec_stack = S.push frame stck}])
+             , exec_stack = S.push frame stck}]
+        , b)
     where
         cast = Cast e c
         (cast', ng') = splitCast ng cast
         frame = CastFrame c
 
-evalTick :: State t -> Tickish -> Expr -> (Rule, [State t])
-evalTick s _ e = (RuleTick, [ s { curr_expr = CurrExpr Evaluate e }])
+evalTick :: State t -> Bindings -> Tickish -> Expr -> (Rule, [State t], Bindings)
+evalTick s b _ e = (RuleTick, [ s { curr_expr = CurrExpr Evaluate e }], b)
 
-evalNonDet :: State t -> [Expr] -> (Rule, [State t])
-evalNonDet s es =
+evalNonDet :: State t -> Bindings -> [Expr] -> (Rule, [State t], Bindings)
+evalNonDet s b es =
     let
         s' = map (\e -> s { curr_expr = CurrExpr Evaluate e }) es
     in
-    (RuleNonDet, s')
+    (RuleNonDet, s', b)
 
-evalSymGen :: State t -> Type -> (Rule, [State t])
-evalSymGen s@( State { expr_env = eenv
-                     , name_gen = ng }) t =
+evalSymGen :: State t -> Bindings -> Type -> (Rule, [State t], Bindings)
+evalSymGen s@( State { expr_env = eenv }) 
+           b@( Bindings {name_gen = ng }) t =
     let
           (n, ng') = freshSeededString "symG" ng
           i = Id n t
@@ -497,65 +507,71 @@ evalSymGen s@( State { expr_env = eenv
     in
     (RuleSymGen, [s { expr_env = eenv'
                     , curr_expr = CurrExpr Evaluate (Var i)
-                    , name_gen = ng'
-                    , symbolic_ids = i:symbolic_ids s }])
+                    , symbolic_ids = i:symbolic_ids s }]
+                , b {name_gen = ng'})
 
-evalAssume :: State t -> Maybe FuncCall -> Expr -> Expr -> (Rule, [State t])
-evalAssume s@(State { exec_stack = stck }) _ e1 e2 =
+evalAssume :: State t -> Bindings -> Maybe FuncCall -> Expr -> Expr -> (Rule, [State t], Bindings)
+evalAssume s@(State { exec_stack = stck }) b _ e1 e2 =
     let
         fr = AssumeFrame e2
         stck' = S.push fr stck
     in
     ( RuleEvalAssume
     , [ s { curr_expr = CurrExpr Evaluate e1
-          , exec_stack = stck' }])
+          , exec_stack = stck' }]
+    , b)
 
-evalAssert :: State t -> Maybe FuncCall -> Expr -> Expr -> (Rule, [State t])
-evalAssert s@(State { exec_stack = stck }) is e1 e2 =
+evalAssert :: State t -> Bindings -> Maybe FuncCall -> Expr -> Expr -> (Rule, [State t], Bindings)
+evalAssert s@(State { exec_stack = stck }) b is e1 e2 =
     let
         fr = AssertFrame is e2
         stck' = S.push fr stck
     in
     ( RuleEvalAssert
     , [ s { curr_expr = CurrExpr Evaluate e1
-          , exec_stack = stck' }])
+          , exec_stack = stck' }]
+    , b)
 
-retUpdateFrame :: State t -> Name -> S.Stack Frame -> (Rule, [State t])
+retUpdateFrame :: State t -> Bindings -> Name -> S.Stack Frame -> (Rule, [State t], Bindings)
 retUpdateFrame s@(State { expr_env = eenv
-                        , curr_expr = CurrExpr _ e}) un stck
+                        , curr_expr = CurrExpr _ e}) b un stck
     | Var i@(Id vn _) <- e =
        ( RuleReturnEUpdateVar un
        , [s { expr_env = E.redirect un vn eenv
             , curr_expr = CurrExpr Return (Var i)
-            , exec_stack = stck }])
+            , exec_stack = stck }]
+       , b)
     | otherwise =
         ( RuleReturnEUpdateNonVar un
         , [s { expr_env = E.insert un e eenv
-             , exec_stack = stck }])
+             , exec_stack = stck }]
+        , b)
 
-retApplyFrame :: State t -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t])
-retApplyFrame s@(State { expr_env = eenv }) e1 e2 stck'
+retApplyFrame :: State t -> Bindings -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], Bindings)
+retApplyFrame s@(State { expr_env = eenv }) b e1 e2 stck'
     | Var (Id n _):_ <- unApp e1
     , E.isSymbolic n eenv = 
         ( RuleReturnEApplySym
         , [s { curr_expr = CurrExpr Return (App e1 e2)
-             , exec_stack = stck' }])
+             , exec_stack = stck' }], b)
     | otherwise =
         ( RuleReturnEApplySym
         , [s { curr_expr = CurrExpr Evaluate (App e1 e2)
-             , exec_stack = stck' }])
+             , exec_stack = stck' }], b)
 
-retCaseFrame :: State t -> Expr -> Id -> [Alt] -> S.Stack Frame -> (Rule, [State t])
-retCaseFrame s e i a stck =
+retCaseFrame :: State t -> Bindings -> Expr -> Id -> [Alt] -> S.Stack Frame -> (Rule, [State t], Bindings)
+retCaseFrame s b e i a stck =
     ( RuleReturnECase
     , [s { curr_expr = CurrExpr Evaluate (Case e i a)
-         , exec_stack = stck }])
+         , exec_stack = stck }]
+    , b)
 
-retCastFrame :: State t -> Expr -> Coercion -> S.Stack Frame -> (Rule, [State t])
-retCastFrame s e c stck =
+retCastFrame :: State t -> Bindings -> Expr -> Coercion -> S.Stack Frame -> (Rule, [State t], Bindings)
+retCastFrame s b e c stck =
     ( RuleReturnCast
     , [s { curr_expr = CurrExpr Return $ simplifyCasts $ Cast e c
-         , exec_stack = stck}])
+         , exec_stack = stck}]
+    , b)
 
 retCurrExpr :: State t -> Expr -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
 retCurrExpr s e1 e2 stck = 
@@ -611,12 +627,12 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
 -- it with a symbolic variable of the correct type.
 -- A non reduced path constraint is added, to force solving for the symbolic
 -- function later.
-retReplaceSymbFunc :: State t -> Expr -> Maybe (Rule, [State t])
+retReplaceSymbFunc :: State t -> Bindings -> Expr -> Maybe (Rule, [State t], Bindings)
 retReplaceSymbFunc s@(State { expr_env = eenv
-                            , name_gen = ng
                             , known_values = kv
                             , type_classes = tc
                             , exec_stack = stck })
+                   b@(Bindings { name_gen = ng})
                    ce
     | Just (frm, _) <- S.pop stck
     , not (isApplyFrame frm)
@@ -642,9 +658,9 @@ retReplaceSymbFunc s@(State { expr_env = eenv
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
-               , name_gen = ng'
                , symbolic_ids = new_sym_id:symbolic_ids s
-               , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }])
+               , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
+            , b {name_gen = ng' })
     | otherwise = Nothing
 
 isApplyFrame :: Frame -> Bool

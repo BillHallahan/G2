@@ -132,7 +132,7 @@ addADTs n tn ts k s b pc
             Data (DataCon _ ts') -> anonArgumentTypes $ PresType ts'
             _ -> [] -- [Name "b" Nothing 0 Nothing]
 
-        (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) ts'') (name_gen s)
+        (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) ts'') (name_gen b)
 
         vs = map (\(n', t') -> 
                 case E.lookup n' eenv of

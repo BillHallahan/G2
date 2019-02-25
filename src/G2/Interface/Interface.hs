@@ -84,8 +84,9 @@ initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
 initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config =
     let
         s = initSimpleState prog prog_typ cls
+        ng = mkNameGen (prog, prog_typ)
     in
-    initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config
+    initStateFromSimpleState s ng m_assume m_assert useAssert f m_mod tgtNames config
 
 initState' :: Program
            -> [ProgramType]
@@ -99,6 +100,7 @@ initState' prog prog_typ cls =
     initState prog prog_typ cls Nothing Nothing False
 
 initStateFromSimpleState :: IT.SimpleState
+                         -> NameGen
                          -> Maybe AssumeFunc
                          -> Maybe AssertFunc
                          -> Bool
@@ -107,17 +109,17 @@ initStateFromSimpleState :: IT.SimpleState
                          -> [Name]
                          -> Config
                          -> (State (), Id, Bindings)
-initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
+initStateFromSimpleState s ng m_assume m_assert useAssert f m_mod tgtNames config =
     let
         (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
               Left ie' -> ie'
               Right errs -> error errs
         (_, ts) = instantiateArgTypes (IT.type_classes s) (IT.known_values s) fe
 
-        (s', ft, at, ds_walkers) = runInitialization s ts (S.fromList tgtNames)
+        (s', ft, at, ds_walkers, ng') = runInitialization s ts (S.fromList tgtNames) ng
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
-        ng' = IT.name_gen s'
+        -- ng' = IT.name_gen s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
@@ -127,7 +129,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
-    , name_gen =  ng''
+    -- , name_gen =  ng''
     , path_conds = PC.fromList kv' $ map PCExists is
     , non_red_path_conds = []
     , true_assert = if useAssert then False else True
@@ -150,16 +152,18 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , cleaned_names = HM.empty
     , func_table = ft
     , apply_types = at
-    , input_ids = is})
+    , input_ids = is
+    , name_gen = ng''})
 
 initStateFromSimpleState' :: IT.SimpleState
+                          -> NameGen
                           -> StartFunc
                           -> ModuleName
                           -> [Name]
                           -> Config
                           -> (State (), Id, Bindings)
-initStateFromSimpleState' s =
-    initStateFromSimpleState s Nothing Nothing False
+initStateFromSimpleState' s ng =
+    initStateFromSimpleState s ng Nothing Nothing False
 
 initSimpleState :: Program
                 -> [ProgramType]
@@ -171,11 +175,11 @@ initSimpleState prog prog_typ cls =
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv
-        ng = mkNameGen (prog, prog_typ)
+        --ng = mkNameGen (prog, prog_typ)
     in
     IT.SimpleState { IT.expr_env = eenv
                    , IT.type_env = tenv
-                   , IT.name_gen = ng
+                   --, IT.name_gen = ng
                    , IT.known_values = kv
                    , IT.type_classes = tc }
 
@@ -314,27 +318,27 @@ runG2 red hal ord con pns (is@State { type_env = tenv
                           (bindings@Bindings { apply_types = at}) = do
     let (swept, bindings') = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is bindings
 
-    let preproc_state = runPreprocessing swept
+    let (preproc_state, bindings'') = runPreprocessing swept bindings'
 
-    exec_states <- runExecution red hal ord preproc_state bindings'
+    exec_states <- runExecution red hal ord preproc_state bindings''
 
     let ident_states = filter true_assert exec_states
 
     ident_states' <- 
         mapM (\s -> do
-            (_, m) <- solve con s bindings' (symbolic_ids s) (path_conds s)
+            (_, m) <- solve con s bindings'' (symbolic_ids s) (path_conds s)
             return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states
 
     let ident_states'' = catMaybes ident_states'
 
     let sm = map (\s -> 
-              let (es, e, ais) = subModel s bindings' in
+              let (es, e, ais) = subModel s bindings'' in
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
                         , violated = ais
-                        , exec_bindings = bindings'}) $ ident_states''
+                        , exec_bindings = bindings''}) $ ident_states''
 
     let sm' = map (\sm''@(ExecRes {final_state = s
                                   , exec_bindings = b}) -> 

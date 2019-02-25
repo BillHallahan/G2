@@ -247,7 +247,7 @@ redRulesToStates r rv1 s b = do
 
     let rf = foldr progPrioritizer NoProgress rr
 
-    return $ (rf, concat s', b, head r')
+    return $ (rf, concat s', last b', head r')
 
 {-# INLINE (<~) #-}
 -- | Combines two @`SomeReducer`@s with a @`:<~`@
@@ -270,9 +270,9 @@ instance Solver con => Reducer (StdRed con) () t where
     initReducer _ _ = ()
 
     redRules stdr@(StdRed solver) _ s b = do
-        (r, s') <- stdReduce solver s
+        (r, s', b') <- stdReduce solver s b
         
-        return (if r == RuleIdentity then Finished else InProgress, s', b, stdr)
+        return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed

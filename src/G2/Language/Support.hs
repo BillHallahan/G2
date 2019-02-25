@@ -39,7 +39,7 @@ import qualified Data.Text as T
 data State t = State { expr_env :: E.ExprEnv
                      , type_env :: TypeEnv
                      , curr_expr :: CurrExpr
-                     , name_gen :: NameGen
+                     -- , name_gen :: NameGen
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [Expr] -- ^ Path conditions that still need further reduction
                      , true_assert :: Bool -- ^ Have we violated an assertion?
@@ -62,6 +62,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , func_table :: FuncInterps
                          , apply_types :: AT.ApplyTypes
                          , input_ids :: InputIds
+                         , name_gen :: NameGen
                          } deriving (Show, Eq, Read)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
@@ -136,15 +137,15 @@ data Frame = CaseFrame Id [Alt]
 type Model = M.Map Name Expr
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
-renameState :: Named t => Name -> Name -> State t -> State t
-renameState old new_seed s =
-    let (new, ng') = freshSeededName new_seed (name_gen s)
-    in State { expr_env = rename old new (expr_env s)
+renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
+renameState old new_seed s b =
+    let (new, ng') = freshSeededName new_seed (name_gen b)
+    in (State { expr_env = rename old new (expr_env s)
              , type_env =
                   M.mapKeys (\k -> if k == old then new else k)
                   $ rename old new (type_env s)
              , curr_expr = rename old new (curr_expr s)
-             , name_gen = ng'
+             -- , name_gen = ng'
              , path_conds = rename old new (path_conds s)
              , non_red_path_conds = rename old new (non_red_path_conds s)
              , true_assert = true_assert s
@@ -158,6 +159,7 @@ renameState old new_seed s =
              , num_steps = num_steps s
              , track = rename old new (track s)
              , tags = tags s }
+        , b { name_gen = ng'})
 
 instance Named t => Named (State t) where
     names s = names (expr_env s)
@@ -178,7 +180,7 @@ instance Named t => Named (State t) where
                     M.mapKeys (\k -> if k == old then new else k)
                     $ rename old new (type_env s)
                , curr_expr = rename old new (curr_expr s)
-               , name_gen = name_gen s
+               -- , name_gen = name_gen s
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
                , true_assert = true_assert s
@@ -199,7 +201,7 @@ instance Named t => Named (State t) where
                     M.mapKeys (renames hm)
                     $ renames hm (type_env s)
                , curr_expr = renames hm (curr_expr s)
-               , name_gen = name_gen s
+               -- , name_gen = name_gen s
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
                , true_assert = true_assert s
@@ -270,6 +272,7 @@ instance Named Bindings where
                  , func_table = rename old new (func_table b)
                  , apply_types = rename old new (apply_types b)
                  , input_ids = rename old new (input_ids b)
+                 , name_gen = name_gen b
                  }
 
     renames hm b =
@@ -280,6 +283,7 @@ instance Named Bindings where
                , func_table = renames hm (func_table b)
                , apply_types = renames hm (apply_types b)
                , input_ids = renames hm (input_ids b)
+               , name_gen = name_gen b
                }
 
 instance ASTContainer Bindings Expr where

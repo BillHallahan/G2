@@ -148,7 +148,7 @@ instance ExState (LHState, L.Bindings) LHStateM where
     typeEnv = readRecord $ type_env . fst
     putTypeEnv = rep_type_envM
 
-    nameGen = readRecord $ name_gen . fst
+    nameGen = readRecord $ L.name_gen . snd
     putNameGen = rep_name_genM
 
     knownValues = readRecord $ known_values . fst
@@ -170,8 +170,8 @@ runLHStateM (LHStateM s) lh_s b = SM.runState s (lh_s, b)
 evalLHStateM :: LHStateM a -> LHState -> L.Bindings -> a
 evalLHStateM s = (\lh_s b -> fst (runLHStateM s lh_s b))
 
-execLHStateM :: LHStateM a -> LHState -> L.Bindings -> LHState
-execLHStateM s = (\lh_s b -> fst (snd (runLHStateM s lh_s b)))
+execLHStateM :: LHStateM a -> LHState -> L.Bindings -> (LHState, L.Bindings)
+execLHStateM s = (\lh_s b -> snd (runLHStateM s lh_s b))
 
 liftState :: (L.State [L.FuncCall] -> a) -> LHState -> a
 liftState f = f . state
@@ -196,15 +196,12 @@ rep_type_envM tenv = do
     let s' = s {L.type_env = tenv}
     SM.put $ (lh_s {state = s'}, b)
 
-name_gen :: LHState -> L.NameGen
-name_gen = liftState L.name_gen
-
 rep_name_genM :: L.NameGen -> LHStateM ()
 rep_name_genM ng = do
     (lh_s, b) <- SM.get
     let s = state lh_s
-    let s' = s {L.name_gen = ng}
-    SM.put $ (lh_s {state = s'}, b)
+    let b' = b {L.name_gen = ng}
+    SM.put $ (lh_s {state = s}, b')
 
 known_values :: LHState -> L.KnownValues
 known_values = liftState L.known_values

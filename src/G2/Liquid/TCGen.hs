@@ -16,7 +16,7 @@ import qualified Data.Text as T
 -- | Creates an LHState.  This involves building a TCValue, and
 -- creating the new LH TC which checks equality, and has a function to
 -- check refinements of polymorphic types
-createLHState :: Measures -> KnownValues -> State [FuncCall] -> Bindings -> LHState
+createLHState :: Measures -> KnownValues -> State [FuncCall] -> Bindings -> (LHState, Bindings)
 createLHState meenv mkv s b =
     let
         (tcv, (s', b')) = runStateM (createTCValues mkv) s b
