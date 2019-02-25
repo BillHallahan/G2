@@ -118,11 +118,14 @@ exprNames = evalASTs exprTopNames
 
 exprTopNames :: Expr -> [Name]
 exprTopNames (Var var) = [idName var]
+exprTopNames (Data dc) = dataConName dc
 exprTopNames (Lam _ b _) = [idName b]
 exprTopNames (Let kvs _) = map (idName . fst) kvs
 exprTopNames (Case _ cvar as) = idName cvar :
                                 concatMap (\(Alt am _) -> altMatchNames am)
                                           as
+exprTopNames (Assume (Just is) _ _) = [funcName is]
+exprTopNames (Assert (Just is) _ _) = [funcName is]
 exprTopNames _ = []
 
 altMatchNames :: AltMatch -> [Name]
@@ -264,6 +267,7 @@ renameExpr' old new (Data d) = Data (renameExprDataCon old new d)
 renameExpr' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
 renameExpr' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAlt old new) a
+renameExpr' old new (Assume is e e') = Assume (fmap (rename old new) is) e e'
 renameExpr' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
 renameExpr' _ _ e = e
 
