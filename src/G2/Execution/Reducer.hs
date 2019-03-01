@@ -106,7 +106,6 @@ class Reducer r rv t | r -> rv where
     initReducer :: r -> State t -> rv
 
     -- | Takes a State, and performs the appropriate Reduction Rule
-    --redRules :: r -> rv -> State t -> Bindings -> IO (ReducerRes, [(State t, Bindings, rv)], r)
     redRules :: r -> rv -> State t -> Bindings -> IO (ReducerRes, [(State t, rv)], Bindings, r) 
     -- | Gives an opportunity to update with all States and Reducer Val's,
     -- output by all Reducer's, visible
@@ -237,12 +236,29 @@ updateWithAllRC r1 r2 srv =
     in
     map (uncurry RC) $ zip rv1' rv2'
 
---TODO: Fix Bindings
+-- Applies function to first (State t, rv2), gets new Bindings and recursively applies function to rest of array using new Bindings
+mapMAccumB :: (Bindings -> (State t, rv2) -> IO (ReducerRes, [(State t, RC rv rv2)], Bindings, r)) -> Bindings -> [(State t, rv2)] 
+    -> IO ([(ReducerRes, [(State t, RC rv rv2)], Bindings, r)])
+mapMAccumB _ _ [] = do
+    return []
+mapMAccumB f b [x] = do
+    res <- f b x
+    return [res] 
+mapMAccumB f b (x:xs) = do
+    (rr_, is, b', r') <- f b x
+    res <- mapMAccumB f b' xs
+    return $ (rr_, is, b', r'):res
+
+redRulesToStatesAux :: Reducer r rv t => r -> rv -> Bindings -> (State t, rv2) -> IO (ReducerRes, [(State t, RC rv rv2)], Bindings, r)
+redRulesToStatesAux r rv1 b (is, rv2) = do
+        (rr_, is', b', r') <- redRules r rv1 is b
+        return (rr_, map (\(is'', rv1') -> (is'', RC rv1' rv2) ) is', b', r')
+    
 redRulesToStates :: Reducer r rv t => r -> rv -> [(State t, rv2)] -> Bindings -> IO (ReducerRes, [(State t, RC rv rv2)], Bindings, r)
 redRulesToStates r rv1 s b = do
-    rs <- mapM (\(is, rv2) -> do
-                (rr_, is', b', r') <- redRules r rv1 is b
-                return (rr_, map (\(is'', rv1') -> (is'', RC rv1' rv2) ) is', b', r')) s
+    let redRulesToStatesAux' = redRulesToStatesAux r rv1
+    rs <- mapMAccumB redRulesToStatesAux' b s
+
     let (rr, s', b', r') = L.unzip4 rs
 
     let rf = foldr progPrioritizer NoProgress rr

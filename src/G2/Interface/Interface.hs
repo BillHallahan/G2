@@ -119,7 +119,6 @@ initStateFromSimpleState s ng m_assume m_assert useAssert f m_mod tgtNames confi
         (s', ft, at, ds_walkers, ng') = runInitialization s ts (S.fromList tgtNames) ng
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
-        -- ng' = IT.name_gen s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
@@ -129,7 +128,6 @@ initStateFromSimpleState s ng m_assume m_assert useAssert f m_mod tgtNames confi
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
-    -- , name_gen =  ng''
     , path_conds = PC.fromList kv' $ map PCExists is
     , non_red_path_conds = []
     , true_assert = if useAssert then False else True
@@ -175,11 +173,9 @@ initSimpleState prog prog_typ cls =
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv
-        --ng = mkNameGen (prog, prog_typ)
     in
     IT.SimpleState { IT.expr_env = eenv
                    , IT.type_env = tenv
-                   --, IT.name_gen = ng
                    , IT.known_values = kv
                    , IT.type_classes = tc }
 
