@@ -39,7 +39,6 @@ import qualified Data.Text as T
 data State t = State { expr_env :: E.ExprEnv
                      , type_env :: TypeEnv
                      , curr_expr :: CurrExpr
-                     -- , name_gen :: NameGen
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [Expr] -- ^ Path conditions that still need further reduction
                      , true_assert :: Bool -- ^ Have we violated an assertion?

@@ -237,33 +237,30 @@ updateWithAllRC r1 r2 srv =
     map (uncurry RC) $ zip rv1' rv2'
 
 -- Applies function to first (State t, rv2), gets new Bindings and recursively applies function to rest of array using new Bindings
-mapMAccumB :: (Bindings -> (State t, rv2) -> IO (ReducerRes, [(State t, RC rv rv2)], Bindings, r)) -> Bindings -> [(State t, rv2)] 
-    -> IO ([(ReducerRes, [(State t, RC rv rv2)], Bindings, r)])
-mapMAccumB _ _ [] = do
-    return []
-mapMAccumB f b [x] = do
-    res <- f b x
-    return [res] 
+mapMAccumB :: (Bindings -> (State t, rv2) -> IO (Bindings, (ReducerRes, [(State t, RC rv rv2)], r))) -> Bindings -> [(State t, rv2)] 
+        -> IO (Bindings, [(ReducerRes, [(State t, RC rv rv2)], r)])
+mapMAccumB _ b [] = do
+    return (b, [])
 mapMAccumB f b (x:xs) = do
-    (rr_, is, b', r') <- f b x
-    res <- mapMAccumB f b' xs
-    return $ (rr_, is, b', r'):res
+    (b', res) <- f b x
+    (b'', res2) <- mapMAccumB f b' xs
+    return $ (b'', res:res2)
 
-redRulesToStatesAux :: Reducer r rv t => r -> rv -> Bindings -> (State t, rv2) -> IO (ReducerRes, [(State t, RC rv rv2)], Bindings, r)
+redRulesToStatesAux :: Reducer r rv t => r -> rv -> Bindings -> (State t, rv2) -> IO (Bindings, (ReducerRes, [(State t, RC rv rv2)], r))
 redRulesToStatesAux r rv1 b (is, rv2) = do
         (rr_, is', b', r') <- redRules r rv1 is b
-        return (rr_, map (\(is'', rv1') -> (is'', RC rv1' rv2) ) is', b', r')
+        return (b', (rr_, map (\(is'', rv1') -> (is'', RC rv1' rv2) ) is', r'))
     
 redRulesToStates :: Reducer r rv t => r -> rv -> [(State t, rv2)] -> Bindings -> IO (ReducerRes, [(State t, RC rv rv2)], Bindings, r)
 redRulesToStates r rv1 s b = do
     let redRulesToStatesAux' = redRulesToStatesAux r rv1
-    rs <- mapMAccumB redRulesToStatesAux' b s
+    (b', rs) <- mapMAccumB redRulesToStatesAux' b s
 
-    let (rr, s', b', r') = L.unzip4 rs
+    let (rr, s', r') = L.unzip3 rs
 
     let rf = foldr progPrioritizer NoProgress rr
 
-    return $ (rf, concat s', last b', head r')
+    return $ (rf, concat s', b', head r')
 
 {-# INLINE (<~) #-}
 -- | Combines two @`SomeReducer`@s with a @`:<~`@
