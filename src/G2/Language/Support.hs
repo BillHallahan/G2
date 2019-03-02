@@ -144,7 +144,6 @@ renameState old new_seed s b =
                   M.mapKeys (\k -> if k == old then new else k)
                   $ rename old new (type_env s)
              , curr_expr = rename old new (curr_expr s)
-             -- , name_gen = ng'
              , path_conds = rename old new (path_conds s)
              , non_red_path_conds = rename old new (non_red_path_conds s)
              , true_assert = true_assert s
@@ -179,7 +178,6 @@ instance Named t => Named (State t) where
                     M.mapKeys (\k -> if k == old then new else k)
                     $ rename old new (type_env s)
                , curr_expr = rename old new (curr_expr s)
-               -- , name_gen = name_gen s
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
                , true_assert = true_assert s
@@ -200,7 +198,6 @@ instance Named t => Named (State t) where
                     M.mapKeys (renames hm)
                     $ renames hm (type_env s)
                , curr_expr = renames hm (curr_expr s)
-               -- , name_gen = name_gen s
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
                , true_assert = true_assert s
