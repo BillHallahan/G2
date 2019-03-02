@@ -84,9 +84,8 @@ initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
 initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config =
     let
         s = initSimpleState prog prog_typ cls
-        ng = mkNameGen (prog, prog_typ)
     in
-    initStateFromSimpleState s ng m_assume m_assert useAssert f m_mod tgtNames config
+    initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config
 
 initState' :: Program
            -> [ProgramType]
@@ -100,7 +99,6 @@ initState' prog prog_typ cls =
     initState prog prog_typ cls Nothing Nothing False
 
 initStateFromSimpleState :: IT.SimpleState
-                         -> NameGen
                          -> Maybe AssumeFunc
                          -> Maybe AssertFunc
                          -> Bool
@@ -109,16 +107,17 @@ initStateFromSimpleState :: IT.SimpleState
                          -> [Name]
                          -> Config
                          -> (State (), Id, Bindings)
-initStateFromSimpleState s ng m_assume m_assert useAssert f m_mod tgtNames config =
+initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     let
         (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
               Left ie' -> ie'
               Right errs -> error errs
         (_, ts) = instantiateArgTypes (IT.type_classes s) (IT.known_values s) fe
 
-        (s', ft, at, ds_walkers, ng') = runInitialization s ts (S.fromList tgtNames) ng
+        (s', ft, at, ds_walkers) = runInitialization s ts (S.fromList tgtNames)
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
+        ng' = IT.name_gen s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
@@ -154,14 +153,13 @@ initStateFromSimpleState s ng m_assume m_assert useAssert f m_mod tgtNames confi
     , name_gen = ng''})
 
 initStateFromSimpleState' :: IT.SimpleState
-                          -> NameGen
                           -> StartFunc
                           -> ModuleName
                           -> [Name]
                           -> Config
                           -> (State (), Id, Bindings)
-initStateFromSimpleState' s ng =
-    initStateFromSimpleState s ng Nothing Nothing False
+initStateFromSimpleState' s=
+    initStateFromSimpleState s Nothing Nothing False
 
 initSimpleState :: Program
                 -> [ProgramType]
@@ -173,9 +171,11 @@ initSimpleState prog prog_typ cls =
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv
+        ng = mkNameGen (prog, prog_typ)
     in
     IT.SimpleState { IT.expr_env = eenv
                    , IT.type_env = tenv
+                   , IT.name_gen = ng
                    , IT.known_values = kv
                    , IT.type_classes = tc }
 

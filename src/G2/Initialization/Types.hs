@@ -17,7 +17,7 @@ import G2.Language.Syntax
 
 data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , type_env :: L.TypeEnv
-                               -- , name_gen :: L.NameGen
+                               , name_gen :: L.NameGen
                                , known_values :: L.KnownValues
                                , type_classes :: L.TypeClasses } deriving (Eq, Show, Read)
 
@@ -33,8 +33,8 @@ instance ExState SimpleState SimpleStateM where
     typeEnv = return . type_env =<< SM.get
     putTypeEnv = rep_type_envM
 
-    -- nameGen = return . name_gen =<< SM.get
-    -- putNameGen = rep_name_genM
+    nameGen = return . name_gen =<< SM.get
+    putNameGen = rep_name_genM
 
     knownValues = return . known_values =<< SM.get
     putKnownValues = rep_known_valuesM
@@ -61,10 +61,10 @@ rep_type_envM tenv = do
     s <- SM.get
     SM.put $ s {type_env = tenv}
 
--- rep_name_genM :: L.NameGen -> SimpleStateM ()
--- rep_name_genM ng = do
---     s <- SM.get
---     SM.put $ s {name_gen = ng}
+rep_name_genM :: L.NameGen -> SimpleStateM ()
+rep_name_genM ng = do
+    s <- SM.get
+    SM.put $ s {name_gen = ng}
 
 rep_known_valuesM :: L.KnownValues -> SimpleStateM ()
 rep_known_valuesM kv = do
