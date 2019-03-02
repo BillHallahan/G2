@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -5,6 +6,8 @@ module Main where
 
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.Options
+import Test.Tasty.Runners
 
 import G2.Config
 
@@ -14,7 +17,11 @@ import G2.Liquid.Interface
 
 import Control.Exception
 import Data.Maybe
+import Data.Proxy
+import Data.Tagged
 import qualified Data.Text as T
+import System.Environment
+import Type.Reflection (Typeable)
 
 import PeanoTest
 import HigherOrderMathTest
@@ -28,9 +35,20 @@ import InputOutputTest
 import Reqs
 import TestUtils
 
+-- Run with no arguments for default test cases.
+-- All default test cases should pass.
+-- Run with flag '--test-options="todo yes"' to run test cases corresponding to to-be-fixed bugs.
 main :: IO ()
-main = defaultMain
-       =<< tests
+main = do
+    as <- getArgs
+    let todo = "--todo" `elem` as
+    defaultMainWithIngredients
+        (defaultIngredients ++ 
+            [TestReporter 
+                [ Option (Proxy :: Proxy ToDo) ] 
+                (\_ _ -> Just (\_ -> return (\_ -> return False)))
+            ])
+        =<< if todo then todoTests else tests
 
 tests :: IO TestTree
 tests = return . testGroup "Tests"
@@ -231,9 +249,6 @@ liquidTests =
                     , RForAll (\[] _ [(FuncCall { funcName = Name n _ _ _, returns = r }) ]
                         -> n == "length2" && getIntB r (/= 3)) ]
 
-                , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
-                , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
-
                 , checkLiquid "tests/Liquid/" "tests/Liquid/MapReduceTest2.lhs" "mapReduce" 1500 3 [Exactly 0]
 
                 , checkLiquid "tests/Liquid/" "tests/Liquid/MeasErr.hs" "f" 1500 2 [Exactly 0]
@@ -290,8 +305,6 @@ testFileTests =
                 , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass2.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
                 , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass3.hs" 400 Nothing Nothing "f" 2 [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
                 , checkExprWithConfig "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass4.hs" Nothing Nothing Nothing "f" 1 (mkConfigTestWithMap {steps = 1000}) [AtLeast 1]
-                , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass5.hs" 800 Nothing Nothing "run" 2 [AtLeast 1]
-                , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass5.hs" 800 Nothing Nothing "run2" 2 [AtLeast 0]
 
                 , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
                 , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeE") Nothing "extractE" 2 [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 4 && y > 100), Exactly 1]
@@ -409,9 +422,6 @@ baseTests =
 
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "sumN" 1000 4 [AtLeast 6]
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "lengthN" 1000 5 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 2000 5 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "averageF" 2000 2 [AtLeast 6]
-            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 4 [AtLeast 6]
 
             , checkInputOutput "tests/BaseTests/" "tests/BaseTests/Other.hs" "Other" "check4VeryEasy2" 600 1 [AtLeast 1]
         ]
@@ -428,13 +438,50 @@ primTests =
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "p1List" 300000 1 [AtLeast 1]
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "p2List" 700000 1 [AtLeast 1]
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "integerToFloatList" 150000 1 [AtLeast 1]
-            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
 
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "int2FloatTest" 1000 2 [AtLeast 1]
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "int2DoubleTest" 1000 2 [AtLeast 1]
+        ]
+
+-- To Do Tests
+--------------
+
+todoTests :: IO TestTree
+todoTests =
+    return . testGroup "To Do"
+        =<< sequence [ 
+              checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
+            , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
+
+            , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass5.hs" 800 Nothing Nothing "run" 2 [AtLeast 1]
+            , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass5.hs" 800 Nothing Nothing "run2" 2 [AtLeast 0]
+            , checkInputOutput "tests/Prim/" "tests/Prim/Prim2.hs" "Prim2" "sqrtList" 10000 1 [AtLeast 1]
+            
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 2000 5 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "averageF" 2000 2 [AtLeast 6]
+            , checkInputOutput "tests/BaseTests/" "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 4 [AtLeast 6]
+
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "float2IntTest" 1000 2 [AtLeast 1]
             , checkInputOutput "tests/Prim/" "tests/Prim/Prim3.hs" "Prim3" "double2IntTest" 1000 2 [AtLeast 1]
         ]
+
+data ToDo = RunMain
+          | RunToDo
+          deriving (Eq, Typeable)
+
+
+instance IsOption ToDo where
+    defaultValue = RunMain
+    parseValue s =
+        let
+            ws = words s
+        in
+        if "y" `elem` ws || "yes" `elem` ws then Just RunToDo else Nothing
+    optionName = Tagged "todo"
+    optionHelp = Tagged "Specifies whether to run the main, passing tests, or the todo tests."
+
+-- Generic helpers for tests
+----------------------------
 
 checkExpr :: String -> String -> Int -> Maybe String -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkExpr proj src stps m_assume m_assert entry i reqList =
