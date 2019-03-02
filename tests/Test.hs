@@ -190,22 +190,9 @@ liquidTests =
                 , checkLiquid "tests/Liquid/Error/Tests" "tests/Liquid/Error/Error2.hs" "f1" 2000 4 [AtLeast 1]
                 , checkLiquid "tests/Liquid" "tests/Liquid/ZipWith.lhs" "distance" 1000 4 [AtLeast 3]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "getPosInt" 1000 4
-                    [ AtLeast 1
-                    , RForAll (\[_, _, (App _ x), y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' == y' && y' == 10)]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "getPos" 1000 4
-                    [ AtLeast 1
-                    , RExists (\[_, _, (App _ x), y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' == y' && y' == 10)]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "goodGet" 1000 4 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 1000 2 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/SimpleAnnot.hs" "simpleF" 1000 1 [Exactly 0]
-
                 , checkLiquid "tests/Liquid/" "tests/Liquid/HigherOrder2.hs" "f" 2000 2 [Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/HigherOrder2.hs" "h" 2000 2 [AtLeast 1]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "lt" 1000 2 [AtLeast 1]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "gt" 1000 2 [AtLeast 1]
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "oneOrOther" 1000 2 [Exactly 0]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/AddKV.lhs" "empty" 1000 3 [Exactly 0]
@@ -216,26 +203,17 @@ liquidTests =
                 , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "f" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
                 , checkLiquidWithConfig "tests/Liquid/Tests" "tests/Liquid/WhereFuncs.lhs" "g" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
 
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/WhereFuncs2.hs" "hCalls" 1000 3 [AtLeast 1]
-                , checkLiquid "tests/Liquid/Tests" "tests/Liquid/WhereFuncs2.hs" "i" 1000 2 [AtLeast 1]
-
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/PropConcat.lhs" "prop_concat" 1000 1 [AtLeast 1]
 
                 , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Distance.lhs" "distance" 1000 4 [AtLeast 1]
                 , checkLiquid "tests/Liquid/MultModules" "tests/Liquid/MultModules/CallZ.lhs" "callZ" 1000 3 [AtLeast 1]
-
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AddToEven.hs" "f" 2000 1
-                    [ AtLeast 1
-                    , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
-                                    -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
-                , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AddToEvenWhere.hs" "f" 2000 1
                     [ AtLeast 1
                     , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
                                     -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
 
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "r" 1000 1 [Exactly 0]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]
-                , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "concat" 1000 2 [AtLeast 3]
                 , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "prop_concat_1" 1500 1 [AtLeast 1]
                 , checkAbsLiquid "tests/Liquid/" "tests/Liquid/ListTests2.lhs" "prop_map" 2000 4
                     [ AtLeast 3
@@ -449,8 +427,27 @@ primTests =
 todoTests :: IO TestTree
 todoTests =
     return . testGroup "To Do"
-        =<< sequence [ 
-              checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
+        =<< sequence [
+              checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "goodGet" 1000 4 [Exactly 0]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "getPosInt" 1000 4
+                [ AtLeast 1
+                , RForAll (\[_, _, (App _ x), y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' == y' && y' == 10)]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/TyApps.hs" "getPos" 1000 4
+                [ AtLeast 1
+                , RExists (\[_, _, (App _ x), y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' == y' && y' == 10)]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max2" 1000 2 [Exactly 0]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/FoldrTests.hs" "max3" 1000 2 [Exactly 0]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/SimpleAnnot.hs" "simpleF" 1000 1 [Exactly 0]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "lt" 1000 2 [AtLeast 1]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/Ordering.hs" "gt" 1000 2 [AtLeast 1]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/WhereFuncs2.hs" "hCalls" 1000 3 [AtLeast 1]
+            , checkLiquid "tests/Liquid/Tests" "tests/Liquid/WhereFuncs2.hs" "i" 1000 2 [AtLeast 1]
+            , checkAbsLiquid "tests/Liquid/" "tests/Liquid/AddToEvenWhere.hs" "f" 2000 1
+                [ AtLeast 1
+                , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
+                                -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
+            , checkLiquid "tests/Liquid/" "tests/Liquid/ListTests.lhs" "concat" 1000 2 [AtLeast 3]
+            , checkLiquidWithConfig "tests/Liquid/" "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})[Exactly 0]
             , checkLiquid "tests/Liquid/" "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
 
             , checkExpr "tests/TestFiles/TypeClass/" "tests/TestFiles/TypeClass/TypeClass5.hs" 800 Nothing Nothing "run" 2 [AtLeast 1]
