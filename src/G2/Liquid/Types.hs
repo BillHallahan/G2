@@ -161,7 +161,7 @@ instance FullState (LHState, L.Bindings) LHStateM where
     currExpr = readRecord $ curr_expr . fst
     putCurrExpr = rep_curr_exprM
 
-    inputIds = readRecord $ L.input_ids . snd
+    inputNames = readRecord $ L.input_names . snd
     fixedInputs = readRecord $ L.fixed_inputs . snd
 
 runLHStateM :: LHStateM a -> LHState -> L.Bindings -> (a, (LHState, L.Bindings))

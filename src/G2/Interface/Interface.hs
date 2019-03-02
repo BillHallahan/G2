@@ -149,7 +149,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , cleaned_names = HM.empty
     , func_table = ft
     , apply_types = at
-    , input_ids = is
+    , input_names = map idName is
     , name_gen = ng''})
 
 initStateFromSimpleState' :: IT.SimpleState

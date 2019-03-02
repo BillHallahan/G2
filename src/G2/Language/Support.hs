@@ -60,7 +60,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , cleaned_names :: CleanedNames
                          , func_table :: FuncInterps
                          , apply_types :: AT.ApplyTypes
-                         , input_ids :: InputIds
+                         , input_names :: [Name]
                          , name_gen :: NameGen
                          } deriving (Show, Eq, Read)
 
@@ -258,7 +258,7 @@ instance Named Bindings where
             ++ names (cleaned_names b)
             ++ names (func_table b)
             ++ names (apply_types b)
-            ++ names (input_ids b)
+            ++ names (input_names b)
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
@@ -267,7 +267,7 @@ instance Named Bindings where
                  , cleaned_names = HM.insert new old (cleaned_names b)
                  , func_table = rename old new (func_table b)
                  , apply_types = rename old new (apply_types b)
-                 , input_ids = rename old new (input_ids b)
+                 , input_names = rename old new (input_names b)
                  , name_gen = name_gen b
                  }
 
@@ -278,21 +278,21 @@ instance Named Bindings where
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
                , func_table = renames hm (func_table b)
                , apply_types = renames hm (apply_types b)
-               , input_ids = renames hm (input_ids b)
+               , input_names = renames hm (input_names b)
                , name_gen = name_gen b
                }
 
 instance ASTContainer Bindings Expr where
-    containedASTs b = (containedASTs $ fixed_inputs b) ++ (containedASTs $ input_ids b)
+    containedASTs b = (containedASTs $ fixed_inputs b) ++ (containedASTs $ input_names b)
 
     modifyContainedASTs f b = b { fixed_inputs = modifyContainedASTs f $ fixed_inputs b
-                                , input_ids = modifyContainedASTs f $ input_ids b }
+                                , input_names = modifyContainedASTs f $ input_names b }
 
 instance ASTContainer Bindings Type where
-    containedASTs b = ((containedASTs . fixed_inputs) b) ++ ((containedASTs . input_ids) b)
+    containedASTs b = ((containedASTs . fixed_inputs) b) ++ ((containedASTs . input_names) b)
 
     modifyContainedASTs f b = b { fixed_inputs = (modifyContainedASTs f . fixed_inputs) b
-                                , input_ids = (modifyContainedASTs f . input_ids) b }
+                                , input_names = (modifyContainedASTs f . input_names) b }
 
 instance ASTContainer CurrExpr Expr where
     containedASTs (CurrExpr _ e) = [e]

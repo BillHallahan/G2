@@ -51,7 +51,7 @@ class ExState s m => FullState s m | m -> s where
     currExpr :: m CurrExpr
     putCurrExpr :: CurrExpr -> m ()
 
-    inputIds :: m InputIds
+    inputNames :: m [Name]
     fixedInputs :: m [Expr]
 
 instance ExState (State t, Bindings) (StateM t) where
@@ -74,7 +74,7 @@ instance FullState (State t, Bindings) (StateM t) where
     currExpr = readRecord (\(s, _) -> curr_expr s)
     putCurrExpr = rep_curr_exprM
 
-    inputIds = readRecord (\(_, b) -> input_ids b)
+    inputNames = readRecord (\(_, b) -> input_names b)
     fixedInputs = readRecord (\(_,b) -> fixed_inputs b)
 
 runStateM :: StateM t a -> State t -> Bindings -> (a, (State t, Bindings))

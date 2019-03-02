@@ -299,8 +299,7 @@ instance Reducer NonRedPCRed () t where
                               , path_conds = pc
                               , non_red_path_conds = nr:nrs
                               , symbolic_ids = si })
-                      b@(Bindings { apply_types = at 
-                                , input_ids = is}) = do
+                      b@(Bindings { apply_types = at }) = do
         let stck' = Stck.push (CurrExprFrame cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nr
@@ -311,9 +310,8 @@ instance Reducer NonRedPCRed () t where
                    , non_red_path_conds = nrs
                    , path_conds = AT.typeToAppType at pc
                    , symbolic_ids = AT.typeToAppType at si }
-        let b' = b { input_ids = AT.typeToAppType at is}
 
-        return (InProgress, [(s', ())], b', nrpr)
+        return (InProgress, [(s', ())], b, nrpr)
     redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
 
 higherOrderToAppTys :: ASTContainer m Expr => ExprEnv -> ApplyTypes -> m -> m
