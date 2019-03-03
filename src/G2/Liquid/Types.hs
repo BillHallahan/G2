@@ -148,7 +148,8 @@ instance ExState (LHState, L.Bindings) LHStateM where
     typeEnv = readRecord $ type_env . fst
     putTypeEnv = rep_type_envM
 
-    nameGen = readRecord $ L.name_gen . snd
+    nameGen = readRecord $ name_gen . fst
+    -- nameGen = readRecord $ L.name_gen . snd
     putNameGen = rep_name_genM
 
     knownValues = readRecord $ known_values . fst
@@ -176,6 +177,9 @@ execLHStateM s = (\lh_s b -> snd (runLHStateM s lh_s b))
 liftState :: (L.State [L.FuncCall] -> a) -> LHState -> a
 liftState f = f . state
 
+name_gen :: LHState -> L.NameGen
+name_gen = liftState L.name_gen
+
 expr_env :: LHState -> L.ExprEnv
 expr_env = liftState L.expr_env
 
@@ -200,8 +204,10 @@ rep_name_genM :: L.NameGen -> LHStateM ()
 rep_name_genM ng = do
     (lh_s, b) <- SM.get
     let s = state lh_s
-    let b' = b {L.name_gen = ng}
-    SM.put $ (lh_s {state = s}, b')
+    let s' = s {L.name_gen = ng}
+    SM.put $ (lh_s {state = s'}, b)
+    -- let b' = b {L.name_gen = ng}
+    -- SM.put $ (lh_s {state = s}, b')
 
 known_values :: LHState -> L.KnownValues
 known_values = liftState L.known_values

@@ -52,6 +52,7 @@ data State t = State { expr_env :: E.ExprEnv
                      , num_steps :: !Int -- Invariant: The length of the rules list
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
                      , track :: t
+                     , name_gen :: NameGen
                      } deriving (Show, Eq, Read)
 
 data Bindings = Bindings { deepseq_walkers :: Walkers
@@ -61,7 +62,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , func_table :: FuncInterps
                          , apply_types :: AT.ApplyTypes
                          , input_names :: [Name]
-                         , name_gen :: NameGen
+                         -- , name_gen :: NameGen
                          } deriving (Show, Eq, Read)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
@@ -136,10 +137,12 @@ data Frame = CaseFrame Id [Alt]
 type Model = M.Map Name Expr
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
-renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
-renameState old new_seed s b =
-    let (new, ng') = freshSeededName new_seed (name_gen b)
-    in (State { expr_env = rename old new (expr_env s)
+-- renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
+renameState :: Named t => Name -> Name -> State t -> State t
+-- renameState old new_seed s b =
+renameState old new_seed s =
+    let (new, ng') = freshSeededName new_seed (name_gen s)
+    in State { expr_env = rename old new (expr_env s)
              , type_env =
                   M.mapKeys (\k -> if k == old then new else k)
                   $ rename old new (type_env s)
@@ -156,8 +159,9 @@ renameState old new_seed s b =
              , rules = rules s
              , num_steps = num_steps s
              , track = rename old new (track s)
+             , name_gen = ng'
              , tags = tags s }
-        , b { name_gen = ng'})
+
 
 instance Named t => Named (State t) where
     names s = names (expr_env s)
@@ -190,6 +194,7 @@ instance Named t => Named (State t) where
                , rules = rules s
                , num_steps = num_steps s
                , track = rename old new (track s)
+               , name_gen = name_gen s
                , tags = tags s }
 
     renames hm s =
@@ -210,6 +215,7 @@ instance Named t => Named (State t) where
                , rules = rules s
                , num_steps = num_steps s
                , track = renames hm (track s)
+               , name_gen = name_gen s
                , tags = tags s }
 
 instance ASTContainer t Expr => ASTContainer (State t) Expr where
@@ -268,7 +274,7 @@ instance Named Bindings where
                  , func_table = rename old new (func_table b)
                  , apply_types = rename old new (apply_types b)
                  , input_names = rename old new (input_names b)
-                 , name_gen = name_gen b
+                 -- , name_gen = name_gen b
                  }
 
     renames hm b =
@@ -279,7 +285,7 @@ instance Named Bindings where
                , func_table = renames hm (func_table b)
                , apply_types = renames hm (apply_types b)
                , input_names = renames hm (input_names b)
-               , name_gen = name_gen b
+               -- , name_gen = name_gen b
                }
 
 instance ASTContainer Bindings Expr where
