@@ -95,7 +95,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
 
     let (lh_state, lh_bindings) = createLHState meenv mkv ng_state ng_bindings
 
-    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH ghci_cg ifi bindings'') lh_state lh_bindings
+    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH ghci_cg ifi lh_bindings) lh_state lh_bindings
 
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
