@@ -83,15 +83,11 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     let cleaned_state = init_state' { type_env = type_env init_state } 
 
     let no_part_state@(State {expr_env = np_eenv, name_gen = np_ng}) = cleaned_state
-    -- let (no_part_state@(State {expr_env = np_eenv})) = cleaned_state
-    -- let np_ng = name_gen bindings'
 
     let renme = E.keys np_eenv -- \\ nub (Lang.names (type_classes no_part_state))
     let ((meenv, mkv, mtc, mat), ng') = doRenames renme np_ng 
             (np_eenv, known_values no_part_state, type_classes no_part_state, apply_types bindings')
     
-    -- let ng_bindings = bindings' {name_gen = ng'}
-
     let ng_state = no_part_state {name_gen = ng', track = []}
 
     let (lh_state, lh_bindings) = createLHState meenv mkv ng_state bindings'

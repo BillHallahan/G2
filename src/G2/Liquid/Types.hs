@@ -149,7 +149,6 @@ instance ExState (LHState, L.Bindings) LHStateM where
     putTypeEnv = rep_type_envM
 
     nameGen = readRecord $ name_gen . fst
-    -- nameGen = readRecord $ L.name_gen . snd
     putNameGen = rep_name_genM
 
     knownValues = readRecord $ known_values . fst
@@ -206,8 +205,6 @@ rep_name_genM ng = do
     let s = state lh_s
     let s' = s {L.name_gen = ng}
     SM.put $ (lh_s {state = s'}, b)
-    -- let b' = b {L.name_gen = ng}
-    -- SM.put $ (lh_s {state = s}, b')
 
 known_values :: LHState -> L.KnownValues
 known_values = liftState L.known_values
