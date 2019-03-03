@@ -151,8 +151,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , func_table = ft
     , apply_types = at
     , input_names = map idName is })
-    -- , name_gen = ng''})
-
+    
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc
                           -> ModuleName

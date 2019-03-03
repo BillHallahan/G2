@@ -62,7 +62,6 @@ instance ExState (State t, Bindings) (StateM t) where
     putTypeEnv = rep_type_envM
 
     nameGen = readRecord (\(s, _) -> name_gen s)
-    -- nameGen = readRecord (\(_, b) -> name_gen b)
     putNameGen = rep_name_genM
 
     knownValues = readRecord (\(s, _) -> known_values s)
@@ -105,7 +104,6 @@ rep_name_genM :: NameGen -> StateM t ()
 rep_name_genM ng = do
     (s,b) <- SM.get
     SM.put $ (s {name_gen = ng}, b)
-    -- SM.put $ (s, b {name_gen = ng})
 
 rep_known_valuesM :: KnownValues -> StateM t ()
 rep_known_valuesM kv = do

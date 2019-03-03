@@ -48,8 +48,7 @@ allowedName (Name n m _ _) =
 -- the more general cleanNames'.
 
 cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> Bindings -> (State t, Bindings)
--- cleanNames s b@Bindings {name_gen = ng} = (renames hns s, b {name_gen = ng'})
-cleanNames s@(State { name_gen = ng}) b = (renames hns (s {name_gen = ng'}), b)
+cleanNames s@(State { name_gen = ng}) b = (renames hns (s {name_gen = ng}), b)
   where
     (ns, ng') = createNamePairs ng . filter (not . allowedName) $ allNames s
     hns = HM.fromList ns

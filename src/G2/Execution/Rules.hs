@@ -32,11 +32,9 @@ import Data.Maybe
 
 stdReduce :: Solver solver => solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce solver s@(State {name_gen = ng}) b = do
--- stdReduce solver s b@(Bindings {name_gen = ng}) = do
     (r, s', ng') <- stdReduce' solver s ng
     let s'' = map (\ss -> ss { rules = r:rules ss, name_gen = ng' }) s'
     return (r, zip s'' (repeat ()), b)
-    -- return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
 stdReduce' :: Solver solver => solver -> State t -> NameGen -> IO (Rule, [State t], NameGen)
 stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
