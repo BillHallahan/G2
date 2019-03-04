@@ -35,12 +35,14 @@ mkConfigDef :: Config
 mkConfigDef = mkConfig [] M.empty
 
 mapLib :: String
-mapLib = "../base-4.9.1.0/Data/Internal/Map.hs"
+mapLib = "./base-4.9.1.0/Data/Internal/Map.hs"
 
 mkConfig :: [String] -> M.Map String [String] -> Config
 mkConfig as m = Config {
       mode = Regular
-    , base = strArgs "base" as m id []
+    , base = strArgs "base" as m id [ "./base-4.9.1.0/Control/Exception/Base.hs"
+                                    , "./base-4.9.1.0/Prelude.hs"
+                                    , "./base-4.9.1.0/Data/Internal/Map.hs" ]
     , logStates = strArg "log-states" as m Just Nothing
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
