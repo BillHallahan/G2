@@ -1,6 +1,7 @@
 language: haskell
 
 before_install:
+  - sudo apt-get update
   - sudo apt-get install -y z3
 
 ghc:
