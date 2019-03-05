@@ -14,3 +14,6 @@ before_install:
   - z3 --version
 ghc:
   - "8.2.2"
+
+script:
+  - cabal configure --enable-tests && cabal build && travis_wait 15 cabal test
