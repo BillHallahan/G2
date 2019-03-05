@@ -55,10 +55,10 @@ tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
         -- , liquidTests
-        -- , testFileTests
+        , testFileTests
         -- , baseTests
         -- , primTests
-        -- , exprTests
+        , exprTests
         , typingTests
         ]
 
