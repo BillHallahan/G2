@@ -57,7 +57,7 @@ tests = return . testGroup "Tests"
         -- , liquidTests
         , testFileTests
         , baseTests
-        , primTests
+        -- , primTests
         , exprTests
         , typingTests
         ]
