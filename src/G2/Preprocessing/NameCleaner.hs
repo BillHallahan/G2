@@ -47,11 +47,15 @@ allowedName (Name n m _ _) =
 -- in the SMT formulas.  For this reason, cleanNames is not defined in terms of
 -- the more general cleanNames'.
 
-cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> Bindings -> (State t, Bindings)
-cleanNames s b@Bindings {name_gen = ng} = (renames hns s, b {name_gen = ng'})
+-- cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> Bindings -> (State t, Bindings)
+-- cleanNames s b@Bindings {name_gen = ng} = (renames hns s, b {name_gen = ng'})
+cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> CleanedNames -> NameGen -> (State t, CleanedNames, NameGen)
+cleanNames s cl_names ng = (renames hns s, cl_names', ng')
   where
     (ns, ng') = createNamePairs ng . filter (not . allowedName) $ allNames s
     hns = HM.fromList ns
+    cl_names' = foldr (\(old, new) -> HM.insert new old) cl_names (HM.toList hns)
+
 
 cleanNames' :: Named n => NameGen -> n -> (n, NameGen)
 cleanNames' ng n = (renames hns n, ng')
