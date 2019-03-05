@@ -16,4 +16,6 @@ ghc:
   - "8.2.2"
 
 script:
-  - cabal configure --enable-tests && cabal build && travis_wait 15 cabal test
+  - cabal configure --enable-tests
+  - cabal build
+  - travis_wait 20 cabal test
