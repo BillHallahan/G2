@@ -54,11 +54,11 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
-        , liquidTests
-        , testFileTests
-        , baseTests
-        , primTests
-        , exprTests
+        -- , liquidTests
+        -- , testFileTests
+        -- , baseTests
+        -- , primTests
+        -- , exprTests
         , typingTests
         ]
 
