@@ -31,6 +31,7 @@ module G2.Language.ExprEnv
     , filter
     , filterWithKey
     , filterToSymbolic
+    , getIdFromName
     , funcsOfType
     , keys
     , symbolicKeys
@@ -265,6 +266,12 @@ fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
 
 toExprMap :: ExprEnv -> M.Map Name Expr
 toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
+
+getIdFromName :: ExprEnv -> Name -> Maybe Id
+getIdFromName eenv name = 
+    case (lookup name eenv) of 
+        Just (Var i) -> Just i       
+        _ -> Nothing
 
 -- Symbolic objects will be returned by calls to eval functions, however
 -- calling AST modify functions on the expressions in an ExprEnv will have

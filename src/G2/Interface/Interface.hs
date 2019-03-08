@@ -316,25 +316,25 @@ runG2 red hal ord con pns (is@State { type_env = tenv
 
     let (preproc_state, bindings'') = runPreprocessing swept bindings'
 
-    exec_states <- runExecution red hal ord preproc_state bindings''
+    (exec_states, bindings''') <- runExecution red hal ord preproc_state bindings''
 
     let ident_states = filter true_assert exec_states
 
     ident_states' <- 
         mapM (\s -> do
-            (_, m) <- solve con s bindings'' (symbolic_ids s) (path_conds s)
+            (_, m) <- solve con s bindings''' (symbolic_ids s) (path_conds s)
             return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states
 
     let ident_states'' = catMaybes ident_states'
 
     let sm = map (\s -> 
-              let (es, e, ais) = subModel s bindings'' in
+              let (es, e, ais) = subModel s bindings''' in
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
                         , violated = ais
-                        , exec_bindings = bindings''}) $ ident_states''
+                        , exec_bindings = bindings'''}) $ ident_states''
 
     let sm' = map (\sm''@(ExecRes {final_state = s
                                   , exec_bindings = b}) -> 

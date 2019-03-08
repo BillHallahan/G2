@@ -27,15 +27,9 @@ subModel (State { expr_env = eenv
           (Bindings {input_names = inputNames}) = 
     let
         ais' = fmap (subVarFuncCall m eenv tc) ais
-        is = catMaybes (map (getIdFromName eenv) inputNames)
+        is = catMaybes (map (E.getIdFromName eenv) inputNames)
     in
     filterTC tc $ subVar m eenv tc (map Var is, cexpr, ais')
-
-getIdFromName :: E.ExprEnv -> Name -> Maybe Id
-getIdFromName eenv name = 
-    case (E.lookup name eenv) of 
-        Just (Var i) -> Just i       
-        _ -> Nothing
 
 subVarFuncCall :: Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =

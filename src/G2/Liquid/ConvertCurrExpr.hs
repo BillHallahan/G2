@@ -101,12 +101,6 @@ letLiftFuncs' e
         return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
 
-getIdFromName' :: E.ExprEnv -> Name -> Maybe Id
-getIdFromName' eenv name = 
-    case (E.lookup name eenv) of 
-        Just (Var i) -> Just i       
-        _ -> Nothing
-
 -- We add an assumption about the inputs to the current expression
 -- This prevents us from finding a violation of the output refinement type
 -- that requires a violation of the input refinement type
@@ -121,7 +115,7 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
 
     lh <- mapM (lhTCDict' M.empty) $ mapMaybe typeType fi
 
-    let is = catMaybes (map (getIdFromName' eenv) inames)   
+    let is = catMaybes (map (E.getIdFromName eenv) inames)   
     let (typs, ars) = span isType $ fi ++ map Var is
 
     case assumpt of
