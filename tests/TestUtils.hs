@@ -11,8 +11,8 @@ import G2.Language
 mkConfigTest :: Config
 mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs
                            , timeLimit = 50
-                           , base = [ "../base-4.9.1.0/Control/Exception/Base.hs"
-                                    , "../base-4.9.1.0/Prelude.hs" ] } 
+                           , base = [ "./base-4.9.1.0/Control/Exception/Base.hs"
+                                    , "./base-4.9.1.0/Prelude.hs" ] } 
 
 mkConfigTestWithMap :: Config
 mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ [mapLib]}
