@@ -529,16 +529,6 @@ runReducer red hal ord s b = do
     states' <- mapM (\ExState {state = st} -> return st) states
     return (states', b')
 
--- runReducer red hal ord s b =
---    let
---        pr = Processed {accepted = [], discarded = []}
---        s' = ExState { state = s
---                     , reducer_val = initReducer red s
---                     , halter_val = initHalt hal s
---                     , order_val = initPerStateOrder ord s }
---    in
---    mapM (\ExState {state = st} -> return st) =<< runReducer' red hal ord pr s' b M.empty 
-
 runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
             => r 
             -> h 
