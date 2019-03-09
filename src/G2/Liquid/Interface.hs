@@ -57,7 +57,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO ([ExecRes [FuncCall]], Lang.Id)
+findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
 findCounterExamples proj fp entry libs lhlibs config = do
     let config' = config { mode = Liquid }
 
@@ -76,7 +76,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
                     -> [LHOutput]
                     -> Config
-                    -> IO ([ExecRes [FuncCall]], Lang.Id)
+                    -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
 runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     let (init_state, ifi, bindings) = initState prog tys cls Nothing Nothing True entry mb_modname ex config
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state bindings) init_state bindings)
@@ -117,7 +117,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
     -- for the LH typeclass.
     let final_st = track_state { known_values = mkv
                                , type_classes = unionTypeClasses mtc (type_classes track_state)}
-    let final_bindings = bindings'' { apply_types = mat}
+    let bindings''' = bindings'' { apply_types = mat}
 
 
     let tr_ng = mkNameGen ()
@@ -125,7 +125,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
 
     let (limHalt, limOrd) = limitByAccepted (cut_off config)
 
-    ret <- if higherOrderSolver config == AllFuncs
+    (ret, final_bindings) <- if higherOrderSolver config == AllFuncs
               then runG2WithSomes
                     (SomeReducer NonRedPCRed
                       <~| (case logStates config of
@@ -139,7 +139,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st final_bindings 
+                    con (pres_names ++ names annm) final_st bindings''' 
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -154,7 +154,7 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st final_bindings
+                    con (pres_names ++ names annm) final_st bindings'''
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -162,23 +162,21 @@ runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
                   _ -> minimum $ map (\(ExecRes {final_state = s}) -> length $ abstract_calls $ track s) ret
     let ret' = filter (\(ExecRes {final_state = s}) -> mi == (length $ abstract_calls $ track s)) ret
 
-    let states = map (\(ExecRes { final_state = s
+    let exec_res = map (\(ExecRes { final_state = s
                                 , conc_args = es
                                 , conc_out = e
-                                , violated = ais
-                                , exec_bindings = b}) ->
+                                , violated = ais}) ->
                           (ExecRes { final_state = s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}
                                    , conc_args = es
                                    , conc_out = e
-                                   , violated = ais
-                                   , exec_bindings = b})) ret'
+                                   , violated = ais})) ret'
 
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
     -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
 
     close con
 
-    return (states, ifi)
+    return ((exec_res, final_bindings), ifi)
 
 initializeLH :: [LHOutput] -> Lang.Id -> Bindings -> LHStateM Lang.Name
 initializeLH ghci_cg ifi bindings = do
@@ -278,8 +276,8 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: Lang.Id -> [ExecRes [FuncCall]] -> IO ()
-printLHOut entry = printParsedLHOut . parseLHOut entry
+printLHOut :: Lang.Id -> Bindings -> [ExecRes [FuncCall]] -> IO ()
+printLHOut entry b = printParsedLHOut . parseLHOut entry b
 
 printParsedLHOut :: [LHReturn] -> IO ()
 printParsedLHOut [] = return ()
@@ -325,15 +323,14 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: Lang.Id -> [ExecRes [FuncCall]] -> [LHReturn]
-parseLHOut _ [] = []
-parseLHOut entry ((ExecRes { final_state = s
+parseLHOut :: Lang.Id -> Bindings -> [ExecRes [FuncCall]] -> [LHReturn]
+parseLHOut _ _ [] = []
+parseLHOut entry b ((ExecRes { final_state = s
                            , conc_args = inArg
                            , conc_out = ex
-                           , violated = ais
-                           , exec_bindings = b}):xs) =
+                           , violated = ais}):xs) =
   let 
-      tl = parseLHOut entry xs
+      tl = parseLHOut entry b xs
       funcCall = T.pack $ mkCleanExprHaskell s b 
                . foldl (\a a' -> App a a') (Var entry) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell s b $ ex

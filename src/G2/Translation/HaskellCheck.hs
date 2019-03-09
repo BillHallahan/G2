@@ -21,13 +21,13 @@ import Control.Exception
 
 import System.Process
 
-validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
-validateStates proj src modN entry chAll ghflags in_out = do
-    return . all id =<< mapM (runCheck proj src modN entry chAll ghflags) in_out
+validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> Bindings -> [ExecRes t] -> IO Bool
+validateStates proj src modN entry chAll ghflags binds in_out = do
+    return . all id =<< mapM (runCheck proj src modN entry chAll ghflags binds) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> IO Bool
-runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args = ars, conc_out = out, exec_bindings = binds}) = do
+runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> Bindings -> ExecRes t -> IO Bool
+runCheck proj src modN entry chAll gflags binds (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s binds ars out)
 
     v' <- unsafeCoerce v :: IO (Either SomeException Bool)

@@ -50,8 +50,8 @@ runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> 
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   _ <- doTimeout (timeLimit config) $ do
-    (in_out, entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
-    printLHOut entry in_out
+    ((in_out, b), entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
+    printLHOut entry b in_out
   return ()
 
 runWithArgs :: [String] -> IO ()
@@ -73,7 +73,7 @@ runWithArgs as = do
 
   config <- getConfig as
   _ <- doTimeout (timeLimit config) $ do
-    (in_out, entry_f@(Id (Name _ mb_modname _ _) _)) <-
+    ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
         runG2FromFile proj src libs (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
@@ -87,19 +87,19 @@ runWithArgs as = do
 
     case validate config of
         True -> do
-            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
+            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
         False -> return ()
 
-    printFuncCalls config entry_f in_out
+    printFuncCalls config entry_f b in_out
 
   return ()
 
-printFuncCalls :: Config -> Id -> [ExecRes t] -> IO ()
-printFuncCalls config entry =
-    mapM_ (\execr@(ExecRes { final_state = s, exec_bindings = b }) -> do
+printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
+printFuncCalls config entry b =
+    mapM_ (\execr@(ExecRes { final_state = s}) -> do
         let funcCall = mkCleanExprHaskell s b
                      . foldl (\a a' -> App a a') (Var entry) $ (conc_args execr)
 

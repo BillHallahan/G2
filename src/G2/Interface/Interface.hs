@@ -260,7 +260,7 @@ runG2FromFile :: FilePath
               -> Bool
               -> StartFunc
               -> Config
-              -> IO ([ExecRes ()], Id)
+              -> IO (([ExecRes ()], Bindings), Id)
 runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
     (init_state, entry_f, bindings) <- initialStateFromFile proj src libs m_assume
                                     m_assert m_reach def_assert f config
@@ -269,17 +269,17 @@ runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
 
     return (r, entry_f)
 
-runG2WithConfig :: State () -> Config -> Bindings -> IO [ExecRes ()]
+runG2WithConfig :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig state config bindings = do
     SomeSolver con <- initSolver config
 
-    in_out <- case initRedHaltOrd con config of
+    (in_out, bindings') <- case initRedHaltOrd con config of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord con [] state bindings
 
     close con
 
-    return in_out
+    return (in_out, bindings')
 
 runG2WithSomes :: ( Named t
                   , ASTContainer t Expr
@@ -292,7 +292,7 @@ runG2WithSomes :: ( Named t
                -> [Name]
                -> State t
                -> Bindings
-               -> IO [ExecRes t]
+               -> IO ([ExecRes t], Bindings)
 runG2WithSomes red hal ord con pns state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
@@ -307,7 +307,7 @@ runG2 :: ( Named t
          , Halter h hv t
          , Orderer or sov b t
          , Solver solver) => r -> h -> or ->
-         solver -> [Name] -> State t -> Bindings -> IO [ExecRes t]
+         solver -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord con pns (is@State { type_env = tenv
                                     , known_values = kv
                                     , type_classes = tc }) 
@@ -333,22 +333,18 @@ runG2 red hal ord con pns (is@State { type_env = tenv
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
-                        , violated = ais
-                        , exec_bindings = bindings'''}) $ ident_states''
+                        , violated = ais}) $ ident_states''
 
-    let sm' = map (\sm''@(ExecRes {final_state = s
-                                  , exec_bindings = b}) -> 
-                                   runPostprocessing s b sm'') sm
+    let sm' = map (\sm''@(ExecRes {final_state = s}) -> 
+                                   runPostprocessing s bindings''' sm'') sm
 
     let sm'' = map (\ExecRes { final_state = s
                              , conc_args = es
                              , conc_out = e
-                             , violated = ais
-                             , exec_bindings = b} ->
+                             , violated = ais} ->
                                   ExecRes { final_state = s
-                                          , conc_args = fixed_inputs b ++ es
+                                          , conc_args = fixed_inputs bindings''' ++ es
                                           , conc_out = evalPrims kv tenv e
-                                          , violated = evalPrims kv tenv ais
-                                          , exec_bindings = b}) sm'
+                                          , violated = evalPrims kv tenv ais}) sm'
 
-    return sm''
+    return (sm'', bindings''')
