@@ -20,7 +20,6 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
                                        , curr_expr = cexpr
                                        , path_conds = pc
                                        , symbolic_ids = iids
-                                       -- , deepseq_walkers = dsw
                                        , exec_stack = es
                                        , known_values = kv
                                        }) (bindings@Bindings {deepseq_walkers = dsw}) = -- error $ show $ length $ take 20 $ PC.toList path_conds
@@ -28,7 +27,6 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
   where
     state' = state { expr_env = eenv'
                    , type_env = tenv'
-                   --, deepseq_walkers = dsw'
                    }
     bindings' = bindings { deepseq_walkers = dsw'}
 

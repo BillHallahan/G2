@@ -517,7 +517,7 @@ testFileWithConfig :: String
 testFileWithConfig proj src m_assume m_assert m_reaches entry config = do
     r <- doTimeout (timeLimit config) $ runG2FromFile proj src [] (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) config
 
-    let (states, b) = maybe (error "Timeout") fst r
+    let (states, _) = maybe (error "Timeout") fst r
     return $ map (\(ExecRes { conc_args = i, conc_out = o}) -> (i, o)) states 
 
 checkLiquidWithNoCutOff :: FilePath -> FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree

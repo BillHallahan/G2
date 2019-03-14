@@ -7,6 +7,7 @@ module G2.Execution.Interface
 
 import G2.Execution.Reducer
 import G2.Execution.Rules
+import G2.Execution.StateMerging
 import G2.Language.Support
 
 {-# INLINE runExecution #-}

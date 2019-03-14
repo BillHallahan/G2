@@ -135,6 +135,9 @@ data Frame = CaseFrame Id [Alt]
 -- typically produced by a solver. 
 type Model = M.Map Name Expr
 
+isEmpty :: Model -> Bool
+isEmpty m = M.null m
+
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
 renameState old new_seed s b =
