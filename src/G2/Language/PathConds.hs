@@ -6,7 +6,8 @@
 module G2.Language.PathConds ( PathCond (..)
                                        , Constraint
                                        , Assertion
-                                       , PathConds
+                                       , PathConds(..)
+                                       , toMap
                                        , empty
                                        , fromList
                                        , map
@@ -58,6 +59,7 @@ data PathCond = AltCond AltMatch Expr Bool -- ^ The expression and alt must matc
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
               | PCExists Id -- ^ Makes sure we find some value for the given name, of the correct type
+              | AssumePC Expr PathCond -- The expression must be (true) boolean
               deriving (Show, Eq, Read, Generic)
 
 type Constraint = PathCond
@@ -168,6 +170,7 @@ varIdsInPC _ (AltCond a e _) = varIdsInAltMatch a ++ varIds e
 varIdsInPC _ (ExtCond e _) = varIds e
 varIdsInPC _ (ConsCond _ e _) = varIds e
 varIdsInPC _ (PCExists _) = []
+varIdsInPC kv (AssumePC _ pc) = varIdsInPC kv pc
 
 varIdsInAltMatch :: AltMatch -> [Id]
 varIdsInAltMatch (DataAlt _ i) = i
@@ -215,12 +218,14 @@ instance ASTContainer PathCond Expr where
     containedASTs (AltCond _ e _) = [e]
     containedASTs (ConsCond _ e _) = [e]
     containedASTs (PCExists _) = []
+    containedASTs (AssumePC _ pc) = containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
     modifyContainedASTs f (AltCond a e b) =
         AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
     modifyContainedASTs f (ConsCond dc e b) =
         ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
+    modifyContainedASTs f (AssumePC expr pc) = AssumePC expr (modifyContainedASTs f pc)
     modifyContainedASTs _ pc = pc
 
 instance ASTContainer PathCond Type where
@@ -228,6 +233,7 @@ instance ASTContainer PathCond Type where
     containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
     containedASTs (ConsCond dcl e _) = containedASTs dcl ++ containedASTs e
     containedASTs (PCExists i) = containedASTs i
+    containedASTs (AssumePC e pc) = containedASTs e ++ containedASTs pc -- todo: check
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
       where e' = modifyContainedASTs f e
@@ -237,6 +243,7 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (ConsCond dc e b) =
         ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
     modifyContainedASTs f (PCExists i) = PCExists (modifyContainedASTs f i)
+    modifyContainedASTs f (AssumePC expr pc) = AssumePC expr (modifyContainedASTs f pc)
 
 instance Named PathConds where
     names (PathConds pc) = (catMaybes $ M.keys pc) ++ concatMap (\(p, n) -> names p ++ n) pc
@@ -254,16 +261,19 @@ instance Named PathCond where
     names (ExtCond e _) = names e
     names (ConsCond d e _) = names d ++  names e
     names (PCExists i) = names i
+    names (AssumePC _ pc) = names pc
 
     rename old new (AltCond am e b) = AltCond (rename old new am) (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
     rename old new (ConsCond d e b) = ConsCond (rename old new d) (rename old new e) b
     rename old new (PCExists i) = PCExists (rename old new i)
+    rename old new (AssumePC expr pc) = AssumePC (rename old new expr) (rename old new pc)
 
     renames hm (AltCond am e b) = AltCond (renames hm am) (renames hm e) b
     renames hm (ExtCond e b) = ExtCond (renames hm e) b
     renames hm (ConsCond d e b) = ConsCond (renames hm d) (renames hm e) b
     renames hm (PCExists i) = PCExists (renames hm i)
+    renames hm (AssumePC expr pc) = AssumePC (renames hm expr) (renames hm pc)
 
 instance Ided PathConds where
     ids = ids . toMap
@@ -273,3 +283,4 @@ instance Ided PathCond where
     ids (ExtCond e _) = ids e
     ids (ConsCond d e _) = ids d ++  ids e
     ids (PCExists i) = [i]
+    ids (AssumePC e pc) = ids e ++ ids pc

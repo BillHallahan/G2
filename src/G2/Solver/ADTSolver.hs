@@ -172,6 +172,7 @@ pcInCastType (AltCond _ e _) = typeInCasts e
 pcInCastType (ExtCond e _) = typeInCasts e
 pcInCastType (ConsCond _ e _) = typeInCasts e
 pcInCastType (PCExists (Id _ t)) = t
+pcInCastType (AssumePC _ pc) = pcInCastType pc
 
 castReturnType :: Type -> Expr -> Expr
 castReturnType t e =

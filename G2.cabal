@@ -27,6 +27,7 @@ library
                        , G2.Execution.Reducer
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
+                       , G2.Execution.StateMerging
 
                        , G2.Initialization.Interface
                        , G2.Initialization.DeepSeqWalks

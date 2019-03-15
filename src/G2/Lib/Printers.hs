@@ -243,6 +243,8 @@ ppPathCond s binds (ConsCond dc e b) =
     in
     if b then es ++ " is " ++ dcs else es ++ " is not " ++ dcs
 ppPathCond _ _ (PCExists i) = "Exists " ++ mkIdHaskell i
+ppPathCond s binds (AssumePC expr pc) = "if " ++ (mkUnsugaredExprHaskell s binds expr) ++ " then (" ++ (ppPathCond s binds pc) ++ ")"
+
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs
@@ -375,6 +377,7 @@ pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
     b_str = show b
     acc_strs = [d_str, expr_str, b_str]
 pprPathCondStr (PCExists p) = show p
+pprPathCondStr (AssumePC _ pc) = pprPathCondStr pc 
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList
