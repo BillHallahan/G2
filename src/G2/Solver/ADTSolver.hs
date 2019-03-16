@@ -157,6 +157,7 @@ isExtCond _ = False
 pcVarType :: [PathCond] -> Maybe Type
 pcVarType (AltCond _ (Var (Id _ t)) _:pc) = pcVarType' t pc
 pcVarType (ConsCond _ (Var (Id _ t)) _:pc) = pcVarType' t pc
+pcVarType (AssumePC _ pc : pc_rem) = pcVarType (pc:pc_rem)
 pcVarType _ = Nothing
 
 pcVarType' :: Type -> [PathCond] -> Maybe Type
@@ -164,6 +165,10 @@ pcVarType' t (AltCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t pc else Nothing
 pcVarType' t (ConsCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t pc else Nothing
+pcVarType' t (AssumePC _ pc: pc_rem) = 
+    case pcVarType [pc] of
+        (Just t') -> if (t == t') then pcVarType' t pc_rem else Nothing
+        Nothing -> Nothing
 pcVarType' n [] = Just n
 pcVarType' _ _ = Nothing
 

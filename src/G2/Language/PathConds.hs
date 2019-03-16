@@ -225,7 +225,7 @@ instance ASTContainer PathCond Expr where
         AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
     modifyContainedASTs f (ConsCond dc e b) =
         ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
-    modifyContainedASTs f (AssumePC expr pc) = AssumePC expr (modifyContainedASTs f pc)
+    modifyContainedASTs f (AssumePC expr pc) = AssumePC (modifyContainedASTs f expr) (modifyContainedASTs f pc)
     modifyContainedASTs _ pc = pc
 
 instance ASTContainer PathCond Type where
@@ -233,7 +233,7 @@ instance ASTContainer PathCond Type where
     containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
     containedASTs (ConsCond dcl e _) = containedASTs dcl ++ containedASTs e
     containedASTs (PCExists i) = containedASTs i
-    containedASTs (AssumePC e pc) = containedASTs e ++ containedASTs pc -- todo: check
+    containedASTs (AssumePC e pc) = containedASTs e ++ containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
       where e' = modifyContainedASTs f e
@@ -243,7 +243,7 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (ConsCond dc e b) =
         ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
     modifyContainedASTs f (PCExists i) = PCExists (modifyContainedASTs f i)
-    modifyContainedASTs f (AssumePC expr pc) = AssumePC expr (modifyContainedASTs f pc)
+    modifyContainedASTs f (AssumePC expr pc) = AssumePC (modifyContainedASTs f expr) (modifyContainedASTs f pc)
 
 instance Named PathConds where
     names (PathConds pc) = (catMaybes $ M.keys pc) ++ concatMap (\(p, n) -> names p ++ n) pc
@@ -261,7 +261,7 @@ instance Named PathCond where
     names (ExtCond e _) = names e
     names (ConsCond d e _) = names d ++  names e
     names (PCExists i) = names i
-    names (AssumePC _ pc) = names pc
+    names (AssumePC e pc) = names e ++ names pc
 
     rename old new (AltCond am e b) = AltCond (rename old new am) (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b

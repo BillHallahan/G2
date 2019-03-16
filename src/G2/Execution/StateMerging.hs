@@ -16,6 +16,7 @@ import qualified Data.List as L
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
     (exec_stack s1 == exec_stack s2)
+    && (checkCurrExpr (curr_expr s1) (curr_expr s2))
     && (type_env s1 == type_env s2)
     && (known_values s1 == known_values s2)
     && (non_red_path_conds s1 == non_red_path_conds s2)
@@ -54,10 +55,20 @@ mergeState ngen s1 s2 =
                              , tags = tags s1 }))
         else (ngen, Nothing)
 
+checkCurrExpr :: CurrExpr -> CurrExpr -> Bool
+checkCurrExpr (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = checkExpr ce1 ce2
+checkCurrExpr _ _ = False
+
+-- Returns True if both Exprs are of the form (App ... (Data DataCon) ....) and contain the same Data Constructor
+checkExpr :: Expr -> Expr -> Bool
+checkExpr (App e1 _) (App e1' _) = checkExpr e1 e1' 
+checkExpr (Data dc1) (Data dc2) = dc1 == dc2
+checkExpr _ _ = False
+
 mergeCurrExpr :: KnownValues -> Id -> CurrExpr -> CurrExpr -> CurrExpr
 mergeCurrExpr kv newId (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = (CurrExpr Evaluate mergedExpr)
     where mergedExpr = mergeExpr kv newId ce1 ce2
-mergeCurrExpr _ _ ce1 _  =  ce1
+mergeCurrExpr _ _ _ _  =  error $ "curr_expr is of an invalid form"
 
 -- Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
 -- "D NonDet[(Assume (x == 1) in e_1), (Assume (x == 2) in e_1')],..., NonDet[(Assume (x == 1) in e_n), (Assume (x == 2) in e_n')]" 
@@ -65,25 +76,12 @@ mergeExpr :: KnownValues -> Id -> Expr -> Expr -> Expr
 mergeExpr _ _ (Data dc1) (Data _) = Data dc1
 mergeExpr kv newId (App e1 e2) (App e1' e2') = 
     App (mergeExpr kv newId e1 e1') (NonDet [Assume Nothing (createEqExpr kv newId 1) e2, Assume Nothing (createEqExpr kv newId 2) e2'])
-mergeExpr _ _ e1 _ = e1 -- todo
+mergeExpr _ _ _ _ = error $ "Expr is of an invalid form"
 
 -- Returns an Expr equivalent to "x == val", where x is a Var created from the given Id
 createEqExpr :: KnownValues -> Id -> Integer -> Expr
 createEqExpr kv newId val = App (App eq (Var newId)) (Lit (LitInt val)) 
     where eq = mkEqPrimInt kv
-
--- For example (todo: delete):
--- (... (App (App (Data (DataCon Name Type)) 
---           (NonDet [
---              (Assume Nothing (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "x" Nothing 1234 Nothing) TyLitInt))) (Lit (LitInt 1))) Expr1), 
---              (Assume Nothing (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "x" Nothing 1234 Nothing) TyLitInt))) (Lit (LitInt 2))) Expr1')
---           ])) 
---      (NonDet [
---          (Assume Nothing (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "x" Nothing 1234 Nothing) TyLitInt))) (Lit (LitInt 1))) Expr2), 
---          (Assume Nothing (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "x" Nothing 1234 Nothing) TyLitInt))) (Lit (LitInt 1))) Expr2')
---          ])
---      ) 
---  ... )
 
 -- Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
 mergeExprEnv :: KnownValues -> Id -> E.ExprEnv -> E.ExprEnv -> E.ExprEnv
@@ -101,30 +99,12 @@ mergeEnvObj kv newId val1@(E.ExprObj expr1) (E.ExprObj expr2) =
     if (expr1 == expr2)
         then val1
         else E.ExprObj (mergeExpr kv newId expr1 expr2)
-mergeEnvObj _ _ val1 _ = val1
-
--- (todo: delete comment)
--- for each name in pc1:
---      lookup name in pc2
---      if name in pc2:
---          merge both hashsets:
---             intersection of both 
---             + difference HashSet 1 HashSet 2
---                  where each elem is modified to: AssumePC (x == 1) pc
---             + difference HashSet 2 HashSet 1
---                  where each elem is modified to: AssumePC (x == 2) pc
---          merge names
---          delete name from pc2
---          add (merged HashSet, merged [Name]) new map
---      else:
---          add entry to new map
--- for each remaining name in pc2:
---      add to new map
+mergeEnvObj _ _ val1 _ = val1 -- In case of RedirObj or SymbObj, assumes both are equal
 
 mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
 mergePathConds kv newId pc1 pc2 = PC.PathConds (M.union pc2_map' pc1_map')
     -- If a key exists in both maps, then the respective values are combined and inserted into pc1_map'. 
-    -- Else, the value is added to pc1_map' as it is.
+    -- Else, all other values in pc1_map are added to pc1_map' as it is.
     -- pc2_map' will only contain values whose keys are not present in pc1_map
     where (pc2_map', pc1_map') = M.mapAccumWithKey (mergeMapEntries kv newId) pc2_map pc1_map 
           pc2_map = PC.toMap pc2
@@ -140,6 +120,8 @@ mergeMapEntries kv newId pc2_map key (hs1, ns1) =
             where pc2_map' = M.delete key pc2_map
         Nothing -> (pc2_map, (hs1, ns1))
 
+-- Any PathCond present in both HashSets is added as it is to the new HashSet.
+-- A PathCond present in only 1 HashSet is changed to the form 'AssumePC (x == _) PathCond' and added to the new HashSet
 mergeHashSets :: KnownValues -> Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond)
 mergeHashSets kv newId hs1 hs2 = HS.union (HS.union common hs1') hs2'
     where common = HS.intersection hs1 hs2
