@@ -323,7 +323,7 @@ pathConsToSMT (AssumePC e pc) =
     let
         exprSMT = exprToSMT e
     in case pathConsToSMT pc of
-        (Just pcSMT) -> Just $ exprSMT := pcSMT
+        (Just pcSMT) -> Just $ exprSMT :=> pcSMT
         Nothing -> Just $ exprSMT
 
 
