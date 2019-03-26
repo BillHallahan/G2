@@ -308,12 +308,16 @@ evalCase s@(State { expr_env = eenv
   -- by some previous case, we handle it by branching on every `Alt`, and adding
   -- path constraints.
   | isExprValueForm eenv mexpr
+--  , (Var _):_ <- unApp $ unsafeElimCast mexpr
   , dalts <- dataAlts alts
   , lalts <- litAlts alts
   , defs <- defaultAlts alts
   , (length dalts + length lalts + length defs) > 0 =
-      let
-          (dsts_cs, ng') = liftSymDataAlt s ng mexpr bind dalts
+      let 
+          (dsts_cs, ng') = case unApp $ unsafeElimCast mexpr of
+            (Var _):_ -> liftSymDataAlt s ng mexpr bind dalts
+            _ -> liftSymDataAltOld s ng mexpr bind dalts
+
           lsts_cs = liftSymLitAlt s mexpr bind lalts
           def_sts = liftSymDefAlt s mexpr bind alts
       in
@@ -383,7 +387,51 @@ liftSymDataAlt s ng mexpr cvar (x:xs) =
         (newPCs, ng'') = liftSymDataAlt s ng' mexpr cvar xs
 
 liftSymDataAlt' :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
-liftSymDataAlt' s@(State { expr_env = eenv })
+liftSymDataAlt' s@(State {expr_env = eenv})
+                ngen mexpr@(Var i) cvar (dcon, params, aexpr) = 
+          (newPCEmpty $ s { expr_env = eenv''
+                          , curr_expr = CurrExpr Evaluate aexpr''}, ngen')
+  where
+    -- Make sure that the parameters do not conflict in their symbolic reps.
+    olds = map idName params
+
+    -- [ChildrenNames]
+    -- Optimization
+    -- We use the same names repeatedly for the children of the same ADT
+    -- Haskell is purely functional, so this is OK!  The children can't change
+    -- Then, in the constraint solver, we can consider fewer constraints at once
+    -- (see note [AltCond] in Language/PathConds.hs) 
+    -- (news, ngen') = case exprInCasts mexpr of
+    --    (Var (Id n _)) -> childrenNames n olds ngen
+    --    _ -> freshSeededNames olds ngen
+    mexpr_n = idName i
+    (news, ngen') = childrenNames mexpr_n olds ngen
+
+    newparams = map (uncurry Id) $ zip news (map typeOf params)
+
+    --Update the expr environment
+    newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
+    eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
+
+    (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
+
+    -- concretizes the mexpr to have same form as the DataCon specified
+    eenv'' = E.insert mexpr_n dcon' eenv' 
+
+    -- Now do a round of rename for binding the cvar.
+    binds = [(cvar, mexpr)]
+    aexpr'' = liftCaseBinds binds aexpr'
+
+liftSymDataAltOld :: State t -> NameGen -> Expr -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], NameGen)
+liftSymDataAltOld _ ng _ _ [] = ([], ng)
+liftSymDataAltOld s ng mexpr cvar (x:xs) = 
+        (x':newPCs, ng'') 
+    where
+        (x', ng') = liftSymDataAltOld' s ng mexpr cvar x
+        (newPCs, ng'') = liftSymDataAltOld s ng' mexpr cvar xs
+
+liftSymDataAltOld' :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
+liftSymDataAltOld' s@(State { expr_env = eenv })
                 ngen mexpr cvar (dcon, params, aexpr) =
         (NewPC { state = res, new_pcs = [cond'] }, ngen')
   where
@@ -417,7 +465,7 @@ liftSymDataAlt' s@(State { expr_env = eenv })
     binds = [(cvar, mexpr)]
     aexpr'' = liftCaseBinds binds aexpr'
     res = s { expr_env = eenv'
-            , curr_expr = CurrExpr Evaluate aexpr''}
+    , curr_expr = CurrExpr Evaluate aexpr''}
 
 
 liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]

@@ -56,6 +56,7 @@ newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
 -- path. We can have path constraints enforced due to case/alt branching, due
 -- to assertion / assumptions made, or some externally coded factors.
 data PathCond = AltCond AltMatch Expr Bool -- ^ The expression and alt must match
+--data PathCond = AltCond Lit Expr Bool
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
               | PCExists Id -- ^ Makes sure we find some value for the given name, of the correct type
