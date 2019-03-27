@@ -314,7 +314,7 @@ evalCase s@(State { expr_env = eenv
   , (length dalts + length lalts + length defs) > 0 =
       let 
           (dsts_cs, ng') = case unApp $ unsafeElimCast mexpr of
-             (Var _):_ -> liftSymDataAlt s ng mexpr bind dalts
+             (Var i):_ -> concretizeVarExpr s ng i bind dalts
              _ -> liftSymDataAltOld s ng mexpr bind dalts
 
           lsts_cs = liftSymLitAlt s mexpr bind lalts
@@ -377,17 +377,17 @@ defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
-liftSymDataAlt :: State t -> NameGen -> Expr -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], NameGen)
-liftSymDataAlt _ ng _ _ [] = ([], ng)
-liftSymDataAlt s ng mexpr cvar (x:xs) = 
+concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], NameGen)
+concretizeVarExpr _ ng _ _ [] = ([], ng)
+concretizeVarExpr s ng mexpr_id cvar (x:xs) = 
         (x':newPCs, ng'') 
     where
-        (x', ng') = liftSymDataAlt' s ng mexpr cvar x
-        (newPCs, ng'') = liftSymDataAlt s ng' mexpr cvar xs
+        (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x
+        (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs
 
-liftSymDataAlt' :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
-liftSymDataAlt' s@(State {expr_env = eenv})
-                ngen mexpr@(Var i) cvar (dcon, params, aexpr) = 
+concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
+concretizeVarExpr' s@(State {expr_env = eenv})
+                ngen mexpr_id cvar (dcon, params, aexpr) = 
           (newPCEmpty $ s { expr_env = eenv''
                           , curr_expr = CurrExpr Evaluate aexpr''}, ngen')
   where
@@ -403,7 +403,7 @@ liftSymDataAlt' s@(State {expr_env = eenv})
     -- (news, ngen') = case exprInCasts mexpr of
     --    (Var (Id n _)) -> childrenNames n olds ngen
     --    _ -> freshSeededNames olds ngen
-    mexpr_n = idName i
+    mexpr_n = idName mexpr_id
     (news, ngen') = childrenNames mexpr_n olds ngen
 
     --Update the expr environment
@@ -422,7 +422,7 @@ liftSymDataAlt' s@(State {expr_env = eenv})
     eenv'' = E.insert mexpr_n dcon'' eenv' 
 
     -- Now do a round of rename for binding the cvar.
-    binds = [(cvar, mexpr)]
+    binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
 
 liftSymDataAltOld :: State t -> NameGen -> Expr -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], NameGen)
