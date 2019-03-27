@@ -308,15 +308,14 @@ evalCase s@(State { expr_env = eenv
   -- by some previous case, we handle it by branching on every `Alt`, and adding
   -- path constraints.
   | isExprValueForm eenv mexpr
---  , (Var _):_ <- unApp $ unsafeElimCast mexpr
   , dalts <- dataAlts alts
   , lalts <- litAlts alts
   , defs <- defaultAlts alts
   , (length dalts + length lalts + length defs) > 0 =
       let 
           (dsts_cs, ng') = case unApp $ unsafeElimCast mexpr of
-            (Var _):_ -> liftSymDataAlt s ng mexpr bind dalts
-            _ -> liftSymDataAltOld s ng mexpr bind dalts
+             (Var _):_ -> liftSymDataAlt s ng mexpr bind dalts
+             _ -> liftSymDataAltOld s ng mexpr bind dalts
 
           lsts_cs = liftSymLitAlt s mexpr bind lalts
           def_sts = liftSymDefAlt s mexpr bind alts
@@ -415,8 +414,12 @@ liftSymDataAlt' s@(State {expr_env = eenv})
 
     (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
+    dConArgs = map (Var) newparams
+    exprs = dcon' : dConArgs
+    dcon'' = mkApp exprs
+
     -- concretizes the mexpr to have same form as the DataCon specified
-    eenv'' = E.insert mexpr_n dcon' eenv' 
+    eenv'' = E.insert mexpr_n dcon'' eenv' 
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
