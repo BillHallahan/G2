@@ -406,14 +406,14 @@ liftSymDataAlt' s@(State {expr_env = eenv})
     mexpr_n = idName i
     (news, ngen') = childrenNames mexpr_n olds ngen
 
-    newparams = map (uncurry Id) $ zip news (map typeOf params)
-
     --Update the expr environment
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
     eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
 
     (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
+    newparams = map (uncurry Id) $ zip news (map typeOf params)
+    -- Apply DataCon children to DataCon
     dConArgs = map (Var) newparams
     exprs = dcon' : dConArgs
     dcon'' = mkApp exprs
