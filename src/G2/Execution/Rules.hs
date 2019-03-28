@@ -315,7 +315,8 @@ evalCase s@(State { expr_env = eenv
       let 
           (dsts_cs, ng') = case unApp $ unsafeElimCast mexpr of
              (Var i):_ -> concretizeVarExpr s ng i bind dalts
-             _ -> liftSymDataAltOld s ng mexpr bind dalts
+             (Prim _ _):_ -> createExtConds s ng mexpr bind dalts 
+             _ -> error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show dalts
 
           lsts_cs = liftSymLitAlt s mexpr bind lalts
           def_sts = liftSymDefAlt s mexpr bind alts
@@ -425,51 +426,37 @@ concretizeVarExpr' s@(State {expr_env = eenv})
     binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
 
-liftSymDataAltOld :: State t -> NameGen -> Expr -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], NameGen)
-liftSymDataAltOld _ ng _ _ [] = ([], ng)
-liftSymDataAltOld s ng mexpr cvar (x:xs) = 
+createExtConds :: State t -> NameGen -> Expr -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], NameGen)
+createExtConds _ ng _ _ [] = ([], ng)
+createExtConds s ng mexpr cvar (x:xs) = 
         (x':newPCs, ng'') 
     where
-        (x', ng') = liftSymDataAltOld' s ng mexpr cvar x
-        (newPCs, ng'') = liftSymDataAltOld s ng' mexpr cvar xs
+        (x', ng') = createExtCond s ng mexpr cvar x
+        (newPCs, ng'') = createExtConds s ng' mexpr cvar xs
 
-liftSymDataAltOld' :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
-liftSymDataAltOld' s@(State { expr_env = eenv })
-                ngen mexpr cvar (dcon, params, aexpr) =
-        (NewPC { state = res, new_pcs = [cond'] }, ngen')
+createExtCond :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
+createExtCond s ngen mexpr cvar (dcon, [], aexpr) =
+        (NewPC { state = res, new_pcs = [cond] }, ngen)
   where
-
-    -- Make sure that the parameters do not conflict in their symbolic reps.
-    olds = map idName params
-    -- [ChildrenNames]
-    -- Optimization
-    -- We use the same names repeatedly for the children of the same ADT
-    -- Haskell is purely functional, so this is OK!  The children can't change
-    -- Then, in the constraint solver, we can consider fewer constraints at once
-    -- (see note [AltCond] in Language/PathConds.hs) 
-    (news, ngen') = case exprInCasts mexpr of
-        (Var (Id n _)) -> childrenNames n olds ngen
-        _ -> freshSeededNames olds ngen
-
-    newparams = map (uncurry Id) $ zip news (map typeOf params)
-
-    -- Condition that was matched.
-    cond = AltCond (DataAlt dcon newparams) mexpr True
-
-    -- (news, ngen') = freshSeededNames olds ngen
-
-    --Update the expr environment
-    newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
-    eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
-
-    (cond', aexpr') = renameExprs (zip olds news) (cond, aexpr)
+    -- Get the Bool value specified by the matching DataCon
+    -- Throws an error if dcon is not a Bool Data Constructor
+    boolValue = getBoolFromDataCon dcon
+    cond = ExtCond mexpr boolValue
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
-    aexpr'' = liftCaseBinds binds aexpr'
-    res = s { expr_env = eenv'
-    , curr_expr = CurrExpr Evaluate aexpr''}
+    aexpr' = liftCaseBinds binds aexpr
+    res = s {curr_expr = CurrExpr Evaluate aexpr'}
 
+getBoolFromDataCon :: DataCon -> Bool
+getBoolFromDataCon dcon
+    | (DataCon (Name n _ _ _) (TyCon (Name tName _ _ _) TYPE)) <- dcon 
+    , tName == "Bool"
+    , n == "True" = True
+    | (DataCon (Name n _ _ _) (TyCon (Name tName _ _ _) TYPE)) <- dcon 
+    , tName == "Bool"
+    , n == "False" = False
+    | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
 
 liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]
 liftSymLitAlt s mexpr cvar = map (liftSymLitAlt' s mexpr cvar)
