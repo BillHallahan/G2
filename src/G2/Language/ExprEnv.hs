@@ -4,9 +4,6 @@
 
 module G2.Language.ExprEnv
     ( ExprEnv
-    , EnvObj(..)
-    , unwrapExprEnv
-    , wrapExprEnv
     , empty
     , singleton
     , fromList
@@ -78,9 +75,6 @@ newtype ExprEnv = ExprEnv (M.Map Name EnvObj)
 
 unwrapExprEnv :: ExprEnv -> M.Map Name EnvObj
 unwrapExprEnv = coerce
-
-wrapExprEnv :: M.Map Name EnvObj -> ExprEnv
-wrapExprEnv = ExprEnv
 
 -- | Constructs an empty `ExprEnv`
 empty :: ExprEnv

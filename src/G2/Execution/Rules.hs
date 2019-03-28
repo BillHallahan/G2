@@ -317,7 +317,6 @@ evalCase s@(State { expr_env = eenv
              (Var i):_ -> concretizeVarExpr s ng i bind dalts
              (Prim _ _):_ -> createExtConds s ng mexpr bind dalts 
              _ -> ([], ng)
---              _ -> error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show dalts
 
           lsts_cs = liftSymLitAlt s mexpr bind lalts
           def_sts = liftSymDefAlt s mexpr bind alts
@@ -441,7 +440,7 @@ createExtCond s ngen mexpr cvar (dcon, [], aexpr) =
   where
     -- Get the Bool value specified by the matching DataCon
     -- Throws an error if dcon is not a Bool Data Constructor
-    boolValue = getBoolFromDataCon dcon
+    boolValue = getBoolFromDataCon s dcon
     cond = ExtCond mexpr boolValue
 
     -- Now do a round of rename for binding the cvar.
@@ -449,14 +448,14 @@ createExtCond s ngen mexpr cvar (dcon, [], aexpr) =
     aexpr' = liftCaseBinds binds aexpr
     res = s {curr_expr = CurrExpr Evaluate aexpr'}
 
-getBoolFromDataCon :: DataCon -> Bool
-getBoolFromDataCon dcon
-    | (DataCon (Name n _ _ _) (TyCon (Name tName _ _ _) TYPE)) <- dcon 
-    , tName == "Bool"
-    , n == "True" = True
-    | (DataCon (Name n _ _ _) (TyCon (Name tName _ _ _) TYPE)) <- dcon 
-    , tName == "Bool"
-    , n == "False" = False
+getBoolFromDataCon :: State t -> DataCon -> Bool
+getBoolFromDataCon (State {known_values = kv}) dcon
+    | (DataCon dconName dconType) <- dcon
+    , dconType == (tyBool kv)
+    , dconName == (KV.dcTrue kv) = True
+    | (DataCon dconName dconType) <- dcon
+    , dconType == (tyBool kv)
+    , dconName == (KV.dcFalse kv) = False
     | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
 
 liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]
