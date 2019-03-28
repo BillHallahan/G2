@@ -316,7 +316,8 @@ evalCase s@(State { expr_env = eenv
           (dsts_cs, ng') = case unApp $ unsafeElimCast mexpr of
              (Var i):_ -> concretizeVarExpr s ng i bind dalts
              (Prim _ _):_ -> createExtConds s ng mexpr bind dalts 
-             _ -> error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show dalts
+             _ -> ([], ng)
+--              _ -> error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show dalts
 
           lsts_cs = liftSymLitAlt s mexpr bind lalts
           def_sts = liftSymDefAlt s mexpr bind alts
@@ -467,7 +468,7 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
     NewPC { state = res, new_pcs = [cond] }
   where
     -- Condition that was matched.
-    cond = AltCond (LitAlt lit) mexpr True
+    cond = AltCond lit mexpr True
     -- Bind the cvar.
     binds = [(cvar, Lit lit)]
     aexpr' = liftCaseBinds binds aexpr
@@ -500,7 +501,7 @@ defAltExpr (_:xs) = defAltExpr xs
 
 liftSymDefAltPCs :: Expr -> AltMatch -> Maybe PathCond
 liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
-liftSymDefAltPCs mexpr lit@(LitAlt _) = Just $ AltCond lit mexpr False
+liftSymDefAltPCs mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ Default = Nothing
 
 evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)

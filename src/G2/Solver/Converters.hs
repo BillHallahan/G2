@@ -296,10 +296,10 @@ pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
 pathConsToSMTHeaders = map Assert . mapMaybe pathConsToSMT
 
 pathConsToSMT :: PathCond -> Maybe SMTAST
-pathConsToSMT (AltCond a e b) =
+pathConsToSMT (AltCond l e b) =
     let
         exprSMT = exprToSMT e
-        altSMT = altToSMT a e
+        altSMT = altToSMT l e
     in
     Just $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
 pathConsToSMT (ExtCond e b) =
@@ -393,12 +393,10 @@ funcToSMT2Prim Quot a1 a2 = exprToSMT a1 `QuotSMT` exprToSMT a2
 funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
-altToSMT :: AltMatch -> Expr -> SMTAST
-altToSMT (LitAlt (LitInt i)) _ = VInt i
-altToSMT (LitAlt (LitFloat f)) _ = VFloat f
-altToSMT (LitAlt (LitDouble d)) _ = VDouble d
-altToSMT (DataAlt (DataCon (Name "True" _ _ _) _) _) _ = VBool True
-altToSMT (DataAlt (DataCon (Name "False" _ _ _) _) _) _ = VBool False
+altToSMT :: Lit -> Expr -> SMTAST
+altToSMT (LitInt i) _ = VInt i
+altToSMT (LitFloat f) _ = VFloat f
+altToSMT (LitDouble d) _ = VDouble d
 altToSMT am _ = error $ "Unhandled " ++ show am
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
@@ -412,12 +410,8 @@ pcVarDecls = createVarDecls . pcVars
 pcVars :: [PathCond] -> [(Name, Sort)]
 pcVars [] = []
 pcVars (PCExists i:xs) = idToNameSort i : pcVars xs
-pcVars (AltCond am e _:xs) = amVars am ++ vars e ++ pcVars xs
+pcVars (AltCond _ e _:xs) = vars e ++ pcVars xs
 pcVars (p:xs)= vars p ++ pcVars xs
-
-amVars :: AltMatch -> [(Name, Sort)]
-amVars (DataAlt _ i) = map idToNameSort i
-amVars _ = []
 
 vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]
 vars = evalASTs vars'

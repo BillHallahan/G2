@@ -230,7 +230,7 @@ ppPathConds :: State t -> Bindings -> String
 ppPathConds s@(State {path_conds = pc}) b = intercalate "\n" $ PC.map (ppPathCond s b) pc
 
 ppPathCond :: State t -> Bindings -> PathCond -> String
-ppPathCond s binds (AltCond am e b) = mkAltMatchHaskell am ++ (if b then " == " else " /= ") ++ mkUnsugaredExprHaskell s binds e
+ppPathCond s binds (AltCond l e b) = mkLitHaskell l ++ (if b then " == " else " /= ") ++ mkUnsugaredExprHaskell s binds e
 ppPathCond s binds (ExtCond e b) =
     let
         es = mkUnsugaredExprHaskell s binds e

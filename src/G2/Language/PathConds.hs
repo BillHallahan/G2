@@ -24,7 +24,6 @@ module G2.Language.PathConds ( PathCond (..)
 import G2.Language.AST
 import G2.Language.Ids
 import qualified G2.Language.KnownValues as KV
-import G2.Language.Typing
 import G2.Language.Naming
 import G2.Language.Syntax
 
@@ -55,8 +54,8 @@ newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
 -- | Path conditions represent logical constraints on our current execution
 -- path. We can have path constraints enforced due to case/alt branching, due
 -- to assertion / assumptions made, or some externally coded factors.
-data PathCond = AltCond AltMatch Expr Bool -- ^ The expression and alt must match
---data PathCond = AltCond Lit Expr Bool
+-- data PathCond = AltCond AltMatch Expr Bool -- ^ The expression and alt must match
+data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
               | PCExists Id -- ^ Makes sure we find some value for the given name, of the correct type
@@ -164,18 +163,18 @@ varIdsInPC :: KV.KnownValues -> PathCond -> [Id]
 -- parents/children can't impose restrictions on it.  We are completely
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
-varIdsInPC kv (AltCond altC@(DataAlt (DataCon _ _) _) (Cast e _) b) = varIdsInPC kv $ AltCond altC e b
-varIdsInPC kv (AltCond (DataAlt (DataCon _ _) _) (Var i@(Id _ t)) _) 
-             | t /= tyBool kv = [i]
-varIdsInPC _ (AltCond a e _) = varIdsInAltMatch a ++ varIds e
+-- varIdsInPC kv (AltCond altC@(DataAlt (DataCon _ _) _) (Cast e _) b) = varIdsInPC kv $ AltCond altC e b
+-- varIdsInPC kv (AltCond (DataAlt (DataCon _ _) _) (Var i@(Id _ t)) _) 
+--             | t /= tyBool kv = [i]
+varIdsInPC _ (AltCond _ e _) = varIds e
 varIdsInPC _ (ExtCond e _) = varIds e
 varIdsInPC _ (ConsCond _ e _) = varIds e
 varIdsInPC _ (PCExists _) = []
 varIdsInPC kv (AssumePC _ pc) = varIdsInPC kv pc
 
-varIdsInAltMatch :: AltMatch -> [Id]
-varIdsInAltMatch (DataAlt _ i) = i
-varIdsInAltMatch _ = []
+-- varIdsInAltMatch :: AltMatch -> [Id]
+-- varIdsInAltMatch (DataAlt _ i) = i
+-- varIdsInAltMatch _ = []
 
 varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
 varNamesInPC kv = P.map idName . varIdsInPC kv
@@ -258,19 +257,19 @@ instance Named PathConds where
                   $ renames hm pc
 
 instance Named PathCond where
-    names (AltCond am e _) = names am ++ names e
+    names (AltCond _ e _) = names e
     names (ExtCond e _) = names e
     names (ConsCond d e _) = names d ++  names e
     names (PCExists i) = names i
     names (AssumePC e pc) = names e ++ names pc
 
-    rename old new (AltCond am e b) = AltCond (rename old new am) (rename old new e) b
+    rename old new (AltCond l e b) = AltCond l (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
     rename old new (ConsCond d e b) = ConsCond (rename old new d) (rename old new e) b
     rename old new (PCExists i) = PCExists (rename old new i)
     rename old new (AssumePC expr pc) = AssumePC (rename old new expr) (rename old new pc)
 
-    renames hm (AltCond am e b) = AltCond (renames hm am) (renames hm e) b
+    renames hm (AltCond l e b) = AltCond l (renames hm e) b
     renames hm (ExtCond e b) = ExtCond (renames hm e) b
     renames hm (ConsCond d e b) = ConsCond (renames hm d) (renames hm e) b
     renames hm (PCExists i) = PCExists (renames hm i)
@@ -280,7 +279,7 @@ instance Ided PathConds where
     ids = ids . toMap
 
 instance Ided PathCond where
-    ids (AltCond am e _) = ids am ++ ids e
+    ids (AltCond _ e _) = ids e
     ids (ExtCond e _) = ids e
     ids (ConsCond d e _) = ids d ++  ids e
     ids (PCExists i) = [i]

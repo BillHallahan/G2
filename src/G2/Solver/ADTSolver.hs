@@ -86,10 +86,6 @@ findConsistent'' tenv pc =
         _ -> Nothing
 
 findConsistent''' :: [DataCon] -> [PathCond] -> Maybe [DataCon]
-findConsistent''' dcs ((AltCond (DataAlt dc _) _ True):pc) =
-    findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
-findConsistent''' dcs ((AltCond (DataAlt dc _) _ False):pc) =
-    findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
 findConsistent''' dcs ((ConsCond dc _ True):pc) =
     findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
 findConsistent''' dcs ((ConsCond  dc _ False):pc) =
