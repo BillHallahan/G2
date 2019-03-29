@@ -401,9 +401,6 @@ concretizeVarExpr' s@(State {expr_env = eenv})
     -- Haskell is purely functional, so this is OK!  The children can't change
     -- Then, in the constraint solver, we can consider fewer constraints at once
     -- (see note [AltCond] in Language/PathConds.hs) 
-    -- (news, ngen') = case exprInCasts mexpr of
-    --    (Var (Id n _)) -> childrenNames n olds ngen
-    --    _ -> freshSeededNames olds ngen
     mexpr_n = idName mexpr_id
     (news, ngen') = childrenNames mexpr_n olds ngen
 
@@ -435,7 +432,7 @@ createExtConds s ng mexpr cvar (x:xs) =
         (newPCs, ng'') = createExtConds s ng' mexpr cvar xs
 
 createExtCond :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
-createExtCond s ngen mexpr cvar (dcon, [], aexpr) =
+createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
         (NewPC { state = res, new_pcs = [cond] }, ngen)
   where
     -- Get the Bool value specified by the matching DataCon
