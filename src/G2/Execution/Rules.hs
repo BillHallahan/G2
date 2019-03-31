@@ -387,9 +387,10 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) =
         (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs
 
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
-concretizeVarExpr' s@(State {expr_env = eenv})
+concretizeVarExpr' s@(State {expr_env = eenv, symbolic_ids = syms})
                 ngen mexpr_id cvar (dcon, params, aexpr) = 
           (newPCEmpty $ s { expr_env = eenv''
+                          , symbolic_ids = syms'
                           , curr_expr = CurrExpr Evaluate aexpr''}, ngen')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
@@ -404,6 +405,7 @@ concretizeVarExpr' s@(State {expr_env = eenv})
     mexpr_n = idName mexpr_id
     (news, ngen') = childrenNames mexpr_n olds ngen
 
+
     --Update the expr environment
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
     eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
@@ -415,6 +417,8 @@ concretizeVarExpr' s@(State {expr_env = eenv})
     dConArgs = map (Var) newparams
     exprs = dcon' : dConArgs
     dcon'' = mkApp exprs
+
+    syms' = newparams ++ (filter (/= mexpr_id) syms)
 
     -- concretizes the mexpr to have same form as the DataCon specified
     eenv'' = E.insert mexpr_n dcon'' eenv' 
