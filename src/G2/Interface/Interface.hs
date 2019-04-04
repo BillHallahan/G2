@@ -328,8 +328,6 @@ runG2 red hal ord con pns (is@State { type_env = tenv
 
     let ident_states'' = catMaybes ident_states'
 
-    putStrLn $ (show (model (head ident_states'')))
-
     let sm = map (\s -> 
               let (es, e, ais) = subModel s bindings''' in
                 ExecRes { final_state = s
