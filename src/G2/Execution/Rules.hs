@@ -313,10 +313,14 @@ evalCase s@(State { expr_env = eenv
   , defs <- defaultAlts alts
   , (length dalts + length lalts + length defs) > 0 =
       let 
-          (dsts_cs, ng') = case unApp $ unsafeElimCast mexpr of
-             (Var i):_ -> concretizeVarExpr s ng i bind dalts
-             (Prim _ _):_ -> createExtConds s ng mexpr bind dalts 
-             _ -> ([], ng)
+          (dsts_cs, ng') = case mexpr of
+            (Cast e c) -> case unApp $ unsafeElimCast e of
+                (Var i):_ -> concretizeVarExpr s ng i bind dalts (Just c)
+                _ -> ([], ng)
+            _ -> case unApp $ unsafeElimCast mexpr of
+                (Var i):_ -> concretizeVarExpr s ng i bind dalts Nothing
+                (Prim _ _):_ -> createExtConds s ng mexpr bind dalts
+                _ -> ([], ng)
 
           lsts_cs = liftSymLitAlt s mexpr bind lalts
           def_sts = liftSymDefAlt s mexpr bind alts
@@ -378,17 +382,17 @@ defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
-concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], NameGen)
-concretizeVarExpr _ ng _ _ [] = ([], ng)
-concretizeVarExpr s ng mexpr_id cvar (x:xs) = 
+concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([NewPC t], NameGen)
+concretizeVarExpr _ ng _ _ [] _ = ([], ng)
+concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = 
         (x':newPCs, ng'') 
     where
-        (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x
-        (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs
+        (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x maybeC
+        (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
 
-concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
+concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, symbolic_ids = syms})
-                ngen mexpr_id cvar (dcon, params, aexpr) = 
+                ngen mexpr_id cvar (dcon, params, aexpr) maybeC = 
           (newPCEmpty $ s { expr_env = eenv''
                           , symbolic_ids = syms'
                           , curr_expr = CurrExpr Evaluate aexpr''}, ngen')
@@ -418,10 +422,14 @@ concretizeVarExpr' s@(State {expr_env = eenv, symbolic_ids = syms})
     exprs = dcon' : dConArgs
     dcon'' = mkApp exprs
 
+    dcon''' = case maybeC of 
+                (Just c) -> Cast dcon'' c
+                Nothing -> dcon''
+
     syms' = newparams ++ (filter (/= mexpr_id) syms)
 
     -- concretizes the mexpr to have same form as the DataCon specified
-    eenv'' = E.insert mexpr_n dcon'' eenv' 
+    eenv'' = E.insert mexpr_n dcon''' eenv' 
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, (Var mexpr_id))]
