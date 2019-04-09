@@ -422,6 +422,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, symbolic_ids = syms})
     exprs = dcon' : dConArgs
     dcon'' = mkApp exprs
 
+    -- Apply cast
     dcon''' = case maybeC of 
                 (Just c) -> Cast dcon'' c
                 Nothing -> dcon''

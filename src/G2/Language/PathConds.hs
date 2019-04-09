@@ -53,7 +53,6 @@ newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
 -- | Path conditions represent logical constraints on our current execution
 -- path. We can have path constraints enforced due to case/alt branching, due
 -- to assertion / assumptions made, or some externally coded factors.
--- data PathCond = AltCond AltMatch Expr Bool -- ^ The expression and alt must match
 data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
@@ -161,9 +160,6 @@ varIdsInPC :: KV.KnownValues -> PathCond -> [Id]
 -- parents/children can't impose restrictions on it.  We are completely
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
--- varIdsInPC kv (AltCond altC@(DataAlt (DataCon _ _) _) (Cast e _) b) = varIdsInPC kv $ AltCond altC e b
--- varIdsInPC kv (AltCond (DataAlt (DataCon _ _) _) (Var i@(Id _ t)) _) 
---             | t /= tyBool kv = [i]
 varIdsInPC _ (AltCond _ e _) = varIds e
 varIdsInPC _ (ExtCond e _) = varIds e
 varIdsInPC _ (ConsCond _ e _) = varIds e
