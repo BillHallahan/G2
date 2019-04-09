@@ -5,6 +5,7 @@ module Main (main, plugin) where
 import DynFlags
 
 import System.Environment
+import System.FilePath
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -32,7 +33,7 @@ main = do
   -- error "HELLO!"
 
   as <- getArgs
-  let (proj:_) = as
+  let (proj:tail_args) = as
 
   let m_liquid_file = mkLiquid as
   let m_liquid_func = mkLiquidFunc as
@@ -42,6 +43,8 @@ main = do
 
   case (m_liquid_file, m_liquid_func) of
       (Just lhfile, Just lhfun) -> do
+        let m_idir = mIDir tail_args
+            proj = maybe (takeDirectory lhfile) id m_idir
         runSingleLHFun proj lhfile lhfun libs lhlibs as
       _ -> do
         runWithArgs as
@@ -57,7 +60,9 @@ runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
 
-  let (proj:src:entry:tail_args) = as
+  let (src:entry:tail_args) = as
+      m_idir = mIDir tail_args
+      proj = maybe (takeDirectory src) id m_idir
 
   --Get args
   let m_assume = mAssume tail_args
@@ -120,6 +125,9 @@ ppStatePiece b n res =
             putStrLn res
             putStrLn ""
         False -> return ()
+
+mIDir :: [String] -> Maybe String
+mIDir a = strArg "idir" a M.empty Just Nothing
 
 mReturnsTrue :: [String] -> Bool
 mReturnsTrue a = boolArg "returns-true" a M.empty Off

@@ -34,11 +34,11 @@ It is capable of generating assertion failure counterexamples and solving for hi
 
 ###### Reachability:
 
-`cabal run G2 ./tests/Samples/ ./tests/Samples/Peano.hs add`
+`cabal run G2 ./tests/Samples/Peano.hs add`
 
 ###### LiquidHaskell:
 
-`cabal run G2 ./tests/Liquid/ -- --liquid ./tests/Liquid/Peano.hs --liquid-func add`
+`cabal run G2 -- --liquid ./tests/Liquid/Peano.hs --liquid-func add`
 
 ###### Arguments:
 
