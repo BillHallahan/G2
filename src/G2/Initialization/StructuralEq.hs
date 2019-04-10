@@ -240,7 +240,9 @@ structEqCheck _ TyLitChar i1 i2 = do
     eq <- mkEqPrimCharE
     return $ App (App eq (Var i1)) (Var i2)
 structEqCheck _ (TyForAll _ _) _ _ = mkTrueE
-structEqCheck _ (TyFun _ _) i1 i2 = return $ App (App (Prim BindFunc TyUnknown) (Var i1)) (Var i2)
+structEqCheck _ (TyFun _ _) i1 i2 = do
+    boolT <- tyBoolT
+    return $ App (App (Prim BindFunc (TyFun (typeOf i1) (TyFun (typeOf i2) boolT))) (Var i1)) (Var i2)
 structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t
 
 dictForType :: ExState s m => [(Name, (Id, Id))] -> Type -> m Expr
