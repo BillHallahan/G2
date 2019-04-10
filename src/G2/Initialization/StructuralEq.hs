@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module G2.Initialization.StructuralEq (createStructEqFuncs) where
+module G2.Initialization.StructuralEq ( createStructEqFuncs
+                                      , structEqFuncType
+                                      , structEqFuncTypeM) where
 
-import G2.Language
+import G2.Language as L
 import G2.Language.Monad
 import G2.Language.KnownValues
 
@@ -212,18 +214,20 @@ structEqCheck :: ExState s m => [(Name, (Id, Id))] -> Type -> Id -> Id -> m Expr
 structEqCheck bm t i1 i2
     | TyCon _ _ <- tyAppCenter t = do
     kv <- knownValues
+    sft <- structEqFuncTypeM
 
-    let ex = Var $ Id (structEqFunc kv) TyUnknown
+    let ex = Var $ Id (structEqFunc kv) sft
 
     dict <- dictForType bm t
 
     return (App (App (App (App ex (Type t)) dict) (Var i1)) (Var i2))
 structEqCheck bm (TyVar (Id n _)) (Id n' _) (Id n'' _) = do
     kv <- knownValues
+    sft <- structEqFuncTypeM
 
     case lookup n bm of
         Just (ty, dict) -> do
-            let ex = Var $ Id (structEqFunc kv) TyUnknown
+            let ex = Var $ Id (structEqFunc kv) sft
 
             return (App (App (App (App ex (Var ty)) (Var dict)) (Var (Id n' (TyVar ty)))) (Var (Id n'' (TyVar ty))))
         Nothing -> error "Unaccounted for TyVar in structEqCheck"
@@ -262,3 +266,25 @@ dictForType bm (TyVar (Id n _)) =
         Just (_, dict) -> return (Var dict)
         Nothing -> error "Unaccounted for TyVar in dictForType"
 dictForType _ t = error $ "Unsupported type in dictForType" ++ show t
+
+-- | Returns the type for the StructEq func.
+-- The Name is used for a bound type, and should be generated with a NameGen.
+structEqFuncType :: KnownValues -> Name -> Type
+structEqFuncType kv n =
+    let
+        i = Id n TYPE
+        dict = structEqTC kv
+        bool = L.tyBool kv
+    in
+    TyForAll (NamedTyBndr i)
+        (TyFun (TyCon dict TYPE) 
+            (TyFun (TyVar i) 
+                (TyFun (TyVar i) bool)
+            )
+        )
+
+structEqFuncTypeM :: ExState s m => m Type
+structEqFuncTypeM = do
+    kv <- knownValues
+    n <- freshNameN
+    return $ structEqFuncType kv n
