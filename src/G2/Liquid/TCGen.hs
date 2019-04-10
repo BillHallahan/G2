@@ -60,6 +60,7 @@ createTCValues kv = do
                         , lhNegate = KV.negateFunc kv
                         , lhMod = KV.modFunc kv
                         , lhFromInteger = KV.fromIntegerFunc kv
+                        , lhToInteger = KV.toIntegerFunc kv
                         , lhNumOrd = lhNuOr
 
                         , lhAnd = KV.andFunc kv
