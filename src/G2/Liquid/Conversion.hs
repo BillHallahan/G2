@@ -527,15 +527,14 @@ convertEVar :: Name -> BoundTypes -> Maybe Type -> LHStateM Expr
 convertEVar nm@(Name n md _ _) bt mt
     | Just t <-  M.lookup nm bt = return $ Var (Id nm t)
     | otherwise = do
-        let t = maybe TyUnknown id mt
-
         meas <- measuresM
         tenv <- typeEnv
         
-        case (E.lookupNameMod n md meas, getDataConNameMod' tenv nm) of
-            (Just (n', e), _) -> return $ Var $ Id n' (typeOf e)
-            (_, Just dc) -> return $ Data dc 
-            _ -> return $ Var (Id nm t)
+        if | Just (n', e) <- E.lookupNameMod n md meas ->
+                return . Var $ Id n' (typeOf e)
+           | Just dc <- getDataConNameMod' tenv nm -> return $ Data dc
+           | Just t <- mt -> return $ Var (Id nm t)
+           | otherwise -> error $ "convertEVar: Required type not found"
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyCon n _)) (Ref.I i) = do
