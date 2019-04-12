@@ -417,9 +417,13 @@ concretizeVarExpr' s@(State {expr_env = eenv, symbolic_ids = syms})
     (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
     newparams = map (uncurry Id) $ zip news (map typeOf params)
-    -- Apply DataCon children to DataCon
     dConArgs = (map (Var) newparams)
-    exprs = dcon' : dConArgs
+    -- Concretize polymorphic data constructor
+    dcon_tyapp = (\(Id _ t) -> t) (mexpr_id)
+    exprs = case dcon_tyapp of
+        (TyApp _ t) -> dcon' : (Type t) : dConArgs
+        _ -> dcon' : dConArgs
+    -- Apply DataCon children to DataCon
     dcon'' = mkApp exprs
 
     -- Apply cast

@@ -109,6 +109,7 @@ printFuncCalls config entry b =
                      . foldl (\a a' -> App a a') (Var entry) $ (conc_args execr)
 
         let funcOut = mkCleanExprHaskell s b $ (conc_out execr)
+        print (conc_args execr)
 
         ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s b
         ppStatePiece (printRelExprEnv config) "rel expr_env" $ ppRelExprEnv s b
