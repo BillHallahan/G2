@@ -262,7 +262,6 @@ modGutsClosureToG2 nm tm mgcc tr_con =
   -- Do the exports
   let exports = G2.mgcc_exports mgcc in
   let deps = fmap T.pack $ G2.mgcc_deps mgcc in
-    trace (show rules)
     (nm3, tm2,
         G2.ExtractedG2
           { G2.exg2_mod_names = maybeToList $ fmap T.pack $ G2.mgcc_mod_name mgcc
@@ -459,7 +458,7 @@ mkLit (MachWord64 i) = G2.LitInt (fromInteger i)
 mkLit (MachFloat rat) = G2.LitFloat rat
 mkLit (MachDouble rat) = G2.LitDouble rat
 mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
-mkLit _ = G2.LitInt 0
+mkLit _ = error "mkLit: unhandled Lit"
 -- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 -- mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
