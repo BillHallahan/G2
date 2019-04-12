@@ -417,6 +417,40 @@ instance Named Tickish where
     renames _ bp@(Breakpoint _) = bp
     renames hm (NamedLoc n) = NamedLoc $ renames hm n
 
+instance Named RewriteRule where
+    names (RewriteRule { ru_head = h
+                       , ru_rough = rs
+                       , ru_bndrs = b
+                       , ru_args = as
+                       , ru_rhs = rhs}) =
+        h:names rs ++ names b ++ names as ++ names rhs
+
+    rename old new (RewriteRule { ru_name = n
+                                , ru_head = h
+                                , ru_rough = rs
+                                , ru_bndrs = b
+                                , ru_args = as
+                                , ru_rhs = rhs}) =
+        RewriteRule { ru_name = n
+                    , ru_head = rename old new h
+                    , ru_rough = rename old new rs
+                    , ru_bndrs = rename old new b
+                    , ru_args = rename old new as
+                    , ru_rhs = rename old new rhs}
+
+    renames hm (RewriteRule { ru_name = n
+                            , ru_head = h
+                            , ru_rough = rs
+                            , ru_bndrs = b
+                            , ru_args = as
+                            , ru_rhs = rhs}) =
+        RewriteRule { ru_name = n
+                    , ru_head = renames hm h
+                    , ru_rough = renames hm rs
+                    , ru_bndrs = renames hm b
+                    , ru_args = renames hm as
+                    , ru_rhs = renames hm rhs}
+
 instance Named FuncCall where
     names (FuncCall {funcName = n, arguments = as, returns = r}) = n:names as ++ names r
     rename old new (FuncCall {funcName = n, arguments = as, returns = r}) = 

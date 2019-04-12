@@ -150,6 +150,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , func_table = ft
     , apply_types = at
     , input_names = map idName is
+    , rewrite_rules = []
     , name_gen = ng''})
 
 initStateFromSimpleState' :: IT.SimpleState
@@ -177,7 +178,8 @@ initSimpleState prog prog_typ cls =
                    , IT.type_env = tenv
                    , IT.name_gen = ng
                    , IT.known_values = kv
-                   , IT.type_classes = tc }
+                   , IT.type_classes = tc
+                   , IT.rewrite_rules = [] }
 
 initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv

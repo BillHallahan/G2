@@ -19,7 +19,8 @@ data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , type_env :: L.TypeEnv
                                , name_gen :: L.NameGen
                                , known_values :: L.KnownValues
-                               , type_classes :: L.TypeClasses } deriving (Eq, Show, Read)
+                               , type_classes :: L.TypeClasses
+                               , rewrite_rules :: [L.RewriteRule] } deriving (Eq, Show, Read)
 
 newtype SimpleStateM a = SimpleStateM { unSM :: (SM.State SimpleState a) } deriving (Applicative, Functor, Monad)
 

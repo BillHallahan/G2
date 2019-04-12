@@ -255,7 +255,7 @@ modGutsClosureToG2 nm tm mgcc tr_con =
   let classes = map (mkClass tm2) $ G2.mgcc_cls_insts mgcc in
 
   -- Do the rules
-  let rules = if G2.rewrite_rules tr_con
+  let rules = if G2.load_rewrite_rules tr_con
                   then mapMaybe (mkRewriteRule nm3 tm2 breaks) $ G2.mgcc_rules mgcc
                   else [] in
 
