@@ -418,13 +418,13 @@ concretizeVarExpr' s@(State {expr_env = eenv, symbolic_ids = syms})
 
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     -- Apply DataCon children to DataCon
-    dConArgs = map (Var) newparams
+    dConArgs = (map (Var) newparams)
     exprs = dcon' : dConArgs
     dcon'' = mkApp exprs
 
     -- Apply cast
     dcon''' = case maybeC of 
-                (Just c) -> Cast dcon'' c
+                (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
                 Nothing -> dcon''
 
     syms' = newparams ++ (filter (/= mexpr_id) syms)
