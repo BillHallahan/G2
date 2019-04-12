@@ -69,7 +69,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
                   Right g_c -> g_c
                   Left e -> error $ "ERROR OCCURRED IN LIQUIDHASKELL\n" ++ show e
 
-    tgt_trans <- translateLoaded proj fp libs False config' 
+    tgt_trans <- translateLoaded proj fp libs (simplTranslationConfig { simpl = False }) config' 
 
     runLHCore entry tgt_trans ghc_cg' config'
 

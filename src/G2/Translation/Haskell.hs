@@ -42,6 +42,7 @@ import GHC
 import GHC.Paths
 import HscMain
 import HscTypes
+import IdInfo
 import InstEnv
 import Literal
 import Name
@@ -63,7 +64,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import System.Directory
-
 
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
@@ -110,8 +110,8 @@ equivMods = HM.fromList
             , ("Data.Map.Base", "Data.Map")]
 
 
-loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> Bool -> Ghc SuccessFlag
-loadProj hsc proj src gflags simpl = do
+loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
+loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
     let gen_flags = gflags
 
@@ -124,8 +124,8 @@ loadProj hsc proj src gflags simpl = do
                              , includePaths = includePaths beta_flags'
                              , importPaths = [proj]
 
-                             , simplPhases = if simpl then simplPhases beta_flags' else 0
-                             , maxSimplIterations = if simpl then maxSimplIterations beta_flags' else 0
+                             , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
+                             , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
                              , hpcDir = proj}
 
@@ -139,18 +139,18 @@ loadProj hsc proj src gflags simpl = do
 
 
 -- Compilation pipeline with CgGuts
-hskToG2ViaCgGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaCgGutsFromFile hsc proj src nm tm simpl = do
-  closures <-mkCgGutsModDetailsClosuresFromFile hsc proj src simpl
-  return $ hskToG2ViaCgGuts nm tm closures
+hskToG2ViaCgGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> G2.TranslationConfig -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+hskToG2ViaCgGutsFromFile hsc proj src nm tm tr_con = do
+  closures <- mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con
+  return $ hskToG2ViaCgGuts nm tm closures tr_con
 
 
-hskToG2ViaCgGuts :: G2.NameMap -> G2.TypeNameMap -> [(G2.CgGutsClosure, G2.ModDetailsClosure)]
+hskToG2ViaCgGuts :: G2.NameMap -> G2.TypeNameMap -> [(G2.CgGutsClosure, G2.ModDetailsClosure)] -> G2.TranslationConfig
   -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaCgGuts nm tm pairs = do
+hskToG2ViaCgGuts nm tm pairs tr_con = do
   let (nm2, tm2, exg2s) = foldr (\(c, m) (nm', tm', exs) ->
                             let mgcc = cgGutsModDetailsClosureToModGutsClosure c m in
-                            let (nm'', tm'', g2) = modGutsClosureToG2 nm' tm' mgcc in
+                            let (nm'', tm'', g2) = modGutsClosureToG2 nm' tm' mgcc tr_con in
                               (nm'', tm'', g2 : exs))
                             (nm, tm, [])
                             pairs in
@@ -168,14 +168,15 @@ cgGutsModDetailsClosureToModGutsClosure cg md =
     , G2.mgcc_type_env = G2.mdcc_type_env md
     , G2.mgcc_exports = G2.mdcc_exports md
     , G2.mgcc_deps = G2.mdcc_deps md
+    , G2.mgcc_rules = G2.cgcc_rules cg
     }
 
 
-mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> Bool 
+mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.TranslationConfig 
   -> IO [(G2.CgGutsClosure, G2.ModDetailsClosure)]
-mkCgGutsModDetailsClosuresFromFile hsc proj src simpl = do
+mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
   (env, modgutss) <- runGhc (Just libdir) $ do
-      _ <- loadProj hsc proj src [] simpl
+      _ <- loadProj hsc proj src [] tr_con
       env <- getSession
 
       mod_graph <- getModuleGraph
@@ -184,19 +185,22 @@ mkCgGutsModDetailsClosuresFromFile hsc proj src simpl = do
       desug_mods <- mapM desugarModule typed_mods
       return (env, map coreModule desug_mods)
 
-  simplgutss <- mapM (if simpl then hscSimplify env else return . id) modgutss
+  simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\((cg, md), mg) -> (mkCgGutsClosure cg, mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
+  let pairs = map (\((cg, md), mg) -> (mkCgGutsClosure (mg_binds mg) cg, mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 
-
-mkCgGutsClosure :: CgGuts -> G2.CgGutsClosure
-mkCgGutsClosure cgguts =
+-- | The core program in the CgGuts does not include local rules after tidying.
+-- As such, we pass in the CoreProgram from the ModGuts
+mkCgGutsClosure :: CoreProgram -> CgGuts -> G2.CgGutsClosure
+mkCgGutsClosure bndrs cgguts =
   G2.CgGutsClosure
     { G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
     , G2.cgcc_binds = cg_binds cgguts
     , G2.cgcc_breaks = cg_modBreaks cgguts
-    , G2.cgcc_tycons = cg_tycons cgguts }
+    , G2.cgcc_tycons = cg_tycons cgguts
+    , G2.cgcc_rules = concatMap ruleInfoRules . map ruleInfo . map idInfo 
+                            . concatMap bindersOf $ bndrs }
 
 
 mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
@@ -211,17 +215,17 @@ mkModDetailsClosure deps moddet =
 
 
 -- Compilation pipeline with ModGuts
-hskToG2ViaModGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> Bool -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaModGutsFromFile hsc proj src nm tm simpl = do
-  closures <- mkModGutsClosuresFromFile hsc proj src simpl
-  return $ hskToG2ViaModGuts nm tm closures
+hskToG2ViaModGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> G2.TranslationConfig -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+hskToG2ViaModGutsFromFile hsc proj src nm tm tr_con = do
+  closures <- mkModGutsClosuresFromFile hsc proj src tr_con
+  return $ hskToG2ViaModGuts nm tm closures tr_con
    
 
-hskToG2ViaModGuts :: G2.NameMap -> G2.TypeNameMap -> [G2.ModGutsClosure]
+hskToG2ViaModGuts :: G2.NameMap -> G2.TypeNameMap -> [G2.ModGutsClosure] -> G2.TranslationConfig
   -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaModGuts nm tm modgutss =
+hskToG2ViaModGuts nm tm modgutss tr_con =
   let (nm2, tm2, exg2s) = foldr (\m (nm', tm', cls) ->
-                                let (nm'', tm'', mc) = modGutsClosureToG2 nm' tm' m in
+                                let (nm'', tm'', mc) = modGutsClosureToG2 nm' tm' m tr_con in
                                   (nm'', tm'', mc : cls))
                                 (nm, tm, [])
                                 modgutss in
@@ -230,9 +234,9 @@ hskToG2ViaModGuts nm tm modgutss =
 
 
 
-modGutsClosureToG2 :: G2.NameMap -> G2.TypeNameMap -> G2.ModGutsClosure
+modGutsClosureToG2 :: G2.NameMap -> G2.TypeNameMap -> G2.ModGutsClosure -> G2.TranslationConfig
   -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-modGutsClosureToG2 nm tm mgcc =
+modGutsClosureToG2 nm tm mgcc tr_con =
   let breaks = G2.mgcc_breaks mgcc in
   -- Do the binds
   let (nm2, binds) = foldr (\b (nm', bs) ->
@@ -250,9 +254,15 @@ modGutsClosureToG2 nm tm mgcc =
   -- Do the class
   let classes = map (mkClass tm2) $ G2.mgcc_cls_insts mgcc in
 
+  -- Do the rules
+  let rules = if G2.rewrite_rules tr_con
+                  then mapMaybe (mkRewriteRule nm3 tm2 breaks) $ G2.mgcc_rules mgcc
+                  else [] in
+
   -- Do the exports
   let exports = G2.mgcc_exports mgcc in
   let deps = fmap T.pack $ G2.mgcc_deps mgcc in
+    trace (show rules)
     (nm3, tm2,
         G2.ExtractedG2
           { G2.exg2_mod_names = maybeToList $ fmap T.pack $ G2.mgcc_mod_name mgcc
@@ -260,13 +270,14 @@ modGutsClosureToG2 nm tm mgcc =
           , G2.exg2_tycons = tycons
           , G2.exg2_classes = classes
           , G2.exg2_exports = exports
-          , G2.exg2_deps = deps })
+          , G2.exg2_deps = deps
+          , G2.exg2_rules = rules })
   
 
-mkModGutsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> Bool -> IO [G2.ModGutsClosure]
-mkModGutsClosuresFromFile hsc proj src simpl = do
+mkModGutsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.TranslationConfig -> IO [G2.ModGutsClosure]
+mkModGutsClosuresFromFile hsc proj src tr_con = do
   (env, modgutss) <- runGhc (Just libdir) $ do
-      _ <- loadProj hsc proj src [] simpl
+      _ <- loadProj hsc proj src [] tr_con
       env <- getSession
 
       mod_graph <- getModuleGraph
@@ -275,7 +286,7 @@ mkModGutsClosuresFromFile hsc proj src simpl = do
       desug_mods <- mapM desugarModule typed_mods
       return (env, map coreModule desug_mods)
 
-  if simpl then do
+  if G2.simpl tr_con then do
     simpls <- mapM (hscSimplify env) modgutss
     closures <- mapM (mkModGutsClosure env) simpls
     return closures
@@ -297,6 +308,7 @@ mkModGutsClosure env modguts = do
       , G2.mgcc_type_env = md_types moddets
       , G2.mgcc_exports = exportedNames moddets
       , G2.mgcc_deps = map (moduleNameString . fst) $ dep_mods $ mg_deps modguts
+      , G2.mgcc_rules = mg_rules modguts
       }
 
 
@@ -311,7 +323,8 @@ mergeExtractedG2s (g2:g2s) =
       , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
       , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2'
-      , G2.exg2_deps = G2.exg2_deps g2 ++ G2.exg2_deps g2' }
+      , G2.exg2_deps = G2.exg2_deps g2 ++ G2.exg2_deps g2'
+      , G2.exg2_rules = G2.exg2_rules g2 ++ G2.exg2_rules g2' }
 
 ----------------
 -- Translating the individual components in CoreSyn, etc into G2 Core
@@ -555,6 +568,7 @@ mkDataName nm datacon = (flip mkNameLookup nm . dataConName) datacon
 
 mkTyBinder :: G2.TypeNameMap -> TyVarBinder -> G2.TyBinder
 mkTyBinder tm (TvBndr v _) = G2.NamedTyBndr (mkId tm v)
+
 prim_list :: [String]
 prim_list = [">=", ">", "==", "/=", "<=", "<",
              "&&", "||", "not",
@@ -572,6 +586,24 @@ mkClass :: G2.TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id])
 mkClass tm (ClsInst { is_cls = c, is_dfun = dfun }) = 
     (flip mkNameLookup tm . C.className $ c, mkId tm dfun, map (mkId tm) $ C.classTyVars c)
 
+
+mkRewriteRule :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreRule -> Maybe G2.RewriteRule
+mkRewriteRule nm tm breaks (Rule { ru_name = n
+                                 , ru_fn = fn
+                                 , ru_rough = rough
+                                 , ru_bndrs = bndrs
+                                 , ru_args = args
+                                 , ru_rhs = rhs }) =
+    let
+        r = G2.RewriteRule { G2.ru_name = T.pack $ unpackFS n
+                           , G2.ru_head = mkNameLookup fn nm
+                           , G2.ru_rough = map (fmap (flip mkNameLookup nm)) rough
+                           , G2.ru_bndrs = map (mkId tm) bndrs
+                           , G2.ru_args = map (mkExpr nm tm breaks) args
+                           , G2.ru_rhs = mkExpr nm tm breaks rhs }
+    in
+    Just r
+mkRewriteRule _ _ _ _ = Nothing
 
 exportedNames :: ModDetails -> [G2.ExportedName]
 exportedNames = concatMap availInfoNames . md_exports

@@ -50,7 +50,7 @@ checkInputOutput'' :: FilePath
                    -> IO (Bool, [ExecRes ()])
 checkInputOutput'' src md entry i req config = do
     let proj = takeDirectory src
-    (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src [] True config
+    (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src [] simplTranslationConfig config
 
     let (init_state, _, bindings) = initState binds tycons cls Nothing Nothing False (T.pack entry) mb_modname ex config
     putStrLn "test"

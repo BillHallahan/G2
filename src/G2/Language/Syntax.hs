@@ -268,6 +268,16 @@ data Tickish = Breakpoint Span -- ^ A breakpoint for the GHC Debugger
 
 instance Hashable Tickish
 
+-- | Represents a rewrite rule
+data RewriteRule = RewriteRule { ru_name :: T.Text
+                               , ru_head :: Name
+                               , ru_rough :: [Maybe Name]
+                               , ru_bndrs :: [Id]
+                               , ru_args :: [Expr]
+                               , ru_rhs :: Expr } deriving (Show, Eq, Read, Generic)
+
+instance Hashable RewriteRule
+
 -- | Represents a function call, with it's arguments and return value as Expr
 data FuncCall = FuncCall { funcName :: Name
                          , arguments :: [Expr]
