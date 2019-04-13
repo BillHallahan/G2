@@ -18,6 +18,14 @@ type TypeNameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 
 type ExportedName = G2.Name
 
+data TranslationConfig = TranslationConfig
+  {
+    simpl :: Bool
+  , load_rewrite_rules :: Bool
+  }
+
+simplTranslationConfig :: TranslationConfig
+simplTranslationConfig = TranslationConfig { simpl = True, load_rewrite_rules = False }
 
 data ModGutsClosure = ModGutsClosure
   { mgcc_mod_name :: Maybe String
@@ -28,6 +36,7 @@ data ModGutsClosure = ModGutsClosure
   , mgcc_type_env :: TypeEnv
   , mgcc_exports :: [ExportedName]
   , mgcc_deps :: [String]
+  , mgcc_rules :: [CoreRule]
   }
 
 
@@ -43,6 +52,7 @@ data CgGutsClosure = CgGutsClosure
   , cgcc_binds :: [CoreBind]
   , cgcc_breaks :: Maybe ModBreaks
   , cgcc_tycons :: [TyCon]
+  , cgcc_rules :: [CoreRule]
   }
 
 
@@ -56,6 +66,7 @@ emptyModGutsClosure =
     , mgcc_cls_insts = []
     , mgcc_type_env = emptyTypeEnv
     , mgcc_exports = []
+    , mgcc_rules = []
     }
 
 emptyModDetailsClosure :: ModDetailsClosure
@@ -73,6 +84,7 @@ emptyCgGutsClosure =
     , cgcc_binds = []
     , cgcc_breaks = Nothing
     , cgcc_tycons = []
+    , cgcc_rules = []
     }
 
 
@@ -83,6 +95,7 @@ data ExtractedG2 = ExtractedG2
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id])]
   , exg2_exports :: [ExportedName]
   , exg2_deps :: [T.Text]
+  , exg2_rules :: ![G2.RewriteRule]
   } deriving (Eq, Show, Read)
 
 emptyExtractedG2 :: ExtractedG2
@@ -93,6 +106,7 @@ emptyExtractedG2 =
     , exg2_tycons = []
     , exg2_classes = []
     , exg2_exports = []
-    , exg2_deps = [] }
+    , exg2_deps = []
+    , exg2_rules = [] }
 
 

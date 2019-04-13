@@ -61,6 +61,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , func_table :: FuncInterps
                          , apply_types :: AT.ApplyTypes
                          , input_names :: [Name]
+                         , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          } deriving (Show, Eq, Read)
 
@@ -268,6 +269,7 @@ instance Named Bindings where
                  , func_table = rename old new (func_table b)
                  , apply_types = rename old new (apply_types b)
                  , input_names = rename old new (input_names b)
+                 , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
                  }
 
@@ -279,6 +281,7 @@ instance Named Bindings where
                , func_table = renames hm (func_table b)
                , apply_types = renames hm (apply_types b)
                , input_names = renames hm (input_names b)
+               , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
                }
 

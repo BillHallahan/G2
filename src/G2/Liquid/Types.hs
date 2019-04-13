@@ -50,6 +50,7 @@ module G2.Liquid.Types ( LHOutput (..)
                                  , lhNegateM
                                  , lhModM
                                  , lhFromIntegerM
+                                 , lhToIntegerM
                                  , lhNumOrdM
 
                                  , lhAndE
@@ -66,6 +67,7 @@ import qualified Control.Monad.State.Lazy as SM
 
 import qualified G2.Language as L
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 
 import G2.Liquid.TCValues
@@ -401,24 +403,6 @@ lhGeE = do
     n <- liftTCValues lhGe
     return . L.Id n =<< binT 
 
-
-numT :: LHStateM L.Type
-numT = do
-    a <- freshIdN L.TYPE
-    let tva = L.TyVar a
-    num <- lhNumTCM
-
-    let num' = L.TyCon num L.TYPE
-
-    return $ L.TyForAll (L.NamedTyBndr a) 
-                    (L.TyFun
-                        num'
-                        (L.TyFun
-                            tva
-                            tva
-                        )
-                    )
-
 lhPlusM :: LHStateM L.Name
 lhPlusM = liftTCValues lhPlus
 
@@ -442,6 +426,46 @@ lhFromIntegerM = do
     n <- liftTCValues lhFromInteger
     return . L.Id n =<< numT 
 
+numT :: LHStateM L.Type
+numT = do
+    a <- freshIdN L.TYPE
+    let tva = L.TyVar a
+    num <- lhNumTCM
+    integerT <- tyIntegerT
+
+    let num' = L.TyCon num L.TYPE
+
+    return $ L.TyForAll (L.NamedTyBndr a) 
+                    (L.TyFun
+                        num'
+                        (L.TyFun
+                            integerT
+                            tva
+                        )
+                    )
+
+lhToIntegerM :: LHStateM L.Id
+lhToIntegerM = do
+    n <- liftTCValues lhToInteger
+    return . L.Id n =<< integralT 
+
+integralT :: LHStateM L.Type
+integralT = do
+    a <- freshIdN L.TYPE
+    let tva = L.TyVar a
+    integral <- return . KV.integralTC =<< knownValues
+    integerT <- tyIntegerT
+
+    let integral' = L.TyCon integral L.TYPE
+
+    return $ L.TyForAll (L.NamedTyBndr a) 
+                    (L.TyFun
+                        integral'
+                        (L.TyFun
+                            tva
+                            integerT
+                        )
+                    )
 lhNumOrdM :: LHStateM L.Id
 lhNumOrdM = do
     num <- lhNumTCM

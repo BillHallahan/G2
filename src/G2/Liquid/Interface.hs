@@ -69,16 +69,16 @@ findCounterExamples proj fp entry libs lhlibs config = do
                   Right g_c -> g_c
                   Left e -> error $ "ERROR OCCURRED IN LIQUIDHASKELL\n" ++ show e
 
-    tgt_trans <- translateLoaded proj fp libs False config' 
+    tgt_trans <- translateLoaded proj fp libs (simplTranslationConfig { simpl = False }) config' 
 
     runLHCore entry tgt_trans ghc_cg' config'
 
-runLHCore :: T.Text -> (Maybe T.Text, Program, [ProgramType], [(Name, Lang.Id, [Lang.Id])], [Name])
+runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> [LHOutput]
                     -> Config
                     -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
-runLHCore entry (mb_modname, prog, tys, cls, ex) ghci_cg config = do
-    let (init_state, ifi, bindings) = initState prog tys cls Nothing Nothing True entry mb_modname ex config
+runLHCore entry (mb_modname, exg2) ghci_cg config = do
+    let (init_state, ifi, bindings) = initState exg2 Nothing Nothing True entry mb_modname config
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state bindings) init_state bindings)
     let cleaned_state = init_state' { type_env = type_env init_state } 
 

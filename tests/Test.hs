@@ -312,6 +312,8 @@ testFileTests =
                 , checkExpr "tests/TestFiles/Error/Error2.hs" 400 Nothing Nothing "f" 1 [AtLeast 1, RForAll(errors)]
                 , checkExpr "tests/TestFiles/Error/Error3.hs" 400 Nothing Nothing "f" 2 [AtLeast 1, RForAll(errors)]
                 , checkExpr "tests/TestFiles/Error/Error3.hs" 400 Nothing Nothing "g" 2 [AtLeast 1, RForAll(not . errors)]
+                , checkExpr "tests/TestFiles/Error/Undefined1.hs" 400 Nothing Nothing "undefined1" 2 [AtLeast 1, RForAll(errors)]
+                , checkExpr "tests/TestFiles/Error/Undefined1.hs" 400 Nothing Nothing "undefined2" 2 [AtLeast 1, RForAll(errors)]
 
                 , checkExpr "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "abs'" 2 [Exactly 2]
                 , checkExpr "tests/TestFiles/BadNames1.hs" 400 Nothing Nothing "xswitch" 2 [AtLeast 10]

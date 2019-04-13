@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Conversion ( LHDictMap
@@ -446,42 +447,48 @@ convertBop' f = do
                             
                         )
 
+-- | We often end up in the situation of having to compare some value of type a1
+-- to an instance of type Integer.  This function, in order:
+-- (1) Converts the value of type Integer to the type a1, if a1 is an instance
+--     of Num.
+-- (2) Converts the value of type a1 to Integer, if a1 is not an instance of Num
+-- but is a value of type Integral
+-- (3) Fails with an error.
 correctTypes :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> Ref.Expr -> LHStateM (Expr, Expr)
 correctTypes m bt mt re re' = do
+    fIntgr <- lhFromIntegerM
+    tIntgr <- lhToIntegerM
+    tyI <- tyIntegerT
+
     e <- convertLHExpr m bt mt re
     e' <- convertLHExpr m bt mt re'
 
     let t = typeOf e
     let t' = typeOf e'
 
-    if t == t'
-        then return (e, e')
-        else do
-            e2 <- callFromInteger m t' e
-            e2' <- callFromInteger m t e'
-
-            let e3 = maybe e id e2
-            let e3' = maybe e' id e2'
-
-            return (e3, e3')
-
-callFromInteger :: DictMaps -> Type -> Expr -> LHStateM (Maybe Expr)
-callFromInteger m t e = do
     let retT = returnType e
+    let retT' = returnType e'
 
-    nDict <- numDict m t
-    
-    fIntgr <- lhFromIntegerM
+    may_nDict <- maybeNumDict m t
+    may_nDict' <- maybeNumDict m t'
 
-    tyI <- tyIntegerT
+    may_iDict <- maybeIntegralDict m t
+    may_iDict' <- maybeIntegralDict m t'
 
-    if retT /= tyI then
-        return $ Just e
-    else
-        return $ Just $ mkApp [ Var fIntgr
-                              , Type t
-                              , nDict
-                              , e]
+    if | t == t' -> return (e, e')
+       | retT /= tyI
+       , retT' == tyI
+       , Just nDict <- may_nDict -> return (e, mkApp [Var fIntgr, Type t, nDict, e'])
+       | retT == tyI
+       , retT' /= tyI
+       , Just nDict' <- may_nDict' -> return (mkApp [Var fIntgr, Type t', nDict', e], e')
+       | retT /= tyI
+       , retT' == tyI
+       , Just iDict <- may_iDict -> return (mkApp [Var tIntgr, Type t, iDict, e], e')
+       | retT == tyI
+       , retT' /= tyI
+       , Just iDict' <- may_iDict' -> return (e, mkApp [Var tIntgr, Type t', iDict', e'])
+       | otherwise -> error "correctTypes: Unhandled case"
 
 convertSymbolT :: Symbol -> Type -> Id
 convertSymbolT s = Id (symbolName s)
@@ -520,15 +527,14 @@ convertEVar :: Name -> BoundTypes -> Maybe Type -> LHStateM Expr
 convertEVar nm@(Name n md _ _) bt mt
     | Just t <-  M.lookup nm bt = return $ Var (Id nm t)
     | otherwise = do
-        let t = maybe TyUnknown id mt
-
         meas <- measuresM
         tenv <- typeEnv
         
-        case (E.lookupNameMod n md meas, getDataConNameMod' tenv nm) of
-            (Just (n', e), _) -> return $ Var $ Id n' (typeOf e)
-            (_, Just dc) -> return $ Data dc 
-            _ -> return $ Var (Id nm t)
+        if | Just (n', e) <- E.lookupNameMod n md meas ->
+                return . Var $ Id n' (typeOf e)
+           | Just dc <- getDataConNameMod' tenv nm -> return $ Data dc
+           | Just t <- mt -> return $ Var (Id nm t)
+           | otherwise -> error $ "convertEVar: Required type not found"
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyCon n _)) (Ref.I i) = do
@@ -646,7 +652,7 @@ lhTCDict m t = do
     tc <- typeClassInstTC (lh_dicts m) lh t
     case tc of
         Just e -> return e
-        Nothing -> return $ Var (Id (Name "BAD 3" Nothing 0 Nothing) TyUnknown)
+        Nothing -> error $ "No lh dict " ++ show lh ++ "\n" ++ show t ++ "\n" ++ show m
 
 lhTCDict' :: LHDictMap -> Type -> LHStateM Expr
 lhTCDict' m t = do
@@ -656,19 +662,26 @@ lhTCDict' m t = do
         Just e -> return e
         Nothing -> error $ "No lh dict " ++ show lh ++ "\n" ++ show t ++ "\n" ++ show m
 
+maybeNumDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
+maybeNumDict m t = do
+    num <- numTCM
+    typeClassInstTC (num_dicts m) num t
 
 numDict :: DictMaps -> Type -> LHStateM Expr
 numDict m t = do
-    num <- numTCM
-    tc <- typeClassInstTC (num_dicts m) num t
+    tc <- maybeNumDict m t
     case tc of
         Just e -> return e
-        Nothing -> return $ Var (Id (Name "BAD 4" Nothing 0 Nothing) TyUnknown)
+        Nothing -> error $ "No num dict \n" ++ show t ++ "\n" ++ show m
+
+maybeIntegralDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
+maybeIntegralDict m t = do
+    integral <- return . KV.integralTC =<< knownValues
+    typeClassInstTC (integral_dicts m) integral t
 
 integralDict :: DictMaps -> Type -> LHStateM Expr
 integralDict m t = do
-    num <- return . KV.integralTC =<< knownValues
-    tc <- typeClassInstTC (integral_dicts m) num t
+    tc <- maybeIntegralDict m t
     case tc of
         Just e -> return e
-        Nothing -> return $ Var (Id (Name "BAD 5" Nothing 0 Nothing) TyUnknown)
+        Nothing ->  error $ "No integral dict\n" ++ show t ++ "\n" ++ show m

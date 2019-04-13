@@ -48,6 +48,7 @@ initKnownValues eenv tenv =
     , negateFunc = exprWithStrName eenv "negate"
     , modFunc = exprWithStrName eenv "mod"
     , fromIntegerFunc = exprWithStrName eenv "fromInteger"
+    , toIntegerFunc = exprWithStrName eenv "toInteger"
 
     , geFunc = exprWithStrName eenv ">="
     , gtFunc = exprWithStrName eenv ">"

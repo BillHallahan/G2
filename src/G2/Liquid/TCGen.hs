@@ -60,6 +60,7 @@ createTCValues kv = do
                         , lhNegate = KV.negateFunc kv
                         , lhMod = KV.modFunc kv
                         , lhFromInteger = KV.fromIntegerFunc kv
+                        , lhToInteger = KV.toIntegerFunc kv
                         , lhNumOrd = lhNuOr
 
                         , lhAnd = KV.andFunc kv
@@ -247,7 +248,10 @@ mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHState
 mkFirstCase f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
     caseB <- freshIdN (typeOf d1)
     return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
-mkFirstCase _ _ _ _ _ _ = return $ Var (Id (Name "Bad mkFirstCase" Nothing 0 Nothing) TyUnknown)
+mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc }) = do
+    caseB <- freshIdN (typeOf d1)
+    return . Case (Var d1) caseB . (:[]) =<< mkFirstCase' f ldm d2 n adt dc
+mkFirstCase _ _ _ _ _ _ = error "mkFirstCase: Unsupported AlgDataTy"
 
 mkFirstCase' :: PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> LHStateM Alt
 mkFirstCase' f ldm d2 n adt dc = do
@@ -302,6 +306,7 @@ eqLHFuncCall ldm i1 i2
         return $ App (App (App lhv lhd) (Var i1)) (Var i2)
 
     | TyFun _ _ <- t = mkTrueE
+    | TyApp _ _ <- t = mkTrueE
     | TyForAll _ _ <- t = mkTrueE
     
     |  t == TyLitInt

@@ -15,6 +15,7 @@ import G2.Initialization.MkCurrExpr
 import G2.Interface.OutputTypes
 import G2.Language
 import G2.Translation.Haskell
+import G2.Translation.TransTypes
 import G2.Lib.Printers
 
 import Control.Exception
@@ -43,7 +44,7 @@ runCheck proj src modN entry chAll gflags binds (ExecRes {final_state = s, conc_
 
 runCheck' :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> Bindings -> [Expr] -> Expr -> Ghc (HValue, [HValue])
 runCheck' proj src modN entry chAll gflags s b ars out = do
-        _ <- loadProj Nothing proj src gflags False
+        _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN
