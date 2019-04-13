@@ -20,7 +20,8 @@ data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , name_gen :: L.NameGen
                                , known_values :: L.KnownValues
                                , type_classes :: L.TypeClasses
-                               , rewrite_rules :: [L.RewriteRule] } deriving (Eq, Show, Read)
+                               , rewrite_rules :: ![L.RewriteRule]
+                               , exports :: [Name] } deriving (Eq, Show, Read)
 
 newtype SimpleStateM a = SimpleStateM { unSM :: (SM.State SimpleState a) } deriving (Applicative, Functor, Monad)
 

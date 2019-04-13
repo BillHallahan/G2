@@ -95,7 +95,7 @@ data ExtractedG2 = ExtractedG2
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id])]
   , exg2_exports :: [ExportedName]
   , exg2_deps :: [T.Text]
-  , exg2_rules :: [G2.RewriteRule]
+  , exg2_rules :: ![G2.RewriteRule]
   } deriving (Eq, Show, Read)
 
 emptyExtractedG2 :: ExtractedG2

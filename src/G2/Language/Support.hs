@@ -61,7 +61,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , func_table :: FuncInterps
                          , apply_types :: AT.ApplyTypes
                          , input_names :: [Name]
-                         , rewrite_rules :: [RewriteRule]
+                         , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          } deriving (Show, Eq, Read)
 
