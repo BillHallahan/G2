@@ -316,11 +316,15 @@ evalCase s@(State { expr_env = eenv
           (dsts_cs, ng') = case mexpr of
             (Cast e c) -> case unApp $ unsafeElimCast e of
                 (Var i):_ -> concretizeVarExpr s ng i bind dalts (Just c)
-                _ -> ([], ng)
+                (Lit _):_ -> ([], ng)
+                (Data _):_ -> ([], ng)
+                _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimCast e)
             _ -> case unApp $ unsafeElimCast mexpr of
                 (Var i):_ -> concretizeVarExpr s ng i bind dalts Nothing
                 (Prim _ _):_ -> createExtConds s ng mexpr bind dalts
-                _ -> ([], ng)
+                (Lit _):_ -> ([], ng)
+                (Data _):_ -> ([], ng)
+                _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimCast mexpr)
 
           lsts_cs = liftSymLitAlt s mexpr bind lalts
           def_sts = liftSymDefAlt s mexpr bind alts
@@ -419,14 +423,14 @@ concretizeVarExpr' s@(State {expr_env = eenv, symbolic_ids = syms})
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
     -- Concretize polymorphic data constructor
-    dcon_tyapp = (\(Id _ t) -> t) (mexpr_id)
-    exprs = case dcon_tyapp of
+    mexpr_t = (\(Id _ t) -> t) (mexpr_id)
+    exprs = case mexpr_t of
         (TyApp _ t) -> dcon' : (Type t) : dConArgs
         _ -> dcon' : dConArgs
-    -- Apply DataCon children to DataCon
+    -- Apply Type (if present) and DataCon children to DataCon
     dcon'' = mkApp exprs
 
-    -- Apply cast
+    -- Apply cast, in opposite direction of unsafeElimCast
     dcon''' = case maybeC of 
                 (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
                 Nothing -> dcon''
