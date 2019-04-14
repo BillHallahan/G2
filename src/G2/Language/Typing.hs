@@ -41,6 +41,7 @@ module G2.Language.Typing
     , argTypeToType
     , argTypeToLamUse
     , spArgumentTypes
+    , leadingTyForAllBindings
     , tyForAllBindings
     , anonArgumentTypes
     , returnType
@@ -442,6 +443,13 @@ spArgumentTypes' (TyForAll (AnonTyBndr t1) t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' (TyForAll (NamedTyBndr i) t2) = NamedType i:spArgumentTypes' t2
 spArgumentTypes' (TyFun t1 t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' _ = []
+
+leadingTyForAllBindings :: Typed t => t -> [Id]
+leadingTyForAllBindings = leadingTyForAllBindings' . typeOf
+
+leadingTyForAllBindings' :: Type -> [Id]
+leadingTyForAllBindings' (TyForAll (NamedTyBndr i) t) = i:leadingTyForAllBindings' t
+leadingTyForAllBindings' _ = []
 
 tyForAllBindings :: Typed t => t -> [Id]
 tyForAllBindings = tyForAllBindings' . typeOf

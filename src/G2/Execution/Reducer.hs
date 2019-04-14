@@ -329,21 +329,30 @@ substHigherOrder eenv m si ns ce =
                                 Nothing -> Nothing) ns
 
         higherOrd = filter (isTyFun . typeOf) . mapMaybe varId . symbVars eenv $ ce
-        higherOrdSub = map (\v -> (v, filter (\i -> typeOf i == typeOf v) is)) higherOrd
+        higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
     in
     substHigherOrder' [(eenv, m, si, ce)] higherOrdSub
+    where
+        genSubstitutable v i
+            | (True, bm) <- specializes M.empty (typeOf v )(typeOf i) =
+                let
+                    bnds = map idName $ leadingTyForAllBindings i
+                    tys = mapMaybe (\b -> fmap Type $ M.lookup b bm) bnds
+                in
+                Just . mkApp $ Var i:tys
+            | otherwise = Nothing
 
-substHigherOrder' :: [(ExprEnv, Model, SymbolicIds, CurrExpr)] -> [(Id, [Id])] -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
+substHigherOrder' :: [(ExprEnv, Model, SymbolicIds, CurrExpr)] -> [(Id, [Expr])] -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
 substHigherOrder' eenvsice [] = eenvsice
-substHigherOrder' eenvsice ((i, is):iss) =
+substHigherOrder' eenvsice ((i, es):iss) =
     substHigherOrder'
-        (concatMap (\i_rep -> 
-                        map (\(eenv,m,  si, ce) -> ( E.insert (idName i) (Var i_rep) eenv
-                                                , M.insert (idName i) (Var i_rep) m
-                                                , filter (/= i) si
-                                                , replaceASTs (Var i) (Var i_rep) ce)
+        (concatMap (\e_rep -> 
+                        map (\(eenv, m, si, ce) -> ( E.insert (idName i) e_rep eenv
+                                                   , M.insert (idName i) e_rep m
+                                                   , filter (/= i) si
+                                                   , replaceASTs (Var i) e_rep ce)
                             ) eenvsice)
-        is) iss
+        es) iss
 
 data TaggerRed = TaggerRed Name NameGen
 
