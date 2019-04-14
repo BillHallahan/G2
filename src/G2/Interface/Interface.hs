@@ -146,6 +146,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod config =
     , func_table = ft
     , apply_types = at
     , input_names = map idName is
+    , higher_order_inst = IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''})
 

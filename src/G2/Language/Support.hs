@@ -60,6 +60,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , cleaned_names :: CleanedNames
                          , func_table :: FuncInterps
                          , apply_types :: AT.ApplyTypes
+                         , higher_order_inst :: [Name] -- ^ Functions to try instantiating higher order functions with
                          , input_names :: [Name]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
@@ -259,6 +260,7 @@ instance Named Bindings where
             ++ names (cleaned_names b)
             ++ names (func_table b)
             ++ names (apply_types b)
+            ++ names (higher_order_inst b)
             ++ names (input_names b)
 
     rename old new b =
@@ -268,6 +270,7 @@ instance Named Bindings where
                  , cleaned_names = HM.insert new old (cleaned_names b)
                  , func_table = rename old new (func_table b)
                  , apply_types = rename old new (apply_types b)
+                 , higher_order_inst = rename old new (higher_order_inst b)
                  , input_names = rename old new (input_names b)
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
@@ -280,6 +283,7 @@ instance Named Bindings where
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
                , func_table = renames hm (func_table b)
                , apply_types = renames hm (apply_types b)
+               , higher_order_inst = renames hm (higher_order_inst b)
                , input_names = renames hm (input_names b)
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b

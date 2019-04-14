@@ -148,7 +148,8 @@ evalApp s@(State { expr_env = eenv
                  , known_values = kv
                  , exec_stack = stck })
         ng e1 e2
-    | (App (Prim BindFunc _) (Var i1)) <- e1
+    | (App (Prim BindFunc _) v) <- e1
+    , Var i1 <- findSym v
     , v2 <- e2 =
         ( RuleBind
         , [s { expr_env = E.insert (idName i1) v2 eenv
@@ -176,6 +177,11 @@ evalApp s@(State { expr_env = eenv
         , [s { curr_expr = CurrExpr Evaluate e1
              , exec_stack = stck' }]
         , ng)
+    where
+        findSym v@(Var (Id n _))
+          | E.isSymbolic n eenv = v
+          | Just e <- E.lookup n eenv = findSym e
+        findSym _ = error "findSym: No symbolic variable"
 
 lookupForPrim :: ExprEnv -> Expr -> Expr
 lookupForPrim eenv v@(Var (Id _ _)) = repeatedLookup eenv v
