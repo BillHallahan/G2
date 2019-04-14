@@ -45,7 +45,6 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , runReducer ) where
 
-import qualified G2.Language.ApplyTypes as AT
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import G2.Language
@@ -297,7 +296,6 @@ instance Reducer NonRedPCRed () t where
     redRules nrpr _  s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , path_conds = pc
                               , non_red_path_conds = nr:nrs
                               , symbolic_ids = si
                               , model = m })
@@ -319,6 +317,7 @@ instance Reducer NonRedPCRed () t where
         return (InProgress, xs, b, nrpr)
     redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
 
+-- [Higher-Order Model]
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
