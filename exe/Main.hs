@@ -54,7 +54,7 @@ runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   _ <- doTimeout (timeLimit config) $ do
     ((in_out, b), entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
-    printLHOut entry b in_out
+    printLHOut entry in_out
   return ()
 
 runWithArgs :: [String] -> IO ()
@@ -92,7 +92,7 @@ runWithArgs as = do
 
     case validate config of
         True -> do
-            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
+            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
@@ -105,15 +105,15 @@ runWithArgs as = do
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
 printFuncCalls config entry b =
     mapM_ (\execr@(ExecRes { final_state = s}) -> do
-        let funcCall = mkCleanExprHaskell s b
+        let funcCall = mkCleanExprHaskell s
                      . foldl (\a a' -> App a a') (Var entry) $ (conc_args execr)
 
-        let funcOut = mkCleanExprHaskell s b $ (conc_out execr)
+        let funcOut = mkCleanExprHaskell s $ (conc_out execr)
 
-        ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s b
+        ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s
         ppStatePiece (printRelExprEnv config) "rel expr_env" $ ppRelExprEnv s b
-        ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s b
-        ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s b
+        ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s
+        ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 

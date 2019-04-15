@@ -229,7 +229,7 @@ instance Typed Type where
     typeOf' _ TyBottom = TyBottom
     typeOf' _ TyUnknown = TyUnknown
 
-newtype PresType = PresType Type
+newtype PresType = PresType Type deriving (Show, Read)
 
 instance Typed PresType where
     typeOf' _ (PresType t) = t

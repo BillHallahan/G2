@@ -5,15 +5,16 @@ import G2.Language.Support hiding (State (..))
 import G2.Initialization.DeepSeqWalks
 import G2.Initialization.ElimTicks
 import G2.Initialization.ElimTypeSynonyms
-import G2.Initialization.Functionalizer
 import G2.Initialization.InitVarLocs
 import G2.Initialization.StructuralEq
 import G2.Initialization.Types as IT
 
-import Data.HashSet
+import qualified G2.Language.ApplyTypes as AT
 
-runInitialization :: IT.SimpleState -> [Type] -> HashSet Name ->
-    (IT.SimpleState, FuncInterps, ApplyTypes, Walkers)
+import Data.HashSet
+import qualified Data.Map as M
+
+runInitialization :: IT.SimpleState -> [Type] -> HashSet Name -> (IT.SimpleState, Walkers)
 runInitialization s@(IT.SimpleState { IT.expr_env = eenv
                                  , IT.type_env = tenv
                                  , IT.name_gen = ng
@@ -30,7 +31,6 @@ runInitialization s@(IT.SimpleState { IT.expr_env = eenv
                , IT.type_classes = tc2 }
 
         s'' = execSimpleStateM (createStructEqFuncs ts) s'
-        ((ft, at), s''') = runSimpleStateM (functionalize ts tgtNames) s''
-        s'''' = elimTicks . initVarLocs $ s'''
+        s''' = elimTicks . initVarLocs $ s''
     in
-    (s'''', ft, at, ds_walkers)
+    (s''', ds_walkers)

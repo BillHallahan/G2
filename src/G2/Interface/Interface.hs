@@ -110,7 +110,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod config =
               Right errs -> error errs
         (_, ts) = instantiateArgTypes (IT.type_classes s) (IT.known_values s) fe
 
-        (s', ft, at, ds_walkers) = runInitialization s ts (S.fromList $ IT.exports s)
+        (s', ds_walkers) = runInitialization s ts (S.fromList $ IT.exports s)
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -143,8 +143,6 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod config =
     , fixed_inputs = f_i
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
-    , func_table = ft
-    , apply_types = at
     , input_names = map idName is
     , higher_order_inst = IT.exports s
     , rewrite_rules = IT.rewrite_rules s
@@ -312,8 +310,8 @@ runG2 :: ( Named t
 runG2 red hal ord con pns (is@State { type_env = tenv
                                     , known_values = kv
                                     , type_classes = tc }) 
-                          (bindings@Bindings { apply_types = at}) = do
-    let (swept, bindings') = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is bindings
+                           bindings = do
+    let (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) is bindings
 
     let (preproc_state, bindings'') = runPreprocessing swept bindings'
 
@@ -336,8 +334,7 @@ runG2 red hal ord con pns (is@State { type_env = tenv
                         , conc_out = e
                         , violated = ais}) $ ident_states''
 
-    let sm' = map (\sm''@(ExecRes {final_state = s}) -> 
-                                   runPostprocessing s bindings''' sm'') sm
+    let sm' = map (\sm'' -> runPostprocessing bindings''' sm'') sm
 
     let sm'' = map (\ExecRes { final_state = s
                              , conc_args = es

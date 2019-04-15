@@ -55,10 +55,10 @@ checkInputOutput'' src md entry i req config = do
     let (init_state, _, bindings) = initState exg2 Nothing Nothing False (T.pack entry) mb_modname config
     putStrLn "test"
     
-    (r, b) <- runG2WithConfig init_state config bindings
+    (r, _) <- runG2WithConfig init_state config bindings
 
     let chAll = checkExprAll req
-    mr <- validateStates proj src md entry chAll [] b r
+    mr <- validateStates proj src md entry chAll [] r
     let io = map (\(ExecRes { conc_args = i', conc_out = o}) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
@@ -85,11 +85,11 @@ checkInputOutputLH' proj src md entry i req config = try (checkInputOutputLH'' p
 
 checkInputOutputLH'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO Bool
 checkInputOutputLH'' proj src md entry i req config = do
-    ((r,b), _) <- findCounterExamples proj src (T.pack entry) [] [] config
+    ((r, _), _) <- findCounterExamples proj src (T.pack entry) [] [] config
 
     let chAll = checkExprAll req
 
-    mr <- validateStates proj src md entry chAll [] b r
+    mr <- validateStates proj src md entry chAll [] r
     let io = map (\(ExecRes { conc_args = i', conc_out = o}) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req

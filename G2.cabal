@@ -32,7 +32,6 @@ library
                        , G2.Initialization.DeepSeqWalks
                        , G2.Initialization.ElimTicks
                        , G2.Initialization.ElimTypeSynonyms
-                       , G2.Initialization.Functionalizer
                        , G2.Initialization.InitVarLocs
                        , G2.Initialization.KnownValues
                        , G2.Initialization.MkCurrExpr
@@ -115,7 +114,6 @@ library
                        , G2.Liquid.Types
 
                        , G2.Postprocessing.NameSwitcher
-                       , G2.Postprocessing.Undefunctionalize
 
                        , G2.Solver.ADTSolver
                        , G2.Solver.Converters
