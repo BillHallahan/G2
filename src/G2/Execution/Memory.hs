@@ -7,14 +7,12 @@ import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.Naming
 import qualified G2.Language.ExprEnv as E
-import G2.Language.TypeEnv
 import G2.Language.Typing
 
 import Data.List
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 
-import Debug.Trace
 
 markAndSweep :: State t -> Bindings -> (State t, Bindings)
 markAndSweep = markAndSweepPreserving []
@@ -29,7 +27,7 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
                                        , known_values = kv
                                        }) (bindings@Bindings { deepseq_walkers = dsw
                                                              , higher_order_inst = inst }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
-                               trace (show $ length higher_ord) (state', bindings')
+                               (state', bindings')
   where
     state' = state { expr_env = eenv'
                    , type_env = tenv'

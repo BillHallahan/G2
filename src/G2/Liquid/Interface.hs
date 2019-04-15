@@ -86,8 +86,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
     let np_ng = name_gen bindings'
 
     let renme = E.keys np_eenv -- \\ nub (Lang.names (type_classes no_part_state))
-    let ((meenv, mkv, mtc), ng') = doRenames renme np_ng 
-            (np_eenv, known_values no_part_state, type_classes no_part_state)
+    let ((meenv, mkv, mtc, minst), ng') = doRenames renme np_ng 
+            (np_eenv, known_values no_part_state, type_classes no_part_state, higher_order_inst bindings')
     
     let ng_bindings = bindings' {name_gen = ng'}
 
@@ -117,8 +117,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
     -- for the LH typeclass.
     let final_st = track_state { known_values = mkv
                                , type_classes = unionTypeClasses mtc (type_classes track_state)}
-    -- let bindings''' = bindings'' { apply_types = mat}
-    let bindings''' = bindings''
+    let bindings''' = bindings'' { higher_order_inst = minst }
+    -- let bindings''' = bindings''
 
 
     let tr_ng = mkNameGen ()
