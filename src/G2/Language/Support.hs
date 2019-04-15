@@ -7,7 +7,6 @@ module G2.Language.Support
     ( module G2.Language.AST
     , module G2.Language.Support
     , module G2.Language.TypeEnv
-    , AT.ApplyTypes
     , E.ExprEnv
     , PathConds
     , KnownValues
@@ -16,7 +15,6 @@ module G2.Language.Support
     , Assertion
     ) where
 
-import qualified G2.Language.ApplyTypes as AT
 import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues

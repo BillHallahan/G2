@@ -9,8 +9,6 @@ import G2.Initialization.InitVarLocs
 import G2.Initialization.StructuralEq
 import G2.Initialization.Types as IT
 
-import qualified G2.Language.ApplyTypes as AT
-
 import Data.HashSet
 import qualified Data.Map as M
 

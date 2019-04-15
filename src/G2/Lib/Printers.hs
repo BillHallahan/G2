@@ -11,7 +11,6 @@ module G2.Lib.Printers ( mkCleanExprHaskell
                        , pprExecEEnvStr) where
 
 import G2.Execution.Memory
-import qualified G2.Language.ApplyTypes as AT
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
