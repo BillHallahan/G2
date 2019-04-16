@@ -51,8 +51,8 @@ module G2.Language.Typing
     , retype
     , mapInTyForAlls
     , inTyForAlls
-
     , numTypeArgs
+    , typeToExpr
     ) where
 
 import G2.Language.AST
@@ -512,3 +512,10 @@ numTypeArgs = numTypeArgs' . typeOf
 numTypeArgs' :: Type -> Int
 numTypeArgs' (TyForAll (NamedTyBndr _) t) = 1 + numTypeArgs' t
 numTypeArgs' _ = 0
+
+-- | Converts nested TyApps into a list of Expr-level Types
+typeToExpr :: Type -> [Expr]
+typeToExpr (TyApp f t) = [Type t] ++ (typeToExpr f)
+typeToExpr _ = []
+
+

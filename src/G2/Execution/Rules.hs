@@ -428,12 +428,11 @@ concretizeVarExpr' s@(State {expr_env = eenv, symbolic_ids = syms})
 
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
-    -- Concretize polymorphic data constructor
+    -- Get list of Types to concretize polymorphic data constructor
     mexpr_t = (\(Id _ t) -> t) (mexpr_id)
-    exprs = case mexpr_t of
-        (TyApp _ t) -> dcon' : (Type t) : dConArgs
-        _ -> dcon' : dConArgs
-    -- Apply Type (if present) and DataCon children to DataCon
+    exprs = [dcon'] ++ (typeToExpr mexpr_t) ++ dConArgs
+
+    -- Apply list of types (if present) and DataCon children to DataCon
     dcon'' = mkApp exprs
 
     -- Apply cast, in opposite direction of unsafeElimCast
