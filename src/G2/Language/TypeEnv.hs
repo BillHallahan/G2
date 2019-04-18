@@ -14,6 +14,7 @@ module G2.Language.TypeEnv
   , getDataCons
   , baseDataCons
   , getCastedAlgDataTy
+  , getAlgDataTy
   , getDataCon
   , getDataConNameMod
   , getDataConNameMod'
@@ -105,6 +106,19 @@ getCastedAlgDataTy' n ts tenv =
             Just (NewTyCon {rep_type = TyCon n' _}) -> getCastedAlgDataTy' n' ts tenv
             Just (NewTyCon {}) -> Nothing
             (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
+            _ -> Nothing
+
+getAlgDataTy :: Type -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
+getAlgDataTy t tenv
+    | TyCon n _ <- tyAppCenter t
+    , ts <- tyAppArgs t = getAlgDataTy' n ts tenv
+    | otherwise = Nothing
+
+getAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
+getAlgDataTy' n ts tenv =
+        case M.lookup n tenv of
+            Just dc@(NewTyCon {bound_ids = bi}) -> Just (dc, zip bi ts)
+            Just dc@(DataTyCon { bound_ids = bi }) -> Just (dc, zip bi ts)
             _ -> Nothing
 
 getDataCon :: TypeEnv -> Name -> Name -> Maybe DataCon

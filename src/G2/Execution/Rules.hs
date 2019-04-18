@@ -30,7 +30,6 @@ import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.List as L
-import qualified Data.Map as M
 
 stdReduce :: Solver solver => solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce solver s b@(Bindings {name_gen = ng}) = do
@@ -430,10 +429,9 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
 
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
-    -- Get list of Types to concretize polymorphic data constructor
+    -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
     mexpr_t = (\(Id _ t) -> t) (mexpr_id)
-    exprs = [dcon'] ++ (dconTyToExprType mexpr_t tenv) ++ dConArgs
-    -- exprs = [dcon'] ++ (typeToExpr mexpr_t) ++ dConArgs
+    exprs = [dcon'] ++ (mexprTyToExpr mexpr_t tenv) ++ dConArgs
 
     -- Apply list of types (if present) and DataCon children to DataCon
     dcon'' = mkApp exprs
@@ -452,62 +450,45 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
 
--- | Ugly solution, todo: improve
+-- Ugly solution, todo: improve
 
--- given the type of a DataCon, looks for type in the Type_Env, and returns Expr level representation of the Type arguments to the DataCon based on the
--- Type_Env
-dconTyToExprType :: Type -> TypeEnv -> [Expr]
-dconTyToExprType mexpr_t tenv = let
-    maybeADT = getCastedAlgDataTyNew mexpr_t tenv
-    in
-        case maybeADT of
-            (Just (adt, bindings)) -> case adt of
-                NewTyCon {data_con = dcon} -> dconTyToExpr dcon bindings
-                DataTyCon {} -> typeToExpr mexpr_t -- from Language/Typing.hs
-                _ -> []
-            Nothing -> []
+-- | Given the Type of the matched Expr, looks for Type in the TypeEnv, and returns Expr level representation of the Type
+mexprTyToExpr :: Type -> TypeEnv -> [Expr]
+mexprTyToExpr mexpr_t tenv 
+    | Just (algDataTy, bindings) <- getAlgDataTy mexpr_t tenv
+    , (isNewTyCon algDataTy) = dconTyToExpr (data_con algDataTy) bindings
+    | Just (_,_) <- getAlgDataTy mexpr_t tenv = typeToExpr mexpr_t -- is DataTyCon or TypeSynonym
+    | otherwise = []
 
-getCastedAlgDataTyNew :: Type -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
-getCastedAlgDataTyNew t tenv
-    | TyCon n _ <- tyAppCenter t
-    , ts <- tyAppArgs t = getCastedAlgDataTyNew' n ts tenv
-    | otherwise = Nothing
-
-getCastedAlgDataTyNew' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
-getCastedAlgDataTyNew' n ts tenv =
-        case M.lookup n tenv of
-            Just dc@(NewTyCon {bound_ids = bi}) -> Just (dc, zip bi ts)
-            Just dc@(DataTyCon { bound_ids = bi }) -> Just (dc, zip bi ts)
-            _ -> Nothing
-
--- Given DataCon, and mapping from Ids to Types, returns list of Expression level Type Arguments to DataCon
+-- | Given DataCon, and an (Id, Type) mapping, returns list of Expression level Type Arguments to DataCon
 dconTyToExpr :: DataCon -> [(Id, Type)] -> [Expr]
 dconTyToExpr (DataCon _ t) bindings =
     case (getTyApps t) of
-        (Just tApps) -> getTyArgs tApps bindings
+        (Just tApps) -> tyAppsToExpr tApps bindings
         Nothing -> []
 
+-- | Find nested tyApps, if any, in the given Type
 getTyApps :: Type -> Maybe Type
 getTyApps (TyForAll _ t) = getTyApps t
 getTyApps (TyFun t _) = getTyApps t
 getTyApps t@(TyApp _ _) = Just t
 getTyApps _ = Nothing -- what about TyCon
 
--- given sequence of nested tyApp e.g. tyApp (tyApp ...) ...), returns list of expr level Types, searching through [Id,Type] list in the process
-getTyArgs :: Type -> [(Id, Type)] -> [Expr]
-getTyArgs (TyApp t (TyVar tVarId)) bindings = exprs ++ newTyExpr
+-- | Given sequence of nested tyApps e.g. tyApp (tyApp ...) ...), returns list of expr level Types, searching through [Id,Type] list in the process
+tyAppsToExpr :: Type -> [(Id, Type)] -> [Expr]
+tyAppsToExpr (TyApp t (TyVar tVarId)) bindings = exprs ++ newTyExpr
     where
-        newTyExpr = case (L.find (\(i, _) -> (tVarId == i)) bindings) of -- search list of (Id, Type) to find corresponding Type, and convert to expr
-            (Just (_, ty)) -> [Type ty]
-            Nothing -> []
-        exprs = getTyArgs t bindings
-getTyArgs (TyApp t1 t2) bindings = exprs ++ newTyExpr
+        newTyExpr = 
+            case (L.find (\(i, _) -> (tVarId == i)) bindings) of -- search list of (Id, Type) to find corresponding Type, and convert to expr
+                (Just (_, ty)) -> [Type ty]
+                Nothing -> []
+        exprs = tyAppsToExpr t bindings
+tyAppsToExpr (TyApp t1 t2) bindings = exprs ++ newTyExpr
     where
         newTyExpr = [Type t2]
-        exprs = getTyArgs t1 bindings
-getTyArgs _ _ = []
+        exprs = tyAppsToExpr t1 bindings
+tyAppsToExpr _ _ = []
                                            
-
 createExtConds :: State t -> NameGen -> Expr -> Id -> [(DataCon, [Id], Expr)] -> ([NewPC t], NameGen)
 createExtConds _ ng _ _ [] = ([], ng)
 createExtConds s ng mexpr cvar (x:xs) = 
