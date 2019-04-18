@@ -91,6 +91,7 @@ library
                        , G2.Solver.Solver
 
                        , G2.Translation
+                       , G2.Translation.QuasiQuotes
   other-modules:         G2.Config.Config
                        , G2.Config.Interface
                        , G2.Config.ParseConfig
@@ -147,6 +148,7 @@ library
                        , regex-compat
                        , parsec
                        , process >=1 && <1.7
+                       , template-haskell
                        , text
                        , time >= 1.6
                        , unordered-containers

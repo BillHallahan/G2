@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Main (main, plugin) where
 
@@ -22,6 +23,8 @@ import G2.Liquid.Interface
 
 import G2.Plugin
 
+import G2.Translation.QuasiQuotes
+
 main :: IO ()
 main = do
   -- base <- readFileExtractedG2 "/home/celery/Desktop/ghc-dump-dir/GHC.Base.g2i"
@@ -31,6 +34,9 @@ main = do
   -- putStrLn $ show $ length libs
 
   -- error "HELLO!"
+  let x = [g2| 5 |]
+  print x
+  error "Finished"
 
   as <- getArgs
   let (proj:tail_args) = as
