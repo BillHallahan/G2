@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -54,6 +55,7 @@ import Prelude hiding( filter
                      , null)
 import qualified Prelude as Pre
 import Data.Coerce
+import Data.Data (Data, Typeable)
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
@@ -68,10 +70,10 @@ import qualified Data.Text as T
 data EnvObj = ExprObj Expr
             | RedirObj Name
             | SymbObj Id
-            deriving (Show, Eq, Read)
+            deriving (Show, Eq, Read, Typeable, Data)
 
 newtype ExprEnv = ExprEnv (M.Map Name EnvObj)
-                  deriving (Show, Eq, Read)
+                  deriving (Show, Eq, Read, Typeable, Data)
 
 unwrapExprEnv :: ExprEnv -> M.Map Name EnvObj
 unwrapExprEnv = coerce

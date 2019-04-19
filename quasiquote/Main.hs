@@ -3,7 +3,7 @@
 module Main where
 
 import G2.Language.Syntax
-import G2.Translation.QuasiQuotes
+import G2.QuasiQuotes.QuasiQuotes
 
 import Data.List
 

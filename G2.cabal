@@ -89,9 +89,11 @@ library
                        , G2.Solver
                        , G2.Solver.Interface
                        , G2.Solver.Solver
+                       
+                       , G2.QuasiQuotes.FloodConsts
+                       , G2.QuasiQuotes.QuasiQuotes
 
                        , G2.Translation
-                       , G2.Translation.QuasiQuotes
   other-modules:         G2.Config.Config
                        , G2.Config.Interface
                        , G2.Config.ParseConfig
