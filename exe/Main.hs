@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes #-}
 
 module Main (main, plugin) where
 
@@ -34,10 +33,6 @@ main = do
   -- putStrLn $ show $ length libs
 
   -- error "HELLO!"
-  let x = [g2| 5 |]
-  print x
-  error "Finished"
-
   as <- getArgs
   let (proj:tail_args) = as
 

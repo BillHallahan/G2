@@ -19,6 +19,7 @@ module G2.Interface.Interface ( doTimeout
                               , runG2FromFile
                               , runG2WithConfig
                               , runG2WithSomes
+                              , runG2ThroughExecution
                               , runG2
                               , Config) where
 
@@ -65,6 +66,9 @@ type ReachFunc = T.Text
 type StartFunc = T.Text
 type ModuleName = Maybe T.Text 
 
+type MkCurrExpr = Id -> TypeClasses -> NameGen -> ExprEnv -> Walkers
+                     -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
+
 doTimeout :: Int -> IO a -> IO (Maybe a)
 doTimeout secs action = do
   res <- timeout (secs * 1000 * 1000) action -- timeout takes micros.
@@ -78,32 +82,32 @@ maybeDoTimeout :: Maybe Int -> IO a -> IO (Maybe a)
 maybeDoTimeout (Just secs) = doTimeout secs
 maybeDoTimeout Nothing = fmap Just
 
-initState :: ExtractedG2 -> Maybe AssumeFunc
-          -> Maybe AssertFunc -> Bool -> StartFunc -> ModuleName
+initState :: ExtractedG2 -> Bool -> StartFunc -> ModuleName
+          -> MkCurrExpr
           -> Config -> (State (), Id, Bindings)
-initState exg2 m_assume m_assert useAssert f m_mod config =
+initState exg2 useAssert f m_mod mkCurr config =
     let
         s = initSimpleState exg2
     in
-    initStateFromSimpleState s m_assume m_assert useAssert f m_mod config
+    initStateFromSimpleState s useAssert f m_mod mkCurr config
 
 initState' :: ExtractedG2
            -> StartFunc
            -> ModuleName
+           -> MkCurrExpr
            -> Config
            -> (State (), Id, Bindings)
-initState' exg2 =
-    initState exg2 Nothing Nothing False
+initState' exg2 sf m_mod mkCurr =
+    initState exg2 False sf m_mod mkCurr
 
 initStateFromSimpleState :: IT.SimpleState
-                         -> Maybe AssumeFunc
-                         -> Maybe AssertFunc
                          -> Bool
                          -> StartFunc
                          -> ModuleName
+                         -> MkCurrExpr
                          -> Config
                          -> (State (), Id, Bindings)
-initStateFromSimpleState s m_assume m_assert useAssert f m_mod config =
+initStateFromSimpleState s useAssert f m_mod mkCurr config =
     let
         (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
               Left ie' -> ie'
@@ -117,7 +121,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod config =
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
-        (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert (idName ie) m_mod tc' ng' eenv' ds_walkers kv' config
+        (ce, is, f_i, ng'') = mkCurr ie tc' ng' eenv' ds_walkers kv' config
     in
     (State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
@@ -153,8 +157,8 @@ initStateFromSimpleState' :: IT.SimpleState
                           -> ModuleName
                           -> Config
                           -> (State (), Id, Bindings)
-initStateFromSimpleState' s=
-    initStateFromSimpleState s Nothing Nothing False
+initStateFromSimpleState' s sf m_mod =
+    initStateFromSimpleState s False sf m_mod (mkCurrExpr Nothing Nothing)
 
 initSimpleState :: ExtractedG2
                 -> IT.SimpleState
@@ -227,25 +231,25 @@ initialStateFromFileSimple :: FilePath
                    -> FilePath
                    -> [FilePath]
                    -> StartFunc
+                   -> MkCurrExpr
                    -> Config
                    -> IO (State (), Id, Bindings)
-initialStateFromFileSimple proj src libs f config =
-    initialStateFromFile proj src libs Nothing Nothing Nothing False f config
+initialStateFromFileSimple proj src libs f mkCurr config =
+    initialStateFromFile proj src libs Nothing False f mkCurr config
 
 initialStateFromFile :: FilePath
                      -> FilePath
                      -> [FilePath]
-                     -> Maybe AssumeFunc
-                     -> Maybe AssertFunc
                      -> Maybe ReachFunc
                      -> Bool
                      -> StartFunc
+                     -> MkCurrExpr
                      -> Config
                      -> IO (State (), Id, Bindings)
-initialStateFromFile proj src libs m_assume m_assert m_reach def_assert f config = do
+initialStateFromFile proj src libs m_reach def_assert f mkCurr config = do
     (mb_modname, exg2) <- translateLoaded proj src libs simplTranslationConfig config
-    let (init_s, ent_f, bindings) = initState exg2 m_assume m_assert def_assert
-                                    f mb_modname config
+    let (init_s, ent_f, bindings) = initState exg2 def_assert
+                                    f mb_modname mkCurr config
         reaches_state = initCheckReaches init_s mb_modname m_reach
 
     return (reaches_state, ent_f, bindings)
@@ -261,8 +265,8 @@ runG2FromFile :: FilePath
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
 runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
-    (init_state, entry_f, bindings) <- initialStateFromFile proj src libs m_assume
-                                    m_assert m_reach def_assert f config
+    (init_state, entry_f, bindings) <- initialStateFromFile proj src libs
+                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) config
 
     r <- runG2WithConfig init_state config bindings
 
@@ -297,6 +301,23 @@ runG2WithSomes red hal ord con pns state bindings =
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
             runG2 red' hal' ord' con pns state bindings
 
+runG2ThroughExecution ::
+    ( Named t
+    , ASTContainer t Expr
+    , ASTContainer t Type
+    , Reducer r rv t
+    , Halter h hv t
+    , Orderer or sov b t) => r -> h -> or ->
+    [Name] -> State t -> Bindings -> IO ([State t], Bindings)
+runG2ThroughExecution red hal ord pns (is@State { known_values = kv
+                                                , type_classes = tc }) 
+                           bindings = do
+    let (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) is bindings
+
+    let (preproc_state, bindings'') = runPreprocessing swept bindings'
+
+    runExecution red hal ord preproc_state bindings''
+
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
 runG2 :: ( Named t
@@ -308,41 +329,36 @@ runG2 :: ( Named t
          , Solver solver) => r -> h -> or ->
          solver -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord con pns (is@State { type_env = tenv
-                                    , known_values = kv
-                                    , type_classes = tc }) 
+                                    , known_values = kv }) 
                            bindings = do
-    let (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) is bindings
-
-    let (preproc_state, bindings'') = runPreprocessing swept bindings'
-
-    (exec_states, bindings''') <- runExecution red hal ord preproc_state bindings''
+    (exec_states, bindings') <- runG2ThroughExecution red hal ord pns is bindings
 
     let ident_states = filter true_assert exec_states
 
     ident_states' <- 
         mapM (\s -> do
-            (_, m) <- solve con s bindings''' (symbolic_ids s) (path_conds s)
+            (_, m) <- solve con s bindings' (symbolic_ids s) (path_conds s)
             return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states
 
     let ident_states'' = catMaybes ident_states'
 
     let sm = map (\s -> 
-              let (es, e, ais) = subModel s bindings''' in
+              let (es, e, ais) = subModel s bindings' in
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
                         , violated = ais}) $ ident_states''
 
-    let sm' = map (\sm'' -> runPostprocessing bindings''' sm'') sm
+    let sm' = map (\sm'' -> runPostprocessing bindings' sm'') sm
 
     let sm'' = map (\ExecRes { final_state = s
                              , conc_args = es
                              , conc_out = e
                              , violated = ais} ->
                                   ExecRes { final_state = s
-                                          , conc_args = fixed_inputs bindings''' ++ es
+                                          , conc_args = fixed_inputs bindings' ++ es
                                           , conc_out = evalPrims kv tenv e
                                           , violated = evalPrims kv tenv ais}) sm'
 
-    return (sm'', bindings''')
+    return (sm'', bindings')

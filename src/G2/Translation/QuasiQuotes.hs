@@ -1,25 +1,30 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module G2.Translation.QuasiQuotes (g2) where
 
+import G2.Config
+import G2.Execution.Reducer
+import G2.Initialization.MkCurrExpr
+import G2.Interface.Interface
+import G2.Language.Support
 import G2.Language.Syntax
+import G2.Solver
+import G2.Translation.Interface
+import G2.Translation.TransTypes
 
-import Control.Monad.IO.Class
-
-import Desugar
-import DynFlags
-import FastString
-import HscMain
-import HscTypes
-import GHC
-import GHC.Paths
-import Lexer
-import Parser
-import SrcLoc
-import StringBuffer
-import TcRnDriver
+import Data.Data
+import qualified Data.Text as T
 
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax
 import Language.Haskell.TH.Quote
+
+import System.IO
+import System.IO.Temp
+
+import System.FilePath
 
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
@@ -28,36 +33,119 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quoteDec = error "g2: No QuasiQuoter for declarations." }
 
 parseHaskellQ :: String -> Q Exp
-parseHaskellQ s = parseHaskellQ' s >>= liftData
+parseHaskellQ str = do
+    (s, _) <- parseHaskellQ' str
 
-parseHaskellQ' :: String -> Q Expr
+    let CurrExpr _ ce = curr_expr $ head s
+
+    exp <- dataToExpQ (\a -> liftText <$> cast a) ce
+
+    addRegVarBindings str exp
+    where
+        liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
+
+parseHaskellQ' :: String -> Q ([State ()], Bindings)
 parseHaskellQ' s = do
     ms <- reifyModule =<< thisModule
     runIO $ do
         print ms
         parseHaskellIO s
 
-parseHaskellIO :: String -> IO Expr
-parseHaskellIO s = do
-    env <- runGhc (Just libdir) getSession
-    expr <- runInteractiveHsc env $ do
-        maybe_stmt <- parseStmtWithLoc s
-        case maybe_stmt of
-            Just stmt -> do 
-                (_, tc_expr, _) <- ioMsgMaybe $ tcRnStmt env stmt
-                expr <- ioMsgMaybe $ deSugarExpr env tc_expr
-                return expr
-            Nothing -> error "g2: QuasiQuoter"
-    return $ Lit (LitInt 4)
+-- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
+-- marked to be passed into the Expr as real values, and those that the user
+-- wants to solve for- are treated as symbolic here.
+parseHaskellIO :: String -> IO ([State ()], Bindings)
+parseHaskellIO str = do
+    print $ grabRegVars str
+    print $ grabSymbVars str
+    (_, exG2) <- withSystemTempFile "ThTemp.hs"
+            (\filepath handle -> do
+                hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ subSymb str
+                hFlush handle
+                hClose handle
+                translateLoaded (takeDirectory filepath) filepath []
+                    simplTranslationConfig mkConfigDef)
+  
+    let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
 
+    SomeSolver con <- initSolver mkConfigDef
+    case initRedHaltOrd con mkConfigDef of
+        (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
+            xsb@(xs, _) <- runG2ThroughExecution red hal ord [] s b
 
-parseStmtWithLoc :: String -> Hsc (Maybe (LStmt RdrName (LHsExpr RdrName)))
-parseStmtWithLoc s = do
-    dflags <- getDynFlags
+            mapM_ (\st -> do
+                print . curr_expr $ st
+                print . path_conds $ st) xs
 
-    let buf = stringToStringBuffer s
-        loc = mkRealSrcLoc (fsLit "") 0 0
+            return xsb
 
-    case unP parseStmt (mkPState dflags buf loc) of
-        PFailed _ err -> error "parseStmtWithLoc"
-        POk _ thing -> return thing
+-- | Adds the appropriate number of lambda bindings to the Exp
+addRegVarBindings :: String -> Exp -> Q Exp
+addRegVarBindings str exp = do
+    let regs = grabRegVars str
+
+    ns <- mapM newName regs
+    let ns_pat = map VarP ns
+
+    return $ foldr (\n -> LamE [n]) exp ns_pat
+
+grabRegVars :: String -> [String]
+grabRegVars s =
+    let
+        s' = dropWhile (== ' ') s
+    in
+    case s' of
+        '\\':xs -> grabVars "->" xs
+        _ -> error "Bad QuasiQuote"
+
+afterRegVars :: String -> String
+afterRegVars s = strip s
+    where
+        strip ('-':'>':xs) = xs
+        strip (x:xs) = strip xs
+        strip [] = []
+
+grabSymbVars :: String -> [String]
+grabSymbVars s =
+    let
+        s' = dropWhile (== ' ') $ afterRegVars s
+    in
+    case s' of
+        '\\':xs -> grabVars "?" xs
+        _ -> error "Bad QuasiQuote"
+
+grabVars :: String -> String -> [String]
+grabVars _ [] = []
+grabVars en (' ':xs) = grabVars en xs
+grabVars en xs
+    |  take (length en) xs == en = []
+grabVars en xs@(_:_) =
+    let
+        (x, xs') = span (/= ' ') xs
+    in
+    x:grabVars en xs'
+
+-- | Replaces the first '?' with '->'
+subSymb :: String -> String
+subSymb = sub
+    where
+        sub ('?':xs) = "->" ++ xs
+        sub (x:xs) = x:sub xs
+        sub "" = ""
+
+-- Modelled after dataToExpQ
+dataToExpr :: Data a => (forall b . Data b => b -> Maybe (Q Expr)) -> a -> Q Expr
+dataToExpr = dataToQa vOrCE lE (foldl apE)
+    where
+        vOrCE s =
+            case nameSpace s of
+                Just VarName -> return (Var undefined)
+                Just DataName -> return (Data undefined)
+                _ -> error "Can't construct Expr from name"
+
+        apE x y = do
+            x' <- x
+            y' <- y
+            return (App x' y')
+        
+        lE c = return (Lit undefined)

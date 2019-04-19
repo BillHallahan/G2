@@ -12,7 +12,9 @@ module G2.Translation.Haskell
     , mergeExtractedG2s
     , mkIOString
     , prim_list
+    , mkRawCore
     , rawDump
+    , mkExpr
     , mkId
     , mkIdUnsafe
     , mkName

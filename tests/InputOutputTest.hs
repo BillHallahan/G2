@@ -10,6 +10,7 @@ import qualified Data.Text as T
 import System.FilePath
 
 import G2.Config
+import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language
 import G2.Liquid.Interface
@@ -52,7 +53,7 @@ checkInputOutput'' src md entry i req config = do
     let proj = takeDirectory src
     (mb_modname, exg2) <- translateLoaded proj src [] simplTranslationConfig config
 
-    let (init_state, _, bindings) = initState exg2 Nothing Nothing False (T.pack entry) mb_modname config
+    let (init_state, _, bindings) = initState exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) config
     putStrLn "test"
     
     (r, _) <- runG2WithConfig init_state config bindings
