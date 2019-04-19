@@ -1,19 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module G2.Translation.QuasiQuotes (g2) where
 
 import G2.Config
+import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
 import G2.Interface.Interface
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Support
 import G2.Language.Syntax
+import G2.Solver
 import G2.Translation.Interface
 import G2.Translation.TransTypes
 
 import Control.Monad.IO.Class
 
+import Data.Data
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import Data.Typeable
@@ -54,7 +58,7 @@ parseHaskellIO str = do
     print $ grabSymbVars str
     (_, exG2) <- withSystemTempFile "ThTemp.hs"
             (\filepath handle -> do
-                hPutStrLn handle $ "module ThTemp where\nunknown = undefined\ng2Expr = " ++ subSymb str
+                hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ subSymb str
                 hFlush handle
                 hClose handle
                 translateLoaded (takeDirectory filepath) filepath []
@@ -62,10 +66,15 @@ parseHaskellIO str = do
   
     let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
 
-    -- print $ E.keys $ expr_env s
+    SomeSolver con <- initSolver mkConfigDef
+    case initRedHaltOrd con mkConfigDef of
+        (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
+            (xs, _) <- runG2ThroughExecution red hal ord [] s b
 
-    let CurrExpr _ ce = curr_expr s 
-    return ce
+            mapM (print . curr_expr ) xs
+
+            let CurrExpr _ ce = curr_expr s 
+            return ce
 
 grabRegVars :: String -> [String]
 grabRegVars s =
@@ -110,3 +119,20 @@ subSymb = sub
         sub ('?':xs) = "->" ++ xs
         sub (x:xs) = x:sub xs
         sub "" = ""
+
+-- Modelled after dataToExpQ
+dataToExpr :: Data a => (forall b . Data b => b -> Maybe (Q Expr)) -> a -> Q Expr
+dataToExpr = dataToQa varOrConE litE (foldl appE)
+    where
+        varOrConE s =
+            case nameSpace s of
+                Just VarName -> return (Var undefined)
+                Just DataName -> return (Data undefined)
+                _ -> error "Can't construct Expr from name"
+
+        appE x y = do
+            x' <- x
+            y' <- y
+            return (App x' y')
+        
+        litE c = return (Lit undefined)

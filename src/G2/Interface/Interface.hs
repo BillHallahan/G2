@@ -19,6 +19,7 @@ module G2.Interface.Interface ( doTimeout
                               , runG2FromFile
                               , runG2WithConfig
                               , runG2WithSomes
+                              , runG2ThroughExecution
                               , runG2
                               , Config) where
 
@@ -300,6 +301,23 @@ runG2WithSomes red hal ord con pns state bindings =
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
             runG2 red' hal' ord' con pns state bindings
 
+runG2ThroughExecution ::
+    ( Named t
+    , ASTContainer t Expr
+    , ASTContainer t Type
+    , Reducer r rv t
+    , Halter h hv t
+    , Orderer or sov b t) => r -> h -> or ->
+    [Name] -> State t -> Bindings -> IO ([State t], Bindings)
+runG2ThroughExecution red hal ord pns (is@State { known_values = kv
+                                                , type_classes = tc }) 
+                           bindings = do
+    let (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) is bindings
+
+    let (preproc_state, bindings'') = runPreprocessing swept bindings'
+
+    runExecution red hal ord preproc_state bindings''
+
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
 runG2 :: ( Named t
@@ -311,41 +329,36 @@ runG2 :: ( Named t
          , Solver solver) => r -> h -> or ->
          solver -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord con pns (is@State { type_env = tenv
-                                    , known_values = kv
-                                    , type_classes = tc }) 
+                                    , known_values = kv }) 
                            bindings = do
-    let (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) is bindings
-
-    let (preproc_state, bindings'') = runPreprocessing swept bindings'
-
-    (exec_states, bindings''') <- runExecution red hal ord preproc_state bindings''
+    (exec_states, bindings') <- runG2ThroughExecution red hal ord pns is bindings
 
     let ident_states = filter true_assert exec_states
 
     ident_states' <- 
         mapM (\s -> do
-            (_, m) <- solve con s bindings''' (symbolic_ids s) (path_conds s)
+            (_, m) <- solve con s bindings' (symbolic_ids s) (path_conds s)
             return . fmap (\m' -> s {model = m'}) $ m
             ) $ ident_states
 
     let ident_states'' = catMaybes ident_states'
 
     let sm = map (\s -> 
-              let (es, e, ais) = subModel s bindings''' in
+              let (es, e, ais) = subModel s bindings' in
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
                         , violated = ais}) $ ident_states''
 
-    let sm' = map (\sm'' -> runPostprocessing bindings''' sm'') sm
+    let sm' = map (\sm'' -> runPostprocessing bindings' sm'') sm
 
     let sm'' = map (\ExecRes { final_state = s
                              , conc_args = es
                              , conc_out = e
                              , violated = ais} ->
                                   ExecRes { final_state = s
-                                          , conc_args = fixed_inputs bindings''' ++ es
+                                          , conc_args = fixed_inputs bindings' ++ es
                                           , conc_out = evalPrims kv tenv e
                                           , violated = evalPrims kv tenv ais}) sm'
 
-    return (sm'', bindings''')
+    return (sm'', bindings')
