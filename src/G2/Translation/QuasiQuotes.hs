@@ -1,17 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module G2.Translation.QuasiQuotes (g2) where
 
 import G2.Config
 import G2.Interface.Interface
+import G2.Language.Support
 import G2.Language.Syntax
-import G2.Translation.Haskell
+import G2.Translation.Interface
 import G2.Translation.TransTypes
 
 import Control.Monad.IO.Class
 
 import qualified Data.HashMap.Lazy as HM
-import Data.Text ()
+import qualified Data.Text as T
+import Data.Typeable
 
 import Bag
 import Desugar
@@ -44,7 +47,10 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quoteDec = error "g2: No QuasiQuoter for declarations." }
 
 parseHaskellQ :: String -> Q Exp
-parseHaskellQ s = parseHaskellQ' s >>= liftData
+parseHaskellQ s = parseHaskellQ' s >>= dataToExpQ (\a -> liftText <$> cast a)
+    where
+        liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
+
 
 parseHaskellQ' :: String -> Q Expr
 parseHaskellQ' s = do
@@ -55,23 +61,26 @@ parseHaskellQ' s = do
 
 parseHaskellIO :: String -> IO Expr
 parseHaskellIO str = do
-    (_, _, exG2) <- withSystemTempFile "ThTemp.hs"
+    (_, exG2) <- withSystemTempFile "ThTemp.hs"
             (\filepath handle -> do
                 hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ str
                 hFlush handle
                 hClose handle
-                hskToG2ViaCgGutsFromFile
-                    (Just HscInterpreted)
-                    (takeDirectory filepath)
-                    filepath
-                    HM.empty
-                    HM.empty
-                    simplTranslationConfig)
+                translateLoaded (takeDirectory filepath) filepath []
+                    simplTranslationConfig mkConfigDef)
+                -- hskToG2ViaCgGutsFromFile
+                --     (Just HscInterpreted)
+                --     (takeDirectory filepath)
+                --     filepath
+                --     HM.empty
+                --     HM.empty
+                --     simplTranslationConfig)
   
     let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") mkConfigDef
 
     putStrLn $ show s
-    return $ Lit (LitInt 5)
+    let CurrExpr _ ce = curr_expr s 
+    return ce
 
 
 {-
