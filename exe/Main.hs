@@ -34,10 +34,6 @@ main = do
   -- putStrLn $ show $ length libs
 
   -- error "HELLO!"
-  let x = [g2| [3] |] :: Expr
-  print x
-  error "Finished"
-
   as <- getArgs
   let (proj:tail_args) = as
 

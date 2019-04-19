@@ -16,21 +16,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import Data.Typeable
 
-import Bag
-import Desugar
-import DynFlags
-import ErrUtils
-import FastString
-import HscMain
-import HscTypes
-import GHC
-import GHC.Paths
-import Lexer
-import Parser
-import SrcLoc
-import StringBuffer
-import TcRnDriver
-
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax
 import Language.Haskell.TH.Quote
@@ -68,58 +53,8 @@ parseHaskellIO str = do
                 hClose handle
                 translateLoaded (takeDirectory filepath) filepath []
                     simplTranslationConfig mkConfigDef)
-                -- hskToG2ViaCgGutsFromFile
-                --     (Just HscInterpreted)
-                --     (takeDirectory filepath)
-                --     filepath
-                --     HM.empty
-                --     HM.empty
-                --     simplTranslationConfig)
   
     let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") mkConfigDef
 
-    putStrLn $ show s
     let CurrExpr _ ce = curr_expr s 
     return ce
-
-
-{-
-parseHaskellIO s = do
-    env <- runGhc (Just libdir) getSession
-    expr <- runInteractiveHsc env $ do
-        maybe_stmt <- parseStmtWithLoc s
-        case maybe_stmt of
-            Just stmt -> do
-                (_, tc_expr, _) <- ioMsgMaybe2 $ tcRnStmt env stmt
-                liftIO $ putStrLn "Here 3"
-                expr <- ioMsgMaybe $ deSugarExpr env tc_expr
-                return expr
-            Nothing -> error "g2: QuasiQuoter"
-    return $ mkExpr HM.empty HM.empty Nothing expr
--}
-
--------
-
-parseStmtWithLoc :: String -> Hsc (Maybe (LStmt RdrName (LHsExpr RdrName)))
-parseStmtWithLoc s = do
-    dflags <- getDynFlags
-
-    liftIO $ putStrLn "Here 1"
-
-    let buf = stringToStringBuffer s
-        loc = mkRealSrcLoc (fsLit "") 0 0
-
-    liftIO $ putStrLn "Here 2"
-
-    case unP parseStmt (mkPState dflags buf loc) of
-        PFailed _ err -> error "parseStmtWithLoc"
-        POk _ thing -> return thing
-
-ioMsgMaybe2 :: IO (Messages, Maybe a) -> Hsc a
-ioMsgMaybe2 ioA = do
-    ((warns,errs), mb_r) <- liftIO ioA
-    case mb_r of
-        Nothing -> error "Nothing"
-        Just r  -> return r
-
--- 

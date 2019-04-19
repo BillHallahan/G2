@@ -192,6 +192,17 @@ executable G2
   hs-source-dirs:      exe
   main-is:             Main.hs
 
+executable QuasiQuote
+  -- other-modules:   
+  -- other-extensions:    
+  build-depends:         g2
+                       , base >= 4.8 && < 5
+  default-language:    Haskell2010
+  ghc-options:         -O2 -threaded -Wall 
+                       -- -fprof-auto "-with-rtsopts=-p"
+  hs-source-dirs:      quasiquote
+  main-is:             Main.hs
+
 test-suite test
   build-depends:         g2
                        , array
