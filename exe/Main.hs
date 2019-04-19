@@ -34,7 +34,7 @@ main = do
   -- putStrLn $ show $ length libs
 
   -- error "HELLO!"
-  let x = [g2| 5 |]
+  let x = [g2| 3 |]
   print x
   error "Finished"
 

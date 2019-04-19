@@ -149,6 +149,7 @@ library
                        , parsec
                        , process >=1 && <1.7
                        , template-haskell
+                       , temporary-rc
                        , text
                        , time >= 1.6
                        , unordered-containers
