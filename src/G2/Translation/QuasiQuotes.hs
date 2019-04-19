@@ -8,19 +8,14 @@ import G2.Config
 import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
 import G2.Interface.Interface
-import qualified G2.Language.ExprEnv as E
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Solver
 import G2.Translation.Interface
 import G2.Translation.TransTypes
 
-import Control.Monad.IO.Class
-
 import Data.Data
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
-import Data.Typeable
 
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax
@@ -31,8 +26,6 @@ import System.IO.Temp
 
 import System.FilePath
 
-import Text.Regex
-
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quotePat = error "g2: No QuasiQuoter for patterns."
@@ -40,19 +33,28 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quoteDec = error "g2: No QuasiQuoter for declarations." }
 
 parseHaskellQ :: String -> Q Exp
-parseHaskellQ s = parseHaskellQ' s >>= dataToExpQ (\a -> liftText <$> cast a)
+parseHaskellQ str = do
+    (s, _) <- parseHaskellQ' str
+
+    let CurrExpr _ ce = curr_expr $ head s
+
+    exp <- dataToExpQ (\a -> liftText <$> cast a) ce
+
+    addRegVarBindings str exp
     where
         liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
 
-
-parseHaskellQ' :: String -> Q Expr
+parseHaskellQ' :: String -> Q ([State ()], Bindings)
 parseHaskellQ' s = do
     ms <- reifyModule =<< thisModule
     runIO $ do
         print ms
         parseHaskellIO s
 
-parseHaskellIO :: String -> IO Expr
+-- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
+-- marked to be passed into the Expr as real values, and those that the user
+-- wants to solve for- are treated as symbolic here.
+parseHaskellIO :: String -> IO ([State ()], Bindings)
 parseHaskellIO str = do
     print $ grabRegVars str
     print $ grabSymbVars str
@@ -69,12 +71,23 @@ parseHaskellIO str = do
     SomeSolver con <- initSolver mkConfigDef
     case initRedHaltOrd con mkConfigDef of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-            (xs, _) <- runG2ThroughExecution red hal ord [] s b
+            xsb@(xs, _) <- runG2ThroughExecution red hal ord [] s b
 
-            mapM (print . curr_expr ) xs
+            mapM_ (\st -> do
+                print . curr_expr $ st
+                print . path_conds $ st) xs
 
-            let CurrExpr _ ce = curr_expr s 
-            return ce
+            return xsb
+
+-- | Adds the appropriate number of lambda bindings to the Exp
+addRegVarBindings :: String -> Exp -> Q Exp
+addRegVarBindings str exp = do
+    let regs = grabRegVars str
+
+    ns <- mapM newName regs
+    let ns_pat = map VarP ns
+
+    return $ foldr (\n -> LamE [n]) exp ns_pat
 
 grabRegVars :: String -> [String]
 grabRegVars s =
@@ -122,17 +135,17 @@ subSymb = sub
 
 -- Modelled after dataToExpQ
 dataToExpr :: Data a => (forall b . Data b => b -> Maybe (Q Expr)) -> a -> Q Expr
-dataToExpr = dataToQa varOrConE litE (foldl appE)
+dataToExpr = dataToQa vOrCE lE (foldl apE)
     where
-        varOrConE s =
+        vOrCE s =
             case nameSpace s of
                 Just VarName -> return (Var undefined)
                 Just DataName -> return (Data undefined)
                 _ -> error "Can't construct Expr from name"
 
-        appE x y = do
+        apE x y = do
             x' <- x
             y' <- y
             return (App x' y')
         
-        litE c = return (Lit undefined)
+        lE c = return (Lit undefined)

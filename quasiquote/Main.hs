@@ -9,11 +9,11 @@ import Data.List
 
 main :: IO ()
 main = do
-    print f
+    print (f 8 10)
 
     -- print nub_call
 
-f :: Expr
+f :: Int -> Int -> Expr
 f = [g2|\y z -> \x ? x + 2 == y + z |]
 
 -- nub_call :: Expr
