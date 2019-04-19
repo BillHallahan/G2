@@ -4,6 +4,7 @@
 module G2.Translation.QuasiQuotes (g2) where
 
 import G2.Config
+import G2.Initialization.MkCurrExpr
 import G2.Interface.Interface
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Support
@@ -59,7 +60,7 @@ parseHaskellIO str = do
                 translateLoaded (takeDirectory filepath) filepath []
                     simplTranslationConfig mkConfigDef)
   
-    let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") mkConfigDef
+    let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
 
     -- print $ E.keys $ expr_env s
 

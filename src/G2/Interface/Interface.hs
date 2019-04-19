@@ -65,6 +65,9 @@ type ReachFunc = T.Text
 type StartFunc = T.Text
 type ModuleName = Maybe T.Text 
 
+type MkCurrExpr = Id -> TypeClasses -> NameGen -> ExprEnv -> Walkers
+                     -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
+
 doTimeout :: Int -> IO a -> IO (Maybe a)
 doTimeout secs action = do
   res <- timeout (secs * 1000 * 1000) action -- timeout takes micros.
@@ -78,32 +81,32 @@ maybeDoTimeout :: Maybe Int -> IO a -> IO (Maybe a)
 maybeDoTimeout (Just secs) = doTimeout secs
 maybeDoTimeout Nothing = fmap Just
 
-initState :: ExtractedG2 -> Maybe AssumeFunc
-          -> Maybe AssertFunc -> Bool -> StartFunc -> ModuleName
+initState :: ExtractedG2 -> Bool -> StartFunc -> ModuleName
+          -> MkCurrExpr
           -> Config -> (State (), Id, Bindings)
-initState exg2 m_assume m_assert useAssert f m_mod config =
+initState exg2 useAssert f m_mod mkCurr config =
     let
         s = initSimpleState exg2
     in
-    initStateFromSimpleState s m_assume m_assert useAssert f m_mod config
+    initStateFromSimpleState s useAssert f m_mod mkCurr config
 
 initState' :: ExtractedG2
            -> StartFunc
            -> ModuleName
+           -> MkCurrExpr
            -> Config
            -> (State (), Id, Bindings)
-initState' exg2 =
-    initState exg2 Nothing Nothing False
+initState' exg2 sf m_mod mkCurr =
+    initState exg2 False sf m_mod mkCurr
 
 initStateFromSimpleState :: IT.SimpleState
-                         -> Maybe AssumeFunc
-                         -> Maybe AssertFunc
                          -> Bool
                          -> StartFunc
                          -> ModuleName
+                         -> MkCurrExpr
                          -> Config
                          -> (State (), Id, Bindings)
-initStateFromSimpleState s m_assume m_assert useAssert f m_mod config =
+initStateFromSimpleState s useAssert f m_mod mkCurr config =
     let
         (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
               Left ie' -> ie'
@@ -117,7 +120,7 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod config =
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
-        (ce, is, f_i, ng'') = mkCurrExpr m_assume m_assert (idName ie) m_mod tc' ng' eenv' ds_walkers kv' config
+        (ce, is, f_i, ng'') = mkCurr ie tc' ng' eenv' ds_walkers kv' config
     in
     (State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
@@ -153,8 +156,8 @@ initStateFromSimpleState' :: IT.SimpleState
                           -> ModuleName
                           -> Config
                           -> (State (), Id, Bindings)
-initStateFromSimpleState' s=
-    initStateFromSimpleState s Nothing Nothing False
+initStateFromSimpleState' s sf m_mod =
+    initStateFromSimpleState s False sf m_mod (mkCurrExpr Nothing Nothing)
 
 initSimpleState :: ExtractedG2
                 -> IT.SimpleState
@@ -227,25 +230,25 @@ initialStateFromFileSimple :: FilePath
                    -> FilePath
                    -> [FilePath]
                    -> StartFunc
+                   -> MkCurrExpr
                    -> Config
                    -> IO (State (), Id, Bindings)
-initialStateFromFileSimple proj src libs f config =
-    initialStateFromFile proj src libs Nothing Nothing Nothing False f config
+initialStateFromFileSimple proj src libs f mkCurr config =
+    initialStateFromFile proj src libs Nothing False f mkCurr config
 
 initialStateFromFile :: FilePath
                      -> FilePath
                      -> [FilePath]
-                     -> Maybe AssumeFunc
-                     -> Maybe AssertFunc
                      -> Maybe ReachFunc
                      -> Bool
                      -> StartFunc
+                     -> MkCurrExpr
                      -> Config
                      -> IO (State (), Id, Bindings)
-initialStateFromFile proj src libs m_assume m_assert m_reach def_assert f config = do
+initialStateFromFile proj src libs m_reach def_assert f mkCurr config = do
     (mb_modname, exg2) <- translateLoaded proj src libs simplTranslationConfig config
-    let (init_s, ent_f, bindings) = initState exg2 m_assume m_assert def_assert
-                                    f mb_modname config
+    let (init_s, ent_f, bindings) = initState exg2 def_assert
+                                    f mb_modname mkCurr config
         reaches_state = initCheckReaches init_s mb_modname m_reach
 
     return (reaches_state, ent_f, bindings)
@@ -261,8 +264,8 @@ runG2FromFile :: FilePath
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
 runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
-    (init_state, entry_f, bindings) <- initialStateFromFile proj src libs m_assume
-                                    m_assert m_reach def_assert f config
+    (init_state, entry_f, bindings) <- initialStateFromFile proj src libs
+                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) config
 
     r <- runG2WithConfig init_state config bindings
 
