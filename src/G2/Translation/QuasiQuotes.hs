@@ -5,6 +5,7 @@ module G2.Translation.QuasiQuotes (g2) where
 
 import G2.Config
 import G2.Interface.Interface
+import qualified G2.Language.ExprEnv as E
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Translation.Interface
@@ -24,6 +25,8 @@ import System.IO
 import System.IO.Temp
 
 import System.FilePath
+
+import Text.Regex
 
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
@@ -46,9 +49,11 @@ parseHaskellQ' s = do
 
 parseHaskellIO :: String -> IO Expr
 parseHaskellIO str = do
+    print $ grabRegVars str
+    print $ grabSymbVars str
     (_, exG2) <- withSystemTempFile "ThTemp.hs"
             (\filepath handle -> do
-                hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ str
+                hPutStrLn handle $ "module ThTemp where\nunknown = undefined\ng2Expr = " ++ subSymb str
                 hFlush handle
                 hClose handle
                 translateLoaded (takeDirectory filepath) filepath []
@@ -56,5 +61,51 @@ parseHaskellIO str = do
   
     let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") mkConfigDef
 
+    -- print $ E.keys $ expr_env s
+
     let CurrExpr _ ce = curr_expr s 
     return ce
+
+grabRegVars :: String -> [String]
+grabRegVars s =
+    let
+        s' = dropWhile (== ' ') s
+    in
+    case s' of
+        '\\':xs -> grabVars "->" xs
+        _ -> error "Bad QuasiQuote"
+
+afterRegVars :: String -> String
+afterRegVars s = strip s
+    where
+        strip ('-':'>':xs) = xs
+        strip (x:xs) = strip xs
+        strip [] = []
+
+grabSymbVars :: String -> [String]
+grabSymbVars s =
+    let
+        s' = dropWhile (== ' ') $ afterRegVars s
+    in
+    case s' of
+        '\\':xs -> grabVars "?" xs
+        _ -> error "Bad QuasiQuote"
+
+grabVars :: String -> String -> [String]
+grabVars _ [] = []
+grabVars en (' ':xs) = grabVars en xs
+grabVars en xs
+    |  take (length en) xs == en = []
+grabVars en xs@(_:_) =
+    let
+        (x, xs') = span (/= ' ') xs
+    in
+    x:grabVars en xs'
+
+-- | Replaces the first '?' with '->'
+subSymb :: String -> String
+subSymb = sub
+    where
+        sub ('?':xs) = "->" ++ xs
+        sub (x:xs) = x:sub xs
+        sub "" = ""
