@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -27,6 +28,7 @@ import G2.Language.Naming
 import G2.Language.Syntax
 
 import Data.Coerce
+import Data.Data (Data, Typeable)
 import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
@@ -48,7 +50,7 @@ import qualified Prelude as P (map)
 
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
 newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
-                    deriving (Show, Eq, Read)
+                    deriving (Show, Eq, Read, Typeable, Data)
 
 -- | Path conditions represent logical constraints on our current execution
 -- path. We can have path constraints enforced due to case/alt branching, due
@@ -57,7 +59,7 @@ data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
               | PCExists Id -- ^ Makes sure we find some value for the given name, of the correct type
-              deriving (Show, Eq, Read, Generic)
+              deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 type Constraint = PathCond
 type Assertion = PathCond

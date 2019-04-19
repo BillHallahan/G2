@@ -22,8 +22,6 @@ import G2.Liquid.Interface
 
 import G2.Plugin
 
-import G2.Translation.QuasiQuotes
-
 main :: IO ()
 main = do
   -- base <- readFileExtractedG2 "/home/celery/Desktop/ghc-dump-dir/GHC.Base.g2i"

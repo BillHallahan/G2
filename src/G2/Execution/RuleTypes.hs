@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Execution.RuleTypes where
+
+import Data.Data (Data, Typeable)
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -70,7 +73,7 @@ data Rule = RuleEvalVal
           | RuleTick
           
           | RuleOther
-           deriving (Show, Eq, Read)
+           deriving (Show, Eq, Read, Typeable, Data)
 
 instance AST e => ASTContainer Rule e where
     containedASTs _ = []

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -46,6 +47,7 @@ import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeEnv
 
+import Data.Data (Data, Typeable)
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -67,7 +69,7 @@ nameLoc (Name _ _ _ s) = s
 -- | Allows the creation of fresh `Name`s.
 data NameGen = NameGen { max_uniq :: (HM.HashMap (T.Text, Maybe T.Text) Int)
                        , dc_children :: (HM.HashMap Name [Name]) }
-                deriving (Show, Eq, Read)
+                deriving (Show, Eq, Read, Typeable, Data)
 
 -- nameToStr relies on NameCleaner eliminating all '_', to preserve uniqueness
 -- | Converts a name to a string, which is useful to interact with solvers.

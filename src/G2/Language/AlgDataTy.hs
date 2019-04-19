@@ -1,8 +1,10 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Language.AlgDataTy where
 
+import Data.Data (Data, Typeable)
 
 import G2.Language.Syntax
 
@@ -19,6 +21,6 @@ data AlgDataTy = DataTyCon { bound_ids :: [Id]
                           , rep_type :: Type }
                | TypeSynonym { bound_ids :: [Id]
                              , synonym_of :: Type
-                             } deriving (Show, Eq, Read)
+                             } deriving (Show, Eq, Read, Typeable, Data)
 
 

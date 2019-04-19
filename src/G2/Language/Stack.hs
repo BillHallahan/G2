@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -11,13 +12,14 @@ module G2.Language.Stack
     , toList) where
 
 import Prelude hiding (null)
+import Data.Data (Data, Typeable)
 import qualified Data.List as L
 
 import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 
-newtype Stack a = Stack [a] deriving (Show, Eq, Read)
+newtype Stack a = Stack [a] deriving (Show, Eq, Read, Typeable, Data)
 
 -- | Get an empty `Stack`.
 empty :: Stack a
