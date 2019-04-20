@@ -38,6 +38,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , DiscardIfAcceptedTag (..)
                             , MaxOutputsHalter (..)
                             , SwitchEveryNHalter (..)
+                            , RecursiveCutOff (..)
 
                             -- Orderers
                             , NextOrderer (..)
@@ -54,6 +55,7 @@ import G2.Lib.Printers
 
 import Data.Foldable
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
@@ -499,6 +501,31 @@ instance Halter SwitchEveryNHalter Int t where
     updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
     stopRed _ i _ _ = if i <= 0 then Switch else Continue
     stepHalter _ i _ _ = i - 1
+
+-- Cutoff recursion after n recursive calls
+data RecursiveCutOff = RecursiveCutOff Int
+
+instance Halter RecursiveCutOff (HM.HashMap SpannedName Int) t where
+    initHalt _ _ = HM.empty
+    updatePerStateHalt _ hv _ _ = hv
+
+    stopRed (RecursiveCutOff co) hv _ (State { curr_expr = CurrExpr _ (Var (Id n _)) }) =
+        case HM.lookup (SpannedName n) hv of
+            Just i
+                | i > co -> Discard
+                | otherwise -> Continue
+            Nothing -> Continue
+    stopRed _ _ _ _ = Continue
+
+    stepHalter _ hv _ s@(State { curr_expr = CurrExpr _ (Var (Id n _)) })
+        | not $ E.isSymbolic n (expr_env s) =
+            case HM.lookup sn hv of
+                Just i -> HM.insert sn (i + 1) hv
+                Nothing -> HM.insert sn 1 hv
+        | otherwise = hv
+        where
+            sn = SpannedName n
+    stepHalter _ hv _ _ = hv
 
 -- | If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
 -- matches a Tag in the Accepted State list,
