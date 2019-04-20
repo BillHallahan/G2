@@ -261,6 +261,7 @@ evalLet s@(State { expr_env = eenv })
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
+                  , known_values = kv
                   , exec_stack = stck })
          ng mexpr bind alts
   -- Is the current expression able to match with a literal based `Alt`? If
@@ -319,22 +320,22 @@ evalCase s@(State { expr_env = eenv
   , lalts <- litAlts alts
   , defs <- defaultAlts alts
   , (length dalts + length lalts + length defs) > 0 =
-      let 
-          (dsts_cs, ng') = case mexpr of
-            (Cast e c) -> case unApp $ unsafeElimCast e of
-                (Var i):_ -> concretizeVarExpr s ng i bind dalts (Just c)
-                (Lit _):_ -> ([], ng)
-                (Data _):_ -> ([], ng)
-                _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimCast e)
-            _ -> case unApp $ unsafeElimCast mexpr of
-                (Var i):_ -> concretizeVarExpr s ng i bind dalts Nothing
-                (Prim _ _):_ -> createExtConds s ng mexpr bind dalts
-                (Lit _):_ -> ([], ng)
-                (Data _):_ -> ([], ng)
-                _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimCast mexpr)
+    let
+        (cast, expr) = case mexpr of
+            (Cast e c) -> (Just c, e)
+            _ -> (Nothing, mexpr)
 
-          lsts_cs = liftSymLitAlt s mexpr bind lalts
-          def_sts = liftSymDefAlt s mexpr bind alts
+        (dsts_cs, ng') = case unApp $ unsafeElimCast expr of
+            (Var i@(Id _ t)):_ -> if (t == (tyBool kv))
+                                    then createExtConds s ng expr bind dalts -- if Bool is cast to something else: would lose information
+                                    else concretizeVarExpr s ng i bind dalts cast 
+            (Prim _ _):_ -> createExtConds s ng expr bind dalts
+            (Lit _):_ -> ([], ng)
+            (Data _):_ -> ([], ng)
+            _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimCast mexpr)
+            
+        lsts_cs = liftSymLitAlt s mexpr bind lalts
+        def_sts = liftSymDefAlt s mexpr bind alts
       in
       (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts, ng')
 
