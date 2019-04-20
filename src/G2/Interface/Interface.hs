@@ -246,7 +246,8 @@ initialStateFromFile :: FilePath
                      -> Config
                      -> IO (State (), Id, Bindings)
 initialStateFromFile proj src libs m_assume m_assert m_reach def_assert f config = do
-    (mb_modname, exg2) <- translateLoaded proj src libs simplTranslationConfig config
+    -- (mb_modname, exg2) <- translateLoaded proj src libs simplTranslationConfig config
+    (mb_modname, exg2) <- translateLoadedBigBase proj src libs simplTranslationConfig config
     let (init_s, ent_f, bindings) = initState exg2 m_assume m_assert def_assert
                                     f mb_modname config
         reaches_state = initCheckReaches init_s mb_modname m_reach

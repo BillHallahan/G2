@@ -679,7 +679,9 @@ absLoc l@G2.Loc {G2.file = f} = do
 readFileExtractedG2 :: FilePath -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 readFileExtractedG2 file = do
   contents <- readFile file
+  putStrLn $ "reading file: " ++ file
   return $ read contents
+  -- return (HM.empty, HM.empty, G2.emptyExtractedG2)
 
 readAllExtractedG2s :: FilePath -> FilePath -> IO [(G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)]
 readAllExtractedG2s root file = go [file] HS.empty []
@@ -696,7 +698,7 @@ readAllExtractedG2s root file = go [file] HS.empty []
       else do
         (nameMap, tyNameMap, exg2) <- readFileExtractedG2 absPath
         -- Dependencies are relative paths
-        let deps = map (\d -> (T.unpack d) ++ ".g2i") $ G2.exg2_deps exg2
+        let deps = map (\d -> (T.unpack d) ++ ".g2-dump") $ G2.exg2_deps exg2
 
         let todos' = todos ++ deps
         let visited' = HS.insert absPath visited

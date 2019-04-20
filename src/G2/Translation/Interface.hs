@@ -1,11 +1,18 @@
-module G2.Translation.Interface ( translateLoaded
-                                , translateLoadedD ) where
+module G2.Translation.Interface
+  ( translateLoaded
+  , translateLoadedD
+  , translateLoadedBigBase
+  ) where
 
 import DynFlags
 
 import Data.List
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.HashMap.Lazy as HM
+
+import System.FilePath
+
 
 import G2.Config
 import G2.Language
@@ -13,6 +20,8 @@ import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
 import G2.Translation.TransTypes
+
+
 
 translateLibs :: NameMap -> TypeNameMap -> TranslationConfig -> Maybe HscTarget -> [FilePath]
     -> IO (ExtractedG2, NameMap, TypeNameMap)
@@ -26,6 +35,7 @@ translateLibs' nm tnm tr_con extg2 hsc (f:fs) = do
   (new_nm, new_tnm, extg2') <- hskToG2ViaCgGutsFromFile hsc guess_dir f nm tnm tr_con
   translateLibs' new_nm new_tnm tr_con (mergeExtractedG2s [extg2, extg2']) hsc fs
 
+-- The version of translateLoaded that we should be using
 translateLoaded :: FilePath -> FilePath -> [FilePath] -> TranslationConfig -> Config
                  -> IO (Maybe T.Text, ExtractedG2)
 translateLoaded proj src libs tr_con config = do
@@ -67,8 +77,8 @@ translateLoaded proj src libs tr_con config = do
 
   return (mb_modname, final_exg2)
 
-translateLoadedD :: FilePath -> FilePath -> [FilePath] -> TranslationConfig -> Config
-    -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name])
+-- Soon to be deprecated
+translateLoadedD :: FilePath -> FilePath -> [FilePath] -> TranslationConfig -> Config -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name])
 translateLoadedD proj src libs tr_con config = do
   -- Read the extracted libs and merge them
   -- Recall that each of these files comes with NameMap and TypeNameMap
@@ -96,4 +106,90 @@ translateLoadedD proj src libs tr_con config = do
           final_tycons,
           final_classes,
           exports)
+
+-- The version of translateLoaded that is supposed to handle the dumped base
+translateLoadedBigBase ::
+    FilePath
+    -> FilePath
+    -> [FilePath]
+    -> TranslationConfig
+    -> Config
+    -> IO (Maybe T.Text, ExtractedG2)
+translateLoadedBigBase proj src libs transConfig config = do
+  {- Big picture steps:
+      1. Recursively read in all the G2 dumps of base via readAllExtracedG2s
+      2. Hope that we can just Map.union the NameMap and TypeNameMap together
+      3. Merge ExtractedG2s naively (via (++), akin to the union operation)
+      4. Do translation for all the external libraries
+        4a. Specifically modify GHC notions of Primitives to G2's via priminject
+      5. Merge base and external libraries
+      6. Run hskToG2 using the new union'd NameMap and TypeNameMap
+      7. absVarLoc
+      8. Done
+  -}
+
+  -- The stuff with base and merging
+  {-
+    allDumpTriples <- readAllExtractedG2s
+                        (head $ base config)
+                        ((head $ base config) ++ "/Prelude.g2-dump") 
+  -}
+  base1Exs <- readAllExtractedG2s "../base-dumps/" "Prelude.g2-dump"
+  base2Exs <- readAllExtractedG2s "../base-dumps/" "Control.Exception.Base.g2-dump"
+  let (baseNameMap, baseTypeNameMap, baseExG2) = mergeFileExtractedG2s (base1Exs ++ base2Exs)
+
+  putStrLn "translateLoadedBigBase relevant base stuff:"
+  mapM_ (putStrLn . T.unpack) $ exg2_mod_names baseExG2
+
+  -- External library translation
+  (libExG2, libNameMap, libTypeNameMap)
+    <- translateLibs
+        baseNameMap
+            -- (HM.union baseNameMap specialConstructors)
+        baseTypeNameMap
+            -- (HM.union baseTypeNameMap specialTypeNames)
+        transConfig (Just HscInterpreted) libs
+
+  -- Replacing GHC's notion of primitives and what not with G2's
+  let baseTys' = (exg2_tycons baseExG2) ++ specialTypes
+  let baseProg' = addPrimsToBase baseTys' [exg2_binds baseExG2]
+  let baseExG2' = baseExG2 { exg2_binds = concat baseProg', exg2_tycons = baseTys' }
+
+  let postPrimExG2 = mergeExtractedG2s ([baseExG2', libExG2])
+
+  -- Load the actual target, with baseNameMap and baseTypeNameMap
+  (_, _, tgtExG2)
+    <- hskToG2ViaCgGutsFromFile
+        (Just HscInterpreted)
+        proj
+        src
+        baseNameMap
+        baseTypeNameMap transConfig
+  
+  let tgtModName = listToMaybe $ exg2_mod_names tgtExG2
+  let tgtExports = exg2_exports tgtExG2
+
+  -- Merge target ExtractedG2 into the postPrim (base ++ lib) that already exists
+  let mergedExG2 = mergeExtractedG2s [tgtExG2, postPrimExG2]
+      merged_prog = [exg2_binds mergedExG2]
+      merged_tys = exg2_tycons mergedExG2
+      merged_cls = exg2_classes mergedExG2
+
+  -- final injection phase
+  let (near_final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys
+
+  let final_merged_cls = primInject merged_cls
+
+  final_prog <- absVarLoc near_final_prog
+
+  let final_exg2 = mergedExG2 { exg2_binds = concat final_prog
+                              , exg2_tycons = final_tys
+                              , exg2_classes = final_merged_cls
+                              , exg2_exports = (exg2_exports baseExG2) ++
+                                               (exg2_exports libExG2) ++
+                                               (exg2_exports tgtExG2) }
+                              
+  return (tgtModName, final_exg2)
+
+
 
