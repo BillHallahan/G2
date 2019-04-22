@@ -14,6 +14,7 @@ import qualified G2.Language.Typing as Ty
 import G2.Solver
 import G2.Translation.Interface
 import G2.Translation.TransTypes
+import G2.QuasiQuotes.FloodConsts
 
 import Data.Data
 import Data.List
@@ -43,6 +44,10 @@ parseHaskellQ str = do
     -- exp <- dataToExpQ (\a -> liftText <$> cast a) ce
 
     addRegVarPasses str xs b
+
+
+liftDataT :: Data a => a -> Q Exp
+liftDataT = dataToExpQ (\a -> liftText <$> cast a)
     where
         liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
 
@@ -81,17 +86,44 @@ parseHaskellIO str = do
 
             return xsb
 
--- | Adds the appropriate number of lambda bindings to the Exp
-addRegVarPasses :: String -> [State t] -> Bindings -> Q Exp
+-- | Adds the appropriate number of lambda bindings to the Exp,
+-- and sets up a conversion from TH Exp's to G2 Expr's
+addRegVarPasses :: Data t => String -> [State t] -> Bindings -> Q Exp
 addRegVarPasses str xs@(s:_) (Bindings { input_names = is }) = do
     let regs = grabRegVars str
 
+    runIO $ putStrLn "HERE"
+
     ns <- mapM newName regs
+    -- ts <- mapM reify ns
     let ns_pat = map VarP ns
+        ns_exp = map VarE ns
 
+    is_exp <- liftDataT is
+
+    xs_exp <- liftDataT xs
+    s_exp <- liftDataT s 
+    let eenv_exp = AppE (VarE 'expr_env) s_exp
+        tenv_exp = AppE (VarE 'type_env) s_exp
+
+
+        expToExpr_exp = AppE (AppE (VarE 'expToExprQ) eenv_exp) tenv_exp
+        ns_expr = map (AppE expToExpr_exp) $ map (AppE (VarE 'liftDataT)) ns_exp
+
+        -- dte_exp = AppE (AppE (VarE 'liftDataToExpr) eenv_exp) tenv_exp
+
+        -- ns_conv = map (AppE dte_exp) ns_e
+
+        -- zip_exp = AppE (AppE (VarE 'zip) is_exp) ns_conv
+        -- map_exp = AppE (AppE (VarE 'map) (AppE (VarE 'floodConstants) zip_exp))
+
+        -- ex = foldr AppE undefined ns_conv
+
+    -- return ns_expr
+    -- return $ foldr (\n -> LamE [n]) ex ns_pat
+
+    -- return $ foldr (\n -> LamE [n]) ns_expr ns_pat
     return undefined
-
-    -- return $ foldr (\n -> LamE [n]) exp ns_pat
 addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
 
 grabRegVars :: String -> [String]
@@ -105,7 +137,7 @@ grabRegVars s =
 
 afterRegVars :: String -> String
 afterRegVars s = strip s
-    where
+    where 
         strip ('-':'>':xs) = xs
         strip (x:xs) = strip xs
         strip [] = []
@@ -138,25 +170,39 @@ subSymb = sub
         sub (x:xs) = x:sub xs
         sub "" = ""
 
--- Modeled after dataToExpQ
-dataToExpr :: Data a => ExprEnv -> TypeEnv -> (forall b . Data b => b -> Maybe (Q Expr)) -> a -> Q Expr
-dataToExpr eenv tenv = dataToQa vOrCE lE (foldl apE)
-    where
-        vOrCE s =
-            case nameSpace s of
-                Just VarName
-                    | n <- thNameToName (E.keys eenv) s
-                    , Just t <- fmap Ty.typeOf $ E.lookup n eenv -> return (Var (Id n t))
-                Just DataName
-                    | n <- thNameToName (names tenv) s -> return (Data undefined)
-                _ -> error "Can't construct Expr from name"
+-- liftDataToExpr :: Data a => ExprEnv -> TypeEnv ->  a -> Q Expr
+-- liftDataToExpr eenv tenv = dataToExpr eenv tenv (const Nothing)
 
-        apE x y = do
-            x' <- x
-            y' <- y
-            return (App x' y')
+expToExprQ :: ExprEnv -> TypeEnv -> Q Exp -> Q Expr
+expToExprQ eenv tenv expq = do
+    ex <- expq
+    return $ expToExpr eenv tenv ex
+
+-- Modeled after dataToExpQ
+expToExpr :: ExprEnv -> TypeEnv -> Exp -> Expr
+expToExpr _ tenv (ConE n)
+    | n' <- thNameToName (names tenv) n = Data (DataCon n' undefined)
+expToExpr _ _ (LitE l) = Lit $ litToG2Lit l
+expToExpr eenv tenv (AppE e1 e2) = App (expToExpr eenv tenv e1) (expToExpr eenv tenv e2)
+expToExpr _ _ e = error $ "expToExpr: Unhandled case.\n" ++ show e
+-- dataToExpr :: Data a => ExprEnv -> TypeEnv -> (forall b . Data b => b -> Maybe (Q Expr)) -> a -> Q Expr
+-- dataToExpr eenv tenv = dataToQa vOrCE lE (foldl apE)
+--     where
+--         vOrCE s =
+--             case nameSpace s of
+--                 Just VarName
+--                     | n <- thNameToName (E.keys eenv) s
+--                     , Just t <- fmap Ty.typeOf $ E.lookup n eenv -> return (Var (Id n t))
+--                 Just DataName
+--                     | n <- thNameToName (names tenv) s -> return (Data undefined)
+--                 _ -> error "Can't construct Expr from name"
+
+--         apE x y = do
+--             x' <- x
+--             y' <- y
+--             return (App x' y')
         
-        lE c = return (Lit $ litToG2Lit c)
+--         lE c = return (Lit $ litToG2Lit c)
 
 thNameToName :: [G2.Name] -> TH.Name -> G2.Name
 thNameToName ns thn =

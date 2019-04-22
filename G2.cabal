@@ -48,6 +48,7 @@ library
                        , G2.Language.CreateFuncs
                        , G2.Language.Expr
                        , G2.Language.ExprEnv
+                       , G2.Language.G2Rep
                        , G2.Language.Ids
                        , G2.Language.KnownValues
                        , G2.Language.Located
@@ -73,6 +74,7 @@ library
                        , G2.Language.TypeClasses.TypeClasses
                        , G2.Language.TypeEnv
                        , G2.Language.Typing
+                       , G2.Language.Internals.G2Rep
 
                        , G2.Lib.Printers
 
@@ -92,6 +94,7 @@ library
                        
                        , G2.QuasiQuotes.FloodConsts
                        , G2.QuasiQuotes.QuasiQuotes
+                       , G2.QuasiQuotes.Support
 
                        , G2.Translation
   other-modules:         G2.Config.Config

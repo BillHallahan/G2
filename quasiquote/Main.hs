@@ -13,7 +13,7 @@ main = do
 
     -- print nub_call
 
-f :: Int -> Int -> Expr
+f :: Int -> Int -> [Expr]
 f = [g2|\y z -> \x ? x + 2 == y + z |]
 
 -- nub_call :: Expr

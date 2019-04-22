@@ -3,6 +3,7 @@
 
 module G2.Language.TypeEnv
   ( TypeEnv
+  
   , nameModMatch
   , argTypesTEnv
   , dataCon
@@ -18,6 +19,7 @@ module G2.Language.TypeEnv
   , getDataConNameMod
   , getDataConNameMod'
   , dataConArgs
+  , dataConWithName
   , dcName
   , retypeAlgDataTy
   , module G2.Language.AlgDataTy
@@ -32,12 +34,10 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-
 -- | The type environment maps names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
 -- and we only store those information accordingly.
 type TypeEnv = M.Map Name AlgDataTy
-
 
 nameModMatch :: Name -> TypeEnv -> Maybe Name
 nameModMatch (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m' ) . M.keys
@@ -144,5 +144,3 @@ dataConHasNameMod (DataCon (Name n m _ _) _) (Name n' m' _ _) = n == n' && m == 
 retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
 retypeAlgDataTy ts adt =
     foldr (uncurry retype) adt $ zip (bound_ids adt) ts
-
-
