@@ -42,15 +42,22 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
 
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
+    -- Get names for the lambdas for the regular inputs
+
     (xs, b) <- parseHaskellQ' str
 
     -- let CurrExpr _ ce = curr_expr $ head s
 
     -- exp <- dataToExpQ (\a -> liftText <$> cast a) ce
 
-    let xs' = addRegVarPasses str xs b
-    solveStates xs' b
+    let regs = grabRegVars str
+    ns <- mapM newName regs
+    let ns_pat = map varP ns
 
+    let xs' = addRegVarPasses ns xs b
+        sol = solveStates xs' b
+
+    foldr (\n -> lamE [n]) sol ns_pat
 
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> liftText <$> cast a)
@@ -94,15 +101,10 @@ parseHaskellIO str = do
 
 -- | Adds the appropriate number of lambda bindings to the Exp,
 -- and sets up a conversion from TH Exp's to G2 Expr's.
--- The returned Exp should have type (State t).
-addRegVarPasses :: Data t => String -> [State t] -> Bindings -> Q Exp
-addRegVarPasses str xs@(s:_) (Bindings { input_names = is }) = do
-    let regs = grabRegVars str
-
+-- The returned Exp should have a function type and return type (State t).
+addRegVarPasses :: Data t => {- String -} [TH.Name] -> [State t] -> Bindings -> Q Exp
+addRegVarPasses ns xs@(s:_) (Bindings { input_names = is }) = do
     runIO $ putStrLn "HERE"
-
-    -- Get names for the lambdas for the regular inputs
-    ns <- mapM newName regs
     let ns_pat = map varP ns
         ns_exp = map varE ns
 
@@ -115,22 +117,23 @@ addRegVarPasses str xs@(s:_) (Bindings { input_names = is }) = do
         tenv_exp = appE (varE 'type_env) s_exp
 
         g2Rep_exp = appE (varE 'g2Rep) tenv_exp
-        ns_expr = map (appE g2Rep_exp . varE) ns
+        ns_expr = map (appE g2Rep_exp) ns_exp
 
         zip_exp = appE (appE (varE 'zip) is_exp) $ listE ns_expr
         flooded_exp = appE (varE 'mapMaybe) (appE (varE 'floodConstants) zip_exp)
 
         flooded_states = appE flooded_exp xs_exp
 
-        lam_binds = foldr (\n -> lamE [n]) flooded_states ns_pat
+        -- lam_binds = foldr (\n -> lamE [n]) flooded_states ns_pat
 
-    lam_binds
+    flooded_states
 addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
 
--- Takes an Exp representing a list of States, and returns an Exp
--- representing an ExecRes
+-- Takes an Exp representing a list of States,
+-- and returns an Exp representing an ExecRes
 solveStates :: Q Exp -> Bindings -> Q Exp
-solveStates xs b = varE 'solveStates' `appE` liftDataT b `appE` xs
+solveStates xs b = do
+    varE 'solveStates' `appE` liftDataT b `appE` xs 
 
 solveStates' :: ( Named t
                 , ASTContainer t Expr

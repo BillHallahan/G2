@@ -17,7 +17,7 @@ main = do
 
     -- print nub_call
 
-f :: Int -> Int -> IO (Maybe (ExecRes t))
+f :: Int -> Int -> IO (Maybe (ExecRes ()))
 f = [g2|\y z -> \x ? x + 2 == y + z |]
 
 -- nub_call :: Expr
