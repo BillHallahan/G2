@@ -7,8 +7,7 @@
 
 module G2.QuasiQuotes.Support ( QQName (..)
                               , QQMap
-                              , QQMappable (..)
-                              , QQNamed (..)
+                              , qqMap
                               , nameToQQName
                               , thNameToQQName
                               , qqNameToName0
@@ -34,20 +33,12 @@ instance Hashable QQName
 
 type QQMap = HM.HashMap QQName Name
 
--- | Allows getting a map from `QQName`s to regular `Name`s
--- To get an easy instance for instances of `Named`, see the `QQNamed` wrapper.
-class QQMappable d where
-    qqMap :: d -> QQMap
-
-newtype QQNamed n = QQNamed n
-
--- | Gives a QQMap with a mapping to every value in the `names` list 
-instance Named n => QQMappable (QQNamed n) where
-    qqMap (QQNamed n) =
-        let
-            ns = names n
-        in
-        HM.fromList $ zip (map nameToQQName ns) ns
+qqMap :: Named n => n -> QQMap
+qqMap n =
+    let
+        ns = names n
+    in
+    HM.fromList $ zip (map nameToQQName ns) ns
 
 nameToQQName :: Name -> QQName
 nameToQQName (Name n m _ _) = QQName n m
