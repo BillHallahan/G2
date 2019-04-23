@@ -8,7 +8,7 @@ import G2.Config
 import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
 import qualified G2.Language.ExprEnv as E
-import G2.Interface.Interface
+import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.Typing as Ty
 import G2.Solver
@@ -47,7 +47,8 @@ parseHaskellQ str = do
 
     -- exp <- dataToExpQ (\a -> liftText <$> cast a) ce
 
-    addRegVarPasses str xs b
+    let xs' = addRegVarPasses str xs b
+    solveStates xs' b
 
 
 liftDataT :: Data a => a -> Q Exp
@@ -78,7 +79,7 @@ parseHaskellIO str = do
                     simplTranslationConfig mkConfigDef)
   
     let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
-
+    
     SomeSolver con <- initSolver mkConfigDef
     case initRedHaltOrd con mkConfigDef of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
@@ -91,7 +92,8 @@ parseHaskellIO str = do
             return xsb
 
 -- | Adds the appropriate number of lambda bindings to the Exp,
--- and sets up a conversion from TH Exp's to G2 Expr's
+-- and sets up a conversion from TH Exp's to G2 Expr's.
+-- The returned Exp should have type (State t).
 addRegVarPasses :: Data t => String -> [State t] -> Bindings -> Q Exp
 addRegVarPasses str xs@(s:_) (Bindings { input_names = is }) = do
     let regs = grabRegVars str
@@ -122,27 +124,15 @@ addRegVarPasses str xs@(s:_) (Bindings { input_names = is }) = do
         lam_binds = foldr (\n -> lamE [n]) flooded_states ns_pat
 
     lam_binds
-    -- lam_binds' <- lam_binds
-    -- runIO . putStrLn $ "lam_binds = " ++ show lam_binds'
-    --     ns_expr = map (AppE expToExpr_exp) $ map (AppE (VarE 'liftDataT)) ns_exp
-
-    -- runIO $ putStrLn $ "ns_expr = " ++ show ns_expr
-
-        -- dte_exp = AppE (AppE (VarE 'liftDataToExpr) eenv_exp) tenv_exp
-
-        -- ns_conv = map (AppE dte_exp) ns_e
-
-        -- zip_exp = AppE (AppE (VarE 'zip) is_exp) ns_conv
-        -- map_exp = AppE (AppE (VarE 'map) (AppE (VarE 'floodConstants) zip_exp))
-
-        -- ex = foldr AppE undefined ns_conv
-
-    -- return ns_expr
-    -- return $ foldr (\n -> LamE [n]) ex ns_pat
-
-    -- return $ foldr (\n -> LamE [n]) ns_expr ns_pat
-    -- return undefined
 addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
+
+-- Takes an Exp representing a list of States, and returns an Exp
+-- representing an ExecRes
+solveStates :: Q Exp -> Bindings -> Q Exp
+solveStates xs b = varE 'solveStates' `appE` liftDataT b `appE` xs
+
+solveStates' :: Bindings -> [State t] -> ExecRes t
+solveStates' = undefined
 
 grabRegVars :: String -> [String]
 grabRegVars s =

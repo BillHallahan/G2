@@ -20,6 +20,7 @@ module G2.Interface.Interface ( doTimeout
                               , runG2WithConfig
                               , runG2WithSomes
                               , runG2ThroughExecution
+                              , runG2Solving
                               , runG2
                               , Config) where
 
@@ -318,6 +319,44 @@ runG2ThroughExecution red hal ord pns (is@State { known_values = kv
 
     runExecution red hal ord preproc_state bindings''
 
+runG2Solving :: ( Named t
+                , ASTContainer t Expr
+                , ASTContainer t Type
+                , Solver solver) =>
+                solver -> Bindings -> [State t] -> IO [ExecRes t]
+runG2Solving con bindings exec_states@(State { type_env = tenv
+                                             , known_values = kv }:_) = do
+    let ident_states = filter true_assert exec_states
+
+    ident_states' <- 
+        mapM (\s -> do
+            (_, m) <- solve con s bindings (symbolic_ids s) (path_conds s)
+            return . fmap (\m' -> s {model = m'}) $ m
+            ) $ ident_states
+
+    let ident_states'' = catMaybes ident_states'
+
+    let sm = map (\s -> 
+              let (es, e, ais) = subModel s bindings in
+                ExecRes { final_state = s
+                        , conc_args = es
+                        , conc_out = e
+                        , violated = ais}) $ ident_states''
+
+    let sm' = map (\sm'' -> runPostprocessing bindings sm'') sm
+
+    let sm'' = map (\ExecRes { final_state = s
+                             , conc_args = es
+                             , conc_out = e
+                             , violated = ais} ->
+                                  ExecRes { final_state = s
+                                          , conc_args = fixed_inputs bindings ++ es
+                                          , conc_out = evalPrims kv tenv e
+                                          , violated = evalPrims kv tenv ais}) sm'
+
+    return sm''
+runG2Solving _ _ [] = return []
+
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
 runG2 :: ( Named t
@@ -328,37 +367,8 @@ runG2 :: ( Named t
          , Orderer or sov b t
          , Solver solver) => r -> h -> or ->
          solver -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-runG2 red hal ord con pns (is@State { type_env = tenv
-                                    , known_values = kv }) 
-                           bindings = do
+runG2 red hal ord con pns is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord pns is bindings
+    sol_states <- runG2Solving con bindings' exec_states
 
-    let ident_states = filter true_assert exec_states
-
-    ident_states' <- 
-        mapM (\s -> do
-            (_, m) <- solve con s bindings' (symbolic_ids s) (path_conds s)
-            return . fmap (\m' -> s {model = m'}) $ m
-            ) $ ident_states
-
-    let ident_states'' = catMaybes ident_states'
-
-    let sm = map (\s -> 
-              let (es, e, ais) = subModel s bindings' in
-                ExecRes { final_state = s
-                        , conc_args = es
-                        , conc_out = e
-                        , violated = ais}) $ ident_states''
-
-    let sm' = map (\sm'' -> runPostprocessing bindings' sm'') sm
-
-    let sm'' = map (\ExecRes { final_state = s
-                             , conc_args = es
-                             , conc_out = e
-                             , violated = ais} ->
-                                  ExecRes { final_state = s
-                                          , conc_args = fixed_inputs bindings' ++ es
-                                          , conc_out = evalPrims kv tenv e
-                                          , violated = evalPrims kv tenv ais}) sm'
-
-    return (sm'', bindings')
+    return (sol_states, bindings')

@@ -2,6 +2,7 @@
 
 module Main where
 
+import G2.Interface
 import G2.Language.Syntax
 import G2.QuasiQuotes.QuasiQuotes
 
@@ -13,7 +14,7 @@ main = do
 
     -- print nub_call
 
-f :: Int -> Int -> [Expr]
+f :: Int -> Int -> IO ExecRes t
 f = [g2|\y z -> \x ? x + 2 == y + z |]
 
 -- nub_call :: Expr
