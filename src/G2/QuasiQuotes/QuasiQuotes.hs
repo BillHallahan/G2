@@ -15,9 +15,13 @@ import G2.Solver
 import G2.Translation.Interface
 import G2.Translation.TransTypes
 import G2.QuasiQuotes.FloodConsts
+import G2.QuasiQuotes.G2Rep
+
+import Control.Monad
 
 import Data.Data
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
 
 import Language.Haskell.TH.Lib
@@ -94,21 +98,35 @@ addRegVarPasses str xs@(s:_) (Bindings { input_names = is }) = do
 
     runIO $ putStrLn "HERE"
 
+    -- Get names for the lambdas for the regular inputs
     ns <- mapM newName regs
-    -- ts <- mapM reify ns
-    let ns_pat = map VarP ns
-        ns_exp = map VarE ns
+    let ns_pat = map varP ns
+        ns_exp = map varE ns
 
-    is_exp <- liftDataT is
+    let is_exp = liftDataT is
 
-    xs_exp <- liftDataT xs
-    s_exp <- liftDataT s 
-    let eenv_exp = AppE (VarE 'expr_env) s_exp
-        tenv_exp = AppE (VarE 'type_env) s_exp
+        xs_exp = liftDataT xs
+        s_exp = liftDataT s
 
+        eenv_exp = appE (varE 'expr_env) s_exp
+        tenv_exp = appE (varE 'type_env) s_exp
 
-        expToExpr_exp = AppE (AppE (VarE 'expToExprQ) eenv_exp) tenv_exp
-        ns_expr = map (AppE expToExpr_exp) $ map (AppE (VarE 'liftDataT)) ns_exp
+        g2Rep_exp = appE (varE 'g2Rep) tenv_exp
+        ns_expr = map (appE g2Rep_exp . varE) ns
+
+        zip_exp = appE (appE (varE 'zip) is_exp) $ listE ns_expr
+        flooded_exp = appE (varE 'mapMaybe) (appE (varE 'floodConstants) zip_exp)
+
+        flooded_states = appE flooded_exp xs_exp
+
+        lam_binds = foldr (\n -> lamE [n]) flooded_states ns_pat
+
+    lam_binds
+    -- lam_binds' <- lam_binds
+    -- runIO . putStrLn $ "lam_binds = " ++ show lam_binds'
+    --     ns_expr = map (AppE expToExpr_exp) $ map (AppE (VarE 'liftDataT)) ns_exp
+
+    -- runIO $ putStrLn $ "ns_expr = " ++ show ns_expr
 
         -- dte_exp = AppE (AppE (VarE 'liftDataToExpr) eenv_exp) tenv_exp
 
@@ -123,7 +141,7 @@ addRegVarPasses str xs@(s:_) (Bindings { input_names = is }) = do
     -- return $ foldr (\n -> LamE [n]) ex ns_pat
 
     -- return $ foldr (\n -> LamE [n]) ns_expr ns_pat
-    return undefined
+    -- return undefined
 addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
 
 grabRegVars :: String -> [String]
@@ -185,6 +203,7 @@ expToExpr _ tenv (ConE n)
 expToExpr _ _ (LitE l) = Lit $ litToG2Lit l
 expToExpr eenv tenv (AppE e1 e2) = App (expToExpr eenv tenv e1) (expToExpr eenv tenv e2)
 expToExpr _ _ e = error $ "expToExpr: Unhandled case.\n" ++ show e
+
 -- dataToExpr :: Data a => ExprEnv -> TypeEnv -> (forall b . Data b => b -> Maybe (Q Expr)) -> a -> Q Expr
 -- dataToExpr eenv tenv = dataToQa vOrCE lE (foldl apE)
 --     where
