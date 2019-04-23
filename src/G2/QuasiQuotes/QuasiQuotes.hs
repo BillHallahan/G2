@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -131,8 +132,23 @@ addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
 solveStates :: Q Exp -> Bindings -> Q Exp
 solveStates xs b = varE 'solveStates' `appE` liftDataT b `appE` xs
 
-solveStates' :: Bindings -> [State t] -> ExecRes t
-solveStates' = undefined
+solveStates' :: ( Named t
+                , ASTContainer t Expr
+                , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
+solveStates' b xs = do
+    SomeSolver con <- initSolver mkConfigDef
+    solveStates'' con b xs
+
+solveStates'' :: ( Named t
+                 , ASTContainer t Expr
+                 , ASTContainer t G2.Type
+                 , Solver sol) => sol -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
+solveStates'' _ _ [] = return Nothing
+solveStates'' sol b (s:xs) = do
+    m_ex_res <- runG2Solving sol b s
+    case m_ex_res of
+        Just _ -> return m_ex_res
+        Nothing -> solveStates'' sol b xs
 
 grabRegVars :: String -> [String]
 grabRegVars s =

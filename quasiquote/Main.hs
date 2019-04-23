@@ -10,11 +10,14 @@ import Data.List
 
 main :: IO ()
 main = do
-    print (f 8 10)
+    r <- f 8 10
+    case r of
+        Just r' -> print (conc_args r')
+        Nothing -> putStrLn $ "Nothing"
 
     -- print nub_call
 
-f :: Int -> Int -> IO ExecRes t
+f :: Int -> Int -> IO (Maybe (ExecRes t))
 f = [g2|\y z -> \x ? x + 2 == y + z |]
 
 -- nub_call :: Expr
