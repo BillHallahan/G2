@@ -323,39 +323,32 @@ runG2Solving :: ( Named t
                 , ASTContainer t Expr
                 , ASTContainer t Type
                 , Solver solver) =>
-                solver -> Bindings -> [State t] -> IO [ExecRes t]
-runG2Solving con bindings exec_states@(State { type_env = tenv
-                                             , known_values = kv }:_) = do
-    let ident_states = filter true_assert exec_states
+                solver -> Bindings -> State t -> IO (Maybe (ExecRes t))
+runG2Solving con bindings s@(State { type_env = tenv
+                                   , known_values = kv })
+    | true_assert s = do
+        (_, m) <- solve con s bindings (symbolic_ids s) (path_conds s)
+        case m of
+            Just m' -> do
+                let s' = s { model = m' }
 
-    ident_states' <- 
-        mapM (\s -> do
-            (_, m) <- solve con s bindings (symbolic_ids s) (path_conds s)
-            return . fmap (\m' -> s {model = m'}) $ m
-            ) $ ident_states
+                
+                let (es, e, ais) = subModel s' bindings
+                    sm = ExecRes { final_state = s'
+                                 , conc_args = es
+                                 , conc_out = e
+                                 , violated = ais}
 
-    let ident_states'' = catMaybes ident_states'
+                let sm' = runPostprocessing bindings sm
 
-    let sm = map (\s -> 
-              let (es, e, ais) = subModel s bindings in
-                ExecRes { final_state = s
-                        , conc_args = es
-                        , conc_out = e
-                        , violated = ais}) $ ident_states''
+                let sm'' = ExecRes { final_state = final_state sm'
+                                   , conc_args = fixed_inputs bindings ++ conc_args sm'
+                                   , conc_out = evalPrims kv tenv (conc_out sm')
+                                   , violated = evalPrims kv tenv (violated sm')}
+                return (Just sm'')
+            Nothing -> return Nothing
 
-    let sm' = map (\sm'' -> runPostprocessing bindings sm'') sm
-
-    let sm'' = map (\ExecRes { final_state = s
-                             , conc_args = es
-                             , conc_out = e
-                             , violated = ais} ->
-                                  ExecRes { final_state = s
-                                          , conc_args = fixed_inputs bindings ++ es
-                                          , conc_out = evalPrims kv tenv e
-                                          , violated = evalPrims kv tenv ais}) sm'
-
-    return sm''
-runG2Solving _ _ [] = return []
+    | otherwise = return Nothing
 
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
@@ -369,6 +362,6 @@ runG2 :: ( Named t
          solver -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord con pns is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord pns is bindings
-    sol_states <- runG2Solving con bindings' exec_states
+    sol_states <- mapM (runG2Solving con bindings') exec_states
 
-    return (sol_states, bindings')
+    return (catMaybes sol_states, bindings')
