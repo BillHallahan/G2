@@ -1,3 +1,4 @@
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module G2.QuasiQuotes.Internals.G2Rep ( G2Rep (..)
@@ -11,6 +12,8 @@ import G2.QuasiQuotes.Support
 import Control.Monad
 
 import qualified Data.Text as T
+
+import GHC.Exts
 
 import Language.Haskell.TH as TH
 import Language.Haskell.TH.Syntax as TH
@@ -86,7 +89,10 @@ qqDataConLookupFallBack qqtn qqdc qqm tenv
     | otherwise = DataCon (qqNameToName0 qqdc) undefined
 
 newField :: TH.Name -> (TH.Name, StrictType) -> Q Exp
-newField tenv (x, _) = return $ VarE 'g2Rep `AppE` VarE tenv `AppE` VarE x
+newField tenv (x, (_, ConT n))
+    | nameBase n == "Int#" = [|Lit . LitInt . toInteger $ $(conE 'I# `appE` varE x)|]
+newField tenv (x, (_, _)) = do
+    return $ VarE 'g2Rep `AppE` VarE tenv `AppE` VarE x
 
 qqNameToQExp :: QQName -> Q Exp
 qqNameToQExp (QQName n Nothing) =
