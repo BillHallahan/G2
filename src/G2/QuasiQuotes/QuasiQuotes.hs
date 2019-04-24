@@ -34,6 +34,8 @@ import System.IO.Temp
 
 import System.FilePath
 
+import Debug.Trace
+
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quotePat = error "g2: No QuasiQuoter for patterns."
@@ -46,16 +48,14 @@ parseHaskellQ str = do
 
     (xs, b) <- parseHaskellQ' str
 
-    -- let CurrExpr _ ce = curr_expr $ head s
-
-    -- exp <- dataToExpQ (\a -> liftText <$> cast a) ce
-
     let regs = grabRegVars str
     ns <- mapM newName regs
     let ns_pat = map varP ns
 
     let xs' = addRegVarPasses ns xs b
-        sol = solveStates xs' b
+
+        b' = b { input_names = drop (length regs) (input_names b) }
+        sol = solveStates xs' b'
 
     foldr (\n -> lamE [n]) sol ns_pat
 
@@ -76,8 +76,6 @@ parseHaskellQ' s = do
 -- wants to solve for- are treated as symbolic here.
 parseHaskellIO :: String -> IO ([State ()], Bindings)
 parseHaskellIO str = do
-    print $ grabRegVars str
-    print $ grabSymbVars str
     (_, exG2) <- withSystemTempFile "ThTemp.hs"
             (\filepath handle -> do
                 hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ subSymb str
@@ -102,9 +100,8 @@ parseHaskellIO str = do
 -- | Adds the appropriate number of lambda bindings to the Exp,
 -- and sets up a conversion from TH Exp's to G2 Expr's.
 -- The returned Exp should have a function type and return type (State t).
-addRegVarPasses :: Data t => {- String -} [TH.Name] -> [State t] -> Bindings -> Q Exp
-addRegVarPasses ns xs@(s:_) (Bindings { input_names = is }) = do
-    runIO $ putStrLn "HERE"
+addRegVarPasses :: Data t => [TH.Name] -> [State t] -> Bindings -> Q Exp
+addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleaned }) = do
     let ns_pat = map varP ns
         ns_exp = map varE ns
 
@@ -116,15 +113,15 @@ addRegVarPasses ns xs@(s:_) (Bindings { input_names = is }) = do
         eenv_exp = appE (varE 'expr_env) s_exp
         tenv_exp = appE (varE 'type_env) s_exp
 
-        g2Rep_exp = appE (varE 'g2Rep) tenv_exp
+        cleaned_exp = liftDataT cleaned
+
+        g2Rep_exp = appE (appE (varE 'g2Rep) tenv_exp) cleaned_exp
         ns_expr = map (appE g2Rep_exp) ns_exp
 
         zip_exp = appE (appE (varE 'zip) is_exp) $ listE ns_expr
         flooded_exp = appE (varE 'mapMaybe) (appE (varE 'floodConstants) zip_exp)
 
         flooded_states = appE flooded_exp xs_exp
-
-        -- lam_binds = foldr (\n -> lamE [n]) flooded_states ns_pat
 
     flooded_states
 addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
@@ -139,6 +136,7 @@ solveStates' :: ( Named t
                 , ASTContainer t Expr
                 , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates' b xs = do
+    putStrLn "HERE 1"
     SomeSolver con <- initSolver mkConfigDef
     solveStates'' con b xs
 
@@ -146,8 +144,9 @@ solveStates'' :: ( Named t
                  , ASTContainer t Expr
                  , ASTContainer t G2.Type
                  , Solver sol) => sol -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
-solveStates'' _ _ [] = return Nothing
+solveStates'' _ _ [] = do putStrLn "HERE 3"; return Nothing
 solveStates'' sol b (s:xs) = do
+    putStrLn "HERE 2"
     m_ex_res <- runG2Solving sol b s
     case m_ex_res of
         Just _ -> return m_ex_res
@@ -156,7 +155,7 @@ solveStates'' sol b (s:xs) = do
 grabRegVars :: String -> [String]
 grabRegVars s =
     let
-        s' = dropWhile (== ' ') s
+        s' = dropWhile (\c -> c == ' ' || c == '(') s
     in
     case s' of
         '\\':xs -> grabVars "->" xs
@@ -172,7 +171,7 @@ afterRegVars s = strip s
 grabSymbVars :: String -> [String]
 grabSymbVars s =
     let
-        s' = dropWhile (== ' ') $ afterRegVars s
+        s' = dropWhile (\c -> c == ' ' || c == '(') $ afterRegVars s
     in
     case s' of
         '\\':xs -> grabVars "?" xs
@@ -197,8 +196,6 @@ subSymb = sub
         sub (x:xs) = x:sub xs
         sub "" = ""
 
--- liftDataToExpr :: Data a => ExprEnv -> TypeEnv ->  a -> Q Expr
--- liftDataToExpr eenv tenv = dataToExpr eenv tenv (const Nothing)
 
 expToExprQ :: ExprEnv -> TypeEnv -> Q Exp -> Q Expr
 expToExprQ eenv tenv expq = do
@@ -208,29 +205,11 @@ expToExprQ eenv tenv expq = do
 -- Modeled after dataToExpQ
 expToExpr :: ExprEnv -> TypeEnv -> Exp -> Expr
 expToExpr _ tenv (ConE n)
-    | n' <- thNameToName (names tenv) n = Data (DataCon n' undefined)
+    | n' <- thNameToName (names tenv) n
+    , Just dc <- getDataConNoType tenv n' = Data (DataCon n' undefined)
 expToExpr _ _ (LitE l) = Lit $ litToG2Lit l
 expToExpr eenv tenv (AppE e1 e2) = App (expToExpr eenv tenv e1) (expToExpr eenv tenv e2)
 expToExpr _ _ e = error $ "expToExpr: Unhandled case.\n" ++ show e
-
--- dataToExpr :: Data a => ExprEnv -> TypeEnv -> (forall b . Data b => b -> Maybe (Q Expr)) -> a -> Q Expr
--- dataToExpr eenv tenv = dataToQa vOrCE lE (foldl apE)
---     where
---         vOrCE s =
---             case nameSpace s of
---                 Just VarName
---                     | n <- thNameToName (E.keys eenv) s
---                     , Just t <- fmap Ty.typeOf $ E.lookup n eenv -> return (Var (Id n t))
---                 Just DataName
---                     | n <- thNameToName (names tenv) s -> return (Data undefined)
---                 _ -> error "Can't construct Expr from name"
-
---         apE x y = do
---             x' <- x
---             y' <- y
---             return (App x' y')
-        
---         lE c = return (Lit $ litToG2Lit c)
 
 thNameToName :: [G2.Name] -> TH.Name -> G2.Name
 thNameToName ns thn =

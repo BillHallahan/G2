@@ -17,6 +17,7 @@ module G2.Language.TypeEnv
   , getCastedAlgDataTy
   , getAlgDataTy
   , getDataCon
+  , getDataConNoType
   , getDataConNameMod
   , getDataConNameMod'
   , dataConArgs
@@ -127,6 +128,9 @@ getDataCon tenv adt dc =
         adt' = M.lookup adt tenv
     in
     maybe Nothing (flip dataConWithName dc) adt'
+
+getDataConNoType :: TypeEnv -> Name -> Maybe DataCon
+getDataConNoType tenv n = find (\dc -> dcName dc == n) . concatMap dataCon $ M.elems tenv
 
 getDataConNameMod :: TypeEnv -> Name -> Name -> Maybe DataCon
 getDataConNameMod tenv (Name n m _ _) dc =

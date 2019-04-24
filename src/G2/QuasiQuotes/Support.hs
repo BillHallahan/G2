@@ -26,6 +26,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 
+import Debug.Trace
+
 data QQName = QQName T.Text (Maybe T.Text)
             deriving (Eq, Show, Read, Generic, Typeable, Data)
 
@@ -33,12 +35,12 @@ instance Hashable QQName
 
 type QQMap = HM.HashMap QQName Name
 
-qqMap :: Named n => n -> QQMap
-qqMap n =
+qqMap :: Named n => CleanedNames -> n -> QQMap
+qqMap cn n =
     let
         ns = names n
     in
-    HM.fromList $ zip (map nameToQQName ns) ns
+    HM.fromList $ zip (map (nameToQQName . renames cn) ns) ns
 
 nameToQQName :: Name -> QQName
 nameToQQName (Name n m _ _) = QQName n m
@@ -58,5 +60,5 @@ qqDataConLookup :: QQName -> QQName -> QQMap -> TypeEnv -> Maybe DataCon
 qqDataConLookup qqtn qqdcn qqm tenv
     | Just adt <- qqAlgDataTyLookup qqtn qqm tenv
     , Just dcn <- HM.lookup qqdcn qqm =
-        dataConWithName adt dcn
+        trace ("qqDataConLookup adt = " ++ show adt ++ "\ndcn = " ++ show dcn ++ "\nres = " ++ show (dataConWithName adt dcn)) dataConWithName adt dcn
     | otherwise = Nothing

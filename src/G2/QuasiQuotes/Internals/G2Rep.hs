@@ -11,6 +11,7 @@ import G2.QuasiQuotes.Support
 
 import Control.Monad
 
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 import GHC.Exts
@@ -18,8 +19,10 @@ import GHC.Exts
 import Language.Haskell.TH as TH
 import Language.Haskell.TH.Syntax as TH
 
+import Debug.Trace
+
 class G2Rep g where
-    g2Rep :: TypeEnv -> g -> Expr
+    g2Rep :: TypeEnv -> CleanedNames -> g -> Expr
 
 -- Modeled after https://wiki.haskell.org/A_practical_Template_Haskell_Tutorial
 derivingG2Rep :: TH.Name -> Q [Dec]
@@ -55,9 +58,10 @@ genG2RepClause _ con = error $ "genG2RepClause: Unhandled case." ++ show con
 genG2RepClause' :: TH.Name -> TH.Name -> [StrictType] -> Q Clause
 genG2RepClause' tyConName name fieldTypes = do
     tenv <- newName "tenv"
+    cleaned <- newName "cleaned"
     fieldNames <- replicateM (length fieldTypes) (newName "x")
 
-    let pats = varP tenv:[conP name (map varP fieldNames)]
+    let pats = varP tenv:varP cleaned:[conP name (map varP fieldNames)]
         -- body = normalB $ appsE $ conE name:map (newField tenv) (zip fieldNames fieldTypes)
 
         -- g2R = qqDataConLookup (nameToQQName tyConName) (nameToQQName n) (qqMap tenv) --varE 'g2Rep `appE` varE tenv
@@ -70,11 +74,11 @@ genG2RepClause' tyConName name fieldTypes = do
                 `appE` (varE 'qqDataConLookupFallBack
                     `appE` qqNameToQExp qqTyConName
                     `appE` qqNameToQExp qqName
-                    `appE` (varE 'qqMap `appE` varE tenv)
+                    `appE` (varE 'qqMap `appE` varE cleaned `appE` varE tenv)
                     `appE` varE tenv)
 
         body = normalB $ appE (varE 'mkApp) $ listE
-                    (g2R:map (newField tenv) (zip fieldNames fieldTypes))
+                    (g2R:map (newField tenv cleaned) (zip fieldNames fieldTypes))
 
     clause pats body []
 
@@ -86,13 +90,13 @@ genG2RepClause' tyConName name fieldTypes = do
 qqDataConLookupFallBack :: QQName -> QQName -> QQMap -> TypeEnv -> DataCon
 qqDataConLookupFallBack qqtn qqdc qqm tenv
     | Just dc <- qqDataConLookup qqtn qqdc qqm tenv = dc
-    | otherwise = DataCon (qqNameToName0 qqdc) undefined
+    | otherwise = trace ("fallback on qqtn = " ++ show qqtn ++ "\nqqdc = " ++ show qqdc ++ "\nwith\n" ++ show (M.keys tenv)) DataCon (qqNameToName0 qqdc) TyUnknown
 
-newField :: TH.Name -> (TH.Name, StrictType) -> Q Exp
-newField tenv (x, (_, ConT n))
+newField :: TH.Name -> TH.Name -> (TH.Name, StrictType) -> Q Exp
+newField tenv _ (x, (_, ConT n))
     | nameBase n == "Int#" = [|Lit . LitInt . toInteger $ $(conE 'I# `appE` varE x)|]
-newField tenv (x, (_, _)) = do
-    return $ VarE 'g2Rep `AppE` VarE tenv `AppE` VarE x
+newField tenv cleaned (x, (_, _)) = do
+    return $ VarE 'g2Rep `AppE` VarE tenv `AppE` VarE cleaned `AppE` VarE x
 
 qqNameToQExp :: QQName -> Q Exp
 qqNameToQExp (QQName n Nothing) =

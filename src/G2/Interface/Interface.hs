@@ -330,6 +330,7 @@ runG2Solving con bindings s@(State { type_env = tenv
         (_, m) <- solve con s bindings (symbolic_ids s) (path_conds s)
         case m of
             Just m' -> do
+                putStrLn $ "CASE 1\nm = " ++ show m'
                 let s' = s { model = m' }
 
                 
@@ -346,9 +347,11 @@ runG2Solving con bindings s@(State { type_env = tenv
                                    , conc_out = evalPrims kv tenv (conc_out sm')
                                    , violated = evalPrims kv tenv (violated sm')}
                 return (Just sm'')
-            Nothing -> return Nothing
+            Nothing -> do
+              putStrLn "Case 2"
+              return Nothing
 
-    | otherwise = return Nothing
+    | otherwise = do putStrLn "Case 3"; return Nothing
 
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
