@@ -34,8 +34,6 @@ import System.IO.Temp
 
 import System.FilePath
 
-import Debug.Trace
-
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quotePat = error "g2: No QuasiQuoter for patterns."

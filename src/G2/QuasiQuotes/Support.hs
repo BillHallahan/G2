@@ -26,8 +26,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-import Debug.Trace
-
 data QQName = QQName T.Text (Maybe T.Text)
             deriving (Eq, Show, Read, Generic, Typeable, Data)
 
@@ -59,6 +57,5 @@ qqAlgDataTyLookup qqn qqm tenv = flip M.lookup tenv =<< HM.lookup qqn qqm
 qqDataConLookup :: QQName -> QQName -> QQMap -> TypeEnv -> Maybe DataCon
 qqDataConLookup qqtn qqdcn qqm tenv
     | Just adt <- qqAlgDataTyLookup qqtn qqm tenv
-    , Just dcn <- HM.lookup qqdcn qqm =
-        trace ("qqDataConLookup adt = " ++ show adt ++ "\ndcn = " ++ show dcn ++ "\nres = " ++ show (dataConWithName adt dcn)) dataConWithName adt dcn
+    , Just dcn <- HM.lookup qqdcn qqm = dataConWithName adt dcn
     | otherwise = Nothing

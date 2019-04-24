@@ -6,17 +6,15 @@ module G2.QuasiQuotes.FloodConsts ( floodConstants
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 
-import Debug.Trace
-
 floodConstants :: [(Name, Expr)] -> State t -> Maybe (State t)
-floodConstants ne s = trace "floodConstants" foldr (\(n, e) s' -> floodConstant n e =<< s') (Just s) ne
+floodConstants ne s = foldr (\(n, e) s' -> floodConstant n e =<< s') (Just s) ne
 
 -- | Tries to eliminate a symbolic variable by replacing them with constants.
 -- Returns Maybe a State, if the variable is replacable
 floodConstant :: Name -> Expr -> State t -> Maybe (State t)
 floodConstant n e s
     | E.isSymbolic n (expr_env s) =
-        case trace ("flood 1 n = " ++ show n ++ "\ne = " ++ show e) E.lookup n (expr_env s) of
+        case E.lookup n (expr_env s) of
             Just e' ->
                 let
                     i = Id n $ typeOf e'
@@ -26,11 +24,11 @@ floodConstant n e s
                         , path_conds = r_pc })
             _ -> Nothing
     | otherwise = 
-        case trace ("flood 2 n = " ++ show n ++ "\ne = " ++ show e) E.lookup n (expr_env s) of
+        case E.lookup n (expr_env s) of
                 Just e'
                     | Data d:es <- unApp e
                     , Data d':es' <- unApp e'
-                    , d == d' -> trace ("es  = " ++ show es ++ "\nes' = " ++ show es') floodConstantList s (zip es es')
+                    , d == d' -> floodConstantList s (zip es es')
                 _ -> Nothing
 
 floodConstantList :: State t -> [(Expr, Expr)] -> Maybe (State t)
