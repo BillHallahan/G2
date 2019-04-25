@@ -143,10 +143,13 @@ addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
 elimUnused :: [State t] -> Bindings -> ([State t], Bindings)
 elimUnused xs b =
     let
+        xs' = map (\s -> s { type_classes = initTypeClasses []
+                           , rules = [] }) xs
+
         b' = b { deepseq_walkers = M.empty
                , higher_order_inst = [] }
     in
-    (map (fst . flip markAndSweep b') xs, b')
+    (map (fst . flip markAndSweep b') xs', b')
 
 -- Takes an Exp representing a list of States, and returns an Exp representing an ExecRes
 solveStates :: Q Exp -> Bindings -> Q Exp
