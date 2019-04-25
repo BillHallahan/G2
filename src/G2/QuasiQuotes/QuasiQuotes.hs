@@ -69,9 +69,7 @@ liftDataT = dataToExpQ (\a -> liftText <$> cast a)
 parseHaskellQ' :: String -> Q ([State ()], Bindings)
 parseHaskellQ' s = do
     ms <- reifyModule =<< thisModule
-    runIO $ do
-        print ms
-        parseHaskellIO s
+    runIO $ parseHaskellIO s
 
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
 -- marked to be passed into the Expr as real values, and those that the user
@@ -87,17 +85,27 @@ parseHaskellIO str = do
                     simplTranslationConfig mkConfigDef)
   
     let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
+        (s', b') = addAssume s b
     
     SomeSolver con <- initSolver mkConfigDef
     case initRedHaltOrd con mkConfigDef of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-            xsb@(xs, _) <- runG2ThroughExecution red hal ord [] s b
+            xsb@(xs, _) <- runG2ThroughExecution red hal ord [] s' b'
 
             mapM_ (\st -> do
                 print . curr_expr $ st
                 print . path_conds $ st) xs
 
             return xsb
+
+addAssume :: State t -> Bindings -> (State t, Bindings)
+addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng }) =
+    let
+        (v, ng') = freshId (Ty.typeOf e) ng
+        e' = Let [(v, e)] (Assume Nothing (Var v) (Var v))
+    in
+    -- (s, b)
+    (s { curr_expr = CurrExpr er e' }, b { name_gen = ng' })
 
 -- | Adds the appropriate number of lambda bindings to the Exp,
 -- and sets up a conversion from TH Exp's to G2 Expr's.
@@ -138,7 +146,6 @@ solveStates' :: ( Named t
                 , ASTContainer t Expr
                 , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates' b xs = do
-    putStrLn "HERE 1"
     SomeSolver con <- initSolver mkConfigDef
     solveStates'' con b xs
 
@@ -146,9 +153,8 @@ solveStates'' :: ( Named t
                  , ASTContainer t Expr
                  , ASTContainer t G2.Type
                  , Solver sol) => sol -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
-solveStates'' _ _ [] = do putStrLn "HERE 3"; return Nothing
+solveStates'' _ _ [] =return Nothing
 solveStates'' sol b (s:xs) = do
-    putStrLn "HERE 2"
     m_ex_res <- runG2Solving sol b s
     case m_ex_res of
         Just _ -> return m_ex_res

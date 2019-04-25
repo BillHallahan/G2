@@ -2,7 +2,6 @@
 
 module Main where
 
-import G2.Language.Syntax
 import G2.QuasiQuotes.QuasiQuotes
 
 main :: IO ()
@@ -13,11 +12,14 @@ main = do
     r2 <- g 7
     print r2
 
+    -- r3 <- h 11
+    -- print r3
+
 f :: Int -> Int -> IO (Maybe Int)
 f = [g2|(\y z -> \x ? x + 2 == y + z) :: Int -> Int -> Int -> Bool|]
 
 g :: Int  -> IO (Maybe (Int, Int))
 g = [g2|(\a -> \x y ? x < a && a < y && y - x > 10) :: Int -> Int -> Int -> Bool|]
 
--- nub_call :: Expr
--- nub_call = [g2| nub [1, 2, 3] |]
+-- h :: Int -> [Int] -> IO (Maybe [Int])
+-- h = [g2|(\total -> \lst ? sum lst == total && length lst >= 2) :: Int -> [Int] -> Bool|]

@@ -8,4 +8,4 @@ module G2.QuasiQuotes.G2Rep ( G2Rep (..)
 import G2.QuasiQuotes.Internals.G2Rep
 
 $(derivingG2Rep ''Int)
--- $(derivingG2Rep ''[])
+$(derivingG2Rep ''[])
