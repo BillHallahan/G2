@@ -18,7 +18,7 @@ main = do
     print =<< boolTest 2
     print =<< boolTest 4
 
-    -- print =<< maybeOrderingTest (Just LT)
+    print =<< maybeOrderingTest (Just LT)
 
 f :: Int -> Int -> IO (Maybe Int)
 f = [g2|(\y z -> \x ? x + 2 == y + z) :: Int -> Int -> Int -> Bool|]
@@ -32,5 +32,5 @@ h = [g2|(\total -> \lst ? sum lst == total && length lst >= 2) :: Int -> [Int] -
 boolTest :: Int -> IO (Maybe Bool)
 boolTest = [g2|(\i -> \b ? (i == 4) == b) :: Int -> Bool -> Bool|]
 
--- maybeOrderingTest :: Maybe Ordering -> IO (Maybe (Maybe Ordering))
--- maybeOrderingTest = [g2|(\m1 -> \m2 ? fmap succ m1 == m2) :: Maybe Ordering -> Maybe Ordering -> Bool|]
+maybeOrderingTest :: Maybe Ordering -> IO (Maybe (Maybe Ordering))
+maybeOrderingTest = [g2|(\m1 -> \m2 ? fmap succ m1 == m2) :: Maybe Ordering -> Maybe Ordering -> Bool|]

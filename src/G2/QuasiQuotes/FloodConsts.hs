@@ -9,6 +9,8 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
+import Debug.Trace
+
 -- | Tries to eliminate a symbolic variable by replacing them with constants.
 -- Returns Maybe a State, if the variables are replacable, and don't make the
 -- path constraints obviously false
@@ -35,14 +37,14 @@ floodConstant n e s
                 in
                 Just (s { expr_env = E.insert n e (expr_env s)
                         , path_conds = r_pc })
-            _ -> Nothing
+            _ -> trace ("Nothing 1 n = " ++ show n) Nothing
     | otherwise = 
         case E.lookup n (expr_env s) of
                 Just e'
                     | Data d:es <- unApp e
                     , Data d':es' <- unApp e'
                     , d == d' -> floodConstantList s (zip es es')
-                _ -> Nothing
+                _ -> trace ("Nothing 2 n = " ++ show n) Nothing
 
 floodConstantList :: State t -> [(Expr, Expr)] -> Maybe (State t)
 floodConstantList s  ((e1, e2):xs)
@@ -50,7 +52,7 @@ floodConstantList s  ((e1, e2):xs)
         (\s' -> floodConstantList s' xs) =<< floodConstant n e1 s
     | e1 == e2 = floodConstantList s xs
 floodConstantList s [] = Just s
-floodConstantList _ _ = Nothing
+floodConstantList _ xs = trace ("Nothing 3 xs = " ++ show xs) Nothing
 
 -- Attempts to determine if a PathCond is satisfiable.  A return value of False
 -- means the PathCond is definitely unsatisfiable.  A return value of True means

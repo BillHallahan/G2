@@ -1,5 +1,6 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.QuasiQuotes.Internals.G2Rep ( G2Rep (..)
                                       , derivingG2Rep ) where
@@ -12,6 +13,7 @@ import G2.QuasiQuotes.Support
 
 import Control.Monad
 
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 
@@ -25,6 +27,7 @@ import Debug.Trace
 class G2Rep g where
     g2Rep :: TypeEnv -> CleanedNames -> g -> Expr
     g2UnRep :: TypeEnv -> Expr -> g
+    g2Type :: TypeEnv -> CleanedNames -> g -> G2.Type
 
 -- Modeled after https://wiki.haskell.org/A_practical_Template_Haskell_Tutorial
 derivingG2Rep :: TH.Name -> Q [Dec]
@@ -39,7 +42,9 @@ derivingG2Rep ty = do
     let instanceType = forallT [] (cxt $ map mkCxt tyVars)
                         $ conT ''G2Rep `appT` foldl apply (conT tyConName) tyVars
 
-    sequence [instanceD (return []) instanceType [genG2Rep tyConName cs, genG2UnRep tyConName (length tyVars) cs]]
+    sequence [instanceD (return []) instanceType [ genG2Rep tyConName tyVars cs
+                                                 , genG2UnRep tyConName (length tyVars) cs
+                                                 , genG2Type tyConName tyVars]]
     where
         apply t (PlainTV name)    = appT t (varT name)
         apply t (KindedTV name _) = appT t (varT name)
@@ -47,18 +52,18 @@ derivingG2Rep ty = do
         mkCxt (PlainTV name) = conT ''G2Rep `appT` varT name
         mkCxt (KindedTV name _) = conT ''G2Rep `appT` varT name
 
-genG2Rep :: TH.Name -> [Con] -> Q Dec
-genG2Rep tyConName cs = funD 'g2Rep (map (genG2RepClause tyConName) cs)
+genG2Rep :: TH.Name -> [TyVarBndr] -> [Con] -> Q Dec
+genG2Rep tyConName tyVars cs = funD 'g2Rep (map (genG2RepClause tyConName tyVars) cs)
 
-genG2RepClause :: TH.Name -> Con -> Q Clause
-genG2RepClause tyConName (NormalC name fieldTypes) =
-    genG2RepClause' tyConName name fieldTypes
-genG2RepClause tyConName (InfixC st1 n st2) =
-    genG2RepClause' tyConName n [st1, st2]
-genG2RepClause _ con = error $ "genG2RepClause: Unhandled case." ++ show con 
+genG2RepClause :: TH.Name -> [TyVarBndr] -> Con -> Q Clause
+genG2RepClause tyConName tyVars (NormalC name fieldTypes) =
+    genG2RepClause' tyConName tyVars name fieldTypes
+genG2RepClause tyConName tyVars (InfixC st1 n st2) =
+    genG2RepClause' tyConName tyVars n [st1, st2]
+genG2RepClause _ _ con = error $ "genG2RepClause: Unhandled case." ++ show con 
 
-genG2RepClause' :: TH.Name -> TH.Name -> [StrictType] -> Q Clause
-genG2RepClause' tyConName dcName fieldTypes = do
+genG2RepClause' :: TH.Name -> [TyVarBndr] -> TH.Name -> [StrictType] -> Q Clause
+genG2RepClause' tyConName tyVars dcName fieldTypes = do
     tenv <- newName "tenv"
     cleaned <- newName "cleaned"
     fieldNames <- replicateM (length fieldTypes) (newName "x")
@@ -76,10 +81,20 @@ genG2RepClause' tyConName dcName fieldTypes = do
                     `appE` (varE 'qqMap `appE` varE cleaned `appE` varE tenv)
                     `appE` varE tenv)
 
+        tys = map (\tyv -> conE 'Type
+                            `appE` (varE 'g2Type
+                                        `appE` varE tenv
+                                        `appE` varE cleaned
+                                        `appE` (sigE (varE 'undefined) (tyVBToType tyv)))
+                  ) tyVars
+
         body = normalB $ appE (varE 'mkApp) $ listE
-                    (g2R:map (newField tenv cleaned) (zip fieldNames fieldTypes))
+                    (g2R:tys ++ map (newField tenv cleaned) (zip fieldNames fieldTypes))
 
     clause pats body []
+    where
+        tyVBToType (PlainTV name) = varT name
+        tyVBToType (KindedTV name _) = varT name
 
 -- | Looks up a `DataCon` with the given type and data constructor name.
 -- Falls back to creating a data constructor from scratch, if the data constructor
@@ -118,10 +133,9 @@ genG2UnRepClause' tyConName tyVarNum dcName fieldTypes = do
 
         unapped_expr = [| unApp $(varE expr) |]
 
-    tyVarNames <- replicateM tyVarNum (newName "t")
     fieldNames <- replicateM (length fieldTypes) (newName "x")
     g2DCName <- newName "g2_dc"
-    let guardPat1 = listP $ [p|Data (DataCon (G2.Name $(varP g2DCName) _ _ _) _)|]:map varP tyVarNames ++ map varP fieldNames
+    let guardPat1 = listP $ [p|Data (DataCon (G2.Name $(varP g2DCName) _ _ _) _)|]:replicate tyVarNum wildP ++ map varP fieldNames
         guardPat2 = [|T.unpack $(varE g2DCName) ==  $(litE . stringL $ nameBase dcName) |]
     
     guardPat <- patG [bindS guardPat1 (varE 'unApp `appE` varE expr), noBindS guardPat2]
@@ -132,9 +146,8 @@ genG2UnRepClause' tyConName tyVarNum dcName fieldTypes = do
 
 g2UnRepCatchAllClause :: Q Clause
 g2UnRepCatchAllClause = do
-    tenv <- newName "tenv"
     expr <- newName "expr"
-    let pats = [varP tenv, varP expr]
+    let pats = [wildP, varP expr]
 
     clause pats (normalB [|error $ "Unhandled case in g2UnRep" ++ show $(varE expr) |]) []
 
@@ -143,6 +156,28 @@ newFieldUnRep tenv (x, (_, ConT n))
     | nameBase n == "Int#" = [| intPrimFromLit $(varE x) |]
 newFieldUnRep tenv (x, _) = do
     varE 'g2UnRep `appE` varE tenv `appE` varE x
+
+genG2Type :: TH.Name -> [TyVarBndr] -> Q Dec
+genG2Type tyConName tyVars = funD 'g2Type [genG2TypeClause tyConName tyVars]
+
+genG2TypeClause :: TH.Name -> [TyVarBndr] -> Q Clause
+genG2TypeClause tyConName tyVars = do
+    tenv <- newName "tenv"
+    cleaned <- newName "cleaned"
+    let pats = [varP tenv, varP cleaned, wildP]
+
+    let qqTyConName = thNameToQQName tyConName
+        -- qqM = varE 'qqMap `appE` varE tenv `appE` varE cleaned
+        -- look = varE 'M.lookup `appE` 'qqTyConName `appE` qqM
+        exn = [|let
+                    qqM = qqMap $(varE cleaned) $(varE tenv)
+                    n = HM.lookup $(qqNameToQExp qqTyConName) qqM
+               in
+               case n of
+                    Just n -> TyCon n TYPE
+                    Nothing -> TyCon (G2.Name (T.pack "Unknown") Nothing 0 Nothing) TYPE|]
+
+    clause pats (normalB exn) []
 
 qqNameToQExp :: QQName -> Q Exp
 qqNameToQExp (QQName n Nothing) =
