@@ -39,7 +39,7 @@ derivingG2Rep ty = do
     let instanceType = forallT [] (cxt $ map mkCxt tyVars)
                         $ conT ''G2Rep `appT` foldl apply (conT tyConName) tyVars
 
-    sequence [instanceD (return []) instanceType [genG2Rep tyConName cs, genG2UnRep tyConName cs]]
+    sequence [instanceD (return []) instanceType [genG2Rep tyConName cs, genG2UnRep tyConName (length tyVars) cs]]
     where
         apply t (PlainTV name)    = appT t (varT name)
         apply t (KindedTV name _) = appT t (varT name)
@@ -97,18 +97,18 @@ newField tenv _ (x, (_, ConT n))
 newField tenv cleaned (x, _) = do
     return $ VarE 'g2Rep `AppE` VarE tenv `AppE` VarE cleaned `AppE` VarE x
 
-genG2UnRep :: TH.Name -> [Con] -> Q Dec
-genG2UnRep tyConName cs = funD 'g2UnRep (map (genG2UnRepClause tyConName) cs)
+genG2UnRep :: TH.Name -> Int -> [Con] -> Q Dec
+genG2UnRep tyConName tyVarNum cs = funD 'g2UnRep (map (genG2UnRepClause tyConName tyVarNum) cs ++ [g2UnRepCatchAllClause])
 
-genG2UnRepClause :: TH.Name -> Con -> Q Clause
-genG2UnRepClause tyConName (NormalC name fieldTypes) =
-    genG2UnRepClause' tyConName name fieldTypes
-genG2UnRepClause tyConName (InfixC st1 n st2) =
-    genG2UnRepClause' tyConName n [st1, st2]
-genG2UnRepClause _ con = error $ "genG2RepClause: Unhandled case." ++ show con 
+genG2UnRepClause :: TH.Name -> Int -> Con -> Q Clause
+genG2UnRepClause tyConName tyVarNum (NormalC name fieldTypes) =
+    genG2UnRepClause' tyConName tyVarNum name fieldTypes
+genG2UnRepClause tyConName tyVarNum (InfixC st1 n st2) =
+    genG2UnRepClause' tyConName tyVarNum n [st1, st2]
+genG2UnRepClause _ _ con = error $ "genG2RepClause: Unhandled case." ++ show con 
 
-genG2UnRepClause' :: TH.Name -> TH.Name -> [StrictType] -> Q Clause
-genG2UnRepClause' tyConName dcName fieldTypes = do
+genG2UnRepClause' :: TH.Name -> Int -> TH.Name -> [StrictType] -> Q Clause
+genG2UnRepClause' tyConName tyVarNum dcName fieldTypes = do
     tenv <- newName "tenv"
     expr <- newName "expr"
 
@@ -118,9 +118,10 @@ genG2UnRepClause' tyConName dcName fieldTypes = do
 
         unapped_expr = [| unApp $(varE expr) |]
 
+    tyVarNames <- replicateM tyVarNum (newName "t")
     fieldNames <- replicateM (length fieldTypes) (newName "x")
     g2DCName <- newName "g2_dc"
-    let guardPat1 = listP $ [p|Data (DataCon (G2.Name $(varP g2DCName) _ _ _) _)|]:map varP fieldNames
+    let guardPat1 = listP $ [p|Data (DataCon (G2.Name $(varP g2DCName) _ _ _) _)|]:map varP tyVarNames ++ map varP fieldNames
         guardPat2 = [|T.unpack $(varE g2DCName) ==  $(litE . stringL $ nameBase dcName) |]
     
     guardPat <- patG [bindS guardPat1 (varE 'unApp `appE` varE expr), noBindS guardPat2]
@@ -128,6 +129,14 @@ genG2UnRepClause' tyConName dcName fieldTypes = do
     let guardRet = return (guardPat, ret)
 
     clause pats (guardedB [guardRet]) []
+
+g2UnRepCatchAllClause :: Q Clause
+g2UnRepCatchAllClause = do
+    tenv <- newName "tenv"
+    expr <- newName "expr"
+    let pats = [varP tenv, varP expr]
+
+    clause pats (normalB [|error $ "Unhandled case in g2UnRep" ++ show $(varE expr) |]) []
 
 newFieldUnRep :: TH.Name -> (TH.Name, StrictType) -> Q Exp
 newFieldUnRep tenv (x, (_, ConT n))
