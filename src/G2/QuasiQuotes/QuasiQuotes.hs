@@ -93,13 +93,15 @@ parseHaskellIO str = do
     SomeSolver con <- initSolver mkConfigDef
     case initRedHaltOrd con mkConfigDef of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-            xsb@(xs, _) <- runG2ThroughExecution red hal ord [] s' b'
+            xsb@(xs, b) <- runG2ThroughExecution red hal ord [] s' b'
 
-            mapM_ (\st -> do
-                print . curr_expr $ st
-                print . path_conds $ st) xs
+            let xs' = filter (trueCurrExpr) xs
 
-            return xsb
+            return (xs', b)
+    where
+        trueCurrExpr (State { curr_expr = CurrExpr _ e
+                            , known_values = kv }) = e == mkTrue kv
+        _ = False
 
 addAssume :: State t -> Bindings -> (State t, Bindings)
 addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng }) =
