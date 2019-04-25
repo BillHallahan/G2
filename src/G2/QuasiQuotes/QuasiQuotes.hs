@@ -6,6 +6,7 @@
 module G2.QuasiQuotes.QuasiQuotes (g2) where
 
 import G2.Config
+import G2.Execution.Memory
 import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
 import qualified G2.Language.ExprEnv as E
@@ -22,6 +23,7 @@ import Control.Monad
 
 import Data.Data
 import Data.List
+import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -46,7 +48,7 @@ parseHaskellQ str = do
 
     (xs, b) <- parseHaskellQ' str
 
-    let xs'@(s:_) = xs
+    let (xs'@(s:_), b') = elimUnused xs b
 
     let regs = grabRegVars str
         symbs = grabSymbVars str
@@ -54,11 +56,11 @@ parseHaskellQ str = do
     ns <- mapM newName regs
     let ns_pat = map varP ns
 
-    let xs'' = addRegVarPasses ns xs' b
+    let xs'' = addRegVarPasses ns xs' b'
 
-        b' = b { input_names = drop (length regs) (input_names b) }
-        sol = solveStates xs'' b'
-        ars = extractArgs symbs (type_env s) b' sol
+        b'' = b' { input_names = drop (length regs) (input_names b') }
+        sol = solveStates xs'' b''
+        ars = extractArgs symbs (type_env s) b'' sol
 
 
     foldr (\n -> lamE [n]) ars ns_pat
@@ -117,6 +119,8 @@ addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleane
     let ns_pat = map varP ns
         ns_exp = map varE ns
 
+    tenv_name <- newName "tenv"
+
     let is_exp = liftDataT is
 
         xs_exp = liftDataT xs
@@ -125,7 +129,7 @@ addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleane
 
         cleaned_exp = liftDataT cleaned
 
-        g2Rep_exp = appE (appE (varE 'g2Rep) tenv_exp) cleaned_exp
+        g2Rep_exp = appE (appE (varE 'g2Rep) (varE tenv_name)) cleaned_exp
         ns_expr = map (appE g2Rep_exp) ns_exp
 
         zip_exp = appE (appE (varE 'zip) is_exp) $ listE ns_expr
@@ -133,11 +137,18 @@ addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleane
 
         flooded_states = appE flooded_exp xs_exp
 
-    flooded_states
+    letE [valD (varP tenv_name) (normalB tenv_exp) []] flooded_states
 addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
 
--- Takes an Exp representing a list of States,
--- and returns an Exp representing an ExecRes
+elimUnused :: [State t] -> Bindings -> ([State t], Bindings)
+elimUnused xs b =
+    let
+        b' = b { deepseq_walkers = M.empty
+               , higher_order_inst = [] }
+    in
+    (map (fst . flip markAndSweep b') xs, b')
+
+-- Takes an Exp representing a list of States, and returns an Exp representing an ExecRes
 solveStates :: Q Exp -> Bindings -> Q Exp
 solveStates xs b = do
     varE 'solveStates' `appE` liftDataT b `appE` xs 
