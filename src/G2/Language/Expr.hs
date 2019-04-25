@@ -92,14 +92,14 @@ mkDCTrue kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
 mkDCFalse :: KnownValues -> TypeEnv -> DataCon
 mkDCFalse kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
 
-mkTrue :: KnownValues -> TypeEnv -> Expr
-mkTrue kv tenv = Data . fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
+mkTrue :: KnownValues -> Expr
+mkTrue kv = Data $ DataCon (KV.dcTrue kv) (TyCon (KV.tyBool kv) TYPE)
 
-mkFalse :: KnownValues -> TypeEnv -> Expr
-mkFalse kv tenv = Data . fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
+mkFalse :: KnownValues -> Expr
+mkFalse kv = Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE)
 
-mkBool :: KnownValues -> TypeEnv -> Bool -> Expr
-mkBool kv tenv b = if b then mkTrue kv tenv else mkFalse kv tenv
+mkBool :: KnownValues -> Bool -> Expr
+mkBool kv b = if b then mkTrue kv else mkFalse kv
 
 mkCons :: KnownValues -> TypeEnv -> Expr
 mkCons kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)

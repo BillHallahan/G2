@@ -137,9 +137,9 @@ typeNamed :: ArgType -> Bool
 typeNamed (NamedType _) = True
 typeNamed _ = False
 
-checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
-checkReaches eenv _ _ Nothing _ = eenv
-checkReaches eenv tenv kv (Just s) m_mod =
+checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
+checkReaches eenv _ Nothing _ = eenv
+checkReaches eenv kv (Just s) m_mod =
     case findFunc s m_mod eenv of
-        Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv tenv) e) eenv
+        Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv) e) eenv
         Right err -> error  err

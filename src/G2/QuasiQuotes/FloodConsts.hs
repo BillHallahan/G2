@@ -51,15 +51,15 @@ floodConstantList _ _ = Nothing
 -- Attempts to determine if a PathCond is satisfiable.  A return value of False
 -- means the PathCond is definitely unsatisfiable.  A return value of True means
 -- the PathCond may or may not be satisfiable. 
-pathCondMaybeSatisfiable :: KnownValues -> TypeEnv -> PathCond -> Bool
-pathCondMaybeSatisfiable kv tenv (AltCond l1 (Lit l2) b) = (l1 == l2) == b
-pathCondMaybeSatisfiable kv tenv (ExtCond e b) =
+pathCondMaybeSatisfiable :: KnownValues -> PathCond -> Bool
+pathCondMaybeSatisfiable kv (AltCond l1 (Lit l2) b) = (l1 == l2) == b
+pathCondMaybeSatisfiable kv (ExtCond e b) =
     let
-        r = evalPrims kv tenv e
+        r = evalPrims kv e
         
-        tr = mkBool kv tenv True
-        fal = mkBool kv tenv False
+        tr = mkBool kv True
+        fal = mkBool kv False
     in
     if (r == tr && not b) || (r == fal && b) then False else True
-pathCondMaybeSatisfiable kv tenv (ConsCond dc1 (Data dc2) b) = dc1 == dc2
-pathCondMaybeSatisfiable _ _ (PCExists _) = True
+pathCondMaybeSatisfiable kv (ConsCond dc1 (Data dc2) b) = dc1 == dc2
+pathCondMaybeSatisfiable _ (PCExists _) = True

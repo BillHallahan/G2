@@ -185,9 +185,8 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
 
 initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
-                          , type_env = tenv
                           , known_values = kv }) m_mod reaches =
-    s {expr_env = checkReaches eenv tenv kv reaches m_mod }
+    s {expr_env = checkReaches eenv kv reaches m_mod }
 
 initRedHaltOrd :: Solver conv => conv -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
 initRedHaltOrd conv config =
@@ -324,8 +323,7 @@ runG2Solving :: ( Named t
                 , ASTContainer t Type
                 , Solver solver) =>
                 solver -> Bindings -> State t -> IO (Maybe (ExecRes t))
-runG2Solving con bindings s@(State { type_env = tenv
-                                   , known_values = kv })
+runG2Solving con bindings s@(State { known_values = kv })
     | true_assert s = do
         (_, m) <- solve con s bindings (symbolic_ids s) (path_conds s)
         case m of
@@ -342,8 +340,8 @@ runG2Solving con bindings s@(State { type_env = tenv
 
                 let sm'' = ExecRes { final_state = final_state sm'
                                    , conc_args = fixed_inputs bindings ++ conc_args sm'
-                                   , conc_out = evalPrims kv tenv (conc_out sm')
-                                   , violated = evalPrims kv tenv (violated sm')}
+                                   , conc_out = evalPrims kv (conc_out sm')
+                                   , violated = evalPrims kv (violated sm')}
                 return (Just sm'')
             Nothing -> do
               return Nothing

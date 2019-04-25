@@ -23,6 +23,11 @@ import G2.Language.Support
 import G2.Language.Monad.AST
 import G2.Language.Monad.Support
 
+appKV :: ExState s m => (KnownValues -> a) -> m a
+appKV f = do
+    kv <- knownValues
+    return $ f kv
+
 appKVTEnv :: ExState s m => (KnownValues -> TypeEnv -> a) -> m a
 appKVTEnv f = do
     kv <- knownValues
@@ -48,10 +53,10 @@ mkDCDoubleE :: ExState s m => m Expr
 mkDCDoubleE = appKVTEnv mkDCDouble
 
 mkTrueE :: ExState s m => m Expr
-mkTrueE = appKVTEnv mkTrue
+mkTrueE = appKV mkTrue
 
 mkFalseE :: ExState s m => m Expr
-mkFalseE = appKVTEnv mkFalse
+mkFalseE = appKV mkFalse
 
 mkConsE :: ExState s m => m Expr
 mkConsE = appKVTEnv mkCons

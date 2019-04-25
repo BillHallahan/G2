@@ -144,7 +144,6 @@ evalVar s@(State { expr_env = eenv
 -- to evaluate the function call
 evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [State t], NameGen)
 evalApp s@(State { expr_env = eenv
-                 , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck })
         ng e1 e2
@@ -153,7 +152,7 @@ evalApp s@(State { expr_env = eenv
     , v2 <- e2 =
         ( RuleBind
         , [s { expr_env = E.insert (idName i1) v2 eenv
-             , curr_expr = CurrExpr Return (mkTrue kv tenv) }]
+             , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -163,7 +162,7 @@ evalApp s@(State { expr_env = eenv
         let
             ar' = map (lookupForPrim eenv) ar
             appP = mkApp (Prim prim ty : ar')
-            exP = evalPrims kv tenv appP
+            exP = evalPrims kv appP
         in
         ( RuleEvalPrimToNorm
         , [s { curr_expr = CurrExpr Return exP }]
