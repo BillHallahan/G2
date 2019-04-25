@@ -22,6 +22,7 @@ import G2.QuasiQuotes.G2Rep
 import Control.Monad
 
 import Data.Data
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -137,16 +138,22 @@ addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleane
     letE [valD (varP tenv_name) (normalB tenv_exp) []] flooded_states
 addRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
 
-elimUnused :: [State t] -> Bindings -> ([State t], Bindings)
+elimUnused :: Named t => [State t] -> Bindings -> ([State t], Bindings)
 elimUnused xs b =
     let
-        xs' = map (\s -> s { type_classes = initTypeClasses []
-                           , rules = [] }) xs
-
         b' = b { deepseq_walkers = M.empty
                , higher_order_inst = [] }
+
+        xs' = map (\s -> s { type_classes = initTypeClasses []
+                           , rules = [] }) xs
+        xs'' = map (fst . flip markAndSweepIgnoringKnownValues b') xs'
+
+        ns = names xs'' ++ names b'
+        nhm = HM.fromList $ zip ns (map nameElimLoc ns)
     in
-    (map (fst . flip markAndSweepIgnoringKnownValues b') xs', b')
+    renames nhm (xs'', b')
+    where
+        nameElimLoc (G2.Name n m i _) = G2.Name n m i Nothing
 
 -- Takes an Exp representing a list of States, and returns an Exp representing an ExecRes
 solveStates :: Q Exp -> Bindings -> Q Exp
