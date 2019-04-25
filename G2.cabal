@@ -162,6 +162,7 @@ library
   ghc-options:         -O2 -Wall
                        -ddump-splices
                        -- -fprof-auto
+                       -- -fexternal-interpreter -opti+RTS -opti-p
   hs-source-dirs:      src
 
 executable G2

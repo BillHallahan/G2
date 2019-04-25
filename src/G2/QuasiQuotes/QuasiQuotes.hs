@@ -22,7 +22,6 @@ import G2.QuasiQuotes.G2Rep
 import Control.Monad
 
 import Data.Data
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -62,7 +61,6 @@ parseHaskellQ str = do
         sol = solveStates xs'' b''
         ars = extractArgs symbs (type_env s) sol
 
-
     foldr (\n -> lamE [n]) ars ns_pat
 
 liftDataT :: Data a => a -> Q Exp
@@ -88,7 +86,7 @@ parseHaskellIO str = do
                 translateLoaded (takeDirectory filepath) filepath []
                     simplTranslationConfig mkConfigDef)
   
-    let (s, is, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
+    let (s, _, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
         (s', b') = addAssume s b
     
     SomeSolver con <- initSolver mkConfigDef
@@ -116,8 +114,7 @@ addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng })
 -- The returned Exp should have a function type and return type (State t).
 addRegVarPasses :: Data t => [TH.Name] -> [State t] -> Bindings -> Q Exp
 addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleaned }) = do
-    let ns_pat = map varP ns
-        ns_exp = map varE ns
+    let ns_exp = map varE ns
 
     tenv_name <- newName "tenv"
 
@@ -149,7 +146,7 @@ elimUnused xs b =
         b' = b { deepseq_walkers = M.empty
                , higher_order_inst = [] }
     in
-    (map (fst . flip markAndSweep b') xs', b')
+    (map (fst . flip markAndSweepIgnoringKnownValues b') xs', b')
 
 -- Takes an Exp representing a list of States, and returns an Exp representing an ExecRes
 solveStates :: Q Exp -> Bindings -> Q Exp
@@ -192,7 +189,7 @@ toSymbArgsTuple :: TypeEnv -> Int -> Q Exp
 toSymbArgsTuple tenv n = do
     lst <- newName "lst"
 
-    let tenv_exp =liftDataT tenv
+    let tenv_exp = liftDataT tenv
 
     lamE [varP lst]
         (tupE $ map (\n' -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n') |]) [0..n - 1])
@@ -210,7 +207,7 @@ afterRegVars :: String -> String
 afterRegVars s = strip s
     where 
         strip ('-':'>':xs) = xs
-        strip (x:xs) = strip xs
+        strip (_:xs) = strip xs
         strip [] = []
 
 grabSymbVars :: String -> [String]
@@ -240,35 +237,3 @@ subSymb = sub
         sub ('?':xs) = "->" ++ xs
         sub (x:xs) = x:sub xs
         sub "" = ""
-
-
-expToExprQ :: ExprEnv -> TypeEnv -> Q Exp -> Q Expr
-expToExprQ eenv tenv expq = do
-    ex <- expq
-    return $ expToExpr eenv tenv ex
-
--- Modeled after dataToExpQ
-expToExpr :: ExprEnv -> TypeEnv -> Exp -> Expr
-expToExpr _ tenv (ConE n)
-    | n' <- thNameToName (names tenv) n
-    , Just dc <- getDataConNoType tenv n' = Data (DataCon n' undefined)
-expToExpr _ _ (LitE l) = Lit $ litToG2Lit l
-expToExpr eenv tenv (AppE e1 e2) = App (expToExpr eenv tenv e1) (expToExpr eenv tenv e2)
-expToExpr _ _ e = error $ "expToExpr: Unhandled case.\n" ++ show e
-
-thNameToName :: [G2.Name] -> TH.Name -> G2.Name
-thNameToName ns thn =
-    let
-        (occ, mn) = thNameToOccMod thn
-    in
-    case find (\(G2.Name n mn' _ _) -> n == occ && mn == mn') ns of
-        Just g2n -> g2n
-        Nothing -> error "thNameToName: Can't find name"
-
-thNameToOccMod :: TH.Name -> (T.Text, Maybe T.Text)
-thNameToOccMod (TH.Name (OccName n) (NameG _ _ (ModName mn))) = (T.pack n, Just $ T.pack mn)
-thNameToOccMod (TH.Name (OccName n) _) = (T.pack n, Nothing) 
-
-litToG2Lit :: TH.Lit -> G2.Lit
-litToG2Lit (IntPrimL i) = LitInt i 
-litToG2Lit _ = error "litToG2Lit: Unsupported Lit"
