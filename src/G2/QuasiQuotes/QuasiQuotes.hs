@@ -147,13 +147,8 @@ elimUnused xs b =
         xs' = map (\s -> s { type_classes = initTypeClasses []
                            , rules = [] }) xs
         xs'' = map (fst . flip markAndSweepIgnoringKnownValues b') xs'
-
-        ns = names xs'' ++ names b'
-        nhm = HM.fromList $ zip ns (map nameElimLoc ns)
     in
-    renames nhm (xs'', b')
-    where
-        nameElimLoc (G2.Name n m i _) = G2.Name n m i Nothing
+    (xs'', b')
 
 -- Takes an Exp representing a list of States, and returns an Exp representing an ExecRes
 solveStates :: Q Exp -> Bindings -> Q Exp
