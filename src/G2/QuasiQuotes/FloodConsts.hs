@@ -7,6 +7,7 @@ module G2.QuasiQuotes.FloodConsts ( floodConstantsChecking
 import G2.Execution.PrimitiveEval
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.PathConds as PC
 
 -- | Tries to eliminate a symbolic variable by replacing them with constants.
 -- Returns Maybe a State, if the variables are replacable, and don't make the
@@ -14,7 +15,10 @@ import qualified G2.Language.ExprEnv as E
 floodConstantsChecking :: [(Name, Expr)] -> State t -> Maybe (State t)
 floodConstantsChecking ne s =
     case floodConstants ne s of
-        Just s' -> Just s'
+        Just s' ->
+            if all (pathCondMaybeSatisfiable (known_values s')) (PC.toList $ path_conds s')
+                then Just s'
+                else Nothing
         Nothing -> Nothing
 
 floodConstants :: [(Name, Expr)] -> State t -> Maybe (State t)
@@ -61,5 +65,5 @@ pathCondMaybeSatisfiable kv (ExtCond e b) =
         fal = mkBool kv False
     in
     if (r == tr && not b) || (r == fal && b) then False else True
-pathCondMaybeSatisfiable kv (ConsCond dc1 (Data dc2) b) = dc1 == dc2
+pathCondMaybeSatisfiable kv (ConsCond dc1 (Data dc2) b) = (dc1 == dc2) == b
 pathCondMaybeSatisfiable _ (PCExists _) = True

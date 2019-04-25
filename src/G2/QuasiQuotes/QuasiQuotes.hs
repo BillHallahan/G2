@@ -131,7 +131,7 @@ addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleane
         ns_expr = map (appE g2Rep_exp) ns_exp
 
         zip_exp = appE (appE (varE 'zip) is_exp) $ listE ns_expr
-        flooded_exp = appE (varE 'mapMaybe) (appE (varE 'floodConstants) zip_exp)
+        flooded_exp = appE (varE 'mapMaybe) (appE (varE 'floodConstantsChecking) zip_exp)
 
         flooded_states = appE flooded_exp xs_exp
 
