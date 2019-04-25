@@ -44,7 +44,9 @@ parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
     -- Get names for the lambdas for the regular inputs
 
-    (xs@(s:_), b) <- parseHaskellQ' str
+    (xs, b) <- parseHaskellQ' str
+
+    let xs'@(s:_) = xs
 
     let regs = grabRegVars str
         symbs = grabSymbVars str
@@ -52,10 +54,10 @@ parseHaskellQ str = do
     ns <- mapM newName regs
     let ns_pat = map varP ns
 
-    let xs' = addRegVarPasses ns xs b
+    let xs'' = addRegVarPasses ns xs' b
 
         b' = b { input_names = drop (length regs) (input_names b) }
-        sol = solveStates xs' b'
+        sol = solveStates xs'' b'
         ars = extractArgs symbs (type_env s) b' sol
 
 
@@ -118,10 +120,8 @@ addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleane
     let is_exp = liftDataT is
 
         xs_exp = liftDataT xs
-        s_exp = liftDataT s
 
-        eenv_exp = appE (varE 'expr_env) s_exp
-        tenv_exp = appE (varE 'type_env) s_exp
+        tenv_exp = liftDataT (type_env s)
 
         cleaned_exp = liftDataT cleaned
 
