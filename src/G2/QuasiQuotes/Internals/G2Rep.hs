@@ -24,7 +24,7 @@ import Debug.Trace
 
 class G2Rep g where
     g2Rep :: TypeEnv -> CleanedNames -> g -> Expr
-    g2UnRep :: TypeEnv -> CleanedNames -> Expr -> g
+    g2UnRep :: TypeEnv -> Expr -> g
 
 -- Modeled after https://wiki.haskell.org/A_practical_Template_Haskell_Tutorial
 derivingG2Rep :: TH.Name -> Q [Dec]
@@ -110,10 +110,9 @@ genG2UnRepClause _ con = error $ "genG2RepClause: Unhandled case." ++ show con
 genG2UnRepClause' :: TH.Name -> TH.Name -> [StrictType] -> Q Clause
 genG2UnRepClause' tyConName dcName fieldTypes = do
     tenv <- newName "tenv"
-    cleaned <- newName "cleaned"
     expr <- newName "expr"
 
-    let pats = varP tenv:varP cleaned:[varP expr]
+    let pats = varP tenv:[varP expr]
         qqTyConName = thNameToQQName tyConName
         qqDCName = thNameToQQName dcName
 
@@ -125,16 +124,16 @@ genG2UnRepClause' tyConName dcName fieldTypes = do
         guardPat2 = [|T.unpack $(varE g2DCName) ==  $(litE . stringL $ nameBase dcName) |]
     
     guardPat <- patG [bindS guardPat1 (varE 'unApp `appE` varE expr), noBindS guardPat2]
-    ret <- appsE $ conE dcName:map (newFieldUnRep tenv cleaned) (zip fieldNames fieldTypes)
+    ret <- appsE $ conE dcName:map (newFieldUnRep tenv) (zip fieldNames fieldTypes)
     let guardRet = return (guardPat, ret)
 
     clause pats (guardedB [guardRet]) []
 
-newFieldUnRep :: TH.Name -> TH.Name -> (TH.Name, StrictType) -> Q Exp
-newFieldUnRep tenv _ (x, (_, ConT n))
+newFieldUnRep :: TH.Name -> (TH.Name, StrictType) -> Q Exp
+newFieldUnRep tenv (x, (_, ConT n))
     | nameBase n == "Int#" = [| intPrimFromLit $(varE x) |]
-newFieldUnRep tenv cleaned (x, _) = do
-    varE 'g2UnRep `appE` varE tenv `appE` varE cleaned `appE` varE x
+newFieldUnRep tenv (x, _) = do
+    varE 'g2UnRep `appE` varE tenv `appE` varE x
 
 qqNameToQExp :: QQName -> Q Exp
 qqNameToQExp (QQName n Nothing) =

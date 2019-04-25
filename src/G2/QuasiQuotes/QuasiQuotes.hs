@@ -60,7 +60,7 @@ parseHaskellQ str = do
 
         b'' = b' { input_names = drop (length regs) (input_names b') }
         sol = solveStates xs'' b''
-        ars = extractArgs symbs (type_env s) b'' sol
+        ars = extractArgs symbs (type_env s) sol
 
 
     foldr (\n -> lamE [n]) ars ns_pat
@@ -174,8 +174,8 @@ solveStates'' sol b (s:xs) = do
         Just _ -> return m_ex_res
         Nothing -> solveStates'' sol b xs
 
-extractArgs :: [String] -> TypeEnv -> Bindings -> Q Exp -> Q Exp
-extractArgs symb_ars tenv b es =
+extractArgs :: [String] -> TypeEnv -> Q Exp -> Q Exp
+extractArgs symb_ars tenv es =
     let
         i = length symb_ars
     in
@@ -183,20 +183,19 @@ extractArgs symb_ars tenv b es =
         r <- $(es)
         case r of
             Just r' ->
-                return . Just . $(toSymbArgsTuple tenv b i) $ conc_args r'
+                return . Just . $(toSymbArgsTuple tenv i) $ conc_args r'
             Nothing -> return Nothing |]
 
 -- | Takes some int n returns a function to turn the first n elements of a list
 -- into a tuple
-toSymbArgsTuple :: TypeEnv -> Bindings -> Int -> Q Exp
-toSymbArgsTuple tenv b n = do
+toSymbArgsTuple :: TypeEnv -> Int -> Q Exp
+toSymbArgsTuple tenv n = do
     lst <- newName "lst"
 
     let tenv_exp =liftDataT tenv
-        b_exp = liftDataT b
 
     lamE [varP lst]
-        (tupE $ map (\n' -> [| g2UnRep $(tenv_exp) (cleaned_names $(b_exp)) ($(varE lst) !! n') |]) [0..n - 1])
+        (tupE $ map (\n' -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n') |]) [0..n - 1])
 
 grabRegVars :: String -> [String]
 grabRegVars s =
