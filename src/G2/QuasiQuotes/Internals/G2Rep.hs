@@ -3,7 +3,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.QuasiQuotes.Internals.G2Rep ( G2Rep (..)
-                                      , derivingG2Rep ) where
+                                      , derivingG2Rep
+                                      , derivingG2RepTuples
+                                      , derivingG2RepTuple ) where
 
 import G2.Language.Expr
 import G2.Language.Naming
@@ -109,6 +111,10 @@ qqDataConLookupFallBack qqtn qqdc qqm tenv
 newField :: TH.Name -> TH.Name -> (TH.Name, StrictType) -> Q Exp
 newField tenv _ (x, (_, ConT n))
     | nameBase n == "Int#" = [|Lit . LitInt . toInteger $ $(conE 'I# `appE` varE x)|]
+newField tenv _ (x, (_, ConT n))
+    | nameBase n == "Float#" = [|Lit . LitFloat . toRational $ $(conE 'F# `appE` varE x)|]
+newField tenv _ (x, (_, ConT n))
+    | nameBase n == "Double#" = [|Lit . LitDouble . toRational $ $(conE 'D# `appE` varE x)|]
 newField tenv cleaned (x, _) = do
     return $ VarE 'g2Rep `AppE` VarE tenv `AppE` VarE cleaned `AppE` VarE x
 
@@ -154,6 +160,10 @@ g2UnRepCatchAllClause = do
 newFieldUnRep :: TH.Name -> (TH.Name, StrictType) -> Q Exp
 newFieldUnRep tenv (x, (_, ConT n))
     | nameBase n == "Int#" = [| intPrimFromLit $(varE x) |]
+newFieldUnRep tenv (x, (_, ConT n))
+    | nameBase n == "Float#" = [| floatPrimFromLit $(varE x) |]
+newFieldUnRep tenv (x, (_, ConT n))
+    | nameBase n == "Double#" = [| doublePrimFromLit $(varE x) |]
 newFieldUnRep tenv (x, _) = do
     varE 'g2UnRep `appE` varE tenv `appE` varE x
 
@@ -179,6 +189,12 @@ genG2TypeClause tyConName tyVars = do
 
     clause pats (normalB exn) []
 
+derivingG2RepTuples :: Int -> Int -> Q [Dec]
+derivingG2RepTuples mi ma = return . concat =<< mapM derivingG2RepTuple [mi..ma]
+
+derivingG2RepTuple :: Int -> Q [Dec]
+derivingG2RepTuple n = derivingG2Rep (tupleTypeName n)
+
 qqNameToQExp :: QQName -> Q Exp
 qqNameToQExp (QQName n Nothing) =
     conE 'QQName `appE` textToQExp n `appE` conE 'Nothing
@@ -193,3 +209,15 @@ intPrimFromLit (Lit (LitInt x)) =
     case fromInteger x of
         I# x' -> x'
 intPrimFromLit _ = error "intPrimFromLit: Unhandled Expr"
+
+floatPrimFromLit :: G2.Expr -> Float#
+floatPrimFromLit (Lit (LitFloat x)) =
+    case fromRational x of
+        F# x' -> x'
+floatPrimFromLit _ = error "floatPrimFromLit: Unhandled Expr"
+
+doublePrimFromLit :: G2.Expr -> Double#
+doublePrimFromLit (Lit (LitDouble x)) =
+    case fromRational x of
+        D# x' -> x'
+doublePrimFromLit _ = error "intPrimFromLit: Unhandled Expr"
