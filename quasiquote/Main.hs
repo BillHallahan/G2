@@ -26,6 +26,12 @@ main = do
 
     print =<< doubleTest (2.2) (4.9)
 
+-- fBad1 :: Float -> Int -> IO (Maybe Int)
+-- fBad1 = [g2|(\y z -> \x ? x + 2 == y + z) :: Int -> Int -> Int -> Bool|]
+
+-- fBad2 :: Int -> Int -> IO (Maybe Float)
+-- fBad2 = [g2|(\y z -> \x ? x + 2 == y + z) :: Int -> Int -> Int -> Bool|]
+
 f :: Int -> Int -> IO (Maybe Int)
 f = [g2|(\y z -> \x ? x + 2 == y + z) :: Int -> Int -> Int -> Bool|]
 

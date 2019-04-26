@@ -1,5 +1,7 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- Converts types with Name's to types with QQNames, since uniques in the
 -- QuasiQuoter will most likely not match up with uniques from the original
@@ -13,11 +15,13 @@ module G2.QuasiQuotes.Support ( QQName (..)
                               , qqNameToName0
 
                               , qqAlgDataTyLookup
-                              , qqDataConLookup ) where
+                              , qqDataConLookup
 
-import G2.Language
+                              , toTHType ) where
 
-import qualified Language.Haskell.TH as TH
+import G2.Language as G2
+
+import Language.Haskell.TH as TH
 
 import GHC.Generics (Generic)
 import Data.Data
@@ -31,7 +35,7 @@ data QQName = QQName T.Text (Maybe T.Text)
 
 instance Hashable QQName
 
-type QQMap = HM.HashMap QQName Name
+type QQMap = HM.HashMap QQName G2.Name
 
 qqMap :: Named n => CleanedNames -> n -> QQMap
 qqMap cn n =
@@ -40,7 +44,7 @@ qqMap cn n =
     in
     HM.fromList $ zip (map (nameToQQName . renames cn) ns) ns
 
-nameToQQName :: Name -> QQName
+nameToQQName :: G2.Name -> QQName
 nameToQQName (Name n m _ _) = QQName n m
 
 thNameToQQName :: TH.Name -> QQName
@@ -48,7 +52,7 @@ thNameToQQName n =
     QQName (T.pack $ TH.nameBase n) (fmap T.pack $ TH.nameModule n)
 
 -- | Maps a `QQName` to a `Name` with unique 0
-qqNameToName0 :: QQName -> Name
+qqNameToName0 :: QQName -> G2.Name
 qqNameToName0 (QQName n m) = Name n m 0 Nothing
 
 qqAlgDataTyLookup :: QQName -> QQMap -> TypeEnv -> Maybe AlgDataTy
@@ -59,3 +63,25 @@ qqDataConLookup qqtn qqdcn qqm tenv
     | Just adt <- qqAlgDataTyLookup qqtn qqm tenv
     , Just dcn <- HM.lookup qqdcn qqm = dataConWithName adt dcn
     | otherwise = Nothing
+
+toTHType :: CleanedNames -> G2.Type -> Q TH.Type
+toTHType cleaned (TyApp t1 t2) = appT (toTHType cleaned t1) (toTHType cleaned t2)
+toTHType cleaned t@(TyCon n _)
+    | nameOcc (renames cleaned n) == "[]" = listT
+    | Just i <- tupleNum . nameOcc $ renames cleaned n = tupleT i
+    | otherwise = do
+        tn <- lookupTypeName . T.unpack . nameOcc $ renames cleaned n
+        case tn of
+            Just tn' -> conT tn'
+            Nothing -> error $ "toTHType: Unhandled case\n" ++ show (renames cleaned t)
+toTHType _ t = error $ "toTHType: Unhandled case\n" ++ show t
+
+tupleNum :: T.Text -> Maybe Int
+tupleNum = tupleNum' 0 . T.unpack
+
+tupleNum' :: Int -> String -> Maybe Int
+tupleNum' 0 ("()") = Just 0
+tupleNum' 0 ('(':xs) = tupleNum' 1 xs
+tupleNum' !n (',':xs) = tupleNum' (1 + n) xs
+tupleNum' !n ")" = Just n
+tupleNum' _ s = Nothing

@@ -24,6 +24,7 @@ import G2.Language.Stack
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
+import G2.Language.Typing
 import G2.Language.PathConds hiding (map, filter)
 import G2.Execution.RuleTypes
 
@@ -67,6 +68,12 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
 -- | The `InputIds` are a list of the variable names passed as input to the
 -- function being symbolically executed
 type InputIds = [Id]
+
+inputIds :: State t -> Bindings -> InputIds
+inputIds (State { expr_env = eenv }) (Bindings { input_names = ns }) =
+    map (\n -> case E.lookup n eenv of
+                Just e -> Id n (typeOf e)
+                Nothing -> error "inputIds: Name not found in ExprEnv") ns
 
 -- | The `SymbolicIds` are a list of the variable names that we should ensure are
 -- inserted in the model, after we solve the path constraints

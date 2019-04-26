@@ -18,6 +18,7 @@ import G2.Translation.Interface
 import G2.Translation.TransTypes
 import G2.QuasiQuotes.FloodConsts
 import G2.QuasiQuotes.G2Rep
+import G2.QuasiQuotes.Support
 
 import Control.Monad
 
@@ -60,7 +61,7 @@ parseHaskellQ str = do
 
         b'' = b' { input_names = drop (length regs) (input_names b') }
         sol = solveStates xs'' b''
-        ars = extractArgs symbs (type_env s) sol
+        ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
 
     foldr (\n -> lamE [n]) ars ns_pat
 
@@ -115,8 +116,9 @@ addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng })
 -- and sets up a conversion from TH Exp's to G2 Expr's.
 -- The returned Exp should have a function type and return type (State t).
 addRegVarPasses :: Data t => [TH.Name] -> [State t] -> Bindings -> Q Exp
-addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleaned }) = do
+addRegVarPasses ns xs@(s:_) b@(Bindings { input_names = is, cleaned_names = cleaned }) = do
     let ns_exp = map varE ns
+        ty_ns_exp = map (\(n, i) -> sigE n (toTHType cleaned (Ty.typeOf i))) $ zip ns_exp (inputIds s b)
 
     tenv_name <- newName "tenv"
 
@@ -129,7 +131,7 @@ addRegVarPasses ns xs@(s:_) (Bindings { input_names = is, cleaned_names = cleane
         cleaned_exp = liftDataT cleaned
 
         g2Rep_exp = appE (appE (varE 'g2Rep) (varE tenv_name)) cleaned_exp
-        ns_expr = map (appE g2Rep_exp) ns_exp
+        ns_expr = map (appE g2Rep_exp) ty_ns_exp
 
         zip_exp = appE (appE (varE 'zip) is_exp) $ listE ns_expr
         flooded_exp = appE (varE 'mapMaybe) (appE (varE 'floodConstantsChecking) zip_exp)
@@ -174,28 +176,34 @@ solveStates'' sol b (s:xs) = do
         Just _ -> return m_ex_res
         Nothing -> solveStates'' sol b xs
 
-extractArgs :: [String] -> TypeEnv -> Q Exp -> Q Exp
-extractArgs symb_ars tenv es =
+-- | Get the values of the symbolic arguments, and returns them in a tuple
+extractArgs :: InputIds -> CleanedNames -> TypeEnv -> Q Exp -> Q Exp
+extractArgs in_ids cleaned tenv es =
     let
-        i = length symb_ars
-    in
+        n = length in_ids
+    in do
+    mapM_ (\i -> do
+            runIO $ print (Ty.typeOf i)
+            th_ty <- toTHType cleaned (Ty.typeOf i)
+            runIO $ print $ th_ty ) in_ids
     [|do
         r <- $(es)
         case r of
             Just r' ->
-                return . Just . $(toSymbArgsTuple tenv i) $ conc_args r'
+                return . Just . $(toSymbArgsTuple in_ids cleaned tenv n) $ conc_args r'
             Nothing -> return Nothing |]
 
 -- | Takes some int n returns a function to turn the first n elements of a list
 -- into a tuple
-toSymbArgsTuple :: TypeEnv -> Int -> Q Exp
-toSymbArgsTuple tenv n = do
+toSymbArgsTuple :: InputIds -> CleanedNames -> TypeEnv -> Int -> Q Exp
+toSymbArgsTuple in_ids cleaned tenv n = do
     lst <- newName "lst"
 
     let tenv_exp = liftDataT tenv
 
     lamE [varP lst]
-        (tupE $ map (\n' -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n') |]) [0..n - 1])
+        -- (tupE $ map (\(i, n') -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n') |]) $ zip in_ids ([0..] :: [Int]))
+        (tupE $ map (\(i, n') -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n') :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
 
 grabRegVars :: String -> [String]
 grabRegVars s =
