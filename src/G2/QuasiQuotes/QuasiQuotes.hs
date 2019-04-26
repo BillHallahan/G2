@@ -109,7 +109,6 @@ addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng })
         (v, ng') = freshId (Ty.typeOf e) ng
         e' = Let [(v, e)] (Assume Nothing (Var v) (Var v))
     in
-    -- (s, b)
     (s { curr_expr = CurrExpr er e' }, b { name_gen = ng' })
 
 -- | Adds the appropriate number of lambda bindings to the Exp,

@@ -9,6 +9,8 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
+import Debug.Trace
+
 -- | Tries to eliminate a symbolic variable by replacing them with constants.
 -- Returns Maybe a State, if the variables are replacable, and don't make the
 -- path constraints obviously false
@@ -21,6 +23,8 @@ floodConstantsChecking ne s =
                 else Nothing
         Nothing -> Nothing
 
+-- | Tries to eliminate a symbolic variable by replacing them with constants.
+-- Returns Maybe a State, if the variables are replacable
 floodConstants :: [(Name, Expr)] -> State t -> Maybe (State t)
 floodConstants ne s = foldr (\(n, e) s' -> floodConstant n e =<< s') (Just s) ne
 
@@ -41,7 +45,7 @@ floodConstant n e s
                 Just e'
                     | Data d:es <- unApp e
                     , Data d':es' <- unApp e'
-                    , d == d' -> floodConstantList s (zip es es')
+                    , dcName d == dcName d' -> floodConstantList s (zip es es')
                 _ -> Nothing
 
 floodConstantList :: State t -> [(Expr, Expr)] -> Maybe (State t)
