@@ -227,7 +227,7 @@ grabSymbVars s =
         s' = dropWhile (\c -> c == ' ' || c == '(') $ afterRegVars s
     in
     case s' of
-        '\\':xs -> grabVars "?" xs
+        '-':'>':xs -> grabVars "?" xs
         _ -> error "Bad QuasiQuote"
 
 grabVars :: String -> String -> [String]
@@ -241,10 +241,11 @@ grabVars en xs@(_:_) =
     in
     x:grabVars en xs'
 
--- | Replaces the first '?' with '->'
+-- | Replaces the first '->' with '-> \' and the first ?' with '->'
 subSymb :: String -> String
 subSymb = sub
     where
+        sub ('-':'>':xs) = '-':'>':' ':'\\':sub xs
         sub ('?':xs) = "->" ++ xs
         sub (x:xs) = x:sub xs
         sub "" = ""
