@@ -154,8 +154,14 @@ stringExpr = do
 
 stringExpr' :: Parser Char
 stringExpr' = do
-    str <- many (choice $ alphaNum:char '\\':map char ident)
-    case readHex $ dropWhile (\c -> c == '\\' || c == 'x') str of
+    try parseHex <|> choice (alphaNum:char '\\':map char ident)
+
+parseHex :: Parser Char
+parseHex = do
+    _ <- char '\\'
+    _ <- char 'x'
+    str <- many (choice . map char $ ['0'..'9'] ++ ['a'..'f'])
+    case readHex str of
         [(c, _)] -> return $ chr c
         _ -> error $ "stringExpr': Bad string"
 

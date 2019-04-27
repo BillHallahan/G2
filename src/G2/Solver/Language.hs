@@ -72,7 +72,6 @@ data Sort = SortInt
           | SortFloat
           | SortDouble
           | SortChar
-          | SortString
           | SortBool
           deriving (Show, Eq)
 

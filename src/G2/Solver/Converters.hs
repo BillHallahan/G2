@@ -81,6 +81,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     int :: con -> Integer -> ast
     float :: con -> Rational -> ast
     double :: con -> Rational -> ast
+    char :: con -> Char -> ast
     bool :: con -> Bool -> ast
     cons :: con -> SMTName -> [ast] -> Sort -> ast
     var :: con -> SMTName -> ast -> ast
@@ -433,7 +434,6 @@ typeToSMT TyLitInt = SortInt
 typeToSMT TyLitDouble = SortDouble
 typeToSMT TyLitFloat = SortFloat
 typeToSMT TyLitChar = SortChar
-typeToSMT TyLitString = SortString
 typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
@@ -476,6 +476,7 @@ toSolverAST con (Ite x y z) =
 toSolverAST con (VInt i) = int con i
 toSolverAST con (VFloat f) = float con f
 toSolverAST con (VDouble i) = double con i
+toSolverAST con (VChar c) = char con c
 toSolverAST con (VBool b) = bool con b
 toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
@@ -510,7 +511,6 @@ sortToType (SortInt) = TyLitInt
 sortToType (SortFloat) = TyLitFloat
 sortToType (SortDouble) = TyLitDouble
 sortToType (SortChar) = TyLitChar
-sortToType (SortString) = TyLitString
 sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 
 -- | Coverts an `SMTModel` to a `Model`.

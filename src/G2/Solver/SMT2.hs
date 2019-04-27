@@ -154,6 +154,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     double _ r =
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
@@ -277,6 +278,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     double _ r =
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
