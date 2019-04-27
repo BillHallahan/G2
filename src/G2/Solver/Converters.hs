@@ -90,7 +90,6 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     sortFloat :: con -> ast
     sortDouble :: con -> ast
     sortChar :: con -> ast
-    sortString :: con -> ast
     sortBool :: con -> ast
 
     varName :: con -> SMTName -> Sort -> ast
@@ -395,7 +394,6 @@ altToSMT (LitInt i) _ = VInt i
 altToSMT (LitFloat f) _ = VFloat f
 altToSMT (LitDouble d) _ = VDouble d
 altToSMT (LitChar c) _ = VChar c
-altToSMT (LitString s) _ = VString s
 altToSMT am _ = error $ "Unhandled " ++ show am
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
@@ -490,7 +488,6 @@ sortName con SortInt = sortInt con
 sortName con SortFloat = sortFloat con
 sortName con SortDouble = sortDouble con
 sortName con SortChar = sortChar con
-sortName con SortString = sortChar con
 sortName con SortBool = sortBool con
 
 toSolverSetLogic :: SMTConverter con ast out io => con -> Logic -> out

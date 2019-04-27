@@ -60,7 +60,6 @@ data SMTAST = (:>=) SMTAST SMTAST
             | VFloat Rational
             | VDouble Rational
             | VChar Char
-            | VString String
             | VBool Bool
 
             | V SMTName Sort

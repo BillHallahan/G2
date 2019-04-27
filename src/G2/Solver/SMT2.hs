@@ -161,7 +161,6 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     sortFloat _ = "Real"
     sortDouble _ = "Real"
     sortChar _ = "String"
-    sortString _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
@@ -285,7 +284,6 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     sortFloat _ = "Real"
     sortDouble _ = "Real"
     sortChar _ = "String"
-    sortString _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
