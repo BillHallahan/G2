@@ -98,6 +98,9 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
 
               , ("quotInteger#", Prim Quot tyIntIntInt)
 
+              , ("eqChar#", Prim Eq $ tyCharCharBool b )
+              , ("neChar#", Prim Neq $ tyCharCharBool b )
+
               , ("float2Int#", Prim ToInt (TyFun TyLitFloat TyLitInt))
               , ("int2Float#", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
               , ("fromIntToFloat", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
@@ -140,6 +143,9 @@ tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)
 
 tyFloatFloatFloat :: Type
 tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat
+
+tyCharCharBool :: Name -> Type
+tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)
 
 boolName :: [ProgramType] -> Maybe Name
 boolName = find ((==) "Bool" . nameOcc) . map fst

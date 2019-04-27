@@ -95,8 +95,8 @@ solveRelated' :: TrSolver a => a -> State t -> Bindings -> Model -> [Id] -> [Pat
 solveRelated' sol s b m is [] =
     let 
         is' = filter (\i -> idName i `M.notMember` m) is
-        
-        (_, nv) = mapAccumL 
+
+        (_, nv) = mapAccumL
             (\av_ (Id n t) ->
                 let 
                     (av_', v) = arbValue t (type_env s) av_

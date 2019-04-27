@@ -142,6 +142,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     smtModulo _ = function2 "mod"
     smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
     neg _ = function1 "-"
+    strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
 
@@ -159,6 +160,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
+    sortChar _ = "String"
+    sortString _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
@@ -264,6 +267,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     smtModulo _ = function2 "mod"
     smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
     neg _ = function1 "-"
+    strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
 
@@ -280,6 +284,8 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
+    sortChar _ = "String"
+    sortString _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
