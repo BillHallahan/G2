@@ -22,6 +22,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
+import Data.Tuple
 
 data ADTSolver = ADTSolver
 
@@ -130,17 +131,17 @@ addADTs n tn ts k s b pc
 
         (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) ts'') (name_gen b)
 
-        vs = map (\(n', t') -> 
+        (av, vs) = mapAccumL (\av_ (n', t') -> 
                 case E.lookup n' eenv of
-                    Just e -> e
-                    Nothing -> fst $ arbValue t' (type_env s) (arb_value_gen b)) $ zip ns ts''
+                    Just e -> (av_, e)
+                    Nothing -> swap $ arbValue t' (type_env s) av_) (arb_value_gen b) $ zip ns ts''
         
         dc = mkApp $ fdc:map Type ts2 ++ vs
 
         m = M.insert n dc (model s)
     in
     case not . Pre.null $ dcs of
-        True -> (SAT, s {model = M.union m (model s)}, b)
+        True -> (SAT, s { model = M.union m (model s) }, b { arb_value_gen = av })
         False -> (UNSAT, s, b)
     | otherwise = (UNSAT, s, b)
 

@@ -72,6 +72,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     smtModulo :: con -> ast -> ast -> ast
     smtSqrt :: con -> ast -> ast
     neg :: con -> ast -> ast
+    strLen :: con -> ast -> ast
     itor :: con -> ast -> ast
 
     ite :: con -> ast -> ast -> ast -> ast
@@ -80,6 +81,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     int :: con -> Integer -> ast
     float :: con -> Rational -> ast
     double :: con -> Rational -> ast
+    char :: con -> Char -> ast
     bool :: con -> Bool -> ast
     cons :: con -> SMTName -> [ast] -> Sort -> ast
     var :: con -> SMTName -> ast -> ast
@@ -88,6 +90,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     sortInt :: con -> ast
     sortFloat :: con -> ast
     sortDouble :: con -> ast
+    sortChar :: con -> ast
     sortBool :: con -> ast
 
     varName :: con -> SMTName -> Sort -> ast
@@ -327,6 +330,7 @@ exprToSMT (Lit c) =
         LitInt i -> VInt i
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
+        LitChar ch -> VChar ch
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
 exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _))) =
     case nameOcc n of
@@ -390,10 +394,16 @@ altToSMT :: Lit -> Expr -> SMTAST
 altToSMT (LitInt i) _ = VInt i
 altToSMT (LitFloat f) _ = VFloat f
 altToSMT (LitDouble d) _ = VDouble d
+altToSMT (LitChar c) _ = VChar c
 altToSMT am _ = error $ "Unhandled " ++ show am
 
 createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []
+createVarDecls ((n,SortChar):xs) =
+    let
+        lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
+    in
+    VarDecl (nameToStr n) SortChar:lenAssert:createVarDecls xs
 createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
 
 pcVarDecls :: [PathCond] -> [SMTHeader]
@@ -423,6 +433,7 @@ typeToSMT (TyFun TyLitFloat _) = SortFloat -- TODO: Remove this
 typeToSMT TyLitInt = SortInt
 typeToSMT TyLitDouble = SortDouble
 typeToSMT TyLitFloat = SortFloat
+typeToSMT TyLitChar = SortChar
 typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
@@ -456,6 +467,7 @@ toSolverAST con (x `QuotSMT` y) = smtQuot con (toSolverAST con x) (toSolverAST c
 toSolverAST con (x `Modulo` y) = smtModulo con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (SqrtSMT x) = smtSqrt con $ toSolverAST con x
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
+toSolverAST con (StrLen x) = strLen con $ toSolverAST con x
 toSolverAST con (ItoR x) = itor con $ toSolverAST con x
 
 toSolverAST con (Ite x y z) =
@@ -464,6 +476,7 @@ toSolverAST con (Ite x y z) =
 toSolverAST con (VInt i) = int con i
 toSolverAST con (VFloat f) = float con f
 toSolverAST con (VDouble i) = double con i
+toSolverAST con (VChar c) = char con c
 toSolverAST con (VBool b) = bool con b
 toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
@@ -475,6 +488,7 @@ sortName :: SMTConverter con ast out io => con -> Sort -> ast
 sortName con SortInt = sortInt con
 sortName con SortFloat = sortFloat con
 sortName con SortDouble = sortDouble con
+sortName con SortChar = sortChar con
 sortName con SortBool = sortBool con
 
 toSolverSetLogic :: SMTConverter con ast out io => con -> Logic -> out
@@ -487,6 +501,7 @@ smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
     Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
+smtastToExpr (VChar c) = Lit $ LitChar c
 smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
@@ -495,6 +510,7 @@ sortToType :: Sort -> Type
 sortToType (SortInt) = TyLitInt
 sortToType (SortFloat) = TyLitFloat
 sortToType (SortDouble) = TyLitDouble
+sortToType (SortChar) = TyLitChar
 sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 
 -- | Coverts an `SMTModel` to a `Model`.

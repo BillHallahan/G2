@@ -11,12 +11,15 @@ import G2.Language.Typing
 import Data.List
 import qualified Data.Map as M
 import Data.Ord
+import Data.Tuple
 
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
                            , floatGen = 0
                            , doubleGen = 0
-                           , boolGen = True}
+                           , charGen = cycle (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
+                           , boolGen = True
+                           }
 
 -- | arbValue
 -- Allows the generation of arbitrary values of the given type.
@@ -51,6 +54,11 @@ arbValue TyLitDouble _ av =
         d = doubleGen av
     in
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
+arbValue TyLitChar _ av =
+    let
+        c = charGen av
+    in
+    (Lit (LitChar (head c)), av { charGen = tail c })
 arbValue t _ av = (Prim Undefined t, av)
 
 -- Generates an arbitrary value of the given ADT,
@@ -84,6 +92,6 @@ getADT tenv av adt ts =
         tyVIds = map TyVar ids
         min_dc' = foldr (uncurry replaceASTs) min_dc $ zip tyVIds ts
 
-        (es, _) = unzip $ map (\t -> arbValue t tenv av) $ dataConArgs min_dc'
+        (av', es) = mapAccumL (\av_ t -> swap $ arbValue t tenv av_) av $ dataConArgs min_dc'
     in
-    (mkApp $ Data min_dc':es, av)
+    (mkApp $ Data min_dc':es, av')

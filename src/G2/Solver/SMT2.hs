@@ -142,6 +142,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     smtModulo _ = function2 "mod"
     smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
     neg _ = function1 "-"
+    strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
 
@@ -153,12 +154,14 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     double _ r =
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
+    sortChar _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
@@ -264,6 +267,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     smtModulo _ = function2 "mod"
     smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
     neg _ = function1 "-"
+    strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
 
@@ -274,12 +278,14 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     double _ r =
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
+    sortChar _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =

@@ -4,15 +4,17 @@ module G2.Solver.ParseSMT
 
 import G2.Solver.Language
 
+import Data.Char
 import Data.Ratio
-
--- This is not complete!  It currently only covers the small amount of the SMT
--- language needed to parse models
+import Numeric
 
 import Text.Parsec (Parsec)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
+
+-- This is not complete!  It currently only covers the small amount of the SMT
+-- language needed to parse models
 
 smtDef :: LanguageDef st
 smtDef =
@@ -22,7 +24,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["as", "let", "-", "/"]}
+             , Token.reservedNames = ["as", "let", "-", "/", "\""]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
@@ -59,7 +61,7 @@ getValuesParser = parens (parens (identifier >> sExpr))
 
 sExpr :: Parser SMTAST
 sExpr = try boolExpr <|> parens sExpr <|> letExpr <|> try doubleFloatExpr
-                     <|> try doubleFloatExprDec <|> intExpr
+                     <|> try doubleFloatExprDec <|> stringExpr <|> intExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -142,6 +144,26 @@ flexDoubleFloat = do
     case s of 
         Just _ -> return (-r)
         Nothing -> return r
+
+stringExpr :: Parser SMTAST
+stringExpr = do
+    _ <- char '"'
+    str <- stringExpr'
+    _ <- char '"'
+    return (VChar str)
+
+stringExpr' :: Parser Char
+stringExpr' = do
+    try parseHex <|> choice (alphaNum:char '\\':map char ident)
+
+parseHex :: Parser Char
+parseHex = do
+    _ <- char '\\'
+    _ <- char 'x'
+    str <- many (choice . map char $ ['0'..'9'] ++ ['a'..'f'])
+    case readHex str of
+        [(c, _)] -> return $ chr c
+        _ -> error $ "stringExpr': Bad string"
 
 parseSMT :: String -> SMTAST
 parseSMT s = case parse smtParser s s of

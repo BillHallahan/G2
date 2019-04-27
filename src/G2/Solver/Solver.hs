@@ -14,6 +14,7 @@ module G2.Solver.Solver ( Solver (..)
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
+import Data.List
 import qualified Data.Map as M
 
 -- | The result of a Solver query
@@ -94,7 +95,15 @@ solveRelated' :: TrSolver a => a -> State t -> Bindings -> Model -> [Id] -> [Pat
 solveRelated' sol s b m is [] =
     let 
         is' = filter (\i -> idName i `M.notMember` m) is
-        nv = map (\(Id n t) -> (n, fst $ arbValue t (type_env s) (arb_value_gen b))) is'
+
+        (_, nv) = mapAccumL
+            (\av_ (Id n t) ->
+                let 
+                    (av_', v) = arbValue t (type_env s) av_
+                    in
+                    (v, (n, av_'))
+            ) (arb_value_gen b) is'
+
         m' = foldr (\(n, v) -> M.insert n v) m nv
     in
     return (SAT, Just m', sol)

@@ -101,6 +101,7 @@ type CleanedNames = HM.HashMap Name Name
 data ArbValueGen = ArbValueGen { intGen :: Integer
                                , floatGen :: Rational
                                , doubleGen :: Rational
+                               , charGen :: [Char]
                                , boolGen :: Bool
                                } deriving (Show, Eq, Read, Typeable, Data)
 

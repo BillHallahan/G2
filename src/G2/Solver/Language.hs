@@ -51,12 +51,15 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Modulo SMTAST SMTAST
             | Neg SMTAST -- ^ Unary negation
 
+            | StrLen SMTAST
+
             | Ite SMTAST SMTAST SMTAST
             | SLet (SMTName, SMTAST) SMTAST
 
             | VInt Integer
             | VFloat Rational
             | VDouble Rational
+            | VChar Char
             | VBool Bool
 
             | V SMTName Sort
@@ -68,6 +71,7 @@ data SMTAST = (:>=) SMTAST SMTAST
 data Sort = SortInt
           | SortFloat
           | SortDouble
+          | SortChar
           | SortBool
           deriving (Show, Eq)
 
