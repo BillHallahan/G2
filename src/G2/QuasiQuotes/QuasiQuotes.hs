@@ -181,11 +181,7 @@ extractArgs :: InputIds -> CleanedNames -> TypeEnv -> Q Exp -> Q Exp
 extractArgs in_ids cleaned tenv es =
     let
         n = length in_ids
-    in do
-    mapM_ (\i -> do
-            runIO $ print (Ty.typeOf i)
-            th_ty <- toTHType cleaned (Ty.typeOf i)
-            runIO $ print $ th_ty ) in_ids
+    in
     [|do
         r <- $(es)
         case r of
@@ -202,7 +198,6 @@ toSymbArgsTuple in_ids cleaned tenv n = do
     let tenv_exp = liftDataT tenv
 
     lamE [varP lst]
-        -- (tupE $ map (\(i, n') -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n') |]) $ zip in_ids ([0..] :: [Int]))
         (tupE $ map (\(i, n') -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n') :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
 
 grabRegVars :: String -> [String]
