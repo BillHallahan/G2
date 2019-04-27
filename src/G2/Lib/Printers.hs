@@ -45,7 +45,7 @@ mkCleanExprHaskell (State {known_values = kv, type_classes = tc}) =
 mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Expr
 mkCleanExprHaskell' kv tc e
     | (App (Data (DataCon n _)) e') <- e
-    , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv = e'
+    , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv || n == dcChar kv = e'
 
     | (App e' e'') <- e
     , t <- typeOf e'
