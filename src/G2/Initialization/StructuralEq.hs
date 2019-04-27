@@ -15,6 +15,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Debug.Trace as R
+
 -- | createStructEqFuncs
 -- Creates a typeclass to compare two ADTs based on there structural equality-
 -- that is, compare if they have exactly the same (possibly recursive) constructors.
@@ -124,8 +126,43 @@ genInsts tcn nsT t dc ((n@(Name n' _ _ _), adt):xs) = do
     return $ (mkTyApp (TyCon n bnvK:bnv), Id dn t):xs'
 
 
+-- We split up the createStructEqFunc to handle the special case of GADTs.
+-- Specifically, this thing (found in L52 of libraries/base/GHC/Exception.hs)
+-- gives us grief:
+--
+--    data SomeException = forall e . Exception e => SomeException e
+--
 createStructEqFunc :: ExState s m => Name -> Name -> Name -> AlgDataTy -> m ()
-createStructEqFunc dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
+createStructEqFunc dcn fn tn adt@(DataTyCon {bound_ids = ns, data_cons = dc}) = do
+  let dcIds = tyVarIds dc
+  if all (\i -> i `elem` ns) dcIds then
+    -- trace ("CSEF 1A: " ++ show (dcn, fn, tn, ns)) $
+    trace ("CSEF 1A: AAA" ++ show tn) $
+    -- trace ("complementary : " ++ show dc) $
+      createStructEqFunc' dcn fn tn adt
+  else
+    -- trace ("CSEF 1B: " ++ show (dcn, fn, tn, ns)) $
+    trace ("CSEF 1B: AAA" ++ show tn) $
+      return ()
+createStructEqFunc dcn fn tn ntc@(NewTyCon {bound_ids = ns, rep_type = rt}) = do
+  let dcIds = tyVarIds rt
+  if all (\i -> i `elem` ns) dcIds then
+    -- trace ("CSEF 2A: " ++ show (dcn, fn, tn, ns)) $
+    trace ("CSEF 2A: AAA" ++ show tn) $
+      createStructEqFunc' dcn fn tn ntc
+  else
+    -- trace ("CSEF 2B: " ++ show (dcn, fn, tn, ns)) $
+    trace ("CSEF 2B: AAA" ++ show tn) $
+      return ()
+createStructEqFunc dcn fn tn adt =
+  -- trace ("CSEF 3: " ++ show (dcn, fn, tn, adt)) $
+  trace ("CSEF 3: AAA" ++ show tn) $
+    createStructEqFunc' dcn fn tn adt
+
+
+
+createStructEqFunc' :: ExState s m => Name -> Name -> Name -> AlgDataTy -> m ()
+createStructEqFunc' dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
     ns' <- freshSeededNamesN $ map idName ns
     let t = mkFullAppedTyCon tn (map (TyVar . flip Id TYPE) ns') TYPE
 
@@ -138,7 +175,7 @@ createStructEqFunc dcn fn tn (DataTyCon {bound_ids = ns, data_cons = dc}) = do
 
     e <- createStructEqFuncDC t bt bd bm dc'
     insertE fn e
-createStructEqFunc dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
+createStructEqFunc' dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
     kv <- knownValues
 
     let t = mkFullAppedTyCon tn (map TyVar ns) TYPE
@@ -166,7 +203,7 @@ createStructEqFunc dcn fn tn (NewTyCon {bound_ids = ns, rep_type = rt}) = do
     let e'' = mkLams (map (TypeL,) bt) e'
 
     insertE fn e''
-createStructEqFunc _ _ _ (TypeSynonym {}) = error "Type synonym in createStructEqFunc"
+createStructEqFunc' _ _ _ (TypeSynonym {}) = error "Type synonym in createStructEqFunc'"
 
 createStructEqFuncDC :: ExState s m => Type -> [Id] -> [Id] -> [(Name, (Id, Id))] -> [DataCon] -> m Expr
 createStructEqFuncDC t bt bd bm dc = do
@@ -208,6 +245,7 @@ boundChecks is1 is2 bm = do
 
 boundCheck :: ExState s m => [(Name, (Id, Id))] -> Id -> Id -> m Expr
 boundCheck bm i1 i2 = do
+    -- R.trace ("calling SEQ with type: " ++ (show $ typeOf i1)) $
     structEqCheck bm (typeOf i1) i1 i2
 
 structEqCheck :: ExState s m => [(Name, (Id, Id))] -> Type -> Id -> Id -> m Expr
@@ -219,7 +257,7 @@ structEqCheck bm t i1 i2
     let ex = Var $ Id (structEqFunc kv) sft
 
     dict <- dictForType bm t
-
+    
     return (App (App (App (App ex (Type t)) dict) (Var i1)) (Var i2))
 structEqCheck bm (TyVar (Id n _)) (Id n' _) (Id n'' _) = do
     kv <- knownValues
@@ -230,7 +268,9 @@ structEqCheck bm (TyVar (Id n _)) (Id n' _) (Id n'' _) = do
             let ex = Var $ Id (structEqFunc kv) sft
 
             return (App (App (App (App ex (Var ty)) (Var dict)) (Var (Id n' (TyVar ty)))) (Var (Id n'' (TyVar ty))))
-        Nothing -> error "Unaccounted for TyVar in structEqCheck"
+        Nothing -> error $ "Unaccounted for TyVar in structEqCheck:\n" ++
+                            "Name: " ++ show n ++ "\n" ++
+                            "Maps: " ++ show bm
 structEqCheck _ TyLitInt i1 i2 = do
     eq <- mkEqPrimIntE
     return $ App (App eq (Var i1)) (Var i2)
@@ -258,9 +298,12 @@ dictForType bm t
 
     ds <- mapM (dictForType bm) ts
 
-    case structEqTCDict kv tc t of
-        Just i -> return $ foldl' App (Var i) (map Type ts ++ ds)
-        Nothing -> error $ "Required typeclass not found in dictForType"
+    R.trace ("calling sturctEQTCDict with: " ++ show (kv, tc, t)) $
+      case structEqTCDict kv tc t of
+          Just i -> return $ foldl' App (Var i) (map Type ts ++ ds)
+          Nothing -> error $ "Required typeclass not found in dictForType: " ++
+                              ("type: " ++ show t) ++ ("bm: " ++ show bm)
+
 dictForType bm (TyVar (Id n _)) =
     case lookup n bm of
         Just (_, dict) -> return (Var dict)

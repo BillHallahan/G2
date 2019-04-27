@@ -135,8 +135,9 @@ translateLoadedBigBase proj src libs transConfig config = do
                         ((head $ base config) ++ "/Prelude.g2-dump") 
   -}
   base1Exs <- readAllExtractedG2s "../base-dumps/" "Prelude.g2-dump"
-  base2Exs <- readAllExtractedG2s "../base-dumps/" "Control.Exception.Base.g2-dump"
-  let (baseNameMap, baseTypeNameMap, baseExG2) = mergeFileExtractedG2s (base1Exs ++ base2Exs)
+  -- base2Exs <- readAllExtractedG2s "../base-dumps/" "Control.Exception.Base.g2-dump"
+  -- let (baseNameMap, baseTypeNameMap, baseExG2) = mergeFileExtractedG2s (base1Exs ++ base2Exs)
+  let (baseNameMap, baseTypeNameMap, baseExG2) = mergeFileExtractedG2s (base1Exs)
 
   putStrLn "translateLoadedBigBase relevant base stuff:"
   mapM_ (putStrLn . T.unpack) $ exg2_mod_names baseExG2

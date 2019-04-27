@@ -28,6 +28,8 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
+import Debug.Trace as R
+
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id]} deriving (Show, Eq, Read)
 
 type TCType = M.Map Name Class
@@ -72,12 +74,18 @@ isTypeClass _ _ = False
 -- if one exists
 lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
 lookupTCDict tc n t =
+  -- R.trace ("lookupTCDict: " ++ show tc ++ " with " ++ show (n, t)) $
     case fmap insts $ M.lookup n (toMap tc) of
         Just c -> fmap snd $ find (\(t', _) -> PresType t .:: t') c
         Nothing -> Nothing
 
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
 lookupTCDicts n = fmap insts . M.lookup n . coerce
+{-
+lookupTCDicts n tcs =
+  R.trace ("lookupTCDicts: " ++ show n ++ " with " ++ show tcs) $
+    fmap insts $ M.lookup n $ coerce tcs
+-}
 
 lookupTCDictsTypes :: TypeClasses -> Name -> Maybe [Type]
 lookupTCDictsTypes tc = fmap (map fst) . flip lookupTCDicts tc
