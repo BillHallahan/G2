@@ -382,6 +382,9 @@ testFileTests =
                 , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "BadCoerce" "f" 400 3 [AtLeast 1]
                 , checkExpr "tests/TestFiles/Expr.hs" 400 Nothing Nothing "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
 
+                , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "con" 300 3 [AtLeast 10]
+                , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eq" 700 3 [AtLeast 10]
+                , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eqGt1" 700 3 [AtLeast 10]
                 -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 4 [AtLeast 1]
                 -- , checkExpr "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [ AtLeast 2
     --                                                                                                                   , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))

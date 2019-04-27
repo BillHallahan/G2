@@ -122,7 +122,16 @@ printList' kv (App (App _ e) e') = mkExprHaskell True kv e:printList' kv e'
 printList' _ _ = []
 
 printString :: Expr -> String
-printString a = "\"" ++ printString' a ++ "\""
+printString a =
+    let
+        str = printString' a
+    in
+    if all isPrint str then "\"" ++ str ++ "\""
+        else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+    where
+        stringToEnum c
+            | isPrint c = '\'':c:'\'':[]
+            | otherwise = "toEnum " ++ show (ord c)
 
 printString' :: Expr -> String
 printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
