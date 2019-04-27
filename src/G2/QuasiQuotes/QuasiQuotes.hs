@@ -49,21 +49,22 @@ parseHaskellQ str = do
 
     (xs, b) <- parseHaskellQ' str
 
-    let (xs'@(s:_), b') = elimUnused xs b
-
     let regs = grabRegVars str
-        symbs = grabSymbVars str
 
     ns <- mapM newName regs
     let ns_pat = map varP ns
 
-    let xs'' = addRegVarPasses ns xs' b'
+    case elimUnused xs b of
+        (xs'@(s:_), b') -> do
 
-        b'' = b' { input_names = drop (length regs) (input_names b') }
-        sol = solveStates xs'' b''
-        ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
+            let xs'' = addRegVarPasses ns xs' b'
 
-    foldr (\n -> lamE [n]) ars ns_pat
+                b'' = b' { input_names = drop (length regs) (input_names b') }
+                sol = solveStates xs'' b''
+                ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
+
+            foldr (\n -> lamE [n]) ars ns_pat
+        ([], _) -> foldr (\n -> lamE [n]) [| return Nothing |] ns_pat
 
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> liftText <$> cast a)
@@ -82,6 +83,7 @@ parseHaskellIO :: String -> IO ([State ()], Bindings)
 parseHaskellIO str = do
     (_, exG2) <- withSystemTempFile "ThTemp.hs"
             (\filepath handle -> do
+                putStrLn $ subSymb str
                 hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ subSymb str
                 hFlush handle
                 hClose handle
@@ -103,6 +105,21 @@ parseHaskellIO str = do
         trueCurrExpr (State { curr_expr = CurrExpr _ e
                             , known_values = kv }) = e == mkTrue kv
         _ = False
+
+qqRedHaltOrd :: Solver conv => conv -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+qqRedHaltOrd conv =
+    let
+        tr_ng = mkNameGen ()
+        state_name = G2.Name "state" Nothing 0 Nothing
+    in
+    ( SomeReducer
+        (NonRedPCRed :<~| TaggerRed state_name tr_ng)
+            <~| (SomeReducer (StdRed conv))
+    , SomeHalter
+        (DiscardIfAcceptedTag state_name 
+        :<~> RecursiveCutOff 3
+        :<~> AcceptHalter)
+    , SomeOrderer $ NextOrderer)
 
 addAssume :: State t -> Bindings -> (State t, Bindings)
 addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng }) =

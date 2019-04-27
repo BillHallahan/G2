@@ -115,6 +115,8 @@ newField tenv _ (x, (_, ConT n))
     | nameBase n == "Float#" = [|Lit . LitFloat . toRational $ $(conE 'F# `appE` varE x)|]
 newField tenv _ (x, (_, ConT n))
     | nameBase n == "Double#" = [|Lit . LitDouble . toRational $ $(conE 'D# `appE` varE x)|]
+newField tenv _ (x, (_, ConT n))
+    | nameBase n == "Char#" = [|Lit . LitChar $ $(conE 'C# `appE` varE x)|]
 newField tenv cleaned (x, _) = do
     return $ VarE 'g2Rep `AppE` VarE tenv `AppE` VarE cleaned `AppE` VarE x
 
@@ -164,6 +166,8 @@ newFieldUnRep tenv (x, (_, ConT n))
     | nameBase n == "Float#" = [| floatPrimFromLit $(varE x) |]
 newFieldUnRep tenv (x, (_, ConT n))
     | nameBase n == "Double#" = [| doublePrimFromLit $(varE x) |]
+newFieldUnRep tenv (x, (_, ConT n))
+    | nameBase n == "Char#" = [| charPrimFromLit $(varE x) |]
 newFieldUnRep tenv (x, _) = do
     varE 'g2UnRep `appE` varE tenv `appE` varE x
 
@@ -221,3 +225,7 @@ doublePrimFromLit (Lit (LitDouble x)) =
     case fromRational x of
         D# x' -> x'
 doublePrimFromLit _ = error "intPrimFromLit: Unhandled Expr"
+
+charPrimFromLit :: G2.Expr -> Char#
+charPrimFromLit (Lit (LitChar (C# x))) = x
+charPrimFromLit _ = error "charPrimFromLit: Unhandled Expr"

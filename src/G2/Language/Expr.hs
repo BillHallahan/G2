@@ -14,6 +14,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                                   , mkDCInteger
                                   , mkDCFloat
                                   , mkDCDouble
+                                  , mkDCChar
                                   , mkCons
                                   , mkEmpty
                                   , mkIdentity
@@ -85,6 +86,9 @@ mkDCFloat kv tenv = Data . fromJust $ getDataCon tenv (KV.tyFloat kv) (KV.dcFloa
 
 mkDCDouble :: KnownValues -> TypeEnv -> Expr
 mkDCDouble kv tenv = Data . fromJust $ getDataCon tenv (KV.tyDouble kv) (KV.dcDouble kv)
+
+mkDCChar :: KnownValues -> TypeEnv -> Expr
+mkDCChar kv tenv = Data . fromJust $ getDataCon tenv (KV.tyChar kv) (KV.dcChar kv)
 
 mkDCTrue :: KnownValues -> TypeEnv -> DataCon
 mkDCTrue kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)

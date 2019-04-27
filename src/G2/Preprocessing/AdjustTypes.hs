@@ -44,6 +44,8 @@ unpackString' tenv kv (Lit (LitString s)) =
     let
         cns = mkCons kv tenv
         em = mkEmpty kv tenv
+
+        char = mkDCChar kv tenv
     in
-    foldr App em $ map (App cns . Lit . LitChar) s
+    foldr App em $ map (App cns . App char . Lit . LitChar) s
 unpackString' _ _ e = e

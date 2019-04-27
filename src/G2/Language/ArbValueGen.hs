@@ -17,9 +17,16 @@ arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
                            , floatGen = 0
                            , doubleGen = 0
-                           , charGen = cycle (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'])
+                           , charGen = charGenInit -- See [CharGenInit]
                            , boolGen = True
                            }
+
+-- [CharGenInit]
+-- Do NOT make this a cycle.  It would simplify arbValue, but causes an infinite loop
+-- when we have to output a State (in the QuasiQuoter, for example)
+
+charGenInit :: [Char]
+charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 
 -- | arbValue
 -- Allows the generation of arbitrary values of the given type.
@@ -56,9 +63,11 @@ arbValue TyLitDouble _ av =
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
 arbValue TyLitChar _ av =
     let
-        c = charGen av
+        c:cs = case charGen av of
+                xs@(_:_) -> xs
+                _ -> charGenInit
     in
-    (Lit (LitChar (head c)), av { charGen = tail c })
+    (Lit (LitChar c), av { charGen = cs})
 arbValue t _ av = (Prim Undefined t, av)
 
 -- Generates an arbitrary value of the given ADT,
