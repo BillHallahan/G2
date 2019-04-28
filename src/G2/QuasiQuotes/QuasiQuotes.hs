@@ -84,6 +84,8 @@ liftDataT = dataToExpQ (\a -> liftText <$> cast a)
 parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
 parseHaskellQ' qext = do
   ms <- reifyModule =<< thisModule
+  runIO $ (putStrLn $ show ms)
+  runIO $ putStrLn "-----"
   runIO $ parseHaskellIO qext
 
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user

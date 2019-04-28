@@ -4,6 +4,8 @@ module Main where
 
 import G2.QuasiQuotes.QuasiQuotes
 
+
+
 main :: IO ()
 main = do
     r <- f 8 10
@@ -27,6 +29,8 @@ main = do
     print =<< doubleTest (2.2) (4.9)
 
     print =<< stringTest "h!"
+
+    print =<< funcTest ((+ 1) :: Int -> Int) ((+ 2) :: Int -> Int)
 
 
 -- fBad1 :: Float -> Int -> IO (Maybe Int)
@@ -77,5 +81,8 @@ doubleTest = [g2|!(d1 :: Double) !(d2 :: Double) -> ?(d3 :: Double) | d1 <= d3 &
 stringTest :: String -> IO (Maybe String)
 -- stringTest = [g2| (\str1 -> str2 ? str1 == str2 ++ "!") :: String -> String -> Bool |]
 stringTest = [g2|!(str1 :: String) -> ?(str2 :: String) | str1 == str2 ++ "!"|]
+
+funcTest :: (Int -> Int) -> (Int -> Int) -> IO (Maybe Int)
+funcTest = [g2|!(f :: (Int -> Int)) !(g :: Int -> Int) -> ?(ans :: Int) | (f (g 10)) == ans|]
 
 
