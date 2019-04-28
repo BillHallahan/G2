@@ -93,6 +93,7 @@ library
                        , G2.QuasiQuotes.Internals.G2Rep
                        , G2.QuasiQuotes.FloodConsts
                        , G2.QuasiQuotes.G2Rep
+                       , G2.QuasiQuotes.Parser
                        , G2.QuasiQuotes.QuasiQuotes
                        , G2.QuasiQuotes.Support
 
@@ -151,6 +152,7 @@ library
                        , mtl
                        , reducers
                        , regex-compat
+                       , regex-base
                        , parsec
                        , process >=1 && <1.7
                        , template-haskell

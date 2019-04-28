@@ -19,6 +19,7 @@ import G2.Translation.TransTypes
 import G2.QuasiQuotes.FloodConsts
 import G2.QuasiQuotes.G2Rep
 import G2.QuasiQuotes.Support
+import G2.QuasiQuotes.Parser
 
 import Control.Monad
 
@@ -47,9 +48,13 @@ parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
     -- Get names for the lambdas for the regular inputs
 
-    (xs, b) <- parseHaskellQ' str
+    let qext = extractQuotedData str
 
-    let regs = grabRegVars str
+    -- (xs, b) <- parseHaskellQ' str
+    (xs, b) <- parseHaskellQ' qext
+
+    -- let regs = grabRegVars str
+    let regs = map fst $ concVars qext
 
     ns <- mapM newName regs
     let ns_pat = map varP ns
@@ -71,20 +76,26 @@ liftDataT = dataToExpQ (\a -> liftText <$> cast a)
     where
         liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
 
-parseHaskellQ' :: String -> Q ([State ()], Bindings)
-parseHaskellQ' s = do
+parseHaskellQ' :: QuotedExtract -> Q ([State ()], Bindings)
+parseHaskellQ' qext = do
     ms <- reifyModule =<< thisModule
-    runIO $ parseHaskellIO s
+    runIO $ parseHaskellIO qext
 
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
 -- marked to be passed into the Expr as real values, and those that the user
 -- wants to solve for- are treated as symbolic here.
-parseHaskellIO :: String -> IO ([State ()], Bindings)
-parseHaskellIO str = do
+parseHaskellIO :: QuotedExtract -> IO ([State ()], Bindings)
+-- parseHaskellIO str = do
+parseHaskellIO qext = do
+
+    let hskStr = quotedEx2Hsk qext
+
     (_, exG2) <- withSystemTempFile "ThTemp.hs"
             (\filepath handle -> do
-                putStrLn $ subSymb str
-                hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ subSymb str
+                -- putStrLn $ subSymb str
+                putStrLn $ hskStr
+                -- hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ subSymb str
+                hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ hskStr
                 hFlush handle
                 hClose handle
                 translateLoaded (takeDirectory filepath) filepath []
