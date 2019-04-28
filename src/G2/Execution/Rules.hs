@@ -68,13 +68,13 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
     | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
-        let (r, xs) = retAssumeFrame s ce e stck'
+        let (r, xs, ng') = retAssumeFrame s ng ce e stck'
         xs' <- mapMaybeM (reduceNewPC solver) xs
-        return (r, xs', ng)
+        return (r, xs', ng')
     | Just (AssertFrame ais e, stck') <- frstck = do
-        let (r, xs) = retAssertFrame s ce ais e stck'
+        let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
         xs' <- mapMaybeM (reduceNewPC solver) xs
-        return (r, xs', ng)
+        return (r, xs', ng')
     | Just (CurrExprFrame e, stck') <- frstck = do
         let (r, xs) = retCurrExpr s ce e stck'
         xs' <- mapMaybeM (reduceNewPC solver) xs
@@ -260,7 +260,6 @@ evalLet s@(State { expr_env = eenv })
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
-                  , known_values = kv
                   , exec_stack = stck })
          ng mexpr bind alts
   -- Is the current expression able to match with a literal based `Alt`? If
@@ -325,9 +324,10 @@ evalCase s@(State { expr_env = eenv
             _ -> (Nothing, mexpr)
 
         (dsts_cs, ng') = case unApp $ unsafeElimCast expr of
-            (Var i@(Id _ t)):_ -> if (t == (tyBool kv))
-                                    then createExtConds s ng expr bind dalts -- if Bool is cast to something else: would lose information
-                                    else concretizeVarExpr s ng i bind dalts cast 
+            (Var i@(Id _ _)):_ -> concretizeVarExpr s ng i bind dalts cast 
+            -- (Var i@(Id _ t)):_ -> if (t == (tyBool kv))
+            --                        then createExtConds s ng expr bind dalts -- if Bool is cast to something else: would lose information
+            --                        else concretizeVarExpr s ng i bind dalts cast 
             (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
             (Data _):_ -> ([], ng)
@@ -653,15 +653,86 @@ retCurrExpr s e1 e2 stck =
                          , exec_stack = stck}
              , new_pcs = [ExtCond e1 True]}] )
 
-retAssumeFrame :: State t -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t])
-retAssumeFrame s e1 e2 stck =
-    ( RuleReturnCAssume
-    , [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
-                         , exec_stack = stck}
-             , new_pcs = [ExtCond e1 True]}] )
+retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
+retAssumeFrame s@(State {known_values = kv, type_env = tenv}) ng e1 e2 stck =
+    let
+        (cast, expr) = case e1 of
+            (Cast e c) -> (Just c, e)
+            _ -> (Nothing, e1)
 
-retAssertFrame :: State t -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (Rule, [NewPC t])
-retAssertFrame s e1 ais e2 stck =
+        dalt = case (getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)) of
+            Just dc -> [dc]
+            _ -> []
+
+        (dsts_cs, ng') = case unApp $ unsafeElimCast expr of
+            (Var i@(Id _ _)):_ -> concretizeAssertExpr s ng i dalt cast e2 stck
+            _ -> addTrueExtCond s ng e1 e2 stck
+    in
+    (RuleReturnCAssume, dsts_cs, ng')
+
+addTrueExtCond :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
+addTrueExtCond s ng e1 e2 stck = 
+    ([NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                         , exec_stack = stck}
+             , new_pcs = [ExtCond e1 True]}], ng)
+
+retAssertFrame :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
+retAssertFrame s@(State {known_values = kv, type_env = tenv}) ng e1 ais e2 stck =
+    let
+        (cast, expr) = case e1 of
+            (Cast e c) -> (Just c, e)
+            _ -> (Nothing, e1)
+
+        dalts = case getDataCons (KV.tyBool kv) tenv of
+            Just dcs -> dcs
+            _ -> []
+
+        (dsts_cs, ng') = case unApp $ unsafeElimCast expr of
+            (Var i@(Id _ _)):_ -> concretizeAssertExpr s ng i dalts cast e2 stck
+            _ -> addExtConds s ng e1 ais e2 stck
+            
+      in
+      (RuleReturnCAssert, dsts_cs, ng')
+
+concretizeAssertExpr :: State t -> NameGen -> Id -> [DataCon] -> Maybe Coercion -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
+concretizeAssertExpr _ ng _ [] _ _ _ = ([], ng)
+concretizeAssertExpr s ng mexpr_id (x:xs) maybeC e2 stck = 
+        (x':newPCs, ng'') 
+    where
+        (x', ng') = concretizeAssertExpr' s ng mexpr_id x maybeC e2 stck
+        (newPCs, ng'') = concretizeAssertExpr s ng' mexpr_id xs maybeC e2 stck
+
+concretizeAssertExpr' :: State t -> NameGen -> Id -> DataCon -> Maybe Coercion -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
+concretizeAssertExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms, known_values = kv})
+                ngen mexpr_id dcon@(DataCon dconName _) maybeC e2 stck = 
+          (newPCEmpty $ s { expr_env = eenv'
+                          , symbolic_ids = syms'
+                          , exec_stack = stck
+                          , curr_expr = CurrExpr Evaluate e2
+                          , true_assert = assertVal}, ngen)
+  where
+    mexpr_n = idName mexpr_id
+    mexpr_t = (\(Id _ t) -> t) (mexpr_id)
+    exprs = [Data dcon] ++ (mexprTyToExpr mexpr_t tenv)
+
+    -- Apply list of types (if present) and DataCon children to DataCon
+    dcon'' = mkApp exprs
+
+    -- Apply cast, in opposite direction of unsafeElimCast
+    dcon''' = case maybeC of 
+                (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
+                Nothing -> dcon''
+
+    -- concretizes the mexpr to have same form as the DataCon specified
+    eenv' = E.insert mexpr_n dcon''' eenv
+    syms' = filter (/= mexpr_id) syms
+
+    assertVal = if (dconName == (KV.dcTrue kv))
+                    then False
+                    else True
+
+addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
+addExtConds s ng e1 ais e2 stck =
     let
         s' = s { curr_expr = CurrExpr Evaluate e2
                , exec_stack = stck}
@@ -676,8 +747,8 @@ retAssertFrame s e1 ais e2 stck =
                                     , assert_ids = ais }
                        , new_pcs = condf }
     in
-    ( RuleReturnCAssert
-    , [strue, sfalse] )
+    ([strue, sfalse], ng)
+
 
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.
@@ -738,3 +809,5 @@ retReplaceSymbFunc s@(State { expr_env = eenv
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True
 isApplyFrame _ = False
+
+
