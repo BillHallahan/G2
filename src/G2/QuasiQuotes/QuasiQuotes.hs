@@ -46,32 +46,34 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
     -- Get names for the lambdas for the regular inputs
+    exG2 <- parseHaskellQ' str
+    ex_out <- runExecutionQ exG2
 
-    (xs, b) <- parseHaskellQ' str
+    case ex_out of
+        Completed xs b -> do
+            let regs = grabRegVars str
 
-    let regs = grabRegVars str
+            ns <- mapM newName regs
+            let ns_pat = map varP ns
 
-    ns <- mapM newName regs
-    let ns_pat = map varP ns
+            case elimUnused xs b of
+                (xs'@(s:_), b') -> do
 
-    case elimUnused xs b of
-        (xs'@(s:_), b') -> do
+                    let xs'' = addRegVarPasses ns xs' b'
 
-            let xs'' = addRegVarPasses ns xs' b'
+                        b'' = b' { input_names = drop (length regs) (input_names b') }
+                        sol = solveStates xs'' b''
+                        ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
 
-                b'' = b' { input_names = drop (length regs) (input_names b') }
-                sol = solveStates xs'' b''
-                ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
-
-            foldr (\n -> lamE [n]) ars ns_pat
-        ([], _) -> foldr (\n -> lamE [n]) [| return Nothing |] ns_pat
+                    foldr (\n -> lamE [n]) ars ns_pat
+                ([], _) -> foldr (\n -> lamE [n]) [| return Nothing |] ns_pat
 
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> liftText <$> cast a)
     where
         liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
 
-parseHaskellQ' :: String -> Q ([State ()], Bindings)
+parseHaskellQ' :: String -> Q ExtractedG2
 parseHaskellQ' s = do
     ms <- reifyModule =<< thisModule
     runIO $ parseHaskellIO s
@@ -79,18 +81,28 @@ parseHaskellQ' s = do
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
 -- marked to be passed into the Expr as real values, and those that the user
 -- wants to solve for- are treated as symbolic here.
-parseHaskellIO :: String -> IO ([State ()], Bindings)
+parseHaskellIO :: String -> IO ExtractedG2
 parseHaskellIO str = do
-    (_, exG2) <- withSystemTempFile "ThTemp.hs"
+    (_, exG2) <- withSystemTempFile fileName
             (\filepath handle -> do
                 putStrLn $ subSymb str
-                hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ subSymb str
+                hPutStrLn handle $ "module " ++ moduleName ++ " where\n" ++ functionName ++ " = " ++ subSymb str
                 hFlush handle
                 hClose handle
                 translateLoaded (takeDirectory filepath) filepath []
                     simplTranslationConfig mkConfigDef)
-  
-    let (s, _, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
+    return exG2
+
+-- | If a State has been completely symbolically executed (i.e. no states were
+-- discarded by a Halter) we encoded it as Completed.
+-- Otherwise, we encode the original State and Bindings as NonCompleted
+data ExecOut = Completed [State ()] Bindings
+             | NonCompleted (State ()) Bindings
+
+runExecutionQ :: ExtractedG2 -> Q ExecOut
+runExecutionQ exG2 = runIO $ do
+    let (s, _, b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
+                                        (mkCurrExpr Nothing Nothing) mkConfigDef
         (s', b') = addAssume s b
     
     SomeSolver con <- initSolver mkConfigDef
@@ -100,11 +112,20 @@ parseHaskellIO str = do
 
             let xs' = filter (trueCurrExpr) xs
 
-            return (xs', b)
+            return $ Completed xs' b
     where
         trueCurrExpr (State { curr_expr = CurrExpr _ e
                             , known_values = kv }) = e == mkTrue kv
         _ = False
+
+fileName :: String
+fileName = "THTemp.hs"
+
+moduleName :: String
+moduleName = "THTemp"
+
+functionName :: String
+functionName = "g2Expr"
 
 qqRedHaltOrd :: Solver conv => conv -> (SomeReducer (), SomeHalter (), SomeOrderer ())
 qqRedHaltOrd conv =
@@ -117,7 +138,7 @@ qqRedHaltOrd conv =
             <~| (SomeReducer (StdRed conv))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
-        :<~> RecursiveCutOff 3
+        :<~> ZeroHalter 2000
         :<~> AcceptHalter)
     , SomeOrderer $ NextOrderer)
 
