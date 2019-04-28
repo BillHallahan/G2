@@ -6,6 +6,7 @@
 module G2.QuasiQuotes.QuasiQuotes (g2) where
 
 import G2.Config
+import G2.Execution.Interface
 import G2.Execution.Memory
 import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
@@ -45,17 +46,17 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
 
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
+    let regs = grabRegVars str
+
+    ns <- mapM newName regs
+    let ns_pat = map varP ns
+
     -- Get names for the lambdas for the regular inputs
     exG2 <- parseHaskellQ' str
     ex_out <- runExecutionQ exG2
 
     case ex_out of
         Completed xs b -> do
-            let regs = grabRegVars str
-
-            ns <- mapM newName regs
-            let ns_pat = map varP ns
-
             case elimUnused xs b of
                 (xs'@(s:_), b') -> do
 
@@ -67,6 +68,7 @@ parseHaskellQ str = do
 
                     foldr (\n -> lamE [n]) ars ns_pat
                 ([], _) -> foldr (\n -> lamE [n]) [| return Nothing |] ns_pat
+        NonCompleted s b -> foldr (\n -> lamE [n]) [|do putStrLn "NONCOMPLETED"; return Nothing;|] ns_pat
 
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> liftText <$> cast a)
@@ -108,11 +110,14 @@ runExecutionQ exG2 = runIO $ do
     SomeSolver con <- initSolver mkConfigDef
     case initRedHaltOrd con mkConfigDef of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-            xsb@(xs, b) <- runG2ThroughExecution red hal ord [] s' b'
+            let (s'', b'') = runG2Pre [] s' b'
+            xsb@(xs, b''') <- runExecutionToProcessed red hal ord s'' b''
 
-            let xs' = filter (trueCurrExpr) xs
-
-            return $ Completed xs' b
+            case xs of
+                Processed { accepted = acc, discarded = [] } -> do
+                    let acc' = filter (trueCurrExpr) acc
+                    return $ Completed acc' b'''
+                _ -> return $ NonCompleted s' b'
     where
         trueCurrExpr (State { curr_expr = CurrExpr _ e
                             , known_values = kv }) = e == mkTrue kv
