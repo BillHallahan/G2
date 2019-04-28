@@ -26,7 +26,7 @@ main = do
 
     print =<< doubleTest (2.2) (4.9)
 
-    print =<< stringTest "h!"
+    print =<< stringTest "hiiiiiiiiiiiiiiiit!"
 
 -- fBad1 :: Float -> Int -> IO (Maybe Int)
 -- fBad1 = [g2|(\y z -> \x ? x + 2 == y + z) :: Int -> Int -> Int -> Bool|]
