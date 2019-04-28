@@ -19,6 +19,7 @@ module G2.Interface.Interface ( doTimeout
                               , runG2FromFile
                               , runG2WithConfig
                               , runG2WithSomes
+                              , runG2Pre
                               , runG2ThroughExecution
                               , runG2Solving
                               , runG2
@@ -301,6 +302,15 @@ runG2WithSomes red hal ord con pns state bindings =
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
             runG2 red' hal' ord' con pns state bindings
 
+runG2Pre :: ( Named t
+            , ASTContainer t Expr
+            , ASTContainer t Type) => [Name] -> State t -> Bindings -> (State t, Bindings)
+runG2Pre pns s@(State { known_values = kv, type_classes = tc }) bindings =
+    let
+        (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) s bindings
+    in
+    runPreprocessing swept bindings'
+
 runG2ThroughExecution ::
     ( Named t
     , ASTContainer t Expr
@@ -309,14 +319,10 @@ runG2ThroughExecution ::
     , Halter h hv t
     , Orderer or sov b t) => r -> h -> or ->
     [Name] -> State t -> Bindings -> IO ([State t], Bindings)
-runG2ThroughExecution red hal ord pns (is@State { known_values = kv
-                                                , type_classes = tc }) 
+runG2ThroughExecution red hal ord pns is
                            bindings = do
-    let (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) is bindings
-
-    let (preproc_state, bindings'') = runPreprocessing swept bindings'
-
-    runExecution red hal ord preproc_state bindings''
+    let (is', bindings') = runG2Pre pns is bindings
+    runExecution red hal ord is' bindings'
 
 runG2Solving :: ( Named t
                 , ASTContainer t Expr

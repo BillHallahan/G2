@@ -6,6 +6,7 @@
 module G2.QuasiQuotes.QuasiQuotes (g2) where
 
 import G2.Config
+import G2.Execution.Interface
 import G2.Execution.Memory
 import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
@@ -50,72 +51,93 @@ parseHaskellQ str = do
 
     let qext = extractQuotedData str
 
-    -- (xs, b) <- parseHaskellQ' str
-    (xs, b) <- parseHaskellQ' qext
-
     -- let regs = grabRegVars str
     let regs = map fst $ concVars qext
 
     ns <- mapM newName regs
     let ns_pat = map varP ns
 
-    case elimUnused xs b of
-        (xs'@(s:_), b') -> do
+    -- Get names for the lambdas for the regular inputs
+    exG2 <- parseHaskellQ' qext
+    ex_out <- runExecutionQ exG2
 
-            let xs'' = addRegVarPasses ns xs' b'
+    case ex_out of
+        Completed xs b -> do
+            case elimUnused xs b of
+                (xs'@(s:_), b') -> do
 
-                b'' = b' { input_names = drop (length regs) (input_names b') }
-                sol = solveStates xs'' b''
-                ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
+                    let xs'' = addRegVarPasses ns xs' b'
 
-            foldr (\n -> lamE [n]) ars ns_pat
-        ([], _) -> foldr (\n -> lamE [n]) [| return Nothing |] ns_pat
+                        b'' = b' { input_names = drop (length regs) (input_names b') }
+                        sol = solveStates xs'' b''
+                        ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
+
+                    foldr (\n -> lamE [n]) ars ns_pat
+                ([], _) -> foldr (\n -> lamE [n]) [| return Nothing |] ns_pat
+        NonCompleted s b -> foldr (\n -> lamE [n]) [|do putStrLn "NONCOMPLETED"; return Nothing;|] ns_pat
 
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> liftText <$> cast a)
     where
         liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
 
-parseHaskellQ' :: QuotedExtract -> Q ([State ()], Bindings)
+parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
 parseHaskellQ' qext = do
-    ms <- reifyModule =<< thisModule
-    runIO $ parseHaskellIO qext
+  ms <- reifyModule =<< thisModule
+  runIO $ parseHaskellIO qext
 
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
 -- marked to be passed into the Expr as real values, and those that the user
 -- wants to solve for- are treated as symbolic here.
-parseHaskellIO :: QuotedExtract -> IO ([State ()], Bindings)
--- parseHaskellIO str = do
+parseHaskellIO :: QuotedExtract -> IO ExtractedG2
 parseHaskellIO qext = do
-
     let hskStr = quotedEx2Hsk qext
-
-    (_, exG2) <- withSystemTempFile "ThTemp.hs"
+    (_, exG2) <- withSystemTempFile fileName
             (\filepath handle -> do
-                -- putStrLn $ subSymb str
-                putStrLn $ hskStr
-                -- hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ subSymb str
-                hPutStrLn handle $ "module ThTemp where\ng2Expr = " ++ hskStr
+                putStrLn hskStr
+                hPutStrLn handle $ "module " ++ moduleName ++ " where\n" ++ functionName ++ " = " ++ hskStr
                 hFlush handle
                 hClose handle
                 translateLoaded (takeDirectory filepath) filepath []
                     simplTranslationConfig mkConfigDef)
-  
-    let (s, _, b) = initState' exG2 "g2Expr" (Just "ThTemp") (mkCurrExpr Nothing Nothing) mkConfigDef
+    return exG2
+
+-- | If a State has been completely symbolically executed (i.e. no states were
+-- discarded by a Halter) we encoded it as Completed.
+-- Otherwise, we encode the original State and Bindings as NonCompleted
+data ExecOut = Completed [State ()] Bindings
+             | NonCompleted (State ()) Bindings
+
+runExecutionQ :: ExtractedG2 -> Q ExecOut
+runExecutionQ exG2 = runIO $ do
+    let (s, _, b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
+                                        (mkCurrExpr Nothing Nothing) mkConfigDef
         (s', b') = addAssume s b
     
     SomeSolver con <- initSolver mkConfigDef
     case initRedHaltOrd con mkConfigDef of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-            xsb@(xs, b) <- runG2ThroughExecution red hal ord [] s' b'
+            let (s'', b'') = runG2Pre [] s' b'
+            xsb@(xs, b''') <- runExecutionToProcessed red hal ord s'' b''
 
-            let xs' = filter (trueCurrExpr) xs
-
-            return (xs', b)
+            case xs of
+                Processed { accepted = acc, discarded = [] } -> do
+                    let acc' = filter (trueCurrExpr) acc
+                    return $ Completed acc' b'''
+                _ -> return $ NonCompleted s' b'
     where
         trueCurrExpr (State { curr_expr = CurrExpr _ e
                             , known_values = kv }) = e == mkTrue kv
         _ = False
+
+fileName :: String
+fileName = "THTemp.hs"
+
+moduleName :: String
+moduleName = "THTemp"
+
+functionName :: String
+functionName = "g2Expr"
 
 qqRedHaltOrd :: Solver conv => conv -> (SomeReducer (), SomeHalter (), SomeOrderer ())
 qqRedHaltOrd conv =
@@ -128,7 +150,7 @@ qqRedHaltOrd conv =
             <~| (SomeReducer (StdRed conv))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
-        :<~> RecursiveCutOff 3
+        :<~> ZeroHalter 2000
         :<~> AcceptHalter)
     , SomeOrderer $ NextOrderer)
 

@@ -572,7 +572,7 @@ instance Orderer PickLeastUsedOrderer Int Int t where
 --------
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings -> IO ([State t], Bindings)
+runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings -> IO (Processed (State t), Bindings)
 runReducer red hal ord s b = do
     let pr = Processed {accepted = [], discarded = []}
     let s' = ExState { state = s
@@ -581,7 +581,7 @@ runReducer red hal ord s b = do
                      , order_val = initPerStateOrder ord s }
 
     (states, b') <- runReducer' red hal ord pr s' b M.empty
-    states' <- mapM (\ExState {state = st} -> return st) states
+    let states' = mapProcessed state states
     return (states', b')
 
 runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
@@ -592,7 +592,7 @@ runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             -> ExState rv hv sov t 
             -> Bindings
             -> M.Map b [ExState rv hv sov t] 
-            -> IO ([ExState rv hv sov t], Bindings)
+            -> IO (Processed (ExState rv hv sov t), Bindings)
 runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) b xs
     | hc == Accept =
         let
@@ -601,9 +601,8 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
         in
         case jrs of
             Just (rs', xs') -> do
-                (states, b') <- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
-                return (rs:states, b')
-            Nothing -> return ([rs], b)
+                runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+            Nothing -> return (pr', b)
     | hc == Discard =
         let
             pr' = pr {discarded = rs:discarded pr}
@@ -611,7 +610,7 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
         in
         case jrs of
             Just (rs', xs') -> runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
-            Nothing -> return ([], b)
+            Nothing -> return (pr', b)
     | hc == Switch =
         let
             k = orderStates ord (order_val rs') (state rs)
@@ -648,11 +647,11 @@ runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                -> Processed (ExState rv hv sov t)
                -> M.Map b [ExState rv hv sov t]
                -> Bindings
-               -> IO ([ExState rv hv sov t], Bindings)
+               -> IO (Processed (ExState rv hv sov t), Bindings)
 runReducerList red hal ord pr m binds =
     case minState m of
         Just (x, m') -> runReducer' red hal ord pr x binds m'
-        Nothing -> return ([], binds)
+        Nothing -> return (pr, binds)
 
 updateExStateHalter :: Halter h hv t
                     => h
