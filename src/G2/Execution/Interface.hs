@@ -11,4 +11,6 @@ import G2.Language.Support
 
 {-# INLINE runExecution #-}
 runExecution :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings -> IO ([State t], Bindings)
-runExecution = runReducer
+runExecution r h ord s b = do
+    (pr, b') <- runReducer r h ord s b
+    return (accepted pr, b')
