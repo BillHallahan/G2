@@ -11,11 +11,12 @@ import G2.Language
 mkConfigTest :: Config
 mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs
                            , timeLimit = 50
-                           , base = [ "./base-4.9.1.0/Control/Exception/Base.hs"
-                                    , "./base-4.9.1.0/Prelude.hs" ] } 
+                           }
 
+-- The same thing, because Map is now implicitly included
 mkConfigTestWithMap :: Config
-mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ [mapLib]}
+mkConfigTestWithMap = mkConfigTest { baseLibs = baseLibs mkConfigTest ++ [BaseMap] }
+
 
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'

@@ -7,12 +7,28 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
+import Debug.Trace
+
 import G2.Config
 import G2.Language
 import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
 import G2.Translation.TransTypes
+
+
+translateBase :: TranslationConfig
+  -> Config
+  -> Maybe HscTarget
+  -> IO (ExtractedG2, NameMap, TypeNameMap)
+translateBase tr_con config hsc = do
+  baseRoot <- baseRoot config
+  -- For base we have the advantage of knowing apriori the structure
+  -- So we can list the (proj, file) pairings
+  pairs <- configBaseLibPairs config
+
+  translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc pairs
+
 
 translateLibs :: NameMap
   -> TypeNameMap
@@ -21,21 +37,25 @@ translateLibs :: NameMap
   -> Maybe HscTarget
   -> [FilePath]
   -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateLibs nm tm tr_con config hsc fs = translateLibs' nm tm tr_con config emptyExtractedG2 hsc fs
+translateLibs nm tm tr_con config hsc fs = do
+  -- If we are not given anything, then we have to guess the project
+  let pairs = map (\f -> (dropWhileEnd (/= '/') f, f)) fs
+  translateLibPairs nm tm tr_con config emptyExtractedG2 hsc pairs
 
-translateLibs' :: NameMap
+
+translateLibPairs :: NameMap
   -> TypeNameMap
   -> TranslationConfig
   -> Config
   -> ExtractedG2
   -> Maybe HscTarget
-  -> [FilePath]
+  -> [(FilePath, FilePath)]
   -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateLibs' nm tnm _ _ exg2 _ [] = return (exg2, nm, tnm)
-translateLibs' nm tnm tr_con config extg2 hsc (f:fs) = do
-  let guess_dir = dropWhileEnd (/= '/') f
-  (new_nm, new_tnm, extg2') <- hskToG2ViaCgGutsFromFile hsc guess_dir f nm tnm tr_con config
-  translateLibs' new_nm new_tnm tr_con config (mergeExtractedG2s [extg2, extg2']) hsc fs
+translateLibPairs nm tnm _ _ exg2 _ [] = return (exg2, nm, tnm)
+translateLibPairs nm tnm tr_con config exg2 hsc ((p, f) : pairs) = do
+  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc p f nm tnm tr_con config
+  translateLibPairs new_nm new_tnm tr_con config (mergeExtractedG2s [exg2, exg2']) hsc pairs
+
 
 translateLoaded :: FilePath
   -> FilePath
@@ -44,7 +64,8 @@ translateLoaded :: FilePath
   -> Config
   -> IO (Maybe T.Text, ExtractedG2)
 translateLoaded proj src libs tr_con config = do
-  (base_exg2, b_nm, b_tnm) <- translateLibs specialConstructors specialTypeNames tr_con config Nothing (base config)
+
+  (base_exg2, b_nm, b_tnm) <- translateBase tr_con config Nothing
   let base_prog = [exg2_binds base_exg2]
       base_tys = exg2_tycons base_exg2
       b_exp = exg2_exports base_exg2
