@@ -1,12 +1,9 @@
 module G2.QuasiQuotes.Parser
-{-
   ( QuotedExtract (..)
   , extractQuotedData
   , transformQuoted
   , quotedEx2Hsk
   ) where
--}
-where
 
 
 import Data.Array

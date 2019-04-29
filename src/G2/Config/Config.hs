@@ -29,6 +29,7 @@ data Config = Config {
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
+    , extraPaths :: [FilePath] -- ^ Additional paths to append to the importPaths 
 }
 
 mkConfigDef :: Config
@@ -58,7 +59,7 @@ mkConfig as m = Config {
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
-
+    , extraPaths = []
 }
 
 smtSolverArg :: String -> SMTSolver

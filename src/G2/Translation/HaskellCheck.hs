@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import Text.Regex
 import Unsafe.Coerce
 
+import G2.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface.OutputTypes
 import G2.Language
@@ -44,7 +45,7 @@ runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args =
 
 runCheck' :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
 runCheck' proj src modN entry chAll gflags s ars out = do
-        _ <- loadProj Nothing proj src gflags simplTranslationConfig
+        _ <- loadProj Nothing proj src gflags simplTranslationConfig mkConfigDef
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN

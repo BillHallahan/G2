@@ -3,7 +3,7 @@
 module Main where
 
 import G2.QuasiQuotes.QuasiQuotes
-
+import MiniLib
 
 
 main :: IO ()
@@ -31,6 +31,8 @@ main = do
     print =<< stringTest "h!"
 
     print =<< funcTest ((+ 1) :: Int -> Int) ((+ 2) :: Int -> Int)
+
+    print =<< importTest 5
 
 
 -- fBad1 :: Float -> Int -> IO (Maybe Int)
@@ -85,4 +87,6 @@ stringTest = [g2|!(str1 :: String) -> ?(str2 :: String) | str1 == str2 ++ "!"|]
 funcTest :: (Int -> Int) -> (Int -> Int) -> IO (Maybe Int)
 funcTest = [g2|!(f :: (Int -> Int)) !(g :: Int -> Int) -> ?(ans :: Int) | (f (g 10)) == ans|]
 
+importTest :: Int -> IO (Maybe Int)
+importTest = [g2|!(x :: Int) -> ?(ans :: Int) | addTwo x == ans|]
 

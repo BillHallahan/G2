@@ -21,6 +21,7 @@ import G2.QuasiQuotes.FloodConsts
 import G2.QuasiQuotes.G2Rep
 import G2.QuasiQuotes.Support
 import G2.QuasiQuotes.Parser
+import G2.QuasiQuotes.ModuleGraphLoader
 
 import Control.Monad
 
@@ -34,9 +35,9 @@ import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax as TH
 import Language.Haskell.TH.Quote
 
+import System.Directory
 import System.IO
 import System.IO.Temp
-
 import System.FilePath
 
 g2 :: QuasiQuoter
@@ -47,8 +48,11 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
 
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
-    -- Get names for the lambdas for the regular inputs
 
+
+    -- runIO $ putStrLn $ "CWD is: " ++ cwd
+
+    -- Get names for the lambdas for the regular inputs
     let qext = extractQuotedData str
 
     -- let regs = grabRegVars str
@@ -83,8 +87,8 @@ liftDataT = dataToExpQ (\a -> liftText <$> cast a)
 
 parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
 parseHaskellQ' qext = do
-  ms <- reifyModule =<< thisModule
-  runIO $ (putStrLn $ show ms)
+  (ModuleInfo mods) <- reifyModule =<< thisModule
+  runIO $ mapM putStrLn =<< guessModules mods
   runIO $ putStrLn "-----"
   runIO $ parseHaskellIO qext
 
@@ -93,15 +97,20 @@ parseHaskellQ' qext = do
 -- wants to solve for- are treated as symbolic here.
 parseHaskellIO :: QuotedExtract -> IO ExtractedG2
 parseHaskellIO qext = do
+    cwd <- getCurrentDirectory
+    let cwd' = cwd ++ "/quasiquote/"
     let hskStr = quotedEx2Hsk qext
     (_, exG2) <- withSystemTempFile fileName
             (\filepath handle -> do
                 putStrLn hskStr
-                hPutStrLn handle $ "module " ++ moduleName ++ " where\n" ++ functionName ++ " = " ++ hskStr
+                hPutStrLn handle $ "module " ++ moduleName ++ " where\n"
+                                    ++ "import MiniLib\n"
+                                    ++ functionName ++ " = " ++ hskStr
                 hFlush handle
                 hClose handle
                 translateLoaded (takeDirectory filepath) filepath []
-                    simplTranslationConfig mkConfigDef)
+                    simplTranslationConfig
+                    (mkConfigDef { extraPaths = [cwd'] }))
     return exG2
 
 -- | If a State has been completely symbolically executed (i.e. no states were
