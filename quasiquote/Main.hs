@@ -8,6 +8,7 @@ import MiniLib
 
 main :: IO ()
 main = do
+    putStrLn "-- Basic Test --"
     r <- f 8 10
     print r
 
@@ -16,22 +17,30 @@ main = do
 
     r3 <- h 11
     print r3
-
+    
+    putStrLn "\n-- Bool Test --"
     print =<< boolTest 2
     print =<< boolTest 4
 
+    putStrLn "\n-- maybeOrdering Test --"
     print =<< maybeOrderingTest (Just LT)
 
+    putStrLn "\n-- Rearrange Tuples Test --"
     print =<< rearrangeTuples (4, 5) (-6, -4)
 
+    putStrLn "\n-- Float Test --"
     print =<< floatTest (6.7) (9.5)
 
+    putStrLn "\n-- Double Test --"
     print =<< doubleTest (2.2) (4.9)
 
+    putStrLn "\n-- String Test --"
     print =<< stringTest "hiiiiiiiiiiiiiiiit!"
 
+    -- putStrLn "\n-- Func Test --"
     -- print =<< funcTest ((+ 1) :: Int -> Int) ((+ 2) :: Int -> Int)
 
+    putStrLn "\n-- Import Test --"
     print =<< importTest 5
 
 
