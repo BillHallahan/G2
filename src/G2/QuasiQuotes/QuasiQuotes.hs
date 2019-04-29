@@ -20,6 +20,7 @@ import G2.Translation.TransTypes
 import G2.QuasiQuotes.FloodConsts
 import G2.QuasiQuotes.G2Rep
 import G2.QuasiQuotes.Support
+import G2.QuasiQuotes.Parser
 
 import Control.Monad
 
@@ -46,13 +47,18 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
 
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
-    let regs = grabRegVars str
+    -- Get names for the lambdas for the regular inputs
+
+    let qext = extractQuotedData str
+
+    -- let regs = grabRegVars str
+    let regs = map fst $ concVars qext
 
     ns <- mapM newName regs
     let ns_pat = map varP ns
 
     -- Get names for the lambdas for the regular inputs
-    exG2 <- parseHaskellQ' str
+    exG2 <- parseHaskellQ' qext
     ex_out <- runExecutionQ exG2
 
     case ex_out of
@@ -88,20 +94,23 @@ liftDataT = dataToExpQ (\a -> liftText <$> cast a)
     where
         liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
 
-parseHaskellQ' :: String -> Q ExtractedG2
-parseHaskellQ' s = do
-    ms <- reifyModule =<< thisModule
-    runIO $ parseHaskellIO s
+parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
+parseHaskellQ' qext = do
+  ms <- reifyModule =<< thisModule
+  runIO $ (putStrLn $ show ms)
+  runIO $ putStrLn "-----"
+  runIO $ parseHaskellIO qext
 
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
 -- marked to be passed into the Expr as real values, and those that the user
 -- wants to solve for- are treated as symbolic here.
-parseHaskellIO :: String -> IO ExtractedG2
-parseHaskellIO str = do
+parseHaskellIO :: QuotedExtract -> IO ExtractedG2
+parseHaskellIO qext = do
+    let hskStr = quotedEx2Hsk qext
     (_, exG2) <- withSystemTempFile fileName
             (\filepath handle -> do
-                putStrLn $ subSymb str
-                hPutStrLn handle $ "module " ++ moduleName ++ " where\n" ++ functionName ++ " = " ++ subSymb str
+                putStrLn hskStr
+                hPutStrLn handle $ "module " ++ moduleName ++ " where\n" ++ functionName ++ " = " ++ hskStr
                 hFlush handle
                 hClose handle
                 translateLoaded (takeDirectory filepath) filepath []
