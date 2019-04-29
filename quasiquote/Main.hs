@@ -5,7 +5,6 @@ module Main where
 import G2.QuasiQuotes.QuasiQuotes
 import MiniLib
 
-
 main :: IO ()
 main = do
     putStrLn "-- Basic Test --"

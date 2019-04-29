@@ -65,6 +65,7 @@ qqDataConLookup qqtn qqdcn qqm tenv
     | otherwise = Nothing
 
 toTHType :: CleanedNames -> G2.Type -> Q TH.Type
+toTHType cleaned (TyFun t1 t2) = appT (appT arrowT $ toTHType cleaned t1) (toTHType cleaned t2)
 toTHType cleaned (TyApp t1 t2) = appT (toTHType cleaned t1) (toTHType cleaned t2)
 toTHType cleaned t@(TyCon n _)
     | nameOcc (renames cleaned n) == "[]" = listT
