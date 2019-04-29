@@ -201,20 +201,22 @@ initRedHaltOrd conv config =
                         Just fp -> SomeReducer (StdRed conv :<~ Logger fp)
                         Nothing -> SomeReducer (StdRed conv))
              , SomeHalter
-                 (MaxOutputsHalter (maxOutputs config)
+                 (SwitchEveryNHalter 20
+                 :<~> MaxOutputsHalter (maxOutputs config)
                  :<~> ZeroHalter (steps config)
                  :<~> AcceptHalter)
-             , SomeOrderer $ NextOrderer)
+             , SomeOrderer $ PickLeastUsedOrderer)
         else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                  <~| (case logStates config of
                         Just fp -> SomeReducer (StdRed conv :<~ Logger fp)
                         Nothing -> SomeReducer (StdRed conv))
              , SomeHalter
-                 (DiscardIfAcceptedTag state_name 
+                 (DiscardIfAcceptedTag state_name
+                 :<~> SwitchEveryNHalter 20
                  :<~> MaxOutputsHalter (maxOutputs config) 
                  :<~> ZeroHalter (steps config)
                  :<~> AcceptHalter)
-             , SomeOrderer $ NextOrderer)
+             , SomeOrderer $ PickLeastUsedOrderer)
 
 initSolver :: Config -> IO SomeSolver
 initSolver config = do
