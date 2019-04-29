@@ -121,10 +121,11 @@ runExecutionQ exG2 = runIO $ do
         (s', b') = addAssume s b
     
     SomeSolver con <- initSolver mkConfigDef
-    case initRedHaltOrd con mkConfigDef of
+    case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
-            xsb@(xs, b''') <- runExecutionToProcessed red hal ord s'' b''
+                hal' = hal :<~> ZeroHalter 2000
+            xsb@(xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -156,9 +157,8 @@ qqRedHaltOrd conv =
             <~| (SomeReducer (StdRed conv))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
-        :<~> ZeroHalter 2000
         :<~> AcceptHalter)
-    , SomeOrderer $ NextOrderer)
+    , SomeOrderer NextOrderer)
 
 addAssume :: State t -> Bindings -> (State t, Bindings)
 addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng }) =
@@ -249,10 +249,10 @@ executeAndSolveStates s b = do
 executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' b s = do
     SomeSolver con <- initSolver mkConfigDef
-    case initRedHaltOrd con mkConfigDef of
-        (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-            let hal' = hal :<~> MaxOutputsHalter (Just 1)
-            (res, _) <- runG2 red hal ord con [] s b
+    case qqRedHaltOrd con of
+        (SomeReducer red, SomeHalter hal, _) -> do
+            let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
+            (res, _) <- runG2 red hal' PickLeastUsedOrderer con [] s b
             case res of
                 exec_res:_ -> return $ Just exec_res
                 _ -> return Nothing
