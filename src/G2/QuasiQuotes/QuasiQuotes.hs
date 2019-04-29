@@ -10,7 +10,6 @@ import G2.Execution.Interface
 import G2.Execution.Memory
 import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
-import qualified G2.Language.ExprEnv as E
 import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.Typing as Ty
@@ -23,10 +22,7 @@ import G2.QuasiQuotes.Support
 import G2.QuasiQuotes.Parser
 import G2.QuasiQuotes.ModuleGraphLoader
 
-import Control.Monad
-
 import Data.Data
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -143,7 +139,7 @@ runExecutionQ exG2 = runIO $ do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
                 hal' = hal :<~> ZeroHalter 2000
-            xsb@(xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -190,7 +186,7 @@ type TypeEnvName = TH.Name
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list
 regVarBindings :: [TH.Name] -> TypeEnvName -> InputIds -> Bindings -> Q Exp
-regVarBindings ns tenv_name is b@(Bindings { input_names = ins, cleaned_names = cleaned }) = do
+regVarBindings ns tenv_name is (Bindings { input_names = ins, cleaned_names = cleaned }) = do
     let ns_exp = map varE ns
         ty_ns_exp = map (\(n, i) -> sigE n (toTHType cleaned (Ty.typeOf i))) $ zip ns_exp is
 
@@ -208,7 +204,7 @@ regVarBindings ns tenv_name is b@(Bindings { input_names = ins, cleaned_names = 
 -- and sets up a conversion from TH Exp's to G2 Expr's.
 -- The returned Exp should have a function type and return type (State t).
 addCompRegVarPasses :: Data t => [TH.Name] -> [State t] -> Bindings -> Q Exp
-addCompRegVarPasses ns xs@(s:_) b@(Bindings { input_names = is, cleaned_names = cleaned }) = do
+addCompRegVarPasses ns xs@(s:_) b = do
     tenv_name <- newName "tenv"
 
     let xs_exp = liftDataT xs
@@ -233,7 +229,7 @@ addedNonCompRegVarBinds ns s b = do
         zip_exp = regVarBindings ns tenv_name (inputIds s b) b
 
         flooded_exp = [| case floodConstantsChecking $(zip_exp) $(s_exp) of
-                            Just s -> s
+                            Just s' -> s'
                             Nothing -> error "addedNonCompRegVarBinds: Nothing"|]
 
     letE [valD (varP tenv_name) (normalB tenv_exp) []] flooded_exp
@@ -301,68 +297,19 @@ solveStates'' sol b (s:xs) = do
 -- | Get the values of the symbolic arguments, and returns them in a tuple
 extractArgs :: InputIds -> CleanedNames -> TypeEnv -> Q Exp -> Q Exp
 extractArgs in_ids cleaned tenv es =
-    let
-        n = length in_ids
-    in
     [|do
         r <- $(es)
         case r of
             Just r' ->
-                return . Just . $(toSymbArgsTuple in_ids cleaned tenv n) $ conc_args r'
+                return . Just . $(toSymbArgsTuple in_ids cleaned tenv) $ conc_args r'
             Nothing -> return Nothing |]
 
--- | Takes some int n returns a function to turn the first n elements of a list
--- into a tuple
-toSymbArgsTuple :: InputIds -> CleanedNames -> TypeEnv -> Int -> Q Exp
-toSymbArgsTuple in_ids cleaned tenv n = do
+-- | Returns a function to turn the first (length of InputIds) elements of a list into a tuple
+toSymbArgsTuple :: InputIds -> CleanedNames -> TypeEnv -> Q Exp
+toSymbArgsTuple in_ids cleaned tenv = do
     lst <- newName "lst"
 
     let tenv_exp = liftDataT tenv
 
     lamE [varP lst]
-        (tupE $ map (\(i, n') -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n') :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
-
-grabRegVars :: String -> [String]
-grabRegVars s =
-    let
-        s' = dropWhile (\c -> c == ' ' || c == '(') s
-    in
-    case s' of
-        '\\':xs -> grabVars "->" xs
-        _ -> error "Bad QuasiQuote"
-
-afterRegVars :: String -> String
-afterRegVars s = strip s
-    where 
-        strip ('-':'>':xs) = xs
-        strip (_:xs) = strip xs
-        strip [] = []
-
-grabSymbVars :: String -> [String]
-grabSymbVars s =
-    let
-        s' = dropWhile (\c -> c == ' ' || c == '(') $ afterRegVars s
-    in
-    case s' of
-        '-':'>':xs -> grabVars "?" xs
-        _ -> error "Bad QuasiQuote"
-
-grabVars :: String -> String -> [String]
-grabVars _ [] = []
-grabVars en (' ':xs) = grabVars en xs
-grabVars en xs
-    |  take (length en) xs == en = []
-grabVars en xs@(_:_) =
-    let
-        (x, xs') = span (/= ' ') xs
-    in
-    x:grabVars en xs'
-
--- | Replaces the first '->' with '-> \' and the first ?' with '->'
-subSymb :: String -> String
-subSymb = sub
-    where
-        sub ('-':'>':xs) = '-':'>':' ':'\\':sub xs
-        sub ('?':xs) = "->" ++ xs
-        sub (x:xs) = x:sub xs
-        sub "" = ""
+        (tupE $ map (\(i, n) -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n) :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
