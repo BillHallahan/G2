@@ -65,7 +65,6 @@ parseHaskellQ str = do
         Completed xs b -> do
             case elimUnusedCompleted xs b of
                 (xs'@(s:_), b') -> do
-
                     let xs'' = addCompRegVarPasses ns xs' b'
 
                         b'' = b' { input_names = drop (length regs) (input_names b') }

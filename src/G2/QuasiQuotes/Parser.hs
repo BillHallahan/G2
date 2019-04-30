@@ -3,6 +3,7 @@ module G2.QuasiQuotes.Parser
   , extractQuotedData
   , transformQuoted
   , quotedEx2Hsk
+  , getConcVars
   ) where
 
 
@@ -38,7 +39,7 @@ bar :: String
 bar = "|"
 
 concVarRegex :: Regex
-concVarRegex = mkRegex $ "![(]" ++ paddedIdRs ++ "::[^!?|]*"
+concVarRegex = mkRegex $ "[(]" ++ paddedIdRs ++ "::[^!?|]*"
 
 symbVarRegex :: Regex
 symbVarRegex = mkRegex $ "[?][(]" ++ paddedIdRs ++ "::[^!?|]*"
@@ -70,8 +71,26 @@ idPairFrom2Colon twoColonSepd =
   -}
 
 -- These three functions need to be fed processed strings
+-- getConcVars :: String -> [(String, String)]
+-- getConcVars chewed = map idPairFrom2Colon $ matchAllText2 concVarRegex chewed
+
 getConcVars :: String -> [(String, String)]
-getConcVars chewed = map idPairFrom2Colon $ matchAllText2 concVarRegex chewed
+getConcVars = getConcVars' 0 ""
+
+getConcVars' :: Int -> String -> String -> [(String, String)]
+getConcVars' n pr ('(':xs)
+    | n == 0 = getConcVars' (n + 1) pr xs
+    | otherwise = getConcVars' (n + 1) ('(':pr) xs
+getConcVars' n pr (')':xs)
+    | n == 1
+    , [v, t] <- splitRegex (mkRegex "::") (reverse pr) = (filter (not . isSpace) v, "(" ++ t ++ ")"):getConcVars' (n - 1) "" xs
+    | otherwise = getConcVars' (n - 1) (')':pr) xs
+getConcVars' n pr (x:xs)
+  | n > 0 = getConcVars' n (x:pr) xs
+  | otherwise = getConcVars' n (x:pr) xs
+getConcVars' _ pr []
+    | [v, t] <- splitRegex (mkRegex "::") (reverse pr) = [(filter (not . isSpace) v, "(" ++ t ++ ")")]
+    | otherwise = []
 
 getSymbVars :: String -> [(String, String)]
 getSymbVars chewed = map idPairFrom2Colon $ matchAllText2 symbVarRegex chewed
@@ -91,10 +110,12 @@ data QuotedExtract = QuotedExtract
 
 -- Extract the conc var-ty pairs, symb var-ty pairs, and fun body
 extractQuotedData :: String -> QuotedExtract
-extractQuotedData raw =
+extractQuotedData raw
+  | (h:raw') <- dropWhile isSpace raw
+  , h == '\\' = 
   -- First split based on the divider bar "|"
   -- into variable declarations and body
-  case splitRegex dividerRegex raw of
+  case splitRegex dividerRegex raw' of
     (hd : tl) ->
       -- Further partiton with "-> ?" into concrete and symbolics
       -- Remember that splitting will consume the initial ?
@@ -106,6 +127,7 @@ extractQuotedData raw =
             , bodyExpr = trim $ intercalate bar tl
             }
     _ -> error $ "extractQuotedData: bad text " ++ show raw
+  | otherwise = error $ "extractQuotedData: bad text " ++ show raw
 
 quotedEx2Hsk :: QuotedExtract -> String
 quotedEx2Hsk quoted =

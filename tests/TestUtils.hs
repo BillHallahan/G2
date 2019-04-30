@@ -2,6 +2,7 @@
 
 module TestUtils where
 
+import qualified Data.Map as M
 import Data.Monoid
 import qualified Data.Text as T
 
@@ -11,11 +12,12 @@ import G2.Language
 mkConfigTest :: Config
 mkConfigTest = (mkConfig "/whatever/" [] M.empty)
                     { higherOrderSolver = AllFuncs
-                    , timeLimit = 50 }
+                    , timeLimit = 50 
+                    , base = [ "./base-4.9.1.0/Control/Exception/Base.hs"
+                             , "./base-4.9.1.0/Prelude.hs" ]}
 
--- The same thing, because Map is now implicitly included
 mkConfigTestWithMap :: Config
-mkConfigTestWithMap = mkConfigTest { baseLibs = baseLibs mkConfigTest ++ [mapLib] }
+mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ ["./base-4.9.1.0/Data/Internal/Map.hs"] }
 
 
 eqIgT :: Expr -> Expr -> Bool
