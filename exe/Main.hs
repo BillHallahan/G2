@@ -4,12 +4,17 @@ module Main (main, plugin) where
 
 import DynFlags
 
+import Control.Monad
+
+import System.Directory
 import System.Environment
 import System.FilePath
 
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import Data.List
+import Data.List.Split
 
 import G2.Lib.Printers
 
@@ -61,7 +66,10 @@ runWithArgs as = do
 
   let (src:entry:tail_args) = as
       m_idir = mIDir tail_args
-      proj = maybe (takeDirectory src) id m_idir
+      -- proj = maybe (takeDirectory src) id m_idir
+
+  proj <- guessProj src
+  -- let proj = "/home/celery/Desktop/import-test"
 
   --Get args
   let m_assume = mAssume tail_args
@@ -151,3 +159,30 @@ mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing
 
 mkLiquidLibs :: [String] -> Maybe String
 mkLiquidLibs a = strArg "liquid-libs" a M.empty Just Nothing
+
+
+{-
+-- Look for the directory that contains the first instance of a *.cabal file
+guessProj :: FilePath -> IO FilePath
+guessProj tgt = do
+  absTgt <- makeAbsolute tgt
+  let splits = splitOn "/" absTgt
+  potentialDirs <- filterM (dirContainsCabal)
+                    $ reverse -- since we prefer looking in backtrack manner
+                    $ map (intercalate "/")
+                    $ inits splits
+
+  case potentialDirs of
+    [] -> return $ takeDirectory tgt
+    (d : _) -> return d
+
+dirContainsCabal :: FilePath -> IO Bool
+dirContainsCabal dir = do
+  exists <- doesDirectoryExist dir
+  if exists then do
+    files <- listDirectory dir   
+    return $ any (\f -> ".cabal" `isSuffixOf` f) files
+  else
+    return $ False
+-}
+

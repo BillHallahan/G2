@@ -7,6 +7,9 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
+import System.Directory
+import System.FilePath
+
 import Debug.Trace
 
 import G2.Config
@@ -25,7 +28,8 @@ translateBase tr_con config hsc = do
   baseRoot <- baseRoot config
   -- For base we have the advantage of knowing apriori the structure
   -- So we can list the (proj, file) pairings
-  pairs <- configBaseLibPairs config
+  let bases = base config
+  let pairs = map (\f -> (dropFileName f, f)) bases
 
   translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc pairs
 

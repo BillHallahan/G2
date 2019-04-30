@@ -156,6 +156,7 @@ library
                        , regex-base
                        , parsec
                        , process >=1 && <1.7
+                       , split
                        , template-haskell
                        , temporary-rc
                        , text
@@ -193,6 +194,7 @@ executable G2
                        , regex-compat
                        , parsec
                        , process
+                       , split
                        , text
                        , time >= 1.6
                        , unordered-containers
@@ -236,6 +238,7 @@ test-suite test
                        , regex-compat
                        , parsec
                        , process
+                       , split
                        , tagged
                        , tasty >= 1.0
                        , tasty-hunit >= 0.10

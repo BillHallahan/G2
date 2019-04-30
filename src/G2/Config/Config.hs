@@ -18,6 +18,7 @@ data HigherOrderSolver = AllFuncs
 
 data Config = Config {
       mode :: Mode
+    , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
     , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
@@ -35,11 +36,11 @@ data Config = Config {
     , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
     , extraPaths :: [FilePath] -- ^ Additional paths to append to the importPaths 
     , g2MasterDir :: IO FilePath
-    , baseLibs :: [BaseLib]
+    -- , baseLibs :: [BaseLib]
 }
 
-mkConfigDef :: Config
-mkConfigDef = mkConfig [] M.empty
+-- mkConfigDef :: Config
+-- mkConfigDef = mkConfig [] M.empty
 
 baseRoot :: Config -> IO FilePath
 baseRoot config = do
@@ -47,9 +48,12 @@ baseRoot config = do
   return $ g2Dir ++ "/base-4.9.1.0"
 
 
-mkConfig :: [String] -> M.Map String [String] -> Config
-mkConfig as m = Config {
+mkConfig :: String -> [String] -> M.Map String [String] -> Config
+mkConfig homedir as m = Config {
       mode = Regular
+    , base = strArgs "base" as m id [ homedir ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
+                                    , homedir ++ "/.g2/base-4.9.1.0/Prelude.hs"
+                                    , homedir ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs" ] 
     , logStates = strArg "log-states" as m Just Nothing
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
@@ -67,7 +71,7 @@ mkConfig as m = Config {
     , validate  = boolArg "validate" as m Off
     , extraPaths = []
     , g2MasterDir = (getHomeDirectory >>= \f -> return $ f ++ "/.g2")
-    , baseLibs = [BasePrelude, BaseException]
+    -- , baseLibs = [BasePrelude, BaseException]
 }
 
 smtSolverArg :: String -> SMTSolver
@@ -144,12 +148,7 @@ strArgs s a m f d =
 strsToArgs :: [String] -> (String -> a) -> [a]
 strsToArgs =  flip map
 
-data BaseLib
-  = BasePrelude
-  | BaseException
-  | BaseMap
-  deriving (Show, Eq, Read)
-
+{-
 baseLibToPair :: BaseLib -> (String, String)
 baseLibToPair BasePrelude = ("", "Prelude.hs")
 baseLibToPair BaseException = ("Control/Exception", "Control/Exception/Base.hs")
@@ -162,5 +161,6 @@ configBaseLibPairs config = do
   let pairs = map baseLibToPair $ baseLibs config
   return $ map (\(p, f) -> (baseRoot ++ "/" ++ p, baseRoot ++ "/" ++ f)) pairs
 
+-}
 
 

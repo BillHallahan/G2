@@ -9,13 +9,13 @@ import G2.Config
 import G2.Language
 
 mkConfigTest :: Config
-mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs
-                           , timeLimit = 50
-                           }
+mkConfigTest = (mkConfig "/whatever/" [] M.empty)
+                    { higherOrderSolver = AllFuncs
+                    , timeLimit = 50 }
 
 -- The same thing, because Map is now implicitly included
 mkConfigTestWithMap :: Config
-mkConfigTestWithMap = mkConfigTest { baseLibs = baseLibs mkConfigTest ++ [BaseMap] }
+mkConfigTestWithMap = mkConfigTest { baseLibs = baseLibs mkConfigTest ++ [mapLib] }
 
 
 eqIgT :: Expr -> Expr -> Bool

@@ -3,6 +3,7 @@
 -- | Haskell Translation
 module G2.Translation.Haskell
     ( loadProj
+    , guessProj
     , hskToG2ViaModGuts
     , hskToG2ViaModGutsFromFile
     , hskToG2ViaCgGuts
@@ -58,14 +59,18 @@ import TyCoRep
 import Unique
 import Var as V
 
+import Control.Monad
+
 import qualified Data.Array as A
 import qualified Data.ByteString.Char8 as C
 import Data.Foldable
 import Data.List
+import Data.List.Split
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import System.FilePath
 import System.Directory
 
 -- Copying from Language.Typing so the thing we stuff into Ghc
@@ -763,5 +768,30 @@ mergeFileExtractedG2s ((nm1, tnm1, ex1) : (nm2, tnm2, ex2) : exs) =
   let tnm' = mergeNameMap tnm1 tnm2 in
   let ex' = mergeExtractedG2s [ex1, ex2] in
     mergeFileExtractedG2s $ (nm', tnm', ex') : exs
+
+-- Look for the directory that contains the first instance of a *.cabal file
+guessProj :: FilePath -> IO FilePath
+guessProj tgt = do
+  absTgt <- makeAbsolute tgt
+  let splits = splitOn "/" absTgt
+  potentialDirs <- filterM (dirContainsCabal)
+                    $ reverse -- since we prefer looking in backtrack manner
+                    $ map (intercalate "/")
+                    $ inits splits
+
+  case potentialDirs of
+    (d : _) -> return d
+    -- Unable to find a .cabal file at all, so we take the first one
+    -- with the file loped off.
+    [] -> return $ takeDirectory absTgt
+
+dirContainsCabal :: FilePath -> IO Bool
+dirContainsCabal dir = do
+  exists <- doesDirectoryExist dir
+  if exists then do
+    files <- listDirectory dir   
+    return $ any (\f -> ".cabal" `isSuffixOf` f) files
+  else
+    return $ False
 
 

@@ -8,8 +8,11 @@ import GHC.Paths
 import Data.Either
 import Data.List
 import qualified Data.Text as T
+import qualified Data.Map as M
 import Text.Regex
 import Unsafe.Coerce
+
+import System.Directory
 
 import G2.Config
 import G2.Initialization.MkCurrExpr
@@ -30,7 +33,8 @@ validateStates proj src modN entry chAll ghflags in_out = do
 -- Compile with GHC, and check that the output we got is correct for the input
 runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> IO Bool
 runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s ars out)
+    homedir <- getHomeDirectory
+    (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s ars out homedir)
 
     v' <- unsafeCoerce v :: IO (Either SomeException Bool)
     let outStr = mkCleanExprHaskell s out
@@ -43,9 +47,10 @@ runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args =
 
     return $ v'' && and chAllR''
 
-runCheck' :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
-runCheck' proj src modN entry chAll gflags s ars out = do
-        _ <- loadProj Nothing proj src gflags simplTranslationConfig mkConfigDef
+runCheck' :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> FilePath -> Ghc (HValue, [HValue])
+runCheck' proj src modN entry chAll gflags s ars out homedir = do
+        let config = mkConfig homedir [] M.empty
+        _ <- loadProj Nothing proj src gflags simplTranslationConfig config
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN

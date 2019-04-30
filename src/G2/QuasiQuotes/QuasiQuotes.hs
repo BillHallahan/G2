@@ -14,6 +14,7 @@ import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.Typing as Ty
 import G2.Solver
+import G2.Translation.Haskell
 import G2.Translation.Interface
 import G2.Translation.TransTypes
 import G2.QuasiQuotes.FloodConsts
@@ -44,7 +45,6 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
 
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
-
 
     -- runIO $ putStrLn $ "CWD is: " ++ cwd
 
@@ -96,9 +96,9 @@ liftDataT = dataToExpQ (\a -> liftText <$> cast a)
 
 parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
 parseHaskellQ' qext = do
-  (ModuleInfo mods) <- reifyModule =<< thisModule
-  runIO $ mapM putStrLn =<< guessModules mods
-  runIO $ putStrLn "-----"
+  -- (ModuleInfo mods) <- reifyModule =<< thisModule
+  -- runIO $ mapM putStrLn =<< guessModules mods
+  -- runIO $ putStrLn "-----"
   runIO $ parseHaskellIO qext
 
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
@@ -106,20 +106,28 @@ parseHaskellQ' qext = do
 -- wants to solve for- are treated as symbolic here.
 parseHaskellIO :: QuotedExtract -> IO ExtractedG2
 parseHaskellIO qext = do
-    cwd <- getCurrentDirectory
-    let cwd' = cwd ++ "/quasiquote/"
+    -- cwd <- getCurrentDirectory
+    -- let cwd' = cwd ++ "/quasiquote/"
     let hskStr = quotedEx2Hsk qext
     (_, exG2) <- withSystemTempFile fileName
             (\filepath handle -> do
-                putStrLn hskStr
+                -- putStrLn hskStr
                 hPutStrLn handle $ "module " ++ moduleName ++ " where\n"
                                     ++ "import MiniLib\n"
                                     ++ functionName ++ " = " ++ hskStr
                 hFlush handle
                 hClose handle
-                translateLoaded (takeDirectory filepath) filepath []
+                -- We guess based on the cwd because who knows where temp
+                -- files will get written to.
+                cwd <- getCurrentDirectory
+                proj <- guessProj cwd
+                -- putStrLn $ "HELLO FROM: " ++ proj
+                -- putStrLn $ "FILEPATH IS: " ++ filepath
+                config <- qqConfig
+                translateLoaded (proj ++ "/quasiquote") filepath []
                     simplTranslationConfig
-                    (mkConfigDef { extraPaths = [cwd'] }))
+                    config)
+                    -- (mkConfigDef { extraPaths = [cwd'] }))
     return exG2
 
 -- | If a State has been completely symbolically executed (i.e. no states were
@@ -129,12 +137,14 @@ data ExecOut = Completed [State ()] Bindings
              | NonCompleted (State ()) Bindings
 
 runExecutionQ :: ExtractedG2 -> Q ExecOut
-runExecutionQ exG2 = runIO $ do
+runExecutionQ exG2 = do
+  config <- runIO qqConfig
+  runIO $ do
     let (s, _, b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
-                                        (mkCurrExpr Nothing Nothing) mkConfigDef
+                                        (mkCurrExpr Nothing Nothing) config
         (s', b') = addAssume s b
     
-    SomeSolver con <- initSolver mkConfigDef
+    SomeSolver con <- initSolver config
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
@@ -262,7 +272,8 @@ executeAndSolveStates s b = do
 
 executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' b s = do
-    SomeSolver con <- initSolver mkConfigDef
+    config <- qqConfig
+    SomeSolver con <- initSolver config
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, _) -> do
             let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
@@ -280,7 +291,8 @@ solveStates' :: ( Named t
                 , ASTContainer t Expr
                 , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates' b xs = do
-    SomeSolver con <- initSolver mkConfigDef
+    config <- qqConfig
+    SomeSolver con <- initSolver config
     solveStates'' con b xs
 
 solveStates'' :: ( Named t
@@ -313,3 +325,9 @@ toSymbArgsTuple in_ids cleaned tenv = do
 
     lamE [varP lst]
         (tupE $ map (\(i, n) -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n) :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
+
+qqConfig :: IO Config
+qqConfig = do
+  homedir <- getHomeDirectory
+  return $ mkConfig homedir [] M.empty
+
