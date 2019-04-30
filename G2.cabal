@@ -164,7 +164,7 @@ library
                        , unordered-containers
   default-language:    Haskell2010
   ghc-options:         -O2 -Wall
-                       -ddump-splices
+                       -- -ddump-splices
                        -- -fprof-auto
                        -- -fexternal-interpreter -opti+RTS -opti-p
   hs-source-dirs:      src
