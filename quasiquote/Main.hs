@@ -5,7 +5,7 @@ module Main where
 import G2.QuasiQuotes.QuasiQuotes
 import MiniLib
 
-import G2.QuasiQuotes.Parser
+-- import G2.QuasiQuotes.Parser
 
 
 main :: IO ()

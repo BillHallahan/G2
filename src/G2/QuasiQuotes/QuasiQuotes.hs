@@ -24,6 +24,7 @@ import G2.QuasiQuotes.Parser
 import G2.QuasiQuotes.ModuleGraphLoader
 
 import Data.Data
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -95,16 +96,16 @@ liftDataT = dataToExpQ (\a -> liftText <$> cast a)
 
 parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
 parseHaskellQ' qext = do
-  -- (ModuleInfo mods) <- reifyModule =<< thisModule
+  (ModuleInfo mods) <- reifyModule =<< thisModule
   -- runIO $ mapM putStrLn =<< guessModules mods
   -- runIO $ putStrLn "-----"
-  runIO $ parseHaskellIO qext
+  runIO $ parseHaskellIO mods qext
 
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
 -- marked to be passed into the Expr as real values, and those that the user
 -- wants to solve for- are treated as symbolic here.
-parseHaskellIO :: QuotedExtract -> IO ExtractedG2
-parseHaskellIO qext = do
+parseHaskellIO :: [Module] -> QuotedExtract -> IO ExtractedG2
+parseHaskellIO mods qext = do
     -- cwd <- getCurrentDirectory
     -- let cwd' = cwd ++ "/quasiquote/"
     let hskStr = quotedEx2Hsk qext
@@ -112,7 +113,7 @@ parseHaskellIO qext = do
             (\filepath handle -> do
                 -- putStrLn hskStr
                 hPutStrLn handle $ "module " ++ moduleName ++ " where\n"
-                                    ++ "import MiniLib\n"
+                                    ++ intercalate "\n" modImports ++ "\n"
                                     ++ functionName ++ " = " ++ hskStr
                 hFlush handle
                 hClose handle
@@ -128,6 +129,11 @@ parseHaskellIO qext = do
                     config)
                     -- (mkConfigDef { extraPaths = [cwd'] }))
     return exG2
+    where
+        modImports = map ("import " ++) 
+                   . filter (`notElem` badImports)
+                   . map (\(Module _ (ModName n)) -> n) $ mods
+        badImports = ["G2.QuasiQuotes.QuasiQuotes"]
 
 -- | If a State has been completely symbolically executed (i.e. no states were
 -- discarded by a Halter) we encoded it as Completed.
