@@ -63,30 +63,33 @@ parseHaskellQ str = do
     exG2 <- parseHaskellQ' qext
     ex_out <- runExecutionQ exG2
 
+
+    state_name <- newName "state"
     tenv_name <- newName "tenv"
     bindings_name <- newName "bindings"
 
-    (ex, tenv, bindings_final) <- case ex_out of
+    (ex, state_exp, tenv, bindings_final) <- case ex_out of
         Completed xs b -> do
             runIO . putStrLn $ "COMPLETED " ++ str
             case elimUnusedCompleted xs b of
                 (xs'@(s:_), b') -> do
                     let xs'' = listE $ map (moveOutTypeEnvState tenv_name) xs'
-                        xs''' = addCompRegVarPasses xs'' tenv_name ns (inputIds s b') b'
+
+                        xs''' = addCompRegVarPasses (varE state_name) tenv_name ns (inputIds s b') b'
 
                         b'' = b' { input_names = drop (length regs) (input_names b') }
                         sol = solveStates xs''' (varE bindings_name)
                         ars = extractArgs (inputIds s b'') (cleaned_names b'') tenv_name sol
 
-                    return (foldr (\n -> lamE [n]) ars ns_pat, type_env s, b'')
-                ([], _) -> return (foldr (\n -> lamE [n]) [| return Nothing |] ns_pat, M.empty, b)
+                    return (foldr (\n -> lamE [n]) ars ns_pat, xs'', type_env s, b'')
+                ([], _) -> return (foldr (\n -> lamE [n]) [| return Nothing |] ns_pat, [| return [] |], M.empty, b)
         NonCompleted s b -> do
             runIO . putStrLn $ "NONCOMPLETED " ++ str
             let (s', b') = elimUnusedNonCompleted s b
 
                 s'' = moveOutTypeEnvState tenv_name s'
 
-                s''' = addedNonCompRegVarBinds s'' tenv_name ns (inputIds s' b') b'
+                s''' = addedNonCompRegVarBinds (varE state_name) tenv_name ns (inputIds s' b') b'
 
                 b'' = b' { input_names = drop (length regs) (input_names b') }
 
@@ -94,14 +97,16 @@ parseHaskellQ str = do
 
                 ars = extractArgs (inputIds s b'') (cleaned_names b'') tenv_name sol
 
-            return (foldr (\n -> lamE [n]) ars ns_pat, type_env s', b'')
+            return (foldr (\n -> lamE [n]) ars ns_pat, s'', type_env s', b'')
 
             -- foldr (\n -> lamE [n]) [|do putStrLn "NONCOMPLETED"; return Nothing;|] ns_pat
 
     let tenv_exp = liftDataT tenv
-        bindings_exp = liftDataT bindings_final
+        bindings_exp = liftDataT (bindings_final { name_gen = mkNameGen ()})
+        bindings_ng_exp = [| $(bindings_exp) { name_gen = mkNameGen ($(state_exp), $(bindings_exp))} |]
 
-    letE [ valD (varP tenv_name) (normalB tenv_exp) []
+    letE [ valD (varP state_name) (normalB state_exp) []
+         , valD (varP tenv_name) (normalB tenv_exp) []
          , valD (varP bindings_name) (normalB bindings_exp) [] ] ex
 
 liftDataT :: Data a => a -> Q Exp
