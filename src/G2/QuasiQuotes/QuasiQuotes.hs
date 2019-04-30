@@ -28,6 +28,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax as TH
@@ -62,32 +63,43 @@ parseHaskellQ str = do
     exG2 <- parseHaskellQ' qext
     ex_out <- runExecutionQ exG2
 
-    case ex_out of
+    tenv_name <- newName "tenv"
+    bindings_name <- newName "bindings"
+
+    (ex, tenv, bindings_final) <- case ex_out of
         Completed xs b -> do
+            runIO . putStrLn $ "COMPLETED " ++ str
             case elimUnusedCompleted xs b of
                 (xs'@(s:_), b') -> do
-                    let xs'' = addCompRegVarPasses ns xs' b'
+                    let xs'' = addCompRegVarPasses tenv_name ns xs' b'
 
                         b'' = b' { input_names = drop (length regs) (input_names b') }
-                        sol = solveStates xs'' b''
-                        ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
+                        sol = solveStates xs'' (varE bindings_name)
+                        ars = extractArgs (inputIds s b'') (cleaned_names b'') tenv_name sol
 
-                    foldr (\n -> lamE [n]) ars ns_pat
-                ([], _) -> foldr (\n -> lamE [n]) [| return Nothing |] ns_pat
+                    return (foldr (\n -> lamE [n]) ars ns_pat, type_env s, b'')
+                ([], _) -> return (foldr (\n -> lamE [n]) [| return Nothing |] ns_pat, M.empty, b)
         NonCompleted s b -> do
+            runIO . putStrLn $ "NONCOMPLETED " ++ str
             let (s', b') = elimUnusedNonCompleted s b
 
-                s'' = addedNonCompRegVarBinds ns s' b'
+                s'' = addedNonCompRegVarBinds tenv_name ns s' b'
 
                 b'' = b' { input_names = drop (length regs) (input_names b') }
 
-                sol = executeAndSolveStates s'' b''
+                sol = executeAndSolveStates s'' (varE bindings_name)
 
-                ars = extractArgs (inputIds s b'') (cleaned_names b'') (type_env s) sol
+                ars = extractArgs (inputIds s b'') (cleaned_names b'') tenv_name sol
 
-            foldr (\n -> lamE [n]) ars ns_pat
+            return (foldr (\n -> lamE [n]) ars ns_pat, type_env s', b'')
 
             -- foldr (\n -> lamE [n]) [|do putStrLn "NONCOMPLETED"; return Nothing;|] ns_pat
+
+    let tenv_exp = liftDataT tenv
+        bindings_exp = liftDataT bindings_final
+
+    letE [ valD (varP tenv_name) (normalB tenv_exp) []
+         , valD (varP bindings_name) (normalB bindings_exp) [] ] ex
 
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> liftText <$> cast a)
@@ -198,18 +210,17 @@ addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng })
     (s { curr_expr = CurrExpr er e' }, b { name_gen = ng' })
 
 type TypeEnvName = TH.Name
+type CleanedNamesName = TH.Name
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list
-regVarBindings :: [TH.Name] -> TypeEnvName -> InputIds -> Bindings -> Q Exp
-regVarBindings ns tenv_name is (Bindings { input_names = ins, cleaned_names = cleaned }) = do
+regVarBindings :: [TH.Name] -> TypeEnvName -> CleanedNamesName -> InputIds -> Bindings -> Q Exp
+regVarBindings ns tenv_name cleaned_name is (Bindings { input_names = ins, cleaned_names = cleaned }) = do
     let ns_exp = map varE ns
         ty_ns_exp = map (\(n, i) -> sigE n (toTHType cleaned (Ty.typeOf i))) $ zip ns_exp is
 
         ins_exp = liftDataT ins
 
-        cleaned_exp = liftDataT cleaned
-
-        g2Rep_exp = [| g2Rep $(varE tenv_name) $(cleaned_exp) |]
+        g2Rep_exp = [| g2Rep $(varE tenv_name) $(varE cleaned_name) |]
         ns_expr = map (appE g2Rep_exp) ty_ns_exp
 
         zip_exp = [| zip $(ins_exp) $(listE ns_expr) |]
@@ -218,36 +229,38 @@ regVarBindings ns tenv_name is (Bindings { input_names = ins, cleaned_names = cl
 -- | Adds the appropriate number of lambda bindings to the Exp,
 -- and sets up a conversion from TH Exp's to G2 Expr's.
 -- The returned Exp should have a function type and return type (State t).
-addCompRegVarPasses :: Data t => [TH.Name] -> [State t] -> Bindings -> Q Exp
-addCompRegVarPasses ns xs@(s:_) b = do
-    tenv_name <- newName "tenv"
+addCompRegVarPasses :: Data t => TypeEnvName -> [TH.Name] -> [State t] -> Bindings -> Q Exp
+addCompRegVarPasses tenv_name ns xs@(s:_) b = do
+    cleaned_name <- newName "cleaned"
 
     let xs_exp = liftDataT xs
 
-        tenv_exp = liftDataT (type_env s)
+        cleaned_exp = liftDataT (cleaned_names b)
 
-        zip_exp = regVarBindings ns tenv_name (inputIds s b) b
+        zip_exp = regVarBindings ns tenv_name cleaned_name (inputIds s b) b
 
         flooded_exp = appE (varE 'mapMaybe) (appE (varE 'floodConstantsChecking) zip_exp)
 
         flooded_states = appE flooded_exp xs_exp
 
-    letE [valD (varP tenv_name) (normalB tenv_exp) []] flooded_states
-addCompRegVarPasses _ _ _ = error "QuasiQuoter: No valid solutions found"
+    letE [ valD (varP cleaned_name) (normalB cleaned_exp) []] flooded_states
+addCompRegVarPasses _ _ _ _ = error "QuasiQuoter: No valid solutions found"
 
-addedNonCompRegVarBinds :: Data t => [TH.Name] -> State t -> Bindings -> Q Exp
-addedNonCompRegVarBinds ns s b = do
-    tenv_name <- newName "tenv"
+addedNonCompRegVarBinds :: Data t => TypeEnvName -> [TH.Name] -> State t -> Bindings -> Q Exp
+addedNonCompRegVarBinds tenv_name ns s b = do
+    cleaned_name <- newName "cleaned"
+
     let s_exp = liftDataT s
-        tenv_exp = liftDataT (type_env s)
 
-        zip_exp = regVarBindings ns tenv_name (inputIds s b) b
+        cleaned_exp = liftDataT (cleaned_names b)
+
+        zip_exp = regVarBindings ns tenv_name cleaned_name (inputIds s b) b
 
         flooded_exp = [| case floodConstantsChecking $(zip_exp) $(s_exp) of
                             Just s' -> s'
                             Nothing -> error "addedNonCompRegVarBinds: Nothing"|]
 
-    letE [valD (varP tenv_name) (normalB tenv_exp) []] flooded_exp
+    letE [ valD (varP cleaned_name) (normalB cleaned_exp) []] flooded_exp
 
 elimUnusedCompleted :: Named t => [State t] -> Bindings -> ([State t], Bindings)
 elimUnusedCompleted xs b =
@@ -271,9 +284,12 @@ elimUnusedNonCompleted s b =
     in
     markAndSweepIgnoringKnownValues s' b'
 
-executeAndSolveStates :: Q Exp -> Bindings -> Q Exp
+type StateExp = Q Exp
+type BindingsExp = Q Exp
+
+executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp
 executeAndSolveStates s b = do
-    varE 'executeAndSolveStates' `appE` liftDataT b `appE` s 
+    varE 'executeAndSolveStates' `appE` b `appE` s 
 
 executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' b s = do
@@ -288,9 +304,9 @@ executeAndSolveStates' b s = do
                 _ -> return Nothing
 
 -- Takes an Exp representing a list of States, and returns an Exp representing an ExecRes
-solveStates :: Q Exp -> Bindings -> Q Exp
+solveStates :: StateExp -> BindingsExp -> Q Exp
 solveStates xs b = do
-    varE 'solveStates' `appE` liftDataT b `appE` xs 
+    varE 'solveStates' `appE` b `appE` xs 
 
 solveStates' :: ( Named t
                 , ASTContainer t Expr
@@ -312,7 +328,7 @@ solveStates'' sol b (s:xs) = do
         Nothing -> solveStates'' sol b xs
 
 -- | Get the values of the symbolic arguments, and returns them in a tuple
-extractArgs :: InputIds -> CleanedNames -> TypeEnv -> Q Exp -> Q Exp
+extractArgs :: InputIds -> CleanedNames -> TypeEnvName -> Q Exp -> Q Exp
 extractArgs in_ids cleaned tenv es =
     [|do
         r <- $(es)
@@ -322,14 +338,12 @@ extractArgs in_ids cleaned tenv es =
             Nothing -> return Nothing |]
 
 -- | Returns a function to turn the first (length of InputIds) elements of a list into a tuple
-toSymbArgsTuple :: InputIds -> CleanedNames -> TypeEnv -> Q Exp
-toSymbArgsTuple in_ids cleaned tenv = do
+toSymbArgsTuple :: InputIds -> CleanedNames -> TypeEnvName -> Q Exp
+toSymbArgsTuple in_ids cleaned tenv_name = do
     lst <- newName "lst"
 
-    let tenv_exp = liftDataT tenv
-
     lamE [varP lst]
-        (tupE $ map (\(i, n) -> [| g2UnRep $(tenv_exp) ($(varE lst) !! n) :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
+        (tupE $ map (\(i, n) -> [| g2UnRep $(varE tenv_name) ($(varE lst) !! n) :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
 
 qqConfig :: IO Config
 qqConfig = do
