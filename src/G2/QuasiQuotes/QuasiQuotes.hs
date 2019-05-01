@@ -66,16 +66,16 @@ parseHaskellQ str = do
 
     state_name <- newName "state"
     tenv_name <- newName "tenv"
+    cleaned_names_name <- newName "cleaned"
     bindings_name <- newName "bindings"
 
     (ex, state_exp, tenv, bindings_final) <- case ex_out of
         Completed xs b -> do
-            runIO . putStrLn $ "COMPLETED " ++ str
             case elimUnusedCompleted xs b of
                 (xs'@(s:_), b') -> do
                     let xs'' = listE $ map (moveOutTypeEnvState tenv_name) xs'
 
-                        xs''' = addCompRegVarPasses (varE state_name) tenv_name ns (inputIds s b') b'
+                        xs''' = addCompRegVarPasses (varE state_name) tenv_name cleaned_names_name ns (inputIds s b') b'
 
                         b'' = b' { input_names = drop (length regs) (input_names b') }
                         sol = solveStates xs''' (varE bindings_name)
@@ -84,12 +84,11 @@ parseHaskellQ str = do
                     return (foldr (\n -> lamE [n]) ars ns_pat, xs'', type_env s, b'')
                 ([], _) -> return (foldr (\n -> lamE [n]) [| return Nothing |] ns_pat, [| return [] |], M.empty, b)
         NonCompleted s b -> do
-            runIO . putStrLn $ "NONCOMPLETED " ++ str
             let (s', b') = elimUnusedNonCompleted s b
 
                 s'' = moveOutTypeEnvState tenv_name s'
 
-                s''' = addedNonCompRegVarBinds (varE state_name) tenv_name ns (inputIds s' b') b'
+                s''' = addedNonCompRegVarBinds (varE state_name) tenv_name cleaned_names_name ns (inputIds s' b') b'
 
                 b'' = b' { input_names = drop (length regs) (input_names b') }
 
@@ -107,7 +106,8 @@ parseHaskellQ str = do
 
     letE [ valD (varP state_name) (normalB state_exp) []
          , valD (varP tenv_name) (normalB tenv_exp) []
-         , valD (varP bindings_name) (normalB bindings_exp) [] ] ex
+         , valD (varP bindings_name) (normalB bindings_exp) []
+         , valD (varP cleaned_names_name) (normalB (varE 'cleaned_names `appE` varE bindings_name)) []] ex
 
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> liftText <$> cast a)
@@ -245,34 +245,25 @@ regVarBindings ns tenv_name cleaned_name is (Bindings { input_names = ins, clean
 -- | Adds the appropriate number of lambda bindings to the Exp,
 -- and sets up a conversion from TH Exp's to G2 Expr's.
 -- The returned Exp should have a function type and return type (State t).
-addCompRegVarPasses :: StateListExp -> TypeEnvName -> [TH.Name] -> InputIds -> Bindings -> Q Exp
-addCompRegVarPasses xs_exp tenv_name ns in_ids b = do
-    cleaned_name <- newName "cleaned"
+addCompRegVarPasses :: StateListExp -> TypeEnvName -> CleanedNamesName -> [TH.Name] -> InputIds -> Bindings -> Q Exp
+addCompRegVarPasses xs_exp tenv_name cleaned_name ns in_ids b = do
 
-    let cleaned_exp = liftDataT (cleaned_names b)
-
-        zip_exp = regVarBindings ns tenv_name cleaned_name in_ids b
+    let zip_exp = regVarBindings ns tenv_name cleaned_name in_ids b
 
         flooded_exp = appE (varE 'mapMaybe) (appE (varE 'floodConstantsChecking) zip_exp)
 
-        flooded_states = appE flooded_exp xs_exp
+    appE flooded_exp xs_exp
 
-    letE [ valD (varP cleaned_name) (normalB cleaned_exp) []] flooded_states
-addCompRegVarPasses _ _ _ _ _ = error "QuasiQuoter: No valid solutions found"
+addedNonCompRegVarBinds :: StateExp -> TypeEnvName -> CleanedNamesName -> [TH.Name] -> InputIds  -> Bindings -> Q Exp
+addedNonCompRegVarBinds state_exp tenv_name cleaned_name ns in_ids b = do
 
-addedNonCompRegVarBinds :: StateExp -> TypeEnvName -> [TH.Name] -> InputIds  -> Bindings -> Q Exp
-addedNonCompRegVarBinds state_exp tenv_name ns in_ids b = do
-    cleaned_name <- newName "cleaned"
-
-    let cleaned_exp = liftDataT (cleaned_names b)
-
-        zip_exp = regVarBindings ns tenv_name cleaned_name in_ids b
+    let zip_exp = regVarBindings ns tenv_name cleaned_name in_ids b
 
         flooded_exp = [| case floodConstantsChecking $(zip_exp) $(state_exp) of
                             Just s' -> s'
                             Nothing -> error "addedNonCompRegVarBinds: Nothing"|]
 
-    letE [ valD (varP cleaned_name) (normalB cleaned_exp) []] flooded_exp
+    flooded_exp
 
 elimUnusedCompleted :: Named t => [State t] -> Bindings -> ([State t], Bindings)
 elimUnusedCompleted xs b =
