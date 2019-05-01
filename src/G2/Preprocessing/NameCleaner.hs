@@ -88,4 +88,4 @@ createNamePairs ing ins = go ing [] ins
             go ng' ((name, new_name):rns) ns
 
 allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
-allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)
+allNames s = exprNames s ++ E.keys (expr_env s)
