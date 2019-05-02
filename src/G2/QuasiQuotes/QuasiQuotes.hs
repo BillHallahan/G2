@@ -25,6 +25,7 @@ import G2.QuasiQuotes.ModuleGraphLoader
 
 import Data.Data
 import Data.List
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -110,9 +111,13 @@ parseHaskellQ str = do
          , valD (varP cleaned_names_name) (normalB (varE 'cleaned_names `appE` varE bindings_name)) []] ex
 
 liftDataT :: Data a => a -> Q Exp
-liftDataT = dataToExpQ (\a -> liftText <$> cast a)
+liftDataT = dataToExpQ (\a -> case liftText <$> cast a of
+                                    je@(Just _) -> je
+                                    Nothing -> liftLoc <$> cast a)
     where
         liftText txt = appE (varE 'T.pack) (stringE (T.unpack txt))
+        liftLoc (G2.Loc l c f) = conE 'G2.Loc `appE` intE l `appE` intE c `appE` stringE f
+        intE i = [| i |]
 
 parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
 parseHaskellQ' qext = do
@@ -286,6 +291,14 @@ elimUnusedNonCompleted s b =
                , rules = [] }
     in
     markAndSweepIgnoringKnownValues s' b'
+
+elimLocs :: Named t => t -> t
+elimLocs t =
+    let
+        ns = names t
+        hm = HM.fromList . zip ns $ map (\(G2.Name n m i _) -> G2.Name n m i Nothing) ns
+    in
+    renames hm t
 
 type StateExp = Q Exp
 type StateListExp = Q Exp
