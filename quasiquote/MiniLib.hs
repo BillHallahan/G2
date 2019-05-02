@@ -23,3 +23,6 @@ repeatInf x = InfCons x (repeatInf x)
 
 headInf :: InfList a -> a
 headInf (InfCons x _) = x
+
+tailInf :: InfList a -> InfList a
+tailInf (InfCons x xs) = xs

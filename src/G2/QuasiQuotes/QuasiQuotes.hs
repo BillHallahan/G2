@@ -334,7 +334,8 @@ solveStates'' _ _ [] =return Nothing
 solveStates'' sol b (s:xs) = do
     m_ex_res <- runG2Solving sol b s
     case m_ex_res of
-        Just _ -> return m_ex_res
+        Just _ -> do
+            return m_ex_res
         Nothing -> solveStates'' sol b xs
 
 -- | Get the values of the symbolic arguments, and returns them in a tuple
@@ -343,8 +344,7 @@ extractArgs in_ids cleaned tenv es =
     [|do
         r <- $(es)
         case r of
-            Just r' ->
-                return . Just . $(toSymbArgsTuple in_ids cleaned tenv) $ conc_args r'
+            Just r' -> return . Just . $(toSymbArgsTuple in_ids cleaned tenv) $ conc_args r'
             Nothing -> return Nothing |]
 
 -- | Returns a function to turn the first (length of InputIds) elements of a list into a tuple

@@ -372,6 +372,7 @@ runG2Solving con bindings s@(State { known_values = kv })
                                    , conc_args = fixed_inputs bindings ++ conc_args sm'
                                    , conc_out = evalPrims kv (conc_out sm')
                                    , violated = evalPrims kv (violated sm')}
+                
                 return (Just sm'')
             Nothing -> do
               return Nothing
