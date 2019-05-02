@@ -106,31 +106,31 @@ checkConstraints con pc = do
     checkSat con (getIO con) formula
 
 -- | Checks if the constraints are satisfiable, and returns a model if they are
-checkModel :: SMTConverter con ast out io => con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
-checkModel con s b is pc = return . fmap liftCasts =<< checkModel' con s b is pc
+checkModel :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+checkModel avf con s b is pc = return . fmap liftCasts =<< checkModel' avf con s b is pc
 
 -- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
-checkModel' :: SMTConverter con ast out io => con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
-checkModel' _ s _ [] _ = do
+checkModel' :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+checkModel' _ _ s _ [] _ = do
     return (SAT, Just $ model s)
-checkModel' con s b (i:is) pc
-    | (idName i) `M.member` (model s) = checkModel' con s b is pc
+checkModel' avf con s b (i:is) pc
+    | (idName i) `M.member` (model s) = checkModel' avf con s b is pc
     | otherwise =  do
-        (m, av) <- getModelVal con s b i pc
+        (m, av) <- getModelVal avf con s b i pc
         case m of
-            Just m' -> checkModel' con (s {model = M.union m' (model s)}) (b {arb_value_gen = av}) is pc
+            Just m' -> checkModel' avf con (s {model = M.union m' (model s)}) (b {arb_value_gen = av}) is pc
             Nothing -> return (UNSAT, Nothing)
 
-getModelVal :: SMTConverter con ast out io => con -> State t -> Bindings -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
-getModelVal con s b (Id n _) pc = do
+getModelVal :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
+getModelVal avf con s b (Id n _) pc = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
      
     case PC.null pc of
                 True -> 
                     let
-                        (e, av) = arbValue t (type_env s) (arb_value_gen b)
+                        (e, av) = avf t (type_env s) (arb_value_gen b)
                     in
                     return (Just $ M.singleton n' e, av) 
                 False -> do

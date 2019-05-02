@@ -48,8 +48,8 @@ main = do
     putStrLn "\n-- Infinite Test 2 --"
     print =<< infiniteTest2 [5..] 3
 
-    -- putStrLn "\n-- Infinite Return --"
-    -- print =<< infiniteReturn 8
+    putStrLn "\n-- Infinite Return --"
+    print =<< infiniteReturn 8
 
 
 -- fBad1 :: Float -> Int -> IO (Maybe Int)
@@ -101,5 +101,5 @@ infiniteTest = [g2|\(xs :: [Int]) -> ?(x :: Int) | x == head xs|]
 infiniteTest2 :: [Int] -> Int -> IO (Maybe [Int])
 infiniteTest2 = [g2|\(xs :: [Int]) (t :: Int) -> ?(ys :: [Int]) | ys == take t xs|]
 
--- infiniteReturn ::  Int -> IO (Maybe (InfList Int))
--- infiniteReturn = [g2|\(t :: Int) -> ?(ys :: InfList Int) | headInf ys == t |]
+infiniteReturn ::  Int -> IO (Maybe (InfList Int))
+infiniteReturn = [g2|\(t :: Int) -> ?(ys :: InfList Int) | headInf ys == t |]

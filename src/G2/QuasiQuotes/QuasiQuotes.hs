@@ -173,7 +173,7 @@ runExecutionQ exG2 = do
                                         (mkCurrExpr Nothing Nothing) config
         (s', b') = addAssume s b
     
-    SomeSolver con <- initSolver config
+    SomeSolver con <- initSolverInfinite config
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
@@ -304,7 +304,7 @@ executeAndSolveStates s b = do
 executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' b s = do
     config <- qqConfig
-    SomeSolver con <- initSolver config
+    SomeSolver con <- initSolverInfinite config
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, _) -> do
             let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
@@ -323,7 +323,7 @@ solveStates' :: ( Named t
                 , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates' b xs = do
     config <- qqConfig
-    SomeSolver con <- initSolver config
+    SomeSolver con <- initSolverInfinite config
     solveStates'' con b xs
 
 solveStates'' :: ( Named t

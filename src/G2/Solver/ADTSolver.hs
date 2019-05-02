@@ -2,8 +2,10 @@
 {-# LANGUAGE TupleSections #-}
 
 module G2.Solver.ADTSolver ( ADTSolver (..)
-                                     , checkConsistency
-                                     , findConsistent) where
+                           , adtSolverFinite
+                           , adtSolverInfinite
+                           , checkConsistency
+                           , findConsistent) where
 
 import G2.Language.ArbValueGen
 import G2.Language.Casts
@@ -24,11 +26,17 @@ import Prelude hiding (null)
 import qualified Prelude as Pre
 import Data.Tuple
 
-data ADTSolver = ADTSolver
+data ADTSolver = ADTSolver ArbValueFunc
+
+adtSolverFinite :: ADTSolver
+adtSolverFinite = ADTSolver arbValue
+
+adtSolverInfinite :: ADTSolver
+adtSolverInfinite = ADTSolver arbValueInfinite
 
 instance Solver ADTSolver where
     check _ s = return . checkConsistency (known_values s) (type_env s)
-    solve _ s b is = solveADTs s b (nub is)
+    solve (ADTSolver avf) s b is = solveADTs avf s b (nub is)
 
 -- | Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
@@ -94,28 +102,28 @@ findConsistent''' dcs ((ConsCond  dc _ False):pc) =
 findConsistent''' dcs [] = Just dcs
 findConsistent''' _ _ = Nothing
 
-solveADTs :: State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
-solveADTs s b [Id n t] pc
+solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+solveADTs avf s b [Id n t] pc
     -- We can't use the ADT solver when we have a Boolean, because the RHS of the
     -- DataAlt might be a primitive.
     | TyCon tn k <- tyAppCenter t
     , ts <- tyAppArgs t
     , t /= tyBool (known_values s)  =
     do
-        let (r, s', _) = addADTs n tn ts k s b pc
+        let (r, s', _) = addADTs avf n tn ts k s b pc
 
         case r of
             SAT -> return (r, Just . liftCasts $ model s')
             r' -> return (r', Nothing)
-solveADTs _ _ _ _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
+solveADTs _ _ _ _ _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
 
 -- | Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result, State t, Bindings)
-addADTs n tn ts k s b pc
+addADTs :: ArbValueFunc -> Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result, State t, Bindings)
+addADTs avf n tn ts k s b pc
     | PC.null pc =
         let
-            (bse, av) = arbValue (mkTyApp (TyCon tn k:ts)) (type_env s) (arb_value_gen b)
+            (bse, av) = avf (mkTyApp (TyCon tn k:ts)) (type_env s) (arb_value_gen b)
             m' = M.singleton n bse
         in
         (SAT, (s {model = M.union m' (model s)}), (b {arb_value_gen = av}))
@@ -134,7 +142,7 @@ addADTs n tn ts k s b pc
         (av, vs) = mapAccumL (\av_ (n', t') -> 
                 case E.lookup n' eenv of
                     Just e -> (av_, e)
-                    Nothing -> swap $ arbValue t' (type_env s) av_) (arb_value_gen b) $ zip ns ts''
+                    Nothing -> swap $ avf t' (type_env s) av_) (arb_value_gen b) $ zip ns ts''
         
         dc = mkApp $ fdc:map Type ts2 ++ vs
 

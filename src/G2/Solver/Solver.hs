@@ -10,6 +10,8 @@ module G2.Solver.Solver ( Solver (..)
                         , SomeTrSolver (..)
                         , Result (..)
                         , GroupRelated (..)
+                        , groupRelatedFinite
+                        , groupRelatedInfinite
                         , CombineSolvers (..)) where
 
 import G2.Language
@@ -73,7 +75,13 @@ data SomeTrSolver where
                   . TrSolver solver => solver -> SomeTrSolver
 
 -- | Splits path constraints before sending them to the rest of the solvers
-data GroupRelated a = GroupRelated a
+data GroupRelated a = GroupRelated ArbValueFunc a
+
+groupRelatedFinite :: a -> GroupRelated a
+groupRelatedFinite = GroupRelated arbValue
+
+groupRelatedInfinite :: a -> GroupRelated a
+groupRelatedInfinite = GroupRelated arbValueInfinite
 
 checkRelated :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
 checkRelated solver s pc =
@@ -87,19 +95,19 @@ checkRelated' sol s (p:ps) = do
         SAT -> checkRelated' sol' s ps
         r -> return (r, sol')
 
-solveRelated :: TrSolver a => a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
-solveRelated sol s b is pc = do
-    solveRelated' sol s b M.empty is $ PC.relatedSets (known_values s) pc
+solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
+solveRelated avf sol s b is pc = do
+    solveRelated' avf sol s b M.empty is $ PC.relatedSets (known_values s) pc
 
-solveRelated' :: TrSolver a => a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
-solveRelated' sol s b m is [] =
+solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
+solveRelated' avf sol s b m is [] =
     let 
         is' = filter (\i -> idName i `M.notMember` m) is
 
         (_, nv) = mapAccumL
             (\av_ (Id n t) ->
                 let 
-                    (av_', v) = arbValue t (type_env s) av_
+                    (av_', v) = avf t (type_env s) av_
                     in
                     (v, (n, av_'))
             ) (arb_value_gen b) is'
@@ -107,28 +115,28 @@ solveRelated' sol s b m is [] =
         m' = foldr (\(n, v) -> M.insert n v) m nv
     in
     return (SAT, Just m', sol)
-solveRelated' sol s b m is (p:ps) = do
+solveRelated' avf sol s b m is (p:ps) = do
     let is' = concat $ PC.map (PC.varIdsInPC (known_values s)) p
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of
-        (SAT, Just m', sol') -> solveRelated' sol' s b (M.union m m') (is ++ is'') ps
+        (SAT, Just m', sol') -> solveRelated' avf sol' s b (M.union m m') (is ++ is'') ps
         rm' -> return rm'
 
 instance Solver solver => Solver (GroupRelated solver) where
-    check (GroupRelated sol) s pc = return . fst =<< checkRelated (Tr sol) s pc
-    solve (GroupRelated sol) s b is pc =
-        return . (\(r, m, _) -> (r, m)) =<< solveRelated (Tr sol) s b is pc
-    close (GroupRelated s) = close s
+    check (GroupRelated _ sol) s pc = return . fst =<< checkRelated (Tr sol) s pc
+    solve (GroupRelated avf sol) s b is pc =
+        return . (\(r, m, _) -> (r, m)) =<< solveRelated avf (Tr sol) s b is pc
+    close (GroupRelated _ s) = close s
 
 instance TrSolver solver => TrSolver (GroupRelated solver) where
-    checkTr (GroupRelated sol) s pc = do
+    checkTr (GroupRelated avf sol) s pc = do
         (r, sol') <- checkRelated sol s pc
-        return (r, GroupRelated sol')
-    solveTr (GroupRelated sol) s b is pc = do
-        (r, m, sol') <- solveRelated sol s b is pc
-        return (r, m, GroupRelated sol')
-    closeTr (GroupRelated s) = closeTr s
+        return (r, GroupRelated avf sol')
+    solveTr (GroupRelated avf sol) s b is pc = do
+        (r, m, sol') <- solveRelated avf sol s b is pc
+        return (r, m, GroupRelated avf sol')
+    closeTr (GroupRelated _ s) = closeTr s
 
 -- | Allows solvers to be combined, to exploit different solvers abilities
 -- to solve different kinds of constraints

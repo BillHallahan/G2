@@ -12,6 +12,7 @@ module G2.Interface.Interface ( doTimeout
                               
                               , initRedHaltOrd
                               , initSolver
+                              , initSolverInfinite
                               
                               , initialStateFromFileSimple
                               , initialStateFromFile
@@ -221,9 +222,15 @@ initRedHaltOrd conv config =
              , SomeOrderer $ PickLeastUsedOrderer)
 
 initSolver :: Config -> IO SomeSolver
-initSolver config = do
-    SomeSMTSolver con <- getSMT config
-    let con' = GroupRelated (ADTSolver :?> con)
+initSolver con = initSolver' arbValue con
+
+initSolverInfinite :: Config -> IO SomeSolver
+initSolverInfinite con = initSolver' arbValueInfinite con
+
+initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
+initSolver' avf config = do
+    SomeSMTSolver con <- getSMTAV avf config
+    let con' = GroupRelated avf (ADTSolver avf :?> con)
     return (SomeSolver con')
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
