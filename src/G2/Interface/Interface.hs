@@ -20,7 +20,9 @@ module G2.Interface.Interface ( doTimeout
                               , runG2WithConfig
                               , runG2WithSomes
                               , runG2Pre
+                              , runG2Post
                               , runG2ThroughExecution
+                              , runExecution
                               , runG2Solving
                               , runG2
                               , Config) where
@@ -313,6 +315,20 @@ runG2Pre pns s@(State { known_values = kv, type_classes = tc }) bindings =
     in
     runPreprocessing swept bindings'
 
+runG2Post :: ( Named t
+             , ASTContainer t Expr
+             , ASTContainer t Type
+             , Reducer r rv t
+             , Halter h hv t
+             , Orderer or sov b t
+             , Solver solver) => r -> h -> or ->
+             solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+runG2Post red hal ord con is bindings = do
+    (exec_states, bindings') <- runExecution red hal ord is bindings
+    sol_states <- mapM (runG2Solving con bindings') exec_states
+
+    return (catMaybes sol_states, bindings')
+
 runG2ThroughExecution ::
     ( Named t
     , ASTContainer t Expr
@@ -321,8 +337,7 @@ runG2ThroughExecution ::
     , Halter h hv t
     , Orderer or sov b t) => r -> h -> or ->
     [Name] -> State t -> Bindings -> IO ([State t], Bindings)
-runG2ThroughExecution red hal ord pns is
-                           bindings = do
+runG2ThroughExecution red hal ord pns is bindings = do
     let (is', bindings') = runG2Pre pns is bindings
     runExecution red hal ord is' bindings'
 

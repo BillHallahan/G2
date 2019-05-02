@@ -184,7 +184,9 @@ runExecutionQ exG2 = do
                 Processed { accepted = acc, discarded = [] } -> do
                     let acc' = filter (trueCurrExpr) acc
                     return $ Completed acc' b'''
-                _ -> return $ NonCompleted s' b'
+                _ -> do
+                    let (s'', b'') = runG2Pre [] s' b'
+                    return $ NonCompleted s'' b''
     where
         trueCurrExpr (State { curr_expr = CurrExpr _ e
                             , known_values = kv }) = e == mkTrue kv
@@ -306,7 +308,7 @@ executeAndSolveStates' b s = do
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, _) -> do
             let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
-            (res, _) <- runG2 red hal' PickLeastUsedOrderer con [] s b
+            (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
             case res of
                 exec_res:_ -> return $ Just exec_res
                 _ -> return Nothing

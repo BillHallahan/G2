@@ -263,7 +263,7 @@ evalCase s@(State { expr_env = eenv
          ng mexpr bind alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
-  | (Lit lit) <- unsafeElimCast mexpr
+  | (Lit lit) <- unsafeElimOuterCast mexpr
   , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
       let 
           binds = [(bind, Lit lit)]
@@ -300,7 +300,7 @@ evalCase s@(State { expr_env = eenv
   -- We hit a DEFAULT instead.
   -- We perform the cvar binding and proceed with the alt
   -- expression.
-  | (Data _):_ <- unApp $ unsafeElimCast mexpr
+  | (Data _):_ <- unApp $ unsafeElimOuterCast mexpr
   , (Alt _ expr):_ <- matchDefaultAlts alts =
       let 
           binds = [(bind, mexpr)]
@@ -322,12 +322,12 @@ evalCase s@(State { expr_env = eenv
             (Cast e c) -> (Just c, e)
             _ -> (Nothing, mexpr)
 
-        (dsts_cs, ng') = case unApp $ unsafeElimCast expr of
+        (dsts_cs, ng') = case unApp $ unsafeElimOuterCast expr of
             (Var i@(Id _ _)):_ -> concretizeVarExpr s ng i bind dalts cast 
             (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
             (Data _):_ -> ([], ng)
-            _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimCast mexpr)
+            _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
         def_sts = liftSymDefAlt s mexpr bind alts
@@ -431,7 +431,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     -- Apply list of types (if present) and DataCon children to DataCon
     dcon'' = mkApp exprs
 
-    -- Apply cast, in opposite direction of unsafeElimCast
+    -- Apply cast, in opposite direction of unsafeElimOuterCast
     dcon''' = case maybeC of 
                 (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
                 Nothing -> dcon''
@@ -658,7 +658,7 @@ retAssumeFrame s@(State {known_values = kv
             Just dc -> [dc]
             _ -> []
         -- If Assume is just a Var, concretize the Expr to a True Bool DataCon. Else add an ExtCond
-        (newPCs, ng') = case unApp $ unsafeElimCast e1 of
+        (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalt e2 stck
             _ -> addExtCond s ng e1 e2 True stck
     in
@@ -674,7 +674,7 @@ retAssertFrame s@(State {known_values = kv
             Just dcs -> dcs
             _ -> []
         -- If Assert is just a Var, concretize the Expr to a True or False Bool DataCon, else add an ExtCond
-        (newPCs, ng') = case unApp $ unsafeElimCast e1 of
+        (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalts e2 stck
             _ -> addExtConds s ng e1 ais e2 stck
             

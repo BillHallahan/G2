@@ -45,6 +45,8 @@ main = do
     putStrLn "\n-- Infinite Test --"
     print =<< infiniteTest [5..]
 
+    putStrLn "\n-- Infinite Test 2 --"
+    print =<< infiniteTest2 [5..] 3
 
 
 -- fBad1 :: Float -> Int -> IO (Maybe Int)
@@ -92,3 +94,6 @@ importTest = [g2|\(x :: Int) -> ?(ans :: Int) | addTwo x == ans|]
 
 infiniteTest :: [Int] -> IO (Maybe Int)
 infiniteTest = [g2|\(xs :: [Int]) -> ?(x :: Int) | x == head xs|]
+
+infiniteTest2 :: [Int] -> Int -> IO (Maybe [Int])
+infiniteTest2 = [g2|\(xs :: [Int]) (t :: Int) -> ?(ys :: [Int]) | ys == take t xs|]
