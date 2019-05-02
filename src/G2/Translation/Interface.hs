@@ -25,13 +25,11 @@ translateBase :: TranslationConfig
   -> Maybe HscTarget
   -> IO (ExtractedG2, NameMap, TypeNameMap)
 translateBase tr_con config hsc = do
-  baseRoot <- baseRoot config
   -- For base we have the advantage of knowing apriori the structure
   -- So we can list the (proj, file) pairings
   let bases = base config
-  let pairs = map (\f -> (dropFileName f, f)) bases
 
-  translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc pairs
+  translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc bases
 
 
 translateLibs :: NameMap
@@ -57,7 +55,7 @@ translateLibPairs :: NameMap
   -> IO (ExtractedG2, NameMap, TypeNameMap)
 translateLibPairs nm tnm _ _ exg2 _ [] = return (exg2, nm, tnm)
 translateLibPairs nm tnm tr_con config exg2 hsc ((p, f) : pairs) = do
-  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc p f nm tnm tr_con config
+  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc [(p, f)] nm tnm tr_con config
   translateLibPairs new_nm new_tnm tr_con config (mergeExtractedG2s [exg2, exg2']) hsc pairs
 
 
@@ -84,7 +82,8 @@ translateLoaded proj src libs tr_con config = do
   let merged_lib = mergeExtractedG2s ([base_trans', lib_transs])
 
   -- Now the stuff with the actual target
-  (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) proj src lib_nm lib_tnm tr_con config
+  let projsrc = extraDefaultMods config ++ [(proj, src)]
+  (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) projsrc lib_nm lib_tnm tr_con config
   let mb_modname = listToMaybe $ exg2_mod_names exg2
   let h_exp = exg2_exports exg2
 
@@ -119,7 +118,7 @@ translateLoadedD proj src libs tr_con config = do
   (nm, tnm, libs_g2) <- mapM readFileExtractedG2 libs >>= return . mergeFileExtractedG2s
 
   -- Now do the target file
-  (nm2, tnm2, tgt_g2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) proj src nm tnm tr_con config
+  (nm2, tnm2, tgt_g2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) [(proj, src)] nm tnm tr_con config
 
   -- Combine the library g2 and extracted g2s
   -- Also do absVarLoc!

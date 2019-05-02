@@ -18,7 +18,8 @@ data HigherOrderSolver = AllFuncs
 
 data Config = Config {
       mode :: Mode
-    , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
+    , base :: [(FilePath, FilePath)] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
+    , extraDefaultMods :: [(FilePath, FilePath)]
     , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
@@ -35,7 +36,6 @@ data Config = Config {
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
     , extraPaths :: [FilePath] -- ^ Additional paths to append to the importPaths 
-    , g2MasterDir :: IO FilePath
     -- , baseLibs :: [BaseLib]
 }
 
@@ -44,16 +44,15 @@ data Config = Config {
 
 baseRoot :: Config -> IO FilePath
 baseRoot config = do
-  g2Dir <- g2MasterDir config
+  g2Dir <- getHomeDirectory >>= \f -> return $ f ++ "/.g2"
   return $ g2Dir ++ "/base-4.9.1.0"
 
 
 mkConfig :: String -> [String] -> M.Map String [String] -> Config
 mkConfig homedir as m = Config {
       mode = Regular
-    , base = strArgs "base" as m id [ homedir ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
-                                    , homedir ++ "/.g2/base-4.9.1.0/Prelude.hs"
-                                    , homedir ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs" ] 
+    , base = basePaths (strArg "base" as m id homedir)
+    , extraDefaultMods = extraDefaultPaths (strArg "base" as m id homedir)
     , logStates = strArg "log-states" as m Just Nothing
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
@@ -70,9 +69,25 @@ mkConfig homedir as m = Config {
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
     , extraPaths = []
-    , g2MasterDir = (getHomeDirectory >>= \f -> return $ f ++ "/.g2")
     -- , baseLibs = [BasePrelude, BaseException]
 }
+
+basePaths :: FilePath -> [(FilePath, FilePath)]
+basePaths root =
+    [ ( root ++ "/.g2/base-4.9.1.0/Control/Exception/"
+      , root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs")
+
+    , ( root ++  "/.g2/base-4.9.1.0/"
+      , root ++ "/.g2/base-4.9.1.0/Prelude.hs")
+
+    , ( root ++ "/.g2/base-4.9.1.0/Data/Internal/"
+      , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs")
+    ]
+
+extraDefaultPaths :: FilePath -> [(FilePath, FilePath)]
+extraDefaultPaths root =
+    [ ( root ++ "/.g2/G2Stubs/src/"
+      , root ++ "/.g2/G2Stubs/src/G2/QuasiQuotes/G2Rep.hs") ] 
 
 smtSolverArg :: String -> SMTSolver
 smtSolverArg = smtSolverArg' . map toLower

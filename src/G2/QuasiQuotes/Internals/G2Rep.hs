@@ -30,7 +30,15 @@ class G2Rep g where
 
 -- Modeled after https://wiki.haskell.org/A_practical_Template_Haskell_Tutorial
 derivingG2Rep :: TH.Name -> Q [Dec]
-derivingG2Rep ty = do
+derivingG2Rep n = do
+    stv <- isExtEnabled ScopedTypeVariables
+    case stv of
+        True -> return ()
+        False -> error "derivingG2Rep: derivingG2Rep requires the language ScopedTypeVariables to be enabled"
+    derivingG2Rep' n
+
+derivingG2Rep' :: TH.Name -> Q [Dec]
+derivingG2Rep' ty = do
     TyConI tycon <- reify ty
 
     let (tyConName, tyVars, cs) = case tycon of
