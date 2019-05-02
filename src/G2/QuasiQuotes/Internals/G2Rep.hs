@@ -11,6 +11,7 @@ import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax as G2
 import G2.QuasiQuotes.Support
+import G2.Language.Typing
 
 import Control.Monad
 
@@ -72,6 +73,8 @@ genG2RepClause' tyConName tyVars dcNme fieldTypes = do
 
     let g2R = conE 'Data 
                 `appE` (varE 'qqDataConLookupFallBack
+                    `appE` litE (integerL $ toInteger $ length tyVars)
+                    `appE` litE (integerL $ toInteger $ length fieldTypes)
                     `appE` qqNameToQExp qqTyConName
                     `appE` qqNameToQExp qqName
                     `appE` (varE 'qqMap `appE` varE cleaned `appE` varE tenv)
@@ -97,10 +100,21 @@ genG2RepClause' tyConName tyVars dcNme fieldTypes = do
 -- is not in the given TypeEnv.
 -- We do this because the user of a QuasiQuoter may pass in types that are not
 -- available when the QuasiQuoter is compiled 
-qqDataConLookupFallBack :: QQName -> QQName -> QQMap -> TypeEnv -> DataCon
-qqDataConLookupFallBack qqtn qqdc qqm tenv
+qqDataConLookupFallBack :: Int -- The number of TyVars
+                        -> Int -- The number of arguments
+                        -> QQName -> QQName -> QQMap -> TypeEnv -> DataCon
+qqDataConLookupFallBack tyv_n arg_n qqtn qqdc qqm tenv
     | Just dc <- qqDataConLookup qqtn qqdc qqm tenv = dc
-    | otherwise = DataCon (qqNameToName0 qqdc) TyUnknown
+    | otherwise =
+        let
+            n = G2.Name "unknown" Nothing 0 Nothing
+            i = Id n TYPE
+
+            ntb = NamedTyBndr i
+            t = mkTyFun $ replicate (arg_n + 1) (TyCon n TYPE)
+            t' = foldr TyForAll t (replicate tyv_n ntb)
+        in
+        DataCon (qqNameToName0 qqdc) t'
 
 newField :: TH.Name -> TH.Name -> (TH.Name, StrictType) -> Q Exp
 newField _ _ (x, (_, ConT n))

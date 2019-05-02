@@ -48,7 +48,6 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
 
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
-
     -- runIO $ putStrLn $ "CWD is: " ++ cwd
 
     -- Get names for the lambdas for the regular inputs
@@ -291,14 +290,6 @@ elimUnusedNonCompleted s b =
                , rules = [] }
     in
     markAndSweepIgnoringKnownValues s' b'
-
-elimLocs :: Named t => t -> t
-elimLocs t =
-    let
-        ns = names t
-        hm = HM.fromList . zip ns $ map (\(G2.Name n m i _) -> G2.Name n m i Nothing) ns
-    in
-    renames hm t
 
 type StateExp = Q Exp
 type StateListExp = Q Exp
