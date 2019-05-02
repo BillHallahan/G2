@@ -112,7 +112,7 @@ parseHaskellQ str = do
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> liftText <$> cast a)
     where
-        liftText txt = AppE (VarE 'T.pack) <$> lift (T.unpack txt)
+        liftText txt = appE (varE 'T.pack) (stringE (T.unpack txt))
 
 parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
 parseHaskellQ' qext = do
