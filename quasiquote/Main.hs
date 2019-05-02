@@ -42,6 +42,10 @@ main = do
     putStrLn "\n-- Import Test --"
     print =<< importTest 5
 
+    putStrLn "\n-- Infinite Test --"
+    print =<< infiniteTest [5..]
+
+
 
 -- fBad1 :: Float -> Int -> IO (Maybe Int)
 -- fBad1 = [g2|(\y z -> \x ? x + 2 == y + z) :: Int -> Int -> Int -> Bool|]
@@ -86,3 +90,5 @@ stringTest = [g2|\(str1 :: String) -> ?(str2 :: String) | str1 == str2 ++ "!"|]
 importTest :: Int -> IO (Maybe Int)
 importTest = [g2|\(x :: Int) -> ?(ans :: Int) | addTwo x == ans|]
 
+infiniteTest :: [Int] -> IO (Maybe Int)
+infiniteTest = [g2|\(xs :: [Int]) -> ?(x :: Int) | x == head xs|]
