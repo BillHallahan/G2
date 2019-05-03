@@ -120,8 +120,6 @@ getADT tenv av adt ts =
         tyVIds = map TyVar ids
         min_dc' = foldr (uncurry replaceASTs) min_dc $ zip tyVIds ts
 
-        -- (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite t tenv av_) av $ dataConArgs min_dc'
-        es = map (\t -> fst $ arbValueInfinite t tenv av) $ dataConArgs min_dc'
-        av' = av
+        (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite t tenv av_) av $ dataConArgs min_dc'
     in
-    (mkApp $ Data min_dc':es, av')
+    (mkApp $ Data min_dc':map Type ts ++ es, av')
