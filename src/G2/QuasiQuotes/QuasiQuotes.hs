@@ -14,6 +14,7 @@ import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.Typing as Ty
 import G2.Solver
+import G2.Translation.Cabal.Cabal
 import G2.Translation.Haskell
 import G2.Translation.Interface
 import G2.Translation.TransTypes
@@ -23,11 +24,14 @@ import G2.QuasiQuotes.Support
 import G2.QuasiQuotes.Parser
 import G2.QuasiQuotes.ModuleGraphLoader
 
+import Control.Monad
+
 import Data.Data
 import Data.List
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.HashSet as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
@@ -136,19 +140,24 @@ parseHaskellIO mods qext = do
     (_, exG2) <- withSystemTempFile fileName
             (\filepath handle -> do
                 -- putStrLn hskStr
-                hPutStrLn handle $ "module " ++ moduleName ++ " where\n"
-                                    ++ intercalate "\n" modImports ++ "\n"
-                                    ++ functionName ++ " = " ++ hskStr
+                let contents = "module " ++ moduleName ++ " where\n"
+                                ++ intercalate "\n" modImports ++ "\n"
+                                ++ functionName ++ " = " ++ hskStr
+                hPutStrLn handle contents
                 hFlush handle
                 hClose handle
                 -- We guess based on the cwd because who knows where temp
                 -- files will get written to.
                 cwd <- getCurrentDirectory
-                proj <- guessProj cwd
+                -- proj <- guessProj cwd
+                cabal <- findCabal cwd
+                let cabal' = maybe (error "No cabal file found") id cabal
                 -- putStrLn $ "HELLO FROM: " ++ proj
                 -- putStrLn $ "FILEPATH IS: " ++ filepath
+                projs <- cabalSrcDirs cabal'
                 config <- qqConfig
-                translateLoaded [proj ++ "/quasiquote"] [filepath] []
+
+                translateLoaded projs [filepath] []
                     simplTranslationConfig
                     config)
                     -- (mkConfigDef { extraPaths = [cwd'] }))
@@ -158,6 +167,16 @@ parseHaskellIO mods qext = do
                    . filter (`notElem` badImports)
                    . map (\(Module _ (ModName n)) -> n) $ mods
         badImports = ["G2.QuasiQuotes.QuasiQuotes"]
+
+
+-- allDirectories :: FilePath -> IO [FilePath]
+-- allDirectories fp = do
+--     all <- listDirectory fp
+--     fs <- filterM doesDirectoryExist all
+
+--     fs' <- mapM allDirectories fs
+
+--     mapM makeAbsolute $ fp:fs ++ concat fs'
 
 -- | If a State has been completely symbolically executed (i.e. no states were
 -- discarded by a Halter) we encoded it as Completed.

@@ -27,6 +27,7 @@ module G2.Translation.Haskell
     , readFileExtractedG2
     , readAllExtractedG2s
     , mergeFileExtractedG2s
+    , findCabal
     ) where
 
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..), ProgramType)
@@ -796,4 +797,8 @@ dirContainsCabal dir = do
   else
     return $ False
 
-
+findCabal :: FilePath -> IO (Maybe FilePath)
+findCabal fp = do
+  dir <- guessProj fp
+  files <- listDirectory dir
+  return $ find (\f -> ".cabal" `isSuffixOf` f) files

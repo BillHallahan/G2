@@ -99,6 +99,7 @@ library
                        , G2.QuasiQuotes.Support
 
                        , G2.Translation
+                       , G2.Translation.Cabal.Cabal
   other-modules:         G2.Config.Config
                        , G2.Config.Interface
                        , G2.Config.ParseConfig
@@ -136,6 +137,7 @@ library
                        , G2.Translation.TransTypes
 
   build-depends:         array
+                       , Cabal
                        , base >= 4.8 && < 5
                        , bytestring
                        , containers >= 0.5 && < 0.6
