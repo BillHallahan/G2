@@ -118,7 +118,7 @@ equivMods = HM.fromList
             , ("Data.Map.Base", "Data.Map")]
 
 
-loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> G2.TranslationConfig -> G2.Config -> Ghc SuccessFlag
+loadProj ::  Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> G2.Config -> Ghc SuccessFlag
 loadProj hsc proj src gflags tr_con config = do
     beta_flags <- getSessionDynFlags
     let gen_flags = gflags
@@ -132,32 +132,33 @@ loadProj hsc proj src gflags tr_con config = do
                              , ghcLink = LinkInMemory
                              , ghcMode = CompManager
                              , includePaths = includePaths beta_flags'
-                             , importPaths = proj : G2.extraPaths config
+                             , importPaths = proj ++ G2.extraPaths config
 
                              , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
-                             , hpcDir = proj}
+                             , hpcDir = head proj}
 
     
 
     _ <- setSessionDynFlags dflags
-    target <- guessTarget src Nothing
-    _ <- setTargets [target]
+    targets <- mapM (flip guessTarget Nothing) src
+    _ <- setTargets targets
     load LoadAllTargets
 
 
 
 -- Compilation pipeline with CgGuts
 hskToG2ViaCgGutsFromFile :: Maybe HscTarget
-  -> [(FilePath, FilePath)]
+  -> [FilePath]
+  -> [FilePath]
   -> G2.NameMap
   -> G2.TypeNameMap
   -> G2.TranslationConfig
   -> G2.Config
   -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaCgGutsFromFile hsc projsrc nm tm tr_con config = do
-  closures <- mkCgGutsModDetailsClosuresFromFile hsc projsrc tr_con config
+hskToG2ViaCgGutsFromFile hsc proj src nm tm tr_con config = do
+  closures <- mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con config
   return $ hskToG2ViaCgGuts nm tm closures tr_con config
 
 
@@ -193,13 +194,14 @@ cgGutsModDetailsClosureToModGutsClosure cg md =
 
 
 mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget
-  -> [(FilePath, FilePath)]
+  -> [FilePath]
+  -> [FilePath]
   -> G2.TranslationConfig 
   -> G2.Config
   -> IO [(G2.CgGutsClosure, G2.ModDetailsClosure)]
-mkCgGutsModDetailsClosuresFromFile hsc projsrc tr_con config = do
+mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con config = do
   (env, modgutss) <- runGhc (Just libdir) $ do
-      _ <- mapM (\(proj, src) -> loadProj hsc proj src [] tr_con config) projsrc
+      _ <- loadProj hsc proj src [] tr_con config
       env <- getSession
 
       mod_graph <- getModuleGraph
@@ -239,8 +241,8 @@ mkModDetailsClosure deps moddet =
 
 -- Compilation pipeline with ModGuts
 hskToG2ViaModGutsFromFile :: Maybe HscTarget
-  -> FilePath
-  -> FilePath
+  -> [FilePath]
+  -> [FilePath]
   -> G2.NameMap
   -> G2.TypeNameMap
   -> G2.TranslationConfig
@@ -312,8 +314,8 @@ modGutsClosureToG2 nm tm mgcc tr_con config =
   
 
 mkModGutsClosuresFromFile :: Maybe HscTarget
-  -> FilePath
-  -> FilePath
+  -> [FilePath]
+  -> [FilePath]
   -> G2.TranslationConfig
   -> G2.Config
   -> IO [G2.ModGutsClosure]

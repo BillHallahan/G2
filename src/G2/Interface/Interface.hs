@@ -239,8 +239,8 @@ mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
 
-initialStateFromFileSimple :: FilePath
-                   -> FilePath
+initialStateFromFileSimple :: [FilePath]
+                   -> [FilePath]
                    -> [FilePath]
                    -> StartFunc
                    -> MkCurrExpr
@@ -249,8 +249,8 @@ initialStateFromFileSimple :: FilePath
 initialStateFromFileSimple proj src libs f mkCurr config =
     initialStateFromFile proj src libs Nothing False f mkCurr config
 
-initialStateFromFile :: FilePath
-                     -> FilePath
+initialStateFromFile :: [FilePath]
+                     -> [FilePath]
                      -> [FilePath]
                      -> Maybe ReachFunc
                      -> Bool
@@ -266,8 +266,8 @@ initialStateFromFile proj src libs m_reach def_assert f mkCurr config = do
 
     return (reaches_state, ent_f, bindings)
 
-runG2FromFile :: FilePath
-              -> FilePath
+runG2FromFile :: [FilePath]
+              -> [FilePath]
               -> [FilePath]
               -> Maybe AssumeFunc
               -> Maybe AssertFunc

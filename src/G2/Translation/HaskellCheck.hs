@@ -26,12 +26,12 @@ import Control.Exception
 
 import System.Process
 
-validateStates :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
+validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
 validateStates proj src modN entry chAll ghflags in_out = do
     return . all id =<< mapM (runCheck proj src modN entry chAll ghflags) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> IO Bool
+runCheck :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> IO Bool
 runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     homedir <- getHomeDirectory
     (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s ars out homedir)
@@ -47,7 +47,7 @@ runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args =
 
     return $ v'' && and chAllR''
 
-runCheck' :: FilePath -> FilePath -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> FilePath -> Ghc (HValue, [HValue])
+runCheck' :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> FilePath -> Ghc (HValue, [HValue])
 runCheck' proj src modN entry chAll gflags s ars out homedir = do
         let config = mkConfig homedir [] M.empty
         _ <- loadProj Nothing proj src gflags simplTranslationConfig config

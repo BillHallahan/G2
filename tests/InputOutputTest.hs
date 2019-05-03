@@ -20,9 +20,9 @@ import Reqs
 import TestUtils
 
 checkInputOutput :: FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
-checkInputOutput src md entry stps i req = checkInputOutputWithConfig src md entry i req (mkConfigTest {steps = stps})
+checkInputOutput src md entry stps i req = checkInputOutputWithConfig [src] md entry i req (mkConfigTest {steps = stps})
 
-checkInputOutputWithConfig :: FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
+checkInputOutputWithConfig :: [FilePath] -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
 checkInputOutputWithConfig src md entry i req config = do
     r <- doTimeout (timeLimit config) $ checkInputOutput' src md entry i req config
 
@@ -31,9 +31,9 @@ checkInputOutputWithConfig src md entry i req config = do
             Just (Left e') -> (False, "\n" ++ show e')
             Just (Right (b', _)) -> (b', "")
 
-    return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
+    return . testCase (show src) $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
 
-checkInputOutput' :: FilePath 
+checkInputOutput' :: [FilePath] 
                   -> String 
                   -> String 
                   -> Int 
@@ -42,7 +42,7 @@ checkInputOutput' :: FilePath
                   -> IO (Either SomeException (Bool, [ExecRes ()]))
 checkInputOutput' src md entry i req config = try (checkInputOutput'' src md entry i req config)
 
-checkInputOutput'' :: FilePath 
+checkInputOutput'' :: [FilePath] 
                    -> String 
                    -> String 
                    -> Int 
@@ -50,7 +50,7 @@ checkInputOutput'' :: FilePath
                    -> Config 
                    -> IO (Bool, [ExecRes ()])
 checkInputOutput'' src md entry i req config = do
-    let proj = takeDirectory src
+    let proj = map takeDirectory src
     (mb_modname, exg2) <- translateLoaded proj src [] simplTranslationConfig config
 
     let (init_state, _, bindings) = initState exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) config
@@ -68,10 +68,10 @@ checkInputOutput'' src md entry i req config = do
 
 ------------
 
-checkInputOutputLH :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
+checkInputOutputLH :: [FilePath] -> [FilePath] -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
 checkInputOutputLH proj src md entry stps i req = checkInputOutputLHWithConfig proj src md entry i req (mkConfigTest {steps = stps})
 
-checkInputOutputLHWithConfig :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
+checkInputOutputLHWithConfig :: [FilePath] -> [FilePath] -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
 checkInputOutputLHWithConfig proj src md entry i req config = do
     r <- doTimeout (timeLimit config) $ checkInputOutputLH' proj src md entry i req config
 
@@ -79,12 +79,12 @@ checkInputOutputLHWithConfig proj src md entry i req config = do
             Just (Right b') -> b'
             _ -> False
 
-    return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b
+    return . testCase (show src) $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b
 
-checkInputOutputLH' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO (Either SomeException Bool)
+checkInputOutputLH' :: [FilePath] -> [FilePath] -> String -> String -> Int -> [Reqs String] -> Config -> IO (Either SomeException Bool)
 checkInputOutputLH' proj src md entry i req config = try (checkInputOutputLH'' proj src md entry i req config)
 
-checkInputOutputLH'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO Bool
+checkInputOutputLH'' :: [FilePath] -> [FilePath] -> String -> String -> Int -> [Reqs String] -> Config -> IO Bool
 checkInputOutputLH'' proj src md entry i req config = do
     ((r, _), _) <- findCounterExamples proj src (T.pack entry) [] [] config
 

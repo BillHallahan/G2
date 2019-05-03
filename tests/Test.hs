@@ -524,7 +524,7 @@ testFileWithConfig :: String
                    -> IO [([Expr], Expr)]
 testFileWithConfig src m_assume m_assert m_reaches entry config = do
     let proj = takeDirectory src
-    r <- doTimeout (timeLimit config) $ runG2FromFile proj src [] (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) config
+    r <- doTimeout (timeLimit config) $ runG2FromFile [proj] [src] [] (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) config
 
     let (states, _) = maybe (error "Timeout") fst r
     return $ map (\(ExecRes { conc_args = i, conc_out = o}) -> (i, o)) states 
@@ -590,7 +590,7 @@ findCounterExamples' fp entry libs lhlibs config =
     let
         proj = takeDirectory fp
     in
-    doTimeout (timeLimit config) $ try (return . fst. fst =<< findCounterExamples proj fp entry libs lhlibs config)
+    doTimeout (timeLimit config) $ try (return . fst. fst =<< findCounterExamples [proj] [fp] entry libs lhlibs config)
 
 errors :: [Expr] -> Bool
 errors e =

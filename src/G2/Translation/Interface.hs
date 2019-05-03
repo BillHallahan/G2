@@ -55,12 +55,11 @@ translateLibPairs :: NameMap
   -> IO (ExtractedG2, NameMap, TypeNameMap)
 translateLibPairs nm tnm _ _ exg2 _ [] = return (exg2, nm, tnm)
 translateLibPairs nm tnm tr_con config exg2 hsc ((p, f) : pairs) = do
-  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc [(p, f)] nm tnm tr_con config
+  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc [p] [f] nm tnm tr_con config
   translateLibPairs new_nm new_tnm tr_con config (mergeExtractedG2s [exg2, exg2']) hsc pairs
 
-
-translateLoaded :: FilePath
-  -> FilePath
+translateLoaded :: [FilePath]
+  -> [FilePath]
   -> [FilePath]
   -> TranslationConfig
   -> Config
@@ -82,8 +81,8 @@ translateLoaded proj src libs tr_con config = do
   let merged_lib = mergeExtractedG2s ([base_trans', lib_transs])
 
   -- Now the stuff with the actual target
-  let projsrc = extraDefaultMods config ++ [(proj, src)]
-  (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) projsrc lib_nm lib_tnm tr_con config
+  let (def_proj, def_src) = unzip $ extraDefaultMods config
+  (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) (def_proj ++ proj) (def_src ++ src) lib_nm lib_tnm tr_con config
   let mb_modname = listToMaybe $ exg2_mod_names exg2
   let h_exp = exg2_exports exg2
 
@@ -106,8 +105,8 @@ translateLoaded proj src libs tr_con config = do
 
   return (mb_modname, final_exg2)
 
-translateLoadedD :: FilePath
-  -> FilePath
+translateLoadedD :: [FilePath]
+  -> [FilePath]
   -> [FilePath]
   -> TranslationConfig
   -> Config
@@ -118,7 +117,7 @@ translateLoadedD proj src libs tr_con config = do
   (nm, tnm, libs_g2) <- mapM readFileExtractedG2 libs >>= return . mergeFileExtractedG2s
 
   -- Now do the target file
-  (nm2, tnm2, tgt_g2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) [(proj, src)] nm tnm tr_con config
+  (nm2, tnm2, tgt_g2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) proj src nm tnm tr_con config
 
   -- Combine the library g2 and extracted g2s
   -- Also do absVarLoc!

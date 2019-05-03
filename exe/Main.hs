@@ -57,7 +57,7 @@ runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> 
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   _ <- doTimeout (timeLimit config) $ do
-    ((in_out, b), entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
+    ((in_out, b), entry) <- findCounterExamples [proj] [lhfile] (T.pack lhfun) libs lhlibs config
     printLHOut entry in_out
   return ()
 
@@ -86,7 +86,7 @@ runWithArgs as = do
   config <- getConfig as
   _ <- doTimeout (timeLimit config) $ do
     ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
-        runG2FromFile proj src libs (fmap T.pack m_assume)
+        runG2FromFile [proj] [src] libs (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry config
@@ -99,7 +99,7 @@ runWithArgs as = do
 
     case validate config of
         True -> do
-            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
+            r <- validateStates [proj] [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out

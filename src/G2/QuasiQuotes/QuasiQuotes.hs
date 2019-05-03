@@ -148,7 +148,7 @@ parseHaskellIO mods qext = do
                 -- putStrLn $ "HELLO FROM: " ++ proj
                 -- putStrLn $ "FILEPATH IS: " ++ filepath
                 config <- qqConfig
-                translateLoaded (proj ++ "/quasiquote") filepath []
+                translateLoaded [proj ++ "/quasiquote"] [filepath] []
                     simplTranslationConfig
                     config)
                     -- (mkConfigDef { extraPaths = [cwd'] }))
