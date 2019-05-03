@@ -65,11 +65,14 @@ parseHaskellQ str = do
 
     -- Get names for the lambdas for the regular inputs
     exG2 <- parseHaskellQ' qext
-    ex_out <- runExecutionQ exG2
+    config <- runIO qqConfig
+    let (init_s, _, init_b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
+                                        (mkCurrExpr Nothing Nothing) config
 
+    ex_out <- runExecutionQ init_s init_b config
 
     state_name <- newName "state"
-    tenv_name <- newName "tenv"
+    tenv_name <- newName "tenv_parse"
     cleaned_names_name <- newName "cleaned"
     bindings_name <- newName "bindings"
 
@@ -86,7 +89,16 @@ parseHaskellQ str = do
                         ars = extractArgs (inputIds s b'') (cleaned_names b'') tenv_name sol
 
                     return (foldr (\n -> lamE [n]) ars ns_pat, xs'', type_env s, b'')
-                ([], _) -> return (foldr (\n -> lamE [n]) [| return Nothing |] ns_pat, [| return [] |], M.empty, b)
+                ([], _) ->
+                    let
+                        b = init_b { input_names = drop (length regs) (input_names init_b) }
+                        ts = map (toTHType (cleaned_names b) . Ty.typeOf) $ inputIds init_s b
+                        tup_t = foldr appT (tupleT (length ts)) ts
+                    in
+                    return (foldr (\n -> lamE [n]) [| return (Nothing :: $(tup_t)) |] ns_pat
+                                  , [| return [] :: IO [State ()] |]
+                                  , M.empty
+                                  , b)
         NonCompleted s b -> do
             let (s', b') = elimUnusedNonCompleted s b
 
@@ -104,7 +116,7 @@ parseHaskellQ str = do
 
             -- foldr (\n -> lamE [n]) [|do putStrLn "NONCOMPLETED"; return Nothing;|] ns_pat
 
-    let tenv_exp = liftDataT tenv
+    let tenv_exp = liftDataT tenv `sigE` [t| TypeEnv |]
         bindings_exp = liftDataT (bindings_final { name_gen = mkNameGen ()})
         bindings_ng_exp = [| $(bindings_exp) { name_gen = mkNameGen ($(state_exp), $(bindings_exp))} |]
 
@@ -184,13 +196,10 @@ parseHaskellIO mods qext = do
 data ExecOut = Completed [State ()] Bindings
              | NonCompleted (State ()) Bindings
 
-runExecutionQ :: ExtractedG2 -> Q ExecOut
-runExecutionQ exG2 = do
-  config <- runIO qqConfig
+runExecutionQ :: State () -> Bindings -> Config -> Q ExecOut
+runExecutionQ s b config = do
   runIO $ do
-    let (s, _, b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
-                                        (mkCurrExpr Nothing Nothing) config
-        (s', b') = addAssume s b
+    let (s', b') = addAssume s b
     
     SomeSolver con <- initSolverInfinite config
     case qqRedHaltOrd con of

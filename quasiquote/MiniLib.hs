@@ -26,3 +26,17 @@ headInf (InfCons x _) = x
 
 tailInf :: InfList a -> InfList a
 tailInf (InfCons x xs) = xs
+
+
+data Expr
+  = I Int
+  | Add Expr Expr
+  deriving (Eq, Show, Data)
+
+$(derivingG2Rep ''Expr)
+
+
+eval :: Expr -> Expr
+eval (Add e1 e2) = error $ "eval: Add"
+
+

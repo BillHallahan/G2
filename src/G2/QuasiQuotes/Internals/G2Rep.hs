@@ -71,7 +71,7 @@ genG2RepClause _ _ con = error $ "genG2RepClause: Unhandled case." ++ show con
 
 genG2RepClause' :: TH.Name -> [TyVarBndr] -> TH.Name -> [StrictType] -> Q Clause
 genG2RepClause' tyConName tyVars dcNme fieldTypes = do
-    tenv <- newName "tenv"
+    tenv <- newName "tenv_rep"
     cleaned <- newName "cleaned"
     fieldNames <- replicateM (length fieldTypes) (newName "x")
 
@@ -148,7 +148,7 @@ genG2UnRepClause _ _ con = error $ "genG2RepClause: Unhandled case." ++ show con
 
 genG2UnRepClause' :: TH.Name -> Int -> TH.Name -> [StrictType] -> Q Clause
 genG2UnRepClause' tyConName tyVarNum dcNme fieldTypes = do
-    tenv <- newName "tenv"
+    tenv <- newName "tenv_unrep"
     expr <- newName "expr"
 
     let pats = varP tenv:[varP expr]
@@ -188,7 +188,7 @@ genG2Type tyConName tyVars = funD 'g2Type [genG2TypeClause tyConName tyVars]
 
 genG2TypeClause :: TH.Name -> [TyVarBndr] -> Q Clause
 genG2TypeClause tyConName tyVars = do
-    tenv <- newName "tenv"
+    tenv <- newName "tenv_type"
     cleaned <- newName "cleaned"
     let pats = [varP tenv, varP cleaned, wildP]
 
