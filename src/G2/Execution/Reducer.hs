@@ -601,7 +601,8 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
         in
         case jrs of
             Just (rs', xs') -> do
-                runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+                switchState red hal ord pr' rs' b xs'
+                -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
             Nothing -> return (pr', b)
     | hc == Discard =
         let
@@ -609,7 +610,9 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
             jrs = minState xs
         in
         case jrs of
-            Just (rs', xs') -> runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+            Just (rs', xs') ->
+                switchState red hal ord pr' rs' b xs'
+                -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
             Nothing -> return (pr', b)
     | hc == Switch =
         let
@@ -617,12 +620,11 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
             rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
 
             Just (rs'', xs') = minState (M.insertWith (++) k [rs'] xs)
-            
-            rs''' = rs'' { halter_val = updatePerStateHalt hal (halter_val rs'') ps (state rs'') }
         in
-        if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
-            then runReducer' red hal ord pr rs''' b xs'
-            else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
+        switchState red hal ord pr rs'' b xs'
+        -- if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
+        --     then runReducer' red hal ord pr rs''' b xs'
+        --     else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
     | otherwise = do
         (_, reduceds, b', red') <- redRules red r_val s b
         let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
@@ -639,6 +641,24 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
     where
         hc = stopRed hal h_val ps s
         ps = processedToState pr
+
+switchState :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
+            => r
+            -> h
+            -> or
+            -> Processed (ExState rv hv sov t) 
+            -> ExState rv hv sov t 
+            -> Bindings
+            -> M.Map b [ExState rv hv sov t] 
+            -> IO (Processed (ExState rv hv sov t), Bindings)
+switchState red hal ord  pr rs b xs
+    | not $ discardOnStart hal (halter_val rs') ps (state rs') =
+        runReducer' red hal ord pr rs' b xs
+    | otherwise =
+        runReducerList red hal ord (pr {discarded = rs':discarded pr}) xs b
+    where
+        ps = processedToState pr
+        rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) ps (state rs) }
 
 runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
                => r 
