@@ -670,19 +670,8 @@ runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                -> IO (Processed (ExState rv hv sov t), Bindings)
 runReducerList red hal ord pr m binds =
     case minState m of
-        Just (x, m') -> runReducer' red hal ord pr x binds m'
+        Just (x, m') -> switchState red hal ord pr x binds m'
         Nothing -> return (pr, binds)
-
-updateExStateHalter :: Halter h hv t
-                    => h
-                    -> Processed (ExState rv hv sov t)
-                    -> ExState rv hv sov t
-                    -> ExState rv hv sov t
-updateExStateHalter hal proc es@ExState {state = s, halter_val = hv} =
-    let
-        hv' = updatePerStateHalt hal hv (processedToState proc) s
-    in
-    es {halter_val = hv'}
 
 processedToState :: Processed (ExState rv hv sov t) -> Processed (State t)
 processedToState (Processed {accepted = app, discarded = dis}) =
