@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -205,7 +207,7 @@ runExecutionQ s b config = do
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
-                hal' = hal :<~> ZeroHalter 2000
+                hal' = hal :<~> ZeroHalter 2000 :<~> LemmingsHalter
             (xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
 
             case xs of
@@ -219,6 +221,16 @@ runExecutionQ s b config = do
         trueCurrExpr (State { curr_expr = CurrExpr _ e
                             , known_values = kv }) = e == mkTrue kv
         _ = False
+
+-- | As soon as one States has been discarded, discard all States
+data LemmingsHalter = LemmingsHalter
+
+instance Halter LemmingsHalter () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+    discardOnStart _ _ pr _ = not . null . discarded $ pr
+    stopRed _ _ _ _ = Continue
+    stepHalter _ _ _ _ = ()
 
 fileName :: String
 fileName = "THTemp.hs"
@@ -387,4 +399,3 @@ qqConfig :: IO Config
 qqConfig = do
   homedir <- getHomeDirectory
   return $ mkConfig homedir [] M.empty
-
