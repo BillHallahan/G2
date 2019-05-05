@@ -39,6 +39,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , MaxOutputsHalter (..)
                             , SwitchEveryNHalter (..)
                             , RecursiveCutOff (..)
+                            , VarLookupLimit (..)
 
                             -- Orderers
                             , NextOrderer (..)
@@ -552,6 +553,24 @@ instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
         if not (S.null ns) then Discard else Continue
 
     stepHalter _ hv _ _ = hv
+
+-- | Counts the number of variable lookups are made, and switches the state
+-- whenever we've hit a threshold
+
+data VarLookupLimit = VarLookupLimit Int
+
+instance Halter VarLookupLimit Int t where
+    initHalt (VarLookupLimit lim) _ = lim
+    updatePerStateHalt (VarLookupLimit lim) _ _ _ = lim
+    stopRed _ lim _ _ = if lim <= 0 then Switch else Continue
+    stepHalter _ lim _ s@(State { rules = rules })
+      | RuleEvalVal : _ <- rules = lim - 1
+      | (RuleEvalVarVal _) : _ <- rules = lim - 1
+      | (RuleEvalVarNonVal _) : _ <- rules = lim - 1
+      | otherwise = lim
+
+
+
 
 data NextOrderer = NextOrderer
 
