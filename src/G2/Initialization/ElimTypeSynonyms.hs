@@ -8,7 +8,7 @@ import G2.Language
 import qualified Data.Map as M
 
 elimTypeSyms :: ASTContainer m Type => TypeEnv -> m -> m
-elimTypeSyms tenv = modifyASTs (elimTypeSyms' tenv)
+elimTypeSyms tenv = modifyASTsFix (elimTypeSyms' tenv)
 
 elimTypeSyms' :: TypeEnv -> Type -> Type
 elimTypeSyms' tenv t

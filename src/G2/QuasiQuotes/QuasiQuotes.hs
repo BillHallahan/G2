@@ -349,8 +349,8 @@ executeAndSolveStates' b s = do
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
             let hal' = hal :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
-            -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
-            (res, _) <- runG2Post red hal' (CaseCountOrderer :<-> BucketSizeOrderer 3) con s b
+            (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
+            -- (res, _) <- runG2Post red hal' (CaseCountOrderer :<-> BucketSizeOrderer 3) con s b
             case res of
                 exec_res:_ -> return $ Just exec_res
                 _ -> return Nothing
