@@ -195,6 +195,7 @@ scc' (n:ns) pc newpc =
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap
 
+isPCExists :: PathCond -> Bool
 isPCExists (PCExists _) = True
 isPCExists _ = False
 
