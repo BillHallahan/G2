@@ -110,7 +110,7 @@ findConsistent''' dcs ((ConsCond dc _ True):pc) =
     findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
 findConsistent''' dcs ((ConsCond  dc _ False):pc) =
     findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
-findConsistent''' dcs (PCExists _:pc) = findConsistent''' dcs pc
+-- findConsistent''' dcs (PCExists _:pc) = findConsistent''' dcs pc
 findConsistent''' dcs [] = Just dcs
 findConsistent''' _ _ = Nothing
 
@@ -124,7 +124,7 @@ solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
     , ts <- tyAppArgs t
     , t /= tyBool (known_values s)  =
     do
-        let (r, s', _) = addADTs avf n tn ts k s b pc
+        let (r, s', _) = addADTs avf n tn ts k s b (PC.filter (not . isPCExists) pc)
 
         case r of
             SAT -> return (r, Just . liftCasts $ model s')
@@ -176,7 +176,6 @@ isExtCond _ = False
 pcVarType :: TypeEnv -> [PathCond] -> Maybe Type
 pcVarType tenv (AltCond _ (Var (Id _ t)) _:pc) = pcVarType' t tenv pc
 pcVarType tenv (ConsCond _ (Var (Id _ t)) _:pc) = pcVarType' t tenv pc
-pcVarType tenv (PCExists (Id _ t):pc) = pcVarType' (typeStripCastType tenv t) tenv pc
 pcVarType tenv _ = Nothing
 
 pcVarType' :: Type -> TypeEnv -> [PathCond] -> Maybe Type
@@ -184,11 +183,6 @@ pcVarType' t tenv (AltCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t tenv pc else Nothing
 pcVarType' t tenv (ConsCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t tenv pc else Nothing
-pcVarType' t tenv (PCExists (Id _ t'):pc) =
-    let
-        t'' = typeStripCastType tenv t'
-    in
-    if t == t'' then pcVarType' t tenv pc else Nothing
 pcVarType' n _ [] = Just n
 pcVarType' _ _ _ = Nothing
 
