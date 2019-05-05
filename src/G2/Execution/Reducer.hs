@@ -465,7 +465,7 @@ instance Halter AcceptHalter () t where
         case isExecValueForm s && true_assert s of
             True -> Accept
             False -> Continue
-    stepHalter _ _ _ _ = ()
+    stepHalter _ _ _ s = ()
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
 data ZeroHalter = ZeroHalter Int
@@ -561,16 +561,11 @@ data VarLookupLimit = VarLookupLimit Int
 
 instance Halter VarLookupLimit Int t where
     initHalt (VarLookupLimit lim) _ = lim
-    updatePerStateHalt (VarLookupLimit lim) _ _ _ = lim
+    updatePerStateHalt (VarLookupLimit lim) _ _ s = lim
     stopRed _ lim _ _ = if lim <= 0 then Switch else Continue
-    stepHalter _ lim _ s@(State { rules = rules })
-      | RuleEvalVal : _ <- rules = lim - 1
-      | (RuleEvalVarVal _) : _ <- rules = lim - 1
-      | (RuleEvalVarNonVal _) : _ <- rules = lim - 1
-      | otherwise = lim
 
-
-
+    stepHalter _ lim _ s@(State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
+    stepHalter _ lim _ _ = lim
 
 data NextOrderer = NextOrderer
 
@@ -674,11 +669,12 @@ switchState red hal ord  pr rs b xs
     | not $ discardOnStart hal (halter_val rs') ps (state rs') =
         runReducer' red hal ord pr rs' b xs
     | otherwise =
-        runReducerList red hal ord (pr {discarded = rs':discarded pr}) xs b
+        runReducerListSwitching red hal ord (pr {discarded = rs':discarded pr}) xs b
     where
         ps = processedToState pr
         rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) ps (state rs) }
 
+-- To be used when we we need to select a state without switching 
 runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
                => r 
                -> h 
@@ -688,6 +684,20 @@ runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                -> Bindings
                -> IO (Processed (ExState rv hv sov t), Bindings)
 runReducerList red hal ord pr m binds =
+    case minState m of
+        Just (x, m') -> runReducer' red hal ord pr x binds m'
+        Nothing -> return (pr, binds)
+
+-- To be used when we are possibly switching states 
+runReducerListSwitching :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
+                        => r 
+                        -> h 
+                        -> or 
+                        -> Processed (ExState rv hv sov t)
+                        -> M.Map b [ExState rv hv sov t]
+                        -> Bindings
+                        -> IO (Processed (ExState rv hv sov t), Bindings)
+runReducerListSwitching red hal ord pr m binds =
     case minState m of
         Just (x, m') -> switchState red hal ord pr x binds m'
         Nothing -> return (pr, binds)
