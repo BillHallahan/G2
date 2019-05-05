@@ -57,7 +57,7 @@ runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> 
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   _ <- doTimeout (timeLimit config) $ do
-    ((in_out, b), entry) <- findCounterExamples [proj] [lhfile] (T.pack lhfun) libs lhlibs config
+    ((in_out, b), entry) <- findCounterExamples [proj] [] (T.pack lhfun) libs lhlibs config
     printLHOut entry in_out
   return ()
 

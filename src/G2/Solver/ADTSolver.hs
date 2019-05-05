@@ -11,6 +11,7 @@ import G2.Language.ArbValueGen
 import G2.Language.Casts
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
+import G2.Language.Ids
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
@@ -35,17 +36,19 @@ adtSolverInfinite :: ADTSolver
 adtSolverInfinite = ADTSolver arbValueInfinite
 
 instance Solver ADTSolver where
-    check _ s = return . checkConsistency (known_values s) (type_env s)
-    solve (ADTSolver avf) s b is = solveADTs avf s b (nub is)
+    check _ s = return .checkConsistency (known_values s) (expr_env s) (type_env s)
+    solve (ADTSolver avf) s b is = solveADTs avf s b (nub is) 
 
 -- | Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
 -- and Nothing if it can't decide.
-checkConsistency :: KnownValues -> TypeEnv -> PathConds -> Result
-checkConsistency kv tenv pc = maybe 
-                                (Unknown "Non-ADT path constraints") 
-                                (\me -> if not (Pre.null me) then SAT else UNSAT) 
-                                $ findConsistent kv tenv pc
+checkConsistency :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Result
+checkConsistency kv eenv tenv pc
+    | all PC.isPCExists $ PC.toList pc = SAT
+    | otherwise =
+        maybe (Unknown "Non-ADT path constraints") 
+              (\me -> if not (Pre.null me) then SAT else UNSAT) 
+              $ findConsistent kv eenv tenv $ PC.filter (not . PC.isPCExists) pc
 
 -- | Attempts to find expressions (Data d) or (Coercion (Data d), (t1 :~ t2)) consistent with the given path
 -- constraints.  Returns Just [...] if it can determine [...] are consistent.
@@ -53,21 +56,21 @@ checkConsistency kv tenv pc = maybe
 -- determined if there were any consistent data constructors.
 -- In practice, the result should always be Just [...] if all the path conds
 -- are about ADTs.
-findConsistent :: KnownValues -> TypeEnv -> PathConds -> Maybe [Expr]
-findConsistent kv tenv = fmap fst . findConsistent' kv tenv
+findConsistent :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Maybe [Expr]
+findConsistent kv eenv tenv = fmap fst . findConsistent' kv eenv tenv
 
 head' :: [a] -> Maybe a
 head' (x:_) = Just x
 head' _ = Nothing
 
-findConsistent' :: KnownValues -> TypeEnv -> PathConds -> Maybe ([Expr], [(Id, Type)])
-findConsistent' kv tenv pc =
+findConsistent' :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Maybe ([Expr], [(Id, Type)])
+findConsistent' kv eenv tenv pc =
     let
         pc' = unsafeElimCast $ toList pc
 
         -- Adding Coercions
-        pcNT = fmap pcInCastType . head' $ toList pc
-        cons = findConsistent'' tenv pc'
+        pcNT = fmap (pcInCastType tenv) . head' $ toList pc
+        cons = findConsistent'' kv tenv eenv pc'
     in
     case cons of
         Just (cons', bi) ->
@@ -79,17 +82,25 @@ findConsistent' kv tenv pc =
             if any isExtCond pc' || pcNT == Just (tyBool kv) then Nothing else Just (cons'', bi)
         Nothing -> Nothing
 
-findConsistent'' :: TypeEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
-findConsistent'' tenv pc =
+findConsistent'' :: KnownValues -> TypeEnv -> ExprEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
+findConsistent'' kv tenv eenv pc =
     let
-        t = pcVarType pc
+        is = nub . map (\(Id n t) -> Id n (typeStripCastType tenv t)) $ concatMap (varIdsInPC kv) pc
+
+        t = pcVarType tenv pc
         cons = maybe Nothing (flip getCastedAlgDataTy tenv) t
     
     in
-    case cons of 
-        Just (DataTyCon _ dc, bi) ->
+    case (cons, is) of 
+        (Just (DataTyCon _ dc, bi), [i]) ->
             let
-                cons' = fmap (map Data) $ findConsistent''' dc pc
+                dc' = case E.lookup (idName i) eenv of
+                        Just e
+                            | Data spec_dc:_ <- unApp e -> [spec_dc]
+                        r -> dc
+                
+
+                cons' = fmap (map Data) $ findConsistent''' dc' pc
             in
             maybe Nothing (Just . (, bi)) cons'
         _ -> Nothing
@@ -99,11 +110,14 @@ findConsistent''' dcs ((ConsCond dc _ True):pc) =
     findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
 findConsistent''' dcs ((ConsCond  dc _ False):pc) =
     findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
+findConsistent''' dcs (PCExists _:pc) = findConsistent''' dcs pc
 findConsistent''' dcs [] = Just dcs
 findConsistent''' _ _ = Nothing
 
 solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
-solveADTs avf s b [Id n t] pc
+solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
+    | not $ E.isSymbolic n eenv
+    , Just e <- E.lookup n eenv = return (SAT, Just . liftCasts $ M.insert n e m )
     -- We can't use the ADT solver when we have a Boolean, because the RHS of the
     -- DataAlt might be a primitive.
     | TyCon tn k <- tyAppCenter t
@@ -127,7 +141,7 @@ addADTs avf n tn ts k s b pc
             m' = M.singleton n bse
         in
         (SAT, (s {model = M.union m' (model s)}), (b {arb_value_gen = av}))
-    | Just (dcs@(fdc:_), bi) <- findConsistent' (known_values s) (type_env s) pc =
+    | Just (dcs@(fdc:_), bi) <- findConsistent' (known_values s) (expr_env s) (type_env s) pc =
     let        
         eenv = expr_env s
         ts2 = map snd bi
@@ -159,24 +173,30 @@ isExtCond :: PathCond -> Bool
 isExtCond (ExtCond _ _) = True
 isExtCond _ = False
 
-pcVarType :: [PathCond] -> Maybe Type
-pcVarType (AltCond _ (Var (Id _ t)) _:pc) = pcVarType' t pc
-pcVarType (ConsCond _ (Var (Id _ t)) _:pc) = pcVarType' t pc
-pcVarType _ = Nothing
+pcVarType :: TypeEnv -> [PathCond] -> Maybe Type
+pcVarType tenv (AltCond _ (Var (Id _ t)) _:pc) = pcVarType' t tenv pc
+pcVarType tenv (ConsCond _ (Var (Id _ t)) _:pc) = pcVarType' t tenv pc
+pcVarType tenv (PCExists (Id _ t):pc) = pcVarType' (typeStripCastType tenv t) tenv pc
+pcVarType tenv _ = Nothing
 
-pcVarType' :: Type -> [PathCond] -> Maybe Type
-pcVarType' t (AltCond _ (Var (Id _ t')) _:pc) =
-    if t == t' then pcVarType' t pc else Nothing
-pcVarType' t (ConsCond _ (Var (Id _ t')) _:pc) =
-    if t == t' then pcVarType' t pc else Nothing
-pcVarType' n [] = Just n
-pcVarType' _ _ = Nothing
+pcVarType' :: Type -> TypeEnv -> [PathCond] -> Maybe Type
+pcVarType' t tenv (AltCond _ (Var (Id _ t')) _:pc) =
+    if t == t' then pcVarType' t tenv pc else Nothing
+pcVarType' t tenv (ConsCond _ (Var (Id _ t')) _:pc) =
+    if t == t' then pcVarType' t tenv pc else Nothing
+pcVarType' t tenv (PCExists (Id _ t'):pc) =
+    let
+        t'' = typeStripCastType tenv t'
+    in
+    if t == t'' then pcVarType' t tenv pc else Nothing
+pcVarType' n _ [] = Just n
+pcVarType' _ _ _ = Nothing
 
-pcInCastType :: PathCond -> Type
-pcInCastType (AltCond _ e _) = typeInCasts e
-pcInCastType (ExtCond e _) = typeInCasts e
-pcInCastType (ConsCond _ e _) = typeInCasts e
-pcInCastType (PCExists (Id _ t)) = t
+pcInCastType :: TypeEnv -> PathCond -> Type
+pcInCastType _ (AltCond _ e _) = typeInCasts e
+pcInCastType _ (ExtCond e _) = typeInCasts e
+pcInCastType _ (ConsCond _ e _) = typeInCasts e
+pcInCastType tenv (PCExists (Id _ t)) = typeStripCastType tenv t
 
 castReturnType :: Type -> Expr -> Expr
 castReturnType t e =
