@@ -388,6 +388,9 @@ testFileTests =
                 , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "capABC" 150 2 [AtLeast 10]
                 , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "appendEq" 500 2 [AtLeast 5]
                 , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 Nothing Nothing "exclaimEq" 3 [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
+                
+                , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "f" 400 2 [AtLeast 5]
+                , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "g" 400 2 [AtLeast 3]
                 -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 4 [AtLeast 1]
                 -- , checkExpr "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [ AtLeast 2
     --                                                                                                                   , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))

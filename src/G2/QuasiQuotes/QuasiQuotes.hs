@@ -347,7 +347,7 @@ executeAndSolveStates' b s = do
     SomeSolver con <- initSolverInfinite config
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, _) -> do
-            let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
+            let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 500
             (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
             case res of
                 exec_res:_ -> return $ Just exec_res

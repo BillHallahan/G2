@@ -230,7 +230,7 @@ initSolverInfinite con = initSolver' arbValueInfinite con
 initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
-    let con' = GroupRelated avf (ADTSolver avf :?> con)
+    let con' = GroupRelated avf (UndefinedHigherOrder :?> ADTSolver avf :?> con)
     return (SomeSolver con')
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv

@@ -96,15 +96,21 @@ reduceNewPC solver
                                       , path_conds = spc })
                    , new_pcs = pc })
     | not (null pc) = do
+        -- In the case of newtypes, the PC exists we get may have the correct name
+        -- but incorrect type.
+        -- We do not want to add these to the State
+        -- This is a bit ugly, but not a huge deal, since the State already has PCExists
+        let pc' = filter (not . PC.isPCExists) pc
+
         -- Optimization
         -- We replace the path_conds with only those that are directly
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr (PC.insert kv) spc $ pc
+        let new_pc = foldr (PC.insert kv) spc $ pc'
             s' = s { path_conds = new_pc}
 
-        let rel_pc = PC.relevant kv pc new_pc
+        let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant kv pc new_pc
 
         res <- check solver s rel_pc
 
@@ -400,9 +406,14 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC = 
-          (newPCEmpty $ s { expr_env = eenv''
-                          , symbolic_ids = syms'
-                          , curr_expr = CurrExpr Evaluate aexpr''}, ngen')
+          (NewPC { state =  s { expr_env = eenv''
+                              , symbolic_ids = syms'
+                              , curr_expr = CurrExpr Evaluate aexpr''}
+                 -- It is VERY important that we insert a PCExists with the mexpr_id
+                 -- This forces reduceNewPC to check that the concretized data constructor does
+                 -- not violate any path constraints from default cases. 
+                 ,  new_pcs = [PCExists mexpr_id]
+                 }, ngen')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
@@ -445,6 +456,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
 
+    
 -- | Given the Type of the matched Expr, looks for Type in the TypeEnv, and returns Expr level representation of the Type
 mexprTyToExpr :: Type -> TypeEnv -> [Expr]
 mexprTyToExpr mexpr_t tenv 

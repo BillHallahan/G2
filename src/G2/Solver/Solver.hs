@@ -12,7 +12,8 @@ module G2.Solver.Solver ( Solver (..)
                         , GroupRelated (..)
                         , groupRelatedFinite
                         , groupRelatedInfinite
-                        , CombineSolvers (..)) where
+                        , CombineSolvers (..)
+                        , UndefinedHigherOrder (..)) where
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
@@ -166,6 +167,22 @@ solveWithEither a b s binds is pc = do
             case rb of
                 (Unknown ub, _, b') -> return $ (Unknown $ ua ++ ",\n" ++ ub, Nothing, a' :?> b')
                 (r, m, b') -> return (r, m, a' :?> b')
+
+-- | Fills in unused higher order functions with undefined
+data UndefinedHigherOrder = UndefinedHigherOrder
+
+instance Solver UndefinedHigherOrder where
+    check _ s pc =
+        let
+            f = concatMap (PC.varIdsInPC (known_values s)) $ PC.toList pc
+        in
+        case f of
+            [Id _ (TyFun _ _)] -> return SAT
+            _ -> return $ Unknown "UndefinedHigherOrder"
+
+    solve _ s _ [i@(Id _ (TyFun _ _))] pc =
+        return (SAT, Just $ M.singleton (idName i) (Prim Undefined TyBottom))
+    solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder", Nothing)
 
 instance (Solver a, Solver b) => Solver (CombineSolvers a b) where
     check (a :<? b) s pc = return . fst =<< checkWithEither (Tr b) (Tr a) s pc

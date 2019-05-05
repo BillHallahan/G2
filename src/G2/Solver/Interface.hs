@@ -36,7 +36,7 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-      filterTC tc $ subVar m eenv tc (is, cexpr, ais')
+    filterTC tc $ subVar m eenv tc (is, cexpr, ais')
 
 subVarFuncCall :: Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =

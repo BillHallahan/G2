@@ -19,7 +19,8 @@ module G2.Language.PathConds ( PathCond (..)
                                        , relatedSets
                                        , scc
                                        , varIdsInPC
-                                       , toList) where
+                                       , toList
+                                       , isPCExists) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -165,7 +166,7 @@ varIdsInPC :: KV.KnownValues -> PathCond -> [Id]
 varIdsInPC _ (AltCond _ e _) = varIds e
 varIdsInPC _ (ExtCond e _) = varIds e
 varIdsInPC _ (ConsCond _ e _) = varIds e
-varIdsInPC _ (PCExists _) = []
+varIdsInPC _ (PCExists i) = [i]
 
 varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
 varNamesInPC kv = P.map idName . varIdsInPC kv
@@ -193,6 +194,9 @@ scc' (n:ns) pc newpc =
 {-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap
+
+isPCExists (PCExists _) = True
+isPCExists _ = False
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap
