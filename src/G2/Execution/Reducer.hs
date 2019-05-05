@@ -42,8 +42,11 @@ module G2.Execution.Reducer ( Reducer (..)
                             , VarLookupLimit (..)
 
                             -- Orderers
+                            , OCombiner (..)
                             , NextOrderer (..)
                             , PickLeastUsedOrderer (..)
+                            , BucketSizeOrderer (..)
+                            , CaseCountOrderer (..)
 
                             , runReducer ) where
 
@@ -567,6 +570,42 @@ instance Halter VarLookupLimit Int t where
     stepHalter _ lim _ s@(State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
     stepHalter _ lim _ _ = lim
 
+
+-- Orderer things
+data OCombiner o1 o2 = o1 :<-> o2 deriving (Eq, Show, Read)
+
+instance (Orderer or1 sov1 b1 t, Orderer or2 sov2 b2 t)
+      => Orderer (OCombiner or1 or2) (C sov1 sov2) (b1, b2) t where
+  
+    -- | Initializing the per state ordering value 
+    -- initPerStateOrder :: or -> State t -> sov
+    initPerStateOrder (or1 :<-> or2) s =
+      let
+          sov1 = initPerStateOrder or1 s
+          sov2 = initPerStateOrder or2 s
+      in
+      C sov1 sov2
+
+    -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
+    -- state assigned the minimal value
+    -- orderStates :: or -> sov -> State t -> b
+    orderStates (or1 :<-> or2) (C sov1 sov2) s =
+      let
+          sov1' = orderStates or1 sov1 s
+          sov2' = orderStates or2 sov2 s
+      in
+      (sov1', sov2')
+
+    -- | Run on the selected state, to update it's sov field
+    -- updateSelected :: or -> sov -> Processed (State t) -> State t -> sov
+    updateSelected (or1 :<-> or2) (C sov1 sov2) proc s = 
+      let
+          sov1' = updateSelected or1 sov1 proc s
+          sov2' = updateSelected or2 sov2 proc s
+      in
+      C sov1' sov2'
+
+
 data NextOrderer = NextOrderer
 
 instance Orderer NextOrderer () Int t where
@@ -581,6 +620,32 @@ instance Orderer PickLeastUsedOrderer Int Int t where
     initPerStateOrder _ _ = 0
     orderStates _ v _ = v
     updateSelected _ v _ _ = v + 1
+
+-- | Floors and does bucket size
+data BucketSizeOrderer = BucketSizeOrderer Int
+
+instance Orderer BucketSizeOrderer Int Int t where
+    initPerStateOrder _ _ = 0
+
+    orderStates (BucketSizeOrderer b) v _ = floor $ fromIntegral v / fromIntegral b
+
+    updateSelected _ v _ _ = v + 1
+
+-- | Order by the number of PCs
+data CaseCountOrderer = CaseCountOrderer
+
+instance Orderer CaseCountOrderer Int Int t where
+    initPerStateOrder _ s = 0
+
+    orderStates _ v s = v
+
+    updateSelected _ v _ (State { curr_expr = CurrExpr _ (Case _ _ _) }) = v + 1
+    updateSelected _ v _ _ = v
+
+
+
+
+
 
 --------
 --------
