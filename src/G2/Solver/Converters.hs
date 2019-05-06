@@ -318,6 +318,12 @@ pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
     in
     Just $ if b then  (:!) $ exprSMT else exprSMT
 pathConsToSMT (ConsCond (DataCon _ _) _ _) = error "Non-bool DataCon in pathConsToSMT"
+pathConsToSMT (AssumePC e pc) =
+    let
+        exprSMT = exprToSMT e
+    in case pathConsToSMT pc of
+        (Just pcSMT) -> Just $ exprSMT :=> pcSMT
+        Nothing -> Just $ exprSMT
 pathConsToSMT (PCExists _) = Nothing
 
 exprToSMT :: Expr -> SMTAST
