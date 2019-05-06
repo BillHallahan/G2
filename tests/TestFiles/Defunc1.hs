@@ -75,7 +75,7 @@ compZZ (ZZ f) x y =
         (Z g) = f x
         (Z g') = f x
     in
-    g y /= g y
+    g y /= g' y
 
 compZZ2 :: ZZ -> Int -> Int -> Bool
 compZZ2 zz@(ZZ g) x y =

@@ -27,6 +27,7 @@ data TCValues = TCValues { lhTC :: Name
                          , lhNegate :: Name
                          , lhMod :: Name
                          , lhFromInteger :: Name
+                         , lhToInteger :: Name
 
                          , lhNumOrd :: Name
 
@@ -54,6 +55,7 @@ instance Named TCValues where
                 , lhNegate tcv
                 , lhMod tcv
                 , lhFromInteger tcv
+                , lhToInteger tcv
                 , lhNumOrd tcv
 
                 , lhAnd tcv
@@ -79,6 +81,7 @@ instance Named TCValues where
                                   , lhNegate = rename old new $ lhNegate tcv
                                   , lhMod = rename old new $ lhMod tcv
                                   , lhFromInteger = rename old new $ lhFromInteger tcv
+                                  , lhToInteger = rename old new $ lhToInteger tcv
                                   , lhNumOrd = rename old new $ lhNumOrd tcv
 
                                   , lhAnd = rename old new $ lhAnd tcv

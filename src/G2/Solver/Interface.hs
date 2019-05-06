@@ -15,7 +15,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import qualified Data.Map as M
 
 subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall)
@@ -27,9 +27,16 @@ subModel (State { expr_env = eenv
           (Bindings {input_names = inputNames}) = 
     let
         ais' = fmap (subVarFuncCall m eenv tc) ais
-        is = catMaybes (map (E.getIdFromName eenv) inputNames)
+
+        -- We do not inline Lambdas, because higher order function arguments
+        -- get preinserted into the model.
+        -- See [Higher-Order Model] in G2.Execution.Reducers
+        is = mapMaybe (\n -> case E.lookup n eenv of
+                                Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
+                                Just e -> Just e
+                                Nothing -> Nothing) inputNames
     in
-    filterTC tc $ subVar m eenv tc (map Var is, cexpr, ais')
+      filterTC tc $ subVar m eenv tc (is, cexpr, ais')
 
 subVarFuncCall :: Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
@@ -47,13 +54,6 @@ subVar' em eenv tc is v@(Var i@(Id n _))
     , Just e <- E.lookup n eenv
     , (isExprValueForm eenv e && notLam e) || isApp e || isVar e =
         subVar' em eenv tc (i:is) $ filterTC tc e
-    -- case M.lookup n em of
-    --     Just e -> trace ("e1 = " ++ show e) subVar' em eenv tc (i:is) $ filterTC tc e
-    --     Nothing -> case E.lookup n eenv of
-    --         Just e -> if (isExprValueForm e eenv && notLam e) || isApp e || isVar e
-    --                     then trace ("e2 = " ++ show e) subVar' em eenv tc (i:is) $ filterTC tc e
-    --                     else trace ("e3 = " ++ show e) v
-    --         Nothing -> trace ("v1 = " ++ show v) v
     | otherwise = v
 subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 

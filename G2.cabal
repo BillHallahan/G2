@@ -27,13 +27,11 @@ library
                        , G2.Execution.Reducer
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
-                       , G2.Execution.StateMerging
 
                        , G2.Initialization.Interface
                        , G2.Initialization.DeepSeqWalks
                        , G2.Initialization.ElimTicks
                        , G2.Initialization.ElimTypeSynonyms
-                       , G2.Initialization.Functionalizer
                        , G2.Initialization.InitVarLocs
                        , G2.Initialization.KnownValues
                        , G2.Initialization.MkCurrExpr
@@ -44,7 +42,6 @@ library
 
                        , G2.Language
                        , G2.Language.AlgDataTy
-                       , G2.Language.ApplyTypes
                        , G2.Language.ArbValueGen
                        , G2.Language.AST
                        , G2.Language.Casts
@@ -116,7 +113,6 @@ library
                        , G2.Liquid.Types
 
                        , G2.Postprocessing.NameSwitcher
-                       , G2.Postprocessing.Undefunctionalize
 
                        , G2.Solver.ADTSolver
                        , G2.Solver.Converters

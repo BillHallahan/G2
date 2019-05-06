@@ -78,25 +78,22 @@ maybeDoTimeout :: Maybe Int -> IO a -> IO (Maybe a)
 maybeDoTimeout (Just secs) = doTimeout secs
 maybeDoTimeout Nothing = fmap Just
 
-initState :: Program -> [ProgramType] -> [(Name, Id, [Id])] -> Maybe AssumeFunc
-          -> Maybe AssertFunc -> Bool -> StartFunc -> ModuleName -> [Name]
+initState :: ExtractedG2 -> Maybe AssumeFunc
+          -> Maybe AssertFunc -> Bool -> StartFunc -> ModuleName
           -> Config -> (State (), Id, Bindings)
-initState prog prog_typ cls m_assume m_assert useAssert f m_mod tgtNames config =
+initState exg2 m_assume m_assert useAssert f m_mod config =
     let
-        s = initSimpleState prog prog_typ cls
+        s = initSimpleState exg2
     in
-    initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config
+    initStateFromSimpleState s m_assume m_assert useAssert f m_mod config
 
-initState' :: Program
-           -> [ProgramType]
-           -> [(Name, Id, [Id])]
+initState' :: ExtractedG2
            -> StartFunc
            -> ModuleName
-           -> [Name]
            -> Config
            -> (State (), Id, Bindings)
-initState' prog prog_typ cls =
-    initState prog prog_typ cls Nothing Nothing False
+initState' exg2 =
+    initState exg2 Nothing Nothing False
 
 initStateFromSimpleState :: IT.SimpleState
                          -> Maybe AssumeFunc
@@ -104,17 +101,16 @@ initStateFromSimpleState :: IT.SimpleState
                          -> Bool
                          -> StartFunc
                          -> ModuleName
-                         -> [Name]
                          -> Config
                          -> (State (), Id, Bindings)
-initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
+initStateFromSimpleState s m_assume m_assert useAssert f m_mod config =
     let
         (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
               Left ie' -> ie'
               Right errs -> error errs
         (_, ts) = instantiateArgTypes (IT.type_classes s) (IT.known_values s) fe
 
-        (s', ft, at, ds_walkers) = runInitialization s ts (S.fromList tgtNames)
+        (s', ds_walkers) = runInitialization s ts (S.fromList $ IT.exports s)
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -147,25 +143,26 @@ initStateFromSimpleState s m_assume m_assert useAssert f m_mod tgtNames config =
     , fixed_inputs = f_i
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
-    , func_table = ft
-    , apply_types = at
     , input_names = map idName is
+    , higher_order_inst = IT.exports s
+    , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''})
 
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc
                           -> ModuleName
-                          -> [Name]
                           -> Config
                           -> (State (), Id, Bindings)
 initStateFromSimpleState' s=
     initStateFromSimpleState s Nothing Nothing False
 
-initSimpleState :: Program
-                -> [ProgramType]
-                -> [(Name, Id, [Id])]
+initSimpleState :: ExtractedG2
                 -> IT.SimpleState
-initSimpleState prog prog_typ cls =
+initSimpleState (ExtractedG2 { exg2_binds = prog
+                             , exg2_tycons = prog_typ
+                             , exg2_classes = cls
+                             , exg2_exports = es
+                             , exg2_rules = rs }) =
     let
         eenv = mkExprEnv prog
         tenv = mkTypeEnv prog_typ
@@ -177,7 +174,9 @@ initSimpleState prog prog_typ cls =
                    , IT.type_env = tenv
                    , IT.name_gen = ng
                    , IT.known_values = kv
-                   , IT.type_classes = tc }
+                   , IT.type_classes = tc
+                   , IT.rewrite_rules = rs
+                   , IT.exports = es }
 
 initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
@@ -197,20 +196,22 @@ initRedHaltOrd conv config =
                         Just fp -> SomeReducer (StdRed conv :<~ Logger fp)
                         Nothing -> SomeReducer (StdRed conv))
              , SomeHalter
-                 (MaxOutputsHalter (maxOutputs config)
+                 (SwitchEveryNHalter 20
+                 :<~> MaxOutputsHalter (maxOutputs config)
                  :<~> ZeroHalter (steps config)
                  :<~> AcceptHalter)
-             , SomeOrderer $ NextOrderer)
+             , SomeOrderer $ PickLeastUsedOrderer)
         else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                  <~| (case logStates config of
                         Just fp -> SomeReducer (StdRed conv :<~ Logger fp)
                         Nothing -> SomeReducer (StdRed conv))
              , SomeHalter
-                 (DiscardIfAcceptedTag state_name 
+                 (DiscardIfAcceptedTag state_name
+                 :<~> SwitchEveryNHalter 20
                  :<~> MaxOutputsHalter (maxOutputs config) 
                  :<~> ZeroHalter (steps config)
                  :<~> AcceptHalter)
-             , SomeOrderer $ NextOrderer)
+             , SomeOrderer $ PickLeastUsedOrderer)
 
 initSolver :: Config -> IO SomeSolver
 initSolver config = do
@@ -218,8 +219,8 @@ initSolver config = do
     let con' = GroupRelated (ADTSolver :?> con)
     return (SomeSolver con')
 
-mkExprEnv :: Program -> E.ExprEnv
-mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e)) . concat
+mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
+mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
 
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
@@ -244,9 +245,9 @@ initialStateFromFile :: FilePath
                      -> Config
                      -> IO (State (), Id, Bindings)
 initialStateFromFile proj src libs m_assume m_assert m_reach def_assert f config = do
-    (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src libs True config
-    let (init_s, ent_f, bindings) = initState binds tycons cls m_assume m_assert def_assert
-                                    f mb_modname ex config
+    (mb_modname, exg2) <- translateLoaded proj src libs simplTranslationConfig config
+    let (init_s, ent_f, bindings) = initState exg2 m_assume m_assert def_assert
+                                    f mb_modname config
         reaches_state = initCheckReaches init_s mb_modname m_reach
 
     return (reaches_state, ent_f, bindings)
@@ -311,8 +312,8 @@ runG2 :: ( Named t
 runG2 red hal ord con pns (is@State { type_env = tenv
                                     , known_values = kv
                                     , type_classes = tc }) 
-                          (bindings@Bindings { apply_types = at}) = do
-    let (swept, bindings') = markAndSweepPreserving (pns ++ names at ++ names (lookupStructEqDicts kv tc)) is bindings
+                           bindings = do
+    let (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) is bindings
 
     let (preproc_state, bindings'') = runPreprocessing swept bindings'
 
@@ -335,8 +336,7 @@ runG2 red hal ord con pns (is@State { type_env = tenv
                         , conc_out = e
                         , violated = ais}) $ ident_states''
 
-    let sm' = map (\sm''@(ExecRes {final_state = s}) -> 
-                                   runPostprocessing s bindings''' sm'') sm
+    let sm' = map (\sm'' -> runPostprocessing bindings''' sm'') sm
 
     let sm'' = map (\ExecRes { final_state = s
                              , conc_args = es

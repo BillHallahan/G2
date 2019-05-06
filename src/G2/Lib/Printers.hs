@@ -11,7 +11,6 @@ module G2.Lib.Printers ( mkCleanExprHaskell
                        , pprExecEEnvStr) where
 
 import G2.Execution.Memory
-import qualified G2.Language.ApplyTypes as AT
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
@@ -35,16 +34,16 @@ mkIdHaskell (Id n _) = mkNameHaskell n
 mkNameHaskell :: Name -> String
 mkNameHaskell = T.unpack . nameOcc
 
-mkUnsugaredExprHaskell :: State t -> Bindings -> Expr -> String
-mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) (Bindings {apply_types = af}) =
-    mkExprHaskell False kv . modifyFix (mkCleanExprHaskell' af kv tc)
+mkUnsugaredExprHaskell :: State t -> Expr -> String
+mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
+    mkExprHaskell False kv . modifyFix (mkCleanExprHaskell' kv tc)
 
-mkCleanExprHaskell :: State t -> Bindings -> Expr -> String
-mkCleanExprHaskell (State {known_values = kv, type_classes = tc}) (Bindings {apply_types = af}) = 
-    mkExprHaskell True kv . modifyFix (mkCleanExprHaskell' af kv tc)
+mkCleanExprHaskell :: State t -> Expr -> String
+mkCleanExprHaskell (State {known_values = kv, type_classes = tc}) = 
+    mkExprHaskell True kv . modifyFix (mkCleanExprHaskell' kv tc)
 
-mkCleanExprHaskell' :: AT.ApplyTypes -> KnownValues -> TypeClasses -> Expr -> Expr
-mkCleanExprHaskell' at kv tc e
+mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Expr
+mkCleanExprHaskell' kv tc e
     | (App (Data (DataCon n _)) e') <- e
     , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv = e'
 
@@ -57,10 +56,6 @@ mkCleanExprHaskell' at kv tc e
     , isTypeClass tc t = e'
 
     | App e' (Type _) <- e = e'
-
-    | App _ e'' <- e
-    , (Var (Id n _)) <- appCenter e
-    , n `elem` map idName (AT.applyFuncs at) = e''
 
     | otherwise = e
 
@@ -206,10 +201,10 @@ duplicate :: String -> Int -> String
 duplicate _ 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
 
-ppExprEnv :: State t -> Bindings -> String
-ppExprEnv s@(State {expr_env = eenv}) b =
+ppExprEnv :: State t -> String
+ppExprEnv s@(State {expr_env = eenv}) =
     let
-        eenvs = M.toList $ E.map' (mkUnsugaredExprHaskell s b) eenv
+        eenvs = M.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
     in
     intercalate "\n" $ map (\(n, es) -> mkNameHaskell n ++ " = " ++ es) eenvs
 
@@ -219,32 +214,31 @@ ppExprEnv s@(State {expr_env = eenv}) b =
 ppRelExprEnv :: State t -> Bindings -> String
 ppRelExprEnv s b =
     let
-        (s', b') = markAndSweep s b
+        (s', _) = markAndSweep s b
     in
-    ppExprEnv s' b'
+    ppExprEnv s'
 
-ppCurrExpr :: State t -> Bindings -> String
-ppCurrExpr s@(State {curr_expr = CurrExpr _ e}) b = mkUnsugaredExprHaskell s b e
+ppCurrExpr :: State t -> String
+ppCurrExpr s@(State {curr_expr = CurrExpr _ e}) = mkUnsugaredExprHaskell s e
 
-ppPathConds :: State t -> Bindings -> String
-ppPathConds s@(State {path_conds = pc}) b = intercalate "\n" $ PC.map (ppPathCond s b) pc
+ppPathConds :: State t -> String
+ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map (ppPathCond s) pc
 
-ppPathCond :: State t -> Bindings -> PathCond -> String
-ppPathCond s binds (AltCond am e b) = mkAltMatchHaskell am ++ (if b then " == " else " /= ") ++ mkUnsugaredExprHaskell s binds e
-ppPathCond s binds (ExtCond e b) =
+ppPathCond :: State t -> PathCond -> String
+ppPathCond s (AltCond l e b) =
+  mkLitHaskell l ++ (if b then " == " else " /= ") ++ mkUnsugaredExprHaskell s e
+ppPathCond s (ExtCond e b) =
     let
-        es = mkUnsugaredExprHaskell s binds e
+        es = mkUnsugaredExprHaskell s e
     in
     if b then es else "not (" ++ es ++ ")"
-ppPathCond s binds (ConsCond dc e b) =
+ppPathCond s (ConsCond dc e b) =
     let
         dcs = mkDataConHaskell dc
-        es = mkUnsugaredExprHaskell s binds e
+        es = mkUnsugaredExprHaskell s e
     in
     if b then es ++ " is " ++ dcs else es ++ " is not " ++ dcs
-ppPathCond _ _ (PCExists i) = "Exists " ++ mkIdHaskell i
-ppPathCond s binds (AssumePC expr pc) = "if " ++ (mkUnsugaredExprHaskell s binds expr) ++ " then (" ++ (ppPathCond s binds pc) ++ ")"
-
+ppPathCond _ (PCExists i) = "Exists " ++ mkIdHaskell i
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs
@@ -262,12 +256,10 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen b)
     input_str = pprInputIdsStr (symbolic_ids ex_state)
-    funcs_str = pprFuncTableStr (func_table b)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     walkers_str = show (deepseq_walkers b)
-    appty_str = show (apply_types b)
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
     model_str = pprModelStr (model ex_state)
     rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
@@ -284,8 +276,6 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , names_str
                , "----- [Input Ids] -----------------"
                , input_str
-               , "----- [Func Table] ----------------"
-               , funcs_str
                , "----- [Walkers] -------------------"
                , walkers_str
                , "----- [Paths] ---------------------"
@@ -298,8 +288,6 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , show (assert_ids ex_state)
                , "----- [TypeClasses] ---------------------"
                , tc_str
-               , "----- [Apply Types] ---------------------"
-               , appty_str
                , "----- [Cleaned] -------------------"
                , cleaned_str
                , "----- [Model] -------------------"
@@ -353,34 +341,25 @@ pprInputIdsStr i = injNewLine id_strs
   where
     id_strs = map show i
 
-pprFuncTableStr :: FuncInterps -> String
-pprFuncTableStr (FuncInterps funcs) = injNewLine funcs_strs
-  where
-    funcs_strs = map show (M.toList funcs)
-
 pprPathCondStr :: PathCond -> String
-pprPathCondStr pc = injTuple (pprPathCondStr' pc)
-
-pprPathCondStr' :: PathCond -> [String]
-pprPathCondStr' (AltCond am expr b) = acc_strs
+pprPathCondStr (AltCond am expr b) = injTuple acc_strs
   where
     am_str = show am
     expr_str = show expr
     b_str = show b
     acc_strs = [am_str, expr_str, b_str]
-pprPathCondStr' (ExtCond am b) = acc_strs
+pprPathCondStr (ExtCond am b) = injTuple acc_strs
   where
     am_str = show am
     b_str = show b
     acc_strs = [am_str, b_str]
-pprPathCondStr' (ConsCond d expr b) = acc_strs
+pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
   where
     d_str = show d
     expr_str = show expr
     b_str = show b
     acc_strs = [d_str, expr_str, b_str]
-pprPathCondStr' (PCExists p) = [show p]
-pprPathCondStr' (AssumePC e pc) = [show e] ++ pprPathCondStr' pc 
+pprPathCondStr (PCExists p) = show p
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList

@@ -41,6 +41,7 @@ module G2.Language.Typing
     , argTypeToType
     , argTypeToLamUse
     , spArgumentTypes
+    , leadingTyForAllBindings
     , tyForAllBindings
     , anonArgumentTypes
     , returnType
@@ -50,8 +51,10 @@ module G2.Language.Typing
     , retype
     , mapInTyForAlls
     , inTyForAlls
-
     , numTypeArgs
+    , typeToExpr
+    , getTyApps
+    , tyAppsToExpr
     ) where
 
 import G2.Language.AST
@@ -59,6 +62,7 @@ import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
 
 import qualified Data.Map as M
+import qualified Data.List as L
 import Data.Monoid hiding (Alt)
 
 tyInt :: KV.KnownValues -> Type
@@ -228,7 +232,7 @@ instance Typed Type where
     typeOf' _ TyBottom = TyBottom
     typeOf' _ TyUnknown = TyUnknown
 
-newtype PresType = PresType Type
+newtype PresType = PresType Type deriving (Show, Read)
 
 instance Typed PresType where
     typeOf' _ (PresType t) = t
@@ -443,6 +447,13 @@ spArgumentTypes' (TyForAll (NamedTyBndr i) t2) = NamedType i:spArgumentTypes' t2
 spArgumentTypes' (TyFun t1 t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' _ = []
 
+leadingTyForAllBindings :: Typed t => t -> [Id]
+leadingTyForAllBindings = leadingTyForAllBindings' . typeOf
+
+leadingTyForAllBindings' :: Type -> [Id]
+leadingTyForAllBindings' (TyForAll (NamedTyBndr i) t) = i:leadingTyForAllBindings' t
+leadingTyForAllBindings' _ = []
+
 tyForAllBindings :: Typed t => t -> [Id]
 tyForAllBindings = tyForAllBindings' . typeOf
 
@@ -504,3 +515,32 @@ numTypeArgs = numTypeArgs' . typeOf
 numTypeArgs' :: Type -> Int
 numTypeArgs' (TyForAll (NamedTyBndr _) t) = 1 + numTypeArgs' t
 numTypeArgs' _ = 0
+
+-- | Converts nested TyApps into a list of Expr-level Types
+typeToExpr :: Type -> [Expr]
+typeToExpr (TyApp f t) = [Type t] ++ (typeToExpr f)
+typeToExpr _ = []
+
+-- | Find nested tyApps, if any, in the given Type
+getTyApps :: Type -> Maybe Type
+getTyApps (TyForAll _ t) = getTyApps t
+getTyApps (TyFun t _) = getTyApps t
+getTyApps t@(TyApp _ _) = Just t
+getTyApps _ = Nothing
+
+-- | Given sequence of nested tyApps e.g. tyApp (tyApp ...) ...), returns list of expr level Types, searching through [Id,Type] list in the process
+tyAppsToExpr :: Type -> [(Id, Type)] -> [Expr]
+tyAppsToExpr (TyApp t (TyVar tVarId)) bindings = exprs ++ newTyExpr
+    where
+        newTyExpr = 
+            case (L.find (\(i, _) -> (tVarId == i)) bindings) of -- search list of (Id, Type) to find corresponding Type, and convert to expr
+                (Just (_, ty)) -> [Type ty]
+                Nothing -> []
+        exprs = tyAppsToExpr t bindings
+tyAppsToExpr (TyApp t1 t2) bindings = exprs ++ newTyExpr
+    where
+        newTyExpr = [Type t2]
+        exprs = tyAppsToExpr t1 bindings
+tyAppsToExpr _ _ = []
+ 
+

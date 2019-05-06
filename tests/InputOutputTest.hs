@@ -7,6 +7,7 @@ import Test.Tasty.HUnit
 
 import Control.Exception
 import qualified Data.Text as T
+import System.FilePath
 
 import G2.Config
 import G2.Interface
@@ -17,12 +18,12 @@ import G2.Translation
 import Reqs
 import TestUtils
 
-checkInputOutput :: FilePath -> FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
-checkInputOutput proj src md entry stps i req = checkInputOutputWithConfig proj src md entry i req (mkConfigTest {steps = stps})
+checkInputOutput :: FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
+checkInputOutput src md entry stps i req = checkInputOutputWithConfig src md entry i req (mkConfigTest {steps = stps})
 
-checkInputOutputWithConfig :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
-checkInputOutputWithConfig proj src md entry i req config = do
-    r <- doTimeout (timeLimit config) $ checkInputOutput' proj src md entry i req config
+checkInputOutputWithConfig :: FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
+checkInputOutputWithConfig src md entry i req config = do
+    r <- doTimeout (timeLimit config) $ checkInputOutput' src md entry i req config
 
     let (b, e) = case r of
             Nothing -> (False, "\nTimeout")
@@ -32,33 +33,32 @@ checkInputOutputWithConfig proj src md entry i req config = do
     return . testCase src $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
 
 checkInputOutput' :: FilePath 
-                  -> FilePath 
                   -> String 
                   -> String 
                   -> Int 
                   -> [Reqs String] 
                   -> Config 
                   -> IO (Either SomeException (Bool, [ExecRes ()]))
-checkInputOutput' proj src md entry i req config = try (checkInputOutput'' proj src md entry i req config)
+checkInputOutput' src md entry i req config = try (checkInputOutput'' src md entry i req config)
 
 checkInputOutput'' :: FilePath 
-                   -> FilePath 
                    -> String 
                    -> String 
                    -> Int 
                    -> [Reqs String] 
                    -> Config 
                    -> IO (Bool, [ExecRes ()])
-checkInputOutput'' proj src md entry i req config = do
-    (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src [] True config
+checkInputOutput'' src md entry i req config = do
+    let proj = takeDirectory src
+    (mb_modname, exg2) <- translateLoaded proj src [] simplTranslationConfig config
 
-    let (init_state, _, bindings) = initState binds tycons cls Nothing Nothing False (T.pack entry) mb_modname ex config
+    let (init_state, _, bindings) = initState exg2 Nothing Nothing False (T.pack entry) mb_modname config
     putStrLn "test"
     
-    (r, b) <- runG2WithConfig init_state config bindings
+    (r, _) <- runG2WithConfig init_state config bindings
 
     let chAll = checkExprAll req
-    mr <- validateStates proj src md entry chAll [] b r
+    mr <- validateStates proj src md entry chAll [] r
     let io = map (\(ExecRes { conc_args = i', conc_out = o}) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req
@@ -85,11 +85,11 @@ checkInputOutputLH' proj src md entry i req config = try (checkInputOutputLH'' p
 
 checkInputOutputLH'' :: FilePath -> FilePath -> String -> String -> Int -> [Reqs String] -> Config -> IO Bool
 checkInputOutputLH'' proj src md entry i req config = do
-    ((r,b), _) <- findCounterExamples proj src (T.pack entry) [] [] config
+    ((r, _), _) <- findCounterExamples proj src (T.pack entry) [] [] config
 
     let chAll = checkExprAll req
 
-    mr <- validateStates proj src md entry chAll [] b r
+    mr <- validateStates proj src md entry chAll [] r
     let io = map (\(ExecRes { conc_args = i', conc_out = o}) -> i' ++ [o]) r
 
     let chEx = checkExprInOutCount io i req

@@ -45,7 +45,6 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , runReducer ) where
 
-import qualified G2.Language.ApplyTypes as AT
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import G2.Language
@@ -56,6 +55,7 @@ import G2.Lib.Printers
 import Data.Foldable
 import qualified Data.HashSet as S
 import qualified Data.Map as M
+import Data.Maybe
 import qualified Data.List as L
 import System.Directory
 
@@ -296,35 +296,63 @@ instance Reducer NonRedPCRed () t where
     redRules nrpr _  s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , path_conds = pc
                               , non_red_path_conds = nr:nrs
-                              , symbolic_ids = si })
-                      b@(Bindings { apply_types = at }) = do
+                              , symbolic_ids = si
+                              , model = m })
+                      b@(Bindings { higher_order_inst = inst }) = do
         let stck' = Stck.push (CurrExprFrame cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nr
-        let cexpr'' = higherOrderToAppTys eenv at cexpr'
 
-        let s' = s { curr_expr = cexpr''
-                   , exec_stack = stck'
+        let eenv_si_ces = substHigherOrder eenv m si inst cexpr'
+
+        let s' = s { exec_stack = stck'
                    , non_red_path_conds = nrs
-                   , path_conds = AT.typeToAppType at pc
-                   , symbolic_ids = AT.typeToAppType at si }
+                   }
+            xs = map (\(eenv', m', si', ce) -> (s' { expr_env = eenv'
+                                                   , model = m'
+                                                   , curr_expr = ce
+                                                   , symbolic_ids = si' }, ())) eenv_si_ces
 
-        return (InProgress, [(s', ())], b, nrpr)
+        return (InProgress, xs, b, nrpr)
     redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
 
-higherOrderToAppTys :: ASTContainer m Expr => ExprEnv -> ApplyTypes -> m -> m
-higherOrderToAppTys eenv at = modifyASTs (higherOrderToAppTys' eenv at)
+-- [Higher-Order Model]
+-- Substitutes all possible higher order functions for symbolic higher order functions.
+-- We insert the substituted higher order function directly into the model, because, due
+-- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
+substHigherOrder :: ExprEnv -> Model -> SymbolicIds -> [Name] -> CurrExpr -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
+substHigherOrder eenv m si ns ce =
+    let
+        is = mapMaybe (\n -> case E.lookup n eenv of
+                                Just e -> Just $ Id n (typeOf e)
+                                Nothing -> Nothing) ns
 
-higherOrderToAppTys' :: ExprEnv -> ApplyTypes -> Expr -> Expr
-higherOrderToAppTys' eenv at v@(Var (Id n t))
-    | E.isSymbolic n eenv
-    , isTyFun t
-    , Just (tn, f) <- AT.lookup t at =
-        App (Var f) (Var (Id n (TyCon tn TYPE)))
-    | otherwise = v
-higherOrderToAppTys' _ _ e = e
+        higherOrd = filter (isTyFun . typeOf) . mapMaybe varId . symbVars eenv $ ce
+        higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
+    in
+    substHigherOrder' [(eenv, m, si, ce)] higherOrdSub
+    where
+        genSubstitutable v i
+            | (True, bm) <- specializes M.empty (typeOf v )(typeOf i) =
+                let
+                    bnds = map idName $ leadingTyForAllBindings i
+                    tys = mapMaybe (\b -> fmap Type $ M.lookup b bm) bnds
+                in
+                Just . mkApp $ Var i:tys
+            | otherwise = Nothing
+
+substHigherOrder' :: [(ExprEnv, Model, SymbolicIds, CurrExpr)] -> [(Id, [Expr])] -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
+substHigherOrder' eenvsice [] = eenvsice
+substHigherOrder' eenvsice ((i, es):iss) =
+    substHigherOrder'
+        (concatMap (\e_rep -> 
+                        map (\(eenv, m, si, ce) -> ( E.insert (idName i) e_rep eenv
+                                                   , M.insert (idName i) e_rep m
+                                                   , filter (/= i) si
+                                                   , replaceASTs (Var i) e_rep ce)
+                            ) eenvsice)
+        es) iss
 
 data TaggerRed = TaggerRed Name NameGen
 

@@ -5,6 +5,7 @@ module Main (main, plugin) where
 import DynFlags
 
 import System.Environment
+import System.FilePath
 
 import qualified Data.Map as M
 import Data.Maybe
@@ -32,7 +33,7 @@ main = do
   -- error "HELLO!"
 
   as <- getArgs
-  let (proj:_) = as
+  let (proj:tail_args) = as
 
   let m_liquid_file = mkLiquid as
   let m_liquid_func = mkLiquidFunc as
@@ -42,6 +43,8 @@ main = do
 
   case (m_liquid_file, m_liquid_func) of
       (Just lhfile, Just lhfun) -> do
+        let m_idir = mIDir tail_args
+            proj = maybe (takeDirectory lhfile) id m_idir
         runSingleLHFun proj lhfile lhfun libs lhlibs as
       _ -> do
         runWithArgs as
@@ -51,13 +54,15 @@ runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   _ <- doTimeout (timeLimit config) $ do
     ((in_out, b), entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
-    printLHOut entry b in_out
+    printLHOut entry in_out
   return ()
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
 
-  let (proj:src:entry:tail_args) = as
+  let (src:entry:tail_args) = as
+      m_idir = mIDir tail_args
+      proj = maybe (takeDirectory src) id m_idir
 
   --Get args
   let m_assume = mAssume tail_args
@@ -87,7 +92,7 @@ runWithArgs as = do
 
     case validate config of
         True -> do
-            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
+            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
@@ -100,15 +105,15 @@ runWithArgs as = do
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
 printFuncCalls config entry b =
     mapM_ (\execr@(ExecRes { final_state = s}) -> do
-        let funcCall = mkCleanExprHaskell s b
+        let funcCall = mkCleanExprHaskell s
                      . foldl (\a a' -> App a a') (Var entry) $ (conc_args execr)
 
-        let funcOut = mkCleanExprHaskell s b $ (conc_out execr)
+        let funcOut = mkCleanExprHaskell s $ (conc_out execr)
 
-        ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s b
+        ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s
         ppStatePiece (printRelExprEnv config) "rel expr_env" $ ppRelExprEnv s b
-        ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s b
-        ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s b
+        ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s
+        ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 
@@ -120,6 +125,9 @@ ppStatePiece b n res =
             putStrLn res
             putStrLn ""
         False -> return ()
+
+mIDir :: [String] -> Maybe String
+mIDir a = strArg "idir" a M.empty Just Nothing
 
 mReturnsTrue :: [String] -> Bool
 mReturnsTrue a = boolArg "returns-true" a M.empty Off
