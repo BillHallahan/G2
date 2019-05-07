@@ -38,6 +38,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , DiscardIfAcceptedTag (..)
                             , MaxOutputsHalter (..)
                             , SwitchEveryNHalter (..)
+                            , BranchAdjSwitchEveryNHalter (..)
                             , RecursiveCutOff (..)
                             , VarLookupLimit (..)
 
@@ -64,6 +65,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
 import System.Directory
+
+import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -113,6 +116,7 @@ class Reducer r rv t | r -> rv where
 
     -- | Takes a State, and performs the appropriate Reduction Rule
     redRules :: r -> rv -> State t -> Bindings -> IO (ReducerRes, [(State t, rv)], Bindings, r) 
+    
     -- | Gives an opportunity to update with all States and Reducer Val's,
     -- output by all Reducer's, visible
     -- Errors if the returned list is too short.
@@ -143,7 +147,7 @@ class Halter h hv t | h -> hv where
     stopRed :: h -> hv -> Processed (State t) -> State t -> HaltC
 
     -- | Takes a state, and updates it's halter record field
-    stepHalter :: h -> hv -> Processed (State t) -> State t -> hv
+    stepHalter :: h -> hv -> Processed (State t) -> [State t] -> State t -> hv
 
 -- | Picks an order to evaluate the states, to allow prioritizing some over others 
 -- The type parameter or is used to disambiguate between different producers.
@@ -451,10 +455,10 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         min hc1 hc2
 
-    stepHalter (h1 :<~> h2) (C hv1 hv2) proc s =
+    stepHalter (h1 :<~> h2) (C hv1 hv2) proc xs s =
         let
-            hv1' = stepHalter h1 hv1 proc s
-            hv2' = stepHalter h2 hv2 proc s
+            hv1' = stepHalter h1 hv1 proc xs s
+            hv2' = stepHalter h2 hv2 proc xs s
         in
         C hv1' hv2'
 
@@ -468,7 +472,7 @@ instance Halter AcceptHalter () t where
         case isExecValueForm s && true_assert s of
             True -> Accept
             False -> Continue
-    stepHalter _ _ _ s = ()
+    stepHalter _ _ _ _ s = ()
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
 data ZeroHalter = ZeroHalter Int
@@ -479,8 +483,8 @@ instance Halter ZeroHalter Int t where
     stopRed = halterIsZero
     stepHalter = halterSub1
 
-halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> Int
-halterSub1 _ h _ _ = h - 1
+halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> [State t] -> State t -> Int
+halterSub1 _ h _ _ _ = h - 1
 
 halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> HaltC
 halterIsZero _ 0 _ _ = Discard
@@ -495,7 +499,7 @@ instance Halter MaxOutputsHalter (Maybe Int) t where
         case m of
             Just m' -> if length acc >= m' then Discard else Continue
             _ -> Continue
-    stepHalter _ hv _ _ = hv
+    stepHalter _ hv _ _ _ = hv
 
 -- | Switch execution every n steps
 data SwitchEveryNHalter = SwitchEveryNHalter Int
@@ -504,7 +508,34 @@ instance Halter SwitchEveryNHalter Int t where
     initHalt (SwitchEveryNHalter sw) _ = sw
     updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
     stopRed _ i _ _ = if i <= 0 then Switch else Continue
-    stepHalter _ i _ _ = i - 1
+    stepHalter _ i _ _ _ = i - 1
+
+-- | Switches execution every n steps, where n is divided every time
+-- a case split happens, by the number of states.
+-- That is, if n is 2100, and the case splits into 3 states, each new state will
+-- will then get only 700 steps
+data BranchAdjSwitchEveryNHalter = BranchAdjSwitchEveryNHalter { switch_def :: Int
+                                                               , switch_min :: Int }
+
+data SwitchingPerState = SwitchingPerState { switch_at :: Int -- ^ Max number of steps
+                                           , counter :: Int -- ^ Current step counter
+                                           }
+
+instance Halter BranchAdjSwitchEveryNHalter SwitchingPerState t where
+    initHalt (BranchAdjSwitchEveryNHalter { switch_def = sw }) _ =
+        SwitchingPerState { switch_at = sw, counter = sw }
+    updatePerStateHalt _ sps@(SwitchingPerState { switch_at = sw }) _ _ =
+        sps { counter = sw }
+    stopRed _ (SwitchingPerState { counter = i }) _ _ =
+        if i <= 0 then Switch else Continue
+    stepHalter _ sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs _ =
+        let
+            new_sa = max 100 (sa `div` length xs)
+            new_i = min i new_sa
+        in
+        trace ("switch_at = " ++ show new_sa ++ " counter = " ++ show new_i)
+        sps { switch_at = new_sa, counter = new_i}
+
 
 -- Cutoff recursion after n recursive calls
 data RecursiveCutOff = RecursiveCutOff Int
@@ -521,7 +552,7 @@ instance Halter RecursiveCutOff (HM.HashMap SpannedName Int) t where
             Nothing -> Continue
     stopRed _ _ _ _ = Continue
 
-    stepHalter _ hv _ s@(State { curr_expr = CurrExpr _ (Var (Id n _)) })
+    stepHalter _ hv _ _ s@(State { curr_expr = CurrExpr _ (Var (Id n _)) })
         | not $ E.isSymbolic n (expr_env s) =
             case HM.lookup sn hv of
                 Just i -> HM.insert sn (i + 1) hv
@@ -529,7 +560,7 @@ instance Halter RecursiveCutOff (HM.HashMap SpannedName Int) t where
         | otherwise = hv
         where
             sn = SpannedName n
-    stepHalter _ hv _ _ = hv
+    stepHalter _ hv _ _ _ = hv
 
 -- | If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
 -- matches a Tag in the Accepted State list,
@@ -555,7 +586,7 @@ instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
     stopRed _ ns _ _ =
         if not (S.null ns) then Discard else Continue
 
-    stepHalter _ hv _ _ = hv
+    stepHalter _ hv _ _ _ = hv
 
 -- | Counts the number of variable lookups are made, and switches the state
 -- whenever we've hit a threshold
@@ -567,8 +598,8 @@ instance Halter VarLookupLimit Int t where
     updatePerStateHalt (VarLookupLimit lim) _ _ s = lim
     stopRed _ lim _ _ = if lim <= 0 then Switch else Continue
 
-    stepHalter _ lim _ s@(State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
-    stepHalter _ lim _ _ = lim
+    stepHalter _ lim _ _ s@(State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
+    stepHalter _ lim _ _ _ = lim
 
 
 -- Orderer things
@@ -709,10 +740,12 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
         let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
 
         let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
+            new_states = map fst reduceds'
         
-        let mod_info = map (\(s', r_val') -> rs { state = s'
-                                                , reducer_val = r_val'
-                                                , halter_val = stepHalter hal h_val ps s'}) $ zip (map fst reduceds') r_vals
+            mod_info = map (\(s', r_val') ->
+                                rs { state = s'
+                                   , reducer_val = r_val'
+                                   , halter_val = stepHalter hal h_val ps new_states s'}) $ zip new_states r_vals
         
         let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs mod_info
 

@@ -105,7 +105,8 @@ parseHaskellQ str = do
                                   , M.empty
                                   , b)
         NonCompleted s b -> do
-            let (s', b') = elimUnusedNonCompleted s b
+            let 
+                (s', b') = elimUnusedNonCompleted s b
 
                 s'' = moveOutTypeEnvState tenv_name s'
 
@@ -120,6 +121,7 @@ parseHaskellQ str = do
             return (foldr (\n -> lamE [n]) ars ns_pat, s'', type_env s', b'')
 
             -- foldr (\n -> lamE [n]) [|do putStrLn "NONCOMPLETED"; return Nothing;|] ns_pat
+
 
     let tenv_exp = liftDataT tenv `sigE` [t| TypeEnv |]
         bindings_exp = liftDataT (bindings_final { name_gen = mkNameGen ()})
@@ -233,7 +235,7 @@ instance Halter LemmingsHalter () t where
     updatePerStateHalt _ _ _ _ = ()
     discardOnStart _ _ pr _ = not . null . discarded $ pr
     stopRed _ _ _ _ = Continue
-    stepHalter _ _ _ _ = ()
+    stepHalter _ _ _ _ _ = ()
 
 fileName :: String
 fileName = "THTemp.hs"
@@ -349,7 +351,7 @@ instance Halter ErrorHalter () t where
     stopRed _ _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = Discard
     stopRed _ _ _ _ = Continue
 
-    stepHalter _ _ _ _ = ()
+    stepHalter _ _ _ _ _ = ()
 
 executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp
 executeAndSolveStates s b = do
@@ -361,7 +363,10 @@ executeAndSolveStates' b s = do
     SomeSolver con <- initSolverInfinite config
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, _) -> do
-            -- let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
+            -- let hal' = hal :<~> ErrorHalter
+                           -- :<~> MaxOutputsHalter (Just 1)
+                           -- :<~> SwitchEveryNHalter 2000
+                           -- :<~> BranchAdjSwitchEveryNHalter 2000 100
             let hal' = hal :<~> ErrorHalter :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
             -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' (CaseCountOrderer :<-> BucketSizeOrderer 3) con s b

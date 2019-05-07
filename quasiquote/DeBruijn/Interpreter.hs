@@ -4,7 +4,9 @@
 
 module DeBruijn.Interpreter ( Expr (..)
                             , Ident
-                            , eval) where
+                            , eval
+                            , app
+                            , num) where
 
 import Data.Data
 import G2.QuasiQuotes.G2Rep
@@ -14,7 +16,6 @@ type Ident = Int
 data Expr = Lam Expr
           | Var Ident
           | App Expr Expr
-          | Const Int
           deriving (Show, Read, Eq, Data)
 
 $(derivingG2Rep ''Expr)
@@ -25,6 +26,18 @@ eval :: Expr -> Expr
 eval = eval' []
 
 eval' :: Stack -> Expr -> Expr
-eval' stck (App (Lam el) ea) = eval' (ea:stck) el
-eval' stck (Var i) =  eval' stck $ stck !! (i - 1) 
+eval' stck (App ec ea) =
+    let
+        ea' = eval' stck ea
+    in
+    case eval' stck ec of
+        Lam el -> eval' (ea':stck) el
+        ec' -> App ec' ea'  
+eval' stck (Var i) = stck !! (i - 1) 
 eval' _ e = e
+
+app :: [Expr] -> Expr
+app = foldl1 App
+
+num :: Int -> Expr
+num n = Lam $ Lam $ app (replicate n (Var 2) ++ [Var 1])

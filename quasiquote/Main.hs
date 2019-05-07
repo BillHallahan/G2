@@ -14,7 +14,8 @@ import Lambda.Lambda
 
 main :: IO ()
 main = do
-    print =<< solveDeBruijn1
+    print =<< solveDeBruijnI
+    -- print =<< solveDeBruijnK
     -- print =<< lambdaTest2
     
     -- putStrLn "-- Basic Test --"
