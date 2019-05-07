@@ -95,9 +95,12 @@ parseHaskellQ str = do
                     let
                         b = init_b { input_names = drop (length regs) (input_names init_b) }
                         ts = map (toTHType (cleaned_names b) . Ty.typeOf) $ inputIds init_s b
-                        tup_t = foldr appT (tupleT (length ts)) ts
+                        tup_t = case ts of
+                                    [t] -> t
+                                    _ -> foldr appT (tupleT (length ts)) ts
+
                     in
-                    return (foldr (\n -> lamE [n]) [| return (Nothing :: $(tup_t)) |] ns_pat
+                    return (foldr (\n -> lamE [n]) [| return (Nothing :: Maybe $(tup_t)) |] ns_pat
                                   , [| return [] :: IO [State ()] |]
                                   , M.empty
                                   , b)
@@ -349,8 +352,8 @@ executeAndSolveStates' b s = do
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
             let hal' = hal :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
-            (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
-            -- (res, _) <- runG2Post red hal' (CaseCountOrderer :<-> BucketSizeOrderer 3) con s b
+            -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
+            (res, _) <- runG2Post red hal' (CaseCountOrderer :<-> BucketSizeOrderer 3) con s b
             case res of
                 exec_res:_ -> return $ Just exec_res
                 _ -> return Nothing
