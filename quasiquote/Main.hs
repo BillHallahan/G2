@@ -5,6 +5,8 @@ module Main where
 import G2.QuasiQuotes.QuasiQuotes
 import MiniLib
 
+import DeBruijn.Test
+
 -- import G2.QuasiQuotes.Parser
 
 
@@ -12,7 +14,8 @@ import Lambda.Lambda
 
 main :: IO ()
 main = do
-    print =<< lambdaTest2
+    print =<< solveDeBruijn1
+    -- print =<< lambdaTest2
     
     -- putStrLn "-- Basic Test --"
     -- r <- f 8 10

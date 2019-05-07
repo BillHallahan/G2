@@ -340,6 +340,17 @@ type StateExp = Q Exp
 type StateListExp = Q Exp
 type BindingsExp = Q Exp
 
+data ErrorHalter = ErrorHalter
+
+instance Halter ErrorHalter () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+
+    stopRed _ _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = Discard
+    stopRed _ _ _ _ = Continue
+
+    stepHalter _ _ _ _ = ()
+
 executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp
 executeAndSolveStates s b = do
     varE 'executeAndSolveStates' `appE` b `appE` s 
@@ -351,9 +362,11 @@ executeAndSolveStates' b s = do
     case qqRedHaltOrd con of
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> MaxOutputsHalter (Just 1) :<~> SwitchEveryNHalter 2000
-            let hal' = hal :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
+            let hal' = hal :<~> ErrorHalter :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
             -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
-            (res, _) <- runG2Post red hal' (CaseCountOrderer :<-> BucketSizeOrderer 3) con s b
+            -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' (CaseCountOrderer :<-> BucketSizeOrderer 3) con s b
+            (res, _) <- runG2Post (red) hal' (CaseCountOrderer :<-> BucketSizeOrderer 3) con s b
+
             case res of
                 exec_res:_ -> return $ Just exec_res
                 _ -> return Nothing
