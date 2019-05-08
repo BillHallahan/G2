@@ -153,8 +153,7 @@ isExtCond _ = False
 pcVarType :: [PathCond] -> Maybe Type
 pcVarType (AltCond _ (Var (Id _ t)) _:pc) = pcVarType' t pc
 pcVarType (ConsCond _ (Var (Id _ t)) _:pc) = pcVarType' t pc
-pcVarType (AssumePC (Var (Id _ t)) _:pc) = pcVarType' t pc
--- pcVarType (AssumePC _ pc : pc_rem) = pcVarType (pc: pc_rem)
+pcVarType (AssumePC (Var (Id _ t)) pc:pc') = pcVarType' t (pc:pc')
 pcVarType _ = Nothing
 
 pcVarType' :: Type -> [PathCond] -> Maybe Type
@@ -162,12 +161,8 @@ pcVarType' t (AltCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t pc else Nothing
 pcVarType' t (ConsCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t pc else Nothing
-pcVarType' t (AssumePC (Var (Id _ t')) _:pc) =
-    if t == t' then pcVarType' t pc else Nothing
--- pcVarType' t (AssumePC _ pc: pc_rem) = 
---    case pcVarType [pc] of
---        (Just t') -> if (t == t') then pcVarType' t pc_rem else Nothing
---        Nothing -> Nothing
+pcVarType' t (AssumePC (Var (Id _ t')) pc:pc') =
+    if t == t' then pcVarType' t (pc:pc') else Nothing
 pcVarType' n [] = Just n
 pcVarType' _ _ = Nothing
 
@@ -176,7 +171,6 @@ pcInCastType (AltCond _ e _) = typeInCasts e
 pcInCastType (ExtCond e _) = typeInCasts e
 pcInCastType (ConsCond _ e _) = typeInCasts e
 pcInCastType (AssumePC e _) = typeInCasts e
--- pcInCastType (AssumePC _ pc) = typeInCasts pc
 pcInCastType (PCExists (Id _ t)) = t
 
 castReturnType :: Type -> Expr -> Expr

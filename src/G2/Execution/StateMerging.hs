@@ -16,7 +16,7 @@ import qualified Data.List as L
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
     (exec_stack s1 == exec_stack s2)
-    && (checkCurrExpr (curr_expr s1) (curr_expr s2))
+    && (isMergeableCurrExpr (curr_expr s1) (curr_expr s2))
     && (type_env s1 == type_env s2)
     && (known_values s1 == known_values s2)
     && (non_red_path_conds s1 == non_red_path_conds s2)
@@ -55,15 +55,15 @@ mergeState ngen s1 s2 =
                              , tags = tags s1 }))
         else (ngen, Nothing)
 
-checkCurrExpr :: CurrExpr -> CurrExpr -> Bool
-checkCurrExpr (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = checkExpr ce1 ce2
-checkCurrExpr _ _ = False
+isMergeableCurrExpr :: CurrExpr -> CurrExpr -> Bool
+isMergeableCurrExpr (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = isMergeableExpr ce1 ce2
+isMergeableCurrExpr _ _ = False
 
 -- Returns True if both Exprs are of the form (App ... (Data DataCon) ....) and contain the same Data Constructor
-checkExpr :: Expr -> Expr -> Bool
-checkExpr (App e1 _) (App e1' _) = checkExpr e1 e1' 
-checkExpr (Data dc1) (Data dc2) = dc1 == dc2
-checkExpr _ _ = False
+isMergeableExpr :: Expr -> Expr -> Bool
+isMergeableExpr (App e1 _) (App e1' _) = isMergeableExpr e1 e1' 
+isMergeableExpr (Data dc1) (Data dc2) = dc1 == dc2
+isMergeableExpr _ _ = False
 
 mergeCurrExpr :: KnownValues -> Id -> CurrExpr -> CurrExpr -> CurrExpr
 mergeCurrExpr kv newId (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = (CurrExpr Evaluate mergedExpr)
