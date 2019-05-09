@@ -5,7 +5,6 @@ module Main where
 import G2.QuasiQuotes.QuasiQuotes
 import MiniLib
 
-
 import G2.QuasiQuotes.Parser
 
 import DeBruijn.Test
@@ -128,10 +127,6 @@ main = do
     putStrLn "main: done"
 
 
-
-    -- print =<< triplesTo30
-    -- print =<< queensTestN 3
-    -- print =<< queensTestN 8
     -- print =<< queensTestN 6
     -- print =<< solveDeBruijnI
     -- print =<< solveDeBruijnK

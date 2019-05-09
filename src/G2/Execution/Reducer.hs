@@ -50,6 +50,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , BucketSizeOrderer (..)
                             , CaseCountOrderer (..)
                             , SymbolicADTOrderer (..)
+                            , IncrAfterN (..)
 
                             , runReducer ) where
 
@@ -722,7 +723,44 @@ instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
     stepOrderer _ v _ _ s =
         v `S.union` (S.fromList . map idName . symbolic_ids $ s)
 
+-- Wraps an existing Orderer, and increases it's value by 1, every time
+-- it doesn't change after N steps 
+data IncrAfterN ord = IncrAfterN Int ord
 
+data IncrAfterNTr sov = IncrAfterNTr { steps_since_change :: Int
+                                     , incr_by :: Int
+                                     , underlying :: sov }
+
+instance (Eq sov, Enum b, Orderer ord sov b t) => Orderer (IncrAfterN ord) (IncrAfterNTr sov) b t where
+    initPerStateOrder (IncrAfterN ma ord) s =
+        IncrAfterNTr { steps_since_change = 0
+                     , incr_by = 0
+                     , underlying = initPerStateOrder ord s }
+    orderStates (IncrAfterN _ ord) sov s =
+        let
+            b = orderStates ord (underlying sov) s
+        in
+        succNTimes (incr_by sov) b
+    updateSelected (IncrAfterN _ ord) sov pr s =
+        sov { underlying = updateSelected ord (underlying sov) pr s }
+    stepOrderer (IncrAfterN ma ord) sov pr xs s
+        | steps_since_change sov >= ma =
+            sov' { incr_by = incr_by sov' + 1
+                 , steps_since_change = 0 }
+        | under /= under' =
+            sov' { steps_since_change = 0 }
+        | otherwise =
+            sov' { steps_since_change = steps_since_change sov' + 1}
+        where
+            under = underlying sov
+            under' = stepOrderer ord under pr xs s
+            sov' = sov { underlying = under' }
+
+
+succNTimes :: Enum b => Int -> b -> b
+succNTimes x b
+    | x <= 0 = b
+    | otherwise = succNTimes (x - 1) (succ b)
 
 --------
 --------

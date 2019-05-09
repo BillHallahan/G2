@@ -18,8 +18,8 @@ queenPairSafe n qs (i, j) =
 
 allQueensSafe :: Int -> [Queen] -> Bool
 allQueensSafe n qs =
-  -- (n == length qs)
-  (all (queenPairSafe n qs) (indexPairs n))
+  (n == length qs)
+  && (all (queenPairSafe n qs) (indexPairs n))
 
 
 {-
