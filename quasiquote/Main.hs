@@ -5,21 +5,22 @@ module Main where
 import G2.QuasiQuotes.QuasiQuotes
 import MiniLib
 
-import DeBruijn.Test
+-- import DeBruijn.Test
 
 -- import G2.QuasiQuotes.Parser
-import Arithmetics.Arithmetics
+--import Arithmetics.Arithmetics
 
-import NQueens.Call
+-- import NQueens.Call
 
-import Lambda.Lambda
-import NQueens.NQueens
+-- import Lambda.Lambda
+-- import NQueens.NQueens
+import NQueens.Test
 
 main :: IO ()
 main = do
-    print =<< triplesTo30
-    print =<< queensTestN 3
-    print =<< queensTestN 4
+    -- print =<< triplesTo30
+    -- print =<< queensTestN 3
+    print =<< queensTestN 8
     -- print =<< queensTestN 6
     -- print =<< solveDeBruijnI
     -- print =<< solveDeBruijnK
