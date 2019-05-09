@@ -12,18 +12,27 @@ import DeBruijn.Test
 import Arithmetics.Test
 import Lambda.Test
 import NQueens.Test
+import Lookup.Test
+import Regex.Test
 
 import Data.Time.Clock
 
 
-timeIOAction :: IO a -> IO ()
+timeIOAction :: IO a -> IO (a, NominalDiffTime)
 timeIOAction action = do
   start <- getCurrentTime
-  _ <- action
+  res <- action
   end <- getCurrentTime
   let diff = diffUTCTime end start
-  putStrLn $ "time: " ++ show diff
-  
+  return (res, diff)
+
+
+timeIOActionPrint :: Show a => IO a -> IO ()
+timeIOActionPrint action = do
+  (res, time) <- timeIOAction action
+  putStrLn $ show res
+  putStrLn $ "time: " ++ show time
+
 
 arithmeticsTests :: IO ()
 arithmeticsTests = do
@@ -31,7 +40,8 @@ arithmeticsTests = do
   putStrLn "arithmeticsTests ----"
 
   putStrLn "-- productTest"
-  timeIOAction productTest
+  timeIOActionPrint productTest
+  putStrLn ""
 
   putStrLn "---------------------\n\n"
 
@@ -42,10 +52,12 @@ lambdaTests = do
   putStrLn "lambdaTests ---------"
 
   putStrLn "-- lambdaTest1"
-  timeIOAction lambdaTest1
+  timeIOActionPrint lambdaTest1
+  putStrLn ""
 
   putStrLn "-- lambdaTest2"
-  timeIOAction lambdaTest2
+  timeIOActionPrint lambdaTest2
+  putStrLn ""
 
   putStrLn "---------------------\n\n"
   return ()
@@ -57,13 +69,16 @@ nqueensTests = do
   putStrLn "nqueensTests --------"
 
   putStrLn "-- queensTestN 4"
-  timeIOAction $ queensTestN 4
+  timeIOActionPrint $ queensTestN 4
+  putStrLn ""
 
   putStrLn "-- queensTestN 5"
-  timeIOAction $ queensTestN 5
+  timeIOActionPrint $ queensTestN 5
+  putStrLn ""
 
   putStrLn "-- queensTestN 6"
-  timeIOAction $ queensTestN 6
+  timeIOActionPrint $ queensTestN 6
+  putStrLn ""
 
   putStrLn "---------------------\n\n"
   return ()
@@ -77,16 +92,37 @@ debruijnTests = do
   return ()
 
 
+lookupTests :: IO ()
+lookupTests = do
+  putStrLn "---------------------"
+  putStrLn "lookupTests -------"
+
+  putStrLn "-- lookupTest1"
+  timeIOActionPrint lookupTest1
+  putStrLn ""
+
+  -- putStrLn "-- lookupTest2"
+  -- timeIOActionPrint lookupTest2
+  putStrLn ""
+
+
+  putStrLn "---------------------\n\n"
+  return ()
+
+
+
+
 
 
 main :: IO ()
 main = do
     putStrLn "main: compiles!"
 
-    arithmeticsTests
-    lambdaTests
-    nqueensTests
-    debruijnTests
+    -- arithmeticsTests
+    -- lambdaTests
+    -- nqueensTests
+    -- debruijnTests
+    lookupTests
 
 
     putStrLn "main: done"
