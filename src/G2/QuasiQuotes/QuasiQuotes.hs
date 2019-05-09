@@ -370,8 +370,9 @@ executeAndSolveStates' b s = do
             let hal' = hal :<~> ErrorHalter :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
             -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' (BucketSizeOrderer 12 :<-> SymbolicADTOrderer) con s b
-            -- (res, _) <- runG2Post (red) hal' (SymbolicADTOrderer :<-> BucketSizeOrderer 6) con s b
-            (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) con s b
+            (res, _) <- runG2Post (red) hal' ((IncrAfterN 2000 SymbolicADTOrderer)
+                                          :<-> BucketSizeOrderer 6) con s b
+            -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) con s b
 
             case res of
                 exec_res:_ -> return $ Just exec_res
