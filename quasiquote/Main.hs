@@ -15,12 +15,13 @@ import NQueens.Test
 import Data.Time.Clock
 
 
-timeIOAction :: IO a -> IO ()
+timeIOAction :: Show a => IO a -> IO ()
 timeIOAction action = do
   start <- getCurrentTime
-  _ <- action
+  r <- action
   end <- getCurrentTime
   let diff = diffUTCTime end start
+  print r
   putStrLn $ "time: " ++ show diff
   
 
@@ -72,6 +73,13 @@ debruijnTests :: IO ()
 debruijnTests = do
   putStrLn "---------------------"
   putStrLn "debruijnTests -------"
+
+  putStrLn "-- solveDeBruijnI"
+  timeIOAction $ solveDeBruijnI
+
+  putStrLn "-- solveDeBruijnK"
+  timeIOAction $ solveDeBruijnK
+
   putStrLn "---------------------\n\n"
   return ()
 
@@ -82,10 +90,12 @@ main :: IO ()
 main = do
     putStrLn "main: compiles!"
 
-    arithmeticsTests
-    lambdaTests
-    nqueensTests
-    debruijnTests
+    timeIOAction $ solveDeBruijnI
+    timeIOAction $ solveDeBruijnK
+    -- arithmeticsTests
+    -- lambdaTests
+    -- nqueensTests
+    -- debruijnTests
 
 
     putStrLn "main: done"

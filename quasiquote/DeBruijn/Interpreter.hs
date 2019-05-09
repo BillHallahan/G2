@@ -21,23 +21,28 @@ data Expr = Lam Expr
 
 $(derivingG2Rep ''Expr)
 
-type LamStack = [Expr]
-type AppStack = [Expr]
+type Stack = [Expr]
 
 eval :: Expr -> Expr
-eval = eval' [] []
+eval = eval' []
 
-eval' :: LamStack -> AppStack -> Expr -> Expr
-eval' lamstck appstck (App ec ea) = eval' lamstck (ea:appstck) ec
-eval' lamstck (ea:appstck) (Lam e) = eval' (ea:lamstck) appstck (App e ea)
-eval' lamstck _ (Var i) = lamstck !! (i - 1) 
-eval' _ _ e = e
+eval' :: Stack -> Expr -> Expr
+eval' (e:stck) (Lam e') = eval' stck (rep 1 e e')
+eval' stck (App e1 e2) = eval' (e2:stck) e1
+eval' _ e = e
+
+rep :: Int -> Expr -> Expr -> Expr
+rep i e v@(Var j)
+    | i == j = e
+    | otherwise = v
+rep i e (Lam e') = Lam (rep (i + 1) e e')
+rep i e (App e1 e2) = App (rep i e e1) (rep i e e2)
 
 app :: [Expr] -> Expr
 app = foldl1 App
 
 num :: Int -> Expr
-num n = Lam $ Lam $ app (replicate n (Var 2) ++ [Var 1])
+num n = Lam $ Lam $ foldr1 App (replicate n (Var 2) ++ [Var 1])
 
 test1 :: Bool
 test1 = eval (App (Lam (Var 1)) (num 4)) == num 4
@@ -53,8 +58,8 @@ test3 = eval (App
                             (Lam 
                                 (Lam 
                                     (App
-                                        (App (Var 1) (Var 3))
-                                        (App (Var 2) (Var 1))
+                                        (App (Var 1) (Var 2))
+                                        (App (Var 2) (Var 3))
                                     )
                                 )
                             )
