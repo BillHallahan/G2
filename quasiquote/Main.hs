@@ -5,22 +5,97 @@ module Main where
 import G2.QuasiQuotes.QuasiQuotes
 import MiniLib
 
--- import DeBruijn.Test
 
--- import G2.QuasiQuotes.Parser
---import Arithmetics.Arithmetics
+import G2.QuasiQuotes.Parser
 
--- import NQueens.Call
-
--- import Lambda.Lambda
--- import NQueens.NQueens
+import DeBruijn.Test
+import Arithmetics.Test
+import Lambda.Test
 import NQueens.Test
+
+import Data.Time.Clock
+
+
+timeIOAction :: IO a -> IO ()
+timeIOAction action = do
+  start <- getCurrentTime
+  _ <- action
+  end <- getCurrentTime
+  let diff = diffUTCTime end start
+  putStrLn $ "time: " ++ show diff
+  
+
+arithmeticsTests :: IO ()
+arithmeticsTests = do
+  putStrLn "---------------------"
+  putStrLn "arithmeticsTests ----"
+
+  putStrLn "-- productTest"
+  timeIOAction productTest
+
+  putStrLn "---------------------\n\n"
+
+
+lambdaTests :: IO ()
+lambdaTests = do
+  putStrLn "---------------------"
+  putStrLn "lambdaTests ---------"
+
+  putStrLn "-- lambdaTest1"
+  timeIOAction lambdaTest1
+
+  putStrLn "-- lambdaTest2"
+  timeIOAction lambdaTest2
+
+  putStrLn "---------------------\n\n"
+  return ()
+
+
+nqueensTests :: IO ()
+nqueensTests = do
+  putStrLn "---------------------"
+  putStrLn "nqueensTests --------"
+
+  putStrLn "-- queensTestN 4"
+  timeIOAction $ queensTestN 4
+
+  putStrLn "-- queensTestN 5"
+  timeIOAction $ queensTestN 5
+
+  putStrLn "-- queensTestN 6"
+  timeIOAction $ queensTestN 6
+
+  putStrLn "---------------------\n\n"
+  return ()
+
+
+debruijnTests :: IO ()
+debruijnTests = do
+  putStrLn "---------------------"
+  putStrLn "debruijnTests -------"
+  putStrLn "---------------------\n\n"
+  return ()
+
+
+
 
 main :: IO ()
 main = do
+    putStrLn "main: compiles!"
+
+    arithmeticsTests
+    lambdaTests
+    nqueensTests
+    debruijnTests
+
+
+    putStrLn "main: done"
+
+
+
     -- print =<< triplesTo30
     -- print =<< queensTestN 3
-    print =<< queensTestN 8
+    -- print =<< queensTestN 8
     -- print =<< queensTestN 6
     -- print =<< solveDeBruijnI
     -- print =<< solveDeBruijnK

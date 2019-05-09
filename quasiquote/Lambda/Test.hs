@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Lambda.Lambda where
+module Lambda.Test where
 
 import Lambda.Interpreter
 import G2.QuasiQuotes.QuasiQuotes

@@ -211,6 +211,7 @@ executable QuasiQuote
   -- other-extensions:    
   build-depends:         g2
                        , base >= 4.8 && < 5
+                       , time >= 1.6
   default-language:    Haskell2010
   ghc-options:         -O2 -threaded -Wall
                        -- -ddump-splices
