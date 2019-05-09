@@ -369,7 +369,8 @@ executeAndSolveStates' b s = do
                            -- :<~> SwitchEveryNHalter 2000
             let hal' = hal :<~> ErrorHalter :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
             -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
-            -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' (BucketSizeOrderer 3 :<-> CaseCountOrderer) con s b
+            -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' (BucketSizeOrderer 12 :<-> SymbolicADTOrderer) con s b
+            -- (res, _) <- runG2Post (red) hal' (SymbolicADTOrderer :<-> BucketSizeOrderer 6) con s b
             (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) con s b
 
             case res of

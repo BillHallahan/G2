@@ -49,6 +49,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , PickLeastUsedOrderer (..)
                             , BucketSizeOrderer (..)
                             , CaseCountOrderer (..)
+                            , SymbolicADTOrderer (..)
 
                             , runReducer ) where
 
@@ -66,6 +67,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
 import System.Directory
+
+import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -707,7 +710,17 @@ instance Orderer CaseCountOrderer Int Int t where
     stepOrderer _ v _ _ _ = v
 
 
+-- Orders by the smallest symbolic ADTs
+data SymbolicADTOrderer = SymbolicADTOrderer
 
+instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
+    initPerStateOrder _ = S.fromList . map idName . symbolic_ids
+    orderStates _ v s = S.size v
+
+    updateSelected _ v _ _ = v
+
+    stepOrderer _ v _ _ s =
+        v `S.union` (S.fromList . map idName . symbolic_ids $ s)
 
 
 
