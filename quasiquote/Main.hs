@@ -12,7 +12,7 @@ import Arithmetics.Test
 import Lambda.Test
 import NQueens.Test
 import Lookup.Test
-import Regex.Test
+import RegEx.Test
 
 import Data.Time.Clock
 

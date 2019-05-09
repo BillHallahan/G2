@@ -1,8 +1,8 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Regex.Test where
+module RegEx.Test where
 
-import Regex.Regex
+import RegEx.RegEx
 import G2.QuasiQuotes.QuasiQuotes
 
 regexTest1 :: IO (Maybe String)
@@ -12,14 +12,14 @@ regexTest2 :: IO (Maybe String)
 regexTest2 = stringSearch r
   where
     r = Concat
-          (Star (Plus (Atom 'a') (Atom 'b')))
+          (Star (Or (Atom 'a') (Atom 'b')))
           (Concat (Atom 'c')
-            (Plus (Atom 'd')
+            (Or (Atom 'd')
                 (Concat (Atom 'e')
-                              (Atom 'f'))))
+                        (Atom 'f'))))
                 
 
-stringSearch :: Regex -> IO (Maybe String)
-stringSearch = [g2| \(r :: Regex) -> ?(str :: String) |
+stringSearch :: RegEx -> IO (Maybe String)
+stringSearch = [g2| \(r :: RegEx) -> ?(str :: String) |
               match r str |]
 
