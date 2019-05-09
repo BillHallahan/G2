@@ -35,3 +35,4 @@ eval env (Var id) =
 eval env (App (Lam id body) arg) =
   eval ((id, arg) : env) body
 eval env expr = expr
+

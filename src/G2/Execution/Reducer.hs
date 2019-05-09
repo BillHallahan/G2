@@ -41,6 +41,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , BranchAdjSwitchEveryNHalter (..)
                             , RecursiveCutOff (..)
                             , VarLookupLimit (..)
+                            , BranchAdjVarLookupLimit (..)
 
                             -- Orderers
                             , OCombiner (..)
@@ -65,8 +66,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
 import System.Directory
-
-import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -162,6 +161,10 @@ class Ord b => Orderer or sov b t | or -> sov, or -> b where
 
     -- | Run on the selected state, to update it's sov field
     updateSelected :: or -> sov -> Processed (State t) -> State t -> sov
+
+    -- | Run on the state at each step, to update it's sov field
+    stepOrderer :: or -> sov -> Processed (State t) -> [State t] -> State t -> sov 
+    stepOrderer _ sov _ _ _ = sov
 
 data SomeReducer t where
     SomeReducer :: forall r rv t . Reducer r rv t => r -> SomeReducer t
@@ -528,13 +531,34 @@ instance Halter BranchAdjSwitchEveryNHalter SwitchingPerState t where
         sps { counter = sw }
     stopRed _ (SwitchingPerState { counter = i }) _ _ =
         if i <= 0 then Switch else Continue
-    stepHalter _ sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs _ =
+    stepHalter bas@(BranchAdjSwitchEveryNHalter { switch_min = mi })
+               sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs _ =
         let
-            new_sa = max 100 (sa `div` length xs)
-            new_i = min i new_sa
+            new_sa = max mi (sa `div` length xs)
+            new_i = min (i - 1) new_sa
         in
-        trace ("switch_at = " ++ show new_sa ++ " counter = " ++ show new_i)
         sps { switch_at = new_sa, counter = new_i}
+
+data BranchAdjVarLookupLimit = BranchAdjVarLookupLimit { var_switch_def :: Int
+                                                       , var_switch_min :: Int }
+
+instance Halter BranchAdjVarLookupLimit SwitchingPerState t where
+    initHalt (BranchAdjVarLookupLimit { var_switch_def = sw }) _ =
+        SwitchingPerState { switch_at = sw, counter = sw }
+    updatePerStateHalt _ sps@(SwitchingPerState { switch_at = sw }) _ _ =
+        sps { counter = sw }
+    stopRed _ (SwitchingPerState { counter = i }) _ _ =
+        if i <= 0 then Switch else Continue
+
+    stepHalter bas@(BranchAdjVarLookupLimit { var_switch_min = mi })
+               sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs
+               s@(State { curr_expr = CurrExpr Evaluate (Var _) }) =
+        let
+            new_sa = max mi (sa `div` length xs)
+            new_i = min (i - 1) new_sa
+        in
+        sps { switch_at = new_sa, counter = new_i}
+    stepHalter _ sps _ _ _ = sps
 
 
 -- Cutoff recursion after n recursive calls
@@ -636,6 +660,13 @@ instance (Orderer or1 sov1 b1 t, Orderer or2 sov2 b2 t)
       in
       C sov1' sov2'
 
+    stepOrderer (or1 :<-> or2) (C sov1 sov2) proc xs s =
+        let
+            sov1' = stepOrderer or1 sov1 proc xs s
+            sov2' = stepOrderer or2 sov2 proc xs s
+        in
+        C sov1' sov2'
+
 
 data NextOrderer = NextOrderer
 
@@ -670,8 +701,10 @@ instance Orderer CaseCountOrderer Int Int t where
 
     orderStates _ v s = v
 
-    updateSelected _ v _ (State { curr_expr = CurrExpr _ (Case _ _ _) }) = v + 1
     updateSelected _ v _ _ = v
+
+    stepOrderer _ v _ _ (State { curr_expr = CurrExpr _ (Case _ _ _) }) = v + 1
+    stepOrderer _ v _ _ _ = v
 
 
 
@@ -703,7 +736,7 @@ runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             -> Bindings
             -> M.Map b [ExState rv hv sov t] 
             -> IO (Processed (ExState rv hv sov t), Bindings)
-runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) b xs
+runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs
     | hc == Accept =
         let
             pr' = pr {accepted = rs:accepted pr}
@@ -745,11 +778,14 @@ runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter
             mod_info = map (\(s', r_val') ->
                                 rs { state = s'
                                    , reducer_val = r_val'
-                                   , halter_val = stepHalter hal h_val ps new_states s'}) $ zip new_states r_vals
+                                   , halter_val = stepHalter hal h_val ps new_states s'
+                                   , order_val = stepOrderer ord o_val ps new_states s'}) $ zip new_states r_vals
         
-        let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs mod_info
-
-        runReducerList red' hal ord pr xs' b'
+        case mod_info of
+            (s_h:ss_tail) -> do
+                let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs ss_tail
+                runReducer' red' hal ord pr s_h b' xs'
+            [] -> runReducerList red' hal ord pr xs b' 
     where
         hc = stopRed hal h_val ps s
         ps = processedToState pr

@@ -19,7 +19,7 @@ solveDeBruijn =
 
 solveDeBruijnI :: IO (Maybe Expr)
 solveDeBruijnI = solveDeBruijn [ ([num 1], num 1)
-                               , ([num 2], num 2)]
+                               , ([num 2], num 2) ]
 
 solveDeBruijnK :: IO (Maybe Expr)
 solveDeBruijnK = solveDeBruijn [ ([num 1, num 2], num 1)

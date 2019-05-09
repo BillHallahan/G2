@@ -8,13 +8,20 @@ import MiniLib
 import DeBruijn.Test
 
 -- import G2.QuasiQuotes.Parser
+import Arithmetics.Arithmetics
 
+import NQueens.Call
 
 import Lambda.Lambda
+import NQueens.NQueens
 
 main :: IO ()
 main = do
-    print =<< solveDeBruijnI
+    print =<< triplesTo30
+    print =<< queensTestN 3
+    print =<< queensTestN 4
+    -- print =<< queensTestN 6
+    -- print =<< solveDeBruijnI
     -- print =<< solveDeBruijnK
     -- print =<< lambdaTest2
     
