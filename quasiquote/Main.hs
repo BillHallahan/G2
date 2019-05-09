@@ -104,12 +104,27 @@ lookupTests = do
   -- timeIOActionPrint lookupTest2
   putStrLn ""
 
-
   putStrLn "---------------------\n\n"
   return ()
 
 
 
+
+regexTests :: IO ()
+regexTests = do
+  putStrLn "---------------------"
+  putStrLn "regexTests ----------"
+
+  putStrLn "-- regexTest1"
+  timeIOActionPrint regexTest1
+  putStrLn ""
+
+  putStrLn "-- regexTest2"
+  timeIOActionPrint regexTest2
+  putStrLn ""
+
+  putStrLn "---------------------\n\n"
+  return ()
 
 
 
@@ -121,7 +136,8 @@ main = do
     -- lambdaTests
     -- nqueensTests
     -- debruijnTests
-    lookupTests
+    -- lookupTests
+    regexTests
 
 
     putStrLn "main: done"
