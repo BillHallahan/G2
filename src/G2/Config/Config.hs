@@ -80,6 +80,9 @@ basePaths root =
     , ( root ++  "/.g2/base-4.9.1.0/"
       , root ++ "/.g2/base-4.9.1.0/Prelude.hs")
 
+    , ( root ++ "/.g2/base-4.9.1.0/"
+      , root ++ "/.g2/base-4.9.1.0/Control/Monad.hs")
+
     , ( root ++ "/.g2/base-4.9.1.0/Data/Internal/"
       , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs")
     ]

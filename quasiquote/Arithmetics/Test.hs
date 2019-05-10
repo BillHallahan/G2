@@ -18,6 +18,10 @@ envTest :: BExpr -> IO (Maybe Env)
 envTest = [g2|\(b :: BExpr) -> ?(env :: Env) |
                 evalB env b |]
 
+assertViolation :: Stmts -> IO (Maybe Env)
+assertViolation = [g2|\(stmts :: Stmts) -> ?(env :: Env) |
+                       evalStmts env stmts == Nothing|]
+
 productSumTest :: IO (Maybe Env)
 productSumTest =
     envTest $ And

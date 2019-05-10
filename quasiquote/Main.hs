@@ -81,6 +81,10 @@ nqueensTests = do
   timeIOActionPrint $ queensTestN 6
   putStrLn ""
 
+  putStrLn "-- queensTestN 7"
+  timeIOActionPrint $ queensTestN 
+  putStrLn ""
+
   putStrLn "---------------------\n\n"
   return ()
 
