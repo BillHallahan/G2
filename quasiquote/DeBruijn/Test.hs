@@ -22,8 +22,8 @@ solveDeBruijnI = solveDeBruijn [ ([num 1], num 1)
                                , ([num 2], num 2) ]
 
 solveDeBruijnK :: IO (Maybe Expr)
-solveDeBruijnK = solveDeBruijn [ ([num 1, num 2], num 1)
-                               , ([num 2, num 3], num 2)]
+solveDeBruijnK = solveDeBruijn [ ([num 1, num 2], num 2)
+                               , ([num 2, num 3], num 3)]
 
 solveDeBruijnS :: IO (Maybe Expr)
 solveDeBruijnS =

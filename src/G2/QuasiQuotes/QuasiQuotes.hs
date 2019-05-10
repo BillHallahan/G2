@@ -371,7 +371,7 @@ executeAndSolveStates' b s = do
             -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' ((IncrAfterN 2000 SymbolicADTOrderer)
                                           -- :<-> BucketSizeOrderer 6) con s b
-            (res, _) <- runG2Post (red) hal' ((IncrAfterN 2000 SymbolicADTOrderer)
+            (res, _) <- runG2Post (red) hal' ((IncrAfterN 2000 ADTHeightOrderer)
                                           :<-> BucketSizeOrderer 6) con s b
             -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) con s b
 

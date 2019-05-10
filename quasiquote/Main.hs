@@ -140,12 +140,12 @@ main :: IO ()
 main = do
     putStrLn "main: compiles!"
 
-    -- arithmeticsTests
-    -- lambdaTests
+    arithmeticsTests
+    lambdaTests
     nqueensTests
     debruijnTests
-    -- lookupTests
-    -- regexTests
+    lookupTests
+    regexTests
 
 
     putStrLn "main: done"

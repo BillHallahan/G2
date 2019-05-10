@@ -50,6 +50,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , BucketSizeOrderer (..)
                             , CaseCountOrderer (..)
                             , SymbolicADTOrderer (..)
+                            , ADTHeightOrderer (..)
                             , IncrAfterN (..)
 
                             , runReducer ) where
@@ -722,6 +723,34 @@ instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
 
     stepOrderer _ v _ _ s =
         v `S.union` (S.fromList . map idName . symbolic_ids $ s)
+
+-- Orders by the largest (in terms of height) (previously) symbolic ADT
+data ADTHeightOrderer = ADTHeightOrderer
+
+instance Orderer ADTHeightOrderer (S.HashSet Name) Int t where
+    initPerStateOrder _ = S.fromList . map idName . symbolic_ids
+    orderStates _ v s = maximum . S.toList $ S.map (flip adtHeight s) v
+
+    updateSelected _ v _ _ = v
+
+    -- stepOrderer _ v _ _ s =
+    --     v `S.union` (S.fromList . map idName . symbolic_ids $ s)
+
+adtHeight :: Name -> State t -> Int
+adtHeight n s@(State { expr_env = eenv })
+    | E.isSymbolic n eenv = 0
+    | Just e <- E.lookup n eenv =
+        1 + adtHeight' e s
+    | otherwise = 0
+
+adtHeight' :: Expr -> State t -> Int
+adtHeight' e s =
+    let
+        _:es = unApp e 
+    in
+    maximum $ map (\e' -> case e' of
+                        Var (Id n _) -> adtHeight n s
+                        _ -> 0) es
 
 -- Wraps an existing Orderer, and increases it's value by 1, every time
 -- it doesn't change after N steps 
