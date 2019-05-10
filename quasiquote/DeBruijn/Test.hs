@@ -24,3 +24,20 @@ solveDeBruijnI = solveDeBruijn [ ([num 1], num 1)
 solveDeBruijnK :: IO (Maybe Expr)
 solveDeBruijnK = solveDeBruijn [ ([num 1, num 2], num 1)
                                , ([num 2, num 3], num 2)]
+
+solveDeBruijnS :: IO (Maybe Expr)
+solveDeBruijnS =
+    let
+        k = Lam (Lam (Var 2))
+    in
+    solveDeBruijn
+        [ ([Lam (Lam (Var 1)), Lam (Var 1), num 2], num 2)
+        , ([Lam (Lam (Var 1)), Lam (Lam (Var 2)), num 3], num 3) ]
+    -- [g2| \(_ :: ()) -> ?(func :: Expr) |
+    --     let
+    --         k = Lam (Lam (Var 2))
+    --     in
+    --     eval (App func (App k (App (num 1) (num 2)))) == num 2
+    -- |] ()
+    -- , ([Lam (Lam (Var 1)), Lam (num 3), num 1], num 3)]
+    -- , ([Lam (Lam (Lam (Var 2))), Lam (Lam (Var 1)), num 1], Lam (Lam (num 1)))]

@@ -7,6 +7,7 @@ module DeBruijn.Interpreter ( Expr (..)
                             , eval
                             , app
                             , num
+                            , k
                             , solveDeBruijn2) where
 
 import Data.Data
@@ -14,8 +15,8 @@ import G2.QuasiQuotes.G2Rep
 
 type Ident = Int
 
-data Expr = Lam Expr
-          | Var Ident
+data Expr = Var Ident
+          | Lam Expr
           | App Expr Expr
           deriving (Show, Read, Eq, Data)
 
@@ -29,7 +30,7 @@ eval = eval' []
 eval' :: Stack -> Expr -> Expr
 eval' (e:stck) (Lam e') = eval' stck (rep 1 e e')
 eval' stck (App e1 e2) = eval' (e2:stck) e1
-eval' _ e = e
+eval' stck e = app $ e:stck
 
 rep :: Int -> Expr -> Expr -> Expr
 rep i e v@(Var j)
@@ -43,6 +44,23 @@ app = foldl1 App
 
 num :: Int -> Expr
 num n = Lam $ Lam $ foldr1 App (replicate n (Var 2) ++ [Var 1])
+
+k :: Expr
+k = Lam 
+    (Lam
+        (Lam
+            (App
+                (App
+                    (Var 3)
+                    (Var 1)
+                )
+                (App
+                    (Var 2)
+                    (Var 1)
+                )
+            )
+        )
+    )
 
 test1 :: Bool
 test1 = eval (App (Lam (Var 1)) (num 4)) == num 4

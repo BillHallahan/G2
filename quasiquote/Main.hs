@@ -16,18 +16,6 @@ import RegEx.Test
 
 import Data.Time.Clock
 
-
-<<<<<<< HEAD
-timeIOAction :: Show a => IO a -> IO ()
-timeIOAction action = do
-  start <- getCurrentTime
-  r <- action
-  end <- getCurrentTime
-  let diff = diffUTCTime end start
-  print r
-  putStrLn $ "time: " ++ show diff
-  
-=======
 timeIOAction :: IO a -> IO (a, NominalDiffTime)
 timeIOAction action = do
   start <- getCurrentTime
@@ -42,8 +30,6 @@ timeIOActionPrint action = do
   (res, time) <- timeIOAction action
   putStrLn $ show res
   putStrLn $ "time: " ++ show time
-
->>>>>>> ff1f015127d0e587af2264c11c9c3450c9906196
 
 arithmeticsTests :: IO ()
 arithmeticsTests = do
@@ -101,10 +87,13 @@ debruijnTests = do
   putStrLn "debruijnTests -------"
 
   putStrLn "-- solveDeBruijnI"
-  timeIOAction $ solveDeBruijnI
+  timeIOActionPrint $ solveDeBruijnI
 
   putStrLn "-- solveDeBruijnK"
-  timeIOAction $ solveDeBruijnK
+  timeIOActionPrint $ solveDeBruijnK
+
+  putStrLn "-- solveDeBruijnS"
+  timeIOActionPrint $ solveDeBruijnS
 
   putStrLn "---------------------\n\n"
   return ()
@@ -151,12 +140,12 @@ main :: IO ()
 main = do
     putStrLn "main: compiles!"
 
-    arithmeticsTests
-    lambdaTests
-    nqueensTests
+    -- arithmeticsTests
+    -- lambdaTests
+    -- nqueensTests
     debruijnTests
-    lookupTests
-    regexTests
+    -- lookupTests
+    -- regexTests
 
 
     putStrLn "main: done"
