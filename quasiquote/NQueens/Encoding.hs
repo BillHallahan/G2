@@ -5,11 +5,11 @@ import Data.List
 type Queen = Int
 
 indexPairs :: Int -> [(Int,Int)]
-indexPairs n = [(i, j) | i <- [0..n-1], j <- [0..n-1], i < j]
+indexPairs n = [(i, j) | i <- [0..n-1], j <- [i+1..n-1]]
 
 queenPairSafe :: Int -> [Queen] -> (Int, Int) -> Bool
 queenPairSafe n qs (i, j) =
-  let qs_i = qs !! i 
+  let qs_i = qs !! i
       qs_j = qs !! j
   in (qs_i /= qs_j)
       && (1 <= qs_i && qs_i <= n)

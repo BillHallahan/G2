@@ -142,7 +142,7 @@ main = do
 
     -- arithmeticsTests
     -- lambdaTests
-    -- nqueensTests
+    nqueensTests
     debruijnTests
     -- lookupTests
     -- regexTests
