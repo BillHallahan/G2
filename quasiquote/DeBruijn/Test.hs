@@ -25,6 +25,28 @@ solveDeBruijnK :: IO (Maybe Expr)
 solveDeBruijnK = solveDeBruijn [ ([num 1, num 2], num 2)
                                , ([num 2, num 3], num 3)]
 
+trueLam :: Expr
+trueLam = Lam (Lam (Var 2))
+
+falseLam :: Expr
+falseLam = Lam (Lam (Var 1))
+
+solveDeBruijnAnd :: IO (Maybe Expr)
+solveDeBruijnAnd = solveDeBruijn [ ([trueLam, trueLam], trueLam)
+                                 , ([falseLam, falseLam], falseLam)
+                                 , ([falseLam, trueLam], falseLam) 
+                                 , ([trueLam, falseLam], falseLam) ]
+
+solveDeBruijnOr :: IO (Maybe Expr)
+solveDeBruijnOr = solveDeBruijn [ ([trueLam, trueLam], trueLam)
+                                  , ([falseLam, falseLam], falseLam)
+                                  , ([falseLam, trueLam], trueLam) 
+                                  , ([trueLam, falseLam], trueLam) ]
+
+solveDeBruijnIte :: IO (Maybe Expr)
+solveDeBruijnIte = solveDeBruijn [ ([trueLam, Var 2, Var 4], Var 2)
+                                 , ([falseLam, Var 2, Var 4], Var 4) ]
+
 solveDeBruijnS :: IO (Maybe Expr)
 solveDeBruijnS =
     let

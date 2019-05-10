@@ -7,18 +7,20 @@ type Queen = Int
 indexPairs :: Int -> [(Int,Int)]
 indexPairs n = [(i, j) | i <- [0..n-1], j <- [i+1..n-1]]
 
+legal :: Int -> Queen -> Bool
+legal n qs = 1 <= qs && qs <= n
+
 queenPairSafe :: Int -> [Queen] -> (Int, Int) -> Bool
 queenPairSafe n qs (i, j) =
   let qs_i = qs !! i
       qs_j = qs !! j
   in (qs_i /= qs_j)
-      && (1 <= qs_i && qs_i <= n)
-      && (1 <= qs_j && qs_j <= n)
       && (abs (qs_j - qs_i) /= (j - i))
 
 allQueensSafe :: Int -> [Queen] -> Bool
 allQueensSafe n qs =
   (n == length qs)
+  && all (legal n) qs
   && (all (queenPairSafe n qs) (indexPairs n))
 
 

@@ -6,6 +6,7 @@ module DeBruijn.Interpreter ( Expr (..)
                             , Ident
                             , eval
                             , app
+                            , lams
                             , num
                             , k
                             , solveDeBruijn2) where
@@ -41,6 +42,9 @@ rep i e (App e1 e2) = App (rep i e e1) (rep i e e2)
 
 app :: [Expr] -> Expr
 app = foldl1 App
+
+lams :: Int -> Expr -> Expr
+lams n e = iterate Lam e !! n
 
 num :: Int -> Expr
 num n = Lam $ Lam $ foldr1 App (replicate n (Var 2) ++ [Var 1])

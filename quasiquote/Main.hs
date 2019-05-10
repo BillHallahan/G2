@@ -92,8 +92,14 @@ debruijnTests = do
   putStrLn "-- solveDeBruijnK"
   timeIOActionPrint $ solveDeBruijnK
 
-  putStrLn "-- solveDeBruijnS"
-  timeIOActionPrint $ solveDeBruijnS
+  putStrLn "-- solveDeBruijnOr"
+  timeIOActionPrint $ solveDeBruijnOr
+
+  -- putStrLn "-- solveDeBruijnAnd"
+  -- timeIOActionPrint $ solveDeBruijnAnd
+
+  putStrLn "-- solveDeBruijnIte"
+  timeIOActionPrint $ solveDeBruijnIte
 
   putStrLn "---------------------\n\n"
   return ()
