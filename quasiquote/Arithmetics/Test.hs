@@ -29,13 +29,55 @@ productSumTest =
                     (Mul (Var "x") (Var "y"))
                     (Add (Var "x") (Var "y"))))
                 (Lt (I 0) (Var "x"))
-{-
-linearTest :: IO (Maybe (AExpr, AExpr))
-linearTest =
-  [g2| \(a :: Int) -> ?(s1 :: AExpr)
-                      ?(s2 :: AExpr) |
-    let env = [("w", 17), ("x", 19), ("y", 23), ("z" 29)] in
--}
 
 
+assertViolationTest1 :: IO (Maybe Env)
+assertViolationTest1 = assertViolation
+  [ Assert (Lt (I 5) (I 3)) ]
+
+-- x^2 + y^2 + z^2 < (x + y + z)^2
+assertViolationTest2 :: IO (Maybe Env)
+assertViolationTest2 = assertViolation
+  [ Assign "v1" (Add (Var "x") (Add (Var "y") (Var "z")))
+  , Assign "v1" (Mul (Var "v1") (Var "v1"))
+  , Assign "v2" (Add (Mul (Var "x") (Var "x"))
+                  (Add (Mul (Var "y") (Var "y"))
+                       (Mul (Var "z") (Var "z"))))
+  , Assert (Lt (Var "v2") (Var "v1"))
+  ]
+
+
+assertViolationTest3 :: IO (Maybe Env)
+assertViolationTest3 = assertViolation
+  [
+    Assign "k" (I 1),
+    Assign "i" (I 0),
+    Assign "j" (I 0),
+    Assign "n" (I 5),
+    While (Or (Lt (Var "i") (Var "n"))
+              (Eq (Var "i") (Var "n")))
+          [ Assign "i" (Add (Var "i") (I 1))
+          , Assign "j" (Add (Var "j") (Var "i"))
+          ],
+    Assign "z" (Add (Var "k") (Add (Var "i") (Var "j"))),
+    Assert (Lt (Mul (Var "n") (I 2)) (Var "z"))
+  ]
+  
+
+assertViolationTest4 :: IO (Maybe Env)
+assertViolationTest4 = assertViolation
+  [
+    Assign "k" (I (- 100)),
+    Assign "i" (I 0),
+    -- Assign "j" (I 0),
+    Assign "n" (I 5),
+    While (Or (Lt (Var "i") (Var "n"))
+              (Eq (Var "i") (Var "n")))
+          [ Assign "i" (Add (Var "i") (I 1))
+          , Assign "j" (Add (Var "j") (Var "i"))
+          ],
+    Assign "z" (Add (Var "k") (Add (Var "i") (Var "j"))),
+    Assert (Lt (Mul (Var "n") (I 2)) (Var "z"))
+  ]
+ 
 
