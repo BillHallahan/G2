@@ -14,6 +14,17 @@ productTest =
     let rhs = Mul s1 s2 in
       evalB env (Eq lhs rhs) |] 0
 
+envTest :: BExpr -> IO (Maybe Env)
+envTest = [g2|\(b :: BExpr) -> ?(env :: Env) |
+                evalB env b |]
+
+productSumTest :: IO (Maybe Env)
+productSumTest =
+    envTest $ And
+                ((Eq 
+                    (Mul (Var "x") (Var "y"))
+                    (Add (Var "x") (Var "y"))))
+                (Lt (I 0) (Var "x"))
 {-
 linearTest :: IO (Maybe (AExpr, AExpr))
 linearTest =

@@ -40,6 +40,10 @@ arithmeticsTests = do
   timeIOActionPrint productTest
   putStrLn ""
 
+  putStrLn "-- productSumTest"
+  timeIOActionPrint productSumTest
+  putStrLn ""
+
   putStrLn "---------------------\n\n"
 
 
