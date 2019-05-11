@@ -18,7 +18,7 @@ data AExpr = I Int | Var Ident
 
 $(derivingG2Rep ''AExpr)
 
-data BExpr = Not BExpr | And BExpr BExpr
+data BExpr = Not BExpr | And BExpr BExpr | Or BExpr BExpr
     | Lt AExpr AExpr | Eq AExpr AExpr
     deriving (Eq, Show, Data)
 
@@ -78,6 +78,8 @@ evalB :: Env -> BExpr -> Bool
 evalB env (Not bexpr) = not $ evalB env bexpr
 evalB env (And lhs rhs) =
   evalB env lhs && evalB env rhs
+evalB env (Or lhs rhs) =
+  evalB env lhs || evalB env rhs
 evalB env (Lt lhs rhs) =
   evalA env lhs < evalA env rhs
 evalB env (Eq lhs rhs) =

@@ -44,6 +44,28 @@ arithmeticsTests = do
   timeIOActionPrint productSumTest
   putStrLn ""
 
+  putStrLn "-- assertViolationTest1"
+  timeIOActionPrint assertViolationTest1
+  putStrLn ""
+
+  -- Technically this is non-linear integer arithm so undecidable
+  -- putStrLn "-- assertViolationTest2"
+  -- timeIOActionPrint assertViolationTest2
+  -- putStrLn ""
+
+  -- About 6 secs
+  putStrLn "-- assertViolationTest3"
+  timeIOActionPrint assertViolationTest3
+  putStrLn ""
+
+  -- About 51 secs
+  putStrLn "-- assertViolationTest4"
+  timeIOActionPrint assertViolationTest4
+  putStrLn ""
+
+
+
+
   putStrLn "---------------------\n\n"
 
 
@@ -155,11 +177,11 @@ main = do
     putStrLn "main: compiles!"
 
     arithmeticsTests
-    lambdaTests
-    nqueensTests
-    debruijnTests
-    lookupTests
-    regexTests
+    -- lambdaTests
+    -- nqueensTests
+    -- debruijnTests
+    -- lookupTests
+    -- regexTests
 
 
     putStrLn "main: done"
