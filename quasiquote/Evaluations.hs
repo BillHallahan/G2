@@ -34,6 +34,10 @@ searchBadEnv =
   [g2| \(stmts :: Stmts) -> ?(env :: Env) |
         evalStmts env stmts == Nothing|]
 
+envTest :: BExpr -> IO (Maybe Env)
+envTest = [g2|\(b :: BExpr) -> ?(env :: Env) |
+                evalB env b |]
+
 badProg :: Stmts
 badProg =
   [
@@ -50,12 +54,20 @@ badProg =
     Assert (Lt (Mul (A.Var "n") (I 2)) (A.Var "z"))
   ]
 
+productSumTest :: BExpr
+productSumTest =
+  And
+    ((Eq 
+      (Mul (A.Var "x") (A.Var "y"))
+      (Add (A.Var "x") (A.Var "y"))))
+    (Lt (I 0) (A.Var "x"))
 
 runArithmeticsEval :: IO ()
 runArithmeticsEval = do
   putStrLn "------------------------"
   putStrLn "-- Arithmetics Eval -------"
   timeIOActionPrint $ searchBadEnv badProg
+  timeIOActionPrint $ envTest productSumTest
   putStrLn ""
 
 
@@ -74,10 +86,14 @@ solveDeBruijn =
     [g2| \(es :: [([Expr], Expr)]) -> ?(func :: Expr) |
          all (\e -> (eval (app (func:fst e))) == snd e) es |]
 
+idDeBruijn :: [([D.Expr], D.Expr)]
+idDeBruijn = [ ([num 1], num 1)
+             , ([num 2], num 2) ]
+
 const2Example :: [([D.Expr], D.Expr)]
 const2Example =
-  [ ([num 1, num 2], num 2)
-  , ([num 2, num 3], num 3) ]                
+  [ ([num 1, num 2], num 1)
+  , ([num 2, num 3], num 2) ]                
 
 trueLam :: D.Expr
 trueLam = Lam (Lam (D.Var 2))
@@ -97,6 +113,7 @@ runDeBruijnEval :: IO ()
 runDeBruijnEval = do
   putStrLn "------------------------"
   putStrLn "-- DeBruijn Eval -------"
+  timeIOActionPrint $ solveDeBruijn idDeBruijn
   timeIOActionPrint $ solveDeBruijn const2Example
   timeIOActionPrint $ solveDeBruijn orExample
   putStrLn ""

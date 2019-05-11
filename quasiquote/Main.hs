@@ -14,7 +14,7 @@ import NQueens.Test
 import Lookup.Test
 import RegEx.Test
 
-import Evaluations
+import Evaluations hiding (productSumTest)
 
 
 import Data.Time.Clock
