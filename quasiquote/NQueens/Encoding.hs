@@ -23,6 +23,9 @@ allQueensSafe n qs =
   && all (legal n) qs
   && (all (queenPairSafe n qs) (indexPairs n))
 
+solveListCompN :: Int -> [Int]
+solveListCompN n =
+  head . filter (allQueensSafe n) $ [x | x <- mapM (const [1..n]) [1..n]]
 
 {-
 -- Gets all pairs of unique positions
