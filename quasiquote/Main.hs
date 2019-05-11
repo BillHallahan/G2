@@ -14,22 +14,10 @@ import NQueens.Test
 import Lookup.Test
 import RegEx.Test
 
+import Evaluations
+
+
 import Data.Time.Clock
-
-timeIOAction :: IO a -> IO (a, NominalDiffTime)
-timeIOAction action = do
-  start <- getCurrentTime
-  res <- action
-  end <- getCurrentTime
-  let diff = diffUTCTime end start
-  return (res, diff)
-
-
-timeIOActionPrint :: Show a => IO a -> IO ()
-timeIOActionPrint action = do
-  (res, time) <- timeIOAction action
-  putStrLn $ show res
-  putStrLn $ "time: " ++ show time
 
 arithmeticsTests :: IO ()
 arithmeticsTests = do
@@ -176,12 +164,17 @@ main :: IO ()
 main = do
     putStrLn "main: compiles!"
 
-    arithmeticsTests
+    -- arithmeticsTests
     -- lambdaTests
     -- nqueensTests
     -- debruijnTests
     -- lookupTests
     -- regexTests
+
+    runArithmeticsEval
+    runDeBruijnEval
+    runRegExEval
+
 
 
     putStrLn "main: done"
