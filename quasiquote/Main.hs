@@ -82,7 +82,7 @@ nqueensTests = do
   putStrLn ""
 
   putStrLn "-- queensTestN 7"
-  timeIOActionPrint $ queensTestN 
+  timeIOActionPrint $ queensTestN 7
   putStrLn ""
 
   putStrLn "---------------------\n\n"
@@ -94,10 +94,10 @@ debruijnTests = do
   putStrLn "---------------------"
   putStrLn "debruijnTests -------"
 
-  putStrLn "-- solveDeBruijnI"
+  putStrLn "-- solveDeBruijnI" -- identity
   timeIOActionPrint $ solveDeBruijnI
 
-  putStrLn "-- solveDeBruijnK"
+  putStrLn "-- solveDeBruijnK" -- const
   timeIOActionPrint $ solveDeBruijnK
 
   putStrLn "-- solveDeBruijnOr"

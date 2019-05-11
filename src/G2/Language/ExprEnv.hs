@@ -5,6 +5,7 @@
 
 module G2.Language.ExprEnv
     ( ExprEnv
+    , ConcOrSym (..)
     , empty
     , singleton
     , fromList
@@ -12,6 +13,7 @@ module G2.Language.ExprEnv
     , size
     , member
     , lookup
+    , lookupConcOrSym
     , deepLookup
     , isSymbolic
     , occLookup
@@ -60,6 +62,9 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+
+data ConcOrSym = Conc Expr
+               | Sym Id
 
 -- From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
@@ -110,6 +115,14 @@ lookup n (ExprEnv smap) =
         Just (ExprObj expr) -> Just expr
         Just (RedirObj redir) -> lookup redir (ExprEnv smap)
         Just (SymbObj i) -> Just $ Var i
+        Nothing -> Nothing
+
+lookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
+lookupConcOrSym  n (ExprEnv smap) = 
+    case M.lookup n smap of
+        Just (ExprObj expr) -> Just $ Conc expr
+        Just (RedirObj redir) -> lookupConcOrSym redir (ExprEnv smap)
+        Just (SymbObj i) -> Just $ Sym i
         Nothing -> Nothing
 
 -- | Lookup the `Expr` with the given `Name`.

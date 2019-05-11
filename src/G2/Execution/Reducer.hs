@@ -738,10 +738,12 @@ instance Orderer ADTHeightOrderer (S.HashSet Name) Int t where
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
-    | E.isSymbolic n eenv = 0
-    | Just e <- E.lookup n eenv =
+    | Just (E.Sym _) <- v = 0
+    | Just (E.Conc e) <- v =
         1 + adtHeight' e s
     | otherwise = 0
+    where
+        v = E.lookupConcOrSym n eenv
 
 adtHeight' :: Expr -> State t -> Int
 adtHeight' e s =
