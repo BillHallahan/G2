@@ -67,7 +67,7 @@ assertViolationTest3 = assertViolation
 assertViolationTest4 :: IO (Maybe Env)
 assertViolationTest4 = assertViolation
   [
-    Assign "k" (I (- 100)),
+    Assign "k" (I 1),
     Assign "i" (I 0),
     -- Assign "j" (I 0),
     Assign "n" (I 5),
