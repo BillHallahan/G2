@@ -101,12 +101,24 @@ trueLam = Lam (Lam (D.Var 2))
 falseLam :: D.Expr
 falseLam = Lam (Lam (D.Var 1))
 
+notExample :: [([D.Expr], D.Expr)]
+notExample =
+  [ ([trueLam], falseLam)
+  , ([falseLam], trueLam) ]
+
 orExample :: [([D.Expr], D.Expr)]
 orExample =
   [ ([trueLam, trueLam], trueLam)
   , ([falseLam, falseLam], falseLam)
   , ([falseLam, trueLam], trueLam)
   , ([trueLam, falseLam], trueLam )]
+
+andExample :: [([D.Expr], D.Expr)]
+andExample =
+  [ ([trueLam, trueLam], trueLam)
+  , ([falseLam, falseLam], falseLam)
+  , ([falseLam, trueLam], falseLam)
+  , ([trueLam, falseLam], falseLam )]
 
 
 runDeBruijnEval :: IO ()
@@ -115,7 +127,9 @@ runDeBruijnEval = do
   putStrLn "-- DeBruijn Eval -------"
   timeIOActionPrint $ solveDeBruijn idDeBruijn
   timeIOActionPrint $ solveDeBruijn const2Example
+  -- timeIOActionPrint $ solveDeBruijn notExample
   timeIOActionPrint $ solveDeBruijn orExample
+  -- timeIOActionPrint $ solveDeBruijn andExample
   putStrLn ""
 
 
@@ -129,19 +143,48 @@ stringSearch =
         match r str |]
 
 -- (a + b)* c (d + (e f)*)
-regexExample :: RegEx
-regexExample =
+regex1 :: RegEx
+regex1 =
   Concat (Star (R.Or (Atom 'a') (Atom 'b')))
          (Concat (Atom 'c')
                  (R.Or (Atom 'd')
                      (Concat (Atom 'e')
                              (Atom 'f'))))
 
+regex2 :: RegEx
+regex2 = Concat (Atom 'a')
+         (Concat (Atom 'b')
+         (Concat (Atom 'c')
+         (Concat (Atom 'd')
+         (Concat (Atom 'e')
+         ((Atom 'f'))))))
+
+regex3 :: RegEx
+regex3 = R.Or (Atom 'a')
+         (R.Or (Atom 'b')
+         (R.Or (Atom 'c')
+         (R.Or (Atom 'd')
+         (R.Or (Atom 'e')
+         ((Atom 'f'))))))
+
+regex4 :: RegEx
+regex4 = Concat (Star (Atom 'a'))
+          (Concat (Star (Atom 'b'))
+          (Concat (Star (Atom 'c'))
+          (Concat (Star (Atom 'd'))
+          (Concat (Star (Atom 'e'))
+          ((Star (Atom 'f')))))))
+
+
+
 runRegExEval :: IO ()
 runRegExEval = do
   putStrLn "------------------------"
   putStrLn "-- RegEx Eval ----------"
-  timeIOActionPrint $ stringSearch regexExample
+  timeIOActionPrint $ stringSearch regex1
+  timeIOActionPrint $ stringSearch regex2
+  timeIOActionPrint $ stringSearch regex3
+  timeIOActionPrint $ stringSearch regex4
   putStrLn ""
 
 
