@@ -2,161 +2,140 @@
 
 module Main where
 
--- import G2.QuasiQuotes.QuasiQuotes
--- import MiniLib
+import G2.QuasiQuotes.QuasiQuotes
+import MiniLib
 
--- import G2.QuasiQuotes.Parser
+import G2.QuasiQuotes.Parser
 
--- import DeBruijn.Test
--- import Arithmetics.Test
--- import Lambda.Test
--- import NQueens.Test
--- import Lookup.Test
--- import RegEx.Test
+import DeBruijn.Test
+import Arithmetics.Test
+import Lambda.Test
+import NQueens.Test
+import RegEx.Test
 
--- import Evaluations hiding (productSumTest)
-
-
--- import Data.Time.Clock
-
--- arithmeticsTests :: IO ()
--- arithmeticsTests = do
---   putStrLn "---------------------"
---   putStrLn "arithmeticsTests ----"
-
---   putStrLn "-- productTest"
---   timeIOActionPrint productTest
---   putStrLn ""
-
---   putStrLn "-- productSumTest"
---   timeIOActionPrint productSumTest
---   putStrLn ""
-
---   putStrLn "-- assertViolationTest1"
---   timeIOActionPrint assertViolationTest1
---   putStrLn ""
-
---   -- Technically this is non-linear integer arithm so undecidable
---   -- putStrLn "-- assertViolationTest2"
---   -- timeIOActionPrint assertViolationTest2
---   -- putStrLn ""
-
---   -- About 6 secs
---   putStrLn "-- assertViolationTest3"
---   timeIOActionPrint assertViolationTest3
---   putStrLn ""
-
---   -- About 51 secs
---   putStrLn "-- assertViolationTest4"
---   timeIOActionPrint assertViolationTest4
---   putStrLn ""
+import Evaluations hiding (productSumTest)
 
 
+import Data.Time.Clock
 
+arithmeticsTests :: IO ()
+arithmeticsTests = do
+  putStrLn "---------------------"
+  putStrLn "arithmeticsTests ----"
 
---   putStrLn "---------------------\n\n"
+  putStrLn "-- productTest"
+  timeIOActionPrint productTest
+  putStrLn ""
 
+  putStrLn "-- productSumTest"
+  timeIOActionPrint productSumTest
+  putStrLn ""
 
--- lambdaTests :: IO ()
--- lambdaTests = do
---   putStrLn "---------------------"
---   putStrLn "lambdaTests ---------"
+  putStrLn "-- assertViolationTest1"
+  timeIOActionPrint assertViolationTest1
+  putStrLn ""
 
---   putStrLn "-- lambdaTest1"
---   timeIOActionPrint lambdaTest1
---   putStrLn ""
+  -- Technically this is non-linear integer arithm so undecidable
+  -- putStrLn "-- assertViolationTest2"
+  -- timeIOActionPrint assertViolationTest2
+  -- putStrLn ""
 
---   putStrLn "-- lambdaTest2"
---   timeIOActionPrint lambdaTest2
---   putStrLn ""
+  -- About 6 secs
+  putStrLn "-- assertViolationTest3"
+  timeIOActionPrint assertViolationTest3
+  putStrLn ""
 
---   putStrLn "---------------------\n\n"
---   return ()
-
-
--- nqueensTests :: IO ()
--- nqueensTests = do
---   putStrLn "---------------------"
---   putStrLn "nqueensTests --------"
-
---   putStrLn "-- queensTestN 4"
---   timeIOActionPrint $ queensTestN 4
---   putStrLn ""
-
---   putStrLn "-- queensTestN 5"
---   timeIOActionPrint $ queensTestN 5
---   putStrLn ""
-
---   putStrLn "-- queensTestN 6"
---   timeIOActionPrint $ queensTestN 6
---   putStrLn ""
-
---   putStrLn "-- queensTestN 7"
---   timeIOActionPrint $ queensTestN 7
---   putStrLn ""
-
---   putStrLn "---------------------\n\n"
---   return ()
-
-
--- debruijnTests :: IO ()
--- debruijnTests = do
---   putStrLn "---------------------"
---   putStrLn "debruijnTests -------"
-
---   putStrLn "-- solveDeBruijnI" -- identity
---   timeIOActionPrint $ solveDeBruijnI
-
---   putStrLn "-- solveDeBruijnK" -- const
---   timeIOActionPrint $ solveDeBruijnK
-
---   putStrLn "-- solveDeBruijnOr"
---   timeIOActionPrint $ solveDeBruijnOr
-
---   -- putStrLn "-- solveDeBruijnAnd"
---   -- timeIOActionPrint $ solveDeBruijnAnd
-
---   putStrLn "-- solveDeBruijnIte"
---   timeIOActionPrint $ solveDeBruijnIte
-
---   putStrLn "---------------------\n\n"
---   return ()
-
-
--- lookupTests :: IO ()
--- lookupTests = do
---   putStrLn "---------------------"
---   putStrLn "lookupTests -------"
-
---   putStrLn "-- lookupTest1"
---   timeIOActionPrint lookupTest1
---   putStrLn ""
-
---   -- putStrLn "-- lookupTest2"
---   -- timeIOActionPrint lookupTest2
---   putStrLn ""
-
---   putStrLn "---------------------\n\n"
---   return ()
+  -- About 51 secs
+  putStrLn "-- assertViolationTest4"
+  timeIOActionPrint assertViolationTest4
+  putStrLn ""
 
 
 
 
--- regexTests :: IO ()
--- regexTests = do
---   putStrLn "---------------------"
---   putStrLn "regexTests ----------"
+  putStrLn "---------------------\n\n"
 
---   putStrLn "-- regexTest1"
---   timeIOActionPrint regexTest1
---   putStrLn ""
 
---   putStrLn "-- regexTest2"
---   timeIOActionPrint regexTest2
---   putStrLn ""
+lambdaTests :: IO ()
+lambdaTests = do
+  putStrLn "---------------------"
+  putStrLn "lambdaTests ---------"
 
---   putStrLn "---------------------\n\n"
---   return ()
+  putStrLn "-- lambdaTest1"
+  timeIOActionPrint lambdaTest1
+  putStrLn ""
+
+  putStrLn "-- lambdaTest2"
+  timeIOActionPrint lambdaTest2
+  putStrLn ""
+
+  putStrLn "---------------------\n\n"
+  return ()
+
+
+nqueensTests :: IO ()
+nqueensTests = do
+  putStrLn "---------------------"
+  putStrLn "nqueensTests --------"
+
+  putStrLn "-- queensTestN 4"
+  timeIOActionPrint $ queensTestN 4
+  putStrLn ""
+
+  putStrLn "-- queensTestN 5"
+  timeIOActionPrint $ queensTestN 5
+  putStrLn ""
+
+  putStrLn "-- queensTestN 6"
+  timeIOActionPrint $ queensTestN 6
+  putStrLn ""
+
+  putStrLn "-- queensTestN 7"
+  timeIOActionPrint $ queensTestN 7
+  putStrLn ""
+
+  putStrLn "---------------------\n\n"
+  return ()
+
+
+debruijnTests :: IO ()
+debruijnTests = do
+  putStrLn "---------------------"
+  putStrLn "debruijnTests -------"
+
+  putStrLn "-- solveDeBruijnI" -- identity
+  timeIOActionPrint $ solveDeBruijnI
+
+  putStrLn "-- solveDeBruijnK" -- const
+  timeIOActionPrint $ solveDeBruijnK
+
+  putStrLn "-- solveDeBruijnOr"
+  timeIOActionPrint $ solveDeBruijnOr
+
+  -- putStrLn "-- solveDeBruijnAnd"
+  -- timeIOActionPrint $ solveDeBruijnAnd
+
+  putStrLn "-- solveDeBruijnIte"
+  timeIOActionPrint $ solveDeBruijnIte
+
+  putStrLn "---------------------\n\n"
+  return ()
+
+regexTests :: IO ()
+regexTests = do
+  putStrLn "---------------------"
+  putStrLn "regexTests ----------"
+
+  putStrLn "-- regexTest1"
+  timeIOActionPrint regexTest1
+  putStrLn ""
+
+  putStrLn "-- regexTest2"
+  timeIOActionPrint regexTest2
+  putStrLn ""
+
+  putStrLn "---------------------\n\n"
+  return ()
 
 
 
@@ -164,20 +143,19 @@ main :: IO ()
 main = do
     putStrLn "main: compiles!"
 
---     -- arithmeticsTests
---     -- lambdaTests
---     -- nqueensTests
---     -- debruijnTests
---     -- lookupTests
---     -- regexTests
+    -- arithmeticsTests
+    -- lambdaTests
+    -- nqueensTests
+    -- debruijnTests
+    -- regexTests
 
---     runArithmeticsEval
---     runDeBruijnEval
---     runRegExEval
-
+    runArithmeticsEval
+    runDeBruijnEval
+    runRegExEval
 
 
---     putStrLn "main: done"
+
+    putStrLn "main: done"
 
 
     -- print =<< queensTestN 6

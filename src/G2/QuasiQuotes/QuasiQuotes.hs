@@ -25,10 +25,13 @@ import G2.QuasiQuotes.G2Rep
 import G2.QuasiQuotes.Support
 import G2.QuasiQuotes.Parser
 
+import qualified Control.Concurrent.Lock as Lock
+
 import Data.Data
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import Data.IORef
 import qualified Data.Text as T
 
 import Language.Haskell.TH.Lib
@@ -38,6 +41,7 @@ import Language.Haskell.TH.Quote
 import System.Directory
 import System.IO
 import System.IO.Temp
+import System.IO.Unsafe
 
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
@@ -45,8 +49,25 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quoteType = error "g2: No QuasiQuoter for types."
                  , quoteDec = error "g2: No QuasiQuoter for declarations." }
 
+-- If we compile multiple G2 quasiquoters at the same time, we can get errors.
+-- This is a hack to prevent that from happening.  The IORef is global, and
+-- aquired/released by each quasiquoter's compilation
+oneByOne :: IORef Lock.Lock
+oneByOne = unsafePerformIO $ newIORef =<< Lock.new
+
+acquireIORefLock :: IO ()
+acquireIORefLock = do
+    lock <- readIORef oneByOne
+    Lock.acquire lock
+
+releaseIORefLock :: IO ()
+releaseIORefLock = do
+    lock <- readIORef oneByOne
+    Lock.release lock
+
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
+    runIO $ acquireIORefLock
     -- runIO $ putStrLn $ "CWD is: " ++ cwd
 
     -- Get names for the lambdas for the regular inputs
@@ -118,6 +139,8 @@ parseHaskellQ str = do
 
     let tenv_exp = liftDataT tenv `sigE` [t| TypeEnv |]
         bindings_exp = liftDataT (bindings_final { name_gen = mkNameGen ()})
+
+    runIO $ releaseIORefLock
 
     letE [ valD (varP state_name) (normalB state_exp) []
          , valD (varP tenv_name) (normalB tenv_exp) []

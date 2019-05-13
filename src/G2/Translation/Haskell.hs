@@ -139,11 +139,7 @@ loadProj hsc proj src gflags tr_con config = do
                              , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
-                             , hpcDir = head proj}
-
-    liftIO . putStrLn $ "proj = " ++ show proj ++ "\nsrc = " ++ show src ++ "\nhscTarget = " ++ show (hscTarget dflags)
-
-    
+                             , hpcDir = head proj}    
 
     _ <- setSessionDynFlags dflags
     targets <- mapM (flip guessTarget Nothing) src
