@@ -39,7 +39,6 @@ solveRelAssume' sol s b m is [] =
         m' = foldr (\(n, v) -> M.insert n v) m nv
     in
     return (SAT, Just m', sol)
--- TODO: what should model do in the case where same ID falls into 2 different sets?
 solveRelAssume' sol s b m is (p:ps) = do
     let is' = concat $ PC.map (PC.varIdsInPC (known_values s)) p
     let is'' = ids p
