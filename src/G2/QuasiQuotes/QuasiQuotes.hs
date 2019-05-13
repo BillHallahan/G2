@@ -24,18 +24,12 @@ import G2.QuasiQuotes.FloodConsts
 import G2.QuasiQuotes.G2Rep
 import G2.QuasiQuotes.Support
 import G2.QuasiQuotes.Parser
-import G2.QuasiQuotes.ModuleGraphLoader
-
-import Control.Monad
 
 import Data.Data
 import Data.List
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
-import qualified Data.HashSet as S
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax as TH
@@ -44,7 +38,6 @@ import Language.Haskell.TH.Quote
 import System.Directory
 import System.IO
 import System.IO.Temp
-import System.FilePath
 
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
@@ -93,8 +86,8 @@ parseHaskellQ str = do
                     return (foldr (\n -> lamE [n]) ars ns_pat, xs'', type_env s, b'')
                 ([], _) ->
                     let
-                        b = init_b { input_names = drop (length regs) (input_names init_b) }
-                        ts = map (toTHType (cleaned_names b) . Ty.typeOf) $ inputIds init_s b
+                        b' = init_b { input_names = drop (length regs) (input_names init_b) }
+                        ts = map (toTHType (cleaned_names b') . Ty.typeOf) $ inputIds init_s b'
                         tup_t = case ts of
                                     [t] -> t
                                     _ -> foldr appT (tupleT (length ts)) ts
@@ -103,7 +96,7 @@ parseHaskellQ str = do
                     return (foldr (\n -> lamE [n]) [| return (Nothing :: Maybe $(tup_t)) |] ns_pat
                                   , [| return [] :: IO [State ()] |]
                                   , M.empty
-                                  , b)
+                                  , b')
         NonCompleted s b -> do
             let 
                 (s', b') = elimUnusedNonCompleted s b
@@ -125,7 +118,6 @@ parseHaskellQ str = do
 
     let tenv_exp = liftDataT tenv `sigE` [t| TypeEnv |]
         bindings_exp = liftDataT (bindings_final { name_gen = mkNameGen ()})
-        bindings_ng_exp = [| $(bindings_exp) { name_gen = mkNameGen ($(state_exp), $(bindings_exp))} |]
 
     letE [ valD (varP state_name) (normalB state_exp) []
          , valD (varP tenv_name) (normalB tenv_exp) []
