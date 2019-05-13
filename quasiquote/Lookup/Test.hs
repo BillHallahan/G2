@@ -18,13 +18,13 @@ lookupTest2 =
           [(23, Just "hello"), (23, Nothing), (59, Just "goodbye")]
 
 
-findAssocList :: [(Int, String)] -> Int -> IO (Maybe [(Int, String)])
-findAssocList =
-  [g2| \(mustExist :: [(Int, String)])
-        (minLen :: Int)
-          -> ?(kvs :: [(Int, String)]) |
-      (all id $ map (\(k, v) ->
-                      kvLookup k kvs == Just v)
-                    mustExist)
-        && length kvs >= minLen |]
+-- findAssocList :: [(Int, String)] -> Int -> IO (Maybe [(Int, String)])
+-- findAssocList =
+--   [g2| \(mustExist :: [(Int, String)])
+--         (minLen :: Int)
+--           -> ?(kvs :: [(Int, String)]) |
+--       (all id $ map (\(k, v) ->
+--                       kvLookup k kvs == Just v)
+--                     mustExist)
+--         && length kvs >= minLen |]
 

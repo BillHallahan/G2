@@ -12,14 +12,17 @@ import G2.Language
 mkConfigTest :: Config
 mkConfigTest = (mkConfig "/whatever/" [] M.empty)
                     { higherOrderSolver = AllFuncs
-                    , timeLimit = 50 
-                    , base = [ ("./base-4.9.1.0/Control/Exception/", "./base-4.9.1.0/Control/Exception/Base.hs")
-                             , ("./base-4.9.1.0/", "./base-4.9.1.0/Prelude.hs") ]
+                    , timeLimit = 50
+                    , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
+                                    , "./base-4.9.1.0/" ]
+                    , base = [ "./base-4.9.1.0/Control/Exception/Base.hs"
+                             , "./base-4.9.1.0/Prelude.hs" ]
                     , extraDefaultMods = [] }
 
 mkConfigTestWithMap :: Config
 mkConfigTestWithMap =
-    mkConfigTest { base = base mkConfigTest ++ [("./base-4.9.1.0/Data/Internal/", "./base-4.9.1.0/Data/Internal/Map.hs")] }
+    mkConfigTest { baseInclude = baseInclude mkConfigTest ++ ["./base-4.9.1.0/Data/Internal/"]
+                 , base = base mkConfigTest ++ ["./base-4.9.1.0/Data/Internal/Map.hs"] }
 
 
 eqIgT :: Expr -> Expr -> Bool

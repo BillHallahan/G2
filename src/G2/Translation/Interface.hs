@@ -27,9 +27,10 @@ translateBase :: TranslationConfig
 translateBase tr_con config hsc = do
   -- For base we have the advantage of knowing apriori the structure
   -- So we can list the (proj, file) pairings
+  let base_inc = baseInclude config
   let bases = base config
 
-  translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc bases
+  translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc base_inc bases
 
 
 translateLibs :: NameMap
@@ -41,8 +42,8 @@ translateLibs :: NameMap
   -> IO (ExtractedG2, NameMap, TypeNameMap)
 translateLibs nm tm tr_con config hsc fs = do
   -- If we are not given anything, then we have to guess the project
-  let pairs = map (\f -> (dropWhileEnd (/= '/') f, f)) fs
-  translateLibPairs nm tm tr_con config emptyExtractedG2 hsc pairs
+  let inc = map (dropWhileEnd (/= '/')) fs
+  translateLibPairs nm tm tr_con config emptyExtractedG2 hsc inc fs
 
 
 translateLibPairs :: NameMap
@@ -51,12 +52,13 @@ translateLibPairs :: NameMap
   -> Config
   -> ExtractedG2
   -> Maybe HscTarget
-  -> [(FilePath, FilePath)]
+  -> [IncludePath]
+  -> [FilePath]
   -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateLibPairs nm tnm _ _ exg2 _ [] = return (exg2, nm, tnm)
-translateLibPairs nm tnm tr_con config exg2 hsc ((p, f) : pairs) = do
-  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc [p] [f] nm tnm tr_con config
-  translateLibPairs new_nm new_tnm tr_con config (mergeExtractedG2s [exg2, exg2']) hsc pairs
+translateLibPairs nm tnm _ _ exg2 _ _ [] = return (exg2, nm, tnm)
+translateLibPairs nm tnm tr_con config exg2 hsc inc_paths (f: fs) = do
+  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc inc_paths [f] nm tnm tr_con config
+  translateLibPairs new_nm new_tnm tr_con config (mergeExtractedG2s [exg2, exg2']) hsc inc_paths fs
 
 translateLoaded :: [FilePath]
   -> [FilePath]
@@ -65,6 +67,7 @@ translateLoaded :: [FilePath]
   -> Config
   -> IO (Maybe T.Text, ExtractedG2)
 translateLoaded proj src libs tr_con config = do
+  putStrLn "before base"
 
   (base_exg2, b_nm, b_tnm) <- translateBase tr_con config Nothing
   let base_prog = [exg2_binds base_exg2]
@@ -74,14 +77,19 @@ translateLoaded proj src libs tr_con config = do
   (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm tr_con config (Just HscInterpreted) libs
   let lib_exp = exg2_exports lib_transs
 
+  putStrLn "lib"
+
   let base_tys' = base_tys ++ specialTypes
   let base_prog' = addPrimsToBase base_tys' base_prog
   let base_trans' = base_exg2 { exg2_binds = concat base_prog', exg2_tycons = base_tys' }
 
   let merged_lib = mergeExtractedG2s ([base_trans', lib_transs])
 
+  putStrLn "def"
+
   -- Now the stuff with the actual target
-  let (def_proj, def_src) = unzip $ extraDefaultMods config
+  let def_proj = extraDefaultInclude config
+      def_src = extraDefaultMods config
   (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) (def_proj ++ proj) (def_src ++ src) lib_nm lib_tnm tr_con config
   let mb_modname = listToMaybe $ exg2_mod_names exg2
   let h_exp = exg2_exports exg2

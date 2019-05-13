@@ -157,21 +157,22 @@ parseHaskellIO mods qext = do
                 hPutStrLn handle contents
                 hFlush handle
                 hClose handle
+
+                putStrLn "after handle"
+
                 -- We guess based on the cwd because who knows where temp
                 -- files will get written to.
                 cwd <- getCurrentDirectory
-                -- proj <- guessProj cwd
                 cabal <- findCabal cwd
                 let cabal' = maybe (error "No cabal file found") id cabal
-                -- putStrLn $ "HELLO FROM: " ++ proj
-                -- putStrLn $ "FILEPATH IS: " ++ filepath
                 projs <- cabalSrcDirs cabal'
                 config <- qqConfig
+
+                putStrLn "Before translate"
 
                 translateLoaded projs [filepath] []
                     simplTranslationConfig
                     config)
-                    -- (mkConfigDef { extraPaths = [cwd'] }))
     return exG2
     where
         modImports = map ("import " ++) 

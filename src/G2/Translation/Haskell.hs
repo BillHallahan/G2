@@ -61,6 +61,7 @@ import Unique
 import Var as V
 
 import Control.Monad
+import Control.Monad.IO.Class
 
 import qualified Data.Array as A
 import qualified Data.ByteString.Char8 as C
@@ -132,13 +133,15 @@ loadProj hsc proj src gflags tr_con config = do
                                                 _ -> hscTarget beta_flags'
                              , ghcLink = LinkInMemory
                              , ghcMode = CompManager
-                             , includePaths = includePaths beta_flags'
-                             , importPaths = proj ++ G2.extraPaths config
+                             , includePaths = proj ++ includePaths beta_flags'
+                             , importPaths = proj ++ importPaths beta_flags'
 
                              , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
                              , hpcDir = head proj}
+
+    liftIO . putStrLn $ "proj = " ++ show proj ++ "\nsrc = " ++ show src ++ "\nhscTarget = " ++ show (hscTarget dflags)
 
     
 
