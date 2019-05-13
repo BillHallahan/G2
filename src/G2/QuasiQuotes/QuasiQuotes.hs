@@ -173,7 +173,6 @@ parseHaskellIO mods qext = do
     let hskStr = quotedEx2Hsk qext
     (_, exG2) <- withSystemTempFile fileName
             (\filepath handle -> do
-                -- putStrLn hskStr
                 let contents = "module " ++ moduleName ++ " where\n"
                                 ++ intercalate "\n" modImports ++ "\n"
                                 ++ functionName ++ " = " ++ hskStr
@@ -181,7 +180,6 @@ parseHaskellIO mods qext = do
                 hFlush handle
                 hClose handle
 
-                putStrLn "after handle"
 
                 -- We guess based on the cwd because who knows where temp
                 -- files will get written to.
@@ -190,8 +188,6 @@ parseHaskellIO mods qext = do
                 let cabal' = maybe (error "No cabal file found") id cabal
                 projs <- cabalSrcDirs cabal'
                 config <- qqConfig
-
-                putStrLn "Before translate"
 
                 translateLoaded projs [filepath] []
                     simplTranslationConfig

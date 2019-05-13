@@ -67,8 +67,6 @@ translateLoaded :: [FilePath]
   -> Config
   -> IO (Maybe T.Text, ExtractedG2)
 translateLoaded proj src libs tr_con config = do
-  putStrLn "before base"
-
   (base_exg2, b_nm, b_tnm) <- translateBase tr_con config Nothing
   let base_prog = [exg2_binds base_exg2]
       base_tys = exg2_tycons base_exg2
@@ -77,15 +75,11 @@ translateLoaded proj src libs tr_con config = do
   (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm tr_con config (Just HscInterpreted) libs
   let lib_exp = exg2_exports lib_transs
 
-  putStrLn "lib"
-
   let base_tys' = base_tys ++ specialTypes
   let base_prog' = addPrimsToBase base_tys' base_prog
   let base_trans' = base_exg2 { exg2_binds = concat base_prog', exg2_tycons = base_tys' }
 
   let merged_lib = mergeExtractedG2s ([base_trans', lib_transs])
-
-  putStrLn "def"
 
   -- Now the stuff with the actual target
   let def_proj = extraDefaultInclude config
