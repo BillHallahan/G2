@@ -116,6 +116,7 @@ library
                        , G2.Postprocessing.NameSwitcher
 
                        , G2.Solver.ADTSolver
+                       , G2.Solver.AssumePCSolver
                        , G2.Solver.Converters
                        , G2.Solver.Language
                        , G2.Solver.ParseSMT

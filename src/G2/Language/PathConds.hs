@@ -166,7 +166,7 @@ varIdsInPC _ (AltCond _ e _) = varIds e
 varIdsInPC _ (ExtCond e _) = varIds e
 varIdsInPC _ (ConsCond _ e _) = varIds e
 varIdsInPC _ (PCExists _) = []
-varIdsInPC kv (AssumePC e pc) = varIdsInPC kv e ++ varIdsInPC kv pc
+varIdsInPC _ (AssumePC e _) = varIds e
 
 varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
 varNamesInPC kv = P.map idName . varIdsInPC kv
@@ -275,4 +275,4 @@ instance Ided PathCond where
     ids (ExtCond e _) = ids e
     ids (ConsCond d e _) = ids d ++  ids e
     ids (PCExists i) = [i]
-    ids (AssumePC e pc) = ids e ++ ids pc
+    ids (AssumePC e pc) = ids e
