@@ -57,6 +57,7 @@ mergeState ngen s1 s2 =
 
 isMergeableCurrExpr :: CurrExpr -> CurrExpr -> Bool
 isMergeableCurrExpr (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = isMergeableExpr ce1 ce2
+isMergeableCurrExpr (CurrExpr Return ce1) (CurrExpr Return ce2) = isMergeableExpr ce1 ce2
 isMergeableCurrExpr _ _ = False
 
 -- Returns True if both Exprs are of the form (App ... (Data DataCon) ....) and contain the same Data Constructor
@@ -66,24 +67,32 @@ isMergeableExpr (Data dc1) (Data dc2) = dc1 == dc2
 isMergeableExpr _ _ = False
 
 mergeCurrExpr :: KnownValues -> Id -> CurrExpr -> CurrExpr -> CurrExpr
-mergeCurrExpr kv newId (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = (CurrExpr Evaluate mergedExpr)
-    where mergedExpr = mergeExpr kv newId ce1 ce2
-mergeCurrExpr _ _ _ _  =  error $ "curr_expr has an invalid form"
+mergeCurrExpr kv newId (CurrExpr evalOrRet ce1) (CurrExpr evalOrRet2 ce2)
+    | evalOrRet == evalOrRet2 = (CurrExpr evalOrRet mergedExpr)
+    | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
+        where 
+            mergedExpr = mergeExpr kv newId ce1 ce2
 
--- Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
+-- | Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
 -- "D NonDet[(Assume (x == 1) in e_1), (Assume (x == 2) in e_1')],..., NonDet[(Assume (x == 1) in e_n), (Assume (x == 2) in e_n')]" 
 mergeExpr :: KnownValues -> Id -> Expr -> Expr -> Expr
-mergeExpr _ _ (Data dc) (Data _) = Data dc
-mergeExpr kv newId (App e1 e2) (App e1' e2') = 
-    App (mergeExpr kv newId e1 e1') (NonDet [Assume Nothing (createEqExpr kv newId 1) e2, Assume Nothing (createEqExpr kv newId 2) e2'])
-mergeExpr _ _ _ _ = error $ "Expr has an invalid form"
+mergeExpr kv newId (App e1 e2) (App e1' e2') = App (mergeExpr kv newId e1 e1') (mergeExpr' kv newId e2 e2')
+mergeExpr _ _ (Data dc) (Data dc') = if dc == dc' then (Data dc) else error "Exprs to be merged have different underlying DataCons."
+mergeExpr _ _ _ _ = error $ "Exprs to be merged have an invalid form."
 
--- Returns an Expr equivalent to "x == val", where x is a Var created from the given Id
+-- | Helper function to merge outer arguments of Exprs being merged in mergeExpr
+mergeExpr' :: KnownValues -> Id -> Expr -> Expr -> Expr
+mergeExpr' kv newId (App e1 e2) (App e1' e2') = App (mergeExpr' kv newId e1 e1') (mergeExpr' kv newId e2 e2')
+mergeExpr' kv newId e1 e1' = if (e1 == e1') 
+    then e1 
+    else NonDet [Assume Nothing (createEqExpr kv newId 1) e1, Assume Nothing (createEqExpr kv newId 2) e1']
+
+-- | Returns an Expr equivalent to "x == val", where x is a Var created from the given Id
 createEqExpr :: KnownValues -> Id -> Integer -> Expr
 createEqExpr kv newId val = App (App eq (Var newId)) (Lit (LitInt val)) 
     where eq = mkEqPrimInt kv
 
--- Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
+-- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
 mergeExprEnv :: KnownValues -> Id -> E.ExprEnv -> E.ExprEnv -> E.ExprEnv
 mergeExprEnv kv newId eenv1 eenv2 = E.wrapExprEnv $ M.unions [merged_map, eenv1_rem, eenv2_rem]
     where merged_map = (M.intersectionWith (mergeEnvObj kv newId) eenv1_map eenv2_map)
@@ -92,14 +101,16 @@ mergeExprEnv kv newId eenv1 eenv2 = E.wrapExprEnv $ M.unions [merged_map, eenv1_
           eenv1_map = E.unwrapExprEnv eenv1
           eenv2_map = E.unwrapExprEnv eenv2
 
--- If both arguments are ExprObjs, in the case they are equal, the first ExprObj is returned, else they are combined using mergeExpr
+-- | If both arguments are ExprObjs, the first ExprObj is returned if they are equal, else they are combined using mergeExpr
 -- Else, function assumes both EnvObjs must be equal and returns the first
 mergeEnvObj :: KnownValues -> Id -> E.EnvObj -> E.EnvObj -> E.EnvObj
-mergeEnvObj kv newId val1@(E.ExprObj expr1) (E.ExprObj expr2) = 
+mergeEnvObj kv newId eObj1@(E.ExprObj expr1) (E.ExprObj expr2) = 
     if (expr1 == expr2)
-        then val1
+        then eObj1
         else E.ExprObj (mergeExpr kv newId expr1 expr2)
-mergeEnvObj _ _ val1 _ = val1 -- In case of RedirObj or SymbObj, assumes both are equal
+mergeEnvObj _ _ eObj1 eObj2 = if (eObj1 == eObj2) 
+    then eObj1 
+    else error "Unequal SymbObjs or RedirObjs present in the expr_envs of both states."
 
 mergePathConds :: Id -> PathConds -> PathConds -> PathConds
 mergePathConds newId pc1 pc2 = PC.PathConds (M.union pc2_map' pc1_map')
