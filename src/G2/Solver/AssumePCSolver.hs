@@ -16,7 +16,22 @@ import Prelude hiding (null)
 
 data AssumePCSolver a = AssumePCSolver a
 
--- separates PCs into related sets, and extracts pc from any (AssumePC e pc) in each set, before sending them to the next solver
+instance Solver solver => Solver (AssumePCSolver solver) where
+    check (AssumePCSolver sol) s pc = return . fst =<< checkRelAssume (Tr sol) s pc
+    solve (AssumePCSolver sol) s b is pc =
+        return . (\(r, m, _) -> (r, m)) =<< solveRelAssume (Tr sol) s b is pc
+    close (AssumePCSolver s) = close s
+
+instance TrSolver solver => TrSolver (AssumePCSolver solver) where
+    checkTr (AssumePCSolver sol) s pc = do
+        (r, sol') <- checkRelAssume sol s pc
+        return (r, AssumePCSolver sol')
+    solveTr (AssumePCSolver sol) s b is pc = do
+        (r, m, sol') <- solveRelAssume sol s b is pc
+        return (r, m, AssumePCSolver sol')
+    closeTr (AssumePCSolver s) = closeTr s
+
+-- | Separates PCs into related sets, and extracts pc from any (AssumePC _  _ pc) in each set, before sending them to the next solver
 checkRelAssume :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
 checkRelAssume solver s pc = checkRelAssume' solver s $ genPCsList s pc
 
@@ -49,47 +64,50 @@ solveRelAssume' sol s b m is (p:ps) = do
 
 -- Helper Functions
 
+-- | Given a PathConds, recursively splits the constituent PathCond-s into related sets, each time extracting the pc out of any AssumePCs
+-- Union of output should be the input PathConds
+genPCsList :: State t -> PathConds -> [PathConds]
+genPCsList s pc = concat (fmap (\relSet ->
+                                    if anyAssumePC relSet
+                                        then genPCsList' s relSet
+                                        else [relSet]) relSets)
+                 where
+                    relSets = PC.relatedSets (known_values s) pc -- All (AssumePCs i _ _) with same i will be grouped into same set
+
+genPCsList' :: State t -> PathConds -> [PathConds]
+genPCsList' s pc =
+    let
+        assumePCs = PC.filter isAssumePC pc
+        uniqueAssumes = nub $ PC.map getAssumes assumePCs -- get list of unique (Id, Int) pairs from the AssumePCs
+    in
+    concat $ fmap (genPCsList s) $ extractPCs (known_values s) $ fmap (filterUnrelatedPCs pc) uniqueAssumes
+
+-- Filters all AssumePCs with a different assumed (Id, Int) value
+filterUnrelatedPCs :: PathConds -> (Id, Int) -> PathConds
+filterUnrelatedPCs pc e = PC.filter (otherAssumePCs e) pc
+
+otherAssumePCs :: (Id, Int) -> PathCond -> Bool
+otherAssumePCs i (AssumePC i' num' _) = i == (i', num')
+otherAssumePCs _ _ = True
+
 -- | For each PathCond in [PathConds], extracts the inner pc if PathCond is of form (AssumePC e pc)
 extractPCs :: KV.KnownValues -> [PathConds] -> [PathConds]
 extractPCs kv (pc:pcs) = PC.fromList kv (PC.map extractPC pc) : extractPCs kv pcs
 extractPCs _ [] = []
 
 extractPC :: PathCond -> PathCond
-extractPC (AssumePC _ pc) = pc
+extractPC (AssumePC _ _ pc) = pc
 extractPC pc = pc
 
 isAssumePC :: PathCond -> Bool
-isAssumePC (AssumePC _ _) = True
+isAssumePC (AssumePC _ _ _) = True
 isAssumePC _ = False
 
 anyAssumePC :: PathConds -> Bool
 anyAssumePC pc = any isAssumePC $ PC.toList pc
 
--- | Given a PathConds, recursively splits the constituent PathCond-s into related sets, each time extracting the pc out of any AssumePCs
--- Union of output should be the input PathConds
-genPCsList :: State t -> PathConds -> [PathConds]
-genPCsList s pc = concat $ fmap (\relSet -> if anyAssumePC relSet
-                                then genPCsList s relSet
-                                else [relSet]) relSets
-                 where
-                    relSets = genRelSets s pc
-
-genRelSets :: State t -> PathConds -> [PathConds]
-genRelSets s pc = extractPCs (known_values s) $ PC.relatedSets (known_values s) pc
-
-instance Solver solver => Solver (AssumePCSolver solver) where
-    check (AssumePCSolver sol) s pc = return . fst =<< checkRelAssume (Tr sol) s pc
-    solve (AssumePCSolver sol) s b is pc =
-        return . (\(r, m, _) -> (r, m)) =<< solveRelAssume (Tr sol) s b is pc
-    close (AssumePCSolver s) = close s
-
-instance TrSolver solver => TrSolver (AssumePCSolver solver) where
-    checkTr (AssumePCSolver sol) s pc = do
-        (r, sol') <- checkRelAssume sol s pc
-        return (r, AssumePCSolver sol')
-    solveTr (AssumePCSolver sol) s b is pc = do
-        (r, m, sol') <- solveRelAssume sol s b is pc
-        return (r, m, AssumePCSolver sol')
-    closeTr (AssumePCSolver s) = closeTr s
+getAssumes :: PathCond -> (Id, Int)
+getAssumes (AssumePC i num _) = (i, num)
+getAssumes _ = error "Pathcond is not of the form (AssumePC _ _)."
 
 

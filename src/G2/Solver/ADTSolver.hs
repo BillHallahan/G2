@@ -153,7 +153,7 @@ isExtCond _ = False
 pcVarType :: [PathCond] -> Maybe Type
 pcVarType (AltCond _ (Var (Id _ t)) _:pc) = pcVarType' t pc
 pcVarType (ConsCond _ (Var (Id _ t)) _:pc) = pcVarType' t pc
--- pcVarType (AssumePC (Var (Id _ t)) pc:pc') = pcVarType' t (pc:pc')
+pcVarType (AssumePC _ _ _:_) = error "Unexpected AssumePC encountered."
 pcVarType _ = Nothing
 
 pcVarType' :: Type -> [PathCond] -> Maybe Type
@@ -161,16 +161,15 @@ pcVarType' t (AltCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t pc else Nothing
 pcVarType' t (ConsCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t pc else Nothing
--- pcVarType' t (AssumePC (Var (Id _ t')) pc:pc') =
---    if t == t' then pcVarType' t (pc:pc') else Nothing
 pcVarType' n [] = Just n
+pcVarType' _ (AssumePC _ _ _:_) = error "Unexpected AssumePC encountered."
 pcVarType' _ _ = Nothing
 
 pcInCastType :: PathCond -> Type
 pcInCastType (AltCond _ e _) = typeInCasts e
 pcInCastType (ExtCond e _) = typeInCasts e
 pcInCastType (ConsCond _ e _) = typeInCasts e
--- pcInCastType (AssumePC e _) = typeInCasts e
+pcInCastType (AssumePC _ _ _) = error "Unexpected AssumePC encountered."
 pcInCastType (PCExists (Id _ t)) = t
 
 castReturnType :: Type -> Expr -> Expr
