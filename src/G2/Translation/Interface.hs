@@ -7,11 +7,6 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
-import System.Directory
-import System.FilePath
-
-import Debug.Trace
-
 import G2.Config
 import G2.Language
 import G2.Translation.Haskell

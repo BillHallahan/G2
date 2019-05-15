@@ -9,8 +9,6 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
-import Debug.Trace
-
 -- | Tries to eliminate a symbolic variable by replacing them with constants.
 -- Returns Maybe a State, if the variables are replacable, and don't make the
 -- path constraints obviously false
@@ -54,13 +52,14 @@ floodConstantList s  ((e1, e2):xs)
         (\s' -> floodConstantList s' xs) =<< floodConstant n e1 s
     | e1 == e2 = floodConstantList s xs
 floodConstantList s [] = Just s
-floodConstantList _ xs = Nothing
+floodConstantList _ _ = Nothing
 
 -- Attempts to determine if a PathCond is satisfiable.  A return value of False
 -- means the PathCond is definitely unsatisfiable.  A return value of True means
 -- the PathCond may or may not be satisfiable. 
 pathCondMaybeSatisfiable :: KnownValues -> PathCond -> Bool
-pathCondMaybeSatisfiable kv (AltCond l1 (Lit l2) b) = (l1 == l2) == b
+pathCondMaybeSatisfiable _ (AltCond l1 (Lit l2) b) = (l1 == l2) == b
+pathCondMaybeSatisfiable _ (AltCond _ _ _) = True
 pathCondMaybeSatisfiable kv (ExtCond e b) =
     let
         r = evalPrims kv e
@@ -69,5 +68,5 @@ pathCondMaybeSatisfiable kv (ExtCond e b) =
         fal = mkBool kv False
     in
     if (r == tr && not b) || (r == fal && b) then False else True
-pathCondMaybeSatisfiable kv (ConsCond dc1 (Data dc2) b) = (dc1 == dc2) == b
+pathCondMaybeSatisfiable _ (ConsCond dc1 (Data dc2) b) = (dc1 == dc2) == b
 pathCondMaybeSatisfiable _ (PCExists _) = True

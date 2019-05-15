@@ -180,7 +180,7 @@ instance Solver UndefinedHigherOrder where
             [Id _ (TyFun _ _)] -> return SAT
             _ -> return $ Unknown "UndefinedHigherOrder"
 
-    solve _ s _ [i@(Id _ (TyFun _ _))] pc =
+    solve _ _ _ [i@(Id _ (TyFun _ _))] _ =
         return (SAT, Just $ M.singleton (idName i) (Prim Undefined TyBottom))
     solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder", Nothing)
 

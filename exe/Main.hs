@@ -4,17 +4,12 @@ module Main (main, plugin) where
 
 import DynFlags
 
-import Control.Monad
-
-import System.Directory
 import System.Environment
 import System.FilePath
 
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-import Data.List
-import Data.List.Split
 
 import G2.Lib.Printers
 
@@ -29,15 +24,7 @@ import G2.Plugin
 
 main :: IO ()
 main = do
-  -- base <- readFileExtractedG2 "/home/celery/Desktop/ghc-dump-dir/GHC.Base.g2i"
-  -- libs <- readAllExtractedG2s "/home/celery/Desktop/ghc-dump-dir" "Prelude.g2i"
-  -- let mergeds = mergeFileExtractedG2s libs
-  -- putStrLn $ show mergeds
-  -- putStrLn $ show $ length libs
-
-  -- error "HELLO!"
   as <- getArgs
-  let (proj:tail_args) = as
 
   let m_liquid_file = mkLiquid as
   let m_liquid_func = mkLiquidFunc as
@@ -47,7 +34,7 @@ main = do
 
   case (m_liquid_file, m_liquid_func) of
       (Just lhfile, Just lhfun) -> do
-        let m_idir = mIDir tail_args
+        let m_idir = mIDir as
             proj = maybe (takeDirectory lhfile) id m_idir
         runSingleLHFun proj lhfile lhfun libs lhlibs as
       _ -> do
@@ -57,7 +44,7 @@ runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> 
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   _ <- doTimeout (timeLimit config) $ do
-    ((in_out, b), entry) <- findCounterExamples [proj] [] (T.pack lhfun) libs lhlibs config
+    ((in_out, _), entry) <- findCounterExamples [proj] [lhfile] (T.pack lhfun) libs lhlibs config
     printLHOut entry in_out
   return ()
 
@@ -65,11 +52,8 @@ runWithArgs :: [String] -> IO ()
 runWithArgs as = do
 
   let (src:entry:tail_args) = as
-      m_idir = mIDir tail_args
-      -- proj = maybe (takeDirectory src) id m_idir
 
   proj <- guessProj src
-  -- let proj = "/home/celery/Desktop/import-test"
 
   --Get args
   let m_assume = mAssume tail_args
@@ -90,12 +74,6 @@ runWithArgs as = do
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry config
-    -- (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src libs True config
-
-    -- let (init_state, entry_f) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
-    --                            (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
-
-    -- in_out <- runG2WithConfig init_state config
 
     case validate config of
         True -> do
@@ -159,30 +137,3 @@ mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing
 
 mkLiquidLibs :: [String] -> Maybe String
 mkLiquidLibs a = strArg "liquid-libs" a M.empty Just Nothing
-
-
-{-
--- Look for the directory that contains the first instance of a *.cabal file
-guessProj :: FilePath -> IO FilePath
-guessProj tgt = do
-  absTgt <- makeAbsolute tgt
-  let splits = splitOn "/" absTgt
-  potentialDirs <- filterM (dirContainsCabal)
-                    $ reverse -- since we prefer looking in backtrack manner
-                    $ map (intercalate "/")
-                    $ inits splits
-
-  case potentialDirs of
-    [] -> return $ takeDirectory tgt
-    (d : _) -> return d
-
-dirContainsCabal :: FilePath -> IO Bool
-dirContainsCabal dir = do
-  exists <- doesDirectoryExist dir
-  if exists then do
-    files <- listDirectory dir   
-    return $ any (\f -> ".cabal" `isSuffixOf` f) files
-  else
-    return $ False
--}
-

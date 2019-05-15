@@ -11,7 +11,6 @@ import G2.Language.ArbValueGen
 import G2.Language.Casts
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
-import G2.Language.Ids
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
@@ -85,7 +84,7 @@ findConsistent' kv eenv tenv pc =
 findConsistent'' :: KnownValues -> TypeEnv -> ExprEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
 findConsistent'' kv tenv eenv pc =
     let
-        is = nub . map (\(Id n t) -> Id n (typeStripCastType tenv t)) $ concatMap (varIdsInPC kv) pc
+        is = nub . map (\(Id n t') -> Id n (typeStripCastType tenv t')) $ concatMap (varIdsInPC kv) pc
 
         t = pcVarType tenv pc
         cons = maybe Nothing (flip getCastedAlgDataTy tenv) t
@@ -97,7 +96,7 @@ findConsistent'' kv tenv eenv pc =
                 dc' = case E.lookup (idName i) eenv of
                         Just e
                             | Data spec_dc:_ <- unApp e -> [spec_dc]
-                        r -> dc
+                        _ -> dc
                 
 
                 cons' = fmap (map Data) $ findConsistent''' dc' pc
@@ -176,7 +175,7 @@ isExtCond _ = False
 pcVarType :: TypeEnv -> [PathCond] -> Maybe Type
 pcVarType tenv (AltCond _ (Var (Id _ t)) _:pc) = pcVarType' t tenv pc
 pcVarType tenv (ConsCond _ (Var (Id _ t)) _:pc) = pcVarType' t tenv pc
-pcVarType tenv _ = Nothing
+pcVarType _ _ = Nothing
 
 pcVarType' :: Type -> TypeEnv -> [PathCond] -> Maybe Type
 pcVarType' t tenv (AltCond _ (Var (Id _ t')) _:pc) =

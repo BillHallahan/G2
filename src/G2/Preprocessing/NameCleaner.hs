@@ -17,7 +17,6 @@ module G2.Preprocessing.NameCleaner
     ) where
 
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map as M
 import qualified Data.HashSet as S
 import qualified Data.Text as T
 

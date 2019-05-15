@@ -70,8 +70,6 @@ import Data.Maybe
 import qualified Data.List as L
 import System.Directory
 
-import Debug.Trace
-
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -536,7 +534,7 @@ instance Halter BranchAdjSwitchEveryNHalter SwitchingPerState t where
         sps { counter = sw }
     stopRed _ (SwitchingPerState { counter = i }) _ _ =
         if i <= 0 then Switch else Continue
-    stepHalter bas@(BranchAdjSwitchEveryNHalter { switch_min = mi })
+    stepHalter (BranchAdjSwitchEveryNHalter { switch_min = mi })
                sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs _ =
         let
             new_sa = max mi (sa `div` length xs)
@@ -555,9 +553,9 @@ instance Halter BranchAdjVarLookupLimit SwitchingPerState t where
     stopRed _ (SwitchingPerState { counter = i }) _ _ =
         if i <= 0 then Switch else Continue
 
-    stepHalter bas@(BranchAdjVarLookupLimit { var_switch_min = mi })
+    stepHalter (BranchAdjVarLookupLimit { var_switch_min = mi })
                sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs
-               s@(State { curr_expr = CurrExpr Evaluate (Var _) }) =
+               (State { curr_expr = CurrExpr Evaluate (Var _) }) =
         let
             new_sa = max mi (sa `div` length xs)
             new_i = min (i - 1) new_sa
@@ -624,7 +622,7 @@ data VarLookupLimit = VarLookupLimit Int
 
 instance Halter VarLookupLimit Int t where
     initHalt (VarLookupLimit lim) _ = lim
-    updatePerStateHalt (VarLookupLimit lim) _ _ s = lim
+    updatePerStateHalt (VarLookupLimit lim) _ _ _ = lim
     stopRed _ lim _ _ = if lim <= 0 then Switch else Continue
 
     stepHalter _ lim _ _ s@(State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
@@ -702,9 +700,9 @@ instance Orderer BucketSizeOrderer Int Int t where
 data CaseCountOrderer = CaseCountOrderer
 
 instance Orderer CaseCountOrderer Int Int t where
-    initPerStateOrder _ s = 0
+    initPerStateOrder _ _ = 0
 
-    orderStates _ v s = v
+    orderStates _ v _ = v
 
     updateSelected _ v _ _ = v
 
@@ -717,7 +715,7 @@ data SymbolicADTOrderer = SymbolicADTOrderer
 
 instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
     initPerStateOrder _ = S.fromList . map idName . symbolic_ids
-    orderStates _ v s = S.size v
+    orderStates _ v _ = S.size v
 
     updateSelected _ v _ _ = v
 
@@ -763,7 +761,7 @@ data IncrAfterNTr sov = IncrAfterNTr { steps_since_change :: Int
                                      , underlying :: sov }
 
 instance (Eq sov, Enum b, Orderer ord sov b t) => Orderer (IncrAfterN ord) (IncrAfterNTr sov) b t where
-    initPerStateOrder (IncrAfterN ma ord) s =
+    initPerStateOrder (IncrAfterN _ ord) s =
         IncrAfterNTr { steps_since_change = 0
                      , incr_by = 0
                      , underlying = initPerStateOrder ord s }

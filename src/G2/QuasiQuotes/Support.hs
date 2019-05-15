@@ -85,4 +85,4 @@ tupleNum' 0 ("()") = Just 0
 tupleNum' 0 ('(':xs) = tupleNum' 1 xs
 tupleNum' !n (',':xs) = tupleNum' (1 + n) xs
 tupleNum' !n ")" = Just n
-tupleNum' _ s = Nothing
+tupleNum' _ _ = Nothing
