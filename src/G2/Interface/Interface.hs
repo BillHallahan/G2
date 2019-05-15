@@ -119,7 +119,7 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
               Right errs -> error errs
         (_, ts) = instantiateArgTypes (IT.type_classes s) (IT.known_values s) fe
 
-        (s', ds_walkers) = runInitialization s ts (S.fromList $ IT.exports s)
+        (s', ds_walkers) = runInitialization s ts
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -222,7 +222,7 @@ initRedHaltOrd conv config =
              , SomeOrderer $ PickLeastUsedOrderer)
 
 initSolver :: Config -> IO SomeSolver
-initSolver con = initSolver' arbValue con
+initSolver = initSolver' arbValue
 
 initSolverInfinite :: Config -> IO SomeSolver
 initSolverInfinite con = initSolver' arbValueInfinite con

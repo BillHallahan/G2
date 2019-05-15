@@ -37,8 +37,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 -- | The type environment maps names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
 -- and we only store those information accordingly.

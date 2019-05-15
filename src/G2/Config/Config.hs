@@ -45,8 +45,8 @@ data Config = Config {
 -- mkConfigDef :: Config
 -- mkConfigDef = mkConfig [] M.empty
 
-baseRoot :: Config -> IO FilePath
-baseRoot config = do
+baseRoot :: IO FilePath
+baseRoot = do
   g2Dir <- getHomeDirectory >>= \f -> return $ f ++ "/.g2"
   return $ g2Dir ++ "/base-4.9.1.0"
 
@@ -173,20 +173,3 @@ strArgs s a m f d =
 
 strsToArgs :: [String] -> (String -> a) -> [a]
 strsToArgs =  flip map
-
-{-
-baseLibToPair :: BaseLib -> (String, String)
-baseLibToPair BasePrelude = ("", "Prelude.hs")
-baseLibToPair BaseException = ("Control/Exception", "Control/Exception/Base.hs")
-baseLibToPair BaseMap = ("Data/Internal", "Data/Internal/Map.hs")
-baseLibToPair e = error $ "baseLibToPair: unhandled " ++ show e
-
-configBaseLibPairs :: Config -> IO [(String, String)]
-configBaseLibPairs config = do
-  baseRoot <- baseRoot config
-  let pairs = map baseLibToPair $ baseLibs config
-  return $ map (\(p, f) -> (baseRoot ++ "/" ++ p, baseRoot ++ "/" ++ f)) pairs
-
--}
-
-
