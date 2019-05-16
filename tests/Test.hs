@@ -64,7 +64,7 @@ tests = return . testGroup "Tests"
         , primTests
         , exprTests
         , typingTests
-        ,  mergeStateUnitTests
+        , mergeStateUnitTests
         ]
 
 timeout :: Timeout

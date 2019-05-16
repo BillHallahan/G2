@@ -32,7 +32,6 @@ mergeCurrExprTests = if not (null errs)
         where
             errs = filter selectErrors $ zipWith (compareWithErrMsg "Error merging CurrExprs. Expected: ")
                 [(1, expectedVal1), (2, expectedVal2), (3, expectedVal3), (4, expectedVal4), (5, expectedVal5), (6, expectedVal6)]
--- import G2.Execution.StateMerging as SM
                 [g2Val1, g2Val2, g2Val3, g2Val4, g2Val5, g2Val6]
 
 checkRelAssumeTests :: IO (Either String Bool)
@@ -112,7 +111,6 @@ g2Val4 = SM.mergeCurrExpr kv idX
     (CurrExpr Evaluate (App e1 (App e2 e3)))
     where
         kv = simpleKV
--- import G2.Execution.StateMerging as SM
 
 g2Val5 :: CurrExpr -- identical expressions 2
 g2Val5 = SM.mergeCurrExpr kv idX
@@ -210,6 +208,12 @@ xEq2 = (App (App eqTo varX) (Lit (LitInt 2)))
 createStatePCs :: KV.KnownValues -> [PathConds]
 createStatePCs kv = take 9 (repeat (PC.fromList kv []))
 
+idY :: Id
+idY = (Id (Name "Y" Nothing 0 Nothing) TyLitInt)
+
+varY :: Expr
+varY = (Var idY)
+
 ty1N :: Name
 ty1N = (Name "Ty1" Nothing 20 Nothing) 
 
@@ -280,21 +284,37 @@ createTestPCs kv = [ PC.fromList kv [ -- simple test
                         (ConsCond dconA var1 False)
                         , AssumePC idX 1 
                         (ConsCond dconB var1 False)
-                        , AssumePC (Id (Name "Y" Nothing 0 Nothing) TyLitInt) 1 
+                        , AssumePC idY 1 
                         (ConsCond dconA var1 True)]
                    , PC.fromList kv [ -- simple nested AssumePCs 
                         AssumePC idX 1 
-                        (AssumePC (Id (Name "Y" Nothing 22 Nothing) TyLitInt) 1
+                        (AssumePC idY 1
                             (ConsCond dconA var1 True))
                         , AssumePC idX 1 
-                        (AssumePC (Id (Name "Y" Nothing 22 Nothing) TyLitInt) 1
+                        (AssumePC idY 1
                             (ConsCond dconB var1 False))]
                    , PC.fromList kv [ -- simple nested AssumePCs (negative test)
                         AssumePC idX 1 
-                        (AssumePC (Id (Name "Y" Nothing 22 Nothing) TyLitInt) 1
+                        (AssumePC idY 1
                             (ConsCond dconA var1 False))
                         , AssumePC idX 1 
-                        (AssumePC (Id (Name "Y" Nothing 22 Nothing) TyLitInt) 1
+                        (AssumePC idY 1
+                            (ConsCond dconB var1 False))]
+                   , PC.fromList kv [-- more complex nested AssumePCs. Equivalent to (x=1 && ((y=1 && B) || (y=2 && not A && not B))) || (x=2 && ((y=1 && not A && not B))) 
+                        AssumePC idX 1 
+                        (AssumePC idY 1
+                            (ConsCond dconB var1 True))
+                        , AssumePC idX 1 
+                        (AssumePC idY 2
+                            (ConsCond dconB var1 False))
+                        , AssumePC idX 1 
+                        (AssumePC idY 2
+                            (ConsCond dconA var1 False))
+                        , AssumePC idX 2 
+                        (AssumePC idY 1
+                            (ConsCond dconA var1 False))
+                        , AssumePC idX 2 
+                        (AssumePC idY 1
                             (ConsCond dconB var1 False))]
                    , PC.fromList kv [ -- Multiple solutions possible
                         AssumePC idX 1 
@@ -310,10 +330,16 @@ createTestPCs kv = [ PC.fromList kv [ -- simple test
                         (ConsCond dconA var1 False)
                         , AssumePC idX 2 
                         (ConsCond dconA var1 True)]
+                   , PC.fromList kv [ -- PathConds that cannot be resolved by ADT Solver
+                        AssumePC idX 1 
+                        (ConsCond dconB var1 True)
+                        , AssumePC idX 1 
+                        (ConsCond dconD var2 True)
+                        , (AltCond (LitInt 1) var1 True)] 
                    ]
 
 checkRelAssumeExpected :: [(TestNum, Result)]
-checkRelAssumeExpected = [(1, SAT), (2, UNSAT), (3, UNSAT), (4, SAT), (5, UNSAT), (6, SAT), (7, UNSAT), (8, SAT), (9, SAT)]
+checkRelAssumeExpected = [(1, SAT), (2, UNSAT), (3, UNSAT), (4, SAT), (5, UNSAT), (6, SAT), (7, UNSAT), (8, SAT), (9, SAT), (10, SAT), (11, UNSAT)]
 
 -- solveRelAssumeTests
 createTestIds :: [[Id]]
@@ -325,6 +351,8 @@ createTestIds = [[Id var1N ty1T]
                 , [Id var1N ty1T]
                 , [Id var1N ty1T]
                 , [Id var1N ty1T]
+                , [Id var1N ty1T]
+                , [Id var1N ty1T, Id var2N ty2T]
                 , [Id var1N ty1T, Id var2N ty2T]
                 ]
 
@@ -337,8 +365,10 @@ solveRelAssumeExpected = [ (1, (SAT, Just (M.fromList [(var1N, Data dconA)])))
                          , (6, (SAT, Just (M.fromList [(var1N, Data dconA)])))
                          , (7, (UNSAT, Nothing))
                          , (8, (SAT, Just (M.fromList [(var1N, Data dconB)])))
-                         , (9, (SAT, Just (M.fromList [(var1N, Data dconB)
+                         , (9, (SAT, Just (M.fromList [(var1N, Data dconB)])))
+                         , (10, (SAT, Just (M.fromList [(var1N, Data dconB)
                             , (var2N, Data dconD)])))
+                         , (11, (UNSAT, Nothing))
                          ]
 
 -- Helper Functions
@@ -437,7 +467,7 @@ createTestBindings = Bindings {
     , input_names = []
     , higher_order_inst = []
     , rewrite_rules = []
-    , name_gen = mkNameGen [ty1N, ty2N, (Name "A" Nothing 17 Nothing), (Name "B" Nothing 18 Nothing), (Name "X" Nothing 0 Nothing), (Name "Y" Nothing 22 Nothing)
+    , name_gen = mkNameGen [ty1N, ty2N, (Name "A" Nothing 17 Nothing), (Name "B" Nothing 18 Nothing), (Name "X" Nothing 0 Nothing), (Name "Y" Nothing 0 Nothing)
         , (Name "Bool" Nothing 0 Nothing), (Name "" Nothing 0 Nothing), (Name "C" Nothing 24 Nothing), (Name "B" Nothing 25 Nothing)]
     }
 
