@@ -30,8 +30,8 @@ mergeCurrExprTests = if not (null errs)
             then Left (foldr concatErrMsgs "" errs)
             else Right True
         where
-            errs = filter selectErrors $ zipWith (compareWithErrMsg "Error merging CurrExprs. Expected: ") 
-                [(1, expectedVal1), (2, expectedVal2), (3, expectedVal3), (4, expectedVal4), (5, expectedVal5), (6, expectedVal6)] 
+            errs = filter selectErrors $ zipWith (compareWithErrMsg "Error merging CurrExprs. Expected: ")
+                [(1, expectedVal1), (2, expectedVal2), (3, expectedVal3), (4, expectedVal4), (5, expectedVal5), (6, expectedVal6)]
 -- import G2.Execution.StateMerging as SM
                 [g2Val1, g2Val2, g2Val3, g2Val4, g2Val5, g2Val6]
 
@@ -80,34 +80,34 @@ concatErrMsgs (Left e') e = e ++ "\n" ++ e'
 concatErrMsgs (Right _) _ = "Error. No error message to concatenate"
 
 compareWithErrMsg :: Eq a => Show a => String -> (TestNum, a) -> a -> Either String Bool
-compareWithErrMsg errMsg (i, expected) actual =  if expected == actual 
-    then Right True 
+compareWithErrMsg errMsg (i, expected) actual =  if expected == actual
+    then Right True
     else Left (errMsg ++ " Test number " ++ (show i) ++ " - Expected: " ++ (show expected) ++ "\n Got: " ++ (show actual))
 
 -- Following functions return individual test outputs or expected output values
 
 -- mergeCurrExpr Tests
 g2Val1 :: CurrExpr -- simple test
-g2Val1 = SM.mergeCurrExpr kv (Id (Name "X" Nothing 0 Nothing) TyLitInt) (CurrExpr Evaluate (App e1 e2)) (CurrExpr Evaluate (App e1 e2'))
+g2Val1 = SM.mergeCurrExpr kv idX (CurrExpr Evaluate (App e1 e2)) (CurrExpr Evaluate (App e1 e2'))
     where
         kv = simpleKV
 
 g2Val2 :: CurrExpr
-g2Val2 = SM.mergeCurrExpr kv (Id (Name "X" Nothing 0 Nothing) TyLitInt) 
-    (CurrExpr Evaluate (App e1 (App e2 e3))) 
+g2Val2 = SM.mergeCurrExpr kv idX
+    (CurrExpr Evaluate (App e1 (App e2 e3)))
     (CurrExpr Evaluate (App e1 (App e2' e3')))
     where
         kv = simpleKV
 
 g2Val3 :: CurrExpr -- force NonDet further down
-g2Val3 = SM.mergeCurrExpr kv (Id (Name "X" Nothing 0 Nothing) TyLitInt) 
+g2Val3 = SM.mergeCurrExpr kv idX 
     (CurrExpr Evaluate (App e1 (App e2 e3))) 
     (CurrExpr Evaluate (App e1 (App e2 e3')))
     where
         kv = simpleKV
 
 g2Val4 :: CurrExpr -- identical expressions
-g2Val4 = SM.mergeCurrExpr kv (Id (Name "X" Nothing 0 Nothing) TyLitInt)
+g2Val4 = SM.mergeCurrExpr kv idX
     (CurrExpr Evaluate (App e1 (App e2 e3)))
     (CurrExpr Evaluate (App e1 (App e2 e3)))
     where
@@ -115,27 +115,27 @@ g2Val4 = SM.mergeCurrExpr kv (Id (Name "X" Nothing 0 Nothing) TyLitInt)
 -- import G2.Execution.StateMerging as SM
 
 g2Val5 :: CurrExpr -- identical expressions 2
-g2Val5 = SM.mergeCurrExpr kv (Id (Name "X" Nothing 0 Nothing) TyLitInt)
+g2Val5 = SM.mergeCurrExpr kv idX
     (CurrExpr Evaluate (App e1 (App e4 e3)))
     (CurrExpr Evaluate (App e1 (App e4 e3')))
     where
         kv = simpleKV
 
 g2Val6 :: CurrExpr -- Nested (App ...) in first argument
-g2Val6 = SM.mergeCurrExpr kv (Id (Name "X" Nothing 0 Nothing) TyLitInt)
+g2Val6 = SM.mergeCurrExpr kv idX
     (CurrExpr Evaluate (App (App e1 e2) (App e4 e3)))
     (CurrExpr Evaluate (App (App e1 e2') (App e4 e3')))
     where
         kv = simpleKV
 
 expectedVal1 :: CurrExpr
-expectedVal1 = CurrExpr Evaluate 
-    (App e1 
+expectedVal1 = CurrExpr Evaluate
+    (App e1
         (NonDet [(Assume Nothing xEq1 e2), (Assume Nothing xEq2 e2')])
     )
 
 expectedVal2 :: CurrExpr
-expectedVal2 = CurrExpr Evaluate 
+expectedVal2 = CurrExpr Evaluate
     (App e1
         (App
             (NonDet [(Assume Nothing xEq1 e2), (Assume Nothing xEq2 e2')])
@@ -144,7 +144,7 @@ expectedVal2 = CurrExpr Evaluate
     )
 
 expectedVal3 :: CurrExpr
-expectedVal3 = CurrExpr Evaluate 
+expectedVal3 = CurrExpr Evaluate
     (App e1
         (App e2
             (NonDet [(Assume Nothing xEq1 e3), (Assume Nothing xEq2 e3')])
@@ -155,7 +155,7 @@ expectedVal4 :: CurrExpr
 expectedVal4 = CurrExpr Evaluate (App e1 (App e2 e3))
 
 expectedVal5 :: CurrExpr
-expectedVal5 = CurrExpr Evaluate 
+expectedVal5 = CurrExpr Evaluate
     (App e1
         (App e4
             (NonDet [(Assume Nothing xEq1 e3), (Assume Nothing xEq2 e3')])
@@ -174,7 +174,7 @@ expectedVal6 = CurrExpr Evaluate
     )
 
 e1 :: Expr
-e1 = (Data (DataCon (Name "$I" Nothing 0 Nothing) TYPE)) 
+e1 = (Data (DataCon (Name "$I" Nothing 0 Nothing) TYPE))
 
 e2 :: Expr
 e2 = (Lit (LitInt 2))
@@ -201,10 +201,10 @@ eqTo :: Expr
 eqTo = (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))))
 
 xEq1 :: Expr
-xEq1 = (App (App eqTo varX) (Lit (LitInt 1))) 
+xEq1 = (App (App eqTo varX) (Lit (LitInt 1)))
 
 xEq2 :: Expr
-xEq2 = (App (App eqTo varX) (Lit (LitInt 2))) 
+xEq2 = (App (App eqTo varX) (Lit (LitInt 2)))
 
 -- checkRelAssume Tests
 createStatePCs :: KV.KnownValues -> [PathConds]
@@ -217,25 +217,25 @@ ty1T :: Type
 ty1T = (TyCon ty1N TYPE)
 
 dconA :: DataCon
-dconA = (DataCon (Name "A" Nothing 17 Nothing) ty1T) 
+dconA = (DataCon (Name "A" Nothing 17 Nothing) ty1T)
 
 dconB :: DataCon
-dconB = (DataCon (Name "B" Nothing 18 Nothing) ty1T) 
+dconB = (DataCon (Name "B" Nothing 18 Nothing) ty1T)
 
 ty1 :: AlgDataTy
 ty1 = DataTyCon {bound_ids = [], data_cons = [dconA, dconB]}
 
 ty2N :: Name
-ty2N = (Name "Ty2" Nothing 23 Nothing) 
+ty2N = (Name "Ty2" Nothing 23 Nothing)
 
 ty2T :: Type
 ty2T = (TyCon ty2N TYPE)
 
 dconC :: DataCon
-dconC = (DataCon (Name "C" Nothing 24 Nothing) ty2T) 
+dconC = (DataCon (Name "C" Nothing 24 Nothing) ty2T)
 
 dconD :: DataCon
-dconD = (DataCon (Name "D" Nothing 25 Nothing) ty2T) 
+dconD = (DataCon (Name "D" Nothing 25 Nothing) ty2T)
 
 ty2 :: AlgDataTy
 ty2 = DataTyCon {bound_ids = [], data_cons = [dconC, dconD]}
@@ -254,62 +254,61 @@ var2 = Var (Id var2N ty2T)
 
 createTestPCs :: KV.KnownValues -> [PathConds]
 createTestPCs kv = [ PC.fromList kv [ -- simple test
-                        AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        AssumePC idX 1 
                         (ConsCond dconA var1 True)]
                    , PC.fromList kv [
-                        AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        AssumePC idX 1 
                         (ConsCond dconA var1 False)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        , AssumePC idX 1 
                         (ConsCond dconB var1 False)]
                    , PC.fromList kv [ -- combination of AssumePCs and other PathCond-s
                         ConsCond dconA var1 False
                         , (ConsCond dconB var1 False)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        , AssumePC idX 1 
                         (ConsCond dconA var1 False)]
                    , PC.fromList kv [ -- Set of (AssumePCs id i pc) with i == 2 should be satisfiable, hence entire PathConds should be satisfiable
-                        AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        AssumePC idX 1 
                         (ConsCond dconA var1 False)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        , AssumePC idX 1 
                         (ConsCond dconB var1 False)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 2 
+                        , AssumePC idX 2 
                         (ConsCond dconA var1 True)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 2 
+                        , AssumePC idX 2 
                         (ConsCond dconB var1 False)]
                    , PC.fromList kv [ 
-                        AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        AssumePC idX 1 
                         (ConsCond dconA var1 False)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        , AssumePC idX 1 
                         (ConsCond dconB var1 False)
                         , AssumePC (Id (Name "Y" Nothing 0 Nothing) TyLitInt) 1 
                         (ConsCond dconA var1 True)]
                    , PC.fromList kv [ -- simple nested AssumePCs 
-                        AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        AssumePC idX 1 
                         (AssumePC (Id (Name "Y" Nothing 22 Nothing) TyLitInt) 1
                             (ConsCond dconA var1 True))
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        , AssumePC idX 1 
                         (AssumePC (Id (Name "Y" Nothing 22 Nothing) TyLitInt) 1
                             (ConsCond dconB var1 False))]
                    , PC.fromList kv [ -- simple nested AssumePCs (negative test)
-                        AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        AssumePC idX 1 
                         (AssumePC (Id (Name "Y" Nothing 22 Nothing) TyLitInt) 1
                             (ConsCond dconA var1 False))
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        , AssumePC idX 1 
                         (AssumePC (Id (Name "Y" Nothing 22 Nothing) TyLitInt) 1
                             (ConsCond dconB var1 False))]
                    , PC.fromList kv [ -- Multiple solutions possible
-                        AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        AssumePC idX 1 
                         (ConsCond dconB var1 True)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 2 
+                        , AssumePC idX 2 
                         (ConsCond dconA var1 True)]
                    , PC.fromList kv [ -- Multiple Data types
-                        AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        AssumePC idX 1 
                         (ConsCond dconB var1 True)
--- import G2.Execution.StateMerging as SM
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 1 
+                        , AssumePC idX 1 
                         (ConsCond dconD var2 True)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 2 
+                        , AssumePC idX 2 
                         (ConsCond dconA var1 False)
-                        , AssumePC (Id (Name "X" Nothing 0 Nothing) TyLitInt) 2 
+                        , AssumePC idX 2 
                         (ConsCond dconA var1 True)]
                    ]
 
@@ -318,15 +317,15 @@ checkRelAssumeExpected = [(1, SAT), (2, UNSAT), (3, UNSAT), (4, SAT), (5, UNSAT)
 
 -- solveRelAssumeTests
 createTestIds :: [[Id]]
-createTestIds = [[Id (Name "1" Nothing 19 Nothing) ty1T]
-                , [Id (Name "1" Nothing 19 Nothing) ty1T]
-                , [Id (Name "1" Nothing 19 Nothing) ty1T]
-                , [Id (Name "1" Nothing 19 Nothing) ty1T]
-                , [Id (Name "1" Nothing 19 Nothing) ty1T]
-                , [Id (Name "1" Nothing 19 Nothing) ty1T]
-                , [Id (Name "1" Nothing 19 Nothing) ty1T]
-                , [Id (Name "1" Nothing 19 Nothing) ty1T]
-                , [Id (Name "1" Nothing 19 Nothing) ty1T, Id (Name "2" Nothing 26 Nothing) ty2T]
+createTestIds = [[Id var1N ty1T]
+                , [Id var1N ty1T]
+                , [Id var1N ty1T]
+                , [Id var1N ty1T]
+                , [Id var1N ty1T]
+                , [Id var1N ty1T]
+                , [Id var1N ty1T]
+                , [Id var1N ty1T]
+                , [Id var1N ty1T, Id var2N ty2T]
                 ]
 
 solveRelAssumeExpected :: [(TestNum, (Result, Maybe Model))]
@@ -344,7 +343,7 @@ solveRelAssumeExpected = [ (1, (SAT, Just (M.fromList [(var1N, Data dconA)])))
 
 -- Helper Functions
 simpleKV :: KV.KnownValues
-simpleKV = KV.KnownValues 
+simpleKV = KV.KnownValues
             { KV.tyInt = (Name "" Nothing 0 Nothing)
             , KV.dcInt = (Name "" Nothing 0 Nothing)
  
@@ -395,9 +394,9 @@ simpleKV = KV.KnownValues
             , KV.patErrorFunc = (Name "" Nothing 0 Nothing)
             }
 
-createInitState :: FilePath 
-                   -> String 
-                   -> Config 
+createInitState :: FilePath
+                   -> String
+                   -> Config
                    -> IO (State ())
 createInitState src entry config = do
     let proj = takeDirectory src
@@ -408,8 +407,8 @@ createInitState src entry config = do
 
 createTestState :: KnownValues -> TypeEnv -> PathConds -> State ()
 createTestState kv tenv pc = State {
-      expr_env = EE.empty 
-    , type_env = tenv 
+      expr_env = EE.empty
+    , type_env = tenv
     , curr_expr = CurrExpr Evaluate (Lit (LitInt 0))
     , path_conds = pc
     , non_red_path_conds = []
@@ -419,7 +418,7 @@ createTestState kv tenv pc = State {
     , symbolic_ids = []
     , exec_stack = Stack.empty
     , model = M.empty
-    , known_values = kv 
+    , known_values = kv
     , rules = []
     , num_steps = 0
     , track = ()
