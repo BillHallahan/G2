@@ -32,7 +32,7 @@ eval env (Var id) =
   case lookup id env of
     Just expr -> eval env expr
     Nothing -> Const (Fun id)
-eval env (App (Lam id body) arg) =
-  eval ((id, arg) : env) body
+eval env (App (Lam i body) arg) =
+  eval ((i, arg) : env) body
 eval env expr = expr
 

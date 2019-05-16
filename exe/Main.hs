@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main (main, plugin) where
+module Main (main) where
 
 import DynFlags
 
@@ -19,8 +19,6 @@ import G2.Language
 import G2.Translation
 
 import G2.Liquid.Interface
-
-import G2.Plugin
 
 main :: IO ()
 main = do

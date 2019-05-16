@@ -2,11 +2,6 @@
 
 module Main where
 
-import G2.QuasiQuotes.QuasiQuotes
-import MiniLib
-
-import G2.QuasiQuotes.Parser
-
 import DeBruijn.Test
 import Arithmetics.Test
 import Lambda.Test
@@ -14,9 +9,6 @@ import NQueens.Test
 import RegEx.Test
 
 import Evaluations hiding (productSumTest)
-
-
-import Data.Time.Clock
 
 arithmeticsTests :: IO ()
 arithmeticsTests = do

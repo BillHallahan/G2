@@ -232,7 +232,6 @@ runExecutionQ s b config = do
                     let acc' = filter (trueCurrExpr) acc
                     return $ Completed acc' b'''
                 _ -> do
-                    let (s'', b'') = runG2Pre [] s' b'
                     return $ NonCompleted s'' b''
     where
         trueCurrExpr (State { curr_expr = CurrExpr _ e

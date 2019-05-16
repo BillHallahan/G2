@@ -78,8 +78,6 @@ library
 
                        , G2.Liquid.Interface
 
-                       , G2.Plugin
-
                        , G2.Postprocessing.Interface
 
                        , G2.Preprocessing.AdjustTypes

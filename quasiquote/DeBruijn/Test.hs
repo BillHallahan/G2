@@ -49,9 +49,6 @@ solveDeBruijnIte = solveDeBruijn [ ([trueLam, Var 2, Var 4], Var 2)
 
 solveDeBruijnS :: IO (Maybe Expr)
 solveDeBruijnS =
-    let
-        k = Lam (Lam (Var 2))
-    in
     solveDeBruijn
         [ ([Lam (Lam (Var 1)), Lam (Var 1), num 2], num 2)
         , ([Lam (Lam (Var 1)), Lam (Lam (Var 2)), num 3], num 3) ]

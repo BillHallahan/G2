@@ -478,7 +478,7 @@ instance Halter AcceptHalter () t where
         case isExecValueForm s && true_assert s of
             True -> Accept
             False -> Continue
-    stepHalter _ _ _ _ s = ()
+    stepHalter _ _ _ _ _ = ()
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
 data ZeroHalter = ZeroHalter Int
@@ -625,7 +625,7 @@ instance Halter VarLookupLimit Int t where
     updatePerStateHalt (VarLookupLimit lim) _ _ _ = lim
     stopRed _ lim _ _ = if lim <= 0 then Switch else Continue
 
-    stepHalter _ lim _ _ s@(State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
+    stepHalter _ lim _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
     stepHalter _ lim _ _ _ = lim
 
 
@@ -692,7 +692,7 @@ data BucketSizeOrderer = BucketSizeOrderer Int
 instance Orderer BucketSizeOrderer Int Int t where
     initPerStateOrder _ _ = 0
 
-    orderStates (BucketSizeOrderer b) v _ = floor $ fromIntegral v / fromIntegral b
+    orderStates (BucketSizeOrderer b) v _ = floor (fromIntegral v / fromIntegral b :: Float)
 
     updateSelected _ v _ _ = v + 1
 

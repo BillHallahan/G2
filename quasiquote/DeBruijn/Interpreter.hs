@@ -7,9 +7,7 @@ module DeBruijn.Interpreter ( Expr (..)
                             , eval
                             , app
                             , lams
-                            , num
-                            , k
-                            , solveDeBruijn2) where
+                            , num) where
 
 import Data.Data
 import G2.QuasiQuotes.G2Rep
@@ -48,51 +46,3 @@ lams n e = iterate Lam e !! n
 
 num :: Int -> Expr
 num n = Lam $ Lam $ foldr1 App (replicate n (Var 2) ++ [Var 1])
-
-k :: Expr
-k = Lam 
-    (Lam
-        (Lam
-            (App
-                (App
-                    (Var 3)
-                    (Var 1)
-                )
-                (App
-                    (Var 2)
-                    (Var 1)
-                )
-            )
-        )
-    )
-
-test1 :: Bool
-test1 = eval (App (Lam (Var 1)) (num 4)) == num 4
-
-test2 :: Bool
-test2 = eval (App (App (Lam (Lam (Var 2))) (num 4)) (num 6)) == num 4
-
-test3 :: Bool
-test3 = eval (App 
-                (App 
-                    (App 
-                        (Lam 
-                            (Lam 
-                                (Lam 
-                                    (App
-                                        (App (Var 1) (Var 2))
-                                        (App (Var 2) (Var 3))
-                                    )
-                                )
-                            )
-                        )
-                        (num 7)
-                    )
-                    (Lam (Var 1))
-                )
-                (Lam (Var 1))
-            )
-        == (num 7)
-
-solveDeBruijn2 :: Expr -> [([Expr], Expr)] -> Bool
-solveDeBruijn2 func = all (\e -> (eval (app (func:fst e))) == snd e)

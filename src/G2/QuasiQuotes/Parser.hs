@@ -13,12 +13,6 @@ import Data.List
 import Text.Regex
 import Text.Regex.Base
 
-testStr1 :: String
-testStr1 = "!(y :: Int) !(z :: Int) -> ?(a :: Int) ?(b :: Int) | a + b + 2 == y + z "
-
-testStr2 :: String
-testStr2 = "!(y :: Int) -> ?(b :: Int) | (y == 2) || (b == 4)"
-
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
 
@@ -37,9 +31,6 @@ paddedIdRs = whiteSpaceRs ++ "*" ++ idRs ++ whiteSpaceRs ++ "*"
 
 bar :: String
 bar = "|"
-
-concVarRegex :: Regex
-concVarRegex = mkRegex $ "[(]" ++ paddedIdRs ++ "::[^!?|]*"
 
 symbVarRegex :: Regex
 symbVarRegex = mkRegex $ "[?][(]" ++ paddedIdRs ++ "::[^!?|]*"
@@ -95,10 +86,6 @@ getConcVars' _ pr []
 getSymbVars :: String -> [(String, String)]
 getSymbVars chewed = map idPairFrom2Colon $ matchAllText2 symbVarRegex chewed
 
-getFuncBody :: String -> String
-getFuncBody chewed = concat $ tail $ splitRegex dividerRegex chewed
-
-
 -----------------------
 -- Parsing extracted stuff
 
@@ -126,6 +113,7 @@ extractQuotedData raw
             , symbVars = getSymbVars $ '?' : concat symbs
             , bodyExpr = trim $ intercalate bar tl
             }
+        _ -> error $ "extractQuotedData: bad text " ++ show raw
     _ -> error $ "extractQuotedData: bad text " ++ show raw
   | otherwise = error $ "extractQuotedData: bad text " ++ show raw
 
@@ -146,5 +134,3 @@ quotedEx2Hsk quoted =
 -- The one-pass function
 transformQuoted :: String -> String
 transformQuoted = quotedEx2Hsk . extractQuotedData
-
-

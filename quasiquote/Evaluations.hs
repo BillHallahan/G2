@@ -6,7 +6,6 @@ import Data.Time.Clock
 import G2.QuasiQuotes.QuasiQuotes
 
 import Arithmetics.Interpreter as A
-import NQueens.Encoding as Q
 import DeBruijn.Interpreter as D
 import RegEx.RegEx as R
 
