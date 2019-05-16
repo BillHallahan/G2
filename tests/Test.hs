@@ -14,6 +14,8 @@ import G2.Config
 import G2.Interface
 import G2.Language as G2
 import G2.Liquid.Interface
+import G2.Execution.StateMerging as SM
+import qualified G2.Language.KnownValues as KV
 
 import Control.Exception
 import Data.Maybe
@@ -31,6 +33,7 @@ import DefuncTest
 import CaseTest
 import Expr
 import Typing
+import MergeStateUnitTests
 
 import InputOutputTest
 import Reqs
@@ -61,6 +64,7 @@ tests = return . testGroup "Tests"
         , primTests
         , exprTests
         , typingTests
+        ,  mergeStateUnitTests
         ]
 
 timeout :: Timeout
@@ -465,6 +469,16 @@ todoTests =
             , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "double2IntTest" 1000 2 [AtLeast 1]
         ]
 
+-- | Tests for specific functions - mergeExpr, checkRelAssume, solveRelAssume
+mergeStateUnitTests :: IO TestTree
+mergeStateUnitTests =
+    return . testGroup "Unit Tests"
+        =<< sequence [
+              checkFn mergeCurrExprTests "mergeCurrExpr Test"
+              , checkFnIO checkRelAssumeTests "checkRelAssume Test"
+              , checkFnIO solveRelAssumeTests "solveRelAssume Test"
+            ]
+
 data ToDo = RunMain
           | RunToDo
           deriving (Eq, Typeable)
@@ -573,6 +587,20 @@ checkAbsLiquidWithConfig fp entry i config reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n" ++ show r) ch
 
+-- For mergeState unit tests
+checkFn :: Either String Bool -> String -> IO TestTree
+checkFn f testName = do
+    let res = f
+    case res of
+       Left e -> return . testCase testName $ assertFailure e
+       Right _ -> return . testCase testName $ return ()
+
+checkFnIO :: IO (Either String Bool) -> String -> IO TestTree
+checkFnIO f testName = do
+    res <- f
+    case res of
+        Left e -> return . testCase testName $ assertFailure e
+        Right _ -> return . testCase testName $ return ()
 
 findCounterExamples' :: FilePath
                      -> T.Text

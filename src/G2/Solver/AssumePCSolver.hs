@@ -53,7 +53,7 @@ checkOrdinarySets sol s (p:ps) = do
             _ -> return (c, sol')
 
 -- | Checks consistency of [PathConds] where each PathConds contains path constraints of the form (AssumePC i _ _) for some Id i
--- e.g. [PathConds] !! 0 could contain path constaints with contain Id 'x', while [PathConds] !! 1 could contain path constraints with Id 'y'
+-- e.g. [PathConds]!!0 could contain path constaints with Id 'x', while [PathConds]!!1 could contain path constraints with Id 'y'
 checkAssumePCSets :: TrSolver a => a -> State t -> [PathConds] -> IO (Result, a)
 checkAssumePCSets sol _ [] = return (SAT, sol)
 checkAssumePCSets sol s (p:ps) = do

@@ -1,5 +1,6 @@
 module G2.Execution.StateMerging
   ( mergeState
+  , mergeCurrExpr
   ) where
 
 import G2.Language.Support
