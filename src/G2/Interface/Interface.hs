@@ -317,7 +317,7 @@ runG2 red hal ord con pns (is@State { type_env = tenv
 
     let (preproc_state, bindings'') = runPreprocessing swept bindings'
 
-    (exec_states, bindings''') <- runExecution red hal ord preproc_state bindings''
+    (exec_states, bindings''') <- runExecution red hal preproc_state bindings''
 
     let ident_states = filter true_assert exec_states
 

@@ -10,5 +10,5 @@ import G2.Execution.Rules
 import G2.Language.Support
 
 {-# INLINE runExecution #-}
-runExecution :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings -> IO ([State t], Bindings)
+runExecution :: (Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO ([State t], Bindings)
 runExecution = runReducer
