@@ -684,15 +684,15 @@ runReducer' red hal pr rs@(ExState {state = s, halter_val = h_val, reducer_val =
             [] -> return ([], b)
             (x:xs') -> do
                 runReducer' red hal pr (updateExStateHalter hal pr' x) b xs'
-    | hc == Switch = do
+    | hc == Switch =
         let
             xs' = xs ++ [rs] --todo: change list to make insertion at back more efficient
-            rs' = head (xs ++ [rs])
+            rs' = head xs'
             rs'' = rs' {halter_val = updatePerStateHalt hal (halter_val rs') ps (state rs') }
-            in
-            if not $ discardOnStart hal (halter_val rs'') ps (state rs'')
-                then runReducer' red hal pr rs'' b xs'
-                else runReducerList red hal (pr {discarded = rs'':discarded pr}) xs' b
+        in
+        if not $ discardOnStart hal (halter_val rs'') ps (state rs'')
+            then runReducer' red hal pr rs'' b (tail xs')
+            else runReducerList red hal (pr {discarded = rs'':discarded pr}) (tail xs') b
     | otherwise = do
         (res, reduceds, b', red') <- redRules red r_val s b
         --If reduceds are a result of splititng on a symbolic case expr, then eval each of the ExStates in reduceds to SWHNF and try to merge
