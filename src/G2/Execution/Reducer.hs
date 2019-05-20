@@ -284,6 +284,11 @@ instance Solver con => Reducer (StdRed con) () t where
 
     redRules stdr@(StdRed solver) _ s b = do
         (r, s', b') <- stdReduce solver s b
+        let res = case r of
+                    RuleHitMergePt -> MergePoint
+                    RuleEvalCaseSym -> Merge
+                    RuleIdentity -> Finished
+                    _ -> InProgress
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
 

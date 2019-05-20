@@ -69,6 +69,8 @@ data Rule = RuleEvalVal
 
           | RuleTick
           
+          | RuleHitMergePt
+          
           | RuleOther
            deriving (Show, Eq, Read)
 

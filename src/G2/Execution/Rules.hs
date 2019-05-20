@@ -61,6 +61,7 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
                               , assert_ids = is }], ng)
     | Prim Error _ <- ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
+    | Just (MergePtFrame, stck') <- frstck = return (RuleHitMergePt, [s {exec_stack = stck'}], ng)
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | Lam u i e <- ce = return $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
@@ -332,8 +333,10 @@ evalCase s@(State { expr_env = eenv
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
         def_sts = liftSymDefAlt s mexpr bind alts
+        newPCs = dsts_cs ++ lsts_cs ++ def_sts
+        newPCs' = map (\p@(NewPC {state = st}) -> p{state = st{exec_stack = S.push MergePtFrame (exec_stack st)}}) newPCs
       in
-      (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts, ng')
+      (RuleEvalCaseSym, newPCs', ng')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack

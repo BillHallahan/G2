@@ -107,6 +107,7 @@ data Frame = CaseFrame Id [Alt]
            | CurrExprFrame CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
+           | MergePtFrame
            deriving (Show, Eq, Read)
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
@@ -326,6 +327,7 @@ instance Named Frame where
     names (CurrExprFrame e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is ++ names e
+    names (MergePtFrame) = []
 
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
@@ -334,6 +336,7 @@ instance Named Frame where
     rename old new (CurrExprFrame e) = CurrExprFrame (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
+    rename _ _ MergePtFrame = MergePtFrame
 
     renames hm (CaseFrame i a) = CaseFrame (renames hm i) (renames hm a)
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
@@ -342,3 +345,4 @@ instance Named Frame where
     renames hm (CurrExprFrame e) = CurrExprFrame (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
+    renames _ MergePtFrame = MergePtFrame
