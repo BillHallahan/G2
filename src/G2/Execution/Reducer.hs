@@ -290,7 +290,7 @@ instance Solver con => Reducer (StdRed con) () t where
                     RuleIdentity -> Finished
                     _ -> InProgress
         
-        return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
+        return (res, s', b', stdr)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed
@@ -708,7 +708,7 @@ runReducer' red hal pr rs@(ExState {state = s, halter_val = h_val, reducer_val =
                                                   , halter_val = stepHalter hal h_val ps s'}) $ zip (map fst reduceds') r_vals
         case res of
             Merge -> do
-                (mergedStates, b'', red'') <- runReducerMerge red' hal pr reduceds'' b'
+                (mergedStates, b'', red'') <- runReducerMerge2 red' hal pr reduceds'' b'
                 runReducerList red'' hal pr (xs ++ mergedStates) b''
             MergePoint -> error "This case should be dealt by runReducerMerge"
             _ -> do
@@ -730,7 +730,6 @@ runReducerMerge' red hal pr mergeableStates b
         (mpStates', b'', red'') <- runReducerMerge' red' hal pr xs b'
         return $ (mpStates:mpStates', b'', red'')
     | [] <- mergeableStates = return ([], b, red)
-
 
 evalStateTillMP :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> ExState rv hv sov t -> Bindings -> IO ([ExState rv hv sov t],Bindings,r)
 evalStateTillMP red hal pr rs@(ExState {state = s, reducer_val = r_val, halter_val = h_val}) b = do
@@ -756,3 +755,66 @@ runReducerList red hal pr xs b = case xs of
 mergeStates :: [[ExState rv hv sov t]] -> Bindings -> ([ExState rv hv sov t], Bindings)
 mergeStates ls b = (concat ls, b) --to do call mergeState if isMergeable for all combinations of states
 -- at some point must remove MergePoint from stack too
+
+type ReadyToMerge = Bool
+data Tree a = Tree a [Tree a] ReadyToMerge
+
+treeVal :: Tree a -> a
+treeVal (Tree a _ _) = a
+
+runReducerMerge2 :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t], Bindings, r)
+runReducerMerge2 red hal pr mergeableStates b = do
+    let leaves = map (\s -> Tree [s] [] False) mergeableStates
+    let evalTree = Tree [] leaves False
+    runReducerMerge2' red hal pr evalTree b
+
+runReducerMerge2' :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t], Bindings, r)
+runReducerMerge2' red hal pr evalTree@(Tree a _ _) b = do
+    (maybeNewEvalTree, b', red') <- evalLeaf red hal pr evalTree b
+    case maybeNewEvalTree of
+        (Just newEvalTree) -> runReducerMerge2' red' hal pr newEvalTree b'
+        Nothing -> return (a, b', red')
+
+evalLeaf :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO (Maybe (Tree [ExState rv hv sov t]), Bindings, r)
+evalLeaf red hal pr evalTree@(Tree a leaves hitMp) b
+    | (_:_) <- leaves -- not a bottom node
+    , (Just leaf, rest) <- pickLeaf leaves = do
+        (maybNewLeaf, b', red') <- evalLeaf red hal pr leaf b
+        let leaves' = case maybNewLeaf of
+                        (Just l) ->  l:rest
+                        Nothing -> rest
+        return $ (Just (Tree a leaves' False), b', red')
+    | (_:_) <- leaves
+    , (Nothing, _) <- pickLeaf leaves = do -- states in all leaves are in SWNHF, ready to merge
+        let (mergedStates, b') = mergeStates (map treeVal leaves) b
+        return (Just (Tree mergedStates [] True), b', red)
+    | [] <- leaves -- bottom node
+    , hitMp == False = do
+        let exS = head a -- should technically only have one state in 'a', else mp must be true
+        (reducerRes, reduceds, b', red') <- redRules red (reducer_val exS) (state exS) b
+        let mergeableStates = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+        let r_vals = updateWithAll red mergeableStates ++ error "List returned by updateWithAll is too short.."
+        let ps = processedToState pr
+        let mergeableStates' = map (\(s', r_val') -> exS { state = s'
+                                                         , reducer_val = r_val'
+                                                         , halter_val = stepHalter hal (halter_val exS) ps s'})
+                                                         $ zip (map fst mergeableStates) r_vals
+        case reducerRes of
+            MergePoint -> return (Just (Tree mergeableStates' [] True), b', red')
+            _ -> do
+                let newLeaves = map (\r -> Tree [r] [] False) mergeableStates'
+                let newTree = Tree a newLeaves False
+                return (Just newTree, b', red')
+     | [] <- leaves -- bottom node
+     , hitMp == True = return (Just evalTree, b, red)
+     | otherwise = error "Unable to evaluate tree."
+
+pickLeaf :: [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
+pickLeaf leaves = pickLeaf' [] leaves
+
+pickLeaf' :: [Tree [ExState rv hv sov t]] -> [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
+pickLeaf' _ [] = (Nothing, [])
+pickLeaf' seen (x:xs) =
+    if (\(Tree _ _ hitMp) -> hitMp == True) x
+        then pickLeaf' (x:seen) xs --reverses order of leafs, maybe avoid?
+        else (Just x, seen++xs)
