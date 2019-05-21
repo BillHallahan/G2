@@ -82,6 +82,10 @@ mapProcessed f pr = Processed { accepted = map f (accepted pr)
 data ReducerRes = NoProgress | InProgress | Finished | Merge | MergePoint deriving (Eq, Ord, Show, Read)
 
 progPrioritizer :: ReducerRes -> ReducerRes -> ReducerRes
+progPrioritizer Merge _ = Merge
+progPrioritizer _ Merge = Merge
+progPrioritizer MergePoint _ = MergePoint
+progPrioritizer _ MergePoint = MergePoint
 progPrioritizer InProgress _ = InProgress
 progPrioritizer _ InProgress = InProgress
 progPrioritizer Finished _ = Finished
@@ -776,20 +780,21 @@ runReducerMerge2' red hal pr evalTree@(Tree a _ _) b = do
         Nothing -> return (a, b', red')
 
 evalLeaf :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO (Maybe (Tree [ExState rv hv sov t]), Bindings, r)
-evalLeaf red hal pr evalTree@(Tree a leaves hitMp) b
+evalLeaf red hal pr (Tree a leaves atMp) b
     | (_:_) <- leaves -- not a bottom node
-    , (Just leaf, rest) <- pickLeaf leaves = do
+    , (Just leaf, rest) <- pickLeaf leaves = do -- not all children in SWHNF and ready to merge
         (maybNewLeaf, b', red') <- evalLeaf red hal pr leaf b
         let leaves' = case maybNewLeaf of
                         (Just l) ->  l:rest
                         Nothing -> rest
         return $ (Just (Tree a leaves' False), b', red')
     | (_:_) <- leaves
-    , (Nothing, _) <- pickLeaf leaves = do -- states in all leaves are in SWNHF, ready to merge
+    , (Nothing, _) <- pickLeaf leaves = do -- states in all children are in SWNHF, ready to merge
         let (mergedStates, b') = mergeStates (map treeVal leaves) b
-        return (Just (Tree mergedStates [] True), b', red)
+        let mergedStates' = popMrgPtFrm mergedStates
+        return (Just (Tree mergedStates' [] True), b', red)
     | [] <- leaves -- bottom node
-    , hitMp == False = do
+    , atMp == False = do --not evaluated to SWHNF yet
         let exS = head a -- should technically only have one state in 'a', else mp must be true
         (reducerRes, reduceds, b', red') <- redRules red (reducer_val exS) (state exS) b
         let mergeableStates = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
@@ -806,7 +811,7 @@ evalLeaf red hal pr evalTree@(Tree a leaves hitMp) b
                 let newTree = Tree a newLeaves False
                 return (Just newTree, b', red')
      | [] <- leaves -- bottom node
-     , hitMp == True = return (Just evalTree, b, red)
+     , atMp == True = return (Nothing, b, red)
      | otherwise = error "Unable to evaluate tree."
 
 pickLeaf :: [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
@@ -818,3 +823,19 @@ pickLeaf' seen (x:xs) =
     if (\(Tree _ _ hitMp) -> hitMp == True) x
         then pickLeaf' (x:seen) xs --reverses order of leafs, maybe avoid?
         else (Just x, seen++xs)
+
+popMrgPtFrm :: [ExState rv hv sov t] -> [ExState rv hv sov t]
+popMrgPtFrm s = popMrgPtFrm' [] s
+
+popMrgPtFrm' :: [ExState rv hv sov t] -> [ExState rv hv sov t] -> [ExState rv hv sov t]
+popMrgPtFrm' done (x:xs) =
+    let s = state x
+        stck = exec_stack s
+        maybeFrame = Stck.pop stck
+    in case maybeFrame of
+        Just (frm, stck') ->
+            case frm of
+                MergePtFrame -> popMrgPtFrm' ((x {state = (s {exec_stack = stck'})}):done) xs
+                _ -> popMrgPtFrm' (x:done) xs
+        _ -> popMrgPtFrm' (x:done) xs
+popMrgPtFrm' seen [] = seen

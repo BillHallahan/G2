@@ -61,7 +61,7 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
                               , assert_ids = is }], ng)
     | Prim Error _ <- ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
-    | Just (MergePtFrame, stck') <- frstck = return (RuleHitMergePt, [s {exec_stack = stck'}], ng)
+    | Just (MergePtFrame, _) <- frstck = return (RuleHitMergePt, [s], ng) -- MergePtFrame to be remove before call to mergeStates instead
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | Lam u i e <- ce = return $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
