@@ -43,7 +43,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , NextOrderer (..)
                             , PickLeastUsedOrderer (..)
 
-                            , runReducer ) where
+                            , runReducer 
+                            , runReducerMerge ) where
 
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
@@ -554,87 +555,87 @@ instance Orderer PickLeastUsedOrderer Int Int t where
 --------
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
--- runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings -> IO ([State t], Bindings)
--- runReducer red hal ord s b = do
---     let pr = Processed {accepted = [], discarded = []}
---     let s' = ExState { state = s
---                     , reducer_val = initReducer red s
---                     , halter_val = initHalt hal s
---                     , order_val = initPerStateOrder ord s }
---
---    (states, b') <- runReducer' red hal ord pr s' b M.empty
---    states' <- mapM (\ExState {state = st} -> return st) states
---    return (states', b')
---
---runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
---            => r 
---            -> h 
---            -> or 
---            -> Processed (ExState rv hv sov t) 
---            -> ExState rv hv sov t 
---            -> Bindings
---            -> M.Map b [ExState rv hv sov t] 
---            -> IO ([ExState rv hv sov t], Bindings)
---runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) b xs
---    | hc == Accept =
---        let
---            pr' = pr {accepted = rs:accepted pr}
---            jrs = minState xs
---        in
---        case jrs of
---            Just (rs', xs') -> do
---                (states, b') <- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
---                return (rs:states, b')
---            Nothing -> return ([rs], b)
---    | hc == Discard =
---        let
---            pr' = pr {discarded = rs:discarded pr}
---            jrs = minState xs
---        in
---        case jrs of
---            Just (rs', xs') -> runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
---            Nothing -> return ([], b)
---    | hc == Switch =
---        let
---            k = orderStates ord (order_val rs') (state rs)
---            rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
---
---            Just (rs'', xs') = minState (M.insertWith (++) k [rs'] xs)
---            
---            rs''' = rs'' { halter_val = updatePerStateHalt hal (halter_val rs'') ps (state rs'') }
---        in
---        if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
---            then runReducer' red hal ord pr rs''' b xs'
---            else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
---    | otherwise = do
---        (_, reduceds, b', red') <- redRules red r_val s b
---        let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
---
---        let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
---        
---        let mod_info = map (\(s', r_val') -> rs { state = s'
---                                                , reducer_val = r_val'
---                                                , halter_val = stepHalter hal h_val ps s'}) $ zip (map fst reduceds') r_vals
---        
---        let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs mod_info
---
---        runReducerList red' hal ord pr xs' b'
---    where
---        hc = stopRed hal h_val ps s
---        ps = processedToState pr
---
---runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
---               => r 
---               -> h 
---               -> or 
---               -> Processed (ExState rv hv sov t)
---               -> M.Map b [ExState rv hv sov t]
---               -> Bindings
---               -> IO ([ExState rv hv sov t], Bindings)
---runReducerList red hal ord pr m binds =
---    case minState m of
---        Just (x, m') -> runReducer' red hal ord pr x binds m'
---        Nothing -> return ([], binds)
+runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings -> IO ([State t], Bindings)
+runReducer red hal ord s b = do
+    let pr = Processed {accepted = [], discarded = []}
+    let s' = ExState { state = s
+                    , reducer_val = initReducer red s
+                    , halter_val = initHalt hal s
+                    , order_val = initPerStateOrder ord s }
+
+    (states, b') <- runReducer' red hal ord pr s' b M.empty
+    states' <- mapM (\ExState {state = st} -> return st) states
+    return (states', b')
+
+runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
+            => r 
+            -> h 
+            -> or 
+            -> Processed (ExState rv hv sov t) 
+            -> ExState rv hv sov t 
+            -> Bindings
+            -> M.Map b [ExState rv hv sov t] 
+            -> IO ([ExState rv hv sov t], Bindings)
+runReducer' red hal ord  pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val }) b xs
+    | hc == Accept =
+        let
+            pr' = pr {accepted = rs:accepted pr}
+            jrs = minState xs
+        in
+        case jrs of
+            Just (rs', xs') -> do
+                (states, b') <- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+                return (rs:states, b')
+            Nothing -> return ([rs], b)
+    | hc == Discard =
+        let
+            pr' = pr {discarded = rs:discarded pr}
+            jrs = minState xs
+        in
+        case jrs of
+            Just (rs', xs') -> runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+            Nothing -> return ([], b)
+    | hc == Switch =
+        let
+            k = orderStates ord (order_val rs') (state rs)
+            rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
+
+            Just (rs'', xs') = minState (M.insertWith (++) k [rs'] xs)
+            
+            rs''' = rs'' { halter_val = updatePerStateHalt hal (halter_val rs'') ps (state rs'') }
+        in
+        if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
+            then runReducer' red hal ord pr rs''' b xs'
+            else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
+    | otherwise = do
+        (_, reduceds, b', red') <- redRules red r_val s b
+        let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+
+        let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
+        
+        let mod_info = map (\(s', r_val') -> rs { state = s'
+                                                , reducer_val = r_val'
+                                                , halter_val = stepHalter hal h_val ps s'}) $ zip (map fst reduceds') r_vals
+        
+        let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs mod_info
+
+        runReducerList red' hal ord pr xs' b'
+    where
+        hc = stopRed hal h_val ps s
+        ps = processedToState pr
+
+runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
+               => r 
+               -> h 
+               -> or 
+               -> Processed (ExState rv hv sov t)
+               -> M.Map b [ExState rv hv sov t]
+               -> Bindings
+               -> IO ([ExState rv hv sov t], Bindings)
+runReducerList red hal ord pr m binds =
+    case minState m of
+        Just (x, m') -> runReducer' red hal ord pr x binds m'
+        Nothing -> return ([], binds)
 
 updateExStateHalter :: Halter h hv t
                     => h
@@ -670,66 +671,60 @@ data Tree a = Tree a [Tree a] Counter
 treeVal :: Tree a -> a
 treeVal (Tree a _ _) = a
 
-runReducer :: (Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO([State t], Bindings)
-runReducer red hal s b = do
+runReducerMerge :: (Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO([State t], Bindings)
+runReducerMerge red hal s b = do
     let pr = Processed {accepted = [], discarded = []}
     let s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-    let evalTree = Tree [s'] [] 0
-    (exStates, b') <- runReducerMerge2' red hal pr evalTree b
+    let child = Tree [s'] [] 0
+    let evalTree = Tree [] [child] 0 -- empty root node to signal end of execution
+    (exStates, b') <- runReducerMerge' red hal pr evalTree b
 
     states <- mapM (\ExState {state = st} -> return st) exStates
     return (states, b')
 
-runReducerMerge2' :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t], Bindings)
-runReducerMerge2' red hal pr evalTree b = do
+runReducerMerge' :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t], Bindings)
+runReducerMerge' red hal pr evalTree b = do
     (maybeNewEvalTree, b', red', hal', pr') <- evalLeaf red hal pr evalTree b
     case maybeNewEvalTree of
-        (Just newEvalTree) -> runReducerMerge2' red' hal' pr' newEvalTree b'
+        (Just newEvalTree) -> runReducerMerge' red' hal' pr' newEvalTree b'
         Nothing -> return (accepted pr', b')
 
 evalLeaf :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO (Maybe (Tree [ExState rv hv sov t]), Bindings, r, h, Processed (ExState rv hv sov t))
-evalLeaf red hal pr (Tree a leaves count) b
-    | (_:_) <- leaves -- not a bottom node
-    , (Just leaf, rest) <- pickLeaf (splitLeaves leaves) count = do -- not all children in SWHNF and ready to merge
-        putStrLn "Start case 1"
-        (maybNewLeaf, b', red', hal', pr') <- evalLeaf red hal pr leaf b
-        let leaves' = case maybNewLeaf of
-                        (Just l) ->  l:rest
+evalLeaf red hal pr (Tree a children count) b
+    | (_:_) <- children -- not a bottom node
+    , not $ mergePtCountsOk (splitNodes children) count -- not all children in SWHNF (i.e. not ready to merge)
+    , (Just child, rest) <- pickChild (splitNodes children) = do
+        (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
+        let children' = case maybNewChild of
+                        (Just c) ->  c:rest
                         Nothing -> rest
-        putStrLn "end case 1"
-        return $ (Just (Tree a leaves' count), b', red', hal', pr')
-    | (_:_) <- leaves
+        return $ (Just (Tree a children' count), b', red', hal', pr')
+    | (_:_) <- children
     , not . null $ a
-    , isRuleEvalCaseSym (rules (state (head a)))
-    , (Nothing, _) <- pickLeaf (splitLeaves leaves) count = do -- states in all children are in SWHNF, ready to merge
-        putStrLn "Start case 2"
-        let (mergedStates, b') = mergeStates (map treeVal leaves) b
-        let count' = (\(Tree _ _ c) -> c) (head leaves)
-        putStrLn "End case 2"
+    , isRuleEvalCaseSym (rules (state (head a))) -- children are a result of splitting on a symbolic value
+    , mergePtCountsOk (splitNodes children) count = do -- states in all children are in SWHNF, ready to merge
+        let (mergedStates, b') = mergeStates (map treeVal children) b
+        let count' = (\(Tree _ _ cnt) -> cnt) (head children)
         return (Just (Tree mergedStates [] count'), b', red, hal, pr)
-    | (_:_) <- leaves -- case when leaves are result of ordinary splitting, without needing to merge. Picks any leaf to evaluate
-    , (Nothing, _) <- pickLeaf (splitLeaves leaves) count = do
-        putStrLn "Start case 3"
-        let (leaf, rest) = pickAnyLeaf (splitLeaves leaves)
-        (maybNewLeaf, b', red', hal', pr') <- evalLeaf red hal pr leaf b
-        let leaves' = case maybNewLeaf of
-                        (Just l) ->  l:rest
+    | (_:_) <- children -- case when children are result of ordinary splitting, without needing to merge. Picks any child to evaluate
+    , mergePtCountsOk (splitNodes children) count = do
+        let (child, rest) = pickAnyChild (splitNodes children)
+        (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
+        let children' = case maybNewChild of
+                        (Just c) ->  c:rest
                         Nothing -> rest
-        putStrLn "End case 3"
-        return $ (Just (Tree a leaves' count), b', red', hal', pr')
-    | [] <- leaves -- end of execution
+        return $ (Just (Tree a children' count), b', red', hal', pr')
+    | [] <- children -- reached empty bottom node, signalling end of execution
     , null a = do
-        putStrLn "Case 4"
         return (Nothing, b, red, hal, pr)
-    | [] <- leaves = do -- reached bottom node, execute
-        putStrLn "Case 5"
+    | [] <- children = do -- reached bottom node, execute state contained in node
         -- should technically only have one state in 'a', other cases should have split tree earlier
         let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = head a
         let ps = processedToState pr
         let hc = stopRed hal h_val ps s
         case hc of
-            Accept -> do -- since Accept/Discard < Switch, they will gain precedence when both are combined in same halter
-                let pr' = pr {accepted = rs:accepted pr} -- we do not call updateExStateHalter for now, since we do not deal with switches
+            Accept -> do
+                let pr' = pr {accepted = rs:accepted pr} -- we do not call updateExStateHalter for now, since we do not deal with any Switch constructors
                 return (Nothing, b, red, hal, pr')
             Discard -> do
                 let pr' = pr {discarded = rs:discarded pr}
@@ -745,42 +740,44 @@ evalLeaf red hal pr (Tree a leaves count) b
                 case reducerRes of
                     MergePoint -> return (Just (Tree reduceds'' [] (count - 1)), b', red', hal, pr)
                     Merge -> do
-                        let newLeaves = map (\r -> Tree [r] [] (count+1)) reduceds''
-                        let newTree = Tree [] newLeaves count -- delete just executed state
+                        let newChildren = map (\r -> Tree [r] [] (count+1)) reduceds''
+                        let newTree = Tree [] newChildren count -- delete just executed state
                         return (Just newTree, b', red', hal, pr)
                     _ -> do
-                        let newLeaves = map (\r -> Tree [r] [] count) reduceds''
-                        let newTree = Tree [] newLeaves count
+                        let newChildren = map (\r -> Tree [r] [] count) reduceds''
+                        let newTree = Tree [] newChildren count
                         return (Just newTree, b', red', hal, pr)
      | otherwise = error "Unable to evaluate tree."
 
-splitLeaves :: [Tree [ExState rv hv sov t]] -> [Tree [ExState rv hv sov t]]
-splitLeaves ((Tree a subTrees count):xs) = case a of
-    (_:_) -> (map (\exS -> (Tree [exS] subTrees count)) a) ++ (splitLeaves xs) -- subTrees will be [] when called earlier
-    [] -> (Tree a subTrees count) : (splitLeaves xs) -- ensure at least one leaf is returned
-splitLeaves [] = []
+splitNodes :: [Tree [ExState rv hv sov t]] -> [Tree [ExState rv hv sov t]]
+splitNodes ((Tree a subTrees count):xs) = case a of
+    (_:_) -> (map (\exS -> (Tree [exS] subTrees count)) a) ++ (splitNodes xs) -- subTrees should be [] when called earlier
+    [] -> (Tree a subTrees count) : (splitNodes xs) -- ensure at least one leaf is returned
+splitNodes [] = []
 
-pickLeaf :: [Tree [ExState rv hv sov t]] -> Int -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
-pickLeaf [] _ = (Nothing, [])
-pickLeaf leaves@(_:_) count = if (all (== (head counts)) counts) && (all (<= count) counts)
-    then (Nothing, leaves)
-    else pickLeaf' [] (head leaves) (tail leaves) -- return tree with maximum count, and rest
+mergePtCountsOk :: [Tree [ExState rv hv sov t]] -> Int -> Bool
+mergePtCountsOk [] _ = True
+mergePtCountsOk leaves@(_:_) count = (all (== (head counts)) counts) && (all (<= count) counts)
     where
         counts = (map getCount leaves)
         getCount = (\(Tree _ _ c) -> c)
 
-pickLeaf' :: [Tree [ExState rv hv sov t]] -> Tree [ExState rv hv sov t] -> [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
-pickLeaf' seen maxT [] = (Just maxT, seen)
-pickLeaf' seen maxT (x:xs) = if xCount > maxCount
-    then pickLeaf' (maxT:seen) x xs --reverses order of leafs, maybe avoid?
-    else pickLeaf' (x:seen) maxT xs
+pickChild :: [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
+pickChild [] = (Nothing, [])
+pickChild leaves@(_:_) = pickChild' [] (head leaves) (tail leaves) -- return tree with maximum count, and rest
+
+pickChild' :: [Tree [ExState rv hv sov t]] -> Tree [ExState rv hv sov t] -> [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
+pickChild' seen maxT [] = (Just maxT, seen)
+pickChild' seen maxT (x:xs) = if xCount > maxCount
+    then pickChild' (maxT:seen) x xs --reverses order of leafs, maybe avoid?
+    else pickChild' (x:seen) maxT xs
     where
         xCount = (\(Tree _ _ c) -> c) x
         maxCount = (\(Tree _ _ c) -> c) maxT
 
-pickAnyLeaf :: [Tree [ExState rv hv sov t]] -> (Tree [ExState rv hv sov t], [Tree [ExState rv hv sov t]])
-pickAnyLeaf [] = error "Should only be called with at least 1 Tree in list"
-pickAnyLeaf (x:xs) = (x, xs)
+pickAnyChild :: [Tree [ExState rv hv sov t]] -> (Tree [ExState rv hv sov t], [Tree [ExState rv hv sov t]])
+pickAnyChild [] = error "Should only be called with at least 1 Tree in list"
+pickAnyChild (x:xs) = (x, xs)
 
 isRuleEvalCaseSym :: [Rule] -> Bool
 isRuleEvalCaseSym [] = False
@@ -795,35 +792,36 @@ mergeStates ls b = (concat ls, b) --to do call mergeState if isMergeable for all
 
 
 ------------
+-- recursion based runReducer that does state merging 
 
-runReducerMerge :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t],Bindings,r)
-runReducerMerge red hal pr mergeableStates b = do
-    (mpStates, b', red') <- runReducerMerge' red hal pr mergeableStates b
-    return $ (\(ms,binds) -> (ms, binds, red')) $ mergeStates mpStates b'
+-- runReducerMerge :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t],Bindings,r)
+-- runReducerMerge red hal pr mergeableStates b = do
+--    (mpStates, b', red') <- runReducerMerge' red hal pr mergeableStates b
+--    return $ (\(ms,binds) -> (ms, binds, red')) $ mergeStates mpStates b'
 
-runReducerMerge' :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> [ExState rv hv sov t] -> Bindings -> IO ([[ExState rv hv sov t]],Bindings,r)
-runReducerMerge' red hal pr mergeableStates b
-    | (x:xs) <- mergeableStates = do
-        (mpStates, b', red') <- evalStateTillMP red hal pr x b
-        (mpStates', b'', red'') <- runReducerMerge' red' hal pr xs b'
-        return $ (mpStates:mpStates', b'', red'')
-    | [] <- mergeableStates = return ([], b, red)
+--runReducerMerge' :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> [ExState rv hv sov t] -> Bindings -> IO ([[ExState rv hv sov t]],Bindings,r)
+--runReducerMerge' red hal pr mergeableStates b
+--    | (x:xs) <- mergeableStates = do
+--        (mpStates, b', red') <- evalStateTillMP red hal pr x b
+--        (mpStates', b'', red'') <- runReducerMerge' red' hal pr xs b'
+--        return $ (mpStates:mpStates', b'', red'')
+--    | [] <- mergeableStates = return ([], b, red)
 
-evalStateTillMP :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> ExState rv hv sov t -> Bindings -> IO ([ExState rv hv sov t],Bindings,r)
-evalStateTillMP red hal pr rs@(ExState {state = s, reducer_val = r_val, halter_val = h_val}) b = do
-    (reducerRes, reduceds, b', red') <- redRules red r_val s b
-    case reducerRes of
-        MergePoint -> return ([rs], b, red)
-        _ -> do
-            let mergeableStates = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
-            let r_vals = updateWithAll red mergeableStates ++ error "List returned by updateWithAll is too short.."
-            let ps = processedToState pr
-            let mergeableStates' = map (\(s', r_val') -> rs { state = s'
-                                                             , reducer_val = r_val'
-                                                             , halter_val = stepHalter hal h_val ps s'})
-                                                             $ zip (map fst mergeableStates) r_vals
-            (mergedStates, b'', red'') <- runReducerMerge red' hal pr mergeableStates' b'
-            return (mergedStates, b'', red'')
+--evalStateTillMP :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> ExState rv hv sov t -> Bindings -> IO ([ExState rv hv sov t],Bindings,r)
+--evalStateTillMP red hal pr rs@(ExState {state = s, reducer_val = r_val, halter_val = h_val}) b = do
+--    (reducerRes, reduceds, b', red') <- redRules red r_val s b
+--    case reducerRes of
+--        MergePoint -> return ([rs], b, red)
+--        _ -> do
+--            let mergeableStates = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+--            let r_vals = updateWithAll red mergeableStates ++ error "List returned by updateWithAll is too short.."
+--            let ps = processedToState pr
+--            let mergeableStates' = map (\(s', r_val') -> rs { state = s'
+--                                                             , reducer_val = r_val'
+--                                                             , halter_val = stepHalter hal h_val ps s'})
+--                                                             $ zip (map fst mergeableStates) r_vals
+--            (mergedStates, b'', red'') <- runReducerMerge red' hal pr mergeableStates' b'
+--            return (mergedStates, b'', red'')
 
 -- runReducerList :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t], Bindings)
 -- runReducerList red hal pr xs b = case xs of
