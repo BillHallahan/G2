@@ -52,6 +52,7 @@ import G2.Language
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
+import G2.Execution.StateMerging
 
 import Data.Foldable
 import qualified Data.HashSet as S
@@ -671,7 +672,7 @@ data Tree a = Tree a [Tree a] Counter
 treeVal :: Tree a -> a
 treeVal (Tree a _ _) = a
 
-runReducerMerge :: (Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO([State t], Bindings)
+runReducerMerge :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO([State t], Bindings)
 runReducerMerge red hal s b = do
     let pr = Processed {accepted = [], discarded = []}
     let s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
@@ -682,17 +683,17 @@ runReducerMerge red hal s b = do
     states <- mapM (\ExState {state = st} -> return st) exStates
     return (states, b')
 
-runReducerMerge' :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t], Bindings)
+runReducerMerge' :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO ([ExState rv hv sov t], Bindings)
 runReducerMerge' red hal pr evalTree b = do
     (maybeNewEvalTree, b', red', hal', pr') <- evalLeaf red hal pr evalTree b
     case maybeNewEvalTree of
         (Just newEvalTree) -> runReducerMerge' red' hal' pr' newEvalTree b'
         Nothing -> return (accepted pr', b')
 
-evalLeaf :: (Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO (Maybe (Tree [ExState rv hv sov t]), Bindings, r, h, Processed (ExState rv hv sov t))
+evalLeaf :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO (Maybe (Tree [ExState rv hv sov t]), Bindings, r, h, Processed (ExState rv hv sov t))
 evalLeaf red hal pr (Tree a children count) b
     | (_:_) <- children -- not a bottom node
-    , not $ mergePtCountsOk (splitNodes children) count -- not all children in SWHNF (i.e. not ready to merge)
+    , not $ mergePtCountsOk (splitNodes children) count -- not all children in  SWHNF (i.e. not ready to merge)
     , (Just child, rest) <- pickChild (splitNodes children) = do
         (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
         let children' = case maybNewChild of
@@ -785,11 +786,23 @@ isRuleEvalCaseSym (x:_) = case x of
     RuleEvalCaseSym -> True
     _ -> False
 
-mergeStates :: [[ExState rv hv sov t]] -> Bindings -> ([ExState rv hv sov t], Bindings)
-mergeStates ls b = (concat ls, b) --to do call mergeState if isMergeable for all combinations of states
--- at some point must remove MergePoint from stack too
+mergeStates :: Eq t => [[ExState rv hv sov t]] -> Bindings -> ([ExState rv hv sov t], Bindings)
+mergeStates ls@(x1:x2:xs) b
+    | all (==1) (map length ls) = case mergeStates' (head x1) (head x2) b of
+        (Just exS, b') -> mergeStates (([exS]):xs) b'
+        (Nothing, b') -> (concat ls, b')
+    | otherwise = (concat ls, b)
+mergeStates ls b = (concat ls, b)
 
-
+mergeStates' :: Eq t => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> (Maybe (ExState rv hv sov t), Bindings)
+mergeStates' ex1 ex2 b = 
+    let s1 = state ex1
+        s2 = state ex2
+        ng = name_gen b
+        res = mergeState ng s1 s2
+    in case res of
+        (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
+        (ng', Nothing) -> (Nothing, b {name_gen = ng'})
 
 ------------
 -- recursion based runReducer that does state merging 

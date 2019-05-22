@@ -283,6 +283,7 @@ runG2WithConfig state config bindings = do
     return (in_out, bindings')
 
 runG2WithSomes :: ( Named t
+                  , Eq t
                   , ASTContainer t Expr
                   , ASTContainer t Type
                   , Solver solver)
@@ -302,6 +303,7 @@ runG2WithSomes red hal ord con pns state bindings =
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
 runG2 :: ( Named t
+         , Eq t
          , ASTContainer t Expr
          , ASTContainer t Type
          , Reducer r rv t
