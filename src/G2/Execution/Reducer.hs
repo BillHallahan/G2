@@ -667,17 +667,17 @@ numStates = sum . map length . M.elems
 
 ------
 type Counter = Int
-data Tree a = Tree a [Tree a] Counter
+type MergeState = Bool
+data Tree a = Tree a [Tree a] Counter MergeState
 
 treeVal :: Tree a -> a
-treeVal (Tree a _ _) = a
+treeVal (Tree a _ _ _) = a
 
 runReducerMerge :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO([State t], Bindings)
 runReducerMerge red hal s b = do
     let pr = Processed {accepted = [], discarded = []}
     let s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-    let child = Tree [s'] [] 0
-    let evalTree = Tree [] [child] 0 -- empty root node to signal end of execution
+    let evalTree = Tree [s'] [] 0 False
     (exStates, b') <- runReducerMerge' red hal pr evalTree b
 
     states <- mapM (\ExState {state = st} -> return st) exStates
@@ -691,43 +691,21 @@ runReducerMerge' red hal pr evalTree b = do
         Nothing -> return (accepted pr', b')
 
 evalLeaf :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> Tree [ExState rv hv sov t] -> Bindings -> IO (Maybe (Tree [ExState rv hv sov t]), Bindings, r, h, Processed (ExState rv hv sov t))
-evalLeaf red hal pr (Tree a children count) b
-    | (_:_) <- children -- not a bottom node
-    , not $ mergePtCountsOk (splitNodes children) count -- not all children in  SWHNF (i.e. not ready to merge)
-    , (Just child, rest) <- pickChild (splitNodes children) = do
-        (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
-        let children' = case maybNewChild of
-                        (Just c) ->  c:rest
-                        Nothing -> rest
-        return $ (Just (Tree a children' count), b', red', hal', pr')
-    | (_:_) <- children
-    , not . null $ a
-    , isRuleEvalCaseSym (rules (state (head a))) -- children are a result of splitting on a symbolic value
-    , mergePtCountsOk (splitNodes children) count = do -- states in all children are in SWHNF, ready to merge
-        let (mergedStates, b') = mergeStates (map treeVal children) b
-        let count' = (\(Tree _ _ cnt) -> cnt) (head children)
-        return (Just (Tree mergedStates [] count'), b', red, hal, pr)
-    | (_:_) <- children -- case when children are result of ordinary splitting, without needing to merge. Picks any child to evaluate
-    , mergePtCountsOk (splitNodes children) count = do
-        let (child, rest) = pickAnyChild (splitNodes children)
-        (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
-        let children' = case maybNewChild of
-                        (Just c) ->  c:rest
-                        Nothing -> rest
-        return $ (Just (Tree a children' count), b', red', hal', pr')
-    | [] <- children -- reached empty bottom node, signalling end of execution
-    , null a = do
-        return (Nothing, b, red, hal, pr)
-    | [] <- children = do -- reached bottom node, execute state contained in node
-        -- should technically only have one state in 'a', other cases should have split tree earlier
+evalLeaf red hal pr (Tree a children count mergeSt) b
+    | [] <- children -- leaf node, execute state contained in node
+    , (_:_) <- a = do
+    -- should technically only have one state in 'a', other cases should have split tree earlier
+        -- print "Case 1"
         let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = head a
         let ps = processedToState pr
         let hc = stopRed hal h_val ps s
         case hc of
             Accept -> do
+                -- print "Accepted"
                 let pr' = pr {accepted = rs:accepted pr} -- we do not call updateExStateHalter for now, since we do not deal with any Switch constructors
                 return (Nothing, b, red, hal, pr')
             Discard -> do
+                -- print "Discarded"
                 let pr' = pr {discarded = rs:discarded pr}
                 return (Nothing, b, red, hal, pr')
             _ -> do -- ignore switch for now
@@ -739,21 +717,64 @@ evalLeaf red hal pr (Tree a children count) b
                                                             , halter_val = stepHalter hal h_val ps s'})
                                                             $ zip (map fst reduceds') r_vals
                 case reducerRes of
-                    MergePoint -> return (Just (Tree reduceds'' [] (count - 1)), b', red', hal, pr)
+                    MergePoint -> return (Just (Tree reduceds'' [] (count - 1) False), b', red', hal, pr)
                     Merge -> do
-                        let newChildren = map (\r -> Tree [r] [] (count+1)) reduceds''
-                        let newTree = Tree [] newChildren count -- delete just executed state
+                        -- putStrLn "split on merge"
+                        let newChildren = map (\r -> Tree [r] [] (count+1) False) reduceds''
+                        let newTree = Tree a newChildren count True
                         return (Just newTree, b', red', hal, pr)
                     _ -> do
-                        let newChildren = map (\r -> Tree [r] [] count) reduceds''
-                        let newTree = Tree [] newChildren count
+                        let newChildren = map (\r -> Tree [r] [] count False) reduceds''
+                        let newTree = Tree a newChildren count False
                         return (Just newTree, b', red', hal, pr)
+    | (_:_) <- children -- not a leaf node
+    , mergeSt -- children are a result of splitting on a symbolic value
+    , not $ mergePtCountsOk (splitNodes children) count -- not all children in  SWHNF (i.e. not ready to merge)
+    , (Just child, rest) <- pickMaxChild (splitNodes children) = do
+        -- print "Case 2 start"
+        (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
+        let children' = case maybNewChild of
+                        (Just c) ->  c:rest
+                        Nothing -> rest
+        -- print "Case 2 end"
+        case children' of
+            [] -> return $ (Nothing, b', red', hal', pr')
+            _ -> return $ (Just (Tree a children' count mergeSt), b', red', hal', pr')
+    | (_:_) <- children
+    , mergeSt -- children are a result of splitting on a symbolic value
+    , mergePtCountsOk (splitNodes children) count = do -- states in all children are in SWHNF, ready to merge
+        -- print "Case 3 start"
+        -- putStrLn "Children length: "
+        -- putStrLn $ show (length (concat (map treeVal children)))
+        let (mergedStates, b') = mergeStates (map treeVal children) b
+        -- putStrLn "Merged States length: "
+        -- putStrLn $ show (length mergedStates)
+        let count' = (\(Tree _ _ cnt _) -> cnt) (head children)
+        -- print "Case 3 end"
+        return (Just (Tree mergedStates [] count' False), b', red, hal, pr)
+    | (_:_) <- children
+    , not mergeSt
+    , ((\(Tree _ _ c _) -> c) (head children)) < count -- children are result of having merged states, need to propagate them up the tree
+    , mergePtCountsOk (splitNodes children) count = do
+        -- print "Case 4"
+        return (Just (head children), b, red, hal, pr)
+    | (_:_) <- children = do -- Picks any child to evaluate
+        -- print "Case 5 start"
+        let (child, rest) = pickAnyChild (splitNodes children)
+        (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
+        let children' = case maybNewChild of
+                        (Just c) ->  c:rest
+                        Nothing -> rest
+        case children' of
+            [] -> return $ (Nothing, b', red', hal', pr')
+            [x] -> return $ (Just (Tree (treeVal x) [] count mergeSt), b', red', hal', pr') -- optimization to reduce depth of tree
+            _ -> return $ (Just (Tree a children' count mergeSt), b', red', hal', pr')
      | otherwise = error "Unable to evaluate tree."
 
 splitNodes :: [Tree [ExState rv hv sov t]] -> [Tree [ExState rv hv sov t]]
-splitNodes ((Tree a subTrees count):xs) = case a of
-    (_:_) -> (map (\exS -> (Tree [exS] subTrees count)) a) ++ (splitNodes xs) -- subTrees should be [] when called earlier
-    [] -> (Tree a subTrees count) : (splitNodes xs) -- ensure at least one leaf is returned
+splitNodes ((Tree a subTrees count mergeSt):xs) = case a of
+    (_:_) -> (map (\exS -> (Tree [exS] subTrees count mergeSt)) a) ++ (splitNodes xs) -- subTrees should be [] when called earlier
+    [] -> (Tree a subTrees count mergeSt) : (splitNodes xs) -- ensure at least one leaf is returned
 splitNodes [] = []
 
 mergePtCountsOk :: [Tree [ExState rv hv sov t]] -> Int -> Bool
@@ -761,37 +782,31 @@ mergePtCountsOk [] _ = True
 mergePtCountsOk leaves@(_:_) count = (all (== (head counts)) counts) && (all (<= count) counts)
     where
         counts = (map getCount leaves)
-        getCount = (\(Tree _ _ c) -> c)
+        getCount = (\(Tree _ _ c _) -> c)
 
-pickChild :: [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
-pickChild [] = (Nothing, [])
-pickChild leaves@(_:_) = pickChild' [] (head leaves) (tail leaves) -- return tree with maximum count, and rest
+pickMaxChild :: [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
+pickMaxChild [] = (Nothing, [])
+pickMaxChild leaves@(_:_) = pickMaxChild' [] (head leaves) (tail leaves) -- return tree with maximum count, and rest
 
-pickChild' :: [Tree [ExState rv hv sov t]] -> Tree [ExState rv hv sov t] -> [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
-pickChild' seen maxT [] = (Just maxT, seen)
-pickChild' seen maxT (x:xs) = if xCount > maxCount
-    then pickChild' (maxT:seen) x xs --reverses order of leafs, maybe avoid?
-    else pickChild' (x:seen) maxT xs
+pickMaxChild' :: [Tree [ExState rv hv sov t]] -> Tree [ExState rv hv sov t] -> [Tree [ExState rv hv sov t]] -> (Maybe (Tree [ExState rv hv sov t]), [Tree [ExState rv hv sov t]])
+pickMaxChild' seen maxT [] = (Just maxT, seen)
+pickMaxChild' seen maxT (x:xs) = if xCount > maxCount
+    then pickMaxChild' (maxT:seen) x xs --reverses order of leafs, maybe avoid?
+    else pickMaxChild' (x:seen) maxT xs
     where
-        xCount = (\(Tree _ _ c) -> c) x
-        maxCount = (\(Tree _ _ c) -> c) maxT
+        xCount = (\(Tree _ _ c _) -> c) x
+        maxCount = (\(Tree _ _ c _) -> c) maxT
 
 pickAnyChild :: [Tree [ExState rv hv sov t]] -> (Tree [ExState rv hv sov t], [Tree [ExState rv hv sov t]])
 pickAnyChild [] = error "Should only be called with at least 1 Tree in list"
 pickAnyChild (x:xs) = (x, xs)
 
-isRuleEvalCaseSym :: [Rule] -> Bool
-isRuleEvalCaseSym [] = False
-isRuleEvalCaseSym (x:_) = case x of
-    RuleEvalCaseSym -> True
-    _ -> False
-
 mergeStates :: Eq t => [[ExState rv hv sov t]] -> Bindings -> ([ExState rv hv sov t], Bindings)
-mergeStates ls@(x1:x2:xs) b
-    | all (==1) (map length ls) = case mergeStates' (head x1) (head x2) b of
-        (Just exS, b') -> mergeStates (([exS]):xs) b'
-        (Nothing, b') -> (concat ls, b')
-    | otherwise = (concat ls, b)
+-- mergeStates ls@(x1:x2:xs) b
+--    | all (==1) (map length ls) = case mergeStates' (head x1) (head x2) b of
+--        (Just exS, b') -> mergeStates (([exS]):xs) b'
+--        (Nothing, b') -> (concat ls, b')
+--    | otherwise = (concat ls, b)
 mergeStates ls b = (concat ls, b)
 
 mergeStates' :: Eq t => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> (Maybe (ExState rv hv sov t), Bindings)
