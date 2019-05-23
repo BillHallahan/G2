@@ -694,11 +694,14 @@ evalLeaf :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExStat
 evalLeaf red hal pr (Tree a children count mergeSt) b
     | [] <- children -- leaf node, execute state contained in node
     , [x] <- a = do -- should only have one state in 'a', other cases should have split tree earlier
+        -- print "Case 1"
         let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = x 
         let ps = processedToState pr
         let hc = stopRed hal h_val ps s
         case hc of
             Accept -> do
+                print (length (rules s))
+                print "Accepted"
                 let pr' = pr {accepted = rs:accepted pr} -- we do not call updateExStateHalter for now, since we do not deal with any Switch constructors
                 return (Nothing, b, red, hal, pr')
             Discard -> do
@@ -706,41 +709,48 @@ evalLeaf red hal pr (Tree a children count mergeSt) b
                 return (Nothing, b, red, hal, pr')
             _ -> do -- ignore switch for now
                 (reducerRes, reduceds, b', red') <- redRules red r_val s b
-                let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
-                let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short.."
-                let reduceds'' = map (\(s', r_val') -> rs { state = s'
-                                                            , reducer_val = r_val'
-                                                            , halter_val = stepHalter hal h_val ps s'})
-                                                            $ zip (map fst reduceds') r_vals
-                case reducerRes of
-                    MergePoint -> return (Just (Tree reduceds'' [] (count - 1) False), b', red', hal, pr)
-                    Merge -> do
-                        let newChildren = map (\r -> Tree [r] [] (count+1) False) reduceds''
-                        let newTree = Tree a newChildren count True
-                        return (Just newTree, b', red', hal, pr)
+                case reduceds of
+                    [] -> return (Nothing, b', red', hal, pr)
                     _ -> do
-                        let newChildren = map (\r -> Tree [r] [] count False) reduceds''
-                        let newTree = Tree a newChildren count False
-                        return (Just newTree, b', red', hal, pr)
+                        let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+                        let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short.."
+                        let reduceds'' = map (\(s', r_val') -> rs { state = s'
+                                                                    , reducer_val = r_val'
+                                                                    , halter_val = stepHalter hal h_val ps s'})
+                                                                    $ zip (map fst reduceds') r_vals
+                        case reducerRes of
+                            MergePoint -> return (Just (Tree reduceds'' [] (count - 1) False), b', red', hal, pr)
+                            Merge -> do
+                                let newChildren = map (\r -> Tree [r] [] (count+1) False) reduceds''
+                                let newTree = Tree a newChildren count True
+                                return (Just newTree, b', red', hal, pr)
+                            _ -> do
+                                let newChildren = map (\r -> Tree [r] [] count False) reduceds''
+                                -- print (length newChildren)
+                                let newTree = Tree a newChildren count False
+                                return (Just newTree, b', red', hal, pr)
     | (_:_) <- children -- not a leaf node
     , mergeSt -- children are a result of splitting on a symbolic value
     , not $ mergePtCountsOk children count -- not all children in  SWHNF (i.e. not ready to merge)
     , (Just child, rest) <- pickMaxChild (splitNodes children) = do
+        -- print "Case 2"
         (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
         let children' = case maybNewChild of
                         (Just c) ->  c:rest
                         Nothing -> rest
+        -- print "Case 2 end"
         case children' of
             [] -> return $ (Nothing, b', red', hal', pr')
             _ -> return $ (Just (Tree a children' count mergeSt), b', red', hal', pr')
     | (_:_) <- children
     , mergeSt -- children are a result of splitting on a symbolic value
     , mergePtCountsOk children count = do -- states in all children are in SWHNF, ready to merge
-        putStrLn "Children length: "
-        putStrLn $ show (length (concat (map treeVal children)))
+        -- print "Case 3"
+        -- putStrLn "Children length: "
+        -- putStrLn $ show (length (concat (map treeVal children)))
         let (mergedStates, b') = mergeStates (map treeVal children) b
-        putStrLn "Merged States length: "
-        putStrLn $ show (length mergedStates)
+        -- putStrLn "Merged States length: "
+        -- putStrLn $ show (length mergedStates)
         let count' = (\(Tree _ _ cnt _) -> cnt) (head children)
         if count' == 0
             then -- top level merge point, so no need to clump states together if they can't be merged
@@ -752,15 +762,21 @@ evalLeaf red hal pr (Tree a children count mergeSt) b
     , not mergeSt
     , ((\(Tree _ _ c _) -> c) (head children)) < count -- children are result of having merged states, need to propagate them up the tree
     , mergePtCountsOk children count = do
+        -- print "Case 4"
         let children' = concat $ map (treeVal) children
         let count' = (\(Tree _ _ cnt _) -> cnt) (head children)
         return (Just (Tree children' [] count' False), b, red, hal, pr)
-    | (_:_) <- children = do -- Picks any child to evaluate
-        let (child, rest) = pickAnyChild (splitNodes children)
+    | (_:_) <- children -- Picks any child to evaluate
+    , (Just child, rest) <- pickMaxChild (splitNodes children) = do
+        -- print "Case 5"
+        -- let (child, rest) = pickMaxChild (splitNodes children)
         (maybNewChild, b', red', hal', pr') <- evalLeaf red hal pr child b
         let children' = case maybNewChild of
                         (Just c) ->  c:rest
                         Nothing -> rest
+        -- print "children length: "
+        -- print (length children')
+        -- print "Case 5 end"
         case children' of
             [] -> return $ (Nothing, b', red', hal', pr')
             [x] -> return $ (Just x, b', red', hal', pr') -- optimization to reduce depth of tree

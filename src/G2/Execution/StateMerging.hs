@@ -46,7 +46,7 @@ mergeState ngen s1 s2 =
                              , true_assert = true_assert s1
                              , assert_ids = assert_ids s1
                              , type_classes = type_classes s1
-                             , symbolic_ids = (symbolic_ids s1) ++ (symbolic_ids s2)
+                             , symbolic_ids = (symbolic_ids s1) ++ (symbolic_ids s2) ++ [newId]
                              , exec_stack = exec_stack s1
                              , model = model s1
                              , known_values = known_values s1
@@ -85,7 +85,7 @@ mergeExpr _ _ _ _ = error $ "Exprs to be merged have an invalid form."
 mergeExpr' :: KnownValues -> Id -> Expr -> Expr -> Expr
 mergeExpr' kv newId (App e1 e2) (App e1' e2') = App (mergeExpr' kv newId e1 e1') (mergeExpr' kv newId e2 e2')
 mergeExpr' kv newId e1 e1' = if (e1 == e1') 
-    then e1 
+    then e1
     else NonDet [Assume Nothing (createEqExpr kv newId 1) e1, Assume Nothing (createEqExpr kv newId 2) e1']
 
 -- | Returns an Expr equivalent to "x == val", where x is a Var created from the given Id
@@ -103,12 +103,12 @@ mergeExprEnv kv newId eenv1 eenv2 = E.wrapExprEnv $ M.unions [merged_map, eenv1_
           eenv2_map = E.unwrapExprEnv eenv2
 
 -- | If both arguments are ExprObjs, the first ExprObj is returned if they are equal, else they are combined using mergeExpr
--- Else, function assumes both EnvObjs must be equal and returns the first
+-- Else, function checks if both EnvObjs are equal and returns the first
 mergeEnvObj :: KnownValues -> Id -> E.EnvObj -> E.EnvObj -> E.EnvObj
 mergeEnvObj kv newId eObj1@(E.ExprObj expr1) (E.ExprObj expr2) = 
     if (expr1 == expr2)
         then eObj1
-        else E.ExprObj (mergeExpr kv newId expr1 expr2)
+        else E.ExprObj (mergeExpr' kv newId expr1 expr2)
 mergeEnvObj _ _ eObj1 eObj2 = if (eObj1 == eObj2) 
     then eObj1 
     else error "Unequal SymbObjs or RedirObjs present in the expr_envs of both states."
