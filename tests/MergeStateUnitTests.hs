@@ -16,6 +16,7 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
 import qualified G2.Language.TypeClasses.TypeClasses as TC
 import G2.Solver
+import G2.Config
 
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -40,9 +41,11 @@ checkRelAssumeTests = do
             statePCs = createStatePCs kv --list of PathConds from which to create new states
             checkPCs = createTestPCs kv -- list of NewPCs to check with the corresponding state
             expected = checkRelAssumeExpected -- list of (test number, expected result) tuples
-            assPCSol = AssumePCSolver (Tr {unTr = ADTSolver})
             states = createTestStates kv statePCs
-        
+
+        SomeSMTSolver con <- getSMT (Config {smt = ConZ3})
+        let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver :?> con)})
+
         results <- sequence $ zipWith (\s pc -> do (r, _) <- checkTr assPCSol s pc
                                                    return r) states checkPCs
             
@@ -59,8 +62,10 @@ solveRelAssumeTests = do
             checkPCs = createTestPCs kv -- list of NewPCs to check with the corresponding state
             is = createTestIds -- list of list of Ids for each test
             expected = solveRelAssumeExpected -- list of (test number, expected result) tuples
-            assPCSol = AssumePCSolver (Tr {unTr = ADTSolver})
             states = createTestStates kv statePCs
+
+        SomeSMTSolver con <- getSMT (Config {smt = ConZ3})
+        let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver :?> con)})
         
         results <- sequence $ zipWith3 (\s i pc -> do (r, m, _) <- solveTr assPCSol s b i pc
                                                       return (r, m)) states is checkPCs

@@ -216,7 +216,7 @@ initRedHaltOrd conv config =
 initSolver :: Config -> IO SomeSolver
 initSolver config = do
     SomeSMTSolver con <- getSMT config
-    let con' = GroupRelated (ADTSolver :?> con)
+    let con' = AssumePCSolver (ADTSolver :?> con)
     return (SomeSolver con')
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv

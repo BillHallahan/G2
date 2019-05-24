@@ -7,6 +7,7 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import G2.Language.Ids  
 import G2.Solver.Solver
+import G2.Execution.StateMerging
 
 import Data.List
 import qualified Data.Map as M
@@ -125,8 +126,11 @@ genPCsList s pc =
     let
         assumePCs = PC.filter isAssumePC pc
         uniqueAssumes = nub $ PC.map getAssumes assumePCs -- get list of unique (Id, Int) pairs from the AssumePCs
+        createExtCond = (\(i, val) -> (ExtCond (createEqExpr (known_values s) i (toInteger val)) True))
+        -- filters unrelated pcs and adds the (Id, Int) pair from an AssumePC as an extCond, to constrain checking/solving for the id
+        f = (\(i, val) -> (PC.insert (known_values s) (createExtCond (i,val)) (filterUnrelatedPCs pc (i,val))))
     in
-    extractPCs (known_values s) $ fmap (filterUnrelatedPCs pc) uniqueAssumes
+    extractPCs (known_values s) $ fmap f uniqueAssumes
 
 -- | Filters all AssumePCs with a different assumed (Id, Int) value
 filterUnrelatedPCs :: PathConds -> (Id, Int) -> PathConds

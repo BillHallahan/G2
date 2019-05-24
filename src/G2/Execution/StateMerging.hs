@@ -1,6 +1,7 @@
 module G2.Execution.StateMerging
   ( mergeState
   , mergeCurrExpr
+  , createEqExpr
   ) where
 
 import G2.Language.Support
@@ -36,7 +37,7 @@ mergeState ngen s1 s2 =
             let (newId, ngen') = freshId TyLitInt ngen
                 curr_expr' = mergeCurrExpr (known_values s1) newId (curr_expr s1) (curr_expr s2) 
                 expr_env' = mergeExprEnv (known_values s1) newId (expr_env s1) (expr_env s2)
-                path_conds' = mergePathConds newId (path_conds s1) (path_conds s2)
+                path_conds' = mergePathConds (known_values s1) newId (path_conds s1) (path_conds s2)
             in (ngen'
                , (Just State { expr_env = expr_env'
                              , type_env = type_env s1
@@ -113,14 +114,20 @@ mergeEnvObj _ _ eObj1 eObj2 = if (eObj1 == eObj2)
     then eObj1 
     else error "Unequal SymbObjs or RedirObjs present in the expr_envs of both states."
 
-mergePathConds :: Id -> PathConds -> PathConds -> PathConds
-mergePathConds newId pc1 pc2 = PC.PathConds (M.union pc2_map' pc1_map')
+mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
+mergePathConds kv newId pc1 pc2 = 
     -- If a key exists in both maps, then the respective values are combined and inserted into pc1_map'. 
     -- Else, all other values in pc1_map are added to pc1_map' as it is.
     -- pc2_map' will only contain values whose keys are not present in pc1_map
-    where (pc2_map', pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) pc2_map pc1_map
-          pc2_map = PC.toMap pc2
-          pc1_map = PC.toMap pc1
+    let
+        (pc2_map', pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) pc2_map pc1_map
+        pc2_map = PC.toMap pc2
+        pc1_map = PC.toMap pc1
+        combined_map = PC.PathConds (M.union pc2_map' pc1_map')
+        -- Add the following two expressions to constrain the value newId can take to either 1/2 when solving
+        combined_map' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExpr kv newId 1) True)) combined_map) 
+        combined_map'' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExpr kv newId 2) True)) combined_map') 
+    in combined_map''
 
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
 -- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
