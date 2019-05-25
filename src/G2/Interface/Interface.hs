@@ -37,6 +37,7 @@ import G2.Execution.Interface
 import G2.Execution.Reducer
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
+import G2.Execution.StateMerging
 
 import G2.Interface.OutputTypes
 
@@ -330,13 +331,14 @@ runG2 red hal ord con pns (is@State { type_env = tenv
             ) $ ident_states
 
     let ident_states'' = catMaybes ident_states'
+    let ident_states''' = map replaceNonDets ident_states''
 
     let sm = map (\s -> 
               let (es, e, ais) = subModel s bindings''' in
                 ExecRes { final_state = s
                         , conc_args = es
                         , conc_out = e
-                        , violated = ais}) $ ident_states''
+                        , violated = ais}) $ ident_states'''
 
     let sm' = map (\sm'' -> runPostprocessing bindings''' sm'') sm
 

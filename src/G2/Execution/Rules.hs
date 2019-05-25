@@ -478,23 +478,13 @@ createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
   where
     -- Get the Bool value specified by the matching DataCon
     -- Throws an error if dcon is not a Bool Data Constructor
-    boolValue = getBoolFromDataCon s dcon
+    boolValue = getBoolFromDataCon (known_values s) (Data dcon)
     cond = ExtCond mexpr boolValue
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
     aexpr' = liftCaseBinds binds aexpr
     res = s {curr_expr = CurrExpr Evaluate aexpr'}
-
-getBoolFromDataCon :: State t -> DataCon -> Bool
-getBoolFromDataCon (State {known_values = kv}) dcon
-    | (DataCon dconName dconType) <- dcon
-    , dconType == (tyBool kv)
-    , dconName == (KV.dcTrue kv) = True
-    | (DataCon dconName dconType) <- dcon
-    , dconType == (tyBool kv)
-    , dconName == (KV.dcFalse kv) = False
-    | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
 
 liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]
 liftSymLitAlt s mexpr cvar = map (liftSymLitAlt' s mexpr cvar)

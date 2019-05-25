@@ -2,12 +2,16 @@ module G2.Execution.StateMerging
   ( mergeState
   , mergeCurrExpr
   , createEqExpr
+  , replaceNonDets
   ) where
 
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Primitives
 import G2.Language.Naming
+import G2.Language.TypeClasses
+import G2.Language.Expr
+import G2.Execution.PrimitiveEval
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
@@ -147,5 +151,39 @@ mergeHashSets newId hs1 hs2 = HS.union (HS.union common hs1') hs2'
           hs1' = HS.map (\pc -> AssumePC newId 1 pc) (HS.difference hs1 hs2)
           hs2' = HS.map (\pc -> AssumePC newId 2 pc) (HS.difference hs2 hs1)
 
+-- removes any NonDets in ExprObjs, leaves SymbObjs (and RedirObjs) intact since replaceNonDetExpr doesn't change Exprs of type (Var _ _)
+replaceNonDets :: State t -> State t 
+replaceNonDets s@(State {expr_env = eenv}) = 
+    let eenv' = E.map (replaceNonDetExpr s) eenv
+    in (s {expr_env = eenv'})
 
+replaceNonDetExpr :: State t -> Expr -> Expr
+replaceNonDetExpr s (App e1 e2) = App (replaceNonDetExpr s e1) (replaceNonDetExpr s e2)
+replaceNonDetExpr s (NonDet (x:xs)) = case x of
+    (Assume _ e1 e2) -> if (substAndEval s e1)
+                        then (replaceNonDetExpr s e2)
+                        else (replaceNonDetExpr s (NonDet xs))
+    r -> replaceNonDetExpr s r
+replaceNonDetExpr _ (NonDet []) = error "No value in NonDet expr is satisfiable"
+replaceNonDetExpr _ e = e
 
+substAndEval :: State t -> Expr -> Bool
+substAndEval (State {model = m
+                      , known_values = kv
+                      , type_env = tenv
+                      , type_classes = tc}) e = 
+    getBoolFromDataCon kv solvedExpr 
+    where
+        exprToSolve = subExpr m tc e
+        solvedExpr = evalPrim kv tenv exprToSolve
+
+subExpr :: Model -> TypeClasses -> Expr -> Expr
+subExpr m tc = modifyContainedASTs (subExpr' m tc [])
+
+subExpr' :: Model -> TypeClasses -> [Id] -> Expr -> Expr
+subExpr' m tc is v@(Var i@(Id n _))
+    | i `notElem` is
+    , Just e <- M.lookup n m =
+        subExpr' m tc (i:is) e
+    | otherwise = v
+subExpr' m tc is e = modifyChildren (subExpr' m tc is) e
