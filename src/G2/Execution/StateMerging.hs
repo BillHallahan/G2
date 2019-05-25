@@ -153,9 +153,11 @@ mergeHashSets newId hs1 hs2 = HS.union (HS.union common hs1') hs2'
 
 -- removes any NonDets in ExprObjs, leaves SymbObjs (and RedirObjs) intact since replaceNonDetExpr doesn't change Exprs of type (Var _ _)
 replaceNonDets :: State t -> State t 
-replaceNonDets s@(State {expr_env = eenv}) = 
+replaceNonDets s@(State {curr_expr = cexpr, expr_env = eenv}) = 
     let eenv' = E.map (replaceNonDetExpr s) eenv
-    in (s {expr_env = eenv'})
+        (CurrExpr eOrR e) = cexpr 
+        cexpr' = CurrExpr eOrR (replaceNonDetExpr s e)
+    in (s {curr_expr = cexpr', expr_env = eenv'})
 
 replaceNonDetExpr :: State t -> Expr -> Expr
 replaceNonDetExpr s (App e1 e2) = App (replaceNonDetExpr s e1) (replaceNonDetExpr s e2)
