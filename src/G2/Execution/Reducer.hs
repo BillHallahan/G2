@@ -700,8 +700,8 @@ evalLeaf red hal pr (Tree a children count mergeSt) b
         let hc = stopRed hal h_val ps s
         case hc of
             Accept -> do
-                print (length (rules s))
-                print "Accepted"
+                -- print (length (rules s))
+                -- print "Accepted"
                 let pr' = pr {accepted = rs:accepted pr} -- we do not call updateExStateHalter for now, since we do not deal with any Switch constructors
                 return (Nothing, b, red, hal, pr')
             Discard -> do

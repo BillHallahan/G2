@@ -38,12 +38,13 @@ mergeCurrExprTests = if not (null errs)
 checkRelAssumeTests :: IO (Either String Bool)
 checkRelAssumeTests = do
         let kv = simpleKV
-            statePCs = createStatePCs kv --list of PathConds from which to create new states
+            numTests = 10
+            statePCs = createStatePCs numTests kv --list of PathConds from which to create new states
             checkPCs = createTestPCs kv -- list of NewPCs to check with the corresponding state
             expected = checkRelAssumeExpected -- list of (test number, expected result) tuples
             states = createTestStates kv statePCs
 
-        SomeSMTSolver con <- getSMT (Config {smt = ConZ3})
+        SomeSMTSolver con <- getSMT (createConfig {smt = ConZ3})
         let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver :?> con)})
 
         results <- sequence $ zipWith (\s pc -> do (r, _) <- checkTr assPCSol s pc
@@ -58,13 +59,14 @@ solveRelAssumeTests :: IO (Either String Bool)
 solveRelAssumeTests = do
         let kv = simpleKV
             b = createTestBindings
-            statePCs = createStatePCs kv --list of PathConds from which to create new states
+            numTests = 10
+            statePCs = createStatePCs numTests kv --list of PathConds from which to create new states
             checkPCs = createTestPCs kv -- list of NewPCs to check with the corresponding state
             is = createTestIds -- list of list of Ids for each test
             expected = solveRelAssumeExpected -- list of (test number, expected result) tuples
             states = createTestStates kv statePCs
 
-        SomeSMTSolver con <- getSMT (Config {smt = ConZ3})
+        SomeSMTSolver con <- getSMT (createConfig {smt = ConZ3})
         let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver :?> con)})
         
         results <- sequence $ zipWith3 (\s i pc -> do (r, m, _) <- solveTr assPCSol s b i pc
@@ -194,8 +196,11 @@ e3' = (Lit (LitInt 8))
 e4 :: Expr
 e4 = (Data (DataCon (Name "$J" Nothing 0 Nothing) TYPE))
 
+xN :: Name
+xN = (Name "X" Nothing 0 Nothing)
+
 idX :: Id
-idX = (Id (Name "X" Nothing 0 Nothing) TyLitInt)
+idX = (Id xN TyLitInt)
 
 varX :: Expr
 varX = (Var idX)
@@ -210,14 +215,14 @@ xEq2 :: Expr
 xEq2 = (App (App eqTo varX) (Lit (LitInt 2)))
 
 -- checkRelAssume Tests
-createStatePCs :: KV.KnownValues -> [PathConds]
-createStatePCs kv = take 9 (repeat (PC.fromList kv []))
+createStatePCs :: Int -> KV.KnownValues -> [PathConds]
+createStatePCs numTests kv = take numTests (repeat (PC.fromList kv []))
+
+yN :: Name
+yN = (Name "Y" Nothing 0 Nothing)
 
 idY :: Id
-idY = (Id (Name "Y" Nothing 0 Nothing) TyLitInt)
-
-varY :: Expr
-varY = (Var idY)
+idY = (Id yN TyLitInt)
 
 ty1N :: Name
 ty1N = (Name "Ty1" Nothing 20 Nothing) 
@@ -335,16 +340,10 @@ createTestPCs kv = [ PC.fromList kv [ -- simple test
                         (ConsCond dconA var1 False)
                         , AssumePC idX 2 
                         (ConsCond dconA var1 True)]
-                   , PC.fromList kv [ -- PathConds that cannot be resolved by ADT Solver
-                        AssumePC idX 1 
-                        (ConsCond dconB var1 True)
-                        , AssumePC idX 1 
-                        (ConsCond dconD var2 True)
-                        , (AltCond (LitInt 1) var1 True)] 
                    ]
 
 checkRelAssumeExpected :: [(TestNum, Result)]
-checkRelAssumeExpected = [(1, SAT), (2, UNSAT), (3, UNSAT), (4, SAT), (5, UNSAT), (6, SAT), (7, UNSAT), (8, SAT), (9, SAT), (10, SAT), (11, UNSAT)]
+checkRelAssumeExpected = [(1, SAT), (2, UNSAT), (3, UNSAT), (4, SAT), (5, UNSAT), (6, SAT), (7, UNSAT), (8, SAT), (9, SAT), (10, SAT)]
 
 -- solveRelAssumeTests
 createTestIds :: [[Id]]
@@ -358,22 +357,21 @@ createTestIds = [[Id var1N ty1T]
                 , [Id var1N ty1T]
                 , [Id var1N ty1T]
                 , [Id var1N ty1T, Id var2N ty2T]
-                , [Id var1N ty1T, Id var2N ty2T]
                 ]
 
 solveRelAssumeExpected :: [(TestNum, (Result, Maybe Model))]
-solveRelAssumeExpected = [ (1, (SAT, Just (M.fromList [(var1N, Data dconA)])))
+solveRelAssumeExpected = [ (1, (SAT, Just (M.fromList [(var1N, Data dconA),(xN, Lit (LitInt 1))])))
                          , (2, (UNSAT, Nothing))
                          , (3, (UNSAT, Nothing))
-                         , (4, (SAT, Just (M.fromList [(var1N, Data dconA)])))
+                         , (4, (SAT, Just (M.fromList [(var1N, Data dconA), (xN, Lit (LitInt 2))])))
                          , (5, (UNSAT, Nothing))
-                         , (6, (SAT, Just (M.fromList [(var1N, Data dconA)])))
+                         , (6, (SAT, Just (M.fromList [(var1N, Data dconA), (xN, Lit (LitInt 1)), (yN, Lit (LitInt 1))])))
                          , (7, (UNSAT, Nothing))
-                         , (8, (SAT, Just (M.fromList [(var1N, Data dconB)])))
-                         , (9, (SAT, Just (M.fromList [(var1N, Data dconB)])))
+                         , (8, (SAT, Just (M.fromList [(var1N, Data dconB), (xN, Lit (LitInt 1)), (yN, Lit (LitInt 1))])))
+                        -- For 9, technically multiple solutions possible, but algorithm goes down the list and picks first possible solution
+                         , (9, (SAT, Just (M.fromList [(var1N, Data dconB), (xN, Lit (LitInt 1))])))
                          , (10, (SAT, Just (M.fromList [(var1N, Data dconB)
-                            , (var2N, Data dconD)])))
-                         , (11, (UNSAT, Nothing))
+                            , (var2N, Data dconD), (xN, Lit (LitInt 1))])))
                          ]
 
 -- Helper Functions
@@ -475,4 +473,24 @@ createTestBindings = Bindings {
     , name_gen = mkNameGen [ty1N, ty2N, (Name "A" Nothing 17 Nothing), (Name "B" Nothing 18 Nothing), (Name "X" Nothing 0 Nothing), (Name "Y" Nothing 0 Nothing)
         , (Name "Bool" Nothing 0 Nothing), (Name "" Nothing 0 Nothing), (Name "C" Nothing 24 Nothing), (Name "B" Nothing 25 Nothing)]
     }
+
+createConfig :: Config
+createConfig = Config {
+    smt = ConZ3
+    , mode = Regular
+    , base = []
+    , logStates = Nothing
+    , maxOutputs = Nothing
+    , printCurrExpr = False
+    , printExprEnv = False
+    , printRelExprEnv = False
+    , printPathCons = False
+    , returnsTrue = False
+    , higherOrderSolver = AllFuncs
+    , steps = 0
+    , cut_off = 0
+    , switch_after = 0
+    , strict = False
+    , timeLimit = 0
+    , validate = False}
 
