@@ -470,8 +470,9 @@ createTestBindings = Bindings {
     , input_names = []
     , higher_order_inst = []
     , rewrite_rules = []
-    , name_gen = mkNameGen [ty1N, ty2N, (Name "A" Nothing 17 Nothing), (Name "B" Nothing 18 Nothing), (Name "X" Nothing 0 Nothing), (Name "Y" Nothing 0 Nothing)
-        , (Name "Bool" Nothing 0 Nothing), (Name "" Nothing 0 Nothing), (Name "C" Nothing 24 Nothing), (Name "B" Nothing 25 Nothing)]
+    , name_gen = mkNameGen [ty1N, ty2N, (Name "A" Nothing 17 Nothing), (Name "B" Nothing 18 Nothing), (Name "X" Nothing 0 Nothing)
+        , (Name "Y" Nothing 0 Nothing), (Name "Bool" Nothing 0 Nothing), (Name "" Nothing 0 Nothing), (Name "C" Nothing 24 Nothing)
+        , (Name "B" Nothing 25 Nothing)]
     }
 
 createConfig :: Config
@@ -487,6 +488,7 @@ createConfig = Config {
     , printPathCons = False
     , returnsTrue = False
     , higherOrderSolver = AllFuncs
+    , stateMerging = False
     , steps = 0
     , cut_off = 0
     , switch_after = 0

@@ -125,6 +125,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
     let state_name = Name "state" Nothing 0 Nothing
 
     let (limHalt, limOrd) = limitByAccepted (cut_off config)
+    let mergeStates = False
 
     (ret, final_bindings) <- if higherOrderSolver config == AllFuncs
               then runG2WithSomes
@@ -140,7 +141,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st bindings''' 
+                    con mergeStates (pres_names ++ names annm) final_st bindings''' 
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -155,7 +156,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con (pres_names ++ names annm) final_st bindings'''
+                    con mergeStates (pres_names ++ names annm) final_st bindings'''
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of

@@ -274,10 +274,11 @@ runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
 runG2WithConfig :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig state config bindings = do
     SomeSolver con <- initSolver config
+    let mergeStates = stateMerging config
 
     (in_out, bindings') <- case initRedHaltOrd con config of
                 (red, hal, ord) ->
-                    runG2WithSomes red hal ord con [] state bindings
+                    runG2WithSomes red hal ord con mergeStates [] state bindings
 
     close con
 
@@ -292,14 +293,15 @@ runG2WithSomes :: ( Named t
                -> (SomeHalter t)
                -> (SomeOrderer t)
                -> solver
+               -> Bool
                -> [Name]
                -> State t
                -> Bindings
                -> IO ([ExecRes t], Bindings)
-runG2WithSomes red hal ord con pns state bindings =
+runG2WithSomes red hal ord con mergeStates pns state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-            runG2 red' hal' ord' con pns state bindings
+            runG2 red' hal' ord' con mergeStates pns state bindings
 
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
@@ -311,8 +313,8 @@ runG2 :: ( Named t
          , Halter h hv t
          , Orderer or sov b t
          , Solver solver) => r -> h -> or ->
-         solver -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-runG2 red hal ord con pns (is@State { type_env = tenv
+         solver -> Bool -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+runG2 red hal ord con mergeStates pns (is@State { type_env = tenv
                                     , known_values = kv
                                     , type_classes = tc }) 
                            bindings = do
@@ -320,7 +322,7 @@ runG2 red hal ord con pns (is@State { type_env = tenv
 
     let (preproc_state, bindings'') = runPreprocessing swept bindings'
 
-    (exec_states, bindings''') <- runExecution red hal preproc_state bindings''
+    (exec_states, bindings''') <- runExecution red hal ord mergeStates preproc_state bindings''
 
     let ident_states = filter true_assert exec_states
 
@@ -331,7 +333,9 @@ runG2 red hal ord con pns (is@State { type_env = tenv
             ) $ ident_states
 
     let ident_states'' = catMaybes ident_states'
-    let ident_states''' = map replaceNonDets ident_states''
+    let ident_states''' = if mergeStates
+        then map replaceNonDets ident_states''
+        else ident_states''
 
     let sm = map (\s -> 
               let (es, e, ais) = subModel s bindings''' in
