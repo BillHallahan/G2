@@ -726,7 +726,6 @@ evalLeaf red hal pr (Tree a children count mergeSt) b
                                 return (Just newTree, b', red', hal, pr)
                             _ -> do
                                 let newChildren = map (\r -> Tree [r] [] count False) reduceds''
-                                -- print (length newChildren)
                                 let newTree = Tree a newChildren count False
                                 return (Just newTree, b', red', hal, pr)
     | (_:_) <- children -- not a leaf node
