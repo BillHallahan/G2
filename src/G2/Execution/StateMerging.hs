@@ -139,17 +139,22 @@ mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name])) -> (
                    (HS.HashSet PC.PathCond, [Name]) -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]), (HS.HashSet PC.PathCond, [Name]))
 mergeMapEntries newId pc2_map key (hs1, ns1) =
     case M.lookup key pc2_map of
-        Just (hs2, ns2) -> (pc2_map', (mergeHashSets newId hs1 hs2, L.nub $ ns1 ++ ns2))
+        Just (hs2, ns2) -> (pc2_map', (mergedHS, mergedNS))
             where pc2_map' = M.delete key pc2_map
+                  (mergedHS, addNewIdName) = mergeHashSets newId hs1 hs2
+                  mergedNS = L.nub $ if addNewIdName then (idName newId):(ns1 ++ ns2) else (ns1 ++ ns2)
         Nothing -> (pc2_map, (hs1, ns1))
 
 -- Any PathCond present in both HashSets is added as it is to the new HashSet.
 -- A PathCond present in only 1 HashSet is changed to the form 'AssumePC (x == _) PathCond' and added to the new HashSet
-mergeHashSets :: Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond)
-mergeHashSets newId hs1 hs2 = HS.union (HS.union common hs1') hs2'
+mergeHashSets :: Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond, Bool)
+mergeHashSets newId hs1 hs2 = (HS.union (HS.union common hs1') hs2', addNewIdName)
     where common = HS.intersection hs1 hs2
-          hs1' = HS.map (\pc -> AssumePC newId 1 pc) (HS.difference hs1 hs2)
-          hs2' = HS.map (\pc -> AssumePC newId 2 pc) (HS.difference hs2 hs1)
+          hs1Minus2 = HS.difference hs1 hs2
+          hs2Minus1 = HS.difference hs2 hs1
+          addNewIdName = not $ ((HS.null hs1Minus2) && (HS.null hs2Minus1)) -- True if we need to add name of newId to list of names in node
+          hs1' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
+          hs2' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
 
 -- removes any NonDets in ExprObjs, leaves SymbObjs (and RedirObjs) intact since replaceNonDetExpr doesn't change Exprs of type (Var _ _)
 replaceNonDets :: State t -> State t 

@@ -1,0 +1,31 @@
+Figure out what is going on in 'Fact' execution
+    - trace execution to see where 'Fact 0 = 0' is coming from
+        - If it is bug: fix it -- Sorta
+    - check if lack of any other values is a bug, or unavoidable result of way state merging is implemented -- Unavoidable
+See what he means by testing for assertion violations
+Gather functions that might do well with state merging, and those that do not
+Create test suite
+Redo state merging to optimize it
+    - use zippers?
+    - reduce use of splitNodes and pickMaxChild somehow
+    - alternate data structures: recursion? or stack, or array of leaves in tree
+    
+
+PathConds 
+(fromList [
+
+(Nothing,(fromList [PCExists (Id (Name "fs?" Nothing 16836 Nothing) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323789223 Nothing) TYPE))],[]))
+
+,(Just (Name "fs?" Nothing 16842 Nothing),(fromList [ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 2))) True,AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 1 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 1))) True),AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 2 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 2))) True)],[Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing]))
+
+,(Just (Name "x" Nothing 6989586621679035479 Nothing),(fromList [AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 1 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "x" Nothing 6989586621679035479 Nothing) TyLitInt))) (Lit (LitInt 0))) True),AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 2 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "x" Nothing 6989586621679035479 Nothing) TyLitInt))) (Lit (LitInt 0))) False),AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 2 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (App (App (Prim Minus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (Var (Id (Name "x" Nothing 6989586621679035479 Nothing) TyLitInt))) (Lit (LitInt 1)))) (Lit (LitInt 0))) True)],[Name "x" Nothing 6989586621679035479 Nothing]))
+
+])
+
+[PathConds (fromList [(Nothing,(fromList [PCExists (Id (Name "fs?" Nothing 16836 Nothing) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323789223 Nothing) TYPE))],[Name "fs?" Nothing 16842 Nothing]))])
+
+,PathConds (fromList [(Just (Name "fs?" Nothing 16842 Nothing),(fromList [ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 2))) True,AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 1 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 1))) True),AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 2 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 2))) True)],[Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing]))])
+
+,PathConds (fromList [(Just (Name "fs?" Nothing 16842 Nothing),(fromList [ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 2))) True,AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 1 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 1))) True),AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 2 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt))) (Lit (LitInt 2))) True)],[Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing,Name "fs?" Nothing 16842 Nothing])),(Just (Name "x" Nothing 6989586621679035479 Nothing),(fromList [AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 1 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "x" Nothing 6989586621679035479 Nothing) TyLitInt))) (Lit (LitInt 0))) True),AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 2 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (Var (Id (Name "x" Nothing 6989586621679035479 Nothing) TyLitInt))) (Lit (LitInt 0))) False),AssumePC (Id (Name "fs?" Nothing 16842 Nothing) TyLitInt) 2 (ExtCond (App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))) (App (App (Prim Minus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (Var (Id (Name "x" Nothing 6989586621679035479 Nothing) TyLitInt))) (Lit (LitInt 1)))) (Lit (LitInt 0))) True)],[Name "fs?" Nothing 16842 Nothing,Name "x" Nothing 6989586621679035479 Nothing]))])]
+
+
