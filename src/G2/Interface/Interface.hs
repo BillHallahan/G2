@@ -217,8 +217,9 @@ initRedHaltOrd conv config =
 initSolver :: Config -> IO SomeSolver
 initSolver config = do
     SomeSMTSolver con <- getSMT config
-    let con' = AssumePCSolver (ADTSolver :?> con)
-    return (SomeSolver con')
+    if (stateMerging config)
+        then return $ SomeSolver (AssumePCSolver (ADTSolver :?> con))
+        else return $ SomeSolver (GroupRelated (ADTSolver :?> con))
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
