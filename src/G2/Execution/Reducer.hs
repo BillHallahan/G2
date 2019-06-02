@@ -821,10 +821,11 @@ pickSibling' seen (x:xs) = case x of
 pickSibling' _ [] = error "pickSibling must be called with at least one Tree that is a leaf"
 
 mergeStatesZipper :: Eq t => [ExState rv hv sov t] -> Bindings -> ([ExState rv hv sov t], Bindings)
-mergeStatesZipper ls@(x1:x2:xs) b =
+mergeStatesZipper (x1:x2:xs) b =
     case mergeStates' x1 x2 b of
         (Just exS, b') -> mergeStatesZipper (exS:xs) b'
-        (Nothing, b') -> (ls, b')
+        (Nothing, b') -> let (merged, b'') = mergeStatesZipper (x2:xs) b'
+                         in (x1:merged, b'')
 mergeStatesZipper ls b = (ls, b)
 
 mergeStates' :: Eq t => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> (Maybe (ExState rv hv sov t), Bindings)
