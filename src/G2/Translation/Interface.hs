@@ -67,6 +67,7 @@ translateLoaded proj src libs tr_con config = do
       base_tys = exg2_tycons base_exg2
       b_exp = exg2_exports base_exg2
 
+
   (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm tr_con config (Just HscInterpreted) libs
   let lib_exp = exg2_exports lib_transs
 

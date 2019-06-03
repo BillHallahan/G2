@@ -210,8 +210,10 @@ liquidTests =
                 , checkLiquid "tests/Liquid/MultModules/CallZ.lhs" "callZ" 1000 3 [AtLeast 1]
                 , checkAbsLiquid "tests/Liquid/AddToEven.hs" "f" 2000 1
                     [ AtLeast 1
-                    , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
-                                    -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
+                    , RForAll $ \[i] r [(FuncCall { funcName = Name n _ _ _, returns = fcr }) ]
+                        -> n == "g"
+                            && isInt i (\i' -> i' `mod` 2 == 0  &&
+                                                isInt r (\r' -> isInt fcr (\fcr' -> r' == i' + fcr')))]
 
                 , checkLiquid "tests/Liquid/ListTests.lhs" "r" 1000 1 [Exactly 0]
                 , checkLiquid "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]

@@ -423,7 +423,7 @@ mkIdLookup i nm tm =
 mkIdUpdatingNM :: Id -> G2.NameMap -> G2.TypeNameMap -> (G2.Id, G2.NameMap)
 mkIdUpdatingNM vid nm tm =
     let
-        n@(G2.Name n' m _ _) = mkName . V.varName $ vid
+        n@(G2.Name n' m _ _) = flip mkNameLookup nm . V.varName $ vid
         i = G2.Id n ((mkType tm . varType) vid)
 
         nm' = HM.insert (n', m) n nm
@@ -538,7 +538,7 @@ mkTyCon nm tm t = case dcs of
                         Just dcs' -> ((nm'', tm''), Just (n, dcs'))
                         Nothing -> ((nm'', tm''), Nothing)
   where
-    n@(G2.Name n' m _ _) = mkName . tyConName $ t
+    n@(G2.Name n' m _ _) = flip mkNameLookup tm . tyConName $ t
     tm' = HM.insert (n', m) n tm
 
     nm' = foldr (uncurry HM.insert) nm
