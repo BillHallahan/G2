@@ -1,4 +1,12 @@
-module G2.Config.Config where
+module G2.Config.Config ( Mode (..)
+                        , SMTSolver (..)
+                        , HigherOrderSolver (..)
+                        , IncludePath
+                        , Config (..)
+                        , BoolDef (..)
+                        , mkConfig
+                        , strArg
+                        , boolArg) where
 
 
 import Data.Char
@@ -6,7 +14,6 @@ import Data.List
 import qualified Data.Map as M
 
 import System.Directory
-
 
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
