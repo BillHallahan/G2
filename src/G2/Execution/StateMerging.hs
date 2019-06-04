@@ -40,9 +40,10 @@ mergeState ngen s1 s2 =
         then 
             let (newId, ngen') = freshId TyLitInt ngen
                 curr_expr' = mergeCurrExpr (known_values s1) newId (curr_expr s1) (curr_expr s2) 
-                expr_env' = mergeExprEnv (known_values s1) newId (expr_env s1) (expr_env s2)
+                syms' = (symbolic_ids s1) ++ (symbolic_ids s2) ++ [newId]
+                (expr_env', (syms'', ngen'')) = mergeExprEnv (known_values s1) newId syms' ngen' (expr_env s1) (expr_env s2)
                 path_conds' = mergePathConds (known_values s1) newId (path_conds s1) (path_conds s2)
-            in (ngen'
+            in (ngen''
                , (Just State { expr_env = expr_env'
                              , type_env = type_env s1
                              , curr_expr = curr_expr'
@@ -51,7 +52,7 @@ mergeState ngen s1 s2 =
                              , true_assert = true_assert s1
                              , assert_ids = assert_ids s1
                              , type_classes = type_classes s1
-                             , symbolic_ids = (symbolic_ids s1) ++ (symbolic_ids s2) ++ [newId]
+                             , symbolic_ids = syms''
                              , exec_stack = exec_stack s1
                              , model = model s1
                              , known_values = known_values s1
@@ -99,24 +100,54 @@ createEqExpr kv newId val = App (App eq (Var newId)) (Lit (LitInt val))
     where eq = mkEqPrimInt kv
 
 -- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
-mergeExprEnv :: KnownValues -> Id -> E.ExprEnv -> E.ExprEnv -> E.ExprEnv
-mergeExprEnv kv newId eenv1 eenv2 = E.wrapExprEnv $ M.unions [merged_map, eenv1_rem, eenv2_rem]
-    where merged_map = (M.intersectionWith (mergeEnvObj kv newId) eenv1_map eenv2_map)
+mergeExprEnv :: KnownValues -> Id -> SymbolicIds -> NameGen -> E.ExprEnv -> E.ExprEnv -> (E.ExprEnv, (SymbolicIds, NameGen))
+mergeExprEnv kv newId syms ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem], (syms'++newSyms, ngen'))
+    where eenv1_map = E.unwrapExprEnv eenv1
+          eenv2_map = E.unwrapExprEnv eenv2
+          zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
+          ((newSyms, syms', ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId) ([], syms, ngen) zipped_maps
+          merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms
           eenv1_rem = (M.difference eenv1_map eenv2_map)
           eenv2_rem = (M.difference eenv2_map eenv1_map)
-          eenv1_map = E.unwrapExprEnv eenv1
-          eenv2_map = E.unwrapExprEnv eenv2
 
 -- | If both arguments are ExprObjs, the first ExprObj is returned if they are equal, else they are combined using mergeExpr
 -- Else, function checks if both EnvObjs are equal and returns the first
-mergeEnvObj :: KnownValues -> Id -> E.EnvObj -> E.EnvObj -> E.EnvObj
-mergeEnvObj kv newId eObj1@(E.ExprObj expr1) (E.ExprObj expr2) = 
-    if (expr1 == expr2)
-        then eObj1
-        else E.ExprObj (mergeExpr' kv newId expr1 expr2)
-mergeEnvObj _ _ eObj1 eObj2 = if (eObj1 == eObj2) 
-    then eObj1 
-    else error "Unequal SymbObjs or RedirObjs present in the expr_envs of both states."
+mergeEnvObj :: KnownValues -> Id -> (SymbolicIds, SymbolicIds, NameGen) -> (E.EnvObj, E.EnvObj) -> ((SymbolicIds, SymbolicIds, NameGen), E.EnvObj)
+mergeEnvObj kv newId (newSyms, syms, ngen) (eObj1, eObj2)
+    | (E.ExprObj e1) <- eObj1
+    , (E.ExprObj e2) <- eObj2 =
+        if (e1 == e2)
+            then ((newSyms, syms, ngen), eObj1)
+            else ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId e1 e2))
+    -- replace the Id in the SymbObj with a new symbolic variable and combine with the expr in the ExprObj in a NonDet expr
+    | (E.SymbObj i@(Id _ t)) <- eObj1
+    , (E.ExprObj e2) <- eObj2 =
+        let (newSymId, ngen') = freshId t ngen
+            newSyms' = newSymId:newSyms
+            syms' = L.filter (/= i) syms
+        in ((newSyms', syms', ngen'), E.ExprObj (mergeExpr' kv newId (Var newSymId) e2))
+    | (E.ExprObj e1) <- eObj1
+    , (E.SymbObj i@(Id _ t)) <- eObj2 =
+        let (newSymId, ngen') = freshId t ngen
+            newSyms' = newSymId:newSyms
+            syms' = L.filter (/= i) syms
+        in ((newSyms', syms', ngen'), E.ExprObj (mergeExpr' kv newId e1 (Var newSymId)))
+    | (E.SymbObj i1@(Id _ t1)) <- eObj1
+    , (E.SymbObj i2@(Id _ t2)) <- eObj2
+    , i1 /= i2 =
+        let (newSymId1, ngen') = freshId t1 ngen
+            (newSymId2, ngen'') = freshId t2 ngen'
+            newSyms' = newSymId1:newSymId2:newSyms
+            syms' = L.filter (\x -> (x /= i2) &&  (x /= i1)) syms
+        in ((newSyms', syms', ngen''), E.ExprObj (mergeExpr' kv newId (Var newSymId1) (Var newSymId2)))
+    -- | (E.RedirObj _) <- eObj1
+    -- , (E.ExprObj _) <- eObj2 = ((newSyms, syms, ngen), eObj2)
+    -- | (E.RedirObj _) <- eObj2
+    -- , (E.ExprObj _) <- eObj1 = ((newSyms, syms, ngen), eObj1)
+    | otherwise =
+        if (eObj1 == eObj2)
+            then ((newSyms, syms, ngen), eObj1)
+            else error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
 
 mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
 mergePathConds kv newId pc1 pc2 = 
