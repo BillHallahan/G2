@@ -140,10 +140,10 @@ mergeEnvObj kv newId (newSyms, syms, ngen) (eObj1, eObj2)
             newSyms' = newSymId1:newSymId2:newSyms
             syms' = L.filter (\x -> (x /= i2) &&  (x /= i1)) syms
         in ((newSyms', syms', ngen''), E.ExprObj (mergeExpr' kv newId (Var newSymId1) (Var newSymId2)))
-    -- | (E.RedirObj _) <- eObj1
-    -- , (E.ExprObj _) <- eObj2 = ((newSyms, syms, ngen), eObj2)
-    -- | (E.RedirObj _) <- eObj2
-    -- , (E.ExprObj _) <- eObj1 = ((newSyms, syms, ngen), eObj1)
+    | (E.RedirObj n) <- eObj1
+    , (E.ExprObj e) <- eObj2 = ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId (Var (Id n TyUnknown)) e))
+    | (E.RedirObj n) <- eObj2
+    , (E.ExprObj e) <- eObj1 = ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId e (Var (Id n TyUnknown))))
     | otherwise =
         if (eObj1 == eObj2)
             then ((newSyms, syms, ngen), eObj1)
