@@ -105,15 +105,20 @@ mergeExprEnv kv newId syms ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_
     where eenv1_map = E.unwrapExprEnv eenv1
           eenv2_map = E.unwrapExprEnv eenv2
           zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
-          ((newSyms, syms', ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId) ([], syms, ngen) zipped_maps
+          ((newSyms, syms', ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId eenv1 eenv2) ([], syms, ngen) zipped_maps
           merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms
           eenv1_rem = (M.difference eenv1_map eenv2_map)
           eenv2_rem = (M.difference eenv2_map eenv1_map)
 
 -- | If both arguments are ExprObjs, the first ExprObj is returned if they are equal, else they are combined using mergeExpr
 -- Else, function checks if both EnvObjs are equal and returns the first
-mergeEnvObj :: KnownValues -> Id -> (SymbolicIds, SymbolicIds, NameGen) -> (E.EnvObj, E.EnvObj) -> ((SymbolicIds, SymbolicIds, NameGen), E.EnvObj)
-mergeEnvObj kv newId (newSyms, syms, ngen) (eObj1, eObj2)
+mergeEnvObj :: KnownValues -> Id
+               -> E.ExprEnv
+               -> E.ExprEnv
+               -> (SymbolicIds, SymbolicIds, NameGen)
+               -> (E.EnvObj, E.EnvObj)
+               -> ((SymbolicIds, SymbolicIds, NameGen), E.EnvObj)
+mergeEnvObj kv newId eenv1 eenv2 (newSyms, syms, ngen) (eObj1, eObj2)
     | (E.ExprObj e1) <- eObj1
     , (E.ExprObj e2) <- eObj2 =
         if (e1 == e2)
@@ -141,9 +146,19 @@ mergeEnvObj kv newId (newSyms, syms, ngen) (eObj1, eObj2)
             syms' = L.filter (\x -> (x /= i2) &&  (x /= i1)) syms
         in ((newSyms', syms', ngen''), E.ExprObj (mergeExpr' kv newId (Var newSymId1) (Var newSymId2)))
     | (E.RedirObj n) <- eObj1
-    , (E.ExprObj e) <- eObj2 = ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId (Var (Id n TyUnknown)) e))
-    | (E.RedirObj n) <- eObj2
-    , (E.ExprObj e) <- eObj1 = ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId e (Var (Id n TyUnknown))))
+    , (E.ExprObj e2) <- eObj2 =
+        let e1 = E.lookup n eenv1
+        in case e1 of
+            (Just (Var (Id _ t))) -> ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId (Var (Id n t)) e2))
+            (Just e1') -> ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId e1' e2))
+            Nothing -> error $ "Could not find EnvObj that RedirObj: " ++ (show eObj1) ++ " points to."
+    | (E.ExprObj e1) <- eObj1
+    , (E.RedirObj n) <- eObj2 =
+        let e2 = E.lookup n eenv2
+        in case e2 of
+            (Just (Var (Id _ t))) -> ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId e1 (Var (Id n t))))
+            (Just e2') -> ((newSyms, syms, ngen), E.ExprObj (mergeExpr' kv newId e1 e2'))
+            Nothing -> error $ "Could not find EnvObj that RedirObj: " ++ (show eObj2) ++ " points to."
     | otherwise =
         if (eObj1 == eObj2)
             then ((newSyms, syms, ngen), eObj1)
