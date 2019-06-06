@@ -3,6 +3,10 @@ module G2.Execution.StateMerging
   , mergeCurrExpr
   , createEqExpr
   , replaceNonDets
+  , mergeExpr
+  , mergeExprEnv
+  , mergeEnvObj
+  , mergePathConds
   ) where
 
 import G2.Language.Support
