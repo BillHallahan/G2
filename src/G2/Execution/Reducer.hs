@@ -722,13 +722,22 @@ evalZipper red hal pr zipper b
                     MergePoint -> do
                         let tree' = ReadyToMerge (head reduceds'') (count - 1) -- redRules only returns 1 state when reducerRes is MergePoint
                         let zipper' = (tree', snd zipper)
-                        evalZipper red' hal pr zipper' b' --red' or red
+                        evalZipper red' hal pr zipper' b'
                     Merge -> do
-                        let leaves = map (\exS -> Leaf exS (count + 1)) reduceds''
-                            tree' = CaseSplit leaves
-                            zipper' = (tree', snd zipper) -- replace node with CaseSplit node and leaves as children
-                            zipper'' = pickChild zipper'
-                        evalZipper red' hal pr zipper'' b'
+                        if (count >= 3) -- max depth of tree
+                            then
+                                -- do not add reduced states to current tree. Instead add to list of states in root.
+                                -- prevents tree from growing to deep. We do not attempt to merge these states
+                                let reduceds''' = map delMergePtFrames reduceds'' -- remove any merge pts
+                                    zipper' = floatReducedsToRoot zipper reduceds'''
+                                    zipper'' = deleteNode zipper'
+                                in evalZipper red' hal pr zipper'' b'
+                            else
+                                let leaves = map (\exS -> Leaf exS (count + 1)) reduceds''
+                                    tree' = CaseSplit leaves
+                                    zipper' = (tree', snd zipper) -- replace node with CaseSplit node and leaves as children
+                                    zipper'' = pickChild zipper'
+                                in evalZipper red' hal pr zipper'' b'
                     _ -> do
                         let leaves = map (\exS -> Leaf exS count) reduceds''
                             zipper' = replaceNode zipper leaves -- replace node with leaves
@@ -758,6 +767,22 @@ treeVal (ReadyToMerge val _) = val
 treeVal (Leaf val _) = val
 treeVal _ = error "Tree has no value"
 
+-- | Remove any MergePtFrame-s in the exec_stack of the ExState
+delMergePtFrames :: (ExState rv hv sov t) -> (ExState rv hv sov t)
+delMergePtFrames rs@(ExState {state = s}) =
+    let st = exec_stack s
+        st' = delMergePtFrames' st
+        s' = s {exec_stack = st'}
+    in rs {state = s'}
+
+delMergePtFrames' :: Stck.Stack Frame -> Stck.Stack Frame
+delMergePtFrames' st =
+    let xs = Stck.toList st
+        xs' = filter (\fr -> case fr of
+                                MergePtFrame -> False
+                                _ -> True) xs
+    in Stck.fromList xs'
+
 getSiblings :: TreeZipper a -> [Tree a]
 getSiblings (_, context) = case context of
     Cxt (x:_) -> snd x
@@ -767,6 +792,18 @@ getParent :: TreeZipper a -> Tree a
 getParent (_, context) = case context of
     Cxt (x:_) -> fst x
     _ -> error "No parent in this Cxt"
+
+-- | Add the reduceds to the list of states to be processed in the root of the treeZipper tz
+floatReducedsToRoot :: TreeZipper (ExState rv hv sov t) -> [ExState rv hv sov t] -> TreeZipper (ExState rv hv sov t)
+floatReducedsToRoot tz@(t, (Cxt context)) reduceds =
+    let parent = getParent tz
+        siblings = getSiblings tz
+    in case parent of
+        Root st ch -> let parent' = Root (st ++ reduceds) ch
+                      in (t, Cxt $ (parent', siblings):(drop 1 context))
+        _ -> let parentZipper = (parent, Cxt (drop 1 context))
+                 (parent', Cxt context') = floatReducedsToRoot parentZipper reduceds
+             in (t, Cxt $ (parent', siblings):context')
 
 -- | Replace current node with new leaves (if parent is CaseSplit), and focus on a new leaf, if any. If parent is root, add to list
 replaceNode :: TreeZipper a -> [Tree a] -> TreeZipper a
