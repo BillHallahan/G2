@@ -1,17 +1,21 @@
-module G2.Language.Located ( Located (..)
-                                     , Spanning (..)
-                                     , Locatable (..)
-                                     , Spannable (..)
-                                     , topLeft
-                                     , bottomRight
-                                     , combineSpans
-                                     , spanLookup
-                                     , locLookup) where
+module G2.Language.Located
+  ( Located (..)
+  , Spanning (..)
+  , Locatable (..)
+  , Spannable (..)
+  , topLeft
+  , bottomRight
+  , combineSpans
+  , spanLookup
+  , locLookup
+  , SpannedName(..)
+  ) where
 
 import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.ExprEnv (ExprEnv)
 
+import Data.Hashable
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -103,3 +107,18 @@ spanLookup =
 -- | Constructs a map of Locs to Names, based on all Names in the ExprEnv
 locLookup :: ExprEnv -> M.Map Loc Name
 locLookup = M.mapKeys start . spanLookup
+
+
+newtype SpannedName = SpannedName Name deriving (Show)
+
+instance Eq SpannedName where
+  (==) (SpannedName (Name occ1 mod1 unq1 sp1))
+       (SpannedName (Name occ2 mod2 unq2 sp2)) =
+        occ1 == occ2 && mod1 == mod2 && unq1 == unq2 && sp1 == sp2
+
+instance Hashable SpannedName where
+    hashWithSalt s (SpannedName (Name n m i l)) =
+        s `hashWithSalt`
+        n `hashWithSalt`
+        m `hashWithSalt`
+        i `hashWithSalt` l

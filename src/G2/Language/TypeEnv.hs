@@ -3,6 +3,7 @@
 
 module G2.Language.TypeEnv
   ( TypeEnv
+  
   , nameModMatch
   , argTypesTEnv
   , dataCon
@@ -11,14 +12,17 @@ module G2.Language.TypeEnv
   , isDataTyCon
   , isNewTyCon
   , newTyConRepType
+  , typeStripCastType
   , getDataCons
   , baseDataCons
   , getCastedAlgDataTy
   , getAlgDataTy
   , getDataCon
+  , getDataConNoType
   , getDataConNameMod
   , getDataConNameMod'
   , dataConArgs
+  , dataConWithName
   , dcName
   , retypeAlgDataTy
   , module G2.Language.AlgDataTy
@@ -33,12 +37,10 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-
 -- | The type environment maps names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
 -- and we only store those information accordingly.
 type TypeEnv = M.Map Name AlgDataTy
-
 
 nameModMatch :: Name -> TypeEnv -> Maybe Name
 nameModMatch (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m' ) . M.keys
@@ -77,6 +79,12 @@ newTyConRepType :: AlgDataTy -> Maybe Type
 newTyConRepType (NewTyCon {rep_type = t}) = Just t
 newTyConRepType _ = Nothing
 
+typeStripCastType :: TypeEnv -> Type -> Type
+typeStripCastType tenv t
+    | Just (adt, _) <- getCastedAlgDataTy t tenv
+    , Just rt <- newTyConRepType adt =  rt
+typeStripCastType _ t = t
+
 getDataCons :: Name -> TypeEnv -> Maybe [DataCon]
 getDataCons n tenv =
     case M.lookup n tenv of
@@ -100,11 +108,12 @@ getCastedAlgDataTy t tenv
     , ts <- tyAppArgs t = getCastedAlgDataTy' n ts tenv
     | otherwise = Nothing
 
+-- TODO : CHECK CORRECTNESS OF BOUND ARGS
 getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy' n ts tenv =
         case M.lookup n tenv of
             Just (NewTyCon {rep_type = TyCon n' _}) -> getCastedAlgDataTy' n' ts tenv
-            Just (NewTyCon {}) -> Nothing
+            Just (NewTyCon { }) -> Nothing
             (Just dc@(DataTyCon { bound_ids = bi })) -> Just (dc, zip bi ts)
             _ -> Nothing
 
@@ -127,6 +136,9 @@ getDataCon tenv adt dc =
         adt' = M.lookup adt tenv
     in
     maybe Nothing (flip dataConWithName dc) adt'
+
+getDataConNoType :: TypeEnv -> Name -> Maybe DataCon
+getDataConNoType tenv n = find (\dc -> dcName dc == n) . concatMap dataCon $ M.elems tenv
 
 getDataConNameMod :: TypeEnv -> Name -> Name -> Maybe DataCon
 getDataConNameMod tenv (Name n m _ _) dc =
@@ -158,5 +170,3 @@ dataConHasNameMod (DataCon (Name n m _ _) _) (Name n' m' _ _) = n == n' && m == 
 retypeAlgDataTy :: [Type] -> AlgDataTy -> AlgDataTy
 retypeAlgDataTy ts adt =
     foldr (uncurry retype) adt $ zip (bound_ids adt) ts
-
-

@@ -9,14 +9,11 @@ import G2.Initialization.InitVarLocs
 import G2.Initialization.StructuralEq
 import G2.Initialization.Types as IT
 
-import Data.HashSet
-import qualified Data.Map as M
-
-runInitialization :: IT.SimpleState -> [Type] -> HashSet Name -> (IT.SimpleState, Walkers)
+runInitialization :: IT.SimpleState -> [Type] -> (IT.SimpleState, Walkers)
 runInitialization s@(IT.SimpleState { IT.expr_env = eenv
                                  , IT.type_env = tenv
                                  , IT.name_gen = ng
-                                 , IT.type_classes = tc }) ts tgtNames =
+                                 , IT.type_classes = tc }) ts =
     let
         eenv2 = elimTypeSyms tenv eenv
         tenv2 = elimTypeSymsTEnv tenv

@@ -214,8 +214,10 @@ liquidTests =
                 , checkLiquid "tests/Liquid/MultModules/CallZ.lhs" "callZ" 1000 3 [AtLeast 1]
                 , checkAbsLiquid "tests/Liquid/AddToEven.hs" "f" 2000 1
                     [ AtLeast 1
-                    , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
-                                    -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
+                    , RForAll $ \[i] r [(FuncCall { funcName = Name n _ _ _, returns = fcr }) ]
+                        -> n == "g"
+                            && isInt i (\i' -> i' `mod` 2 == 0  &&
+                                                isInt r (\r' -> isInt fcr (\fcr' -> r' == i' + fcr')))]
 
                 , checkLiquid "tests/Liquid/ListTests.lhs" "r" 1000 1 [Exactly 0]
                 , checkLiquid "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]
@@ -386,6 +388,15 @@ testFileTests =
                 , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "BadCoerce" "f" 400 3 [AtLeast 1]
                 , checkExpr "tests/TestFiles/Expr.hs" 400 Nothing Nothing "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
 
+                , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "con" 300 3 [AtLeast 10]
+                , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eq" 700 3 [AtLeast 10]
+                , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eqGt1" 700 3 [AtLeast 10]
+                , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "capABC" 150 2 [AtLeast 10]
+                , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "appendEq" 500 2 [AtLeast 5]
+                , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 Nothing Nothing "exclaimEq" 3 [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
+                
+                , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "f" 400 2 [AtLeast 5]
+                , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "g" 400 2 [AtLeast 3]
                 -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 4 [AtLeast 1]
                 -- , checkExpr "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2 [ AtLeast 2
     --                                                                                                                   , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
@@ -532,7 +543,7 @@ testFileWithConfig :: String
                    -> IO [([Expr], Expr)]
 testFileWithConfig src m_assume m_assert m_reaches entry config = do
     let proj = takeDirectory src
-    r <- doTimeout (timeLimit config) $ runG2FromFile proj src [] (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) config
+    r <- doTimeout (timeLimit config) $ runG2FromFile [proj] [src] [] (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) (isJust m_assert || isJust m_reaches) (T.pack entry) config
 
     let (states, _) = maybe (error "Timeout") fst r
     return $ map (\(ExecRes { conc_args = i, conc_out = o}) -> (i, o)) states 
@@ -612,7 +623,7 @@ findCounterExamples' fp entry libs lhlibs config =
     let
         proj = takeDirectory fp
     in
-    doTimeout (timeLimit config) $ try (return . fst. fst =<< findCounterExamples proj fp entry libs lhlibs config)
+    doTimeout (timeLimit config) $ try (return . fst. fst =<< findCounterExamples [proj] [fp] entry libs lhlibs config)
 
 errors :: [Expr] -> Bool
 errors e =

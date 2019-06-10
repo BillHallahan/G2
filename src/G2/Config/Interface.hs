@@ -15,17 +15,18 @@ getConfig ars = do
 
     ex <- configExists con
 
+    homedir <- getHomeDirectory
     case ex of
         True -> do
             conf <- parseConfig con
 
             case conf of
-                Right conf' -> return (mkConfig ars conf')
+                Right conf' -> return (mkConfig homedir ars conf')
                 Left e -> do
                     putStrLn "Configuration file parsing error:"
                     print e
-                    return (mkConfig ars M.empty)
-        False -> return (mkConfig ars M.empty)
+                    return (mkConfig homedir ars M.empty)
+        False -> return (mkConfig homedir ars M.empty)
 
 configExists :: FilePath -> IO Bool
 configExists cn = do

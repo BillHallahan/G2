@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -7,6 +8,7 @@ module G2.Language.ExprEnv
     , EnvObj(..)
     , unwrapExprEnv
     , wrapExprEnv
+    , ConcOrSym (..)
     , empty
     , singleton
     , fromList
@@ -14,6 +16,7 @@ module G2.Language.ExprEnv
     , size
     , member
     , lookup
+    , lookupConcOrSym
     , deepLookup
     , isSymbolic
     , occLookup
@@ -57,10 +60,14 @@ import Prelude hiding( filter
                      , null)
 import qualified Prelude as Pre
 import Data.Coerce
+import Data.Data (Data, Typeable)
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+
+data ConcOrSym = Conc Expr
+               | Sym Id
 
 -- From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
@@ -71,10 +78,10 @@ import qualified Data.Text as T
 data EnvObj = ExprObj Expr
             | RedirObj Name
             | SymbObj Id
-            deriving (Show, Eq, Read)
+            deriving (Show, Eq, Read, Typeable, Data)
 
 newtype ExprEnv = ExprEnv (M.Map Name EnvObj)
-                  deriving (Show, Eq, Read)
+                  deriving (Show, Eq, Read, Typeable, Data)
 
 unwrapExprEnv :: ExprEnv -> M.Map Name EnvObj
 unwrapExprEnv = coerce
@@ -114,6 +121,14 @@ lookup n (ExprEnv smap) =
         Just (ExprObj expr) -> Just expr
         Just (RedirObj redir) -> lookup redir (ExprEnv smap)
         Just (SymbObj i) -> Just $ Var i
+        Nothing -> Nothing
+
+lookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
+lookupConcOrSym  n (ExprEnv smap) = 
+    case M.lookup n smap of
+        Just (ExprObj expr) -> Just $ Conc expr
+        Just (RedirObj redir) -> lookupConcOrSym redir (ExprEnv smap)
+        Just (SymbObj i) -> Just $ Sym i
         Nothing -> Nothing
 
 -- | Lookup the `Expr` with the given `Name`.

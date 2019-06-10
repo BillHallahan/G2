@@ -14,27 +14,61 @@ import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
 import G2.Translation.TransTypes
 
-translateLibs :: NameMap -> TypeNameMap -> TranslationConfig -> Maybe HscTarget -> [FilePath]
-    -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateLibs nm tm tr_con hsc fs = translateLibs' nm tm tr_con emptyExtractedG2 hsc fs
 
-translateLibs' :: NameMap -> TypeNameMap -> TranslationConfig -> ExtractedG2 -> Maybe HscTarget -> [FilePath]
-    -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateLibs' nm tnm _ exg2 _ [] = return (exg2, nm, tnm)
-translateLibs' nm tnm tr_con extg2 hsc (f:fs) = do
-  let guess_dir = dropWhileEnd (/= '/') f
-  (new_nm, new_tnm, extg2') <- hskToG2ViaCgGutsFromFile hsc guess_dir f nm tnm tr_con
-  translateLibs' new_nm new_tnm tr_con (mergeExtractedG2s [extg2, extg2']) hsc fs
+translateBase :: TranslationConfig
+  -> Config
+  -> Maybe HscTarget
+  -> IO (ExtractedG2, NameMap, TypeNameMap)
+translateBase tr_con config hsc = do
+  -- For base we have the advantage of knowing apriori the structure
+  -- So we can list the (proj, file) pairings
+  let base_inc = baseInclude config
+  let bases = base config
 
-translateLoaded :: FilePath -> FilePath -> [FilePath] -> TranslationConfig -> Config
-                 -> IO (Maybe T.Text, ExtractedG2)
+  translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc base_inc bases
+
+
+translateLibs :: NameMap
+  -> TypeNameMap
+  -> TranslationConfig
+  -> Config
+  -> Maybe HscTarget
+  -> [FilePath]
+  -> IO (ExtractedG2, NameMap, TypeNameMap)
+translateLibs nm tm tr_con config hsc fs = do
+  -- If we are not given anything, then we have to guess the project
+  let inc = map (dropWhileEnd (/= '/')) fs
+  translateLibPairs nm tm tr_con config emptyExtractedG2 hsc inc fs
+
+
+translateLibPairs :: NameMap
+  -> TypeNameMap
+  -> TranslationConfig
+  -> Config
+  -> ExtractedG2
+  -> Maybe HscTarget
+  -> [IncludePath]
+  -> [FilePath]
+  -> IO (ExtractedG2, NameMap, TypeNameMap)
+translateLibPairs nm tnm _ _ exg2 _ _ [] = return (exg2, nm, tnm)
+translateLibPairs nm tnm tr_con config exg2 hsc inc_paths (f: fs) = do
+  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc inc_paths [f] nm tnm tr_con
+  translateLibPairs new_nm new_tnm tr_con config (mergeExtractedG2s [exg2, exg2']) hsc inc_paths fs
+
+translateLoaded :: [FilePath]
+  -> [FilePath]
+  -> [FilePath]
+  -> TranslationConfig
+  -> Config
+  -> IO (Maybe T.Text, ExtractedG2)
 translateLoaded proj src libs tr_con config = do
-  (base_exg2, b_nm, b_tnm) <- translateLibs specialConstructors specialTypeNames tr_con Nothing (base config)
+  (base_exg2, b_nm, b_tnm) <- translateBase tr_con config Nothing
   let base_prog = [exg2_binds base_exg2]
       base_tys = exg2_tycons base_exg2
       b_exp = exg2_exports base_exg2
 
-  (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm tr_con (Just HscInterpreted) libs
+
+  (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm tr_con config (Just HscInterpreted) libs
   let lib_exp = exg2_exports lib_transs
 
   let base_tys' = base_tys ++ specialTypes
@@ -44,7 +78,9 @@ translateLoaded proj src libs tr_con config = do
   let merged_lib = mergeExtractedG2s ([base_trans', lib_transs])
 
   -- Now the stuff with the actual target
-  (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) proj src lib_nm lib_tnm tr_con
+  let def_proj = extraDefaultInclude config
+      def_src = extraDefaultMods config
+  (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) (def_proj ++ proj) (def_src ++ src) lib_nm lib_tnm tr_con
   let mb_modname = listToMaybe $ exg2_mod_names exg2
   let h_exp = exg2_exports exg2
 
@@ -67,9 +103,12 @@ translateLoaded proj src libs tr_con config = do
 
   return (mb_modname, final_exg2)
 
-translateLoadedD :: FilePath -> FilePath -> [FilePath] -> TranslationConfig -> Config
-    -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name])
-translateLoadedD proj src libs tr_con config = do
+translateLoadedD :: [FilePath]
+  -> [FilePath]
+  -> [FilePath]
+  -> TranslationConfig
+  -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name])
+translateLoadedD proj src libs tr_con = do
   -- Read the extracted libs and merge them
   -- Recall that each of these files comes with NameMap and TypeNameMap
   (nm, tnm, libs_g2) <- mapM readFileExtractedG2 libs >>= return . mergeFileExtractedG2s

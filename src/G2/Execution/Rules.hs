@@ -97,15 +97,21 @@ reduceNewPC solver
                                       , path_conds = spc })
                    , new_pcs = pc })
     | not (null pc) = do
+        -- In the case of newtypes, the PC exists we get may have the correct name
+        -- but incorrect type.
+        -- We do not want to add these to the State
+        -- This is a bit ugly, but not a huge deal, since the State already has PCExists
+        let pc' = filter (not . PC.isPCExists) pc
+
         -- Optimization
         -- We replace the path_conds with only those that are directly
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr (PC.insert kv) spc $ pc
+        let new_pc = foldr (PC.insert kv) spc $ pc'
             s' = s { path_conds = new_pc}
 
-        let rel_pc = PC.relevant kv pc new_pc
+        let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant kv pc new_pc
 
         res <- check solver s rel_pc
 
@@ -145,7 +151,6 @@ evalVar s@(State { expr_env = eenv
 -- to evaluate the function call
 evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [State t], NameGen)
 evalApp s@(State { expr_env = eenv
-                 , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck })
         ng e1 e2
@@ -154,7 +159,7 @@ evalApp s@(State { expr_env = eenv
     , v2 <- e2 =
         ( RuleBind
         , [s { expr_env = E.insert (idName i1) v2 eenv
-             , curr_expr = CurrExpr Return (mkTrue kv tenv) }]
+             , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -164,7 +169,7 @@ evalApp s@(State { expr_env = eenv
         let
             ar' = map (lookupForPrim eenv) ar
             appP = mkApp (Prim prim ty : ar')
-            exP = evalPrims kv tenv appP
+            exP = evalPrims kv appP
         in
         ( RuleEvalPrimToNorm
         , [s { curr_expr = CurrExpr Return exP }]
@@ -265,7 +270,7 @@ evalCase s@(State { expr_env = eenv
          ng mexpr bind alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
-  | (Lit lit) <- unsafeElimCast mexpr
+  | (Lit lit) <- unsafeElimOuterCast mexpr
   , (Alt (LitAlt _) expr):_ <- matchLitAlts lit alts =
       let 
           binds = [(bind, Lit lit)]
@@ -302,7 +307,7 @@ evalCase s@(State { expr_env = eenv
   -- We hit a DEFAULT instead.
   -- We perform the cvar binding and proceed with the alt
   -- expression.
-  | (Data _):_ <- unApp $ unsafeElimCast mexpr
+  | (Data _):_ <- unApp $ unsafeElimOuterCast mexpr
   , (Alt _ expr):_ <- matchDefaultAlts alts =
       let 
           binds = [(bind, mexpr)]
@@ -324,12 +329,12 @@ evalCase s@(State { expr_env = eenv
             (Cast e c) -> (Just c, e)
             _ -> (Nothing, mexpr)
 
-        (dsts_cs, ng') = case unApp $ unsafeElimCast expr of
+        (dsts_cs, ng') = case unApp $ unsafeElimOuterCast expr of
             (Var i@(Id _ _)):_ -> concretizeVarExpr s ng i bind dalts cast 
             (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
             (Data _):_ -> ([], ng)
-            _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimCast mexpr)
+            _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
         def_sts = liftSymDefAlt s mexpr bind alts
@@ -404,9 +409,14 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC = 
-          (newPCEmpty $ s { expr_env = eenv''
-                          , symbolic_ids = syms'
-                          , curr_expr = CurrExpr Evaluate aexpr''}, ngen')
+          (NewPC { state =  s { expr_env = eenv''
+                              , symbolic_ids = syms'
+                              , curr_expr = CurrExpr Evaluate aexpr''}
+                 -- It is VERY important that we insert a PCExists with the mexpr_id
+                 -- This forces reduceNewPC to check that the concretized data constructor does
+                 -- not violate any path constraints from default cases. 
+                 ,  new_pcs = [PCExists mexpr_id]
+                 }, ngen')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
@@ -435,7 +445,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     -- Apply list of types (if present) and DataCon children to DataCon
     dcon'' = mkApp exprs
 
-    -- Apply cast, in opposite direction of unsafeElimCast
+    -- Apply cast, in opposite direction of unsafeElimOuterCast
     dcon''' = case maybeC of 
                 (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
                 Nothing -> dcon''
@@ -449,6 +459,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
 
+    
 -- | Given the Type of the matched Expr, looks for Type in the TypeEnv, and returns Expr level representation of the Type
 mexprTyToExpr :: Type -> TypeEnv -> [Expr]
 mexprTyToExpr mexpr_t tenv 
@@ -652,7 +663,7 @@ retAssumeFrame s@(State {known_values = kv
             Just dc -> [dc]
             _ -> []
         -- If Assume is just a Var, concretize the Expr to a True Bool DataCon. Else add an ExtCond
-        (newPCs, ng') = case unApp $ unsafeElimCast e1 of
+        (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalt e2 stck
             _ -> addExtCond s ng e1 e2 True stck
     in
@@ -668,7 +679,7 @@ retAssertFrame s@(State {known_values = kv
             Just dcs -> dcs
             _ -> []
         -- If Assert is just a Var, concretize the Expr to a True or False Bool DataCon, else add an ExtCond
-        (newPCs, ng') = case unApp $ unsafeElimCast e1 of
+        (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalts e2 stck
             _ -> addExtConds s ng e1 ais e2 stck
             

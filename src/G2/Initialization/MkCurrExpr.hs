@@ -12,15 +12,13 @@ import qualified G2.Language.ExprEnv as E
 import Data.List
 import qualified Data.Text as T
 
-mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Name -> Maybe T.Text
+mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> Walkers
            -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
-mkCurrExpr m_assume m_assert n m_mod tc ng eenv walkers kv config =
-    case E.lookup n eenv of
+mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv walkers kv config =
+    case E.lookup (idName f) eenv of
         Just ex ->
             let
-                f = Id n (typeOf ex)
-
                 typs = spArgumentTypes ex
 
                 (typsE, typs') = instantitateTypes tc kv typs
@@ -37,8 +35,8 @@ mkCurrExpr m_assume m_assert n m_mod tc ng eenv walkers kv config =
                 id_name = Id name (typeOf strict_app_ex)
                 var_name = Var id_name
 
-                assume_ex = mkAssumeAssert (Assume Nothing) m_assume m_mod var_ids var_name var_name eenv
-                assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod var_ids assume_ex var_name eenv
+                assume_ex = mkAssumeAssert (Assume Nothing) m_assume m_mod (typsE ++ var_ids) var_name var_name eenv
+                assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
 
                 retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
                 
@@ -139,9 +137,9 @@ typeNamed :: ArgType -> Bool
 typeNamed (NamedType _) = True
 typeNamed _ = False
 
-checkReaches :: ExprEnv -> TypeEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
-checkReaches eenv _ _ Nothing _ = eenv
-checkReaches eenv tenv kv (Just s) m_mod =
+checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
+checkReaches eenv _ Nothing _ = eenv
+checkReaches eenv kv (Just s) m_mod =
     case findFunc s m_mod eenv of
-        Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv tenv) e) eenv
+        Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv) e) eenv
         Right err -> error  err

@@ -36,7 +36,7 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-      filterTC tc $ subVar m eenv tc (is, cexpr, ais')
+    filterTC tc $ subVar m eenv tc (is, cexpr, ais')
 
 subVarFuncCall :: Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
@@ -70,12 +70,12 @@ isVar (Var _) = True
 isVar _ = False
 
 filterTC :: ASTContainer m Expr => TypeClasses -> m -> m
-filterTC tc = modifyASTsFix (filterTC' tc)
+filterTC tc = modifyASTs (filterTC' tc)
 
 filterTC' :: TypeClasses -> Expr -> Expr
 filterTC' tc a@(App e e') =
     case tcCenter tc $ typeOf e' of
-        True -> e 
+        True -> filterTC' tc e 
         False -> a
 filterTC' _ e = e
 

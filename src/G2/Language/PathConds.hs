@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -19,7 +20,8 @@ module G2.Language.PathConds ( PathCond (..)
                                        , relatedSets
                                        , scc
                                        , varIdsInPC
-                                       , toList) where
+                                       , toList
+                                       , isPCExists) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -28,6 +30,7 @@ import G2.Language.Naming
 import G2.Language.Syntax
 
 import Data.Coerce
+import Data.Data (Data, Typeable)
 import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
@@ -49,7 +52,7 @@ import qualified Prelude as P (map)
 
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
 newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
-                    deriving (Show, Eq, Read)
+                    deriving (Show, Eq, Read, Typeable, Data)
 
 -- | Path conditions represent logical constraints on our current execution
 -- path. We can have path constraints enforced due to case/alt branching, due
@@ -59,7 +62,7 @@ data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
               | PCExists Id -- ^ Makes sure we find some value for the given name, of the correct type
               | AssumePC Id Int PathCond
-              deriving (Show, Eq, Read, Generic)
+              deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 type Constraint = PathCond
 type Assertion = PathCond
@@ -165,7 +168,7 @@ varIdsInPC :: KV.KnownValues -> PathCond -> [Id]
 varIdsInPC _ (AltCond _ e _) = varIds e
 varIdsInPC _ (ExtCond e _) = varIds e
 varIdsInPC _ (ConsCond _ e _) = varIds e
-varIdsInPC _ (PCExists _) = []
+varIdsInPC _ (PCExists i) = [i]
 varIdsInPC _ (AssumePC i _ _) = [i]
 
 varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
@@ -194,6 +197,10 @@ scc' (n:ns) pc newpc =
 {-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap
+
+isPCExists :: PathCond -> Bool
+isPCExists (PCExists _) = True
+isPCExists _ = False
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap

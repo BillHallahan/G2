@@ -25,6 +25,9 @@ initKnownValues eenv tenv =
     , tyInteger = typeWithStrName tenv "Integer"
     , dcInteger = dcWithStrName tenv "Integer" "Z#"
 
+    , tyChar = typeWithStrName tenv "Char"
+    , dcChar = dcWithStrName tenv "Char" "C#"
+
     , tyBool = typeWithStrName tenv "Bool"
     , dcTrue = dcWithStrName tenv "Bool" "True"
     , dcFalse = dcWithStrName tenv "Bool" "False"

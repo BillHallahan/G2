@@ -151,7 +151,7 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
     stopRed (LHLimitByAcceptedHalter co) (Just nAcc) _ s =
         if num_steps s > nAcc + co then Switch else Continue
     
-    stepHalter _ hv _ _ = hv
+    stepHalter _ hv _ _ _ = hv
 
 -- | Runs the state that had the fewest number of rules applied.
 data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer Int
@@ -189,4 +189,4 @@ instance Halter LHAbsHalter Int LHTracker where
 
     stopRed _ hv _ s = if length (abstract_calls $ track s) > hv then Discard else Continue
 
-    stepHalter _ hv _ _ = hv
+    stepHalter _ hv _ _ _ = hv

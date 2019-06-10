@@ -12,6 +12,9 @@ before_install:
   - /bin/rm z3.zip
   - export PATH=$PATH:$PWD/z3_downloaded/$Z3Base/bin
   - z3 --version
+
+  # Getting base library
+  - bash base_setup.sh
 ghc:
   - "8.2.2"
 

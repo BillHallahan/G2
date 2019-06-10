@@ -1,8 +1,20 @@
-module G2.Config.Config where
+module G2.Config.Config ( Mode (..)
+                        , SMTSolver (..)
+                        , HigherOrderSolver (..)
+                        , IncludePath
+                        , Config (..)
+                        , BoolDef (..)
+                        , mkConfig
+                        , strArg
+                        , boolArg) where
+
 
 import Data.Char
 import Data.List
 import qualified Data.Map as M
+
+import System.Directory
+
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
@@ -11,9 +23,14 @@ data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 data HigherOrderSolver = AllFuncs
                        | SingleFunc deriving (Eq, Show, Read)
 
+type IncludePath = FilePath
+
 data Config = Config {
       mode :: Mode
+    , baseInclude :: [IncludePath]
     , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
+    , extraDefaultInclude :: [IncludePath]
+    , extraDefaultMods :: [FilePath]
     , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
@@ -30,20 +47,25 @@ data Config = Config {
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
+    -- , baseLibs :: [BaseLib]
 }
 
-mkConfigDef :: Config
-mkConfigDef = mkConfig [] M.empty
+-- mkConfigDef :: Config
+-- mkConfigDef = mkConfig [] M.empty
 
-mapLib :: String
-mapLib = "./base-4.9.1.0/Data/Internal/Map.hs"
+baseRoot :: IO FilePath
+baseRoot = do
+  g2Dir <- getHomeDirectory >>= \f -> return $ f ++ "/.g2"
+  return $ g2Dir ++ "/base-4.9.1.0"
 
-mkConfig :: [String] -> M.Map String [String] -> Config
-mkConfig as m = Config {
+
+mkConfig :: String -> [String] -> M.Map String [String] -> Config
+mkConfig homedir as m = Config {
       mode = Regular
-    , base = strArgs "base" as m id [ "./base-4.9.1.0/Control/Exception/Base.hs"
-                                    , "./base-4.9.1.0/Prelude.hs"
-                                    , "./base-4.9.1.0/Data/Internal/Map.hs" ]
+    , baseInclude = baseIncludeDef (strArg "base" as m id homedir)
+    , base = baseDef (strArg "base" as m id homedir)
+    , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
+    , extraDefaultMods = extraDefaultPaths (strArg "extra-base" as m id homedir)
     , logStates = strArg "log-states" as m Just Nothing
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
@@ -54,14 +76,38 @@ mkConfig as m = Config {
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , stateMerging = boolArg "merge-states" as m Off
-    , steps = strArg "n" as m read 500
+    , steps = strArg "n" as m read 1000
     , cut_off = strArg "cut-off" as m read 600
     , switch_after = strArg "switch-after" as m read 300
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
-
+    -- , baseLibs = [BasePrelude, BaseException]
 }
+
+baseIncludeDef :: FilePath -> [FilePath]
+baseIncludeDef root =
+    [ root ++ "/.g2/base-4.9.1.0/Control/Exception/"
+    , root ++  "/.g2/base-4.9.1.0/"
+    , root ++ "/.g2/base-4.9.1.0/"
+    , root ++ "/.g2/base-4.9.1.0/Data/Internal/"
+    ]
+
+baseDef :: FilePath -> [FilePath]
+baseDef root =
+    [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
+    , root ++ "/.g2/base-4.9.1.0/Prelude.hs"
+    , root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
+    , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
+    ]
+
+extraDefaultIncludePaths :: FilePath -> [FilePath]
+extraDefaultIncludePaths root =
+    [ root ++ "/.g2/G2Stubs/src/" ] 
+
+extraDefaultPaths :: FilePath -> [FilePath]
+extraDefaultPaths root =
+    [ root ++ "/.g2/G2Stubs/src/G2/QuasiQuotes/G2Rep.hs" ] 
 
 smtSolverArg :: String -> SMTSolver
 smtSolverArg = smtSolverArg' . map toLower

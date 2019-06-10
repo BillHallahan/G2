@@ -66,6 +66,7 @@ emptyModGutsClosure =
     , mgcc_cls_insts = []
     , mgcc_type_env = emptyTypeEnv
     , mgcc_exports = []
+    , mgcc_deps = []
     , mgcc_rules = []
     }
 
@@ -75,6 +76,7 @@ emptyModDetailsClosure =
     { mdcc_cls_insts = []
     , mdcc_type_env = emptyTypeEnv
     , mdcc_exports = []
+    , mdcc_deps = []
     }
 
 emptyCgGutsClosure :: CgGutsClosure

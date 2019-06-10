@@ -12,6 +12,7 @@
 module G2.Solver.SMT2 where
 
 import G2.Config.Config
+import G2.Language.ArbValueGen
 import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax hiding (Assert)
@@ -29,8 +30,8 @@ import Data.Ratio
 import System.IO
 import System.Process
 
-data Z3 = Z3 (Handle, Handle, ProcessHandle)
-data CVC4 = CVC4 (Handle, Handle, ProcessHandle)
+data Z3 = Z3 ArbValueFunc (Handle, Handle, ProcessHandle)
+data CVC4 = CVC4 ArbValueFunc (Handle, Handle, ProcessHandle)
 
 data SomeSMTSolver where
     SomeSMTSolver :: forall con ast out io 
@@ -38,17 +39,17 @@ data SomeSMTSolver where
 
 instance Solver Z3 where
     check solver _ pc = checkConstraints solver pc
-    solve = checkModel
+    solve con@(Z3 avf _) = checkModel avf con
     close = closeIO
 
 instance Solver CVC4 where
     check solver _ pc = checkConstraints solver pc
-    solve = checkModel
+    solve con@(CVC4 avf _) = checkModel avf con
     close = closeIO
 
 instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
-    getIO (Z3 hhp) = hhp
-    closeIO (Z3 (h_in, _, _)) = hPutStr h_in "(exit)"
+    getIO (Z3 _ hhp) = hhp
+    closeIO (Z3 _ (h_in, _, _)) = hPutStr h_in "(exit)"
 
     empty _ = ""  
     merge _ = (++)
@@ -142,6 +143,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     smtModulo _ = function2 "mod"
     smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
     neg _ = function1 "-"
+    strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
 
@@ -153,12 +155,14 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     double _ r =
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
+    sortChar _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
@@ -169,8 +173,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     varName _ n _ = n
 
 instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
-    getIO (CVC4 hhp) = hhp
-    closeIO (CVC4 (h_in, _, _)) = hPutStr h_in "(exit)"
+    getIO (CVC4 _ hhp) = hhp
+    closeIO (CVC4 _ (h_in, _, _)) = hPutStr h_in "(exit)"
 
     empty _ = ""  
     merge _ = (++)
@@ -264,6 +268,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     smtModulo _ = function2 "mod"
     smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
     neg _ = function1 "-"
+    strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
 
@@ -274,12 +279,14 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     double _ r =
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
+    sortChar _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
@@ -323,13 +330,19 @@ getProcessHandles pr = do
     return (h_in, h_out, p)
 
 getSMT :: Config -> IO SomeSMTSolver
-getSMT (Config {smt = ConZ3}) = do
+getSMT = getSMTAV arbValue
+
+getSMTInfinite :: Config -> IO SomeSMTSolver
+getSMTInfinite = getSMTAV arbValueInfinite
+
+getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
+getSMTAV avf (Config {smt = ConZ3}) = do
     hhp@(h_in, _, _) <- getZ3ProcessHandles
     hPutStr h_in "(set-option :pp.decimal true)"
-    return $ SomeSMTSolver (Z3 hhp)
-getSMT (Config {smt = ConCVC4}) = do
+    return $ SomeSMTSolver (Z3 avf hhp)
+getSMTAV avf (Config {smt = ConCVC4}) = do
     hhp <- getCVC4ProcessHandles
-    return $ SomeSMTSolver (CVC4 hhp)
+    return $ SomeSMTSolver (CVC4 avf hhp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the

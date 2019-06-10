@@ -3,6 +3,7 @@
 -- | Haskell Translation
 module G2.Translation.Haskell
     ( loadProj
+    , guessProj
     , hskToG2ViaModGuts
     , hskToG2ViaModGutsFromFile
     , hskToG2ViaCgGuts
@@ -12,7 +13,9 @@ module G2.Translation.Haskell
     , mergeExtractedG2s
     , mkIOString
     , prim_list
+    , mkRawCore
     , rawDump
+    , mkExpr
     , mkId
     , mkIdUnsafe
     , mkName
@@ -24,6 +27,7 @@ module G2.Translation.Haskell
     , readFileExtractedG2
     , readAllExtractedG2s
     , mergeFileExtractedG2s
+    , findCabal
     ) where
 
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..), ProgramType)
@@ -55,14 +59,18 @@ import TyCoRep
 import Unique
 import Var as V
 
+import Control.Monad
+
 import qualified Data.Array as A
 import qualified Data.ByteString.Char8 as C
 import Data.Foldable
 import Data.List
+import Data.List.Split
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import System.FilePath
 import System.Directory
 
 -- Copying from Language.Typing so the thing we stuff into Ghc
@@ -110,7 +118,7 @@ equivMods = HM.fromList
             , ("Data.Map.Base", "Data.Map")]
 
 
-loadProj ::  Maybe HscTarget -> FilePath -> FilePath -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
+loadProj ::  Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
     let gen_flags = gflags
@@ -121,31 +129,40 @@ loadProj hsc proj src gflags tr_con = do
     let dflags = beta_flags' { hscTarget = case hsc of
                                                 Just hsc' -> hsc'
                                                 _ -> hscTarget beta_flags'
-                             , includePaths = includePaths beta_flags'
-                             , importPaths = [proj]
+                             , ghcLink = LinkInMemory
+                             , ghcMode = CompManager
+                             , includePaths = proj ++ includePaths beta_flags'
+                             , importPaths = proj ++ importPaths beta_flags'
 
                              , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
-                             , hpcDir = proj}
-
-    
+                             , hpcDir = head proj}    
 
     _ <- setSessionDynFlags dflags
-    target <- guessTarget src Nothing
-    _ <- setTargets [target]
+    targets <- mapM (flip guessTarget Nothing) src
+    _ <- setTargets targets
     load LoadAllTargets
 
 
 
 -- Compilation pipeline with CgGuts
-hskToG2ViaCgGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> G2.TranslationConfig -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+hskToG2ViaCgGutsFromFile :: Maybe HscTarget
+  -> [FilePath]
+  -> [FilePath]
+  -> G2.NameMap
+  -> G2.TypeNameMap
+  -> G2.TranslationConfig
+  -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaCgGutsFromFile hsc proj src nm tm tr_con = do
   closures <- mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con
   return $ hskToG2ViaCgGuts nm tm closures tr_con
 
 
-hskToG2ViaCgGuts :: G2.NameMap -> G2.TypeNameMap -> [(G2.CgGutsClosure, G2.ModDetailsClosure)] -> G2.TranslationConfig
+hskToG2ViaCgGuts :: G2.NameMap
+  -> G2.TypeNameMap
+  -> [(G2.CgGutsClosure, G2.ModDetailsClosure)]
+  -> G2.TranslationConfig
   -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaCgGuts nm tm pairs tr_con = do
   let (nm2, tm2, exg2s) = foldr (\(c, m) (nm', tm', exs) ->
@@ -172,7 +189,10 @@ cgGutsModDetailsClosureToModGutsClosure cg md =
     }
 
 
-mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.TranslationConfig 
+mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget
+  -> [FilePath]
+  -> [FilePath]
+  -> G2.TranslationConfig 
   -> IO [(G2.CgGutsClosure, G2.ModDetailsClosure)]
 mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
   (env, modgutss) <- runGhc (Just libdir) $ do
@@ -215,13 +235,22 @@ mkModDetailsClosure deps moddet =
 
 
 -- Compilation pipeline with ModGuts
-hskToG2ViaModGutsFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.NameMap -> G2.TypeNameMap -> G2.TranslationConfig -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+hskToG2ViaModGutsFromFile :: Maybe HscTarget
+  -> [FilePath]
+  -> [FilePath]
+  -> G2.NameMap
+  -> G2.TypeNameMap
+  -> G2.TranslationConfig
+  -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaModGutsFromFile hsc proj src nm tm tr_con = do
   closures <- mkModGutsClosuresFromFile hsc proj src tr_con
   return $ hskToG2ViaModGuts nm tm closures tr_con
    
 
-hskToG2ViaModGuts :: G2.NameMap -> G2.TypeNameMap -> [G2.ModGutsClosure] -> G2.TranslationConfig
+hskToG2ViaModGuts :: G2.NameMap
+  -> G2.TypeNameMap
+  -> [G2.ModGutsClosure]
+  -> G2.TranslationConfig
   -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaModGuts nm tm modgutss tr_con =
   let (nm2, tm2, exg2s) = foldr (\m (nm', tm', cls) ->
@@ -234,7 +263,10 @@ hskToG2ViaModGuts nm tm modgutss tr_con =
 
 
 
-modGutsClosureToG2 :: G2.NameMap -> G2.TypeNameMap -> G2.ModGutsClosure -> G2.TranslationConfig
+modGutsClosureToG2 :: G2.NameMap
+  -> G2.TypeNameMap
+  -> G2.ModGutsClosure
+  -> G2.TranslationConfig
   -> (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 modGutsClosureToG2 nm tm mgcc tr_con =
   let breaks = G2.mgcc_breaks mgcc in
@@ -273,7 +305,11 @@ modGutsClosureToG2 nm tm mgcc tr_con =
           , G2.exg2_rules = rules })
   
 
-mkModGutsClosuresFromFile :: Maybe HscTarget -> FilePath -> FilePath -> G2.TranslationConfig -> IO [G2.ModGutsClosure]
+mkModGutsClosuresFromFile :: Maybe HscTarget
+  -> [FilePath]
+  -> [FilePath]
+  -> G2.TranslationConfig
+  -> IO [G2.ModGutsClosure]
 mkModGutsClosuresFromFile hsc proj src tr_con = do
   (env, modgutss) <- runGhc (Just libdir) $ do
       _ <- loadProj hsc proj src [] tr_con
@@ -387,7 +423,7 @@ mkIdLookup i nm tm =
 mkIdUpdatingNM :: Id -> G2.NameMap -> G2.TypeNameMap -> (G2.Id, G2.NameMap)
 mkIdUpdatingNM vid nm tm =
     let
-        n@(G2.Name n' m _ _) = mkName . V.varName $ vid
+        n@(G2.Name n' m _ _) = flip mkNameLookup nm . V.varName $ vid
         i = G2.Id n ((mkType tm . varType) vid)
 
         nm' = HM.insert (n', m) n nm
@@ -502,7 +538,7 @@ mkTyCon nm tm t = case dcs of
                         Just dcs' -> ((nm'', tm''), Just (n, dcs'))
                         Nothing -> ((nm'', tm''), Nothing)
   where
-    n@(G2.Name n' m _ _) = mkName . tyConName $ t
+    n@(G2.Name n' m _ _) = flip mkNameLookup tm . tyConName $ t
     tm' = HM.insert (n', m) n tm
 
     nm' = foldr (uncurry HM.insert) nm
@@ -529,7 +565,7 @@ mkTyCon nm tm t = case dcs of
                                      , Just $ [(mkId tm'' . dataConWorkId) dc])
                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                             -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
-                            TupleTyCon { data_con = dc, tup_sort = ts } ->
+                            TupleTyCon { data_con = dc } ->
                               ( nm'
                               , tm'
                               , Just $ G2.DataTyCon bv $ [mkData nm' tm dc]
@@ -705,14 +741,14 @@ readAllExtractedG2s root file = go [file] HS.empty []
 
 
 -- Merge nm2 into nm1
-rewrireNameMap :: (T.Text, Maybe T.Text) -> G2.Name -> G2.NameMap -> G2.NameMap
-rewrireNameMap key val@(G2.Name occ mod unq span) nameMap =
-  case HM.lookup (occ, mod) nameMap of
+rewriteNameMap :: (T.Text, Maybe T.Text) -> G2.Name -> G2.NameMap -> G2.NameMap
+rewriteNameMap key val@(G2.Name occ md _ _) nameMap =
+  case HM.lookup (occ, md) nameMap of
     Nothing -> HM.insert key val nameMap
     Just new -> HM.insert key new nameMap
 
 mergeNameMap :: G2.NameMap -> G2.NameMap -> G2.NameMap
-mergeNameMap nm1 = foldr (\(key, name) nm1' -> rewrireNameMap key name nm1') nm1 . HM.toList
+mergeNameMap nm1 = foldr (\(key, name) nm1' -> rewriteNameMap key name nm1') nm1 . HM.toList
 
 
 -- Favors earlier in the list
@@ -726,4 +762,33 @@ mergeFileExtractedG2s ((nm1, tnm1, ex1) : (nm2, tnm2, ex2) : exs) =
   let ex' = mergeExtractedG2s [ex1, ex2] in
     mergeFileExtractedG2s $ (nm', tnm', ex') : exs
 
+-- Look for the directory that contains the first instance of a *.cabal file
+guessProj :: FilePath -> IO FilePath
+guessProj tgt = do
+  absTgt <- makeAbsolute tgt
+  let splits = splitOn "/" absTgt
+  potentialDirs <- filterM (dirContainsCabal)
+                    $ reverse -- since we prefer looking in backtrack manner
+                    $ map (intercalate "/")
+                    $ inits splits
 
+  case potentialDirs of
+    (d : _) -> return d
+    -- Unable to find a .cabal file at all, so we take the first one
+    -- with the file loped off.
+    [] -> return $ takeDirectory absTgt
+
+dirContainsCabal :: FilePath -> IO Bool
+dirContainsCabal dir = do
+  exists <- doesDirectoryExist dir
+  if exists then do
+    files <- listDirectory dir   
+    return $ any (\f -> ".cabal" `isSuffixOf` f) files
+  else
+    return $ False
+
+findCabal :: FilePath -> IO (Maybe FilePath)
+findCabal fp = do
+  dir <- guessProj fp
+  files <- listDirectory dir
+  return $ find (\f -> ".cabal" `isSuffixOf` f) files

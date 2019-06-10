@@ -1,6 +1,8 @@
 module G2.Language.ArbValueGen ( ArbValueGen
-                                         , arbValueInit
-                                         , arbValue) where
+                               , ArbValueFunc
+                               , arbValueInit
+                               , arbValue
+                               , arbValueInfinite ) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -11,47 +13,81 @@ import G2.Language.Typing
 import Data.List
 import qualified Data.Map as M
 import Data.Ord
+import Data.Tuple
 
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
                            , floatGen = 0
                            , doubleGen = 0
-                           , boolGen = True}
+                           , charGen = charGenInit -- See [CharGenInit]
+                           , boolGen = True
+                           }
+
+type ArbValueFunc = Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+
+-- [CharGenInit]
+-- Do NOT make this a cycle.  It would simplify arbValue, but causes an infinite loop
+-- when we have to output a State (in the QuasiQuoter, for example)
+
+charGenInit :: [Char]
+charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 
 -- | arbValue
 -- Allows the generation of arbitrary values of the given type.
+-- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue t tenv av
+arbValue = arbValue' getFiniteADT
+
+-- | arbValue
+-- Allows the generation of arbitrary values of the given type.
+-- Does not always cut off recursive ADTs.
+-- Returns a new ArbValueGen that (in the case of the primitives)
+-- will give a different value the next time arbValue is called with
+-- the same Type.
+arbValueInfinite :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite = arbValue' getADT
+
+arbValue' :: GetADT -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValue' getADTF t tenv av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
     maybe (Prim Undefined TyBottom, av) 
-          (\adt -> getFiniteADT tenv av adt ts)
+          (\adt -> getADTF tenv av adt ts)
           (M.lookup n tenv)
-arbValue (TyApp t1 t2) tenv av =
+arbValue' getADTF (TyApp t1 t2) tenv av =
   let
-      (e1, av') = arbValue t1 tenv av
-      (e2, av'') = arbValue t2 tenv av'
+      (e1, av') = arbValue' getADTF t1 tenv av
+      (e2, av'') = arbValue' getADTF t2 tenv av'
   in
   (App e1 e2, av'')
-arbValue TyLitInt _ av =
+arbValue' _ TyLitInt _ av =
     let
         i = intGen av
     in
     (Lit (LitInt $ i), av { intGen = i + 1 })
-arbValue TyLitFloat _ av =
+arbValue' _ TyLitFloat _ av =
     let
         f = floatGen av
     in
     (Lit (LitFloat $ f), av { floatGen = f + 1 })
-arbValue TyLitDouble _ av =
+arbValue' _ TyLitDouble _ av =
     let
         d = doubleGen av
     in
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
-arbValue t _ av = (Prim Undefined t, av)
+arbValue' _ TyLitChar _ av =
+    let
+        c:cs = case charGen av of
+                xs@(_:_) -> xs
+                _ -> charGenInit
+    in
+    (Lit (LitChar c), av { charGen = cs})
+arbValue' _ t _ av = (Prim Undefined t, av)
+
+type GetADT = TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
 
 -- Generates an arbitrary value of the given ADT,
 -- but will return something containing @(Prim Undefined)@ instead of an infinite Expr
@@ -84,6 +120,6 @@ getADT tenv av adt ts =
         tyVIds = map TyVar ids
         min_dc' = foldr (uncurry replaceASTs) min_dc $ zip tyVIds ts
 
-        (es, _) = unzip $ map (\t -> arbValue t tenv av) $ dataConArgs min_dc'
+        (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite t tenv av_) av $ dataConArgs min_dc'
     in
-    (mkApp $ Data min_dc':es, av)
+    (mkApp $ Data min_dc':map Type ts ++ es, av')

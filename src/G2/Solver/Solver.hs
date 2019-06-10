@@ -10,10 +10,14 @@ module G2.Solver.Solver ( Solver (..)
                         , SomeTrSolver (..)
                         , Result (..)
                         , GroupRelated (..)
-                        , CombineSolvers (..)) where
+                        , groupRelatedFinite
+                        , groupRelatedInfinite
+                        , CombineSolvers (..)
+                        , UndefinedHigherOrder (..)) where
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
+import Data.List
 import qualified Data.Map as M
 
 -- | The result of a Solver query
@@ -72,7 +76,13 @@ data SomeTrSolver where
                   . TrSolver solver => solver -> SomeTrSolver
 
 -- | Splits path constraints before sending them to the rest of the solvers
-data GroupRelated a = GroupRelated a
+data GroupRelated a = GroupRelated ArbValueFunc a
+
+groupRelatedFinite :: a -> GroupRelated a
+groupRelatedFinite = GroupRelated arbValue
+
+groupRelatedInfinite :: a -> GroupRelated a
+groupRelatedInfinite = GroupRelated arbValueInfinite
 
 checkRelated :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
 checkRelated solver s pc =
@@ -86,40 +96,48 @@ checkRelated' sol s (p:ps) = do
         SAT -> checkRelated' sol' s ps
         r -> return (r, sol')
 
-solveRelated :: TrSolver a => a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
-solveRelated sol s b is pc = do
-    solveRelated' sol s b M.empty is $ PC.relatedSets (known_values s) pc
+solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
+solveRelated avf sol s b is pc = do
+    solveRelated' avf sol s b M.empty is $ PC.relatedSets (known_values s) pc
 
-solveRelated' :: TrSolver a => a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
-solveRelated' sol s b m is [] =
+solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
+solveRelated' avf sol s b m is [] =
     let 
         is' = filter (\i -> idName i `M.notMember` m) is
-        nv = map (\(Id n t) -> (n, fst $ arbValue t (type_env s) (arb_value_gen b))) is'
+
+        (_, nv) = mapAccumL
+            (\av_ (Id n t) ->
+                let 
+                    (av_', v) = avf t (type_env s) av_
+                    in
+                    (v, (n, av_'))
+            ) (arb_value_gen b) is'
+
         m' = foldr (\(n, v) -> M.insert n v) m nv
     in
     return (SAT, Just m', sol)
-solveRelated' sol s b m is (p:ps) = do
+solveRelated' avf sol s b m is (p:ps) = do
     let is' = concat $ PC.map (PC.varIdsInPC (known_values s)) p
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of
-        (SAT, Just m', sol') -> solveRelated' sol' s b (M.union m m') (is ++ is'') ps
+        (SAT, Just m', sol') -> solveRelated' avf sol' s b (M.union m m') (is ++ is'') ps
         rm' -> return rm'
 
 instance Solver solver => Solver (GroupRelated solver) where
-    check (GroupRelated sol) s pc = return . fst =<< checkRelated (Tr sol) s pc
-    solve (GroupRelated sol) s b is pc =
-        return . (\(r, m, _) -> (r, m)) =<< solveRelated (Tr sol) s b is pc
-    close (GroupRelated s) = close s
+    check (GroupRelated _ sol) s pc = return . fst =<< checkRelated (Tr sol) s pc
+    solve (GroupRelated avf sol) s b is pc =
+        return . (\(r, m, _) -> (r, m)) =<< solveRelated avf (Tr sol) s b is pc
+    close (GroupRelated _ s) = close s
 
 instance TrSolver solver => TrSolver (GroupRelated solver) where
-    checkTr (GroupRelated sol) s pc = do
+    checkTr (GroupRelated avf sol) s pc = do
         (r, sol') <- checkRelated sol s pc
-        return (r, GroupRelated sol')
-    solveTr (GroupRelated sol) s b is pc = do
-        (r, m, sol') <- solveRelated sol s b is pc
-        return (r, m, GroupRelated sol')
-    closeTr (GroupRelated s) = closeTr s
+        return (r, GroupRelated avf sol')
+    solveTr (GroupRelated avf sol) s b is pc = do
+        (r, m, sol') <- solveRelated avf sol s b is pc
+        return (r, m, GroupRelated avf sol')
+    closeTr (GroupRelated _ s) = closeTr s
 
 -- | Allows solvers to be combined, to exploit different solvers abilities
 -- to solve different kinds of constraints
@@ -149,6 +167,22 @@ solveWithEither a b s binds is pc = do
             case rb of
                 (Unknown ub, _, b') -> return $ (Unknown $ ua ++ ",\n" ++ ub, Nothing, a' :?> b')
                 (r, m, b') -> return (r, m, a' :?> b')
+
+-- | Fills in unused higher order functions with undefined
+data UndefinedHigherOrder = UndefinedHigherOrder
+
+instance Solver UndefinedHigherOrder where
+    check _ s pc =
+        let
+            f = concatMap (PC.varIdsInPC (known_values s)) $ PC.toList pc
+        in
+        case f of
+            [Id _ (TyFun _ _)] -> return SAT
+            _ -> return $ Unknown "UndefinedHigherOrder"
+
+    solve _ _ _ [i@(Id _ (TyFun _ _))] _ =
+        return (SAT, Just $ M.singleton (idName i) (Prim Undefined TyBottom))
+    solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder", Nothing)
 
 instance (Solver a, Solver b) => Solver (CombineSolvers a b) where
     check (a :<? b) s pc = return . fst =<< checkWithEither (Tr b) (Tr a) s pc

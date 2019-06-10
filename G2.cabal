@@ -79,8 +79,6 @@ library
 
                        , G2.Liquid.Interface
 
-                       , G2.Plugin
-
                        , G2.Postprocessing.Interface
 
                        , G2.Preprocessing.AdjustTypes
@@ -91,7 +89,15 @@ library
                        , G2.Solver.Interface
                        , G2.Solver.Solver
 
+                       , G2.QuasiQuotes.Internals.G2Rep
+                       , G2.QuasiQuotes.FloodConsts
+                       , G2.QuasiQuotes.G2Rep
+                       , G2.QuasiQuotes.Parser
+                       , G2.QuasiQuotes.QuasiQuotes
+                       , G2.QuasiQuotes.Support
+
                        , G2.Translation
+                       , G2.Translation.Cabal.Cabal
   other-modules:         G2.Config.Config
                        , G2.Config.Interface
                        , G2.Config.ParseConfig
@@ -130,8 +136,10 @@ library
                        , G2.Translation.TransTypes
 
   build-depends:         array
+                       , Cabal
                        , base >= 4.8 && < 5
                        , bytestring
+                       , concurrent-extra >= 0.7
                        , containers >= 0.5 && < 0.6
                        , directory
                        , extra
@@ -147,14 +155,20 @@ library
                        , mtl
                        , reducers
                        , regex-compat
+                       , regex-base
                        , parsec
                        , process >=1 && <1.7
+                       , split
+                       , template-haskell
+                       , temporary-rc
                        , text
                        , time >= 1.6
                        , unordered-containers
   default-language:    Haskell2010
-  ghc-options:         -O2 -Wall 
+  ghc-options:         -O2 -Wall
+                       -- -ddump-splices
                        -- -fprof-auto
+                       -- -fexternal-interpreter -opti+RTS -opti-p
   hs-source-dirs:      src
 
 executable G2
@@ -182,6 +196,7 @@ executable G2
                        , regex-compat
                        , parsec
                        , process
+                       , split
                        , text
                        , time >= 1.6
                        , unordered-containers
@@ -189,6 +204,19 @@ executable G2
   ghc-options:         -O2 -threaded -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      exe
+  main-is:             Main.hs
+
+executable QuasiQuote
+  -- other-modules:   
+  -- other-extensions:    
+  build-depends:         g2
+                       , base >= 4.8 && < 5
+                       , time >= 1.6
+  default-language:    Haskell2010
+  ghc-options:         -O2 -Wall +RTS -N1
+                       -- -ddump-splices
+                       -- -fprof-auto "-with-rtsopts=-p"
+  hs-source-dirs:      quasiquote
   main-is:             Main.hs
 
 test-suite test
@@ -214,6 +242,7 @@ test-suite test
                        , regex-compat
                        , parsec
                        , process
+                       , split
                        , tagged
                        , tasty >= 1.0
                        , tasty-hunit >= 0.10

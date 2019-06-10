@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -46,6 +47,7 @@ import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeEnv
 
+import Data.Data (Data, Typeable)
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -67,7 +69,7 @@ nameLoc (Name _ _ _ s) = s
 -- | Allows the creation of fresh `Name`s.
 data NameGen = NameGen { max_uniq :: (HM.HashMap (T.Text, Maybe T.Text) Int)
                        , dc_children :: (HM.HashMap Name [Name]) }
-                deriving (Show, Eq, Read)
+                deriving (Show, Eq, Read, Typeable, Data)
 
 -- nameToStr relies on NameCleaner eliminating all '_', to preserve uniqueness
 -- | Converts a name to a string, which is useful to interact with solvers.
@@ -478,11 +480,13 @@ instance Named KnownValues where
             , dcFloat = dF
             , dcDouble = dD
             , dcInteger = dI2
+            , dcChar = dcCh
 
             , tyInt = tI
             , tyFloat = tF
             , tyDouble = tD
             , tyInteger = tI2
+            , tyChar = tCh
 
             , tyBool = tB
             , dcTrue = dcT
@@ -522,7 +526,7 @@ instance Named KnownValues where
 
             , patErrorFunc = patE
             }) =
-            [dI, dF, dD, dI2, tI, tI2, tF, tD, tB, dcT, dcF, tList, tCons, tEmp
+            [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tList, tCons, tEmp
             , eqT, numT, ordT, integralT, eqF, neqF, plF, minusF, tmsF, divF, negF, modF, fromIntegerF, toIntegerF
             , geF, gtF, ltF, leF, seT, seF
             , andF, orF, patE]
@@ -532,11 +536,13 @@ instance Named KnownValues where
                    , dcFloat = dF
                    , dcDouble = dD
                    , dcInteger = dI2
+                   , dcChar = dcCh
 
                    , tyInt = tI
                    , tyFloat = tF
                    , tyDouble = tD
                    , tyInteger = tI2
+                   , tyChar = tCh
 
                    , tyBool = tB
                    , dcTrue = dcT
@@ -581,11 +587,13 @@ instance Named KnownValues where
                         , dcFloat = rename old new dF
                         , dcDouble = rename old new dD
                         , dcInteger = rename old new dI2
+                        , dcChar = rename old new dcCh
 
                         , tyInt = rename old new tI
                         , tyFloat = rename old new tF
                         , tyDouble = rename old new tD
                         , tyInteger = rename old new tI2
+                        , tyChar = rename old new tCh
 
                         , tyBool = rename old new tB
                         , dcTrue = rename old new dcT

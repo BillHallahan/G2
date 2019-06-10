@@ -12,6 +12,8 @@ import qualified G2.Language.ExprEnv as E
 
 import G2.Execution
 
+import G2.Initialization.MkCurrExpr
+
 import G2.Liquid.AddCFBranch
 import G2.Liquid.AddLHTC
 import G2.Liquid.AddOrdToNum
@@ -57,13 +59,13 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: FilePath -> FilePath -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
+findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
 findCounterExamples proj fp entry libs lhlibs config = do
     let config' = config { mode = Liquid }
 
     lh_config <- getOpts []
 
-    ghc_cg <- try $ getGHCInfos lh_config proj [fp] lhlibs :: IO (Either SomeException [LHOutput])
+    ghc_cg <- try $ getGHCInfos lh_config proj fp lhlibs :: IO (Either SomeException [LHOutput])
     
     let ghc_cg' = case ghc_cg of
                   Right g_c -> g_c
@@ -78,7 +80,7 @@ runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> Config
                     -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci_cg config = do
-    let (init_state, ifi, bindings) = initState exg2 Nothing Nothing True entry mb_modname config
+    let (init_state, ifi, bindings) = initState exg2 True entry mb_modname (mkCurrExpr Nothing Nothing) config
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state) init_state bindings)
     let cleaned_state = init_state' { type_env = type_env init_state } 
 
@@ -208,9 +210,9 @@ initializeLH ghci_cg ifi bindings = do
 
     return cfn
 
-getGHCInfos :: LHC.Config -> FilePath -> [FilePath] -> [FilePath] -> IO [LHOutput]
+getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO [LHOutput]
 getGHCInfos config proj fp lhlibs = do
-    let config' = config {idirs = idirs config ++ [proj] ++ lhlibs
+    let config' = config {idirs = idirs config ++ proj ++ lhlibs
                          , files = files config ++ lhlibs
                          , ghcOptions = ["-v"]}
 

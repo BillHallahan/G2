@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -24,15 +25,17 @@ import G2.Language.Syntax
 import G2.Language.Typing
 
 import Data.Coerce
+import Data.Data (Data, Typeable)
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id]} deriving (Show, Eq, Read)
+data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id]}
+                deriving (Show, Eq, Read, Typeable, Data)
 
 type TCType = M.Map Name Class
 newtype TypeClasses = TypeClasses TCType
-                      deriving (Show, Eq, Read)
+                      deriving (Show, Eq, Read, Typeable, Data)
 
 initTypeClasses :: [(Name, Id, [Id])] -> TypeClasses
 initTypeClasses nsi =

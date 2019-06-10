@@ -227,12 +227,11 @@ replaceNonDetExpr _ e = e
 substAndEval :: State t -> Expr -> Bool
 substAndEval (State {model = m
                       , known_values = kv
-                      , type_env = tenv
                       , type_classes = tc}) e = 
     getBoolFromDataCon kv solvedExpr 
     where
         exprToSolve = subExpr m tc e
-        solvedExpr = evalPrim kv tenv exprToSolve
+        solvedExpr = evalPrim kv exprToSolve
 
 subExpr :: Model -> TypeClasses -> Expr -> Expr
 subExpr m tc = modifyContainedASTs (subExpr' m tc [])

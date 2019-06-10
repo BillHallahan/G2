@@ -1,5 +1,6 @@
 module G2.Execution.Memory 
   ( markAndSweep
+  , markAndSweepIgnoringKnownValues
   , markAndSweepPreserving
   ) where
 
@@ -15,18 +16,23 @@ import qualified Data.Map as M
 
 
 markAndSweep :: State t -> Bindings -> (State t, Bindings)
-markAndSweep = markAndSweepPreserving []
+markAndSweep s = markAndSweepPreserving [] s
+
+markAndSweepIgnoringKnownValues :: State t -> Bindings -> (State t, Bindings)
+markAndSweepIgnoringKnownValues = markAndSweepPreserving' []
 
 markAndSweepPreserving :: [Name] -> State t -> Bindings -> (State t, Bindings)
-markAndSweepPreserving ns (state@State { expr_env = eenv
-                                       , type_env = tenv
-                                       , curr_expr = cexpr
-                                       , path_conds = pc
-                                       , symbolic_ids = iids
-                                       , exec_stack = es
-                                       , known_values = kv
-                                       }) (bindings@Bindings { deepseq_walkers = dsw
-                                                             , higher_order_inst = inst }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
+markAndSweepPreserving ns s = markAndSweepPreserving' (ns ++ names (known_values s)) s
+
+markAndSweepPreserving' :: [Name] -> State t -> Bindings -> (State t, Bindings)
+markAndSweepPreserving' ns (state@State { expr_env = eenv
+                                        , type_env = tenv
+                                        , curr_expr = cexpr
+                                        , path_conds = pc
+                                        , symbolic_ids = iids
+                                        , exec_stack = es
+                                        }) (bindings@Bindings { deepseq_walkers = dsw
+                                                              , higher_order_inst = inst }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
                                (state', bindings')
   where
     state' = state { expr_env = eenv'
@@ -37,7 +43,6 @@ markAndSweepPreserving ns (state@State { expr_env = eenv
     active = activeNames tenv eenv S.empty $ names cexpr ++
                                                    names es ++
                                                    names pc ++
-                                                   names kv ++
                                                    names iids ++
                                                    higher_ord_rel ++
                                                    ns

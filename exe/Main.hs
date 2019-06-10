@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main (main, plugin) where
+module Main (main) where
 
 import DynFlags
 
@@ -20,20 +20,9 @@ import G2.Translation
 
 import G2.Liquid.Interface
 
-import G2.Plugin
-
 main :: IO ()
 main = do
-  -- base <- readFileExtractedG2 "/home/celery/Desktop/ghc-dump-dir/GHC.Base.g2i"
-  -- libs <- readAllExtractedG2s "/home/celery/Desktop/ghc-dump-dir" "Prelude.g2i"
-  -- let mergeds = mergeFileExtractedG2s libs
-  -- putStrLn $ show mergeds
-  -- putStrLn $ show $ length libs
-
-  -- error "HELLO!"
-
   as <- getArgs
-  let (proj:tail_args) = as
 
   let m_liquid_file = mkLiquid as
   let m_liquid_func = mkLiquidFunc as
@@ -43,7 +32,7 @@ main = do
 
   case (m_liquid_file, m_liquid_func) of
       (Just lhfile, Just lhfun) -> do
-        let m_idir = mIDir tail_args
+        let m_idir = mIDir as
             proj = maybe (takeDirectory lhfile) id m_idir
         runSingleLHFun proj lhfile lhfun libs lhlibs as
       _ -> do
@@ -53,7 +42,7 @@ runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> 
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
   config <- getConfig ars
   _ <- doTimeout (timeLimit config) $ do
-    ((in_out, _), entry) <- findCounterExamples proj lhfile (T.pack lhfun) libs lhlibs config
+    ((in_out, _), entry) <- findCounterExamples [proj] [lhfile] (T.pack lhfun) libs lhlibs config
     printLHOut entry in_out
   return ()
 
@@ -61,8 +50,8 @@ runWithArgs :: [String] -> IO ()
 runWithArgs as = do
 
   let (src:entry:tail_args) = as
-      m_idir = mIDir tail_args
-      proj = maybe (takeDirectory src) id m_idir
+
+  proj <- guessProj src
 
   --Get args
   let m_assume = mAssume tail_args
@@ -79,20 +68,14 @@ runWithArgs as = do
   config <- getConfig as
   _ <- doTimeout (timeLimit config) $ do
     ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
-        runG2FromFile proj src libs (fmap T.pack m_assume)
+        runG2FromFile [proj] [src] libs (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry config
-    -- (mb_modname, binds, tycons, cls, ex) <- translateLoaded proj src libs True config
-
-    -- let (init_state, entry_f) = initState binds tycons cls (fmap T.pack m_assume) (fmap T.pack m_assert) (fmap T.pack m_reaches) 
-    --                            (isJust m_assert || isJust m_reaches || m_retsTrue) tentry mb_modname ex config
-
-    -- in_out <- runG2WithConfig init_state config
 
     case validate config of
         True -> do
-            r <- validateStates proj src (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
+            r <- validateStates [proj] [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
