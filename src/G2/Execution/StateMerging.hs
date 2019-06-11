@@ -119,7 +119,7 @@ mergeExprEnv kv newId ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_map',
           eenv2_map = E.unwrapExprEnv eenv2
           zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
           ((changedSyms, ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId eenv1 eenv2) ([], ngen) zipped_maps
-          merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map (fst . unzip $ changedSyms)
+          merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map (snd . unzip $ changedSyms)
           eenv1_rem = (M.difference eenv1_map eenv2_map)
           eenv2_rem = (M.difference eenv2_map eenv1_map)
 
