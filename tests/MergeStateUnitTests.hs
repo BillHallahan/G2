@@ -9,6 +9,7 @@ module MergeStateUnitTests ( mergeCurrExprTests
 import G2.Interface
 import G2.Language as G2
 import G2.Translation
+import G2.Initialization.MkCurrExpr
 import G2.Execution.StateMerging as SM
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as EE
@@ -44,8 +45,9 @@ checkRelAssumeTests = do
             expected = checkRelAssumeExpected -- list of (test number, expected result) tuples
             states = createTestStates kv statePCs
 
-        SomeSMTSolver con <- getSMT (createConfig {smt = ConZ3})
-        let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver :?> con)})
+        let avf = arbValue
+        SomeSMTSolver con <- getSMTAV avf (createConfig {smt = ConZ3}) 
+        let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver avf :?> con)})
 
         results <- sequence $ zipWith (\s pc -> do (r, _) <- checkTr assPCSol s pc
                                                    return r) states checkPCs
@@ -66,8 +68,9 @@ solveRelAssumeTests = do
             expected = solveRelAssumeExpected -- list of (test number, expected result) tuples
             states = createTestStates kv statePCs
 
-        SomeSMTSolver con <- getSMT (createConfig {smt = ConZ3})
-        let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver :?> con)})
+        let avf = arbValue
+        SomeSMTSolver con <- getSMTAV avf (createConfig {smt = ConZ3})
+        let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver avf :?> con)})
         
         results <- sequence $ zipWith3 (\s i pc -> do (r, m, _) <- solveTr assPCSol s b i pc
                                                       return (r, m)) states is checkPCs
@@ -389,6 +392,9 @@ simpleKV = KV.KnownValues
             , KV.tyInteger = (Name "" Nothing 0 Nothing)
             , KV.dcInteger = (Name "" Nothing 0 Nothing)
 
+            , KV.tyChar = (Name "" Nothing 0 Nothing)
+            , KV.dcChar = (Name "" Nothing 0 Nothing)
+
             , KV.tyBool = (Name "Bool" Nothing 0 Nothing)
             , KV.dcTrue = (Name "" Nothing 0 Nothing)
             , KV.dcFalse = (Name "" Nothing 0 Nothing)
@@ -433,9 +439,9 @@ createInitState :: FilePath
                    -> IO (State ())
 createInitState src entry config = do
     let proj = takeDirectory src
-    (mb_modname, exg2) <- translateLoaded proj src [] simplTranslationConfig config
+    (mb_modname, exg2) <- translateLoaded [proj] [src] [] simplTranslationConfig config
 
-    let (init_state, _ , _) = initState exg2 Nothing Nothing False (T.pack entry) mb_modname config
+    let (init_state, _ , _) = initState exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) config
     return (init_state)
 
 createTestState :: KnownValues -> TypeEnv -> PathConds -> State ()
@@ -480,6 +486,9 @@ createConfig = Config {
     smt = ConZ3
     , mode = Regular
     , base = []
+    , baseInclude = []
+    , extraDefaultInclude = []
+    , extraDefaultMods = []
     , logStates = Nothing
     , maxOutputs = Nothing
     , printCurrExpr = False

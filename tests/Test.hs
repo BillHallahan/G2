@@ -14,7 +14,6 @@ import G2.Config
 import G2.Interface
 import G2.Language as G2
 import G2.Liquid.Interface
-import G2.Execution.StateMerging as SM
 import qualified G2.Language.KnownValues as KV
 
 import Control.Exception
