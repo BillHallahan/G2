@@ -29,6 +29,7 @@ import G2.Solver hiding (Assert)
 
 import Control.Monad.Extra
 import Data.Maybe
+import qualified Data.HashSet as HS
 
 stdReduce :: Solver solver => solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce solver s b@(Bindings {name_gen = ng}) = do
@@ -450,7 +451,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
                 (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
                 Nothing -> dcon''
 
-    syms' = newparams ++ (filter (/= mexpr_id) syms)
+    syms' = HS.union (HS.fromList newparams) (HS.delete mexpr_id syms)
 
     -- concretizes the mexpr to have same form as the DataCon specified
     eenv'' = E.insert mexpr_n dcon''' eenv' 
@@ -580,7 +581,7 @@ evalSymGen s@( State { expr_env = eenv })
     in
     (RuleSymGen, [s { expr_env = eenv'
                     , curr_expr = CurrExpr Evaluate (Var i)
-                    , symbolic_ids = i:symbolic_ids s }]
+                    , symbolic_ids = HS.insert i $ symbolic_ids s }]
                 , ng')
 
 evalAssume :: State t -> NameGen -> Maybe FuncCall -> Expr -> Expr -> (Rule, [State t], NameGen)
@@ -710,7 +711,7 @@ concretizeExprToBool' s@(State {expr_env = eenv
 
         -- concretize the mexpr to the DataCon specified
         eenv' = E.insert mexpr_n (Data dcon) eenv
-        syms' = filter (/= mexpr_id) syms
+        syms' = HS.delete mexpr_id syms
 
         assertVal = if (dconName == (KV.dcTrue kv))
                         then False
@@ -791,7 +792,7 @@ retReplaceSymbFunc s@(State { expr_env = eenv
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
-               , symbolic_ids = new_sym_id:symbolic_ids s
+               , symbolic_ids = HS.insert new_sym_id $ symbolic_ids s
                , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
             , ng')
     | otherwise = Nothing

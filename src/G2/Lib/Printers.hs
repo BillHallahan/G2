@@ -25,6 +25,7 @@ import G2.Language.Support
 import Data.Char
 import Data.List
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Text as T
 
@@ -265,7 +266,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     estk_str = pprExecStackStr (exec_stack ex_state)
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen b)
-    input_str = pprInputIdsStr (symbolic_ids ex_state)
+    input_str = pprSymbolicIdsStr (symbolic_ids ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
@@ -284,7 +285,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , tenv_str
                , "----- [Names] ---------------------"
                , names_str
-               , "----- [Input Ids] -----------------"
+               , "----- [Symbolic Ids] -----------------"
                , input_str
                , "----- [Walkers] -------------------"
                , walkers_str
@@ -346,10 +347,10 @@ pprTCStr tc = injNewLine cond_strs
   where
     cond_strs = map show $ M.toList $ toMap tc
 
-pprInputIdsStr :: InputIds -> String
-pprInputIdsStr i = injNewLine id_strs
+pprSymbolicIdsStr :: SymbolicIds -> String
+pprSymbolicIdsStr i = injNewLine id_strs
   where
-    id_strs = map show i
+    id_strs = map show $ HS.toList i
 
 pprPathCondStr :: PathCond -> String
 pprPathCondStr (PCExists p) = show p

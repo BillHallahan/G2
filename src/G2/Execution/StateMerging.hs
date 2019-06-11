@@ -44,7 +44,7 @@ mergeState ngen s1 s2 =
         then 
             let (newId, ngen') = freshId TyLitInt ngen
                 curr_expr' = mergeCurrExpr (known_values s1) newId (curr_expr s1) (curr_expr s2) 
-                syms' = (symbolic_ids s1) ++ (symbolic_ids s2) ++ [newId]
+                syms' = HS.insert newId $ HS.union (symbolic_ids s1) (symbolic_ids s2)
                 (expr_env', (syms'', ngen'')) = mergeExprEnv (known_values s1) newId syms' ngen' (expr_env s1) (expr_env s2)
                 path_conds' = mergePathConds (known_values s1) newId (path_conds s1) (path_conds s2)
             in (ngen''
@@ -105,11 +105,11 @@ createEqExpr kv newId val = App (App eq (Var newId)) (Lit (LitInt val))
 
 -- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
 mergeExprEnv :: KnownValues -> Id -> SymbolicIds -> NameGen -> E.ExprEnv -> E.ExprEnv -> (E.ExprEnv, (SymbolicIds, NameGen))
-mergeExprEnv kv newId syms ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem], (syms'++newSyms, ngen'))
+mergeExprEnv kv newId syms ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem], (HS.union syms' newSyms, ngen'))
     where eenv1_map = E.unwrapExprEnv eenv1
           eenv2_map = E.unwrapExprEnv eenv2
           zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
-          ((newSyms, syms', ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId eenv1 eenv2) ([], syms, ngen) zipped_maps
+          ((newSyms, syms', ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId eenv1 eenv2) (HS.empty, syms, ngen) zipped_maps
           merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms
           eenv1_rem = (M.difference eenv1_map eenv2_map)
           eenv2_rem = (M.difference eenv2_map eenv1_map)
@@ -132,22 +132,22 @@ mergeEnvObj kv newId eenv1 eenv2 (newSyms, syms, ngen) (eObj1, eObj2)
     | (E.SymbObj i@(Id _ t)) <- eObj1
     , (E.ExprObj e2) <- eObj2 =
         let (newSymId, ngen') = freshId t ngen
-            newSyms' = newSymId:newSyms
-            syms' = L.filter (/= i) syms
+            newSyms' = HS.insert newSymId newSyms
+            syms' = HS.delete i syms
         in ((newSyms', syms', ngen'), E.ExprObj (mergeExpr' kv newId (Var newSymId) e2))
     | (E.ExprObj e1) <- eObj1
     , (E.SymbObj i@(Id _ t)) <- eObj2 =
         let (newSymId, ngen') = freshId t ngen
-            newSyms' = newSymId:newSyms
-            syms' = L.filter (/= i) syms
+            newSyms' = HS.insert newSymId newSyms
+            syms' = HS.delete i syms
         in ((newSyms', syms', ngen'), E.ExprObj (mergeExpr' kv newId e1 (Var newSymId)))
     | (E.SymbObj i1@(Id _ t1)) <- eObj1
     , (E.SymbObj i2@(Id _ t2)) <- eObj2
     , i1 /= i2 =
         let (newSymId1, ngen') = freshId t1 ngen
             (newSymId2, ngen'') = freshId t2 ngen'
-            newSyms' = newSymId1:newSymId2:newSyms
-            syms' = L.filter (\x -> (x /= i2) &&  (x /= i1)) syms
+            newSyms' = HS.insert newSymId1 $ HS.insert newSymId2 newSyms
+            syms' = HS.delete i2 $ HS.delete i1 syms
         in ((newSyms', syms', ngen''), E.ExprObj (mergeExpr' kv newId (Var newSymId1) (Var newSymId2)))
     | (E.RedirObj n) <- eObj1
     , (E.ExprObj e2) <- eObj2 =

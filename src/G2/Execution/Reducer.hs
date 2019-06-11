@@ -376,7 +376,7 @@ substHigherOrder' eenvsice ((i, es):iss) =
         (concatMap (\e_rep -> 
                         map (\(eenv, m, si, ce) -> ( E.insert (idName i) e_rep eenv
                                                    , M.insert (idName i) e_rep m
-                                                   , filter (/= i) si
+                                                   , S.delete i si
                                                    , replaceASTs (Var i) e_rep ce)
                             ) eenvsice)
         es) iss
@@ -725,19 +725,19 @@ instance Orderer CaseCountOrderer Int Int t where
 data SymbolicADTOrderer = SymbolicADTOrderer
 
 instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
-    initPerStateOrder _ = S.fromList . map idName . symbolic_ids
+    initPerStateOrder _ = S.map idName . symbolic_ids
     orderStates _ v _ = S.size v
 
     updateSelected _ v _ _ = v
 
     stepOrderer _ v _ _ s =
-        v `S.union` (S.fromList . map idName . symbolic_ids $ s)
+        v `S.union` (S.map idName $ symbolic_ids s)
 
 -- Orders by the largest (in terms of height) (previously) symbolic ADT
 data ADTHeightOrderer = ADTHeightOrderer
 
 instance Orderer ADTHeightOrderer (S.HashSet Name) Int t where
-    initPerStateOrder _ = S.fromList . map idName . symbolic_ids
+    initPerStateOrder _ = S.map idName . symbolic_ids
     orderStates _ v s = maximum . S.toList $ S.map (flip adtHeight s) v
 
     updateSelected _ v _ _ = v

@@ -138,7 +138,7 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc'
-    , symbolic_ids = is
+    , symbolic_ids = S.fromList is
     , exec_stack = Stack.empty
     , model = M.empty
     , known_values = kv'
@@ -363,7 +363,7 @@ runG2Solving :: ( Named t
                 solver -> Bindings -> Bool -> State t -> IO (Maybe (ExecRes t))
 runG2Solving con bindings mergeStates s@(State { known_values = kv })
     | true_assert s = do
-        (_, m) <- solve con s bindings (symbolic_ids s) (path_conds s)
+        (_, m) <- solve con s bindings (S.toList $ symbolic_ids s) (path_conds s)
         case m of
             Just m' -> do
                 let s' = s { model = m' }

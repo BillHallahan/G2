@@ -77,7 +77,7 @@ inputIds (State { expr_env = eenv }) (Bindings { input_names = ns }) =
 
 -- | The `SymbolicIds` are a list of the variable names that we should ensure are
 -- inserted in the model, after we solve the path constraints
-type SymbolicIds = [Id]
+type SymbolicIds = S.HashSet Id
 
 -- | `CurrExpr` is the current expression we have. 
 data CurrExpr = CurrExpr EvalOrReturn Expr
