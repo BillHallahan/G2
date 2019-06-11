@@ -244,6 +244,23 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (PCExists i) = PCExists (modifyContainedASTs f i)
     modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
 
+instance ASTContainer PathCond Id where
+    containedASTs (ExtCond e _)   = containedASTs e
+    containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
+    containedASTs (ConsCond dcl e _) = containedASTs dcl ++ containedASTs e
+    containedASTs (PCExists i) = containedASTs i
+    containedASTs (AssumePC i _ pc) = containedASTs i ++ containedASTs pc
+
+    modifyContainedASTs f (ExtCond e b) = ExtCond e' b
+      where e' = modifyContainedASTs f e
+    modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
+      where e' = modifyContainedASTs f e
+            a' = modifyContainedASTs f a
+    modifyContainedASTs f (ConsCond dc e b) =
+        ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
+    modifyContainedASTs f (PCExists i) = PCExists (modifyContainedASTs f i)
+    modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
+
 instance Named PathConds where
     names (PathConds pc) = (catMaybes $ M.keys pc) ++ concatMap (\(p, n) -> names p ++ n) pc
 
