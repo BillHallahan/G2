@@ -85,6 +85,8 @@ parseHaskellQ str = do
     let (init_s, _, init_b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
                                         (mkCurrExpr Nothing Nothing) config
 
+    runIO $ releaseIORefLock
+
     ex_out <- runExecutionQ init_s init_b config
 
     state_name <- newName "state"
@@ -139,8 +141,6 @@ parseHaskellQ str = do
 
     let tenv_exp = liftDataT tenv `sigE` [t| TypeEnv |]
         bindings_exp = liftDataT (bindings_final { name_gen = mkNameGen ()})
-
-    runIO $ releaseIORefLock
 
     letE [ valD (varP state_name) (normalB state_exp) []
          , valD (varP tenv_name) (normalB tenv_exp) []
