@@ -126,9 +126,13 @@ loadProj hsc proj src gflags tr_con = do
     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
 
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
-    let dflags = beta_flags' { hscTarget = case hsc of
-                                                Just hsc' -> hsc'
-                                                _ -> hscTarget beta_flags'
+    let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
+                               -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
+                               hscTarget = if rtsIsProfiled 
+                                                then HscInterpreted
+                                                else case hsc of
+                                                    Just hsc' -> hsc'
+                                                    _ -> hscTarget beta_flags'
                              , ghcLink = LinkInMemory
                              , ghcMode = CompManager
                              , includePaths = proj ++ includePaths beta_flags'
