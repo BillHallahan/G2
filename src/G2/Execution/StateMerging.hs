@@ -47,7 +47,7 @@ mergeState ngen s1 s2 =
                 (expr_env', (changedSyms, ngen'')) = mergeExprEnv (known_values s1) newId ngen' (expr_env s1) (expr_env s2)
                 syms' = mergeSymbolicIds (symbolic_ids s1) (symbolic_ids s2) newId changedSyms
                 path_conds' = mergePathConds (known_values s1) newId (path_conds s1) (path_conds s2)
-                path_conds'' = subIdsPCs (known_values s1) path_conds' changedSyms
+                path_conds'' = subIdsPCs (known_values s1) path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
             in (ngen''
                , (Just State { expr_env = expr_env'
                              , type_env = type_env s1
@@ -72,7 +72,7 @@ isMergeableCurrExpr (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = isMergeabl
 isMergeableCurrExpr (CurrExpr Return ce1) (CurrExpr Return ce2) = isMergeableExpr ce1 ce2
 isMergeableCurrExpr _ _ = False
 
--- Returns True if both Exprs are of the form (App ... (Data DataCon) ....) and contain the same Data Constructor
+-- | Returns True if both Exprs are of the form (App ... (Data DataCon) ....) and contain the same Data Constructor
 isMergeableExpr :: Expr -> Expr -> Bool
 isMergeableExpr (App e1 _) (App e1' _) = isMergeableExpr e1 e1' 
 isMergeableExpr (Data dc1) (Data dc2) = dc1 == dc2
@@ -123,8 +123,6 @@ mergeExprEnv kv newId ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_map',
           eenv1_rem = (M.difference eenv1_map eenv2_map)
           eenv2_rem = (M.difference eenv2_map eenv1_map)
 
--- | If both arguments are ExprObjs, the first ExprObj is returned if they are equal, else they are combined using mergeExpr
--- Else, function checks if both EnvObjs are equal and returns the first
 mergeEnvObj :: KnownValues -> Id
                -> E.ExprEnv
                -> E.ExprEnv
@@ -137,7 +135,7 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
         if (e1 == e2)
             then ((changedSyms, ngen), eObj1)
             else ((changedSyms, ngen), E.ExprObj (mergeExpr' kv newId e1 e2))
-    -- replace the Id in the SymbObj with a new symbolic variable and combine with the expr in the ExprObj in a NonDet expr
+    -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a NonDet expr
     | (E.SymbObj i@(Id _ t)) <- eObj1
     , (E.ExprObj e2) <- eObj2 =
         let (newSymId, ngen') = freshId t ngen
@@ -148,6 +146,7 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
         let (newSymId, ngen') = freshId t ngen
             changedSyms' = (i, newSymId):changedSyms
         in ((changedSyms', ngen'), E.ExprObj (mergeExpr' kv newId e1 (Var newSymId)))
+    -- Lookup RedirObj and create a NonDet Expr combining the lookup result with the expr from the ExprObj
     | (E.RedirObj n) <- eObj1
     , (E.ExprObj e2) <- eObj2 =
         let e1 = E.lookup n eenv1
@@ -205,6 +204,8 @@ mergeHashSets newId hs1 hs2 = (HS.union (HS.union common hs1') hs2', addNewIdNam
           hs1' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
           hs2' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
 
+-- | @`changedSyms` is list of tuples, w/ each tuple representing the old symbolic Id and the new replacement Id. @`subIdsPCs` substitutes all
+-- occurrences of the old symbolic Ids in the PathConds with the corresponding new Id
 subIdsPCs :: KnownValues -> PathConds -> [(Id, Id)] -> PathConds
 subIdsPCs kv pcs changedSyms =
     PC.fromList kv $ PC.map (subIdsPC changedSyms) pcs
@@ -218,7 +219,8 @@ subId changedSyms i =
         Just newI -> newI
         Nothing -> i
 
--- removes any NonDets in ExprObjs, leaves SymbObjs (and RedirObjs) intact since replaceNonDetExpr doesn't change Exprs of type (Var _ _)
+-- | Removes any NonDets in the expr_env and curr_expr. If NonDets are of the form `Assume (x == 1) e1 v Assume (x == 2) e2`, lookups the value of `x` 
+-- in the `Model` of the state and picks the corresponding Expr.
 replaceNonDets :: State t -> State t 
 replaceNonDets s@(State {curr_expr = cexpr, expr_env = eenv}) = 
     let eenv' = E.map (replaceNonDetExpr s) eenv
@@ -236,6 +238,7 @@ replaceNonDetExpr s (NonDet (x:xs)) = case x of
 replaceNonDetExpr _ (NonDet []) = error "No value in NonDet expr is satisfiable"
 replaceNonDetExpr _ e = e
 
+-- | Looks up values in the `Model` of the state, substitutes into @`e`, and evaluates it
 substAndEval :: State t -> Expr -> Bool
 substAndEval (State {model = m
                       , known_values = kv

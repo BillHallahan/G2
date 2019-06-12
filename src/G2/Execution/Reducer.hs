@@ -944,14 +944,25 @@ numStates :: M.Map b [ExState rv hv sov t] -> Int
 numStates = sum . map length . M.elems
 
 ------------
+-- Execution is represented by a multiway tree. Initially it is just a `Root` that contains the initial state(s). In each function call, any `Leaf`
+-- node (or a state from the `Root`) is picked and reduced, following which either:
+--      (i) the node is replaced with new `Leaf` node(s) (new leaf node(s) are added).
+--      (ii) if during reduction, execution branches into potentially mergeable states, the node is replaced with a `CaseSplit` node, and the
+--      reduceds are added as `Leaf` nodes. A `mergePtFrame` is added to each reduced's exec_stack, and the Counter is incremented.
+--      (iii) if during reduction a `mergePtFrame` is encountered on the exec_stack, the node is replaced with a `ReadyToMerge` node
+-- A `ReadyToMerge` node may also be picked, in which case it is merged with its siblings if possible, else any sibling that is a `Leaf` node is
+-- picked for reduction next.
+
 type Counter = Int
-data Tree a = CaseSplit [Tree a]
+data Tree a = CaseSplit [Tree a] -- Node corresponding to point at which execution branches into potentially mergeable states
             | Leaf a Counter
-            | ReadyToMerge a Counter
+            | ReadyToMerge a Counter -- 'a's can be merged if they are all ReadyToMerge nodes with same parent and Counter
             | Root [a] (Tree a) -- list of a's to process, and 1 child
             | Empty
 
-newtype Cxt a = Cxt [(Tree a, [Tree a])] -- (Parent, Sibling) pairs
+-- List of (Parent, [sibling]) pairs that represents path from a Node to the Root. Enables traversal from the node to the rest of the tree
+-- See: https://wiki.haskell.org/Zipper
+newtype Cxt a = Cxt [(Tree a, [Tree a])]
 type TreeZipper a = (Tree a, Cxt a)
 
 runReducerMerge :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO ([State t], Bindings)
@@ -1046,7 +1057,7 @@ treeVal (ReadyToMerge val _) = val
 treeVal (Leaf val _) = val
 treeVal _ = error "Tree has no value"
 
--- | Remove any MergePtFrame-s in the exec_stack of the ExState
+-- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
 delMergePtFrames :: (ExState rv hv sov t) -> (ExState rv hv sov t)
 delMergePtFrames rs@(ExState {state = s}) =
     let st = exec_stack s
@@ -1136,6 +1147,8 @@ pickSibling' seen (x:xs) = case x of
     _ -> pickSibling' (x:seen) xs
 pickSibling' _ [] = error "pickSibling must be called with at least one Tree that is a leaf"
 
+-- | Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations for efficiency reasons
+-- because number of successful merges only seem to increase marginally in such a case
 mergeStatesZipper :: Eq t => [ExState rv hv sov t] -> Bindings -> ([ExState rv hv sov t], Bindings)
 mergeStatesZipper (x1:x2:xs) b =
     case mergeStates' x1 x2 b of
