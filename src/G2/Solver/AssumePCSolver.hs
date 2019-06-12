@@ -15,22 +15,22 @@ import Data.Maybe
 import Prelude hiding (null)
 
 
-data AssumePCSolver a = AssumePCSolver a
+data AssumePCSolver a = AssumePCSolver ArbValueFunc a
 
 instance Solver solver => Solver (AssumePCSolver solver) where
-    check (AssumePCSolver sol) s pc = return . fst =<< checkRelAssume (Tr sol) s pc
-    solve (AssumePCSolver sol) s b is pc =
-        return . (\((r, m, _),_) -> (r, m)) =<< solveRelAssume (Tr sol) s b is pc
-    close (AssumePCSolver s) = close s
+    check (AssumePCSolver _ sol) s pc = return . fst =<< checkRelAssume (Tr sol) s pc
+    solve (AssumePCSolver avf sol) s b is pc =
+        return . (\((r, m, _),_) -> (r, m)) =<< solveRelAssume avf (Tr sol) s b is pc
+    close (AssumePCSolver _ s) = close s
 
 instance TrSolver solver => TrSolver (AssumePCSolver solver) where
-    checkTr (AssumePCSolver sol) s pc = do
+    checkTr (AssumePCSolver avf sol) s pc = do
         (r, sol') <- checkRelAssume sol s pc
-        return (r, AssumePCSolver sol')
-    solveTr (AssumePCSolver sol) s b is pc = do
-        ((r, m, sol'),_) <- solveRelAssume sol s b is pc
-        return (r, m, AssumePCSolver sol')
-    closeTr (AssumePCSolver s) = closeTr s
+        return (r, AssumePCSolver avf sol')
+    solveTr (AssumePCSolver avf sol) s b is pc = do
+        ((r, m, sol'),_) <- solveRelAssume avf sol s b is pc
+        return (r, m, AssumePCSolver avf sol')
+    closeTr (AssumePCSolver _ s) = closeTr s
 
 
 checkRelAssume :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
@@ -74,46 +74,54 @@ checkAssumePCSets' sol s (p:ps) = do
 
 -- Analogous functions to check* ,but generates a Maybe Model too
 
-solveRelAssume :: TrSolver a => a -> State t -> Bindings -> [Id] -> PathConds -> IO ((Result, Maybe Model, a), [Id])
-solveRelAssume sol s b is pc = do
-    (res, is') <- solveOrdinarySets sol s b M.empty is ordSets
+solveRelAssume :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO ((Result, Maybe Model, a), [Id])
+solveRelAssume avf sol s b is pc = do
+    (res, is') <- solveOrdinarySets avf sol s b M.empty is ordSets
     case res of
-        (SAT, Just m', sol') -> solveAssumePCSets sol' s b m' (is') assPCSets -- only check groups with any AssumePCs in them if the common PCs are consistent
+        (SAT, Just m', sol') -> solveAssumePCSets avf sol' s b m' (is') assPCSets -- only check groups with any AssumePCs in them if the common PCs are consistent
         r -> return (r, is')
     where
         ordSets = filter (not . anyAssumePC) relSets
         assPCSets = filter anyAssumePC relSets
         relSets = PC.relatedSets (known_values s) pc -- All (AssumePCs i _ _) with same i will be grouped into same set
 
-solveOrdinarySets :: TrSolver a => a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO ((Result, Maybe Model, a), [Id])
-solveOrdinarySets sol _ _ m is [] = return ((SAT, Just m, sol), is)
-solveOrdinarySets sol s b m is (p:ps) = do
+solveOrdinarySets :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO ((Result, Maybe Model, a), [Id])
+solveOrdinarySets _ sol _ _ m is [] = return ((SAT, Just m, sol), is)
+solveOrdinarySets avf sol s b m is (p:ps) = do
     let is' = concat $ PC.map (PC.varIdsInPC (known_values s)) p
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of
-        (SAT, Just m', sol') -> solveOrdinarySets sol' s b (M.union m m') (is ++ is'') ps
+        (SAT, Just m', sol') -> solveOrdinarySets avf sol' s b (M.union m m') (is ++ is'') ps
         rm' -> return (rm', is'')
 
-solveAssumePCSets :: TrSolver a => a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO ((Result, Maybe Model, a), [Id])
-solveAssumePCSets sol s b m is [] =
+solveAssumePCSets :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO ((Result, Maybe Model, a), [Id])
+solveAssumePCSets avf sol s b m is [] =
     let 
         is' = filter (\i -> idName i `M.notMember` m) is
-        nv = map (\(Id n t) -> (n, fst $ arbValue t (type_env s) (arb_value_gen b))) is'
+
+        (_, nv) = mapAccumL
+            (\av_ (Id n t) ->
+                let
+                    (av_', v) = avf t (type_env s) av_
+                    in
+                    (v, (n, av_'))
+            ) (arb_value_gen b) is'
+
         m' = foldr (\(n, v) -> M.insert n v) m nv
     in return ((SAT, Just m', sol), is)
-solveAssumePCSets sol s b m is (p:ps) = do
-    (rm, is') <- solveAssumePCSets' sol s b m $ genPCsList s p
+solveAssumePCSets avf sol s b m is (p:ps) = do
+    (rm, is') <- solveAssumePCSets' avf sol s b m $ genPCsList s p
     case rm of
-        (SAT, Just m', sol') -> solveAssumePCSets sol' s b (M.union m m') (is ++ is') ps
+        (SAT, Just m', sol') -> solveAssumePCSets avf sol' s b (M.union m m') (is ++ is') ps
         _ -> return (rm, is)
 
-solveAssumePCSets' :: TrSolver a => a -> State t -> Bindings -> Model -> [PathConds] -> IO ((Result, Maybe Model, a), [Id])
-solveAssumePCSets' sol _ _ _ [] = return ((UNSAT, Nothing, sol), [])
-solveAssumePCSets' sol s b m (p:ps) = do
-    (rm, is) <- solveRelAssume sol s b [] p
+solveAssumePCSets' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [PathConds] -> IO ((Result, Maybe Model, a), [Id])
+solveAssumePCSets' _ sol _ _ _ [] = return ((UNSAT, Nothing, sol), [])
+solveAssumePCSets' avf sol s b m (p:ps) = do
+    (rm, is) <- solveRelAssume avf sol s b [] p
     case rm of
-        (UNSAT, _, sol') -> solveAssumePCSets' sol' s b m ps
+        (UNSAT, _, sol') -> solveAssumePCSets' avf sol' s b m ps
         (SAT, Just m', sol') -> return ((SAT, Just (M.union m' m), sol'), is)
         _ -> return (rm, is)
 

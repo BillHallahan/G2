@@ -1014,7 +1014,7 @@ evalZipper red hal pr zipper b
                         let zipper' = (tree', snd zipper)
                         evalZipper red' hal pr zipper' b'
                     Merge -> do
-                        if (count >= 3) -- max depth of tree
+                        if (count >= 10) -- max depth of tree
                             then
                                 -- do not add reduced states to current tree. Instead add to list of states in root.
                                 -- prevents tree from growing to deep. We do not attempt to merge these states
