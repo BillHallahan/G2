@@ -136,35 +136,40 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
             then ((changedSyms, ngen), eObj1)
             else ((changedSyms, ngen), E.ExprObj (mergeExpr' kv newId e1 e2))
     -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a NonDet expr
-    | (E.SymbObj i@(Id _ t)) <- eObj1
-    , (E.ExprObj e2) <- eObj2 =
-        let (newSymId, ngen') = freshId t ngen
-            changedSyms' = (i, newSymId):changedSyms
-        in ((changedSyms', ngen'), E.ExprObj (mergeExpr' kv newId (Var newSymId) e2))
+    | (E.SymbObj i) <- eObj1
+    , (E.ExprObj e2) <- eObj2 = mergeSymbExprObjs kv ngen changedSyms newId i e2 True
     | (E.ExprObj e1) <- eObj1
-    , (E.SymbObj i@(Id _ t)) <- eObj2 =
-        let (newSymId, ngen') = freshId t ngen
-            changedSyms' = (i, newSymId):changedSyms
-        in ((changedSyms', ngen'), E.ExprObj (mergeExpr' kv newId e1 (Var newSymId)))
+    , (E.SymbObj i) <- eObj2 = mergeSymbExprObjs kv ngen changedSyms newId i e1 False
     -- Lookup RedirObj and create a NonDet Expr combining the lookup result with the expr from the ExprObj
     | (E.RedirObj n) <- eObj1
-    , (E.ExprObj e2) <- eObj2 =
-        let e1 = E.lookup n eenv1
-        in case e1 of
-            (Just (Var (Id _ t))) -> ((changedSyms, ngen), E.ExprObj (mergeExpr' kv newId (Var (Id n t)) e2))
-            (Just e1') -> ((changedSyms, ngen), E.ExprObj (mergeExpr' kv newId e1' e2))
-            Nothing -> error $ "Could not find EnvObj that RedirObj: " ++ (show eObj1) ++ " points to."
+    , (E.ExprObj e2) <- eObj2 = mergeRedirExprObjs kv ngen changedSyms newId eenv1 n e2 True
     | (E.ExprObj e1) <- eObj1
-    , (E.RedirObj n) <- eObj2 =
-        let e2 = E.lookup n eenv2
-        in case e2 of
-            (Just (Var (Id _ t))) -> ((changedSyms, ngen), E.ExprObj (mergeExpr' kv newId e1 (Var (Id n t))))
-            (Just e2') -> ((changedSyms, ngen), E.ExprObj (mergeExpr' kv newId e1 e2'))
-            Nothing -> error $ "Could not find EnvObj that RedirObj: " ++ (show eObj2) ++ " points to."
+    , (E.RedirObj n) <- eObj2 = mergeRedirExprObjs kv ngen changedSyms newId eenv2 n e1 False
     | otherwise =
         if (eObj1 == eObj2)
             then ((changedSyms, ngen), eObj1)
             else error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
+
+mergeSymbExprObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> Id -> Expr -> Bool -> (([(Id, Id)], NameGen), E.EnvObj)
+mergeSymbExprObjs kv ngen changedSyms newId i@(Id _ t) e first =
+        let (newSymId, ngen') = freshId t ngen
+            changedSyms' = (i, newSymId):changedSyms
+            -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are subsumed under the right `Assume` in the NonDet Exprs
+            mergedExprObj = case first of
+                                True -> E.ExprObj (mergeExpr' kv newId (Var newSymId) e)
+                                False -> E.ExprObj (mergeExpr' kv newId e (Var newSymId))
+        in ((changedSyms', ngen'), mergedExprObj)
+
+mergeRedirExprObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> E.ExprEnv -> Name -> Expr -> Bool -> (([(Id, Id)], NameGen), E.EnvObj)
+mergeRedirExprObjs kv ngen changedSyms newId eenv n e first =
+        let e2 = case (E.lookup n eenv) of
+                    (Just (Var (Id _ t))) -> Var (Id n t)
+                    (Just x) -> x
+                    Nothing -> error $ "Could not find EnvObj with name: " ++ (show n)
+            mergedExprObj = case first of
+                True -> E.ExprObj (mergeExpr' kv newId e2 e)
+                False -> E.ExprObj (mergeExpr' kv newId e e2)
+        in ((changedSyms, ngen), mergedExprObj)
 
 mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
 mergePathConds kv newId pc1 pc2 = 
