@@ -72,10 +72,10 @@ isMergeableCurrExpr (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = isMergeabl
 isMergeableCurrExpr (CurrExpr Return ce1) (CurrExpr Return ce2) = isMergeableExpr ce1 ce2
 isMergeableCurrExpr _ _ = False
 
--- | Returns True if both Exprs are of the form (App ... (Data DataCon) ....) and contain the same Data Constructor
+-- | Returns True if both Exprs are of the form (App ... (Data DataCon) ....) 
 isMergeableExpr :: Expr -> Expr -> Bool
 isMergeableExpr (App e1 _) (App e1' _) = isMergeableExpr e1 e1' 
-isMergeableExpr (Data dc1) (Data dc2) = dc1 == dc2
+isMergeableExpr (Data dc1) (Data dc2) = True
 isMergeableExpr _ _ = False
 
 mergeCurrExpr :: KnownValues -> Id -> CurrExpr -> CurrExpr -> CurrExpr
@@ -88,14 +88,8 @@ mergeCurrExpr kv newId (CurrExpr evalOrRet ce1) (CurrExpr evalOrRet2 ce2)
 -- | Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
 -- "D NonDet[(Assume (x == 1) in e_1), (Assume (x == 2) in e_1')],..., NonDet[(Assume (x == 1) in e_n), (Assume (x == 2) in e_n')]" 
 mergeExpr :: KnownValues -> Id -> Expr -> Expr -> Expr
-mergeExpr kv newId (App e1 e2) (App e1' e2') = App (mergeExpr kv newId e1 e1') (mergeExpr' kv newId e2 e2')
-mergeExpr _ _ (Data dc) (Data dc') = if dc == dc' then (Data dc) else error "Exprs to be merged have different underlying DataCons."
-mergeExpr _ _ _ _ = error $ "Exprs to be merged have an invalid form."
-
--- | Helper function to merge outer arguments of Exprs being merged in mergeExpr
-mergeExpr' :: KnownValues -> Id -> Expr -> Expr -> Expr
-mergeExpr' kv newId (App e1 e2) (App e1' e2') = App (mergeExpr' kv newId e1 e1') (mergeExpr' kv newId e2 e2')
-mergeExpr' kv newId e1 e1' = if (e1 == e1') 
+mergeExpr kv newId (App e1 e2) (App e1' e2') = App (mergeExpr kv newId e1 e1') (mergeExpr kv newId e2 e2')
+mergeExpr kv newId e1 e1' = if (e1 == e1') 
     then e1
     else NonDet [Assume Nothing (createEqExpr kv newId 1) e1, Assume Nothing (createEqExpr kv newId 2) e1']
 
@@ -134,7 +128,7 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
     , (E.ExprObj e2) <- eObj2 =
         if (e1 == e2)
             then ((changedSyms, ngen), eObj1)
-            else ((changedSyms, ngen), E.ExprObj (mergeExpr' kv newId e1 e2))
+            else ((changedSyms, ngen), E.ExprObj (mergeExpr kv newId e1 e2))
     -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a NonDet expr
     | (E.SymbObj i) <- eObj1
     , (E.ExprObj e2) <- eObj2 = mergeSymbExprObjs kv ngen changedSyms newId i e2 True
@@ -156,8 +150,8 @@ mergeSymbExprObjs kv ngen changedSyms newId i@(Id _ t) e first =
             changedSyms' = (i, newSymId):changedSyms
             -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are subsumed under the right `Assume` in the NonDet Exprs
             mergedExprObj = case first of
-                                True -> E.ExprObj (mergeExpr' kv newId (Var newSymId) e)
-                                False -> E.ExprObj (mergeExpr' kv newId e (Var newSymId))
+                                True -> E.ExprObj (mergeExpr kv newId (Var newSymId) e)
+                                False -> E.ExprObj (mergeExpr kv newId e (Var newSymId))
         in ((changedSyms', ngen'), mergedExprObj)
 
 mergeRedirExprObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> E.ExprEnv -> Name -> Expr -> Bool -> (([(Id, Id)], NameGen), E.EnvObj)
@@ -167,8 +161,8 @@ mergeRedirExprObjs kv ngen changedSyms newId eenv n e first =
                     (Just x) -> x
                     Nothing -> error $ "Could not find EnvObj with name: " ++ (show n)
             mergedExprObj = case first of
-                True -> E.ExprObj (mergeExpr' kv newId e2 e)
-                False -> E.ExprObj (mergeExpr' kv newId e e2)
+                True -> E.ExprObj (mergeExpr kv newId e2 e)
+                False -> E.ExprObj (mergeExpr kv newId e e2)
         in ((changedSyms, ngen), mergedExprObj)
 
 mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
@@ -177,9 +171,9 @@ mergePathConds kv newId pc1 pc2 =
     -- Else, all other values in pc1_map are added to pc1_map' as it is.
     -- pc2_map' will only contain values whose keys are not present in pc1_map
     let
-        (pc2_map', pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) pc2_map pc1_map
         pc2_map = PC.toMap pc2
         pc1_map = PC.toMap pc1
+        (pc2_map', pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) pc2_map pc1_map
         combined_map = PC.PathConds (M.union pc2_map' pc1_map')
         -- Add the following two expressions to constrain the value newId can take to either 1/2 when solving
         combined_map' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExpr kv newId 1) True)) combined_map) 
