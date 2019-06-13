@@ -7,6 +7,7 @@ module G2.Execution.StateMerging
   , mergeExprEnv
   , mergeEnvObj
   , mergePathConds
+  , mergePathCondsSimple
   ) where
 
 import G2.Language.Support
@@ -46,7 +47,7 @@ mergeState ngen s1 s2 =
                 curr_expr' = mergeCurrExpr (known_values s1) newId (curr_expr s1) (curr_expr s2) 
                 (expr_env', (changedSyms, ngen'')) = mergeExprEnv (known_values s1) newId ngen' (expr_env s1) (expr_env s2)
                 syms' = mergeSymbolicIds (symbolic_ids s1) (symbolic_ids s2) newId changedSyms
-                path_conds' = mergePathConds (known_values s1) newId (path_conds s1) (path_conds s2)
+                path_conds' = mergePathCondsSimple (known_values s1) newId (path_conds s1) (path_conds s2)
                 path_conds'' = subIdsPCs (known_values s1) path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
             in (ngen''
                , (Just State { expr_env = expr_env'
@@ -191,6 +192,22 @@ mergeTwoSymbObjs kv ngen changedSyms newId i1@(Id _ t1) i2@(Id _ t2) =
             mergedExprObj = E.ExprObj (mergeExpr kv newId (Var newSymId1) (Var newSymId2))
         in ((changedSyms', ngen''), mergedExprObj)
 
+-- | Simpler version of mergePathConds, may not be very efficient for large numbers of PCs, but suffices for most uses
+mergePathCondsSimple :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
+mergePathCondsSimple kv newId pc1 pc2 =
+    let pc1HS = HS.fromList (PC.toList pc1)
+        pc2HS = HS.fromList (PC.toList pc2)
+        common = HS.toList $ HS.intersection pc1HS pc2HS
+        pc1Only = HS.toList $ HS.difference pc1HS pc2HS
+        pc2Only = HS.toList $ HS.difference pc2HS pc1HS
+        pc1Only' = map (\pc -> AssumePC newId 1 pc) pc1Only
+        pc2Only' = map (\pc -> AssumePC newId 2 pc) pc2Only
+        mergedPC = PC.fromList kv common
+        mergedPC' = foldr (PC.insert kv) mergedPC (pc1Only' ++ pc2Only')
+        mergedPC'' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExpr kv newId 1) True)) mergedPC')
+        mergedPC''' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExpr kv newId 2) True)) mergedPC'')
+    in mergedPC'''
+
 mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
 mergePathConds kv newId pc1 pc2 = 
     -- If a key exists in both maps, then the respective values are combined and inserted into pc1_map'. 
@@ -199,35 +216,38 @@ mergePathConds kv newId pc1 pc2 =
     let
         pc2_map = PC.toMap pc2
         pc1_map = PC.toMap pc1
-        (pc2_map', pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) pc2_map pc1_map
+        ((pc2_map', newAssumePCs), pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) (pc2_map, HS.empty) pc1_map
         combined_map = PC.PathConds (M.union pc2_map' pc1_map')
         -- Add the following two expressions to constrain the value newId can take to either 1/2 when solving
         combined_map' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExpr kv newId 1) True)) combined_map) 
         combined_map'' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExpr kv newId 2) True)) combined_map') 
-    in combined_map''
+    in foldr (PC.insert kv) combined_map'' newAssumePCs
 
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
 -- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
-mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name])) -> (Maybe Name) ->
-                   (HS.HashSet PC.PathCond, [Name]) -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]), (HS.HashSet PC.PathCond, [Name]))
-mergeMapEntries newId pc2_map key (hs1, ns1) =
+mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]), HS.HashSet PC.PathCond)
+                   -> (Maybe Name)
+                   -> (HS.HashSet PC.PathCond, [Name])
+                   -> ((M.Map (Maybe Name) (HS.HashSet PathCond, [Name]), HS.HashSet PC.PathCond), (HS.HashSet PC.PathCond, [Name]))
+mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
     case M.lookup key pc2_map of
-        Just (hs2, ns2) -> (pc2_map', (mergedHS, mergedNS))
+        Just (hs2, ns2) -> ((pc2_map', newAssumePCs'), (mergedHS, mergedNS))
             where pc2_map' = M.delete key pc2_map
-                  (mergedHS, addNewIdName) = mergeHashSets newId hs1 hs2
-                  mergedNS = L.nub $ if addNewIdName then (idName newId):(ns1 ++ ns2) else (ns1 ++ ns2)
-        Nothing -> (pc2_map, (hs1, ns1))
+                  (mergedHS, unmergedPCs) = mergeHashSets newId hs1 hs2
+                  mergedNS = ns1 ++ ns2 -- names of nodes that are no longer linked to the merged PCs are not being removed here, would be too expensive
+                  newAssumePCs' = HS.union newAssumePCs unmergedPCs
+        Nothing -> ((pc2_map, newAssumePCs), (hs1, ns1))
 
 -- Any PathCond present in both HashSets is added as it is to the new HashSet.
 -- A PathCond present in only 1 HashSet is changed to the form 'AssumePC (x == _) PathCond' and added to the new HashSet
-mergeHashSets :: Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond, Bool)
-mergeHashSets newId hs1 hs2 = (HS.union (HS.union common hs1') hs2', addNewIdName)
+mergeHashSets :: Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond, HS.HashSet PathCond)
+mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
     where common = HS.intersection hs1 hs2
           hs1Minus2 = HS.difference hs1 hs2
           hs2Minus1 = HS.difference hs2 hs1
-          addNewIdName = not $ ((HS.null hs1Minus2) && (HS.null hs2Minus1)) -- True if we need to add name of newId to list of names in node
-          hs1' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
-          hs2' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
+          hs1Minus2' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
+          hs2Minus1' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
+          unmergedPCs = HS.union hs1Minus2' hs2Minus1'
 
 -- | @`changedSyms` is list of tuples, w/ each tuple representing the old symbolic Id and the new replacement Id. @`subIdsPCs` substitutes all
 -- occurrences of the old symbolic Ids in the PathConds with the corresponding new Id

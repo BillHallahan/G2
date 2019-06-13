@@ -47,7 +47,7 @@ checkRelAssumeTests = do
 
         let avf = arbValue
         SomeSMTSolver con <- getSMTAV avf (createConfig {smt = ConZ3}) 
-        let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver avf :?> con)})
+        let assPCSol = AssumePCSolver avf (Tr {unTr = (ADTSolver avf :?> con)})
 
         results <- sequence $ zipWith (\s pc -> do (r, _) <- checkTr assPCSol s pc
                                                    return r) states checkPCs
@@ -70,7 +70,7 @@ solveRelAssumeTests = do
 
         let avf = arbValue
         SomeSMTSolver con <- getSMTAV avf (createConfig {smt = ConZ3})
-        let assPCSol = AssumePCSolver (Tr {unTr = (ADTSolver avf :?> con)})
+        let assPCSol = AssumePCSolver avf (Tr {unTr = (ADTSolver avf :?> con)})
         
         results <- sequence $ zipWith3 (\s i pc -> do (r, m, _) <- solveTr assPCSol s b i pc
                                                       return (r, m)) states is checkPCs
