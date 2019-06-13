@@ -75,7 +75,7 @@ isMergeableCurrExpr _ _ = False
 -- | Returns True if both Exprs are of the form (App ... (Data DataCon) ....) 
 isMergeableExpr :: Expr -> Expr -> Bool
 isMergeableExpr (App e1 _) (App e1' _) = isMergeableExpr e1 e1' 
-isMergeableExpr (Data dc1) (Data dc2) = True
+isMergeableExpr (Data _) (Data _) = True
 isMergeableExpr _ _ = False
 
 mergeCurrExpr :: KnownValues -> Id -> CurrExpr -> CurrExpr -> CurrExpr
@@ -139,6 +139,11 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
     , (E.ExprObj e2) <- eObj2 = mergeRedirExprObjs kv ngen changedSyms newId eenv1 n e2 True
     | (E.ExprObj e1) <- eObj1
     , (E.RedirObj n) <- eObj2 = mergeRedirExprObjs kv ngen changedSyms newId eenv2 n e1 False
+    | (E.RedirObj n1) <- eObj1
+    , (E.RedirObj n2) <- eObj2 = mergeTwoRedirObjs kv ngen changedSyms newId eenv1 eenv2 n1 n2
+    | (E.SymbObj i1) <- eObj1
+    , (E.SymbObj i2) <- eObj2
+    , (i1 /= i2) = mergeTwoSymbObjs kv ngen changedSyms newId i1 i2
     | otherwise =
         if (eObj1 == eObj2)
             then ((changedSyms, ngen), eObj1)
@@ -164,6 +169,27 @@ mergeRedirExprObjs kv ngen changedSyms newId eenv n e first =
                 True -> E.ExprObj (mergeExpr kv newId e2 e)
                 False -> E.ExprObj (mergeExpr kv newId e e2)
         in ((changedSyms, ngen), mergedExprObj)
+
+mergeTwoRedirObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> E.ExprEnv -> E.ExprEnv -> Name -> Name -> (([(Id, Id)], NameGen), E.EnvObj)
+mergeTwoRedirObjs kv ngen changedSyms newId eenv1 eenv2 n1 n2 =
+        let e1 = case (E.lookup n1 eenv1) of
+                    (Just (Var (Id n1' t))) -> Var (Id n1' t)
+                    (Just x) -> x
+                    Nothing -> error $ "Could not find EnvObj with name: " ++ (show n1)
+            e2 = case (E.lookup n2 eenv2) of
+                    (Just (Var (Id n2' t))) -> Var (Id n2' t)
+                    (Just x) -> x
+                    Nothing -> error $ "Could not find EnvObj with name: " ++ (show n2)
+            mergedExprObj = E.ExprObj (mergeExpr kv newId e1 e2)
+        in ((changedSyms, ngen), mergedExprObj)
+
+mergeTwoSymbObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> Id -> Id -> (([(Id, Id)], NameGen), E.EnvObj)
+mergeTwoSymbObjs kv ngen changedSyms newId i1@(Id _ t1) i2@(Id _ t2) =
+        let (newSymId1, ngen') = freshId t1 ngen
+            (newSymId2, ngen'') = freshId t2 ngen'
+            changedSyms' = (i2, newSymId2):(i1, newSymId1):changedSyms
+            mergedExprObj = E.ExprObj (mergeExpr kv newId (Var newSymId1) (Var newSymId2))
+        in ((changedSyms', ngen''), mergedExprObj)
 
 mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
 mergePathConds kv newId pc1 pc2 = 
