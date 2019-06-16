@@ -125,11 +125,10 @@ mergeEnvObj :: KnownValues -> Id
                -> (E.EnvObj, E.EnvObj)
                -> (([(Id, Id)], NameGen), E.EnvObj)
 mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
+    | eObj1 == eObj2 = ((changedSyms, ngen), eObj1)
+    -- Following cases deal with unequal EnvObjs
     | (E.ExprObj e1) <- eObj1
-    , (E.ExprObj e2) <- eObj2 =
-        if (e1 == e2)
-            then ((changedSyms, ngen), eObj1)
-            else ((changedSyms, ngen), E.ExprObj (mergeExpr kv newId e1 e2))
+    , (E.ExprObj e2) <- eObj2 = ((changedSyms, ngen), E.ExprObj (mergeExpr kv newId e1 e2))
     -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a NonDet expr
     | (E.SymbObj i) <- eObj1
     , (E.ExprObj e2) <- eObj2 = mergeSymbExprObjs kv ngen changedSyms newId i e2 True
@@ -143,12 +142,8 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
     | (E.RedirObj n1) <- eObj1
     , (E.RedirObj n2) <- eObj2 = mergeTwoRedirObjs kv ngen changedSyms newId eenv1 eenv2 n1 n2
     | (E.SymbObj i1) <- eObj1
-    , (E.SymbObj i2) <- eObj2
-    , (i1 /= i2) = mergeTwoSymbObjs kv ngen changedSyms newId i1 i2
-    | otherwise =
-        if (eObj1 == eObj2)
-            then ((changedSyms, ngen), eObj1)
-            else error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
+    , (E.SymbObj i2) <- eObj2 = mergeTwoSymbObjs kv ngen changedSyms newId i1 i2
+    | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
 
 mergeSymbExprObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> Id -> Expr -> Bool -> (([(Id, Id)], NameGen), E.EnvObj)
 mergeSymbExprObjs kv ngen changedSyms newId i@(Id _ t) e first =
