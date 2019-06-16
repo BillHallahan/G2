@@ -81,7 +81,7 @@ translateLoaded proj src libs tr_con config = do
   let def_proj = extraDefaultInclude config
       def_src = extraDefaultMods config
   (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) (def_proj ++ proj) (def_src ++ src) lib_nm lib_tnm tr_con
-  let mb_modname = listToMaybe $ exg2_mod_names exg2
+  let mb_modname = listToMaybe . drop (length def_src) $ exg2_mod_names exg2
   let h_exp = exg2_exports exg2
 
   let merged_exg2 = mergeExtractedG2s [exg2, merged_lib]
