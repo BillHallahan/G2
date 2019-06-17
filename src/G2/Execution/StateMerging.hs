@@ -220,16 +220,16 @@ mergePathConds kv newId pc1 pc2 =
 
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
 -- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
-mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]), HS.HashSet PC.PathCond)
+mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond)
                    -> (Maybe Name)
-                   -> (HS.HashSet PC.PathCond, [Name])
-                   -> ((M.Map (Maybe Name) (HS.HashSet PathCond, [Name]), HS.HashSet PC.PathCond), (HS.HashSet PC.PathCond, [Name]))
+                   -> (HS.HashSet PC.PathCond, HS.HashSet Name)
+                   -> ((M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond), (HS.HashSet PC.PathCond, HS.HashSet Name))
 mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
     case M.lookup key pc2_map of
         Just (hs2, ns2) -> ((pc2_map', newAssumePCs'), (mergedHS, mergedNS))
             where pc2_map' = M.delete key pc2_map
                   (mergedHS, unmergedPCs) = mergeHashSets newId hs1 hs2
-                  mergedNS = ns1 ++ ns2 -- names of nodes that are no longer linked to the merged PCs are not being removed here, would be too expensive
+                  mergedNS = HS.union ns1 ns2 -- names of nodes no longer linked to the merged PCs are not being removed here, would be too expensive
                   newAssumePCs' = HS.union newAssumePCs unmergedPCs
         Nothing -> ((pc2_map, newAssumePCs), (hs1, ns1))
 

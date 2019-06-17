@@ -51,7 +51,7 @@ import qualified Prelude as P (map)
 -- snd $ M.lookup n (toMap pcs)
 
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
-newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
+newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name))
                     deriving (Show, Eq, Read, Typeable, Data)
 
 -- | Path conditions represent logical constraints on our current execution
@@ -70,7 +70,7 @@ type Assertion = PathCond
 instance Hashable PathCond
 
 {-# INLINE toMap #-}
-toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet PathCond, [Name])
+toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name)
 toMap = coerce
 
 {-# INLINE empty #-}
@@ -111,9 +111,9 @@ insert' f kv p (PathConds pcs) =
     PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
               $ foldr (M.alter (insert'' ns)) pcs insertAt
 
-insert'' :: [Name] -> Maybe (HS.HashSet PathCond, [Name]) -> Maybe (HS.HashSet PathCond, [Name])
-insert'' ns Nothing = Just (HS.empty, ns)
-insert'' ns (Just (p', ns')) = Just (p', ns ++ ns')
+insert'' :: [Name] -> Maybe (HS.HashSet PathCond, HS.HashSet Name) -> Maybe (HS.HashSet PathCond, HS.HashSet Name)
+insert'' ns Nothing = Just (HS.empty, HS.fromList ns)
+insert'' ns (Just (p', ns')) = Just (p', HS.union (HS.fromList ns) ns')
 
 {-# INLINE number #-}
 number :: PathConds -> Int
@@ -179,9 +179,9 @@ scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
 
 scc' :: [Name]
-     -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
-     -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
-     -> (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
+     -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name))
+     -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name))
+     -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name))
 scc' [] _ pc = pc
 scc' (n:ns) pc newpc =
     -- Check if we already inserted the name information
@@ -191,7 +191,7 @@ scc' (n:ns) pc newpc =
             -- If we didn't, lookup info to insert,
             -- and add names to the list of names to search
             case M.lookup (Just n) pc of
-                Just pcn@(_, ns') -> scc' (ns ++ ns') pc (M.insert (Just n) pcn newpc)
+                Just pcn@(_, ns') -> scc' (ns ++ (HS.toList ns')) pc (M.insert (Just n) pcn newpc)
                 Nothing -> scc' ns pc newpc
 
 {-# INLINE toList #-}
@@ -262,7 +262,7 @@ instance ASTContainer PathCond Id where
     modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
 
 instance Named PathConds where
-    names (PathConds pc) = (catMaybes $ M.keys pc) ++ concatMap (\(p, n) -> names p ++ n) pc
+    names (PathConds pc) = (catMaybes $ M.keys pc) ++ concatMap (\(p, n) -> names p ++ (HS.toList n)) pc
 
     rename old new (PathConds pc) =
         PathConds . M.mapKeys (\k -> if k == (Just old) then (Just new) else k)

@@ -14,7 +14,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import Prelude hiding (null)
 
-
 data AssumePCSolver a = AssumePCSolver ArbValueFunc a
 
 instance Solver solver => Solver (AssumePCSolver solver) where
@@ -37,12 +36,14 @@ checkRelAssume :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
 checkRelAssume sol s pc = do
     res <- checkOrdinarySets sol s ordSets 
     case res of -- only if the sets without any AssumePCs in them are consistent do we check the remaining sets
-        (SAT, sol') -> checkAssumePCSets sol' s assPCSets
+        (SAT, sol') -> checkAssumePCSets sol' s assPCSets'
         r -> return r
     where
-        ordSets = filter (not . anyAssumePC) relSets
-        assPCSets = filter anyAssumePC relSets
         relSets = PC.relatedSets (known_values s) pc -- All (AssumePCs i _ _) with same i will be grouped into same set
+        (assPCSets, ordSets) = partition anyAssumePC relSets
+        -- splitPCsId and relatedSets together split pc into sets s.t in each set, any top level AssumePCs have the same Id
+        -- relatedSets alone not enough, because sometimes sets with AssumePCs with different Ids might might be grouped into the same set
+        assPCSets' = concat $ map splitPCsId assPCSets
 
 -- | Checks consistency of [PathConds] where each PathConds does not contain any AssumePCs
 checkOrdinarySets :: TrSolver a => a -> State t -> [PathConds] -> IO (Result, a)
@@ -58,7 +59,8 @@ checkOrdinarySets sol s (p:ps) = do
 checkAssumePCSets :: TrSolver a => a -> State t -> [PathConds] -> IO (Result, a)
 checkAssumePCSets sol _ [] = return (SAT, sol)
 checkAssumePCSets sol s (p:ps) = do
-    (c, sol') <- checkAssumePCSets' sol s $ genPCsList s p -- split PathConds into sets based on Int in (AssumePC _ Int _), and check if at least one set is satisfiable
+    -- split PathConds into sets based on Int in (AssumePC _ Int _), and check if at least one set is satisfiable
+    (c, sol') <- checkAssumePCSets' sol s $ genPCsList s p
     case c of
         SAT -> checkAssumePCSets sol' s ps
         _ -> return (c, sol')
@@ -72,18 +74,18 @@ checkAssumePCSets' sol s (p:ps) = do
         UNSAT -> checkAssumePCSets' sol' s ps
         _ -> return (res, sol')
 
--- Analogous functions to check* ,but generates a Maybe Model too
-
+-- Analogous functions to check*, but generates a Maybe Model too
 solveRelAssume :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO ((Result, Maybe Model, a), [Id])
 solveRelAssume avf sol s b is pc = do
     (res, is') <- solveOrdinarySets avf sol s b M.empty is ordSets
     case res of
-        (SAT, Just m', sol') -> solveAssumePCSets avf sol' s b m' (is') assPCSets -- only check groups with any AssumePCs in them if the common PCs are consistent
+        -- only check groups with any AssumePCs in them if the common PCs are consistent
+        (SAT, Just m', sol') -> solveAssumePCSets avf sol' s b m' (is') assPCSets'
         r -> return (r, is')
     where
-        ordSets = filter (not . anyAssumePC) relSets
-        assPCSets = filter anyAssumePC relSets
         relSets = PC.relatedSets (known_values s) pc -- All (AssumePCs i _ _) with same i will be grouped into same set
+        (assPCSets, ordSets) = partition anyAssumePC relSets
+        assPCSets' = concat $ map splitPCsId assPCSets -- ensure that each set consists of top level AssumePCs with same Id
 
 solveOrdinarySets :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO ((Result, Maybe Model, a), [Id])
 solveOrdinarySets _ sol _ _ m is [] = return ((SAT, Just m, sol), is)
@@ -128,25 +130,44 @@ solveAssumePCSets' avf sol s b m (p:ps) = do
 
 -- Helper Functions
 
+-- | Split into sets based on Id in (AssumePC Id _ _), for PathConds not of the form Assume PC, add to all sets
+splitPCsId ::PathConds -> [PathConds]
+splitPCsId pc =
+    let
+        assumePCs = PC.filter isAssumePC pc
+        uniqueAssumes = nub $ PC.map getAssumeIds assumePCs -- get list of unique Ids from the AssumePCs
+        -- filters unrelated pcs and adds the (Id, Int) pair from an AssumePC as an extCond, to constrain checking/solving for the id
+        f = (\i -> (filterById pc i))
+    in
+    fmap f uniqueAssumes
+
 -- | Split into sets based on Int in (AssumeExpr _ Int _), and extract PathCond in any top level AssumePCs
 genPCsList :: State t -> PathConds -> [PathConds]
 genPCsList s pc =
     let
         assumePCs = PC.filter isAssumePC pc
-        uniqueAssumes = nub $ PC.map getAssumes assumePCs -- get list of unique (Id, Int) pairs from the AssumePCs
+        uniqueAssumes = nub $ PC.map getAssumeIdInt assumePCs -- get list of unique (Id, Int) pairs from the AssumePCs
         createExtCond = (\(i, val) -> (ExtCond (createEqExpr (known_values s) i (toInteger val)) True))
         -- filters unrelated pcs and adds the (Id, Int) pair from an AssumePC as an extCond, to constrain checking/solving for the id
-        f = (\(i, val) -> (PC.insert (known_values s) (createExtCond (i,val)) (filterUnrelatedPCs pc (i,val))))
+        f = (\(i, val) -> (PC.insert (known_values s) (createExtCond (i,val)) (filterByIdInt pc (i,val))))
     in
     extractPCs (known_values s) $ fmap f uniqueAssumes
 
 -- | Filters all AssumePCs with a different assumed (Id, Int) value
-filterUnrelatedPCs :: PathConds -> (Id, Int) -> PathConds
-filterUnrelatedPCs pc e = PC.filter (otherAssumePCs e) pc
+filterByIdInt :: PathConds -> (Id, Int) -> PathConds
+filterByIdInt pc e = PC.filter (otherAssumePCs e) pc
 
 otherAssumePCs :: (Id, Int) -> PathCond -> Bool
 otherAssumePCs i (AssumePC i' num' _) = i == (i', num')
 otherAssumePCs _ _ = True
+
+-- | Filters all AssumePCs with a different assumed Id
+filterById :: PathConds -> Id -> PathConds
+filterById pc i = PC.filter (otherIds i) pc
+
+otherIds :: Id -> PathCond -> Bool
+otherIds i (AssumePC i' _  _) = i == i'
+otherIds _ _ = True
 
 -- | For each PathCond in [PathConds], extracts the inner pc if PathCond is of form (AssumePC _ _ pc)
 extractPCs :: KV.KnownValues -> [PathConds] -> [PathConds]
@@ -164,7 +185,11 @@ isAssumePC _ = False
 anyAssumePC :: PathConds -> Bool
 anyAssumePC pc = any isAssumePC $ PC.toList pc
 
-getAssumes :: PathCond -> (Id, Int)
-getAssumes (AssumePC i num _) = (i, num)
-getAssumes _ = error "Pathcond is not of the form (AssumePC _ _)."
+getAssumeIdInt :: PathCond -> (Id, Int)
+getAssumeIdInt (AssumePC i num _) = (i, num)
+getAssumeIdInt _ = error "Pathcond is not of the form (AssumePC _ _)."
+
+getAssumeIds :: PathCond -> Id
+getAssumeIds (AssumePC i _ _) = i
+getAssumeIds _ = error "Pathcond is not of the form (AssumePC _ _)."
 
