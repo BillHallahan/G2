@@ -203,10 +203,6 @@ instance AST DataCon where
     children _ = []
     modifyChildren _ (DataCon n ty) = DataCon n ty
 
-instance AST Id where
-    children _ = []
-    modifyChildren f i = f i
-
 -- | Instance ASTContainer of Itself
 --   Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
@@ -251,42 +247,6 @@ instance ASTContainer Expr Type where
         Assert (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs _ e = e
 
-instance ASTContainer Expr Id where
-    containedASTs (Var i) = [i]
-    containedASTs (Prim _ t) = containedASTs t
-    containedASTs (Data dc) = containedASTs dc
-    containedASTs (App e1 e2) = containedASTs e1 ++ containedASTs e2
-    containedASTs (Lam _ b e) = containedASTs b ++ containedASTs e
-    containedASTs (Let bnd e) = containedASTs bnd ++ containedASTs e
-    containedASTs (Case e i as) = containedASTs e ++ [i] ++ containedASTs as
-    containedASTs (Cast e c) = containedASTs e ++ containedASTs c
-    containedASTs (Coercion c) = containedASTs c
-    containedASTs (Type t) = containedASTs t
-    containedASTs (Tick _ e) = containedASTs e
-    containedASTs (NonDet es) = containedASTs es
-    containedASTs (SymGen t) = containedASTs t
-    containedASTs (Assume is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
-    containedASTs (Assert is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
-    containedASTs _ = []
-
-    modifyContainedASTs f (Var i) = Var (f i)
-    modifyContainedASTs f (Prim p t) = Prim p (modifyContainedASTs f t)
-    modifyContainedASTs f (Data dc) = Data (modifyContainedASTs f dc)
-    modifyContainedASTs f (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
-    modifyContainedASTs f (Lam u b e) = Lam u (modifyContainedASTs f b)(modifyContainedASTs f e)
-    modifyContainedASTs f (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
-    modifyContainedASTs f (Case m i as) = Case (modifyContainedASTs f m) (f i) (modifyContainedASTs f as)
-    modifyContainedASTs f (Type t) = Type (modifyContainedASTs f t)
-    modifyContainedASTs f (Cast e c) = Cast (modifyContainedASTs f e) (modifyContainedASTs f c)
-    modifyContainedASTs f (Coercion c) = Coercion (modifyContainedASTs f c)
-    modifyContainedASTs f (Tick t e) = Tick t (modifyContainedASTs f e)
-    modifyContainedASTs f (NonDet es) = NonDet (modifyContainedASTs f es)
-    modifyContainedASTs f (SymGen t) = SymGen (modifyContainedASTs f t)
-    modifyContainedASTs f (Assume is e e') = Assume (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
-    modifyContainedASTs f (Assert is e e') =
-        Assert (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
-    modifyContainedASTs _ e = e
-
 instance ASTContainer Id Expr where
   containedASTs (Id _ _) = []
 
@@ -309,21 +269,6 @@ instance ASTContainer Type Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-instance ASTContainer Type Id where
-    containedASTs (TyVar i) = [i]
-    containedASTs (TyFun tf ta) = containedASTs tf ++ containedASTs ta
-    containedASTs (TyApp tf ta) = containedASTs tf ++ containedASTs ta
-    containedASTs (TyCon _ t) = containedASTs t
-    containedASTs (TyForAll b t)  = containedASTs b ++ containedASTs t
-    containedASTs _ = []
-
-    modifyContainedASTs f (TyVar i) = TyVar $ f i
-    modifyContainedASTs f (TyFun tf ta) = TyFun (modifyContainedASTs f tf) (modifyContainedASTs f ta)
-    modifyContainedASTs f (TyApp tf ta) = TyApp (modifyContainedASTs f tf) (modifyContainedASTs f ta)
-    modifyContainedASTs f (TyCon b ts) = TyCon b (modifyContainedASTs f ts)
-    modifyContainedASTs f (TyForAll b t) = TyForAll (modifyContainedASTs f b) (modifyContainedASTs f t)
-    modifyContainedASTs _ t = t
-
 instance ASTContainer DataCon Expr where
     containedASTs _ = []
     modifyContainedASTs _ d = d
@@ -332,22 +277,11 @@ instance ASTContainer DataCon Type where
     containedASTs (DataCon _ t) = [t]
     modifyContainedASTs f (DataCon n t) = DataCon n (f t)
 
-instance ASTContainer DataCon Id where
-    containedASTs (DataCon _ t) = containedASTs t
-    modifyContainedASTs f (DataCon n t) = DataCon n (modifyContainedASTs f t)
-
 instance ASTContainer AltMatch Expr where
     containedASTs _ = []
     modifyContainedASTs _ e = e
 
 instance ASTContainer AltMatch Type where
-    containedASTs (DataAlt dc i) = containedASTs dc ++ containedASTs i
-    containedASTs _ = []
-
-    modifyContainedASTs f (DataAlt dc i) = DataAlt (modifyContainedASTs f dc) (modifyContainedASTs f i)
-    modifyContainedASTs _ e = e
-
-instance ASTContainer AltMatch Id where
     containedASTs (DataAlt dc i) = containedASTs dc ++ containedASTs i
     containedASTs _ = []
 
@@ -363,11 +297,6 @@ instance ASTContainer Alt Type where
     modifyContainedASTs f (Alt a e) =
         Alt (modifyContainedASTs f a) (modifyContainedASTs f e)
 
-instance ASTContainer Alt Id where
-    containedASTs (Alt a e) = (containedASTs a) ++ (containedASTs e)
-    modifyContainedASTs f (Alt a e) =
-        Alt (modifyContainedASTs f a) (modifyContainedASTs f e)
-
 instance ASTContainer TyBinder Expr where
     containedASTs _ = []
     modifyContainedASTs _ b = b
@@ -379,13 +308,6 @@ instance ASTContainer TyBinder Type where
     modifyContainedASTs f (AnonTyBndr t) = AnonTyBndr (f t)
     modifyContainedASTs f (NamedTyBndr i) = NamedTyBndr (modifyContainedASTs f i)
 
-instance ASTContainer TyBinder Id where
-    containedASTs (AnonTyBndr t) = containedASTs t
-    containedASTs (NamedTyBndr i) = [i]
-
-    modifyContainedASTs f (AnonTyBndr t) = AnonTyBndr (modifyContainedASTs f t)
-    modifyContainedASTs f (NamedTyBndr i) = NamedTyBndr (f i)
-
 instance ASTContainer Coercion Expr where
     containedASTs _ = []
     modifyContainedASTs _ c = c
@@ -393,10 +315,6 @@ instance ASTContainer Coercion Expr where
 instance ASTContainer Coercion Type where
     containedASTs (t :~ t') = [t, t']
     modifyContainedASTs f (t :~ t') = f t :~ f t'
-
-instance ASTContainer Coercion Id where
-    containedASTs (t :~ t') = containedASTs t ++ containedASTs t'
-    modifyContainedASTs f (t :~ t') = modifyContainedASTs f t :~ modifyContainedASTs f t'
 
 instance ASTContainer FuncCall Expr where
     containedASTs (FuncCall { arguments = as, returns = r}) = as ++ [r]
@@ -406,11 +324,6 @@ instance ASTContainer FuncCall Expr where
 instance ASTContainer FuncCall Type where
     containedASTs (FuncCall { arguments = as, returns = r}) = containedASTs as ++ containedASTs r
     modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) =
-        fc {arguments = modifyContainedASTs f as, returns = modifyContainedASTs f r}
-
-instance ASTContainer FuncCall Id where
-    containedASTs (FuncCall { arguments = as, returns = r}) = containedASTs as ++ containedASTs r
-    modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) = 
         fc {arguments = modifyContainedASTs f as, returns = modifyContainedASTs f r}
 
 -- instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
@@ -484,10 +397,6 @@ instance ASTContainer Lit Expr where
     modifyContainedASTs _ t = t
 
 instance ASTContainer Lit Type where
-    containedASTs _ = []
-    modifyContainedASTs _ t = t
-
-instance ASTContainer Lit Id where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 

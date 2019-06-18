@@ -22,7 +22,7 @@ import qualified G2.Language.PathConds as PC
 
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
-import qualified Data.List as L
+import qualified Data.HashMap.Strict as HM
 
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
@@ -47,8 +47,8 @@ mergeState ngen s1 s2 =
                 curr_expr' = mergeCurrExpr (known_values s1) newId (curr_expr s1) (curr_expr s2) 
                 (expr_env', (changedSyms, ngen'')) = mergeExprEnv (known_values s1) newId ngen' (expr_env s1) (expr_env s2)
                 syms' = mergeSymbolicIds (symbolic_ids s1) (symbolic_ids s2) newId changedSyms
-                path_conds' = mergePathCondsSimple (known_values s1) newId (path_conds s1) (path_conds s2)
-                path_conds'' = subIdsPCs (known_values s1) path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
+                path_conds' = mergePathConds (known_values s1) newId (path_conds s1) (path_conds s2)
+                path_conds'' = subIdNamesPCs (known_values s1) path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
             in (ngen''
                , (Just State { expr_env = expr_env'
                              , type_env = type_env s1
@@ -99,31 +99,32 @@ createEqExpr :: KnownValues -> Id -> Integer -> Expr
 createEqExpr kv newId val = App (App eq (Var newId)) (Lit (LitInt val)) 
     where eq = mkEqPrimInt kv
 
-mergeSymbolicIds :: SymbolicIds -> SymbolicIds -> Id -> [(Id, Id)] -> SymbolicIds
+mergeSymbolicIds :: SymbolicIds -> SymbolicIds -> Id -> HM.HashMap Id Id -> SymbolicIds
 mergeSymbolicIds syms1 syms2 newId changedSyms =
     let syms' = HS.union syms1 syms2
         syms'' = HS.insert newId syms'
-        (oldSyms, newSyms) = L.unzip changedSyms
+        oldSyms = HM.keys changedSyms
+        newSyms = HM.elems changedSyms
         syms''' = HS.difference syms'' (HS.fromList oldSyms)
     in HS.union syms''' $ HS.fromList newSyms
 
 -- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
-mergeExprEnv :: KnownValues -> Id -> NameGen -> E.ExprEnv -> E.ExprEnv -> (E.ExprEnv, ([(Id, Id)], NameGen))
+mergeExprEnv :: KnownValues -> Id -> NameGen -> E.ExprEnv -> E.ExprEnv -> (E.ExprEnv, (HM.HashMap Id Id, NameGen))
 mergeExprEnv kv newId ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem], (changedSyms, ngen'))
     where eenv1_map = E.unwrapExprEnv eenv1
           eenv2_map = E.unwrapExprEnv eenv2
           zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
-          ((changedSyms, ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId eenv1 eenv2) ([], ngen) zipped_maps
-          merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map (snd . unzip $ changedSyms)
+          ((changedSyms, ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId eenv1 eenv2) (HM.empty, ngen) zipped_maps
+          merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map (HM.elems changedSyms)
           eenv1_rem = (M.difference eenv1_map eenv2_map)
           eenv2_rem = (M.difference eenv2_map eenv1_map)
 
 mergeEnvObj :: KnownValues -> Id
                -> E.ExprEnv
                -> E.ExprEnv
-               -> ([(Id, Id)], NameGen)
+               -> (HM.HashMap Id Id, NameGen)
                -> (E.EnvObj, E.EnvObj)
-               -> (([(Id, Id)], NameGen), E.EnvObj)
+               -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
     | eObj1 == eObj2 = ((changedSyms, ngen), eObj1)
     -- Following cases deal with unequal EnvObjs
@@ -145,17 +146,17 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
     , (E.SymbObj i2) <- eObj2 = mergeTwoSymbObjs kv ngen changedSyms newId i1 i2
     | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
 
-mergeSymbExprObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> Id -> Expr -> Bool -> (([(Id, Id)], NameGen), E.EnvObj)
+mergeSymbExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> Id -> Expr -> Bool -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeSymbExprObjs kv ngen changedSyms newId i@(Id _ t) e first =
         let (newSymId, ngen') = freshId t ngen
-            changedSyms' = (i, newSymId):changedSyms
+            changedSyms' = HM.insert i newSymId changedSyms
             -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are subsumed under the right `Assume` in the NonDet Exprs
             mergedExprObj = case first of
                                 True -> E.ExprObj (mergeExpr kv newId (Var newSymId) e)
                                 False -> E.ExprObj (mergeExpr kv newId e (Var newSymId))
         in ((changedSyms', ngen'), mergedExprObj)
 
-mergeRedirExprObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> E.ExprEnv -> Name -> Expr -> Bool -> (([(Id, Id)], NameGen), E.EnvObj)
+mergeRedirExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> E.ExprEnv -> Name -> Expr -> Bool -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeRedirExprObjs kv ngen changedSyms newId eenv n e first =
         let e2 = case (E.lookup n eenv) of
                     (Just (Var (Id _ t))) -> Var (Id n t)
@@ -166,7 +167,7 @@ mergeRedirExprObjs kv ngen changedSyms newId eenv n e first =
                 False -> E.ExprObj (mergeExpr kv newId e e2)
         in ((changedSyms, ngen), mergedExprObj)
 
-mergeTwoRedirObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> E.ExprEnv -> E.ExprEnv -> Name -> Name -> (([(Id, Id)], NameGen), E.EnvObj)
+mergeTwoRedirObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> E.ExprEnv -> E.ExprEnv -> Name -> Name -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeTwoRedirObjs kv ngen changedSyms newId eenv1 eenv2 n1 n2 =
         let e1 = case (E.lookup n1 eenv1) of
                     (Just (Var (Id n1' t))) -> Var (Id n1' t)
@@ -179,11 +180,11 @@ mergeTwoRedirObjs kv ngen changedSyms newId eenv1 eenv2 n1 n2 =
             mergedExprObj = E.ExprObj (mergeExpr kv newId e1 e2)
         in ((changedSyms, ngen), mergedExprObj)
 
-mergeTwoSymbObjs :: KnownValues -> NameGen -> [(Id, Id)] -> Id -> Id -> Id -> (([(Id, Id)], NameGen), E.EnvObj)
+mergeTwoSymbObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> Id -> Id -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeTwoSymbObjs kv ngen changedSyms newId i1@(Id _ t1) i2@(Id _ t2) =
         let (newSymId1, ngen') = freshId t1 ngen
             (newSymId2, ngen'') = freshId t2 ngen'
-            changedSyms' = (i2, newSymId2):(i1, newSymId1):changedSyms
+            changedSyms' = HM.insert i2 newSymId2 $ HM.insert i1 newSymId1 changedSyms
             mergedExprObj = E.ExprObj (mergeExpr kv newId (Var newSymId1) (Var newSymId2))
         in ((changedSyms', ngen''), mergedExprObj)
 
@@ -245,19 +246,11 @@ mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
           unmergedPCs = HS.union hs1Minus2' hs2Minus1'
 
 -- | @`changedSyms` is list of tuples, w/ each tuple representing the old symbolic Id and the new replacement Id. @`subIdsPCs` substitutes all
--- occurrences of the old symbolic Ids in the PathConds with the corresponding new Id
-subIdsPCs :: KnownValues -> PathConds -> [(Id, Id)] -> PathConds
-subIdsPCs kv pcs changedSyms =
-    PC.fromList kv $ PC.map (subIdsPC changedSyms) pcs
-
-subIdsPC :: [(Id, Id)] -> PathCond -> PathCond
-subIdsPC changedSyms pc = modifyContainedASTs (subId changedSyms) pc
-
-subId :: [(Id, Id)] -> Id -> Id
-subId changedSyms i =
-    case lookup i changedSyms of
-        Just newI -> newI
-        Nothing -> i
+-- occurrences of the old symbolic Ids' Names in the PathConds with the Name of the corresponding new Id. This assumes Old and New Id have the same type
+subIdNamesPCs :: KnownValues -> PathConds -> HM.HashMap Id Id -> PathConds
+subIdNamesPCs kv pcs changedSyms =
+    let changedSymsNames = HM.foldrWithKey (\k v hm -> HM.insert (idName k) (idName v) hm) HM.empty changedSyms
+    in renames changedSymsNames pcs
 
 -- | Removes any NonDets in the expr_env and curr_expr. If NonDets are of the form `Assume (x == 1) e1 v Assume (x == 2) e2`, lookups the value of `x` 
 -- in the `Model` of the state and picks the corresponding Expr.
