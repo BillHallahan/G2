@@ -39,33 +39,33 @@ isMergeable s1 s2 =
     && (isEmpty $ model s1)
     && (isEmpty $ model s2)
 
-mergeState :: Eq t => NameGen -> State t -> State t -> (NameGen, Maybe (State t))
+mergeState :: (Eq t, Named t) => NameGen -> State t -> State t -> (NameGen, Maybe (State t))
 mergeState ngen s1 s2 = 
     if isMergeable s1 s2
         then 
             let (newId, ngen') = freshId TyLitInt ngen
-                curr_expr' = mergeCurrExpr (known_values s1) newId (curr_expr s1) (curr_expr s2) 
-                (expr_env', (changedSyms, ngen'')) = mergeExprEnv (known_values s1) newId ngen' (expr_env s1) (expr_env s2)
-                syms' = mergeSymbolicIds (symbolic_ids s1) (symbolic_ids s2) newId changedSyms
-                path_conds' = mergePathConds (known_values s1) newId (path_conds s1) (path_conds s2)
-                path_conds'' = subIdNamesPCs (known_values s1) path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
+                (curr_expr', s1', s2') = mergeCurrExprInl s1 s2 newId
+                (expr_env', (changedSyms, ngen'')) = mergeExprEnv (known_values s1') newId ngen' (expr_env s1') (expr_env s2')
+                syms' = mergeSymbolicIds (symbolic_ids s1') (symbolic_ids s2') newId changedSyms
+                path_conds' = mergePathConds (known_values s1') newId (path_conds s1') (path_conds s2')
+                path_conds'' = subIdNamesPCs path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
             in (ngen''
                , (Just State { expr_env = expr_env'
-                             , type_env = type_env s1
+                             , type_env = type_env s1'
                              , curr_expr = curr_expr'
                              , path_conds = path_conds''
-                             , non_red_path_conds = non_red_path_conds s1
-                             , true_assert = true_assert s1
-                             , assert_ids = assert_ids s1
-                             , type_classes = type_classes s1
+                             , non_red_path_conds = non_red_path_conds s1'
+                             , true_assert = true_assert s1'
+                             , assert_ids = assert_ids s1'
+                             , type_classes = type_classes s1'
                              , symbolic_ids = syms'
-                             , exec_stack = exec_stack s1
-                             , model = model s1
-                             , known_values = known_values s1
-                             , rules = rules s1
-                             , num_steps = num_steps s1
-                             , track = track s1
-                             , tags = tags s1 }))
+                             , exec_stack = exec_stack s1'
+                             , model = model s1'
+                             , known_values = known_values s1'
+                             , rules = rules s1'
+                             , num_steps = num_steps s1'
+                             , track = track s1'
+                             , tags = tags s1' }))
         else (ngen, Nothing)
 
 isMergeableCurrExpr :: CurrExpr -> CurrExpr -> Bool
@@ -78,6 +78,80 @@ isMergeableExpr :: Expr -> Expr -> Bool
 isMergeableExpr (App e1 _) (App e1' _) = isMergeableExpr e1 e1' 
 isMergeableExpr (Data _) (Data _) = True
 isMergeableExpr _ _ = False
+
+mergeCurrExprInl :: Named t => State t -> State t -> Id -> (CurrExpr, State t, State t)
+mergeCurrExprInl s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
+    | (CurrExpr evalOrRet1 e1) <- ce1
+    , (CurrExpr evalOrRet2 e2) <- ce2
+    , evalOrRet1 == evalOrRet2 =
+        let (ce', s1', s2') = mergeExprInline s1 s2 newId e1 e2
+        in (CurrExpr evalOrRet1 ce', s1', s2')
+    | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
+
+mergeExprInline :: Named t => State t -> State t -> Id -> Expr -> Expr -> (Expr, State t, State t)
+mergeExprInline s1 s2 newId (App e1 e2) (App e1' e2') =
+    let (e1'', s1', s2') = mergeExprInline s1 s2 newId e1 e1'
+        (e2'', s1'', s2'') = mergeExprInline s1' s2' newId e2 e2'
+    in (App e1'' e2'', s1'', s2'')
+mergeExprInline s1 s2 newId e1@(App _ _) (Var i) = mergeVarInline s1 s2 newId i e1 False
+mergeExprInline s1 s2 newId (Var i) e2@(App _ _) = mergeVarInline s1 s2 newId i e2 True
+mergeExprInline s1 s2 newId e1@(Var i1) e2@(Var i2)
+    | e1 == e2 = (e1, s1, s2)
+    | otherwise =
+        let maybeE1' = E.lookupConcOrSym (idName i1) (expr_env s1)
+            maybeE2' = E.lookupConcOrSym (idName i2) (expr_env s2)
+        in mergeVarsInline s1 s2 newId maybeE1' maybeE2'
+mergeExprInline s1 s2 newId e1 e2
+    | e1 == e2 = (e1, s1, s2)
+    | otherwise =
+        let mergedExpr = NonDet [Assume Nothing (createEqExpr kv newId 1) e1, Assume Nothing (createEqExpr kv newId 2) e2]
+            kv = known_values s1
+        in (mergedExpr, s1, s2)
+
+mergeVarInline :: (Named t) => State t -> State t -> Id -> Id -> Expr -> Bool -> (Expr, State t, State t)
+mergeVarInline s1 s2 newId i e@(App _ _) first =
+    let (eenv, kv) = if first then (expr_env s1, known_values s1) else (expr_env s2, known_values s2)
+        maybeE = E.lookupConcOrSym (idName i) eenv
+    in case maybeE of
+        (Just (E.Conc e')) -> if first then mergeExprInline s1 s2 newId e' e else mergeExprInline s1 s2 newId e e'
+        (Just (E.Sym iSym)) ->
+            let mergedExpr = if first
+                    then NonDet [Assume Nothing (createEqExpr kv newId 1) (Var iSym), Assume Nothing (createEqExpr kv newId 2) e]
+                    else NonDet [Assume Nothing (createEqExpr kv newId 1) e, Assume Nothing (createEqExpr kv newId 2) (Var iSym)]
+            in (mergedExpr, s1, s2)
+        Nothing -> error $ "Unable to find Var in expr_env: " ++ show i
+mergeVarInline _ _ _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
+
+mergeVarsInline :: Named t => State t -> State t -> Id -> Maybe E.ConcOrSym -> Maybe E.ConcOrSym -> (Expr, State t, State t)
+mergeVarsInline s1 s2 newId maybeE1 maybeE2
+    | (Just (E.Conc e1)) <- maybeE1
+    , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline s1 s2 newId e1 e2
+    | (Just (E.Conc e1)) <- maybeE1
+    , (Just (E.Sym i)) <- maybeE2 =
+        let mergedExpr = NonDet [Assume Nothing (createEqExpr kv newId 1) e1, Assume Nothing (createEqExpr kv newId 2) (Var i)]
+        in (mergedExpr, s1, s2)
+    | (Just (E.Sym i)) <- maybeE1
+    , (Just (E.Conc e2)) <- maybeE2 =
+        let mergedExpr = NonDet [Assume Nothing (createEqExpr kv newId 1) (Var i), Assume Nothing (createEqExpr kv newId 2) e2]
+        in (mergedExpr, s1, s2)
+    | (Just (E.Sym i1)) <- maybeE1
+    , (Just (E.Sym i2)) <- maybeE2
+    , i1 == i2 = (Var i1, s1, s2)
+    | (Just (E.Sym i1)) <- maybeE1
+    , (Just (E.Sym i2)) <- maybeE2
+    , (idType i1 == idType i2)
+    , not $ HS.member i1 (symbolic_ids s2)
+    , not $ HS.member i2 (symbolic_ids s1) = -- if both are symbolic variables unique to their states, replace one of them with the other
+        let s2' = rename (idName i2) (idName i1) s2
+            eenv2' = E.redirect (idName i2) (idName i1) (expr_env s2')
+        in (Var i1, s1, s2' {expr_env = eenv2'})
+    | (Just (E.Sym i1)) <- maybeE1
+    , (Just (E.Sym i2)) <- maybeE2 =
+        let mergedExpr = NonDet [Assume Nothing (createEqExpr kv newId 1) (Var i1), Assume Nothing (createEqExpr kv newId 2) (Var i2)]
+        in (mergedExpr, s1, s2)
+    | otherwise = error "Unable to find Var(s) in expr_env"
+    where
+        kv = known_values s1
 
 mergeCurrExpr :: KnownValues -> Id -> CurrExpr -> CurrExpr -> CurrExpr
 mergeCurrExpr kv newId (CurrExpr evalOrRet ce1) (CurrExpr evalOrRet2 ce2)
@@ -143,7 +217,7 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
     | (E.RedirObj n1) <- eObj1
     , (E.RedirObj n2) <- eObj2 = mergeTwoRedirObjs kv ngen changedSyms newId eenv1 eenv2 n1 n2
     | (E.SymbObj i1) <- eObj1
-    , (E.SymbObj i2) <- eObj2 = mergeTwoSymbObjs kv ngen changedSyms newId i1 i2
+    , (E.SymbObj i2) <- eObj2 = mergeTwoSymbObjs kv ngen changedSyms newId i1 i2 -- case of same name pointing to unequal SymbObjs shouldn't occur
     | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
 
 mergeSymbExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> Id -> Expr -> Bool -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
@@ -188,7 +262,7 @@ mergeTwoSymbObjs kv ngen changedSyms newId i1@(Id _ t1) i2@(Id _ t2) =
             mergedExprObj = E.ExprObj (mergeExpr kv newId (Var newSymId1) (Var newSymId2))
         in ((changedSyms', ngen''), mergedExprObj)
 
--- | Simpler version of mergePathConds, may not be very efficient for large numbers of PCs, but suffices for most uses
+-- | Simpler version of mergePathConds, may not be very efficient for large numbers of PCs, but suffices for simple cases
 mergePathCondsSimple :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
 mergePathCondsSimple kv newId pc1 pc2 =
     let pc1HS = HS.fromList (PC.toList pc1)
@@ -230,7 +304,7 @@ mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
         Just (hs2, ns2) -> ((pc2_map', newAssumePCs'), (mergedHS, mergedNS))
             where pc2_map' = M.delete key pc2_map
                   (mergedHS, unmergedPCs) = mergeHashSets newId hs1 hs2
-                  mergedNS = HS.union ns1 ns2 -- names of nodes no longer linked to the merged PCs are not being removed here, would be too expensive
+                  mergedNS = HS.union ns1 ns2 -- names should still be the same even though some PCs are wrapped in AssumePCs and moved to different node
                   newAssumePCs' = HS.union newAssumePCs unmergedPCs
         Nothing -> ((pc2_map, newAssumePCs), (hs1, ns1))
 
@@ -247,8 +321,8 @@ mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
 
 -- | @`changedSyms` is list of tuples, w/ each tuple representing the old symbolic Id and the new replacement Id. @`subIdsPCs` substitutes all
 -- occurrences of the old symbolic Ids' Names in the PathConds with the Name of the corresponding new Id. This assumes Old and New Id have the same type
-subIdNamesPCs :: KnownValues -> PathConds -> HM.HashMap Id Id -> PathConds
-subIdNamesPCs kv pcs changedSyms =
+subIdNamesPCs :: PathConds -> HM.HashMap Id Id -> PathConds
+subIdNamesPCs pcs changedSyms =
     let changedSymsNames = HM.foldrWithKey (\k v hm -> HM.insert (idName k) (idName v) hm) HM.empty changedSyms
     in renames changedSymsNames pcs
 

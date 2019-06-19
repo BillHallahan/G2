@@ -419,7 +419,6 @@ outputState fdn is s b = do
 
     putStrLn fn
 
-
 -- | Allows executing multiple halters.
 -- If the halters disagree, prioritizes the order:
 -- Discard, Accept, Switch, Continue
@@ -965,7 +964,7 @@ data Tree a = CaseSplit [Tree a] -- Node corresponding to point at which executi
 newtype Cxt a = Cxt [(Tree a, [Tree a])]
 type TreeZipper a = (Tree a, Cxt a)
 
-runReducerMerge :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO ([State t], Bindings)
+runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO ([State t], Bindings)
 runReducerMerge red hal s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
@@ -977,7 +976,13 @@ runReducerMerge red hal s b = do
     states <- mapM (\ExState {state = st} -> return st) exStates
     return (states, b')
 
-evalZipper :: (Eq t, Reducer r rv t, Halter h hv t) => r -> h -> Processed (ExState rv hv sov t) -> TreeZipper (ExState rv hv sov t) -> Bindings -> IO (TreeZipper (ExState rv hv sov t), Bindings, r, h, Processed (ExState rv hv sov t))
+evalZipper :: (Eq t, Named t, Reducer r rv t, Halter h hv t)
+              => r
+              -> h
+              -> Processed (ExState rv hv sov t)
+              -> TreeZipper (ExState rv hv sov t)
+              -> Bindings
+              -> IO (TreeZipper (ExState rv hv sov t), Bindings, r, h, Processed (ExState rv hv sov t))
 evalZipper red hal pr zipper b
     | Root s _ <- fst zipper = case s of
         [] -> return (zipper, b, red, hal, pr)
@@ -1149,7 +1154,7 @@ pickSibling' _ [] = error "pickSibling must be called with at least one Tree tha
 
 -- | Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations for efficiency reasons
 -- because number of successful merges only seem to increase marginally in such a case
-mergeStatesZipper :: Eq t => [ExState rv hv sov t] -> Bindings -> ([ExState rv hv sov t], Bindings)
+mergeStatesZipper :: (Eq t, Named t) => [ExState rv hv sov t] -> Bindings -> ([ExState rv hv sov t], Bindings)
 mergeStatesZipper (x1:x2:xs) b =
     case mergeStates' x1 x2 b of
         (Just exS, b') -> mergeStatesZipper (exS:xs) b'
@@ -1157,7 +1162,7 @@ mergeStatesZipper (x1:x2:xs) b =
                          in (x1:merged, b'')
 mergeStatesZipper ls b = (ls, b)
 
-mergeStates' :: Eq t => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> (Maybe (ExState rv hv sov t), Bindings)
+mergeStates' :: (Eq t, Named t) => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> (Maybe (ExState rv hv sov t), Bindings)
 mergeStates' ex1 ex2 b =
     let s1 = state ex1
         s2 = state ex2

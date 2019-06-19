@@ -70,6 +70,9 @@ instance Hashable LamUse
 
 idName :: Id -> Name
 idName (Id name _) = name
+
+idType :: Id -> Type
+idType (Id _ t) = t
  
 {-| This is the main data type for our expression language.
 
