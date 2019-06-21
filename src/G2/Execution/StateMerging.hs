@@ -27,7 +27,7 @@ import qualified Data.HashMap.Strict as HM
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
     (exec_stack s1 == exec_stack s2)
-    && (isMergeableCurrExpr (curr_expr s1) (curr_expr s2))
+    && (isMergeableCurrExpr (expr_env s1) (expr_env s2) (curr_expr s1) (curr_expr s2))
     && (type_env s1 == type_env s2)
     && (known_values s1 == known_values s2)
     && (non_red_path_conds s1 == non_red_path_conds s2)
@@ -38,6 +38,20 @@ isMergeable s1 s2 =
     && (type_classes s1 == type_classes s2)
     && (isEmpty $ model s1)
     && (isEmpty $ model s2)
+
+isMergeableCurrExpr :: E.ExprEnv -> E.ExprEnv -> CurrExpr -> CurrExpr -> Bool
+isMergeableCurrExpr eenv1 eenv2 (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = isMergeableExpr eenv1 eenv2 ce1 ce2
+isMergeableCurrExpr eenv1 eenv2 (CurrExpr Return ce1) (CurrExpr Return ce2) = isMergeableExpr eenv1 eenv2 ce1 ce2
+isMergeableCurrExpr _ _ _ _ = False
+
+-- | Returns True if both Exprs are of the form (App ... (App (Data DataCon)) ....) or (App ... (App (Var x)) ...), where (Var x) is a Symbolic variable
+isMergeableExpr :: E.ExprEnv -> E.ExprEnv -> Expr -> Expr -> Bool
+isMergeableExpr eenv1 eenv2 (App e1 _) (App e1' _) = isMergeableExpr eenv1 eenv2 e1 e1'
+isMergeableExpr _ _ (Data _) (Data _) = True
+isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
+    | (Just (E.Sym _)) <- E.lookupConcOrSym (idName i1) eenv1
+    , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2 = True
+isMergeableExpr _ _ _ _ = False
 
 mergeState :: (Eq t, Named t) => NameGen -> State t -> State t -> (NameGen, Maybe (State t))
 mergeState ngen s1 s2 = 
@@ -67,17 +81,6 @@ mergeState ngen s1 s2 =
                              , track = track s1'
                              , tags = tags s1' }))
         else (ngen, Nothing)
-
-isMergeableCurrExpr :: CurrExpr -> CurrExpr -> Bool
-isMergeableCurrExpr (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = isMergeableExpr ce1 ce2
-isMergeableCurrExpr (CurrExpr Return ce1) (CurrExpr Return ce2) = isMergeableExpr ce1 ce2
-isMergeableCurrExpr _ _ = False
-
--- | Returns True if both Exprs are of the form (App ... (Data DataCon) ....) 
-isMergeableExpr :: Expr -> Expr -> Bool
-isMergeableExpr (App e1 _) (App e1' _) = isMergeableExpr e1 e1' 
-isMergeableExpr (Data _) (Data _) = True
-isMergeableExpr _ _ = False
 
 mergeCurrExprInl :: Named t => State t -> State t -> Id -> (CurrExpr, State t, State t)
 mergeCurrExprInl s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
