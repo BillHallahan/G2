@@ -147,7 +147,7 @@ genPCsList s pc =
     let
         assumePCs = PC.filter isAssumePC pc
         uniqueAssumes = nub $ PC.map getAssumeIdInt assumePCs -- get list of unique (Id, Int) pairs from the AssumePCs
-        createExtCond = (\(i, val) -> (ExtCond (createEqExpr (known_values s) i (toInteger val)) True))
+        createExtCond = (\(i, val) -> (ExtCond (createEqExprInt (known_values s) i (toInteger val)) True))
         -- filters unrelated pcs and adds the (Id, Int) pair from an AssumePC as an extCond, to constrain checking/solving for the id
         f = (\(i, val) -> (PC.insert (known_values s) (createExtCond (i,val)) (filterByIdInt pc (i,val))))
     in

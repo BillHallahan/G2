@@ -2,6 +2,7 @@ module G2.Execution.StateMerging
   ( mergeState
   , mergeCurrExpr
   , createEqExpr
+  , createEqExprInt
   , replaceNonDets
   , mergeExpr
   , mergeExprEnv
@@ -107,7 +108,7 @@ mergeExprInline s1 s2 newId e1@(Var i1) e2@(Var i2)
 mergeExprInline s1 s2 newId e1 e2
     | e1 == e2 = (e1, s1, s2)
     | otherwise =
-        let mergedExpr = NonDet [Assume Nothing (createEqExpr kv newId 1) e1, Assume Nothing (createEqExpr kv newId 2) e2]
+        let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) e1, Assume Nothing (createEqExprInt kv newId 2) e2]
             kv = known_values s1
         in (mergedExpr, s1, s2)
 
@@ -119,8 +120,8 @@ mergeVarInline s1 s2 newId i e@(App _ _) first =
         (Just (E.Conc e')) -> if first then mergeExprInline s1 s2 newId e' e else mergeExprInline s1 s2 newId e e'
         (Just (E.Sym iSym)) ->
             let mergedExpr = if first
-                    then NonDet [Assume Nothing (createEqExpr kv newId 1) (Var iSym), Assume Nothing (createEqExpr kv newId 2) e]
-                    else NonDet [Assume Nothing (createEqExpr kv newId 1) e, Assume Nothing (createEqExpr kv newId 2) (Var iSym)]
+                    then NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var iSym), Assume Nothing (createEqExprInt kv newId 2) e]
+                    else NonDet [Assume Nothing (createEqExprInt kv newId 1) e, Assume Nothing (createEqExprInt kv newId 2) (Var iSym)]
             in (mergedExpr, s1, s2)
         Nothing -> error $ "Unable to find Var in expr_env: " ++ show i
 mergeVarInline _ _ _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
@@ -131,11 +132,11 @@ mergeVarsInline s1 s2 newId maybeE1 maybeE2
     , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline s1 s2 newId e1 e2
     | (Just (E.Conc e1)) <- maybeE1
     , (Just (E.Sym i)) <- maybeE2 =
-        let mergedExpr = NonDet [Assume Nothing (createEqExpr kv newId 1) e1, Assume Nothing (createEqExpr kv newId 2) (Var i)]
+        let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) e1, Assume Nothing (createEqExprInt kv newId 2) (Var i)]
         in (mergedExpr, s1, s2)
     | (Just (E.Sym i)) <- maybeE1
     , (Just (E.Conc e2)) <- maybeE2 =
-        let mergedExpr = NonDet [Assume Nothing (createEqExpr kv newId 1) (Var i), Assume Nothing (createEqExpr kv newId 2) e2]
+        let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var i), Assume Nothing (createEqExprInt kv newId 2) e2]
         in (mergedExpr, s1, s2)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2
@@ -150,7 +151,7 @@ mergeVarsInline s1 s2 newId maybeE1 maybeE2
         in (Var i1, s1, s2' {expr_env = eenv2'})
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2 =
-        let mergedExpr = NonDet [Assume Nothing (createEqExpr kv newId 1) (Var i1), Assume Nothing (createEqExpr kv newId 2) (Var i2)]
+        let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var i1), Assume Nothing (createEqExprInt kv newId 2) (Var i2)]
         in (mergedExpr, s1, s2)
     | otherwise = error "Unable to find Var(s) in expr_env"
     where
@@ -169,11 +170,14 @@ mergeExpr :: KnownValues -> Id -> Expr -> Expr -> Expr
 mergeExpr kv newId (App e1 e2) (App e1' e2') = App (mergeExpr kv newId e1 e1') (mergeExpr kv newId e2 e2')
 mergeExpr kv newId e1 e1' = if (e1 == e1') 
     then e1
-    else NonDet [Assume Nothing (createEqExpr kv newId 1) e1, Assume Nothing (createEqExpr kv newId 2) e1']
+    else NonDet [Assume Nothing (createEqExprInt kv newId 1) e1, Assume Nothing (createEqExprInt kv newId 2) e1']
 
 -- | Returns an Expr equivalent to "x == val", where x is a Var created from the given Id
-createEqExpr :: KnownValues -> Id -> Integer -> Expr
-createEqExpr kv newId val = App (App eq (Var newId)) (Lit (LitInt val)) 
+createEqExprInt :: KnownValues -> Id -> Integer -> Expr
+createEqExprInt kv newId val = createEqExpr kv newId (Lit (LitInt val))
+
+createEqExpr :: KnownValues -> Id -> Expr -> Expr
+createEqExpr kv newId e = App (App eq (Var newId)) e 
     where eq = mkEqPrimInt kv
 
 mergeSymbolicIds :: SymbolicIds -> SymbolicIds -> Id -> HM.HashMap Id Id -> SymbolicIds
@@ -277,8 +281,8 @@ mergePathCondsSimple kv newId pc1 pc2 =
         pc2Only' = map (\pc -> AssumePC newId 2 pc) pc2Only
         mergedPC = PC.fromList kv common
         mergedPC' = foldr (PC.insert kv) mergedPC (pc1Only' ++ pc2Only')
-        mergedPC'' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExpr kv newId 1) True)) mergedPC')
-        mergedPC''' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExpr kv newId 2) True)) mergedPC'')
+        mergedPC'' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExprInt kv newId 1) True)) mergedPC')
+        mergedPC''' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExprInt kv newId 2) True)) mergedPC'')
     in mergedPC'''
 
 mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
@@ -292,8 +296,8 @@ mergePathConds kv newId pc1 pc2 =
         ((pc2_map', newAssumePCs), pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) (pc2_map, HS.empty) pc1_map
         combined_map = PC.PathConds (M.union pc2_map' pc1_map')
         -- Add the following two expressions to constrain the value newId can take to either 1/2 when solving
-        combined_map' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExpr kv newId 1) True)) combined_map) 
-        combined_map'' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExpr kv newId 2) True)) combined_map') 
+        combined_map' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExprInt kv newId 1) True)) combined_map) 
+        combined_map'' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExprInt kv newId 2) True)) combined_map') 
     in foldr (PC.insert kv) combined_map'' newAssumePCs
 
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
