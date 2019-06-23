@@ -1,6 +1,5 @@
 module G2.Execution.StateMerging
   ( mergeState
-  , mergeCurrExpr
   , createEqExpr
   , createEqExprInt
   , replaceNonDets
@@ -9,14 +8,10 @@ module G2.Execution.StateMerging
   , mergeEnvObj
   , mergePathConds
   , mergePathCondsSimple
+  , replaceNonDetWithSym
   ) where
 
-import G2.Language.Support
-import G2.Language.Syntax
-import G2.Language.Primitives
-import G2.Language.Naming
-import G2.Language.TypeClasses
-import G2.Language.Expr
+import G2.Language
 import G2.Execution.PrimitiveEval
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
@@ -156,13 +151,6 @@ mergeVarsInline s1 s2 newId maybeE1 maybeE2
     | otherwise = error "Unable to find Var(s) in expr_env"
     where
         kv = known_values s1
-
-mergeCurrExpr :: KnownValues -> Id -> CurrExpr -> CurrExpr -> CurrExpr
-mergeCurrExpr kv newId (CurrExpr evalOrRet ce1) (CurrExpr evalOrRet2 ce2)
-    | evalOrRet == evalOrRet2 = (CurrExpr evalOrRet mergedExpr)
-    | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
-        where 
-            mergedExpr = mergeExpr kv newId ce1 ce2
 
 -- | Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
 -- "D NonDet[(Assume (x == 1) in e_1), (Assume (x == 2) in e_1')],..., NonDet[(Assume (x == 1) in e_n), (Assume (x == 2) in e_n')]" 
@@ -333,7 +321,10 @@ subIdNamesPCs pcs changedSyms =
     let changedSymsNames = HM.foldrWithKey (\k v hm -> HM.insert (idName k) (idName v) hm) HM.empty changedSyms
     in renames changedSymsNames pcs
 
--- | Removes any NonDets in the expr_env and curr_expr. If NonDets are of the form `Assume (x == 1) e1 v Assume (x == 2) e2`, lookups the value of `x` 
+----------------
+
+-- | Removes any NonDets in the expr_env and curr_expr by selecting one choice each time.
+-- If NonDets are of the form `Assume (x == 1) e1 v Assume (x == 2) e2`, lookups the value of `x`
 -- in the `Model` of the state and picks the corresponding Expr.
 replaceNonDets :: State t -> State t 
 replaceNonDets s@(State {curr_expr = cexpr, expr_env = eenv}) = 
@@ -372,3 +363,40 @@ subExpr' m tc is v@(Var i@(Id n _))
         subExpr' m tc (i:is) e
     | otherwise = v
 subExpr' m tc is e = modifyChildren (subExpr' m tc is) e
+
+-- | Given a NonDet Expr created by merging exprs, replaces it with a symbolic variable. Encodes the choices in the NonDet Expr as Path Constraints
+-- Called from evalApp when App center is Prim
+replaceNonDetWithSym :: State t -> NameGen -> Expr -> (State t, NameGen, Expr)
+replaceNonDetWithSym s@(State {expr_env = eenv, path_conds = pc, known_values = kv}) ng e@(NonDet (x:_)) =
+    let newSymT = returnType x
+        (newSym, ng') = freshId newSymT ng -- create new symbolic variable
+        eenv' = E.insertSymbolic (idName newSym) newSym eenv
+        pcs  = createPCs kv e newSym []
+        pc' = foldr (PC.insert kv) pc pcs
+    in (s {expr_env = eenv', path_conds = pc'}, ng', Var newSym)
+replaceNonDetWithSym s ng (App e1 e2) =
+    let (s', ng', e1') = replaceNonDetWithSym s ng e1
+        (s'', ng'', e2') = replaceNonDetWithSym s' ng' e2
+    in (s'', ng'', (App e1' e2'))
+replaceNonDetWithSym s ng e = (s,ng,e)
+
+createPCs :: KnownValues -> Expr -> Id -> [PathCond] -> [PathCond]
+createPCs kv (NonDet (x:xs)) newSymId pcs =
+    case x of
+        (Assume _ e1 e2) ->
+            let (i, val) = getAssumption e1
+            in case e2 of
+                (NonDet _) ->
+                    let newPCs = createPCs kv e2 newSymId []
+                        newPCs' = map (\pc -> AssumePC i val pc) newPCs
+                    in createPCs kv (NonDet xs) newSymId (newPCs' ++ pcs)
+                _ ->
+                    let pc = AssumePC i val $ ExtCond (createEqExpr kv newSymId e2) True
+                    in createPCs kv (NonDet xs) newSymId (pc:pcs)
+        _ -> error $ "NonDet option is of a wrong Data Constructor: " ++ (show x)
+createPCs _ (NonDet []) _ pcs = pcs
+createPCs _ _ _ pcs = pcs
+
+getAssumption :: Expr -> (Id, Int)
+getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, fromInteger val)
+getAssumption e = error $ "Unable to extract Id, Int from Assumed Expr: " ++ (show e)

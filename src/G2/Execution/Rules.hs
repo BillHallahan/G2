@@ -171,8 +171,8 @@ evalApp s@(State { expr_env = eenv
         let
             ar' = map (lookupForPrim eenv) ar
             appP = mkApp (Prim prim ty : ar')
+            -- replace any NonDets in appP with a Symbolic variable to ensure the Expr is in Symbolic Weak Head Normal Form
             (s', ng', appP') = replaceNonDetWithSym s ng appP
-            -- (s', ng', appP') = (s, ng, appP)
             exP = evalPrims kv appP'
         in
         ( RuleEvalPrimToNorm
@@ -192,46 +192,6 @@ evalApp s@(State { expr_env = eenv
           | E.isSymbolic n eenv = v
           | Just e <- E.lookup n eenv = findSym e
         findSym _ = error "findSym: No symbolic variable"
-
-replaceNonDetWithSym :: State t -> NameGen -> Expr -> (State t, NameGen, Expr)
-replaceNonDetWithSym s@(State {expr_env = eenv, path_conds = pc, known_values = kv}) ng e@(NonDet _) =
-    let (newSymId, ng') = freshId TyLitInt ng -- create new symbolic variable --how to get type - from 1st argument of xs
-        eenv' = E.insertSymbolic (idName newSymId) newSymId eenv
-        pcs  = createPCs kv e newSymId []
-        pc' = foldr (PC.insert kv) pc pcs
-    in (s {expr_env = eenv', path_conds = pc'}, ng', Var newSymId)
-replaceNonDetWithSym s ng (App e1 e2) =
-    let (s', ng', e1') = replaceNonDetWithSym s ng e1
-        (s'', ng'', e2') = replaceNonDetWithSym s' ng' e2
-    in (s'', ng'', (App e1' e2'))
-replaceNonDetWithSym s ng e = (s,ng,e)
-
-createPCs :: KnownValues -> Expr -> Id -> [PathCond] -> [PathCond]
-createPCs kv (NonDet (x:xs)) newSymId pcs =
-    case x of
-        (Assume _ e1 e2) -> 
-            let (i, val) = getAssumption kv e1
-            in case e2 of 
-                (NonDet _) -> 
-                    let newPCs = createPCs kv e2 newSymId []
-                        newPCs' = map (\pc -> AssumePC i val pc) newPCs
-                    in createPCs kv (NonDet xs) newSymId (newPCs' ++ pcs)
-                _ -> 
-                    let pc = createPC kv i val newSymId e2
-                    in createPCs kv (NonDet xs) newSymId (pc:pcs)
-        _ -> error $ "NonDet option is of a wrong Data Constructor: " ++ (show x)
-createPCs _ (NonDet []) _ pcs = pcs
-createPCs _ _ _ pcs = pcs
-
-createPC :: KnownValues -> Id -> Int -> Id -> Expr -> PathCond
-createPC kv i val newSymId e = AssumePC i val $ ExtCond (createEqExpr kv newSymId e) True
-
-getAssumption :: KnownValues -> Expr -> (Id, Int)
-getAssumption kv e@(App (App (Prim Eq (TyFun TyLitInt (TyFun TyLitInt t))) (Var i)) (Lit (LitInt val))) = 
-                    if t == (tyBool kv) 
-                        then (i, fromInteger val) 
-                        else error $ "Unable to extract Id, Int from Assumed Expr: " ++ (show e)
-getAssumption _ e = error $ "Unable to extract Id, Int from Assumed Expr: " ++ (show e)
 
 lookupForPrim :: ExprEnv -> Expr -> Expr
 lookupForPrim eenv v@(Var (Id _ _)) = repeatedLookup eenv v
