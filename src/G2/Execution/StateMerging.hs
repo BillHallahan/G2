@@ -367,13 +367,14 @@ subExpr' m tc is e = modifyChildren (subExpr' m tc is) e
 -- | Given a NonDet Expr created by merging exprs, replaces it with a symbolic variable. Encodes the choices in the NonDet Expr as Path Constraints
 -- Called from evalApp when App center is Prim
 replaceNonDetWithSym :: State t -> NameGen -> Expr -> (State t, NameGen, Expr)
-replaceNonDetWithSym s@(State {expr_env = eenv, path_conds = pc, known_values = kv}) ng e@(NonDet (x:_)) =
+replaceNonDetWithSym s@(State {expr_env = eenv, path_conds = pc, known_values = kv, symbolic_ids = syms}) ng e@(NonDet (x:_)) =
     let newSymT = returnType x
         (newSym, ng') = freshId newSymT ng -- create new symbolic variable
         eenv' = E.insertSymbolic (idName newSym) newSym eenv
+        syms' = HS.insert newSym syms
         pcs  = createPCs kv e newSym []
         pc' = foldr (PC.insert kv) pc pcs
-    in (s {expr_env = eenv', path_conds = pc'}, ng', Var newSym)
+    in (s {expr_env = eenv', path_conds = pc', symbolic_ids = syms'}, ng', Var newSym)
 replaceNonDetWithSym s ng (App e1 e2) =
     let (s', ng', e1') = replaceNonDetWithSym s ng e1
         (s'', ng'', e2') = replaceNonDetWithSym s' ng' e2
