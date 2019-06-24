@@ -1152,7 +1152,7 @@ pickSibling' seen (x:xs) = case x of
     _ -> pickSibling' (x:seen) xs
 pickSibling' _ [] = error "pickSibling must be called with at least one Tree that is a leaf"
 
--- | Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations for efficiency reasons
+-- | Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations
 -- because number of successful merges only seem to increase marginally in such a case
 mergeStatesZipper :: (Eq t, Named t) => [ExState rv hv sov t] -> Bindings -> ([ExState rv hv sov t], Bindings)
 mergeStatesZipper (x1:x2:xs) b =
@@ -1171,3 +1171,19 @@ mergeStates' ex1 ex2 b =
     in case res of
         (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
         (ng', Nothing) -> (Nothing, b {name_gen = ng'})
+
+-- | Similar to mergeStatesZipper, but considers all possible combinations when merging states
+mergeStatesAllZipper :: (Eq t, Named t) => [ExState rv hv sov t] -> Bindings -> ([ExState rv hv sov t], Bindings)
+mergeStatesAllZipper (x:xs) b =
+    let (done, rest, b') = mergeStatesAllZipper' x [] xs b
+        (mergedStates, b'') = mergeStatesAllZipper rest b'
+    in (done:mergedStates, b'')
+mergeStatesAllZipper [] b = ([], b)
+
+mergeStatesAllZipper' :: (Eq t, Named t) => (ExState rv hv sov t) -> [ExState rv hv sov t] -> [ExState rv hv sov t] -> Bindings 
+                   -> ((ExState rv hv sov t), [ExState rv hv sov t], Bindings)
+mergeStatesAllZipper' x1 checked (x2:xs) b =
+    case mergeStates' x1 x2 b of
+        (Just exS, b') -> mergeStatesAllZipper' exS checked xs b'
+        (Nothing, b') -> mergeStatesAllZipper' x1 (x2:checked) xs b'
+mergeStatesAllZipper' x1 checked [] b = (x1, checked, b)
