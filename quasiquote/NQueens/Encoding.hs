@@ -15,7 +15,9 @@ queenPairSafe n qs (i, j) =
   let qs_i = qs !! i
       qs_j = qs !! j
   in (qs_i /= qs_j)
-      && (abs (qs_j - qs_i) /= (j - i))
+      -- && (abs (qs_j - qs_i) /= (j - i))
+      && qs_j - qs_i /= j - i
+      && qs_j - qs_i /= i - j
 
 allQueensSafe :: Int -> [Queen] -> Bool
 allQueensSafe n qs =
