@@ -57,7 +57,7 @@ mergeState ngen s1 s2 =
                 (curr_expr', s1', s2') = mergeCurrExprInl s1 s2 newId
                 (expr_env', (changedSyms, ngen'')) = mergeExprEnv (known_values s1') newId ngen' (expr_env s1') (expr_env s2')
                 syms' = mergeSymbolicIds (symbolic_ids s1') (symbolic_ids s2') newId changedSyms
-                path_conds' = mergePathConds (known_values s1') newId (path_conds s1') (path_conds s2')
+                path_conds' = mergePathCondsSimple (known_values s1') newId (path_conds s1') (path_conds s2')
                 path_conds'' = subIdNamesPCs path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
             in (ngen''
                , (Just State { expr_env = expr_env'
@@ -273,6 +273,8 @@ mergePathCondsSimple kv newId pc1 pc2 =
         mergedPC''' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExprInt kv newId 2) True)) mergedPC'')
     in mergedPC'''
 
+-- | Does not always work if 2 top level AssumePCs both impose constraints on the same Name -> resulting in model generating conflicting values
+-- and one being arbitrarily chosen over the other
 mergePathConds :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
 mergePathConds kv newId pc1 pc2 = 
     -- If a key exists in both maps, then the respective values are combined and inserted into pc1_map'. 
