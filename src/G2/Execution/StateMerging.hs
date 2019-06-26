@@ -43,7 +43,7 @@ isMergeableCurrExpr _ _ _ _ = False
 -- | Returns True if both Exprs are of the form (App ... (App (Data DataCon)) ....) or (App ... (App (Var x)) ...), where (Var x) is a Symbolic variable
 isMergeableExpr :: E.ExprEnv -> E.ExprEnv -> Expr -> Expr -> Bool
 isMergeableExpr eenv1 eenv2 (App e1 _) (App e1' _) = isMergeableExpr eenv1 eenv2 e1 e1'
-isMergeableExpr _ _ (Data _) (Data _) = True
+isMergeableExpr _ _ (Data dc1) (Data dc2) = dc1 == dc2
 isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
     | (Just (E.Sym _)) <- E.lookupConcOrSym (idName i1) eenv1
     , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2 = True
