@@ -86,6 +86,10 @@ nqueensTests = do
   timeIOActionPrint $ queensTestN 7
   putStrLn ""
 
+  putStrLn "-- queensTestN 8"
+  timeIOActionPrint $ queensTestN 8
+  putStrLn ""
+
   putStrLn "---------------------\n\n"
   return ()
 
@@ -141,6 +145,7 @@ main = do
     -- debruijnTests
     -- regexTests
 
+    nqueensTests
     runArithmeticsEval
     runDeBruijnEval
     runRegExEval
