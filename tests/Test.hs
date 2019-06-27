@@ -32,7 +32,7 @@ import DefuncTest
 import CaseTest
 import Expr
 import Typing
-import MergeStateUnitTests
+-- import MergeStateUnitTests
 
 import InputOutputTest
 import Reqs
@@ -63,7 +63,7 @@ tests = return . testGroup "Tests"
         , primTests
         , exprTests
         , typingTests
-        , mergeStateUnitTests
+        -- , mergeStateUnitTests
         ]
 
 timeout :: Timeout
@@ -480,14 +480,14 @@ todoTests =
         ]
 
 -- | Tests for specific functions - mergeExpr, checkRelAssume, solveRelAssume
-mergeStateUnitTests :: IO TestTree
-mergeStateUnitTests =
-    return . testGroup "Unit Tests"
-        =<< sequence [
-              checkFn mergeCurrExprTests "mergeCurrExpr Test"
-              , checkFnIO checkRelAssumeTests "checkRelAssume Test"
-              , checkFnIO solveRelAssumeTests "solveRelAssume Test"
-            ]
+-- mergeStateUnitTests :: IO TestTree
+-- mergeStateUnitTests =
+--     return . testGroup "Unit Tests"
+--         =<< sequence [
+--               checkFn mergeCurrExprTests "mergeCurrExpr Test"
+--               , checkFnIO checkRelAssumeTests "checkRelAssume Test"
+--               , checkFnIO solveRelAssumeTests "solveRelAssume Test"
+--             ]
 
 data ToDo = RunMain
           | RunToDo

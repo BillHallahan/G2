@@ -267,6 +267,229 @@ evalLet s@(State { expr_env = eenv })
                           , curr_expr = CurrExpr Evaluate e'}]
                      , ng')
 
+type SymbolicVar = (Expr, [Assumption])
+type Lit = (Expr, [Assumption])
+type Constructor = (Expr, [Assumption])
+type PrimApp = (Expr, [Assumption])
+data Matches = Matches { symbolic_vars :: [SymbolicVar]
+                       , lits :: [Lit]
+                       , constructors :: [Constructor]
+                       , prims :: [PrimApp]}
+
+type Assumption = Expr
+
+getChoices :: Solver solver => solver -> State t -> Expr -> IO ([(Expr, [Assumption])])
+getChoices solver s (NonDet xs) = do
+    let choices = getTopLevelExprs xs  -- [(expr, assum)]
+    choices' <- mapMaybeM (\(e, assum) -> checkNewPC solver s (ExtCond assum True) e assum) choices -- filter choices based on the `assum` expr
+    concatMapM (\(e, assum, s') -> do
+        getChoices solver s' e -- extract Exprs and Assumptions in any nested NonDets
+        >>= mapM (\(e', assumes) -> return (e', assum:assumes))) choices' -- add top level assumed expr to each of these
+getChoices _ _ e = return [(e, [])]
+
+getTopLevelExprs :: [Expr] -> [(Expr, Assumption)]
+getTopLevelExprs (x:xs)
+    | (Assume _ e1 e2) <- x = (e2, e1):(getTopLevelExprs xs)
+    | otherwise = error "getTopLevelExprs called with [Expr] not from result of merging states. "
+getTopLevelExprs [] = []
+
+checkNewPC :: Solver solver => solver -> State t -> PathCond -> Expr -> Assumption -> IO (Maybe (Expr, Assumption, State t))
+checkNewPC solver s@(State { known_values = kv, path_conds = spc }) pc e assum
+    -- In the case of newtypes, the PC exists we get may have the correct name
+    -- but incorrect type.
+    -- We do not want to add these to the State
+    -- This is a bit ugly, but not a huge deal, since the State already has PCExists
+    | (not . PC.isPCExists) pc = do
+        -- Replace the path_conds with only those that are directly
+        -- affected by the new path constraints
+        -- This allows for more efficient solving, and in some cases may
+        -- change an Unknown into a SAT or UNSAT
+        let new_pc = (PC.insert kv) pc spc
+            s' = s { path_conds = new_pc}
+
+        let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant kv [pc] new_pc
+
+        res <- check solver s rel_pc
+
+        if res == SAT then
+            return $ Just (e, assum, s')
+        else
+            return Nothing
+    | otherwise = return $ Just (e, assum, s)
+
+-- | Handle the Case forms of Evaluate.
+evalCase :: State t -> NameGen -> [(Expr, [Assumption])] -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
+evalCase s@(State { expr_env = eenv, path_conds = pcs }) ng choices bind alts =
+    let
+        dalts = dataAlts alts
+        lalts = litAlts alts
+        defs = defaultAlts alts
+        -- for each `(DataAlt dcon params)` match all choices with same dcon and number of Apps == params, all Symbolic Variables, all Primitive exprs
+        (daltMatches, choices') = matchDataAlts eenv dalts choices  
+        -- for each LitAlt lit, match all (LitInts i) where i == lit, all Symb Vars. Delete any Lits that match from choices
+        (laltMatches, choices'') = matchLitAlts lalts choices'      
+        -- all unmatched (App...(DataCon dcon')...), all Symb Vars
+        (defMatches, choices''') = matchDefaults defs choices''     
+
+        -- split into multiple states on the various Alts appropriately
+        (dsts_cs, ng') = handleDaltMatches s ng daltMatches bind
+        (lsts, ng'') = handleLaltMatches s ng' laltMatches bind 
+        def_sts = handleDefMatches s defMatches bind alts
+    in (RuleEvalCase, def_sts ++ dsts_cs ++ lsts, ng'')
+
+matchDataAlts :: [Alt] -> [(Expr, [Assumption])] -> ([(Alt, Matches)], [(Expr, [Assumption])])
+matchDataAlts (alt:alts) choices =
+    let
+        x = (alt, emptyMatch)
+        (x', choices') = matchDataAlt x choices
+        (xs, choices'') = matchDataAlts alts choices'
+    in (x':xs, choices'')
+
+-- | If a choice in `choices` matches with the given `alt`, add to `matches`
+matchDataAlt :: E.ExprEnv -> (Alt, Match) -> [(Expr, [Assumption])] -> ((Alt, Match), [(Expr, [Assumption])])
+matchDataAlt eenv (alt, matches) choices@(x@(mexpr, assum):xs)
+    | (Alt (DataAlt dcon params) _) <- alt
+    , (Data dcon'):ar <- unApp $ exprInCasts mexpr
+    , (DataCon _ _) <- dcon'
+    , ar' <- removeTypes ar eenv
+    , dcon == dcon'
+    , length params == length ar' =
+        let
+            ((alt', matches' {constructors = dcons}), choices') = matchDataAlt eenv (alt, matches) xs -- delete x from choices
+        in ((alt', matches' {constructors = x:dcons}), choices')
+    | (Var i@(Id n _)):_ <- unApp $ unsafeElimOuterCast expr
+    , E.isSymbolic n eenv =
+        let
+            ((alt', matches' {symbolic_vars = syms}), choices') = matchDataAlt eenv (alt, matches) xs
+        in ((alt, matches {symbolic_vars = x:syms}), x:choices') -- keep x in choices
+    | otherwise = 
+        let 
+            ((alt', matches'), choices') = matchDataAlt eenv (alt, matches) xs
+        in ((alt', matches'), x:choices')
+matchDataAlt (alt, matches) [] = (alt, matches)
+
+matchLitAlts :: [Alt] -> [(Expr, [Assumption])] -> ([(Alt, Matches)], [(Expr, [Assumption])])
+matchLitAlts (alt:alts) choices =
+    let
+        x = (alt, emptyMatch)
+        (x', choices') = matchLitAlt x choices
+        (xs, choices'') = matchLitAlts alts choices'
+    in (x':xs, choices'')
+
+-- | If a choice in `choices` matches with the given `alt`, add to `matches`
+matchLitAlt :: E.ExprEnv -> (Alt, Match) -> [(Expr, [Assumption])] -> ((Alt, Match), [(Expr, [Assumption])])
+matchLitAlt eenv (alt, matches) choices@(x@(mexpr, assum):xs)
+    | (Lit lit) <- unsafeElimOuterCast mexpr
+    , (Alt (LitAlt lit') _) <- alt
+    , lit == lit' =
+        let
+            ((alt', matches' {lits = l}), choices') = matchLitAlt eenv (alt, matches) xs 
+        in ((alt', matches' {lits = lit:l}), choices') -- delete x from choices
+    | (Var i@(Id n _)):_ <- unApp $ unsafeElimOuterCast expr
+    , E.isSymbolic n eenv =
+        let
+            ((alt', matches' {symbolic_vars = syms}), choices') = matchLitAlt eenv (alt, matches) xs
+        in ((alt, matches {symbolic_vars = x:syms}), x:choices') -- keep x in choices
+    | otherwise = 
+        let 
+            ((alt', matches'), choices') = matchLitAlt eenv (alt, matches) xs
+        in ((alt', matches'), x:choices')
+matchLitAlt (alt, matches) [] = (alt, matches)
+
+matchDefaults :: [Alt] -> [(Expr, [Assumption])] -> ([(Alt, Matches)], [(Expr, [Assumption])])
+matchDefaults (alt:alts) choices =
+    let
+        x = (alt, emptyMatch)
+        (x', choices') = matchDefault x choices
+    in ([x'], choices')
+
+-- | If a choice in `choices` matches with the given `alt`, add to `matches`
+matchDefault :: E.ExprEnv -> (Alt, Match) -> [(Expr, [Assumption])] -> ((Alt, Match), [(Expr, [Assumption])])
+matchDefault eenv (alt, matches) choices@(x@(mexpr, assum):xs)
+  | (Data _):_ <- unApp $ unsafeElimOuterCast mexpr = -- any DataCon we encounter must not have been matched in earlier cases, so we add it
+        let
+            ((alt', matches' {constructors = cons}), choices') = matchDefault eenv (alt, matches) xs 
+        in ((alt', matches' {constructors = x:cons}), choices')
+    | (Var i@(Id n _)):_ <- unApp $ unsafeElimOuterCast expr
+    , E.isSymbolic n eenv =
+        let
+            ((alt', matches' {symbolic_vars = syms}), choices') = matchDefault eenv (alt, matches) xs
+        in ((alt, matches {symbolic_vars = x:syms}), x:choices') -- keep x in choices
+    | otherwise = 
+        let 
+            ((alt', matches'), choices') = matchDefault eenv (alt, matches) xs
+        in ((alt', matches'), x:choices')
+matchDefaultAlt (alt, matches) [] = (alt, matches)
+
+-- what about Prims
+handleLaltMatches :: State t -> NameGen -> [(Alt, Matches)] -> Id -> ([NewPC t], NameGen)
+handleLaltMatches s ng ((alt, matches):alts) bind =
+    | (Alt (LitAlt lit) aexpr) <- alt 
+    , not $ null (symbolic_vars matches) 
+    || not $ null (lits matches) =
+        let 
+            -- for all SymbolicVars @(Var i), add AssumePC id int (.... (AltCond lit (Var i))..) True
+            conds = map makePCSymLitAlt $ symbolic_vars matches
+            binds = [(bind, Lit lit)]
+            aexpr' = liftCaseBinds binds aexpr
+            s' = s {curr_expr = CurrExpr Evaluate aexpr'}
+            newPC = NewPC {state = s', new_pcs = conds}
+
+            (pcs, ng') = handleLaltMatches s ng alts bind
+
+        in (NewPC {state = s', new_pcs = newPCs}:pcs, ng')
+    | otherwise = handleLaltMatches s ng alts bind
+handleLaltMatches _ ng [] _ = ([], ng)
+
+handleDaltMatches :: State t -> NameGen -> [(Alt, Matches)] -> Id -> ([NewPC t], NameGen)
+handleDaltMatches s ng ((alt, matches):alts) bind =
+    | (Alt (DataAlt dcon params) aexpr) <- alt =
+        let
+            (ng', sts) = mapAccumR (\(ng, (mexpr, assum)) -> -- thread ng through List
+                let (newPC, ng') = case unApp $ unsafeElimOuterCast mexpr of
+                        (Var i):_ -> concretizeVarExpr' s ng i bind dalts cast
+                        _ -> error $ "Expr not of the form Var i: " ++ show mexpr           
+
+                    conds = (\e -> ExtCond e True) <$> assum
+                    conds' = (new_pcs newPC) ++ conds
+                in (newPC {new_pcs = conds'}, ng')) ng $ symbolic_vars matches  
+
+            (ng'', sts2) = mapAccumR (\(ng, (mexpr, assum)) ->
+                let (newPC, ng') = case unApp $ unsafeElimOuterCast mexpr of
+                        (Prim _ _):_ -> createExtCond s ng aexpr bind alt
+                        _ -> error $ "Expr not of the form (App...(Prim ..)...) i: " ++ show mexpr           
+
+                    conds = (\e -> ExtCond e True) <$> assum
+                    conds' = (new_pcs newPC) ++ conds
+                in (newPC {new_pcs = conds'}, ng')) ng $ prims matches  
+
+            sts3 = map (\(ng, (mexpr, assum)) ->
+                let 
+                    binds = [(bind, mexpr)]
+                    aexpr' = liftCaseBinds binds aexpr
+                    conds = (\e -> ExtCond e True) <$> assum
+                in NewPC { state = s { curr_expr = CurrExpr Evaluate aexpr' }
+                         , new_pcs = conds }) $ constructors matches
+
+            (pcs, ng''') = handleDaltMatches s ng alts bind
+        in (sts ++ sts2 ++ sts3 ++ pcs, ng''')
+    | otherwise = handleDaltMatches s ng alts bind
+handleDaltMatches _ ng [] _ = ([], ng)
+
+handleDefMatches :: State t -> [(Alt, Matches)] -> Id -> [Alt] -> [NewPC t]
+handleDefMatches s ((alt, matches):alts) bind as =
+    | (Alt Default aexpr) <- alt = 
+        let
+            mexpr = -- NonDet [Assume Nothing (App (App And (App (App mkAnd Assume1) Assume2)) Assume3) Choice1, ....]
+            binds = [(bind, mexpr)]
+            aexpr' = liftCaseBinds binds aexpr
+            s' = s {curr_expr = CurrExpr Evaluate aexpr'}
+            -- For all other Alts: Add either ConsCond or AltCond False
+            conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch as)
+        in [NewPC {State = s', new_pcs = conds}]
+    | otherwise = error $ "Alt is not a Default: " ++ show alt
+handleDefMatches _ [] _ _ = []
+
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
