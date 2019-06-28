@@ -3,17 +3,22 @@
 
 name:                g2
 version:             0.1.0.0
--- synopsis:            
--- description:         
--- license:             
--- license-file:        LICENSE
-author:              Anton Xue, William Hallahan
-maintainer:          billhallahan@juno.com
+synopsis:            Haskell symbolic execution engine.
+description:         A Haskell symbolic execution engine.
+                     For details, please see: <https://github.com/BillHallahan/G2>
+License:             BSD3
+License-file:        LICENSE
+author:              William Hallahan, Anton Xue
+maintainer:          william.hallahan@yale.edu
 -- copyright:           
--- category:            
+category:            Formal Methods, Symbolic Computation
 build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.24
+
+source-repository head
+    type:       git
+    location:   https://github.com/BillHallahan/G2.git
 
 library
   exposed-modules:       
