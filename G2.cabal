@@ -169,7 +169,7 @@ library
                        , time >= 1.6 && <= 1.9.3
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
-  ghc-options:         -O -Wall
+  ghc-options:         -Wall
                        -- -ddump-splices
                        -- -fprof-auto
                        -- -fexternal-interpreter -opti+RTS -opti-p
@@ -187,7 +187,7 @@ executable G2
                        , text == 1.2.3.1
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
-  ghc-options:         -O -threaded -Wall
+  ghc-options:         -threaded -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      exe
   main-is:             Main.hs
@@ -199,7 +199,7 @@ executable QuasiQuote
                        , base >= 4.8 && < 5
                        , time >= 1.6 && <= 1.9.3
   default-language:    Haskell2010
-  ghc-options:         -O -Wall
+  ghc-options:         -Wall
                        -- -ddump-splices
                        -- -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      quasiquote
@@ -223,7 +223,7 @@ test-suite test
   default-language:    Haskell2010
   hs-source-dirs:      tests
   main-is:             Test.hs
-  ghc-options:         -O -Wall
+  ghc-options:         -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -threaded
   type:                exitcode-stdio-1.0
