@@ -2,7 +2,7 @@ language: haskell
 
 before_install:
   # Installing Z3
-  - ./install_z3.sh
+  - bash install_z3.sh
 
   # Getting base library
   - bash base_setup.sh
