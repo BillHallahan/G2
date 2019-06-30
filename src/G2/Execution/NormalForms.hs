@@ -3,6 +3,7 @@ module G2.Execution.NormalForms where
 import G2.Language
 import qualified G2.Language.Stack as S
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Execution.StateMerging as SM
 
 -- | If something is in "value form", then it is essentially ready to be
 -- returned and popped off the heap. This will be the SSTG equivalent of having
@@ -44,3 +45,12 @@ isExecValueForm state | Nothing <- S.pop (exec_stack state)
 
 isExecValueFormDisNonRedPC :: State t -> Bool
 isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = []}
+
+isSymMergedNormalForm :: E.ExprEnv -> Expr -> Bool
+isSymMergedNormalForm eenv (NonDet xs) = all (isSymMergedNormalForm' eenv) xs
+isSymMergedNormalForm eenv e = isExprValueForm eenv e
+
+isSymMergedNormalForm' :: E.ExprEnv -> Expr -> Bool
+isSymMergedNormalForm' eenv (Assume _ e1 e2) = isSymMergedNormalForm eenv e2 && (SM.isSMAssumption e1)
+isSymMergedNormalForm' _ _ = False
+

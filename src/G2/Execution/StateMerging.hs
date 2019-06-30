@@ -9,6 +9,8 @@ module G2.Execution.StateMerging
   , mergePathConds
   , mergePathCondsSimple
   , replaceNonDetWithSym
+  , getAssumption
+  , isSMAssumption
   ) where
 
 import G2.Language
@@ -403,3 +405,8 @@ createPCs _ _ _ pcs = pcs
 getAssumption :: Expr -> (Id, Int)
 getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, fromInteger val)
 getAssumption e = error $ "Unable to extract Id, Int from Assumed Expr: " ++ (show e)
+
+-- | Returns True is Expr can be pattern matched against Assume-d Expr created during state merging
+isSMAssumption :: Expr -> Bool
+isSMAssumption (App (App (Prim Eq _) (Var _)) (Lit (LitInt _))) = True
+isSMAssumption _ = False
