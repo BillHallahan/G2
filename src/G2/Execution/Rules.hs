@@ -277,17 +277,11 @@ evalLet s@(State { expr_env = eenv })
 data Matches = Matches { symbolic_vars :: [(Expr, [Assumption])]
                        , lits :: [(Expr, [Assumption])]
                        , constructors :: [(Expr, [Assumption])]
-                       , prims :: [(Expr, [Assumption])]}
+                       , prims :: [(Expr, [Assumption])]
+                       , defaults :: [(Expr, [Assumption])]}
 
 emptyMatch :: Matches
-emptyMatch = Matches { symbolic_vars = [], lits = [], constructors = [], prims = []}
-
-matchesLen :: Matches -> Int
-matchesLen (Matches {symbolic_vars = s
-                      , lits = l
-                      , constructors = c
-                      , prims = p}) = length s + length l + length c + length p
-
+emptyMatch = Matches { symbolic_vars = [], lits = [], constructors = [], prims = [], defaults = []}
 
 type Assumption = Expr
 
@@ -369,7 +363,7 @@ evalCaseSMNF' s@(State { expr_env = eenv }) ng choices bind alts =
         -- Delete any (Lit _) that matches from choices
         (laltMatches, choices'') = matchLitAltsSMNF eenv lalts choices'
         -- Match all Symbolic Variables and unmatched Apps with a (Data _) center
-        (defMatches, choices''') = matchDefaults eenv defs choices''
+        (defMatches, choices''') = matchDefaults defs choices''
 
         _ = if not $ null choices''' then error $ "reduceCase: unhandled choices: \n" ++ show choices''' else 1
 
@@ -379,116 +373,97 @@ evalCaseSMNF' s@(State { expr_env = eenv }) ng choices bind alts =
         def_sts = handleDefMatches s defMatches bind alts
     in (RuleEvalCaseDefault, def_sts ++ dsts_cs ++ lsts_cs, ng') -- TODO: new rule
 
--- | `DataCon` `Alt`s.
 dataAltsSMNF :: [Alt] -> [Alt]
 dataAltsSMNF alts = [a | a @ (Alt (DataAlt _ _) _) <- alts]
 
--- | `Lit` `Alt`s.
 litAltsSMNF :: [Alt] -> [Alt]
 litAltsSMNF alts = [a | a @ (Alt (LitAlt _) _) <- alts]
 
--- | DEFAULT `Alt`s.
 defaultAltsSMNF :: [Alt] -> [Alt]
 defaultAltsSMNF alts = [a | a @ (Alt Default _) <- alts]
 
 matchDataAltsSMNF :: E.ExprEnv -> [Alt] -> [(Expr, [Assumption])] -> ([(Alt, Matches)], [(Expr, [Assumption])])
 matchDataAltsSMNF eenv (alt:alts) choices =
     let
-        x = (alt, emptyMatch)
-        (x', choices') = matchDataAlt eenv x choices
+        (x', choices') = matchDataAlt eenv alt choices
         (xs, choices'') = matchDataAltsSMNF eenv alts choices'
     in (x':xs, choices'')
 matchDataAltsSMNF _ [] choices = ([], choices)
 
 -- | If a choice in `choices` matches with the given `alt`, add to `matches`. Delete the match from `choices` if appropriate
-matchDataAlt :: E.ExprEnv -> (Alt, Matches) -> [(Expr, [Assumption])] -> ((Alt, Matches), [(Expr, [Assumption])])
-matchDataAlt eenv (alt, matches) (x@(mexpr, _):xs)
+matchDataAlt :: E.ExprEnv -> Alt -> [(Expr, [Assumption])] -> ((Alt, Matches), [(Expr, [Assumption])])
+matchDataAlt eenv alt (x@(mexpr, _):xs)
     | (Alt (DataAlt dcon params) _) <- alt
+    , (DataCon n _) <- dcon
     , (Data dcon'):ar <- unApp $ exprInCasts mexpr
-    , (DataCon _ _) <- dcon'
+    , (DataCon n' _) <- dcon'
     , ar' <- removeTypes ar eenv
-    , dcon == dcon'
+    , n == n'
     , length params == length ar' =
         let
-           ((_, matches'@(Matches {constructors = dcons})), choices') = matchDataAlt eenv (alt, matches) xs 
+           ((_, matches'@(Matches {constructors = dcons})), choices') = matchDataAlt eenv alt xs
         in ((alt, matches' {constructors = x:dcons}), choices') -- delete x from choices
     | (Var (Id n _)):_ <- unApp $ unsafeElimOuterCast mexpr
     , E.isSymbolic n eenv =
         let
-            ((_, matches'@(Matches {symbolic_vars = syms})), choices') = matchDataAlt eenv (alt, matches) xs
+            ((_, matches'@(Matches {symbolic_vars = syms})), choices') = matchDataAlt eenv alt xs
         in ((alt, matches' {symbolic_vars = x:syms}), x:choices') -- keep x in choices
     | (Prim _ _):_ <- unApp $ unsafeElimOuterCast mexpr =
         let
-            ((_, matches'@(Matches {prims = pr})), choices') = matchDataAlt eenv (alt, matches) xs
+            ((_, matches'@(Matches {prims = pr})), choices') = matchDataAlt eenv alt xs
         in ((alt, matches' {prims = x:pr}), x:choices') -- keep x in choices
     | otherwise = 
         let 
-            ((_, matches'), choices') = matchDataAlt eenv (alt, matches) xs
+            ((_, matches'), choices') = matchDataAlt eenv alt xs
         in ((alt, matches'), x:choices')
-matchDataAlt _ (alt, matches) [] = ((alt, matches), [])
+matchDataAlt _ alt [] = ((alt, emptyMatch), [])
 
 matchLitAltsSMNF :: E.ExprEnv -> [Alt] -> [(Expr, [Assumption])] -> ([(Alt, Matches)], [(Expr, [Assumption])])
 matchLitAltsSMNF eenv (alt:alts) choices =
     let
-        x = (alt, emptyMatch)
-        (x', choices') = matchLitAlt eenv x choices
+        (x', choices') = matchLitAlt eenv alt choices
         (xs, choices'') = matchLitAltsSMNF eenv alts choices'
     in (x':xs, choices'')
 matchLitAltsSMNF _ [] choices = ([], choices)
 
 -- | If a choice in `choices` matches with the given `alt`, add to `matches`
-matchLitAlt :: E.ExprEnv -> (Alt, Matches) -> [(Expr, [Assumption])] -> ((Alt, Matches), [(Expr, [Assumption])])
-matchLitAlt eenv (alt, matches) (x@(mexpr, _):xs)
+matchLitAlt :: E.ExprEnv -> Alt -> [(Expr, [Assumption])] -> ((Alt, Matches), [(Expr, [Assumption])])
+matchLitAlt eenv alt (x@(mexpr, _):xs)
     | (Lit lit) <- unsafeElimOuterCast mexpr
     , (Alt (LitAlt lit') _) <- alt
     , lit == lit' =
         let
-            ((_, matches'@(Matches {lits = l})), choices') = matchLitAlt eenv (alt, matches) xs
+            ((_, matches'@(Matches {lits = l})), choices') = matchLitAlt eenv alt xs
         in ((alt, matches' {lits = x:l}), choices') -- delete x from choices
     | (Var (Id n _)):_ <- unApp $ unsafeElimOuterCast mexpr
     , E.isSymbolic n eenv =
         let
-            ((_, matches'@(Matches {symbolic_vars = syms})), choices') = matchLitAlt eenv (alt, matches) xs
+            ((_, matches'@(Matches {symbolic_vars = syms})), choices') = matchLitAlt eenv alt xs
         in ((alt, matches' {symbolic_vars = x:syms}), x:choices') -- keep x in choices
     | (Prim _ _):_ <- unApp $ unsafeElimOuterCast mexpr =
         let
-            ((_, matches'@(Matches {prims = pr})), choices') = matchLitAlt eenv (alt, matches) xs
+            ((_, matches'@(Matches {prims = pr})), choices') = matchLitAlt eenv alt xs
         in ((alt, matches' {prims = x:pr}), x:choices') -- keep x in choices
     | otherwise = 
         let 
-            ((_, matches'), choices') = matchLitAlt eenv (alt, matches) xs
+            ((_, matches'), choices') = matchLitAlt eenv alt xs
         in ((alt, matches'), x:choices')
-matchLitAlt _ (alt, matches) [] = ((alt, matches), [])
+matchLitAlt _ alt [] = ((alt, emptyMatch), [])
 
-matchDefaults :: E.ExprEnv -> [Alt] -> [(Expr, [Assumption])] -> ([(Alt, Matches)], [(Expr, [Assumption])])
-matchDefaults eenv (alt:_) choices =
+matchDefaults :: [Alt] -> [(Expr, [Assumption])] -> ([(Alt, Matches)], [(Expr, [Assumption])])
+matchDefaults _ [] = ([], [])
+matchDefaults [] choices = ([], choices)
+matchDefaults (alt:_) choices =
     let
         x = (alt, emptyMatch)
-        (x', choices') = matchDefault eenv x choices -- only need to look at 1 Default
+        (x', choices') = matchDefault x choices -- only need to look at 1 Default choice
     in ([x'], choices')
-matchDefaults _ [] choices = ([], choices)
 
 -- | If a choice in `choices` hits a Default `alt`, add to `matches`
-matchDefault :: E.ExprEnv -> (Alt, Matches) -> [(Expr, [Assumption])] -> ((Alt, Matches), [(Expr, [Assumption])])
-matchDefault eenv (alt, matches) (x@(mexpr, _):xs)
-    | (Data _):_ <- unApp $ unsafeElimOuterCast mexpr = -- any DataCon we encounter must not have been matched in earlier cases, so we add it
-        let
-            ((_, matches'@(Matches {constructors = contrs})), choices') = matchDefault eenv (alt, matches) xs 
-        in ((alt, matches' {constructors = x:contrs}), choices')
-    | (Var (Id n _)):_ <- unApp $ unsafeElimOuterCast mexpr
-    , E.isSymbolic n eenv =
-        let
-            ((_, matches'@(Matches {symbolic_vars = syms})), choices') = matchDefault eenv (alt, matches) xs
-        in ((alt, matches' {symbolic_vars = x:syms}), choices')
-    | (Lit _) <- unsafeElimOuterCast mexpr =
-        let
-            ((_, matches'@(Matches {lits = l})), choices') = matchDefault eenv (alt, matches) xs 
-        in ((alt, matches' {lits = x:l}), choices')
-    | otherwise = 
-        let 
-            ((_, matches'), choices') = matchDefault eenv (alt, matches) xs
-        in ((alt, matches'), x:choices')
-matchDefault _ (alt, matches) [] = ((alt, matches), [])
+-- The distinctions between the `constructors`, `lits` etc. fields in `matches` matter less here because execution proceeds on the Default Alt
+-- in the same manner anyway
+matchDefault :: (Alt, Matches) -> [(Expr, [Assumption])] -> ((Alt, Matches), [(Expr, [Assumption])])
+matchDefault (alt, matches@(Matches {defaults = d})) choices = ((alt, matches {defaults = choices ++ d}), [])
 
 handleLaltMatches :: State t -> [(Alt, Matches)] -> Id -> [NewPC t]
 handleLaltMatches s ((alt, matches):alts) bind
@@ -510,12 +485,10 @@ handleLaltMatches _ [] _ = []
 -- When there are multiple Assumption-s in the list, order in which they are nested in the AssumePC matters.
 -- `getChoices` ensures the original order is preserved
 makePCEqLit :: Lit -> (Expr, [Assumption]) -> Maybe PathCond
-makePCEqLit l (e, [x]) = Just $ AssumePC n num (AltCond l e True)
-    where (n, num) = getAssumption x
 makePCEqLit l (e, (x:xs)) = Just $ AssumePC n num pc'
     where (n, num) = SM.getAssumption x
           pc' = fromJust $ makePCEqLit l (e, xs)
-makePCEqLit _ (_, []) = Nothing
+makePCEqLit l (e, []) = Just $ AltCond l e True -- return Just AltCond sans AssumePC if there are no Assume-d Exprs
 
 handleDaltMatches :: State t -> NameGen -> [(Alt, Matches)] -> Id -> ([NewPC t], NameGen)
 handleDaltMatches s@(State {expr_env = eenv}) ng ((alt, matches):alts) bind
@@ -536,7 +509,7 @@ handleDaltMatches s@(State {expr_env = eenv}) ng ((alt, matches):alts) bind
 
             (ng'', sts2) = L.mapAccumR (\ngen (mexpr, assum) ->
                 let (newPC, ngen') = case unApp $ unsafeElimOuterCast mexpr of
-                        (Prim _ _):_ -> createExtCond s ngen aexpr bind (dcon, params, aexpr)
+                        (Prim _ _):_ -> createExtCond s ngen mexpr bind (dcon, params, aexpr)
                         _ -> error $ "Expr not of the form (App...(Prim ..)...) i: " ++ show mexpr           
 
                     conds = (\e -> ExtCond e True) <$> assum
@@ -565,20 +538,22 @@ handleDefMatches :: State t -> [(Alt, Matches)] -> Id -> [Alt] -> [NewPC t]
 handleDefMatches s@(State {expr_env = eenv}) ((alt, matches):_) bind alts
     -- Only 1 match, no need to insert NonDet expr
     | (Alt Default aexpr) <- alt
-    , (not . null $ (constructors matches)) && (matchesLen matches == 1) =
+    , d <- defaults matches
+    , (length d == 1) =
         let
-            mexpr = fst . head $ (constructors matches)
+            mexpr = fst $ head d
             binds = [(bind, mexpr)]
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
-        in [newPCEmpty $ s']
+            -- For all other Alts: Add either ConsCond or AltCond False
+            conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch alts)
+        in [NewPC {state = s', new_pcs = conds}]
     | (Alt Default aexpr) <- alt = 
         let
             mexpr = mergeMatches eenv matches -- combine all matches into 1 `NonDet` Expr
             binds = [(bind, mexpr)]
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
-            -- For all other Alts: Add either ConsCond or AltCond False
             conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch alts)
         in [NewPC {state = s', new_pcs = conds}]
     | otherwise = error $ "Alt is not a Default: " ++ show alt
@@ -589,13 +564,7 @@ handleDefMatches _ [] _ _ = []
 -- e.g. given [(e1, [(Assume1, Assume2)]), (e2,[(Assume3)])]
 -- return NonDet [Assume Nothing (App (App And Assume1) Assume2) e1, Assume Nothing Assume3 e2]
 mergeMatches :: E.ExprEnv -> Matches -> Expr
-mergeMatches eenv Matches { symbolic_vars = syms
-                          , constructors = constrs
-                          , prims = p
-                          , lits = l} =
-    let
-        choices = syms ++ constrs ++ p ++ l
-    in NonDet $ mkNonDetOpts eenv choices
+mergeMatches eenv Matches { defaults = d } = NonDet $ mkNonDetOpts eenv d
 
 mkNonDetOpts :: E.ExprEnv -> [(Expr, [Assumption])] -> [Expr]
 mkNonDetOpts eenv ((e, assum):xs) = (Assume Nothing (mkAssumExpr eenv assum) e):(mkNonDetOpts eenv xs)
