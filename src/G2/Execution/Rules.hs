@@ -283,6 +283,14 @@ data Matches = Matches { symbolic_vars :: [(Expr, [Assumption])]
 emptyMatch :: Matches
 emptyMatch = Matches { symbolic_vars = [], lits = [], constructors = [], prims = [], defaults = []}
 
+isEmptyMatch :: Matches -> Bool
+isEmptyMatch (Matches { symbolic_vars = s
+                      , lits = l
+                      , constructors = c
+                      , prims = p
+                      , defaults = d}) =
+    (null s) && (null l) && (null c) && (null p) && (null d)
+
 type Assumption = Expr
 
 -- | Handle the Case forms of Evaluate.
@@ -363,9 +371,8 @@ evalCaseSMNF' s@(State { expr_env = eenv }) ng choices bind alts =
         -- Delete any (Lit _) that matches from choices
         (laltMatches, choices'') = matchLitAltsSMNF eenv lalts choices'
         -- Match all Symbolic Variables and unmatched Apps with a (Data _) center
-        (defMatches, choices''') = matchDefaults defs choices''
-
-        _ = if not $ null choices''' then error $ "reduceCase: unhandled choices: \n" ++ show choices''' else 1
+        (defMatches, _) = matchDefaults defs choices''
+        --TODO: ensure choices''' is empty
 
         -- split into multiple states on the various Alts appropriately
         (dsts_cs, ng') = handleDaltMatches s ng daltMatches bind
@@ -387,7 +394,9 @@ matchDataAltsSMNF eenv (alt:alts) choices =
     let
         (x', choices') = matchDataAlt eenv alt choices
         (xs, choices'') = matchDataAltsSMNF eenv alts choices'
-    in (x':xs, choices'')
+    in case isEmptyMatch . snd $ x' of --filter out alts without any matches
+        True -> (xs, choices'')
+        False -> (x':xs, choices'')
 matchDataAltsSMNF _ [] choices = ([], choices)
 
 -- | If a choice in `choices` matches with the given `alt`, add to `matches`. Delete the match from `choices` if appropriate
@@ -423,7 +432,9 @@ matchLitAltsSMNF eenv (alt:alts) choices =
     let
         (x', choices') = matchLitAlt eenv alt choices
         (xs, choices'') = matchLitAltsSMNF eenv alts choices'
-    in (x':xs, choices'')
+    in case isEmptyMatch . snd $ x' of -- filter out Alts without any matches
+        True -> (xs, choices'')
+        False -> (x':xs, choices'')
 matchLitAltsSMNF _ [] choices = ([], choices)
 
 -- | If a choice in `choices` matches with the given `alt`, add to `matches`
@@ -538,16 +549,17 @@ handleDefMatches :: State t -> [(Alt, Matches)] -> Id -> [Alt] -> [NewPC t]
 handleDefMatches s@(State {expr_env = eenv}) ((alt, matches):_) bind alts
     -- Only 1 match, no need to insert NonDet expr
     | (Alt Default aexpr) <- alt
-    , d <- defaults matches
-    , (length d == 1) =
+    , (length (defaults matches) == 1)
+    , mexpr <- fst . head . defaults $ matches =
         let
-            mexpr = fst $ head d
             binds = [(bind, mexpr)]
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
-            -- For all other Alts: Add either ConsCond or AltCond False
-            conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch alts)
-        in [NewPC {state = s', new_pcs = conds}]
+        in case unApp $ unsafeElimOuterCast mexpr of
+            (Data _):_ -> [NewPC {state = s', new_pcs = []}]
+            -- For all other matches: Add either ConsCond or AltCond False for each unmatched Alt
+            _ -> let conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch alts)
+                 in [NewPC {state = s', new_pcs = conds}]
     | (Alt Default aexpr) <- alt = 
         let
             mexpr = mergeMatches eenv matches -- combine all matches into 1 `NonDet` Expr
