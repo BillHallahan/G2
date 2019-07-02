@@ -46,8 +46,8 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | App e1 e2 <- ce = return $ evalApp s ng e1 e2
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i a <- ce = do
-        (r, xs, ng') <- evalCaseSMNF solver s ng e i a
-        -- let (r, xs, ng') = evalCase s ng e i a
+        -- (r, xs, ng') <- evalCaseSMNF solver s ng e i a
+        let (r, xs, ng') = evalCase s ng e i a
         xs' <- mapMaybeM (reduceNewPC solver) xs
         return (r, xs', ng')
     | Cast e c <- ce = return $ evalCast s ng e c

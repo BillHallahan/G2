@@ -56,13 +56,13 @@ mergeState ngen s1 s2 =
     if isMergeable s1 s2
         then 
             let (newId, ngen') = freshId TyLitInt ngen
-                (curr_expr', s1', s2') = mergeCurrExprInl s1 s2 newId
-                (expr_env', (changedSyms, ngen'')) = mergeExprEnv (known_values s1') newId ngen' (expr_env s1') (expr_env s2')
+                (ngen'', curr_expr', s1', s2') = mergeCurrExprInl ngen' s1 s2 newId
+                (eenv', (changedSyms, ngen''')) = mergeExprEnv (known_values s1') newId ngen'' (expr_env s1') (expr_env s2')
                 syms' = mergeSymbolicIds (symbolic_ids s1') (symbolic_ids s2') newId changedSyms
                 path_conds' = mergePathCondsSimple (known_values s1') newId (path_conds s1') (path_conds s2')
                 path_conds'' = subIdNamesPCs path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
-            in (ngen''
-               , (Just State { expr_env = expr_env'
+            in (ngen'''
+               , (Just State { expr_env = eenv'
                              , type_env = type_env s1'
                              , curr_expr = curr_expr'
                              , path_conds = path_conds''
@@ -80,76 +80,91 @@ mergeState ngen s1 s2 =
                              , tags = tags s1' }))
         else (ngen, Nothing)
 
-mergeCurrExprInl :: Named t => State t -> State t -> Id -> (CurrExpr, State t, State t)
-mergeCurrExprInl s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
+mergeCurrExprInl :: Named t => NameGen -> State t -> State t -> Id -> (NameGen, CurrExpr, State t, State t)
+mergeCurrExprInl ng s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
     | (CurrExpr evalOrRet1 e1) <- ce1
     , (CurrExpr evalOrRet2 e2) <- ce2
     , evalOrRet1 == evalOrRet2 =
-        let (ce', s1', s2') = mergeExprInline s1 s2 newId e1 e2
-        in (CurrExpr evalOrRet1 ce', s1', s2')
+        let (ng', ce', s1', s2', _, _) = mergeExprInline ng s1 s2 HM.empty HM.empty newId e1 e2
+        in (ng', CurrExpr evalOrRet1 ce', s1', s2')
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
-mergeExprInline :: Named t => State t -> State t -> Id -> Expr -> Expr -> (Expr, State t, State t)
-mergeExprInline s1 s2 newId (App e1 e2) (App e1' e2') =
-    let (e1'', s1', s2') = mergeExprInline s1 s2 newId e1 e1'
-        (e2'', s1'', s2'') = mergeExprInline s1' s2' newId e2 e2'
-    in (App e1'' e2'', s1'', s2'')
-mergeExprInline s1 s2 newId e1@(App _ _) (Var i) = mergeVarInline s1 s2 newId i e1 False
-mergeExprInline s1 s2 newId (Var i) e2@(App _ _) = mergeVarInline s1 s2 newId i e2 True
-mergeExprInline s1 s2 newId e1@(Var i1) e2@(Var i2)
-    | e1 == e2 = (e1, s1, s2)
+mergeExprInline :: Named t => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Expr -> Expr -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
+mergeExprInline ng s1 s2 renamed1 renamed2 newId (App e1 e2) (App e3 e4) =
+    let (ng', e1'', s1', s2', newNames1, newNames2) = mergeExprInline ng s1 s2 renamed1 renamed2 newId e1 e3
+        e2' = renames newNames1 e2
+        e4' = renames newNames2 e4
+        renamed1' = HM.union renamed1 newNames1
+        renamed2' = HM.union renamed2 newNames2
+        (ng'', e2'', s1'', s2'', newNames1', newNames2') = mergeExprInline ng' s1' s2' renamed1' renamed2' newId e2' e4'
+    in (ng'', App e1'' e2'', s1'', s2'', HM.union newNames1' newNames1, HM.union newNames2' newNames2)
+mergeExprInline ng s1 s2 rn1 rn2 newId e1@(App _ _) (Var i) = mergeVarInline ng s1 s2 rn1 rn2 newId i e1 False
+mergeExprInline ng s1 s2 rn1 rn2 newId (Var i) e2@(App _ _) = mergeVarInline ng s1 s2 rn1 rn2 newId i e2 True
+mergeExprInline ng s1 s2 rn1 rn2 newId e1@(Var i1) e2@(Var i2)
+    | e1 == e2 = (ng, e1, s1, s2, HM.empty, HM.empty)
     | otherwise =
         let maybeE1' = E.lookupConcOrSym (idName i1) (expr_env s1)
             maybeE2' = E.lookupConcOrSym (idName i2) (expr_env s2)
-        in mergeVarsInline s1 s2 newId maybeE1' maybeE2'
-mergeExprInline s1 s2 newId e1 e2
-    | e1 == e2 = (e1, s1, s2)
+        in mergeVarsInline ng s1 s2 rn1 rn2 newId maybeE1' maybeE2'
+mergeExprInline ng s1 s2 _ _ newId e1 e2
+    | e1 == e2 = (ng, e1, s1, s2, HM.empty , HM.empty)
     | otherwise =
         let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) e1, Assume Nothing (createEqExprInt kv newId 2) e2]
             kv = known_values s1
-        in (mergedExpr, s1, s2)
+        in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
 
-mergeVarInline :: (Named t) => State t -> State t -> Id -> Id -> Expr -> Bool -> (Expr, State t, State t)
-mergeVarInline s1 s2 newId i e@(App _ _) first =
+mergeVarInline :: (Named t) => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Id -> Expr -> Bool -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
+mergeVarInline ng s1 s2 renamed1 renamed2 newId i e@(App _ _) first =
     let (eenv, kv) = if first then (expr_env s1, known_values s1) else (expr_env s2, known_values s2)
         maybeE = E.lookupConcOrSym (idName i) eenv
     in case maybeE of
-        (Just (E.Conc e')) -> if first then mergeExprInline s1 s2 newId e' e else mergeExprInline s1 s2 newId e e'
+        (Just (E.Conc e')) -> if first then mergeExprInline ng s1 s2 renamed1 renamed2 newId e' e else mergeExprInline ng s1 s2 renamed1 renamed2 newId e e'
         (Just (E.Sym iSym)) ->
             let mergedExpr = if first
                     then NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var iSym), Assume Nothing (createEqExprInt kv newId 2) e]
                     else NonDet [Assume Nothing (createEqExprInt kv newId 1) e, Assume Nothing (createEqExprInt kv newId 2) (Var iSym)]
-            in (mergedExpr, s1, s2)
+            in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
         Nothing -> error $ "Unable to find Var in expr_env: " ++ show i
-mergeVarInline _ _ _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
+mergeVarInline _ _ _ _ _ _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
 
-mergeVarsInline :: Named t => State t -> State t -> Id -> Maybe E.ConcOrSym -> Maybe E.ConcOrSym -> (Expr, State t, State t)
-mergeVarsInline s1 s2 newId maybeE1 maybeE2
+mergeVarsInline :: Named t => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Maybe E.ConcOrSym -> Maybe E.ConcOrSym -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
+mergeVarsInline ng s1 s2 renamed1 renamed2 newId maybeE1 maybeE2
     | (Just (E.Conc e1)) <- maybeE1
-    , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline s1 s2 newId e1 e2
+    , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ng s1 s2 renamed1 renamed2 newId e1 e2
     | (Just (E.Conc e1)) <- maybeE1
     , (Just (E.Sym i)) <- maybeE2 =
         let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) e1, Assume Nothing (createEqExprInt kv newId 2) (Var i)]
-        in (mergedExpr, s1, s2)
+        in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
     | (Just (E.Sym i)) <- maybeE1
     , (Just (E.Conc e2)) <- maybeE2 =
         let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var i), Assume Nothing (createEqExprInt kv newId 2) e2]
-        in (mergedExpr, s1, s2)
+        in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2
-    , i1 == i2 = (Var i1, s1, s2)
+    , i1 == i2 = (ng, Var i1, s1, s2, HM.empty, HM.empty)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2
     , (idType i1 == idType i2)
     , not $ HS.member i1 (symbolic_ids s2)
     , not $ HS.member i2 (symbolic_ids s1) = -- if both are symbolic variables unique to their states, replace one of them with the other
         let s2' = rename (idName i2) (idName i1) s2
-            eenv2' = E.redirect (idName i2) (idName i1) (expr_env s2')
-        in (Var i1, s1, s2' {expr_env = eenv2'})
+            syms' = HS.insert i1 (HS.delete i2 (symbolic_ids s2))
+        in (ng, Var i1, s1, s2' {symbolic_ids = syms'}, HM.empty, HM.singleton (idName i2) (idName i1))
+    | (Just (E.Sym i1)) <- maybeE1
+    , (Just (E.Sym i2)) <- maybeE2
+    , idType i1 == idType i2
+    , not $ elem (idName i1) (HM.elems renamed1) -- check if symbolic var is a var that is a result of some previous renaming when merging the Expr
+    , not $ elem (idName i2) (HM.elems renamed2) =
+        let (newSymId, ng') = freshId (idType i1) ng
+            s1' = rename (idName i1) (idName newSymId) s1
+            s2' = rename (idName i2) (idName newSymId) s2
+            syms1' = HS.insert newSymId (HS.delete i1 (symbolic_ids s1))
+            syms2' = HS.insert newSymId (HS.delete i2 (symbolic_ids s2))
+        in trace "booyah" $ (ng', Var newSymId, s1' {symbolic_ids = syms1'}, s2' {symbolic_ids = syms2'}, HM.singleton (idName i1) (idName newSymId), HM.singleton (idName i2) (idName newSymId))
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2 =
         let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var i1), Assume Nothing (createEqExprInt kv newId 2) (Var i2)]
-        in (mergedExpr, s1, s2)
+        in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
     | otherwise = error "Unable to find Var(s) in expr_env"
     where
         kv = known_values s1
@@ -221,7 +236,7 @@ mergeSymbExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> Id -> E
 mergeSymbExprObjs kv ngen changedSyms newId i@(Id _ t) e first =
         let (newSymId, ngen') = freshId t ngen
             changedSyms' = HM.insert i newSymId changedSyms
-            -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are subsumed under the right `Assume` in the NonDet Exprs
+            -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are enclosed under the right `Assume` in the NonDet Exprs
             mergedExprObj = case first of
                                 True -> E.ExprObj (mergeExpr kv newId (Var newSymId) e)
                                 False -> E.ExprObj (mergeExpr kv newId e (Var newSymId))
