@@ -160,7 +160,7 @@ mergeVarsInline ng s1 s2 renamed1 renamed2 newId maybeE1 maybeE2
             s2' = rename (idName i2) (idName newSymId) s2
             syms1' = HS.insert newSymId (HS.delete i1 (symbolic_ids s1))
             syms2' = HS.insert newSymId (HS.delete i2 (symbolic_ids s2))
-        in trace "booyah" $ (ng', Var newSymId, s1' {symbolic_ids = syms1'}, s2' {symbolic_ids = syms2'}, HM.singleton (idName i1) (idName newSymId), HM.singleton (idName i2) (idName newSymId))
+        in (ng', Var newSymId, s1' {symbolic_ids = syms1'}, s2' {symbolic_ids = syms2'}, HM.singleton (idName i1) (idName newSymId), HM.singleton (idName i2) (idName newSymId))
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2 =
         let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var i1), Assume Nothing (createEqExprInt kv newId 2) (Var i2)]
