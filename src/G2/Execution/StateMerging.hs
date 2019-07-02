@@ -56,16 +56,17 @@ mergeState ngen s1 s2 =
     if isMergeable s1 s2
         then 
             let (newId, ngen') = freshId TyLitInt ngen
-                (ngen'', curr_expr', s1', s2') = mergeCurrExprInl ngen' s1 s2 newId
-                (eenv', (changedSyms, ngen''')) = mergeExprEnv (known_values s1') newId ngen'' (expr_env s1') (expr_env s2')
-                syms' = mergeSymbolicIds (symbolic_ids s1') (symbolic_ids s2') newId changedSyms
-                path_conds' = mergePathCondsSimple (known_values s1') newId (path_conds s1') (path_conds s2')
-                path_conds'' = subIdNamesPCs path_conds' changedSyms -- update PathConds with new SymbolicIds from merging expr_envs
+                (ngen'', curr_expr', s1', s2') = mergeCurrExpr ngen' s1 s2 newId
+                (eenv', (changedSyms1, changedSyms2, ngen''')) = mergeExprEnv (known_values s1') newId ngen'' (expr_env s1') (expr_env s2')
+                pc1' = subIdNamesPCs (path_conds s1') changedSyms1 -- update PathConds with new SymbolicIds from merging the expr_env
+                pc2' = subIdNamesPCs (path_conds s2') changedSyms2
+                path_conds' = mergePathCondsSimple (known_values s1') newId pc1' pc2'
+                syms' = mergeSymbolicIds (symbolic_ids s1') (symbolic_ids s2') newId (HM.union changedSyms1 changedSyms2)
             in (ngen'''
                , (Just State { expr_env = eenv'
                              , type_env = type_env s1'
                              , curr_expr = curr_expr'
-                             , path_conds = path_conds''
+                             , path_conds = path_conds'
                              , non_red_path_conds = non_red_path_conds s1'
                              , true_assert = true_assert s1'
                              , assert_ids = assert_ids s1'
@@ -80,8 +81,8 @@ mergeState ngen s1 s2 =
                              , tags = tags s1' }))
         else (ngen, Nothing)
 
-mergeCurrExprInl :: Named t => NameGen -> State t -> State t -> Id -> (NameGen, CurrExpr, State t, State t)
-mergeCurrExprInl ng s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
+mergeCurrExpr :: Named t => NameGen -> State t -> State t -> Id -> (NameGen, CurrExpr, State t, State t)
+mergeCurrExpr ng s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
     | (CurrExpr evalOrRet1 e1) <- ce1
     , (CurrExpr evalOrRet2 e2) <- ce2
     , evalOrRet1 == evalOrRet2 =
@@ -89,9 +90,13 @@ mergeCurrExprInl ng s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) ne
         in (ng', CurrExpr evalOrRet1 ce', s1', s2')
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
-mergeExprInline :: Named t => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Expr -> Expr -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
+mergeExprInline :: Named t
+                => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Expr -> Expr
+                -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
 mergeExprInline ng s1 s2 renamed1 renamed2 newId (App e1 e2) (App e3 e4) =
     let (ng', e1'', s1', s2', newNames1, newNames2) = mergeExprInline ng s1 s2 renamed1 renamed2 newId e1 e3
+        -- For any symbolic variables merged into new variable in prev call to mergeExprInline, rename all occurrences of
+        -- old symbolic vars in `e2` and `e4`
         e2' = renames newNames1 e2
         e4' = renames newNames2 e4
         renamed1' = HM.union renamed1 newNames1
@@ -113,21 +118,27 @@ mergeExprInline ng s1 s2 _ _ newId e1 e2
             kv = known_values s1
         in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
 
-mergeVarInline :: (Named t) => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Id -> Expr -> Bool -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
+mergeVarInline :: (Named t)
+               => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Id -> Expr -> Bool
+               -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
 mergeVarInline ng s1 s2 renamed1 renamed2 newId i e@(App _ _) first =
     let (eenv, kv) = if first then (expr_env s1, known_values s1) else (expr_env s2, known_values s2)
         maybeE = E.lookupConcOrSym (idName i) eenv
     in case maybeE of
-        (Just (E.Conc e')) -> if first then mergeExprInline ng s1 s2 renamed1 renamed2 newId e' e else mergeExprInline ng s1 s2 renamed1 renamed2 newId e e'
+        (Just (E.Conc e')) -> if first
+            then mergeExprInline ng s1 s2 renamed1 renamed2 newId e' e
+            else mergeExprInline ng s1 s2 renamed1 renamed2 newId e e'
         (Just (E.Sym iSym)) ->
             let mergedExpr = if first
-                    then NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var iSym), Assume Nothing (createEqExprInt kv newId 2) e]
-                    else NonDet [Assume Nothing (createEqExprInt kv newId 1) e, Assume Nothing (createEqExprInt kv newId 2) (Var iSym)]
+                then NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var iSym), Assume Nothing (createEqExprInt kv newId 2) e]
+                else NonDet [Assume Nothing (createEqExprInt kv newId 1) e, Assume Nothing (createEqExprInt kv newId 2) (Var iSym)]
             in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
         Nothing -> error $ "Unable to find Var in expr_env: " ++ show i
 mergeVarInline _ _ _ _ _ _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
 
-mergeVarsInline :: Named t => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Maybe E.ConcOrSym -> Maybe E.ConcOrSym -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
+mergeVarsInline :: Named t
+                => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Maybe E.ConcOrSym -> Maybe E.ConcOrSym
+                -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
 mergeVarsInline ng s1 s2 renamed1 renamed2 newId maybeE1 maybeE2
     | (Just (E.Conc e1)) <- maybeE1
     , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ng s1 s2 renamed1 renamed2 newId e1 e2
@@ -160,7 +171,8 @@ mergeVarsInline ng s1 s2 renamed1 renamed2 newId maybeE1 maybeE2
             s2' = rename (idName i2) (idName newSymId) s2
             syms1' = HS.insert newSymId (HS.delete i1 (symbolic_ids s1))
             syms2' = HS.insert newSymId (HS.delete i2 (symbolic_ids s2))
-        in (ng', Var newSymId, s1' {symbolic_ids = syms1'}, s2' {symbolic_ids = syms2'}, HM.singleton (idName i1) (idName newSymId), HM.singleton (idName i2) (idName newSymId))
+        in (ng', Var newSymId, s1' {symbolic_ids = syms1'}, s2' {symbolic_ids = syms2'}
+           , HM.singleton (idName i1) (idName newSymId), HM.singleton (idName i2) (idName newSymId))
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2 =
         let mergedExpr = NonDet [Assume Nothing (createEqExprInt kv newId 1) (Var i1), Assume Nothing (createEqExprInt kv newId 2) (Var i2)]
@@ -195,84 +207,89 @@ mergeSymbolicIds syms1 syms2 newId changedSyms =
     in HS.union syms''' $ HS.fromList newSyms
 
 -- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
-mergeExprEnv :: KnownValues -> Id -> NameGen -> E.ExprEnv -> E.ExprEnv -> (E.ExprEnv, (HM.HashMap Id Id, NameGen))
-mergeExprEnv kv newId ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem], (changedSyms, ngen'))
-    where eenv1_map = E.unwrapExprEnv eenv1
-          eenv2_map = E.unwrapExprEnv eenv2
-          zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
-          ((changedSyms, ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId eenv1 eenv2) (HM.empty, ngen) zipped_maps
-          merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map (HM.elems changedSyms)
-          eenv1_rem = (M.difference eenv1_map eenv2_map)
-          eenv2_rem = (M.difference eenv2_map eenv1_map)
+mergeExprEnv :: KnownValues -> Id -> NameGen -> E.ExprEnv -> E.ExprEnv -> (E.ExprEnv, (HM.HashMap Id Id, HM.HashMap Id Id, NameGen))
+mergeExprEnv kv newId ngen eenv1 eenv2 = (E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem], (changedSyms1, changedSyms2, ngen'))
+    where
+        eenv1_map = E.unwrapExprEnv eenv1
+        eenv2_map = E.unwrapExprEnv eenv2
+        zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
+        ((changedSyms1, changedSyms2, ngen'), merged_map) = M.mapAccum (mergeEnvObj kv newId eenv1 eenv2) (HM.empty, HM.empty, ngen) zipped_maps
+        newSyms = (HM.elems changedSyms1) ++ (HM.elems changedSyms2)
+        merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms
+        eenv1_rem = (M.difference eenv1_map eenv2_map)
+        eenv2_rem = (M.difference eenv2_map eenv1_map)
 
-mergeEnvObj :: KnownValues -> Id
-               -> E.ExprEnv
-               -> E.ExprEnv
-               -> (HM.HashMap Id Id, NameGen)
-               -> (E.EnvObj, E.EnvObj)
-               -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
-mergeEnvObj kv newId eenv1 eenv2 (changedSyms, ngen) (eObj1, eObj2)
-    | eObj1 == eObj2 = ((changedSyms, ngen), eObj1)
+mergeEnvObj :: KnownValues -> Id -> E.ExprEnv -> E.ExprEnv -> (HM.HashMap Id Id, HM.HashMap Id Id, NameGen) -> (E.EnvObj, E.EnvObj)
+            -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
+mergeEnvObj kv newId eenv1 eenv2 (changedSyms1, changedSyms2, ngen) (eObj1, eObj2)
+    | eObj1 == eObj2 = ((changedSyms1, changedSyms2, ngen), eObj1)
     -- Following cases deal with unequal EnvObjs
     | (E.ExprObj e1) <- eObj1
-    , (E.ExprObj e2) <- eObj2 = ((changedSyms, ngen), E.ExprObj (mergeExpr kv newId e1 e2))
+    , (E.ExprObj e2) <- eObj2 = ((changedSyms1, changedSyms2, ngen), E.ExprObj (mergeExpr kv newId e1 e2))
     -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a NonDet expr
     | (E.SymbObj i) <- eObj1
-    , (E.ExprObj e2) <- eObj2 = mergeSymbExprObjs kv ngen changedSyms newId i e2 True
+    , (E.ExprObj e2) <- eObj2 = mergeSymbExprObjs kv ngen changedSyms1 changedSyms2 newId i e2 True
     | (E.ExprObj e1) <- eObj1
-    , (E.SymbObj i) <- eObj2 = mergeSymbExprObjs kv ngen changedSyms newId i e1 False
+    , (E.SymbObj i) <- eObj2 = mergeSymbExprObjs kv ngen changedSyms1 changedSyms2 newId i e1 False
     -- Lookup RedirObj and create a NonDet Expr combining the lookup result with the expr from the ExprObj
     | (E.RedirObj n) <- eObj1
-    , (E.ExprObj e2) <- eObj2 = mergeRedirExprObjs kv ngen changedSyms newId eenv1 n e2 True
+    , (E.ExprObj e2) <- eObj2 = mergeRedirExprObjs kv ngen changedSyms1 changedSyms2 newId eenv1 n e2 True
     | (E.ExprObj e1) <- eObj1
-    , (E.RedirObj n) <- eObj2 = mergeRedirExprObjs kv ngen changedSyms newId eenv2 n e1 False
+    , (E.RedirObj n) <- eObj2 = mergeRedirExprObjs kv ngen changedSyms1 changedSyms2 newId eenv2 n e1 False
     | (E.RedirObj n1) <- eObj1
-    , (E.RedirObj n2) <- eObj2 = mergeTwoRedirObjs kv ngen changedSyms newId eenv1 eenv2 n1 n2
+    , (E.RedirObj n2) <- eObj2 = mergeTwoRedirObjs kv ngen changedSyms1 changedSyms2 newId eenv1 eenv2 n1 n2
+    -- case of same name pointing to unequal SymbObjs shouldn't occur
     | (E.SymbObj i1) <- eObj1
-    , (E.SymbObj i2) <- eObj2 = mergeTwoSymbObjs kv ngen changedSyms newId i1 i2 -- case of same name pointing to unequal SymbObjs shouldn't occur
+    , (E.SymbObj i2) <- eObj2 = mergeTwoSymbObjs kv ngen changedSyms1 changedSyms2 newId i1 i2
     | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
 
-mergeSymbExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> Id -> Expr -> Bool -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
-mergeSymbExprObjs kv ngen changedSyms newId i@(Id _ t) e first =
+mergeSymbExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id -> Expr -> Bool
+                  -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
+mergeSymbExprObjs kv ngen changedSyms1 changedSyms2 newId i@(Id _ t) e first =
         let (newSymId, ngen') = freshId t ngen
-            changedSyms' = HM.insert i newSymId changedSyms
-            -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are enclosed under the right `Assume` in the NonDet Exprs
-            mergedExprObj = case first of
-                                True -> E.ExprObj (mergeExpr kv newId (Var newSymId) e)
-                                False -> E.ExprObj (mergeExpr kv newId e (Var newSymId))
-        in ((changedSyms', ngen'), mergedExprObj)
+        -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are enclosed under the right `Assume` in the NonDet Exprs
+        in case first of
+            True ->
+                let changedSyms1' = HM.insert i newSymId changedSyms1
+                    mergedExprObj = E.ExprObj (mergeExpr kv newId (Var newSymId) e)
+                in ((changedSyms1', changedSyms2, ngen'), mergedExprObj)
+            False ->
+                let changedSyms2' = HM.insert i newSymId changedSyms2
+                    mergedExprObj = E.ExprObj (mergeExpr kv newId e (Var newSymId))
+                in ((changedSyms1, changedSyms2', ngen'), mergedExprObj)
 
-mergeRedirExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> E.ExprEnv -> Name -> Expr -> Bool -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
-mergeRedirExprObjs kv ngen changedSyms newId eenv n e first =
+mergeRedirExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> E.ExprEnv -> Name -> Expr -> Bool
+                   -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
+mergeRedirExprObjs kv ngen changedSyms1 changedSyms2 newId eenv n e first =
         let e2 = case (E.lookup n eenv) of
-                    (Just (Var (Id _ t))) -> Var (Id n t)
-                    (Just x) -> x
-                    Nothing -> error $ "Could not find EnvObj with name: " ++ (show n)
-            mergedExprObj = case first of
+                Just x -> x
+                Nothing -> error $ "Could not find EnvObj with name: " ++ (show n)
+            mergedEObj = case first of
                 True -> E.ExprObj (mergeExpr kv newId e2 e)
                 False -> E.ExprObj (mergeExpr kv newId e e2)
-        in ((changedSyms, ngen), mergedExprObj)
+        in ((changedSyms1, changedSyms2, ngen), mergedEObj)
 
-mergeTwoRedirObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> E.ExprEnv -> E.ExprEnv -> Name -> Name -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
-mergeTwoRedirObjs kv ngen changedSyms newId eenv1 eenv2 n1 n2 =
+mergeTwoRedirObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> E.ExprEnv -> E.ExprEnv -> Name -> Name
+                  -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
+mergeTwoRedirObjs kv ngen changedSyms1 changedSyms2 newId eenv1 eenv2 n1 n2 =
         let e1 = case (E.lookup n1 eenv1) of
-                    (Just (Var (Id n1' t))) -> Var (Id n1' t)
-                    (Just x) -> x
-                    Nothing -> error $ "Could not find EnvObj with name: " ++ (show n1)
+                (Just x) -> x
+                Nothing -> error $ "Could not find EnvObj with name: " ++ (show n1)
             e2 = case (E.lookup n2 eenv2) of
-                    (Just (Var (Id n2' t))) -> Var (Id n2' t)
-                    (Just x) -> x
-                    Nothing -> error $ "Could not find EnvObj with name: " ++ (show n2)
+                (Just x) -> x
+                Nothing -> error $ "Could not find EnvObj with name: " ++ (show n2)
             mergedExprObj = E.ExprObj (mergeExpr kv newId e1 e2)
-        in ((changedSyms, ngen), mergedExprObj)
+        in ((changedSyms1, changedSyms2, ngen), mergedExprObj)
 
-mergeTwoSymbObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> Id -> Id -> Id -> ((HM.HashMap Id Id, NameGen), E.EnvObj)
-mergeTwoSymbObjs kv ngen changedSyms newId i1@(Id _ t1) i2@(Id _ t2) =
+mergeTwoSymbObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id -> Id
+                 -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
+mergeTwoSymbObjs kv ngen changedSyms1 changedSyms2 newId i1@(Id _ t1) i2@(Id _ t2) =
         let (newSymId1, ngen') = freshId t1 ngen
             (newSymId2, ngen'') = freshId t2 ngen'
-            changedSyms' = HM.insert i2 newSymId2 $ HM.insert i1 newSymId1 changedSyms
+            changedSyms1' = HM.insert i1 newSymId1 changedSyms1
+            changedSyms2' = HM.insert i2 newSymId2 changedSyms2
             mergedExprObj = E.ExprObj (mergeExpr kv newId (Var newSymId1) (Var newSymId2))
-        in ((changedSyms', ngen''), mergedExprObj)
+        in ((changedSyms1', changedSyms2', ngen''), mergedExprObj)
 
 -- | Simpler version of mergePathConds, may not be very efficient for large numbers of PCs, but suffices for simple cases
 mergePathCondsSimple :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
@@ -310,28 +327,30 @@ mergePathConds kv newId pc1 pc2 =
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
 -- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
 mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond)
-                   -> (Maybe Name)
-                   -> (HS.HashSet PC.PathCond, HS.HashSet Name)
-                   -> ((M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond), (HS.HashSet PC.PathCond, HS.HashSet Name))
+                -> (Maybe Name)
+                -> (HS.HashSet PC.PathCond, HS.HashSet Name)
+                -> ((M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond), (HS.HashSet PC.PathCond, HS.HashSet Name))
 mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
     case M.lookup key pc2_map of
         Just (hs2, ns2) -> ((pc2_map', newAssumePCs'), (mergedHS, mergedNS))
-            where pc2_map' = M.delete key pc2_map
-                  (mergedHS, unmergedPCs) = mergeHashSets newId hs1 hs2
-                  mergedNS = HS.union ns1 ns2 -- names should still be the same even though some PCs are wrapped in AssumePCs and moved to different node
-                  newAssumePCs' = HS.union newAssumePCs unmergedPCs
+            where
+                pc2_map' = M.delete key pc2_map
+                (mergedHS, unmergedPCs) = mergeHashSets newId hs1 hs2
+                mergedNS = HS.union ns1 ns2 -- names should still be the same even though some PCs are wrapped in AssumePCs and moved to different node
+                newAssumePCs' = HS.union newAssumePCs unmergedPCs
         Nothing -> ((pc2_map, newAssumePCs), (hs1, ns1))
 
 -- Any PathCond present in both HashSets is added as it is to the new HashSet.
 -- A PathCond present in only 1 HashSet is changed to the form 'AssumePC (x == _) PathCond' and added to the new HashSet
 mergeHashSets :: Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond, HS.HashSet PathCond)
 mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
-    where common = HS.intersection hs1 hs2
-          hs1Minus2 = HS.difference hs1 hs2
-          hs2Minus1 = HS.difference hs2 hs1
-          hs1Minus2' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
-          hs2Minus1' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
-          unmergedPCs = HS.union hs1Minus2' hs2Minus1'
+    where
+        common = HS.intersection hs1 hs2
+        hs1Minus2 = HS.difference hs1 hs2
+        hs2Minus1 = HS.difference hs2 hs1
+        hs1Minus2' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
+        hs2Minus1' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
+        unmergedPCs = HS.union hs1Minus2' hs2Minus1'
 
 -- | @`changedSyms` is list of tuples, w/ each tuple representing the old symbolic Id and the new replacement Id. @`subIdsPCs` substitutes all
 -- occurrences of the old symbolic Ids' Names in the PathConds with the Name of the corresponding new Id. This assumes Old and New Id have the same type
@@ -356,8 +375,8 @@ replaceNonDetExpr :: State t -> Expr -> Expr
 replaceNonDetExpr s (App e1 e2) = App (replaceNonDetExpr s e1) (replaceNonDetExpr s e2)
 replaceNonDetExpr s (NonDet (x:xs)) = case x of
     (Assume _ e1 e2) -> if (substAndEval s e1)
-                        then (replaceNonDetExpr s e2)
-                        else (replaceNonDetExpr s (NonDet xs))
+        then (replaceNonDetExpr s e2)
+        else (replaceNonDetExpr s (NonDet xs))
     r -> replaceNonDetExpr s r
 replaceNonDetExpr _ (NonDet []) = error "No value in NonDet expr is satisfiable"
 replaceNonDetExpr _ e = e
@@ -365,8 +384,8 @@ replaceNonDetExpr _ e = e
 -- | Looks up values in the `Model` of the state, substitutes into @`e`, and evaluates it
 substAndEval :: State t -> Expr -> Bool
 substAndEval (State {model = m
-                      , known_values = kv
-                      , type_classes = tc}) e = 
+                    , known_values = kv
+                    , type_classes = tc}) e =
     getBoolFromDataCon kv solvedExpr 
     where
         exprToSolve = subExpr m tc e
