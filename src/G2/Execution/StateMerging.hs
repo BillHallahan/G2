@@ -244,6 +244,8 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms1, changedSyms2, ngen) (eObj1, eObj
     , (E.SymbObj i2) <- eObj2 = mergeTwoSymbObjs kv ngen changedSyms1 changedSyms2 newId i1 i2
     | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
 
+-- | If same name `n` points to a symbolic x@(Var (Id n _)) and Expr `e` in the 2 states, replace `x` with new symbolic variable `x'` and merge
+-- both `e` and `x'`
 mergeSymbExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id -> Expr -> Bool
                   -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeSymbExprObjs kv ngen changedSyms1 changedSyms2 newId i@(Id _ t) e first =
