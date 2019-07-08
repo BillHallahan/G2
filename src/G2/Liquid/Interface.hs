@@ -128,12 +128,14 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
 
     let (limHalt, limOrd) = limitByAccepted (cut_off config)
 
+    let share = sharing config
+
     (ret, final_bindings) <- if higherOrderSolver config == AllFuncs
               then runG2WithSomes
                     (SomeReducer NonRedPCRed
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed con :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed con :<~| LHRed cfn)))
+                            Just fp -> SomeReducer (StdRed share con :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed share con :<~| LHRed cfn)))
                     (SomeHalter
                       (MaxOutputsHalter (maxOutputs config)
                         :<~> ZeroHalter (steps config)
@@ -146,8 +148,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed con :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed con :<~| LHRed cfn)))
+                            Just fp -> SomeReducer (StdRed share con :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed share con :<~| LHRed cfn)))
                     (SomeHalter
                       (DiscardIfAcceptedTag state_name
                         :<~> MaxOutputsHalter (maxOutputs config)

@@ -18,6 +18,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 
                           , isExecValueForm ) where
 
+import G2.Config.Config
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
@@ -31,9 +32,6 @@ import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
 
--- | Do we use sharing to only reduce variables once?
-data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
-
 stdReduce :: Solver solver => Sharing -> solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce sharing solver s b@(Bindings {name_gen = ng}) = do
     (r, s', ng') <- stdReduce' sharing solver s ng
@@ -41,11 +39,11 @@ stdReduce sharing solver s b@(Bindings {name_gen = ng}) = do
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
 stdReduce' :: Solver solver => Sharing -> solver -> State t -> NameGen -> IO (Rule, [State t], NameGen)
-stdReduce' sharing solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
+stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Var i  <- ce
-    , sharing == Sharing = return $ evalVarSharing s ng i
+    , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
-    , sharing == NoSharing = return $ evalVarNoSharing s ng i
+    , share == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = return $ evalApp s ng e1 e2
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i a <- ce = do
