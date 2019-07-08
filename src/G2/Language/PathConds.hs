@@ -154,7 +154,7 @@ relatedSets' kv pc ns =
       [] ->  []
 
 
-varIdsInPC :: KV.KnownValues -> PathCond -> [Id]
+varIdsInPC :: PathCond -> [Id]
 -- [AltCond]
 -- Optimization
 -- When we have an AltCond with a Var expr, we only have to look at
@@ -163,13 +163,13 @@ varIdsInPC :: KV.KnownValues -> PathCond -> [Id]
 -- parents/children can't impose restrictions on it.  We are completely
 -- guided by pattern matching from case statements.
 -- See note [ChildrenNames] in Execution/Rules.hs
-varIdsInPC _ (AltCond _ e _) = varIds e
-varIdsInPC _ (ExtCond e _) = varIds e
-varIdsInPC _ (ConsCond _ e _) = varIds e
-varIdsInPC _ (PCExists i) = [i]
+varIdsInPC (AltCond _ e _) = varIds e
+varIdsInPC (ExtCond e _) = varIds e
+varIdsInPC (ConsCond _ e _) = varIds e
+varIdsInPC (PCExists i) = [i]
 
 varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
-varNamesInPC kv = P.map idName . varIdsInPC kv
+varNamesInPC kv = P.map idName . varIdsInPC
 
 {-# INLINE scc #-}
 scc :: [Name] -> PathConds -> PathConds

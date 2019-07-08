@@ -117,7 +117,7 @@ solveRelated' avf sol s b m is [] =
     in
     return (SAT, Just m', sol)
 solveRelated' avf sol s b m is (p:ps) = do
-    let is' = concat $ PC.map (PC.varIdsInPC (known_values s)) p
+    let is' = concat $ PC.map PC.varIdsInPC p
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of
@@ -172,9 +172,9 @@ solveWithEither a b s binds is pc = do
 data UndefinedHigherOrder = UndefinedHigherOrder
 
 instance Solver UndefinedHigherOrder where
-    check _ s pc =
+    check _ _ pc =
         let
-            f = concatMap (PC.varIdsInPC (known_values s)) $ PC.toList pc
+            f = concatMap PC.varIdsInPC  $ PC.toList pc
         in
         case f of
             [Id _ (TyFun _ _)] -> return SAT

@@ -189,3 +189,18 @@ mkEqPrimDouble = mkEqPrimType TyLitDouble
 
 mkEqPrimChar :: KnownValues -> Expr
 mkEqPrimChar = mkEqPrimType TyLitChar
+
+mkGePrimInt :: KnownValues -> Expr
+mkGePrimInt kv = Prim Ge $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
+    where
+        t = TyLitInt
+
+mkLePrimInt :: KnownValues -> Expr
+mkLePrimInt kv = Prim Le $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
+    where
+        t = TyLitInt
+
+mkAndPrim :: KnownValues -> Expr
+mkAndPrim kv = Prim And $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
+    where t = (TyCon (KV.tyBool kv) TYPE)
+
