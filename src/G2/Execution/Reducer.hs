@@ -299,7 +299,7 @@ instance Solver con => Reducer (StdRed con) () t where
     initReducer _ _ = ()
 
     redRules stdr@(StdRed solver) _ s b = do
-        (r, s', b') <- stdReduce solver s b
+        (r, s', b') <- stdReduce Sharing solver s b
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
 
