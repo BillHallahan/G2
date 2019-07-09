@@ -18,6 +18,10 @@ module G2.Language.Expr ( module G2.Language.Casts
                                   , mkCons
                                   , mkEmpty
                                   , mkIdentity
+                                  , mkEqIntExpr
+                                  , mkGeIntExpr
+                                  , mkLeIntExpr
+                                  , mkAndExpr
                                   , getFuncCalls
                                   , getFuncCallsRHS
                                   , modifyAppTop
@@ -56,6 +60,7 @@ import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
+import G2.Language.Primitives
 
 import Data.Foldable
 import qualified Data.Map as M
@@ -117,6 +122,22 @@ mkIdentity t =
         x = Id (Name "x" Nothing 0 Nothing) t
     in
     Lam TermL x (Var x)
+
+mkEqIntExpr :: KnownValues -> Expr -> Integer -> Expr
+mkEqIntExpr kv e num = App (App eq e) (Lit (LitInt num))
+    where eq = mkEqPrimInt kv
+
+mkGeIntExpr :: KnownValues -> Expr -> Integer -> Expr
+mkGeIntExpr kv e num = App (App ge e) (Lit (LitInt num))
+    where ge = mkGePrimInt kv
+
+mkLeIntExpr :: KnownValues -> Expr -> Integer -> Expr
+mkLeIntExpr kv e num = App (App le e) (Lit (LitInt num))
+    where le = mkLePrimInt kv
+
+mkAndExpr :: KnownValues -> Expr -> Expr -> Expr
+mkAndExpr kv e1 e2 = App (App andEx e1) e2
+    where andEx = mkAndPrim kv
 
 getFuncCalls :: ASTContainer m Expr => m -> [Expr]
 getFuncCalls = evalContainedASTs getFuncCalls'
