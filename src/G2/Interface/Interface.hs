@@ -356,7 +356,9 @@ runG2Solving :: ( Named t
                 solver -> Bindings -> State t -> IO (Maybe (ExecRes t))
 runG2Solving con bindings s@(State { known_values = kv })
     | true_assert s = do
+        -- print "solvin..."
         (_, m) <- solve con s bindings (symbolic_ids s) (path_conds s)
+        -- print m
         case m of
             Just m' -> do
                 let s' = s { model = m' }

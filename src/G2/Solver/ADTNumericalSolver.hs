@@ -56,14 +56,17 @@ lookupDC :: Integer -> ADTIntMap -> Maybe DataCon
 lookupDC n ADTIntMap { mapping = m } = B.lookupR n m
 
 checkConsistency :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
-checkConsistency solver s@(State {known_values = kv}) pc
+checkConsistency solver s@(State {known_values = kv, type_env = tenv, expr_env = eenv}) pc
     | PC.null pc = return (SAT, solver)
     | otherwise = do
         let pc' = unsafeElimCast $ filter (not . PC.isPCExists) $ PC.toList pc
             typADTIntMap = M.empty -- Can be thought of as Map between Type and [(DataCons, Int)] pairings for that type
             ((typADTIntMap', extCondIds), pc'') = mapAccumR (toExtCond s) (typADTIntMap, []) pc'
-            -- constrain solved values for the pcIds' to the range of values for that type
-            pc''' = ((constrainDCVals kv typADTIntMap') <$> extCondIds) ++ pc''             
+            -- add constraints representing upper and lower bound values for the pcIds', depending on the mapping range for that type
+            valLims = (constrainDCVals kv typADTIntMap') <$> extCondIds
+            -- add any constraints from expr_env
+            eenvVals = mapMaybe (addEEnvVals kv tenv eenv typADTIntMap') extCondIds
+            pc''' = eenvVals ++ valLims ++ pc''
             pcs = PC.fromList kv pc'''
         checkTr solver s pcs 
 
@@ -94,7 +97,7 @@ mkAdtIntMap :: AlgDataTy -> Maybe ADTIntMap
 mkAdtIntMap (DataTyCon { data_cons = dcs }) =
     let
         (num, pairings) = mapAccumR (\count dc -> (count + 1, (dc, count))) 0 dcs
-    in Just $ ADTIntMap {upperB = num, mapping = B.fromList pairings}
+    in Just $ ADTIntMap {upperB = num - 1, mapping = B.fromList pairings}
 mkAdtIntMap _ = Nothing
 
 insertFlipped :: Ord a => a -> M.Map a b -> b -> M.Map a b
@@ -107,13 +110,28 @@ constrainDCVals kv m ((Id _ t), new) =
         upper = upperB adtIntMap
     in ExtCond (mkAndExpr kv (mkGeExpr kv (Var new) lower) (mkLeExpr kv (Var new) upper)) True
 
+addEEnvVals :: KnownValues -> TypeEnv -> ExprEnv -> M.Map Type ADTIntMap -> (Id, Id) -> Maybe PathCond
+addEEnvVals kv tenv eenv typADTIntMap (old, new) =
+    let (Id n' t') = (\(Id n t) -> Id n (typeStripCastType tenv t)) old
+        maybePC = case E.lookup n' eenv of
+            Just e
+                | Data spec_dc:_ <- unApp e ->
+                    let adtIntMap = fromJust $ M.lookup t' typADTIntMap
+                        num = fromJust $ lookupInt spec_dc adtIntMap
+                    in Just $ ExtCond (mkEqExpr kv (Var new) (toInteger num)) True
+            _ -> Nothing
+    in maybePC
+
 solve' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
-solve' avf sol s@(State {known_values = kv}) b is pc = do
+solve' avf sol s@(State {known_values = kv, type_env = tenv, expr_env = eenv}) b is pc = do
     let pc' = unsafeElimCast $ filter (not . PC.isPCExists) $ PC.toList pc
         pcCastTyp = M.fromList $ mapMaybe pcVarNameType pc' -- Store type it is cast too (if any), else original type
         typADTIntMap = M.empty -- Can be thought of as Map between Type and [(DataCons, Int)] pairings for that type
-        ((typADTIntMap', extCondIds'), pc'') = mapAccumR (toExtCond s) (typADTIntMap, []) pc'
-        pc''' = ((constrainDCVals kv typADTIntMap') <$> extCondIds') ++ pc'' -- constrain solved values for the pcIds' to the range of values for that type
+        ((typADTIntMap', extCondIds), pc'') = mapAccumR (toExtCond s) (typADTIntMap, []) pc'
+        -- constrain solved values for the pcIds' to the range of values for that type
+        valLims = ((constrainDCVals kv typADTIntMap') <$> extCondIds)
+        eenvVals = mapMaybe (addEEnvVals kv tenv eenv typADTIntMap') extCondIds
+        pc''' = valLims ++ eenvVals ++ pc''
         pcIds = (concatMap PC.varIdsInPC pc''') ++ (filter (not . isADT . (\(Id _ t) -> t)) is) -- add all Ids for primitive types/fns
         is' = nub is
     rm <- solveTr sol s b pcIds (PC.fromList kv pc''')
