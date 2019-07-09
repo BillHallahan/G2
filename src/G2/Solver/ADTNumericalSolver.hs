@@ -67,28 +67,28 @@ checkConsistency solver s@(State {known_values = kv}) pc
             pcs = PC.fromList kv pc'''
         checkTr solver s pcs 
 
-toExtCond :: State t -> (M.Map Type ADTIntMap, [Id]) -> PathCond -> ((M.Map Type ADTIntMap, [Id]), PathCond)
-toExtCond _ (dcIntMap, pcIds) p@(AltCond _ _ _) = ((dcIntMap, pcIds), p)
-toExtCond _ (dcIntMap, pcIds) p@(ExtCond _ _) = ((dcIntMap, pcIds), p)
-toExtCond (State {type_env = tenv, known_values = kv}) (typeADTIntMap, pcIds) (ConsCond dc@(DataCon _ t) (Var (Id n _)) bool) =
+toExtCond :: State t -> (M.Map Type ADTIntMap, [(Id, Id)]) -> PathCond -> ((M.Map Type ADTIntMap, [(Id, Id)]), PathCond)
+toExtCond _ (typADTIntMap, pcIds) p@(AltCond _ _ _) = ((typADTIntMap, pcIds), p)
+toExtCond _ (typADTIntMap, pcIds) p@(ExtCond _ _) = ((typADTIntMap, pcIds), p)
+toExtCond (State {type_env = tenv, known_values = kv}) (typADTIntMap, pcIds) (ConsCond dc@(DataCon _ _) (Var i@(Id n t)) bool) =
     -- Convert `dc` to an Int by looking it up in `dcIntMap`. If `dc` not in `dcIntMap`, lookup the corresponding AlgDataTy
     -- , establish a mapping between its DataCons and Ints, and add to `dcIntMap`, before returning the respective Int.
-    let (typeADTIntMap'', maybeNum) = case (M.lookup t typeADTIntMap) of
-            Just adtIntMap -> (typeADTIntMap, lookupInt dc adtIntMap)
+    let (typeADTIntMap'', maybeNum) = case (M.lookup t typADTIntMap) of
+            Just adtIntMap -> (typADTIntMap, lookupInt dc adtIntMap)
             Nothing ->
                 let maybeAdt = case getCastedAlgDataTy t tenv of
                         Just (adt, _) -> Just adt
                         Nothing -> Nothing
                     maybeAdtIntMap = maybe Nothing mkAdtIntMap maybeAdt
                     num = maybe Nothing (lookupInt dc) maybeAdtIntMap
-                    typeADTIntMap' = maybe typeADTIntMap (insertFlipped t typeADTIntMap) maybeAdtIntMap
-                in (typeADTIntMap', num)
+                    typADTIntMap' = maybe typADTIntMap (insertFlipped t typADTIntMap) maybeAdtIntMap
+                in (typADTIntMap', num)
         i' = Id n TyLitInt
         e' = Var i'
     in case maybeNum of
-        Just num -> ((typeADTIntMap'', i':pcIds), ExtCond (mkEqExpr kv e' (toInteger num)) bool)
+        Just num -> ((typeADTIntMap'', (i, i'):pcIds), ExtCond (mkEqExpr kv e' (toInteger num)) bool)
         Nothing -> error $ "Could not map DataCon in ConsCond to Int: " ++ (show dc)
-toExtCond _ (dcIntMap, pcIds) p = ((dcIntMap, pcIds), p)
+toExtCond _ (typADTIntMap, pcIds) p = ((typADTIntMap, pcIds), p)
 
 mkAdtIntMap :: AlgDataTy -> Maybe ADTIntMap
 mkAdtIntMap (DataTyCon { data_cons = dcs }) =
@@ -100,12 +100,12 @@ mkAdtIntMap _ = Nothing
 insertFlipped :: Ord a => a -> M.Map a b -> b -> M.Map a b
 insertFlipped k m val = M.insert k val m
 
-constrainDCVals :: KnownValues -> M.Map Type ADTIntMap -> Id -> PathCond
-constrainDCVals kv m i@(Id _ t) =
+constrainDCVals :: KnownValues -> M.Map Type ADTIntMap -> (Id, Id) -> PathCond
+constrainDCVals kv m ((Id _ t), new) =
     let lower = 0
         adtIntMap = fromJust $ M.lookup t m
         upper = upperB adtIntMap
-    in ExtCond (mkAndExpr kv (mkGeExpr kv (Var i) lower) (mkLeExpr kv (Var i) upper)) True
+    in ExtCond (mkAndExpr kv (mkGeExpr kv (Var new) lower) (mkLeExpr kv (Var new) upper)) True
 
 solve' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
 solve' avf sol s@(State {known_values = kv}) b is pc = do
@@ -114,11 +114,12 @@ solve' avf sol s@(State {known_values = kv}) b is pc = do
         typADTIntMap = M.empty -- Can be thought of as Map between Type and [(DataCons, Int)] pairings for that type
         ((typADTIntMap', extCondIds'), pc'') = mapAccumR (toExtCond s) (typADTIntMap, []) pc'
         pc''' = ((constrainDCVals kv typADTIntMap') <$> extCondIds') ++ pc'' -- constrain solved values for the pcIds' to the range of values for that type
-        pcIds = (concatMap PC.varIdsInPC pc''') ++ (filter (not . isADT . (\(Id _ t) -> t)) is) -- add all Ids for primitive types
+        pcIds = (concatMap PC.varIdsInPC pc''') ++ (filter (not . isADT . (\(Id _ t) -> t)) is) -- add all Ids for primitive types/fns
+        is' = nub is
     rm <- solveTr sol s b pcIds (PC.fromList kv pc''')
     case rm of
         (SAT, Just m, sol') ->
-            let (_, m') = foldr (solve'' avf s pcCastTyp typADTIntMap') (b,m) is
+            let (_, m') = foldr (solve'' avf s pcCastTyp typADTIntMap') (b,m) is'
             in return (SAT, Just $ liftCasts m', sol')
         _ -> return rm
 
@@ -135,7 +136,7 @@ solve'' avf (State {expr_env = eenv, type_env = tenv}) pcCastTyp typADTIntMap (I
             dc = Data $ fromJust $ lookupDC num adtIntMap 
             dc' = if tCast /= t
                 then simplifyCasts . (castReturnType t) $ dc -- apply the types from pcNT back to dc
-                else dc'
+                else dc
             (_, bi) = fromJust $ getCastedAlgDataTy tCast tenv
             ts2 = map snd bi
             -- We map names over the arguments of a DataCon, to make sure we have the correct number of undefined's.
