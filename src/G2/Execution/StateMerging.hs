@@ -301,10 +301,10 @@ mergePathCondsSimple kv newId pc1 pc2 =
         pc2Only = HS.toList $ HS.difference pc2HS pc1HS
         pc1Only' = map (\pc -> AssumePC newId 1 pc) pc1Only
         pc2Only' = map (\pc -> AssumePC newId 2 pc) pc2Only
-        mergedPC = PC.fromList kv common
-        mergedPC' = foldr (PC.insert kv) mergedPC (pc1Only' ++ pc2Only')
-        mergedPC'' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExprInt kv newId 1) True)) mergedPC')
-        mergedPC''' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExprInt kv newId 2) True)) mergedPC'')
+        mergedPC = PC.fromList common
+        mergedPC' = foldr PC.insert mergedPC (pc1Only' ++ pc2Only')
+        mergedPC'' = PC.insert (AssumePC newId 1 (ExtCond (createEqExprInt kv newId 1) True)) mergedPC'
+        mergedPC''' = PC.insert (AssumePC newId 2 (ExtCond (createEqExprInt kv newId 2) True)) mergedPC''
     in mergedPC'''
 
 -- | Does not always work if 2 top level AssumePCs both impose constraints on the same Name -> resulting in model generating conflicting values
@@ -320,9 +320,9 @@ mergePathConds kv newId pc1 pc2 =
         ((pc2_map', newAssumePCs), pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) (pc2_map, HS.empty) pc1_map
         combined_map = PC.PathConds (M.union pc2_map' pc1_map')
         -- Add the following two expressions to constrain the value newId can take to either 1/2 when solving
-        combined_map' = (PC.insert kv (AssumePC newId 1 (ExtCond (createEqExprInt kv newId 1) True)) combined_map) 
-        combined_map'' = (PC.insert kv (AssumePC newId 2 (ExtCond (createEqExprInt kv newId 2) True)) combined_map') 
-    in foldr (PC.insert kv) combined_map'' newAssumePCs
+        combined_map' = PC.insert (AssumePC newId 1 (ExtCond (createEqExprInt kv newId 1) True)) combined_map
+        combined_map'' = PC.insert (AssumePC newId 2 (ExtCond (createEqExprInt kv newId 2) True)) combined_map'
+    in foldr PC.insert combined_map'' newAssumePCs
 
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
 -- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
@@ -411,7 +411,7 @@ replaceNonDetWithSym s@(State {expr_env = eenv, path_conds = pc, known_values = 
         eenv' = E.insertSymbolic (idName newSym) newSym eenv
         syms' = HS.insert newSym syms
         pcs  = createPCs kv e newSym []
-        pc' = foldr (PC.insert kv) pc pcs
+        pc' = foldr PC.insert pc pcs
     in (s {expr_env = eenv', path_conds = pc', symbolic_ids = syms'}, ng', Var newSym)
 replaceNonDetWithSym s ng (App e1 e2) =
     let (s', ng', e1') = replaceNonDetWithSym s ng e1

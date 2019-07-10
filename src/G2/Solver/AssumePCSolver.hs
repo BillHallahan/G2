@@ -3,7 +3,6 @@ module G2.Solver.AssumePCSolver ( AssumePCSolver (..)) where
 import G2.Language.ArbValueGen
 import G2.Language.Support
 import G2.Language.Syntax
-import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import G2.Language.Ids  
 import G2.Solver.Solver
@@ -149,9 +148,9 @@ genPCsList s pc =
         uniqueAssumes = nub $ PC.map getAssumeIdInt assumePCs -- get list of unique (Id, Int) pairs from the AssumePCs
         createExtCond = (\(i, val) -> (ExtCond (createEqExprInt (known_values s) i (toInteger val)) True))
         -- filters unrelated pcs and adds the (Id, Int) pair from an AssumePC as an extCond, to constrain checking/solving for the id
-        f = (\(i, val) -> (PC.insert (known_values s) (createExtCond (i,val)) (filterByIdInt pc (i,val))))
+        f = (\(i, val) -> (PC.insert (createExtCond (i,val)) (filterByIdInt pc (i,val))))
     in
-    extractPCs (known_values s) $ fmap f uniqueAssumes
+    extractPCs $ fmap f uniqueAssumes
 
 -- | Filters all AssumePCs with a different assumed (Id, Int) value
 filterByIdInt :: PathConds -> (Id, Int) -> PathConds
@@ -170,9 +169,9 @@ otherIds i (AssumePC i' _  _) = i == i'
 otherIds _ _ = True
 
 -- | For each PathCond in [PathConds], extracts the inner pc if PathCond is of form (AssumePC _ _ pc)
-extractPCs :: KV.KnownValues -> [PathConds] -> [PathConds]
-extractPCs kv (pc:pcs) = PC.fromList kv (PC.map extractPC pc) : extractPCs kv pcs
-extractPCs _ [] = []
+extractPCs :: [PathConds] -> [PathConds]
+extractPCs (pc:pcs) = PC.fromList (PC.map extractPC pc) : extractPCs pcs
+extractPCs [] = []
 
 extractPC :: PathCond -> PathCond
 extractPC (AssumePC _ _ pc) = pc

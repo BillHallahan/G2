@@ -103,8 +103,7 @@ newPCEmpty s = NewPC { state = s, new_pcs = []}
 
 reduceNewPC :: Solver solver => solver -> NewPC t -> IO (Maybe (State t))
 reduceNewPC solver
-            (NewPC { state = s@(State { known_values = kv
-                                      , path_conds = spc })
+            (NewPC { state = s@(State { path_conds = spc })
                    , new_pcs = pc })
     | not (null pc) = do
         -- In the case of newtypes, the PC exists we get may have the correct name
@@ -118,10 +117,10 @@ reduceNewPC solver
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr (PC.insert kv) spc $ pc'
+        let new_pc = foldr PC.insert spc $ pc'
             s' = s { path_conds = new_pc}
 
-        let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant kv pc new_pc
+        let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant pc new_pc
 
         res <- check solver s rel_pc
 
@@ -350,7 +349,7 @@ getTopLevelExprs (x:xs)
 getTopLevelExprs [] = []
 
 checkNewPC :: Solver solver => solver -> State t -> PathCond -> Expr -> Assumption -> IO (Maybe (Expr, Assumption, State t))
-checkNewPC solver s@(State { known_values = kv, path_conds = spc }) pc e assum
+checkNewPC solver s@(State { path_conds = spc }) pc e assum
     -- In the case of newtypes, the PC exists we get may have the correct name but incorrect type.
     -- We do not want to add these to the State
     -- This is a bit ugly, but not a huge deal, since the State already has PCExists
@@ -359,9 +358,9 @@ checkNewPC solver s@(State { known_values = kv, path_conds = spc }) pc e assum
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
-        let new_pc = (PC.insert kv) pc spc
+        let new_pc = PC.insert pc spc
             s' = s { path_conds = new_pc}
-            rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant kv [pc] new_pc
+            rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant [pc] new_pc
 
         res <- check solver s rel_pc
 

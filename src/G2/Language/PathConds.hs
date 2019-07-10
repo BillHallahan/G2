@@ -79,8 +79,8 @@ toMap = coerce
 empty :: PathConds
 empty = PathConds M.empty
 
-fromList :: KV.KnownValues -> [PathCond] -> PathConds
-fromList kv = coerce . foldr (insert kv) empty
+fromList :: [PathCond] -> PathConds
+fromList = coerce . foldr insert empty
 
 map :: (PathCond -> a) -> PathConds -> [a]
 map f = L.map f . toList
@@ -97,13 +97,13 @@ filter f = PathConds
 -- This is ok, because the PCs can only be externally accessed by toList (which 
 -- returns all PCs anyway) or scc (which forces exploration over all shared names)
 {-# INLINE insert #-}
-insert :: KV.KnownValues -> PathCond -> PathConds -> PathConds
+insert :: PathCond -> PathConds -> PathConds
 insert = insert' varNamesInPC
 
-insert' :: (KV.KnownValues -> PathCond -> [Name]) -> KV.KnownValues -> PathCond -> PathConds -> PathConds
-insert' f kv p (PathConds pcs) =
+insert' :: (PathCond -> [Name]) -> PathCond -> PathConds -> PathConds
+insert' f p (PathConds pcs) =
     let
-        ns = f kv p
+        ns = f p
 
         (hd, insertAt) = case ns of
             [] -> (Nothing, [Nothing])
@@ -126,10 +126,10 @@ null = M.null . toMap
 
 -- | Filters a PathConds to only those PathCond's that potentially impact the
 -- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
-relevant :: KV.KnownValues -> [PathCond] -> PathConds -> PathConds
-relevant kv pc pcs = 
-    case concatMap (varNamesInPC kv) pc of
-        [] -> fromList kv pc
+relevant :: [PathCond] -> PathConds -> PathConds
+relevant pc pcs =
+    case concatMap varNamesInPC pc of
+        [] -> fromList pc
         rel -> scc rel pcs
 
 -- Returns a list of PathConds, where the union of the output PathConds
@@ -151,7 +151,7 @@ relatedSets' kv pc ns =
       k:_ ->
           let
               s = scc [k] pc
-              ns' = concat $ map (varNamesInPC kv) s
+              ns' = concat $ map varNamesInPC s
           in
           s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []
@@ -172,8 +172,8 @@ varIdsInPC (ConsCond _ e _) = varIds e
 varIdsInPC (PCExists i) = [i]
 varIdsInPC (AssumePC i _ pc) = [i] ++ varIdsInPC pc
 
-varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
-varNamesInPC kv = P.map idName . varIdsInPC
+varNamesInPC :: PathCond -> [Name]
+varNamesInPC = P.map idName . varIdsInPC
 
 {-# INLINE scc #-}
 scc :: [Name] -> PathConds -> PathConds
