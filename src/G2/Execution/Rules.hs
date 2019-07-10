@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
+                          , Sharing (..)
                           , stdReduce
-                          , evalVar
+                          , evalVarSharing
                           , evalApp
                           , evalLam
                           , retLam
@@ -17,6 +18,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 
                           , isExecValueForm ) where
 
+import G2.Config.Config
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
@@ -30,15 +32,18 @@ import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
 
-stdReduce :: Solver solver => solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
-stdReduce solver s b@(Bindings {name_gen = ng}) = do
-    (r, s', ng') <- stdReduce' solver s ng
+stdReduce :: Solver solver => Sharing -> solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
+stdReduce sharing solver s b@(Bindings {name_gen = ng}) = do
+    (r, s', ng') <- stdReduce' sharing solver s ng
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
-stdReduce' :: Solver solver => solver -> State t -> NameGen -> IO (Rule, [State t], NameGen)
-stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
-    | Var i  <- ce = return $ evalVar s ng i
+stdReduce' :: Solver solver => Sharing -> solver -> State t -> NameGen -> IO (Rule, [State t], NameGen)
+stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
+    | Var i  <- ce
+    , share == Sharing = return $ evalVarSharing s ng i
+    | Var i <- ce
+    , share == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = return $ evalApp s ng e1 e2
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i a <- ce = do
@@ -52,8 +57,8 @@ stdReduce' solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
-stdReduce' solver s@(State { curr_expr = CurrExpr Return ce
-                           , exec_stack = stck }) ng
+stdReduce' _ solver s@(State { curr_expr = CurrExpr Return ce
+                             , exec_stack = stck }) ng
     | Prim Error _ <- ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
@@ -120,27 +125,37 @@ reduceNewPC solver
             return Nothing
     | otherwise = return $ Just s
 
-evalVar :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalVar s@(State { expr_env = eenv
-                 , exec_stack = stck })
-        ng i
+evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
+evalVarSharing s@(State { expr_env = eenv
+                        , exec_stack = stck })
+               ng i
+    | E.isSymbolic (idName i) eenv =
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
+    -- If the target in our environment is already a value form, we do not
+    -- need to push additional redirects for updating later on.
+    -- If our variable is not in value form, we first push the
+    -- current name of the variable onto the stack and evaluate the
+    -- expression that it points to. After the evaluation,
+    -- we pop the stack to add a redirection pointer into the heap.
+    | Just e' <- e
+    , isExprValueForm eenv e' =
+      ( RuleEvalVarVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }], ng)
+    | Just e' <- e = -- e' is NOT in SWHNF
+      ( RuleEvalVarNonVal (idName i)
+      , [s { curr_expr = CurrExpr Evaluate e'
+           , exec_stack = S.push (UpdateFrame (idName i)) stck }]
+      , ng)
+    | otherwise = error  $ "evalVar: bad input." ++ show i
+    where
+        e = E.lookup (idName i) eenv
+
+evalVarNoSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
+evalVarNoSharing s@(State { expr_env = eenv })
+                 ng i
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     | Just e <- E.lookup (idName i) eenv =
-        -- If the target in our environment is already a value form, we do not
-        -- need to push additional redirects for updating later on.
-        -- If our variable is not in value form, we first push the
-        -- current name of the variable onto the stack and evaluate the
-        -- expression that it points to. After the evaluation,
-        -- we pop the stack to add a redirection pointer into the heap.
-        let
-            (r, stck') = if isExprValueForm eenv e 
-                           then ( RuleEvalVarVal (idName i), stck) 
-                           else ( RuleEvalVarNonVal (idName i)
-                                , S.push (UpdateFrame (idName i)) stck)
-        in
-        (r, [s { curr_expr = CurrExpr Evaluate e
-               , exec_stack = stck' }], ng)
+        (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
 
 -- | If we have a primitive operator, we are at a point where either:

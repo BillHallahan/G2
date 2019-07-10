@@ -221,7 +221,7 @@ runExecutionQ s b config = do
     let (s', b') = addAssume s b
     
     SomeSolver con <- initSolverInfinite config
-    case qqRedHaltOrd con of
+    case qqRedHaltOrd config con of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
                 hal' = hal :<~> ZeroHalter 2000 :<~> LemmingsHalter
@@ -257,15 +257,17 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: Solver conv => conv -> (SomeReducer (), SomeHalter (), SomeOrderer ())
-qqRedHaltOrd conv =
+qqRedHaltOrd :: Solver solver => Config -> solver -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+qqRedHaltOrd config solver =
     let
+        share = sharing config
+
         tr_ng = mkNameGen ()
         state_name = G2.Name "state" Nothing 0 Nothing
     in
     ( SomeReducer
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (SomeReducer (StdRed conv))
+            <~| (SomeReducer (StdRed share solver))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptHalter)
@@ -372,7 +374,7 @@ executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' b s = do
     config <- qqConfig
     SomeSolver con <- initSolverInfinite config
-    case qqRedHaltOrd con of
+    case qqRedHaltOrd config con of
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> ErrorHalter
             --                :<~> MaxOutputsHalter (Just 1)

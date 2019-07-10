@@ -195,14 +195,16 @@ initCheckReaches s@(State { expr_env = eenv
 initRedHaltOrd :: Solver conv => conv -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
 initRedHaltOrd conv config =
     let
+        share = sharing config
+
         tr_ng = mkNameGen ()
         state_name = Name "state" Nothing 0 Nothing
     in
     if higherOrderSolver config == AllFuncs
         then (SomeReducer (NonRedPCRed)
                  <~| (case logStates config of
-                        Just fp -> SomeReducer (StdRed conv :<~ Logger fp)
-                        Nothing -> SomeReducer (StdRed conv))
+                        Just fp -> SomeReducer (StdRed share conv :<~ Logger fp)
+                        Nothing -> SomeReducer (StdRed share conv))
              , SomeHalter
                  (SwitchEveryNHalter 20
                  :<~> MaxOutputsHalter (maxOutputs config)
@@ -211,8 +213,8 @@ initRedHaltOrd conv config =
              , SomeOrderer $ PickLeastUsedOrderer)
         else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                  <~| (case logStates config of
-                        Just fp -> SomeReducer (StdRed conv :<~ Logger fp)
-                        Nothing -> SomeReducer (StdRed conv))
+                        Just fp -> SomeReducer (StdRed share conv :<~ Logger fp)
+                        Nothing -> SomeReducer (StdRed share conv))
              , SomeHalter
                  (DiscardIfAcceptedTag state_name
                  :<~> SwitchEveryNHalter 20
