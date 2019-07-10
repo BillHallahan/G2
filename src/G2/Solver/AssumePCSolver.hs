@@ -90,7 +90,7 @@ solveRelAssume avf sol s b is pc = do
 solveOrdinarySets :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO ((Result, Maybe Model, a), [Id])
 solveOrdinarySets _ sol _ _ m is [] = return ((SAT, Just m, sol), is)
 solveOrdinarySets avf sol s b m is (p:ps) = do
-    let is' = concat $ PC.map (PC.varIdsInPC (known_values s)) p
+    let is' = concat $ PC.map PC.varIdsInPC p
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of

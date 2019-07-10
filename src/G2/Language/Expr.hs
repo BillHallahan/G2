@@ -19,9 +19,12 @@ module G2.Language.Expr ( module G2.Language.Casts
                                   , mkEmpty
                                   , mkIdentity
                                   , mkEqIntExpr
+                                  , mkEqPrimExpr
                                   , mkGeIntExpr
                                   , mkLeIntExpr
                                   , mkAndExpr
+                                  , mkOrExpr
+                                  , mkNotExpr
                                   , getFuncCalls
                                   , getFuncCallsRHS
                                   , getBoolFromDataCon
@@ -128,6 +131,10 @@ mkEqIntExpr :: KnownValues -> Expr -> Integer -> Expr
 mkEqIntExpr kv e num = App (App eq e) (Lit (LitInt num))
     where eq = mkEqPrimInt kv
 
+mkEqPrimExpr :: Type -> KnownValues -> Expr -> Expr -> Expr
+mkEqPrimExpr t kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType t kv
+
 mkGeIntExpr :: KnownValues -> Expr -> Integer -> Expr
 mkGeIntExpr kv e num = App (App ge e) (Lit (LitInt num))
     where ge = mkGePrimInt kv
@@ -139,6 +146,14 @@ mkLeIntExpr kv e num = App (App le e) (Lit (LitInt num))
 mkAndExpr :: KnownValues -> Expr -> Expr -> Expr
 mkAndExpr kv e1 e2 = App (App andEx e1) e2
     where andEx = mkAndPrim kv
+
+mkOrExpr :: KnownValues -> Expr -> Expr -> Expr
+mkOrExpr kv e1 e2 = App (App orEx e1) e2
+    where orEx = mkOrPrim kv
+
+mkNotExpr :: KnownValues -> Expr -> Expr
+mkNotExpr kv e = App notEx e
+    where notEx = mkNotPrim kv
 
 getFuncCalls :: ASTContainer m Expr => m -> [Expr]
 getFuncCalls = evalContainedASTs getFuncCalls'

@@ -234,8 +234,7 @@ initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
     if (stateMerging config)
-        then return $ SomeSolver (AssumePCSolver avf (UndefinedHigherOrder :?> ADTSolver avf :?> con))
-        -- else return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> ADTSolver avf :?> con))
+        then return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con)))
         else return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con)))
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv

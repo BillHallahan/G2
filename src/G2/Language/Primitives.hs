@@ -204,3 +204,12 @@ mkAndPrim :: KnownValues -> Expr
 mkAndPrim kv = Prim And $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
     where t = (TyCon (KV.tyBool kv) TYPE)
 
+mkOrPrim :: KnownValues -> Expr
+mkOrPrim kv = Prim Or $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
+    where t = (TyCon (KV.tyBool kv) TYPE)
+
+mkNotPrim :: KnownValues -> Expr
+mkNotPrim kv = Prim Not $ TyFun t (TyCon (KV.tyBool kv) TYPE)
+    where t = (TyCon (KV.tyBool kv) TYPE)
+
+

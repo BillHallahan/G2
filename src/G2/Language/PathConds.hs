@@ -21,7 +21,8 @@ module G2.Language.PathConds ( PathCond (..)
                                        , scc
                                        , varIdsInPC
                                        , toList
-                                       , isPCExists) where
+                                       , isPCExists
+                                       , containsPCExists) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -201,6 +202,11 @@ toList = concatMap (HS.toList . fst) . M.elems . toMap
 isPCExists :: PathCond -> Bool
 isPCExists (PCExists _) = True
 isPCExists _ = False
+
+containsPCExists :: PathCond -> Bool
+containsPCExists (AssumePC _ _ pc) = containsPCExists pc
+containsPCExists (PCExists _) = True
+containsPCExists _ = False
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap

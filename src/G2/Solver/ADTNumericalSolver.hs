@@ -21,7 +21,7 @@ import qualified Data.Bimap as B
 import Data.Maybe
 import Data.Tuple
 
--- | Converts constraints about ADTs to numerical constraints before sending them to other solvers
+-- | Converts constraints about ADTs as well as Assumed Ids in AssumePCs to numerical constraints before sending them to other solvers
 data ADTNumericalSolver a = ADTNumericalSolver ArbValueFunc a
 
 adtNumericalSolFinite :: a -> ADTNumericalSolver a
@@ -60,7 +60,7 @@ checkConsistency :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
 checkConsistency solver s@(State {known_values = kv}) pc
     | PC.null pc = return (SAT, solver)
     | otherwise = do
-        let pc' = unsafeElimCast $ filter (not . PC.isPCExists) $ PC.toList pc
+        let pc' = unsafeElimCast $ filter (not . PC.containsPCExists) $ PC.toList pc
             -- Convert any ConsConds to ExtConds by mapping the respective DataCon to an Int
             -- Also lookup any constraints from the expr_env, map to Ints and add
             (pc'', _) = toNumericalPCs s pc'
@@ -68,13 +68,13 @@ checkConsistency solver s@(State {known_values = kv}) pc
 
 solve' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
 solve' avf sol s@(State {known_values = kv}) b is pc = do
-    let pc' = unsafeElimCast $ filter (not . PC.isPCExists) $ PC.toList pc
+    let pc' = unsafeElimCast $ filter (not . PC.containsPCExists) $ PC.toList pc
         -- Store type it is cast to (if any), else original type
-        pcCastTyp = M.fromList $ mapMaybe pcVarNameType pc'
+        pcCastTyp = M.fromList $ concatMap pcVarNameType pc'
         -- Convert any ConsConds to ExtConds by mapping the respective DataCon to an Int
         -- Also lookup any constraints from the expr_env and add them
         (pc'', typADTIntMap) = toNumericalPCs s pc'
-        -- Use other solvers to solve for Ids that have primitive types and new Ids added by converting ConsCond-s to ExtConds
+        -- Use other solvers to solve for Ids that have primitive types and new Ids added by converting AssumePCs/ConsCond-s to ExtConds
         pcIds = (concatMap PC.varIdsInPC pc'') ++ (filter (not . isADT . (\(Id _ t) -> t)) is)
         is' = nub is
     rm <- solveTr sol s b pcIds (PC.fromList kv pc'')
@@ -135,7 +135,10 @@ toNumericalPCs s@(State {known_values = kv, type_env = tenv, expr_env = eenv}) p
         valLims = (constrainDCVals kv typADTIntMap') <$> extCondIds
         -- Add any constraints from expr_env
         eenvVals = mapMaybe (addEEnvVals kv tenv eenv typADTIntMap') extCondIds
-    in (eenvVals ++ valLims ++ pc', typADTIntMap')
+        -- Add constraints restricting values of `Ids` in AssumePCs
+        assPCIds = concatMap assumePCIds pc
+        assPCIdLims = (assumePCConds kv) <$> assPCIds
+    in (assPCIdLims ++ eenvVals ++ valLims ++ pc', typADTIntMap')
 
 toExtCond :: State t -> (M.Map Type ADTIntMap, [(Id, Id)]) -> PathCond -> ((M.Map Type ADTIntMap, [(Id, Id)]), PathCond)
 toExtCond _ (typADTIntMap, pcIds) p@(AltCond _ _ _) = ((typADTIntMap, pcIds), p)
@@ -158,6 +161,28 @@ toExtCond (State {type_env = tenv, known_values = kv}) (typADTIntMap, pcIds) (Co
     in case maybeNum of
         Just num -> ((typeADTIntMap'', (i, i'):pcIds), ExtCond (mkEqIntExpr kv e' (toInteger num)) bool)
         Nothing -> error $ "Could not map DataCon in ConsCond to Int: " ++ (show dc)
+toExtCond s@(State {known_values = kv}) (typADTIntMap, pcIds) (AssumePC i num pc) =
+    let ((typADTIntMap', pcIds'), pc') = toExtCond s (typADTIntMap, pcIds) pc
+        pc'' = case pc' of
+            ExtCond e bool ->
+                let e' = case bool of
+                        True -> mkOrExpr kv (mkNotExpr kv (mkEqIntExpr kv (Var i) (toInteger num))) e -- (NOT (i == num)) OR e
+                        False -> mkNotExpr kv (mkAndExpr kv (mkEqIntExpr kv (Var i) (toInteger num)) e) -- NOT ((i == num) AND (NOT e))
+                in ExtCond e' True
+            AltCond l e bool ->
+                let t = case l of
+                        (LitInt _) -> TyLitInt
+                        (LitFloat _) -> TyLitFloat
+                        (LitDouble _) -> TyLitDouble
+                        (LitChar _) -> TyLitChar
+                        (LitString _) -> TyLitString
+                        (LitInteger _) -> TyLitInt
+                    e' = case bool of
+                        True -> mkOrExpr kv (mkNotExpr kv (mkEqIntExpr kv (Var i) (toInteger num))) (mkEqPrimExpr t kv e (Lit l)) -- (NOT (i == num)) OR e
+                        False -> mkNotExpr kv (mkAndExpr kv (mkEqIntExpr kv (Var i) (toInteger num)) (mkEqPrimExpr t kv e (Lit l))) -- NOT ((i == num) AND (NOT e))
+                in ExtCond e' True
+            _ -> error $ "Unexpected pc encountered: " ++ (show pc')
+    in ((typADTIntMap', pcIds'), pc'')
 toExtCond _ (typADTIntMap, pcIds) p = ((typADTIntMap, pcIds), p)
 
 -- Establish mapping between Data Constructors of an ADT and Integers
@@ -192,10 +217,18 @@ addEEnvVals kv tenv eenv typADTIntMap (old, new) =
 
 --- Misc Helper Functions ---
 
-pcVarNameType :: PathCond -> Maybe (Name, Type)
-pcVarNameType (AltCond _ (Var (Id n t)) _) = Just (n, t)
-pcVarNameType (ConsCond _ (Var (Id n t)) _) = Just (n, t)
-pcVarNameType _ = Nothing
+pcVarNameType :: PathCond -> [(Name, Type)]
+pcVarNameType (AltCond _ (Var (Id n t)) _) = [(n, t)]
+pcVarNameType (ConsCond _ (Var (Id n t)) _) = [(n, t)]
+pcVarNameType (AssumePC (Id n t) _ pc) = (n, t):pcVarNameType pc
+pcVarNameType _ = []
+
+assumePCIds :: PathCond -> [Id]
+assumePCIds (AssumePC i _ pc) = i:(assumePCIds pc)
+assumePCIds _ = []
+
+assumePCConds :: KnownValues -> Id -> PathCond
+assumePCConds kv i =  ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var i) 1) (mkEqIntExpr kv (Var i) 2)) True
 
 castReturnType :: Type -> Expr -> Expr
 castReturnType t e =
