@@ -90,13 +90,14 @@ mergeCurrExpr ng s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
         in (ng', CurrExpr evalOrRet1 ce', s1', s2')
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
+-- | Merges 2 Exprs, combining 2 corresponding symbolic Vars into 1 if possible, and substituting the full Expr of any concrete Vars
 mergeExprInline :: Named t
                 => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Expr -> Expr
                 -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
 mergeExprInline ng s1 s2 renamed1 renamed2 newId (App e1 e2) (App e3 e4) =
     let (ng', e1'', s1', s2', newNames1, newNames2) = mergeExprInline ng s1 s2 renamed1 renamed2 newId e1 e3
-        -- For any symbolic variables merged into new variable in prev call to mergeExprInline, rename all occurrences of
-        -- old symbolic vars in `e2` and `e4`
+        -- For any symbolic variable pairs merged into new variables when merging `e1` and `e3`, rename all occurrences of
+        -- the old symbolic vars in `e2` and `e4`
         e2' = renames newNames1 e2
         e4' = renames newNames2 e4
         renamed1' = HM.union renamed1 newNames1
@@ -243,6 +244,8 @@ mergeEnvObj kv newId eenv1 eenv2 (changedSyms1, changedSyms2, ngen) (eObj1, eObj
     , (E.SymbObj i2) <- eObj2 = mergeTwoSymbObjs kv ngen changedSyms1 changedSyms2 newId i1 i2
     | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
 
+-- | If same name `n` points to a symbolic x@(Var (Id n _)) and Expr `e` in the 2 states, replace `x` with new symbolic variable `x'` and merge
+-- both `e` and `x'`
 mergeSymbExprObjs :: KnownValues -> NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id -> Expr -> Bool
                   -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeSymbExprObjs kv ngen changedSyms1 changedSyms2 newId i@(Id _ t) e first =
