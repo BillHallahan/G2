@@ -84,7 +84,7 @@ findConsistent' kv eenv tenv pc =
 findConsistent'' :: KnownValues -> TypeEnv -> ExprEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
 findConsistent'' kv tenv eenv pc =
     let
-        is = nub . map (\(Id n t') -> Id n (typeStripCastType tenv t')) $ concatMap (varIdsInPC kv) pc
+        is = nub . map (\(Id n t') -> Id n (typeStripCastType tenv t')) $ concatMap varIdsInPC pc
 
         t = pcVarType tenv pc
         cons = maybe Nothing (flip getCastedAlgDataTy tenv) t

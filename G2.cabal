@@ -129,6 +129,7 @@ library
 
                        , G2.Solver.ADTSolver
                        , G2.Solver.AssumePCSolver
+                       , G2.Solver.ADTNumericalSolver
                        , G2.Solver.Converters
                        , G2.Solver.Language
                        , G2.Solver.ParseSMT
@@ -144,6 +145,7 @@ library
   build-depends:         array >= 0.5.1.1 && <= 0.5.3.0 
                        , Cabal >= 2.0.1.0 && <= 2.0.1.1
                        , base >= 4.8 && < 5
+                       , bimap == 0.3.3
                        , bytestring >= 0.10.8.0 && <= 0.10.8.2
                        , concurrent-extra >= 0.7
                        , containers >= 0.5 && < 0.6

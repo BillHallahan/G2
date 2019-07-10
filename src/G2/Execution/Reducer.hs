@@ -299,19 +299,19 @@ SomeReducer r1 <~? SomeReducer r2 = SomeReducer (r1 :<~? r2)
 (<~|) :: SomeReducer t -> SomeReducer t -> SomeReducer t
 SomeReducer r1 <~| SomeReducer r2 = SomeReducer (r1 :<~| r2)
 
-data StdRed con = StdRed con
+data StdRed con = StdRed Sharing con
 
 instance Solver con => Reducer (StdRed con) () t where
     initReducer _ _ = ()
 
-    redRules stdr@(StdRed solver) _ s b = do
-        (r, s', b') <- stdReduce solver s b
+    redRules stdr@(StdRed share solver) _ s b = do
+        (r, s', b') <- stdReduce share solver s b
         let res = case r of
                     RuleHitMergePt -> MergePoint
                     RuleEvalCaseSym -> Merge
                     RuleIdentity -> Finished
                     _ -> InProgress
-        
+
         return (res, s', b', stdr)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 

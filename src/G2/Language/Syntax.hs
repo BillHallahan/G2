@@ -57,7 +57,7 @@ instance Hashable Name where
         m `hashWithSalt` i
 
 -- | Pairing of a `Name` with a `Type`
-data Id = Id Name Type deriving (Show, Eq, Read, Generic, Typeable, Data)
+data Id = Id Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 instance Hashable Id
 
@@ -203,7 +203,7 @@ data Lit = LitInt Integer
 instance Hashable Lit
 
 -- | Data constructor.
-data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Data)
+data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 instance Hashable DataCon
 
@@ -230,7 +230,7 @@ altMatch (Alt am _) = am
 -- | Used in the `TyForAll`, to bind an `Id` to a `Type`
 data TyBinder = AnonTyBndr Type
               | NamedTyBndr Id
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 instance Hashable TyBinder
 
@@ -259,7 +259,7 @@ data Type = TyVar Id
           | TyBottom
           | TYPE
           | TyUnknown
-          deriving (Show, Eq, Read, Generic, Typeable, Data)
+          deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 type Kind = Type
 

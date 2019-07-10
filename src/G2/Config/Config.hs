@@ -1,4 +1,5 @@
 module G2.Config.Config ( Mode (..)
+                        , Sharing (..)
                         , SMTSolver (..)
                         , HigherOrderSolver (..)
                         , IncludePath
@@ -15,8 +16,10 @@ import qualified Data.Map as M
 
 import System.Directory
 
-
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
+
+-- | Do we use sharing to only reduce variables once?
+data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
@@ -32,6 +35,7 @@ data Config = Config {
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
     , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
+    , sharing :: Sharing
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
     , printExprEnv :: Bool -- ^ Controls whether the expr env is printed
@@ -67,6 +71,7 @@ mkConfig homedir as m = Config {
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
     , extraDefaultMods = extraDefaultPaths (strArg "extra-base" as m id homedir)
     , logStates = strArg "log-states" as m Just Nothing
+    , sharing = boolArg' "sharing" as m Sharing Sharing NoSharing
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
     , printExprEnv = boolArg "print-eenv" as m Off
@@ -143,6 +148,15 @@ boolArg s a m bd =
             else case  M.lookup s m of
                 Just st -> strToBool st d
                 Nothing -> d
+
+boolArg' :: String -> [String] -> M.Map String [String] -> b -> b -> b -> b
+boolArg' s a m b_default b1 b2 =
+    if "--" ++ s `elem` a 
+        then b1
+        else if "--no-" ++ s `elem` a 
+            then b2
+            else b_default
+
 
 strToBool :: [String] -> Bool -> Bool
 strToBool [s] b
