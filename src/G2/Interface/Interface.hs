@@ -231,7 +231,6 @@ initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
     let con' = GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con))
-    -- let con' = GroupRelated avf (UndefinedHigherOrder :?> ADTSolver avf :?> con)
     return (SomeSolver con')
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
@@ -356,9 +355,7 @@ runG2Solving :: ( Named t
                 solver -> Bindings -> State t -> IO (Maybe (ExecRes t))
 runG2Solving con bindings s@(State { known_values = kv })
     | true_assert s = do
-        -- print "solvin..."
         (_, m) <- solve con s bindings (symbolic_ids s) (path_conds s)
-        -- print m
         case m of
             Just m' -> do
                 let s' = s { model = m' }
