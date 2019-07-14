@@ -370,7 +370,7 @@ runG2Solving con bindings mergeStates s@(State { known_values = kv })
             Just m' -> do
                 let s' = s { model = m' }
                 let s'' = if mergeStates
-                            then replaceNonDets s'
+                            then replaceCase s'
                             else s'
 
                 let (es, e, ais) = subModel s'' bindings

@@ -611,7 +611,7 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                 _ -> let
                         assumsE = (mkAssumExpr kv) <$> assums
                         cond = ExtCond (dnf kv assumsE) True
-                    in traceShow assums $ cond:newPCs
+                    in cond:newPCs
 
             newPC''' = newPC'' {state = (state newPC'') { curr_expr = CurrExpr Evaluate aexpr'' }, new_pcs = newPCs' }
             (pcs, ng'''') = handleDaltMatches s ng''' alts bind
