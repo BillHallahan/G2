@@ -7,14 +7,13 @@ module G2.Execution.StateMerging
   , mergeEnvObj
   , mergePathConds
   , mergePathCondsSimple
-  , replaceNonDetWithSym
+  , replaceCaseWSym
   , replaceCase
   , getAssumption
   , isSMAssumption
   ) where
 
 import G2.Language
-import G2.Execution.PrimitiveEval
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
@@ -366,10 +365,10 @@ subIdNamesPCs pcs changedSyms =
     in renames changedSymsNames pcs
 
 ----------------
--- | Removes any NonDets in the expr_env and curr_expr by selecting one choice each time.
--- If NonDets are of the form `Assume (x == 1) e1 v Assume (x == 2) e2`, lookups the value of `x`
--- in the `Model` of the state and picks the corresponding Expr.
 
+-- | Removes any Case-s in the expr_env and curr_expr by selecting one choice each time
+-- e.g. Given an Expr `Case x of 1 -> e1, 2 -> e2`, lookups the value of `x`
+-- in the `Model` of the state and picks the corresponding Expr e1 or e2.
 replaceCase :: State t -> State t
 replaceCase s@(State {curr_expr = cexpr, expr_env = eenv}) =
     let eenv' = E.map (replaceCaseExpr s) eenv
@@ -389,16 +388,7 @@ replaceCaseExpr s@(State {model = m, type_classes = tc}) (Case e i alts) =
         _ -> error $ "Unable to find Lit value for e. Got: " ++ show val
 replaceCaseExpr _ e = e
 
--- | Looks up values in the `Model` of the state, substitutes into @`e`, and evaluates it
-substAndEval :: State t -> Expr -> Bool
-substAndEval (State {model = m
-                    , known_values = kv
-                    , type_classes = tc}) e =
-    getBoolFromDataCon kv solvedExpr 
-    where
-        exprToSolve = subExpr m tc e
-        solvedExpr = evalPrim kv exprToSolve
-
+-- | Looks up values in the `Model` of the state and substitutes into @`e`
 subExpr :: Model -> TypeClasses -> Expr -> Expr
 subExpr m tc = modifyContainedASTs (subExpr' m tc [])
 
@@ -418,39 +408,41 @@ liftCaseBinds :: [(Id, Expr)] -> Expr -> Expr
 liftCaseBinds [] expr = expr
 liftCaseBinds ((b, e):xs) expr = liftCaseBinds xs $ replaceASTs (Var b) e expr
 
--- | Given a NonDet Expr created by merging exprs, replaces it with a symbolic variable. Encodes the choices in the NonDet Expr as Path Constraints
+-- | Given a Case Expr created by merging exprs, replaces it with a symbolic variable. Encodes the choices in the NonDet Expr as Path Constraints
 -- Called from evalApp when App center is Prim
-replaceNonDetWithSym :: State t -> NameGen -> Expr -> (State t, NameGen, Expr)
-replaceNonDetWithSym s@(State {expr_env = eenv, path_conds = pc, known_values = kv, symbolic_ids = syms}) ng e@(NonDet (x:_)) =
-    let newSymT = returnType x
+replaceCaseWSym :: State t -> NameGen -> Expr -> (State t, NameGen, Expr)
+replaceCaseWSym s@(State {expr_env = eenv, path_conds = pc, known_values = kv, symbolic_ids = syms}) ng (Case (Var i) bindI alts@(a:_)) =
+    let (Alt _ altE) = a
+        newSymT = returnType altE
         (newSym, ng') = freshId newSymT ng -- create new symbolic variable
         eenv' = E.insertSymbolic (idName newSym) newSym eenv
         syms' = HS.insert newSym syms
-        pcs  = createPCs kv e newSym []
-        pc' = foldr PC.insert pc pcs
-    in (s {expr_env = eenv', path_conds = pc', symbolic_ids = syms'}, ng', Var newSym)
-replaceNonDetWithSym s ng (App e1 e2) =
-    let (s', ng', e1') = replaceNonDetWithSym s ng e1
-        (s'', ng'', e2') = replaceNonDetWithSym s' ng' e2
-    in (s'', ng'', (App e1' e2'))
-replaceNonDetWithSym s ng e = (s,ng,e)
 
-createPCs :: KnownValues -> Expr -> Id -> [PathCond] -> [PathCond]
-createPCs kv (NonDet (x:xs)) newSymId pcs =
-    case x of
-        (Assume _ e1 e2) ->
-            let (i, val) = getAssumption e1
-            in case e2 of
-                (NonDet _) ->
-                    let newPCs = createPCs kv e2 newSymId []
-                        newPCs' = map (\pc -> AssumePC i val pc) newPCs
-                    in createPCs kv (NonDet xs) newSymId (newPCs' ++ pcs)
-                _ ->
-                    let pc = AssumePC i val $ ExtCond (createEqExpr kv newSymId e2) True
-                    in createPCs kv (NonDet xs) newSymId (pc:pcs)
-        _ -> error $ "NonDet option is of a wrong Data Constructor: " ++ (show x)
-createPCs _ (NonDet []) _ pcs = pcs
-createPCs _ _ _ pcs = pcs
+        pcs = concatMap (createPCs kv i bindI newSym) alts
+        pc' = foldr PC.insert pc pcs
+
+    in (s {expr_env = eenv', path_conds = pc', symbolic_ids = syms'}, ng', Var newSym)
+replaceCaseWSym s ng (App e1 e2) =
+    let (s', ng', e1') = replaceCaseWSym s ng e1
+        (s'', ng'', e2') = replaceCaseWSym s' ng' e2
+    in (s'', ng'', (App e1' e2'))
+replaceCaseWSym s ng e = (s, ng, e)
+
+-- For each Alt, add Path Constraints equating `newSymId` to the Alt Expr, enclosed in an AssumePC based on the matched Lit
+createPCs :: KnownValues -> Id -> Id -> Id -> Alt -> [PathCond]
+createPCs kv i bindId newSymId (Alt match e)
+    | (LitAlt l@(LitInt val)) <- match =
+        let bind = [(bindId, Lit l)]
+            e' = liftCaseBinds bind e
+            val' = fromInteger val
+        in case e' of
+            (Case (Var i') bindI' as) ->
+                let newPCs = concatMap (createPCs kv i' bindI' newSymId) as
+                in map (\pc -> AssumePC i val' pc) newPCs
+            _ ->
+                let pc = AssumePC i val' $ ExtCond (createEqExpr kv newSymId e') True
+                in [pc]
+    | otherwise = error $ "Unable to pattern match Alt: " ++ show (Alt match e)
 
 getAssumption :: Expr -> (Id, Int)
 getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, fromInteger val)

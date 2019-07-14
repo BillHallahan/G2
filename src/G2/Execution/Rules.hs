@@ -188,8 +188,8 @@ evalApp s@(State { expr_env = eenv
         let
             ar' = map (lookupForPrim eenv) ar
             appP = mkApp (Prim prim ty : ar')
-            -- replace any NonDets in appP with a Symbolic variable to ensure the Expr is in Symbolic Weak Head Normal Form
-            (s', ng', appP') = replaceNonDetWithSym s ng appP
+            -- replace any Case Exprs in appP with a Symbolic variable to ensure the Expr is in Symbolic Weak Head Normal Form
+            (s', ng', appP') = replaceCaseWSym s ng appP
             exP = evalPrims kv appP'
         in
         ( RuleEvalPrimToNorm
