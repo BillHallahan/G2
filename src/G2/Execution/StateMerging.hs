@@ -79,73 +79,78 @@ mergeCurrExpr ng s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
     | (CurrExpr evalOrRet1 e1) <- ce1
     , (CurrExpr evalOrRet2 e2) <- ce2
     , evalOrRet1 == evalOrRet2 =
-        let (ng', ce', s1', s2', _, _) = mergeExprInline ng s1 s2 HM.empty HM.empty newId e1 e2
+        let (Context {ng_ = ng', s1_ = s1', s2_ = s2'}, ce') = mergeExprInline (emptyContext s1 s2 ng newId) e1 e2
         in (ng', CurrExpr evalOrRet1 ce', s1', s2')
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
 -- | Merges 2 Exprs, combining 2 corresponding symbolic Vars into 1 if possible, and substituting the full Expr of any concrete Vars
+-- Also returns any newly added Symbolic Variables and Names of renamed Variables
 mergeExprInline :: Named t
-                => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Expr -> Expr
-                -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
-mergeExprInline ng s1 s2 renamed1 renamed2 newId (App e1 e2) (App e3 e4) =
-    let (ng', e1'', s1', s2', newNames1, newNames2) = mergeExprInline ng s1 s2 renamed1 renamed2 newId e1 e3
+                => Context t -> Expr -> Expr
+                -> (Context t, Expr)
+mergeExprInline ctxt (App e1 e2) (App e3 e4) =
+    let (ctxt', e1') = mergeExprInline ctxt e1 e3
         -- For any symbolic variable pairs merged into new variables when merging `e1` and `e3`, rename all occurrences of
         -- the old symbolic vars in `e2` and `e4`
-        e2' = renames newNames1 e2
-        e4' = renames newNames2 e4
-        renamed1' = HM.union renamed1 newNames1
-        renamed2' = HM.union renamed2 newNames2
-        (ng'', e2'', s1'', s2'', newNames1', newNames2') = mergeExprInline ng' s1' s2' renamed1' renamed2' newId e2' e4'
-    in (ng'', App e1'' e2'', s1'', s2'', HM.union newNames1' newNames1, HM.union newNames2' newNames2)
-mergeExprInline ng s1 s2 rn1 rn2 newId e1@(App _ _) (Var i) = mergeVarInline ng s1 s2 rn1 rn2 newId i e1 False
-mergeExprInline ng s1 s2 rn1 rn2 newId (Var i) e2@(App _ _) = mergeVarInline ng s1 s2 rn1 rn2 newId i e2 True
-mergeExprInline ng s1 s2 rn1 rn2 newId e1@(Var i1) e2@(Var i2)
-    | e1 == e2 = (ng, e1, s1, s2, HM.empty, HM.empty)
+        e2' = renames (new_names1_ ctxt') e2
+        e4' = renames (new_names2_ ctxt') e4
+        -- move names from newNames to renamed
+        ctxt'' = updateContext ctxt'
+        (ctxt''', e2'') = mergeExprInline ctxt'' e2' e4'
+        ctxt'''' = ctxt''' { new_names1_ = HM.union (new_names1_ ctxt') (new_names1_ ctxt''')
+                           , new_names2_ = HM.union (new_names2_ ctxt') (new_names2_ ctxt''') }
+    in (ctxt'''', App e1' e2'')
+mergeExprInline ctxt e1@(App _ _) (Var i) = mergeVarInline ctxt i e1 False
+mergeExprInline ctxt (Var i) e2@(App _ _) = mergeVarInline ctxt i e2 True
+mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Var i1) e2@(Var i2)
+    | e1 == e2 = (ctxt, e1)
     | otherwise =
         let maybeE1' = E.lookupConcOrSym (idName i1) (expr_env s1)
             maybeE2' = E.lookupConcOrSym (idName i2) (expr_env s2)
-        in mergeVarsInline ng s1 s2 rn1 rn2 newId maybeE1' maybeE2'
-mergeExprInline ng s1 s2 _ _ newId e1 e2
-    | e1 == e2 = (ng, e1, s1, s2, HM.empty , HM.empty)
+        in mergeVarsInline ctxt maybeE1' maybeE2'
+mergeExprInline ctxt@(Context { newId_ = newId }) e1 e2
+    | e1 == e2 = (ctxt, e1)
     | otherwise =
         let mergedExpr = createCaseExpr newId e1 e2
-        in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
+        in (ctxt, mergedExpr)
 
 mergeVarInline :: (Named t)
-               => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Id -> Expr -> Bool
-               -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
-mergeVarInline ng s1 s2 renamed1 renamed2 newId i e@(App _ _) first =
-    let eenv = if first then expr_env s1 else expr_env s2
+               => Context t -> Id -> Expr -> Bool
+               -> (Context t, Expr)
+mergeVarInline ctxt@(Context { s1_ = s1, s2_ = s2, newId_ = newId }) i e@(App _ _) first =
+    let eenv = if first
+            then expr_env s1
+            else expr_env s2
         maybeE = E.lookupConcOrSym (idName i) eenv
     in case maybeE of
         (Just (E.Conc e')) -> if first
-            then mergeExprInline ng s1 s2 renamed1 renamed2 newId e' e
-            else mergeExprInline ng s1 s2 renamed1 renamed2 newId e e'
+            then mergeExprInline ctxt e' e
+            else mergeExprInline ctxt e e'
         (Just (E.Sym iSym)) ->
             let mergedExpr = if first
                 then createCaseExpr newId (Var iSym) e
                 else createCaseExpr newId e (Var iSym)
-            in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
+            in (ctxt, mergedExpr)
         Nothing -> error $ "Unable to find Var in expr_env: " ++ show i
-mergeVarInline _ _ _ _ _ _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
+mergeVarInline _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
 
 mergeVarsInline :: Named t
-                => NameGen -> State t -> State t -> HM.HashMap Name Name -> HM.HashMap Name Name -> Id -> Maybe E.ConcOrSym -> Maybe E.ConcOrSym
-                -> (NameGen, Expr, State t, State t, HM.HashMap Name Name, HM.HashMap Name Name)
-mergeVarsInline ng s1 s2 renamed1 renamed2 newId maybeE1 maybeE2
+                => Context t -> Maybe E.ConcOrSym -> Maybe E.ConcOrSym
+                -> (Context t, Expr)
+mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2, ng_ = ng, newId_ = newId}) maybeE1 maybeE2
     | (Just (E.Conc e1)) <- maybeE1
-    , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ng s1 s2 renamed1 renamed2 newId e1 e2
+    , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ctxt e1 e2
     | (Just (E.Conc e1)) <- maybeE1
     , (Just (E.Sym i)) <- maybeE2 =
         let mergedExpr = createCaseExpr newId e1 (Var i)
-        in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
+        in (ctxt, mergedExpr)
     | (Just (E.Sym i)) <- maybeE1
     , (Just (E.Conc e2)) <- maybeE2 =
         let mergedExpr = createCaseExpr newId (Var i) e2
-        in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
+        in (ctxt, mergedExpr)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2
-    , i1 == i2 = (ng, Var i1, s1, s2, HM.empty, HM.empty)
+    , i1 == i2 = (ctxt, Var i1)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2
     , (idType i1 == idType i2)
@@ -153,7 +158,9 @@ mergeVarsInline ng s1 s2 renamed1 renamed2 newId maybeE1 maybeE2
     , not $ HS.member i2 (symbolic_ids s1) = -- if both are symbolic variables unique to their states, replace one of them with the other
         let s2' = rename (idName i2) (idName i1) s2
             syms' = HS.insert i1 (HS.delete i2 (symbolic_ids s2))
-        in (ng, Var i1, s1, s2' {symbolic_ids = syms'}, HM.empty, HM.singleton (idName i2) (idName i1))
+            s2'' = s2' {symbolic_ids = syms'}
+            ctxt' = ctxt { s2_ = s2'', new_names2_ = HM.singleton (idName i2) (idName i1) }
+        in (ctxt', Var i1)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2
     , idType i1 == idType i2
@@ -164,15 +171,56 @@ mergeVarsInline ng s1 s2 renamed1 renamed2 newId maybeE1 maybeE2
             s2' = rename (idName i2) (idName newSymId) s2
             syms1' = HS.insert newSymId (HS.delete i1 (symbolic_ids s1))
             syms2' = HS.insert newSymId (HS.delete i2 (symbolic_ids s2))
-        in (ng', Var newSymId, s1' {symbolic_ids = syms1'}, s2' {symbolic_ids = syms2'}
-           , HM.singleton (idName i1) (idName newSymId), HM.singleton (idName i2) (idName newSymId))
+            s1'' = s1' {symbolic_ids = syms1'}
+            s2'' = s2' {symbolic_ids = syms2'}
+            ctxt' = ctxt {ng_ = ng', s1_ = s1'', s2_ = s2'', new_names1_ = HM.singleton (idName i1) (idName newSymId)
+                               , new_names2_ = HM.singleton (idName i2) (idName newSymId) }
+        in (ctxt', Var newSymId)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2 =
         let mergedExpr = createCaseExpr newId (Var i1) (Var i2)
-        in (ng, mergedExpr, s1, s2, HM.empty, HM.empty)
+        in (ctxt, mergedExpr)
     | otherwise = error "Unable to find Var(s) in expr_env"
 
--- | Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
+-- | Values that are passed around and updated while merging 2 Exprs
+data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Names in State `s1_` to new Names
+                         , renamed2_ :: HM.HashMap Name Name
+                         , new_names1_ :: HM.HashMap Name Name -- Newly renamed Names in State `s1_`, not yet added to `renamed1_`
+                         , new_names2_ :: HM.HashMap Name Name
+                         , s1_ :: State t
+                         , s2_ :: State t
+                         , ng_ :: NameGen
+                         , newId_ :: Id -- `newId` is assigned to 1 or 2 in an AssumePC/ Case Expr when merging values from `s1_` or `s2_` respectively
+                         , newPCs_ :: [PathCond]
+                         , newSyms_ :: HS.HashSet Id -- Newly added symbolic variables when merging Exprs
+                         }
+
+-- | Copies values from `new_names*__` to the respective `renamed*_` fields and clears `new_names*_`
+updateContext :: Context t -> Context t
+updateContext ctxt@(Context { renamed1_ = renamed1
+                            , renamed2_ = renamed2
+                            , new_names1_ = newNames1
+                            , new_names2_ = newNames2 }) =
+    let renamed1' = HM.union renamed1 newNames1
+        renamed2' = HM.union renamed2 newNames2
+        newNames1' = HM.empty
+        newNames2' = HM.empty
+    in ctxt { renamed1_ = renamed1', renamed2_ = renamed2', new_names1_ = newNames1', new_names2_ = newNames2' }
+
+emptyContext :: State t -> State t -> NameGen -> Id -> Context t
+emptyContext s1 s2 ng newId = Context { renamed1_ = HM.empty
+                                      , renamed2_ = HM.empty
+                                      , new_names1_ = HM.empty
+                                      , new_names2_ = HM.empty
+                                      , s1_ = s1
+                                      , s2_ = s2
+                                      , ng_ = ng
+                                      , newId_ = newId
+                                      , newPCs_ = []
+                                      , newSyms_ = HS.empty}
+
+-- | Merges 2 Exprs without inlining Vars from the expr_env or combining symbolic variables
+-- Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
 -- "D NonDet[(Assume (x == 1) in e_1), (Assume (x == 2) in e_1')],..., NonDet[(Assume (x == 1) in e_n), (Assume (x == 2) in e_n')]" 
 mergeExpr :: Id -> Expr -> Expr -> Expr
 mergeExpr newId (App e1 e2) (App e1' e2') = App (mergeExpr newId e1 e1') (mergeExpr newId e2 e2')
@@ -185,7 +233,7 @@ createCaseExpr newId e1 e2 =
     let
         alt1 = Alt (LitAlt (LitInt 1)) e1
         alt2 = Alt (LitAlt (LitInt 2)) e2
-    -- PathCond restricting newId to 1 or 2 is added in mergePathConds
+    -- We assume that PathCond restricting newId to 1 or 2 is added in mergePathConds
     in Case (Var newId) newId [alt1, alt2]
 
 mergeSymbolicIds :: SymbolicIds -> SymbolicIds -> Id -> HM.HashMap Id Id -> SymbolicIds

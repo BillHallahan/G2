@@ -3,7 +3,6 @@ module G2.Execution.NormalForms where
 import G2.Language
 import qualified G2.Language.Stack as S
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Execution.MergingHelpers as SM
 
 -- | If something is in "value form", then it is essentially ready to be
 -- returned and popped off the heap. This will be the SSTG equivalent of having
@@ -46,11 +45,15 @@ isExecValueForm state | Nothing <- S.pop (exec_stack state)
 isExecValueFormDisNonRedPC :: State t -> Bool
 isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = []}
 
-isSymMergedNormalForm :: E.ExprEnv -> Expr -> Bool
-isSymMergedNormalForm eenv (NonDet xs) = all (isSymMergedNormalForm' eenv) xs
-isSymMergedNormalForm eenv e = isExprValueForm eenv e
+-- Expr is in Symbolic Merged Normal Form if it is in SWHNF, or if it is a Case Expr on a LitInt and all the Alt Exprs
+-- are in SWHNF
+isSMNF :: E.ExprEnv -> Expr -> Bool
+isSMNF eenv (Case e _ a)
+    | (Lit (LitInt _)) <- e
+    , all isLitAlt a
+    , all (\(Alt (LitAlt _) aexpr) -> isSMNF eenv aexpr) a = True
+isSMNF eenv e = isExprValueForm eenv e
 
-isSymMergedNormalForm' :: E.ExprEnv -> Expr -> Bool
-isSymMergedNormalForm' eenv (Assume _ e1 e2) = isSymMergedNormalForm eenv e2 && (SM.isSMAssumption e1)
-isSymMergedNormalForm' _ _ = False
-
+isLitAlt :: Alt -> Bool
+isLitAlt (Alt (LitAlt _) _) = True
+isLitAlt _ = False

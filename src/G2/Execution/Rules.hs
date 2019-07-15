@@ -323,7 +323,7 @@ evalCaseSMNF solver s@(State { expr_env = eenv
     -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
     -- is only done when the matching expression is NOT in value form. Value
     -- forms should be handled by other RuleEvalCase* rules.
-    | not (isSymMergedNormalForm eenv mexpr) = do -- TODO: inline vars if necessary to get it into SMNF
+    | not (isSMNF eenv mexpr) = do -- TODO: inline vars if necessary to get it into SMNF
         let frame = CaseFrame bind alts
         return ( RuleEvalCaseNonVal
                , [newPCEmpty $ s { expr_env = eenv
