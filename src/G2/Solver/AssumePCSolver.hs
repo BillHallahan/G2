@@ -6,7 +6,7 @@ import G2.Language.Syntax
 import qualified G2.Language.PathConds as PC
 import G2.Language.Ids  
 import G2.Solver.Solver
-import G2.Execution.StateMerging
+import G2.Execution.MergingHelpers
 
 import Data.List
 import qualified Data.Map as M

@@ -15,20 +15,18 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , evalSymGen
                           , evalAssume
                           , evalAssert
-
                           , isExecValueForm ) where
 
 import G2.Config.Config
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
-import G2.Execution.StateMerging
+import qualified G2.Execution.MergingHelpers as SM
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
-import qualified G2.Execution.StateMerging as SM
 import G2.Solver hiding (Assert)
 
 import Control.Monad.Extra
@@ -189,7 +187,7 @@ evalApp s@(State { expr_env = eenv
             ar' = map (lookupForPrim eenv) ar
             appP = mkApp (Prim prim ty : ar')
             -- replace any Case Exprs in appP with a Symbolic variable to ensure the Expr is in Symbolic Weak Head Normal Form
-            (s', ng', appP') = replaceCaseWSym s ng appP
+            (s', ng', appP') = SM.replaceCaseWSym s ng appP
             exP = evalPrims kv appP'
         in
         ( RuleEvalPrimToNorm

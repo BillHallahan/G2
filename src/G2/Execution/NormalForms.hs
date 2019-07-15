@@ -3,7 +3,7 @@ module G2.Execution.NormalForms where
 import G2.Language
 import qualified G2.Language.Stack as S
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Execution.StateMerging as SM
+import qualified G2.Execution.MergingHelpers as SM
 
 -- | If something is in "value form", then it is essentially ready to be
 -- returned and popped off the heap. This will be the SSTG equivalent of having

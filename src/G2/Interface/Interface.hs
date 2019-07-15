@@ -43,7 +43,7 @@ import G2.Execution.Interface
 import G2.Execution.Reducer
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
-import G2.Execution.StateMerging
+import G2.Execution.MergingHelpers
 
 import G2.Interface.OutputTypes
 
