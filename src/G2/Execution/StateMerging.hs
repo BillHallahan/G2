@@ -8,10 +8,12 @@ module G2.Execution.StateMerging
   ) where
 
 import G2.Language
+import G2.Execution.NormalForms
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
 import qualified Data.Map as M
+import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 
@@ -108,6 +110,12 @@ mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Var i1) e2@(Var i2)
         let maybeE1' = E.lookupConcOrSym (idName i1) (expr_env s1)
             maybeE2' = E.lookupConcOrSym (idName i2) (expr_env s2)
         in mergeVarsInline ctxt maybeE1' maybeE2'
+mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
+    | isSMNF (expr_env s1) e1
+    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
+mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1 e2@(Case _ _ _)
+    | isSMNF (expr_env s1) e1
+    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
 mergeExprInline ctxt@(Context { newId_ = newId }) e1 e2
     | e1 == e2 = (ctxt, e1)
     | otherwise =
@@ -174,13 +182,109 @@ mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed
             s1'' = s1' {symbolic_ids = syms1'}
             s2'' = s2' {symbolic_ids = syms2'}
             ctxt' = ctxt {ng_ = ng', s1_ = s1'', s2_ = s2'', new_names1_ = HM.singleton (idName i1) (idName newSymId)
-                               , new_names2_ = HM.singleton (idName i2) (idName newSymId) }
+                         , new_names2_ = HM.singleton (idName i2) (idName newSymId) }
         in (ctxt', Var newSymId)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2 =
         let mergedExpr = createCaseExpr newId (Var i1) (Var i2)
         in (ctxt, mergedExpr)
     | otherwise = error "Unable to find Var(s) in expr_env"
+
+type Conds = [(Id, Integer)]
+
+-- assume it is in SMNF
+getChoices :: Expr -> Id -> Integer -> [(Conds, Expr)]
+getChoices e newId num
+    | (Case (Var i) _ a) <- e =
+        let choices = concatMap (getChoices' i) a
+            choices' = map (\(c, ex) -> (cond:c, ex)) choices
+        in choices'
+    | otherwise = [([cond], e)]
+    where
+        cond = (newId, num)
+
+getChoices' :: Id -> Alt -> [(Conds, Expr)]
+getChoices' i (Alt (LitAlt (LitInt l)) e) =
+    let cond = (i, l)
+        choices = getChoices'' e
+        choices' = map (\(c, ex) -> (cond:c, ex)) choices
+    in choices'
+getChoices' alt _ = error $ "Unhandled Alt: " ++ (show alt)
+
+getChoices'' :: Expr -> [(Conds, Expr)]
+getChoices'' (Case (Var i) _ a) = concatMap (getChoices' i) a
+getChoices'' e = [([], e)]
+
+groupChoices :: [(Conds, Expr)] -> [[(Conds, Expr)]]
+groupChoices xs = L.groupBy (\(_, e1) (_, e2) -> sameDataCon e1 e2) xs
+
+sameDataCon :: Expr -> Expr -> Bool
+sameDataCon (App e1 _) (App e1' _) = sameDataCon e1 e1'
+sameDataCon (Data dc1) (Data dc2) = dc1 == dc2
+sameDataCon _ _ = False
+
+mergeCase :: Named t
+          => Context t -> Expr -> Expr
+          -> (Context t, Expr)
+mergeCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newId_ = newId, newPCs_ = newPCs, newSyms_ = syms }) e1 e2 =
+    let choices = (getChoices e1 newId 1) ++ (getChoices e2 newId 2)
+        groupedChoices = groupChoices choices
+        (ctxt', mergedChoices) = L.mapAccumR mergeChoices (emptyContext s1 s2 ng newId) groupedChoices
+        mergedExpr = createCaseExprs newId mergedChoices
+        newPCs' = newPCs_ ctxt'
+        newSyms = newSyms_ ctxt'
+        ng' = ng_ ctxt'
+        kv = known_values s1
+        (_,newPCs'') = L.mapAccumR (\num pc -> (num + 1, addClause kv newId num pc)) 1 newPCs'
+        ctxt'' = ctxt {newPCs_ = newPCs'' ++ newPCs, newSyms_ = HS.union newSyms syms, ng_ = ng'}
+    in (ctxt'', mergedExpr)
+
+mergeChoices :: Context t -> [(Conds, Expr)] -> (Context t, Expr)
+mergeChoices ctxt@(Context { ng_ = ng, newPCs_ = newPCs, newSyms_ = newSyms, s1_ = s1 }) choices@(_:_) =
+    let apps = map (unApp . snd) choices -- [[Expr]]
+        -- maybe parition, taking common apps as long as all are equal
+        commonDC = head . head $ apps
+        rest = map tail apps -- [[Expr]]
+        cases = L.transpose rest -- [[Expr]], where each [Expr] is a list of choices at that pos in the merged Expr
+        (newSymId, ng') = freshId TyLitInt ng
+        apps' = commonDC:map (createCaseExprs newSymId) cases -- [Expr], where each Expr is a Case Expr of various choices
+        mergedExpr = mkApp apps'
+
+        -- Add to each Conds the (newSymId, Int) pair corresponding to its position in the Case Expr created earlier
+        kv = known_values s1
+        vals = [(newSymId, x) | x <- [1..(toInteger . length $ choices)]]
+        conds = map fst choices
+        conds' = zipWith (\c v -> v:c) conds vals
+        condsExprs = map (condsToExpr kv) conds'
+        -- 'OR' all Exprs in condsExprs together
+        cond = dnf kv condsExprs
+        extCond = ExtCond cond True
+    in (ctxt { ng_ = ng', newPCs_ = extCond:newPCs, newSyms_ = HS.insert newSymId newSyms }, mergedExpr)
+mergeChoices _ [] = error $ "Choices must be non empty"
+
+-- Given list of (Id, Int) pairs, creates Expr equivalent to Conjunctive Normal Form of (Id == Int) values
+condsToExpr :: KnownValues -> Conds -> Expr
+condsToExpr kv c =
+    let es = map (\(i, num) -> mkEqIntExpr kv (Var i) num) c
+    in cnf kv es
+
+-- Given an `ExtCond e b`, and an `Id`, `Int` pair, modifies `e` to (Id == Int) /\ e
+addClause :: KnownValues -> Id -> Integer -> PathCond -> PathCond
+addClause kv newId num pc = addClause' kv (mkEqIntExpr kv (Var newId) num) pc
+
+addClause' :: KnownValues -> Expr -> PathCond -> PathCond
+addClause' kv clause (ExtCond e b) =
+    let e' = cnf kv [clause,e]
+    in ExtCond e' b
+addClause' _ _ pc = error $ "Can only add clause to ExtCond. Got: " ++ (show pc)
+
+cnf :: KnownValues -> [Expr] -> Expr
+cnf kv (x:y:xs) = dnf kv $ (mkAndExpr kv x y):xs
+cnf _ [x] = x
+
+dnf :: KnownValues -> [Expr] -> Expr
+dnf kv (x:y:xs) = dnf kv $ (mkOrExpr kv x y):xs
+dnf _ [x] = x
 
 -- | Values that are passed around and updated while merging 2 Exprs
 data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Names in State `s1_` to new Names
@@ -235,6 +339,13 @@ createCaseExpr newId e1 e2 =
         alt2 = Alt (LitAlt (LitInt 2)) e2
     -- We assume that PathCond restricting newId to 1 or 2 is added in mergePathConds
     in Case (Var newId) newId [alt1, alt2]
+
+createCaseExprs :: Id -> [Expr] -> Expr
+createCaseExprs newId es =
+    let
+        (_, alts) = L.mapAccumR (\num e -> (num + 1, Alt (LitAlt (LitInt num)) e)) 1 es
+    -- We assume that PathCond restricting newId's range is added elsewhere
+    in Case (Var newId) newId alts
 
 mergeSymbolicIds :: SymbolicIds -> SymbolicIds -> Id -> HM.HashMap Id Id -> SymbolicIds
 mergeSymbolicIds syms1 syms2 newId changedSyms =
