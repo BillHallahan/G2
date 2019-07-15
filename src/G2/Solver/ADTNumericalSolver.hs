@@ -135,10 +135,8 @@ toNumericalPCs s@(State {known_values = kv, type_env = tenv, expr_env = eenv}) p
         valLims = (constrainDCVals kv typADTIntMap') <$> extCondIds
         -- Add any constraints from expr_env
         eenvVals = mapMaybe (addEEnvVals kv tenv eenv typADTIntMap') extCondIds
-        -- Add constraints restricting values of `Ids` in AssumePCs
-        assPCIds = concatMap assumePCIds pc
-        assPCIdLims = (assumePCConds kv) <$> assPCIds
-    in (assPCIdLims ++ eenvVals ++ valLims ++ pc', typADTIntMap')
+        -- (We assume constraints restricting values of `Ids` in AssumePCs have already been added before)
+    in (eenvVals ++ valLims ++ pc', typADTIntMap')
 
 toExtCond :: State t -> (M.Map Type ADTIntMap, [(Id, Id)]) -> PathCond -> ((M.Map Type ADTIntMap, [(Id, Id)]), PathCond)
 toExtCond _ (typADTIntMap, pcIds) p@(AltCond _ _ _) = ((typADTIntMap, pcIds), p)
@@ -219,14 +217,6 @@ pcVarNameType (AltCond _ (Var (Id n t)) _) = [(n, t)]
 pcVarNameType (ConsCond _ (Var (Id n t)) _) = [(n, t)]
 pcVarNameType (AssumePC (Id n t) _ pc) = (n, t):pcVarNameType pc
 pcVarNameType _ = []
-
-assumePCIds :: PathCond -> [Id]
-assumePCIds (AssumePC i _ pc) = i:(assumePCIds pc)
-assumePCIds _ = []
-
--- Restrict value of an `Id` in an `AssumePC` to either 1 or 2
-assumePCConds :: KnownValues -> Id -> PathCond
-assumePCConds kv i =  ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var i) 1) (mkEqIntExpr kv (Var i) 2)) True
 
 castReturnType :: Type -> Expr -> Expr
 castReturnType t e =
