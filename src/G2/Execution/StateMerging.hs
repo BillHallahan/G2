@@ -51,12 +51,12 @@ mergeState ngen s1 s2 =
     if isMergeable s1 s2
         then 
             let (newId, ngen') = freshId TyLitInt ngen
-                (ngen'', curr_expr', s1', s2') = mergeCurrExpr ngen' s1 s2 newId
+                (ngen'', curr_expr', s1', s2', pcs, newSyms) = mergeCurrExpr ngen' s1 s2 newId
                 (eenv', (changedSyms1, changedSyms2, ngen''')) = mergeExprEnv newId ngen'' (expr_env s1') (expr_env s2')
                 pc1' = subIdNamesPCs (path_conds s1') changedSyms1 -- update PathConds with new SymbolicIds from merging the expr_env
                 pc2' = subIdNamesPCs (path_conds s2') changedSyms2
-                path_conds' = mergePathCondsSimple (known_values s1') newId pc1' pc2'
-                syms' = mergeSymbolicIds (symbolic_ids s1') (symbolic_ids s2') newId (HM.union changedSyms1 changedSyms2)
+                path_conds' = mergePathCondsSimple (known_values s1') newId pc1' pc2' pcs
+                syms' = mergeSymbolicIds (symbolic_ids s1') (symbolic_ids s2') newId (HM.union changedSyms1 changedSyms2) newSyms
             in (ngen'''
                , (Just State { expr_env = eenv'
                              , type_env = type_env s1'
@@ -76,13 +76,13 @@ mergeState ngen s1 s2 =
                              , tags = tags s1' }))
         else (ngen, Nothing)
 
-mergeCurrExpr :: Named t => NameGen -> State t -> State t -> Id -> (NameGen, CurrExpr, State t, State t)
+mergeCurrExpr :: Named t => NameGen -> State t -> State t -> Id -> (NameGen, CurrExpr, State t, State t, [PathCond], SymbolicIds)
 mergeCurrExpr ng s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
     | (CurrExpr evalOrRet1 e1) <- ce1
     , (CurrExpr evalOrRet2 e2) <- ce2
     , evalOrRet1 == evalOrRet2 =
-        let (Context {ng_ = ng', s1_ = s1', s2_ = s2'}, ce') = mergeExprInline (emptyContext s1 s2 ng newId) e1 e2
-        in (ng', CurrExpr evalOrRet1 ce', s1', s2')
+        let (Context {ng_ = ng', s1_ = s1', s2_ = s2', newPCs_ = newPCs, newSyms_ = newSyms}, ce') = mergeExprInline (emptyContext s1 s2 ng newId) e1 e2
+        in (ng', CurrExpr evalOrRet1 ce', s1', s2', newPCs, newSyms)
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
 -- | Merges 2 Exprs, combining 2 corresponding symbolic Vars into 1 if possible, and substituting the full Expr of any concrete Vars
@@ -112,10 +112,10 @@ mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Var i1) e2@(Var i2)
         in mergeVarsInline ctxt maybeE1' maybeE2'
 mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
     | isSMNF (expr_env s1) e1
-    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
+    , isSMNF (expr_env s2) e2 = trace "booyah" $ mergeCase ctxt e1 e2
 mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1 e2@(Case _ _ _)
     | isSMNF (expr_env s1) e1
-    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
+    , isSMNF (expr_env s2) e2 = trace "booyah" $ mergeCase ctxt e1 e2
 mergeExprInline ctxt@(Context { newId_ = newId }) e1 e2
     | e1 == e2 = (ctxt, e1)
     | otherwise =
@@ -226,17 +226,22 @@ sameDataCon _ _ = False
 mergeCase :: Named t
           => Context t -> Expr -> Expr
           -> (Context t, Expr)
-mergeCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newId_ = newId, newPCs_ = newPCs, newSyms_ = syms }) e1 e2 =
+mergeCase ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ = ng, newId_ = newId, newPCs_ = newPCs, newSyms_ = syms }) e1 e2 =
     let choices = (getChoices e1 newId 1) ++ (getChoices e2 newId 2)
         groupedChoices = groupChoices choices
         (ctxt', mergedChoices) = L.mapAccumR mergeChoices (emptyContext s1 s2 ng newId) groupedChoices
-        mergedExpr = createCaseExprs newId mergedChoices
         newPCs' = newPCs_ ctxt'
         newSyms = newSyms_ ctxt'
         ng' = ng_ ctxt'
-        kv = known_values s1
-        (_,newPCs'') = L.mapAccumR (\num pc -> (num + 1, addClause kv newId num pc)) 1 newPCs'
-        ctxt'' = ctxt {newPCs_ = newPCs'' ++ newPCs, newSyms_ = HS.union newSyms syms, ng_ = ng'}
+        (newSymId, ng'') = freshId TyLitInt ng'
+        newSyms' = HS.insert newSymId newSyms
+        mergedExpr = createCaseExprs newSymId mergedChoices
+        (upper, newPCs'') = L.mapAccumR (\num pc -> (num + 1, addClause kv newSymId num pc)) 1 newPCs'
+        -- add PC restricting range of values for newSymId
+        lower = 1
+        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newSymId) lower) (mkLeIntExpr kv (Var newSymId) (upper - 1))) True
+        newPCs''' = newSymConstraint:newPCs''
+        ctxt'' = ctxt {newPCs_ = newPCs''' ++ newPCs, newSyms_ = HS.union newSyms' syms, ng_ = ng''}
     in (ctxt'', mergedExpr)
 
 mergeChoices :: Context t -> [(Conds, Expr)] -> (Context t, Expr)
@@ -268,13 +273,13 @@ condsToExpr kv c =
     let es = map (\(i, num) -> mkEqIntExpr kv (Var i) num) c
     in cnf kv es
 
--- Given an `ExtCond e b`, and an `Id`, `Int` pair, modifies `e` to (Id == Int) /\ e
+-- Given an `ExtCond e b`, and an `Id`, `Int` pair, modifies `e` to (NOT (Id == Int)) OR e
 addClause :: KnownValues -> Id -> Integer -> PathCond -> PathCond
 addClause kv newId num pc = addClause' kv (mkEqIntExpr kv (Var newId) num) pc
 
 addClause' :: KnownValues -> Expr -> PathCond -> PathCond
 addClause' kv clause (ExtCond e b) =
-    let e' = cnf kv [clause,e]
+    let e' = mkOrExpr kv (mkNotExpr kv clause) e
     in ExtCond e' b
 addClause' _ _ pc = error $ "Can only add clause to ExtCond. Got: " ++ (show pc)
 
@@ -296,7 +301,7 @@ data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Nam
                          , ng_ :: NameGen
                          , newId_ :: Id -- `newId` is assigned to 1 or 2 in an AssumePC/ Case Expr when merging values from `s1_` or `s2_` respectively
                          , newPCs_ :: [PathCond]
-                         , newSyms_ :: HS.HashSet Id -- Newly added symbolic variables when merging Exprs
+                         , newSyms_ :: SymbolicIds -- Newly added symbolic variables when merging Exprs
                          }
 
 -- | Copies values from `new_names*__` to the respective `renamed*_` fields and clears `new_names*_`
@@ -341,15 +346,17 @@ createCaseExpr newId e1 e2 =
     in Case (Var newId) newId [alt1, alt2]
 
 createCaseExprs :: Id -> [Expr] -> Expr
-createCaseExprs newId es =
+createCaseExprs _ [e] = e
+createCaseExprs newId es@(_:_) =
     let
         (_, alts) = L.mapAccumR (\num e -> (num + 1, Alt (LitAlt (LitInt num)) e)) 1 es
     -- We assume that PathCond restricting newId's range is added elsewhere
     in Case (Var newId) newId alts
+createCaseExprs _ [] = error "No exprs"
 
-mergeSymbolicIds :: SymbolicIds -> SymbolicIds -> Id -> HM.HashMap Id Id -> SymbolicIds
-mergeSymbolicIds syms1 syms2 newId changedSyms =
-    let syms' = HS.union syms1 syms2
+mergeSymbolicIds :: SymbolicIds -> SymbolicIds -> Id -> HM.HashMap Id Id -> SymbolicIds -> SymbolicIds
+mergeSymbolicIds syms1 syms2 newId changedSyms syms3 =
+    let syms' = HS.unions [syms1, syms2, syms3]
         syms'' = HS.insert newId syms'
         oldSyms = HM.keys changedSyms
         newSyms = HM.elems changedSyms
@@ -444,8 +451,8 @@ mergeTwoSymbObjs ngen changedSyms1 changedSyms2 newId i1@(Id _ t1) i2@(Id _ t2) 
         in ((changedSyms1', changedSyms2', ngen''), mergedExprObj)
 
 -- | Simpler version of mergePathConds, may not be very efficient for large numbers of PCs, but suffices for simple cases
-mergePathCondsSimple :: KnownValues -> Id -> PathConds -> PathConds -> PathConds
-mergePathCondsSimple kv newId pc1 pc2 =
+mergePathCondsSimple :: KnownValues -> Id -> PathConds -> PathConds -> [PathCond] -> PathConds
+mergePathCondsSimple kv newId pc1 pc2 newPCs =
     let pc1HS = HS.fromList (PC.toList pc1)
         pc2HS = HS.fromList (PC.toList pc2)
         common = HS.toList $ HS.intersection pc1HS pc2HS
@@ -456,7 +463,8 @@ mergePathCondsSimple kv newId pc1 pc2 =
         mergedPC = PC.fromList common
         mergedPC' = foldr PC.insert mergedPC (pc1Only' ++ pc2Only')
         mergedPC'' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) mergedPC'
-    in mergedPC''
+        mergedPC''' = foldr PC.insert mergedPC'' newPCs
+    in mergedPC'''
 
 -- | Does not always work if 2 top level AssumePCs both impose constraints on the same Name -> resulting in model generating conflicting values
 -- and one being arbitrarily chosen over the other
