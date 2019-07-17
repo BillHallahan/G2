@@ -731,10 +731,6 @@ mkAssumExpr :: KnownValues -> [Expr] -> Expr
 mkAssumExpr kv (x:y:xs) = mkAssumExpr kv $ (mkAndExpr kv x y):xs
 mkAssumExpr _ [x] = x
 
-dnf :: KnownValues -> [Expr] -> Expr
-dnf kv (x:y:xs) = dnf kv $ (mkOrExpr kv x y):xs
-dnf _ [x] = x
-
 --------------------------------------------------------------------------------------
 
 

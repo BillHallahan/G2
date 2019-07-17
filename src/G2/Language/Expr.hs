@@ -25,6 +25,8 @@ module G2.Language.Expr ( module G2.Language.Casts
                                   , mkAndExpr
                                   , mkOrExpr
                                   , mkNotExpr
+                                  , cnf
+                                  , dnf
                                   , getFuncCalls
                                   , getFuncCallsRHS
                                   , getBoolFromDataCon
@@ -154,6 +156,14 @@ mkOrExpr kv e1 e2 = App (App orEx e1) e2
 mkNotExpr :: KnownValues -> Expr -> Expr
 mkNotExpr kv e = App notEx e
     where notEx = mkNotPrim kv
+
+cnf :: KnownValues -> [Expr] -> Expr
+cnf kv (x:y:xs) = dnf kv $ (mkAndExpr kv x y):xs
+cnf _ [x] = x
+
+dnf :: KnownValues -> [Expr] -> Expr
+dnf kv (x:y:xs) = dnf kv $ (mkOrExpr kv x y):xs
+dnf _ [x] = x
 
 getFuncCalls :: ASTContainer m Expr => m -> [Expr]
 getFuncCalls = evalContainedASTs getFuncCalls'

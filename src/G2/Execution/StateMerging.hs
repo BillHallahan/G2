@@ -50,7 +50,7 @@ isMergeableExpr _ _ _ _ = False
 data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Names in State `s1_` to new Names
                          , renamed2_ :: HM.HashMap Name Name
                          , new_names1_ :: HM.HashMap Name Name -- Optimization: Newly renamed Names in State `s1_`, not yet added to `renamed1_`
-                         , new_names2_ :: HM.HashMap Name Name
+                         , new_names2_ :: HM.HashMap Name Name -- so that we can call renames with only new_names*_, not all renamed*_ names
                          , s1_ :: State t
                          , s2_ :: State t
                          , ng_ :: NameGen
@@ -60,8 +60,8 @@ data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Nam
                          }
 
 -- | Copies values from `new_names*__` to the respective `renamed*_` fields and clears `new_names*_`
-updateContext :: Context t -> Context t
-updateContext ctxt@(Context { renamed1_ = renamed1
+moveNewNames :: Context t -> Context t
+moveNewNames ctxt@(Context { renamed1_ = renamed1
                             , renamed2_ = renamed2
                             , new_names1_ = newNames1
                             , new_names2_ = newNames2 }) =
@@ -88,11 +88,11 @@ mergeState ngen s1 s2 =
     if isMergeable s1 s2
         then 
             let (newId, ngen') = freshId TyLitInt ngen
-                (ctxt, curr_expr') = mergeCurrExpr ngen' s1 s2 newId
-                (eenv', (changedSyms1, changedSyms2), ctxt') = mergeExprEnv ctxt
-                ctxt'' = updatePCs ctxt' changedSyms1 changedSyms2
+                ctxt = emptyContext s1 s2 ngen' newId
+                (ctxt', curr_expr') = mergeCurrExpr ctxt
+                (ctxt'', eenv') = mergeExprEnv ctxt'
                 path_conds' = mergePathCondsSimple ctxt''
-                syms' = mergeSymbolicIds (HM.union changedSyms1 changedSyms2) ctxt''
+                syms' = mergeSymbolicIds ctxt''
                 s1' = s1_ ctxt''
                 ngen'' = ng_ ctxt''
             in (ngen''
@@ -114,12 +114,12 @@ mergeState ngen s1 s2 =
                              , tags = tags s1' }))
         else (ngen, Nothing)
 
-mergeCurrExpr :: Named t => NameGen -> State t -> State t -> Id -> (Context t, CurrExpr)
-mergeCurrExpr ng s1@(State {curr_expr = ce1}) s2@(State {curr_expr = ce2}) newId
+mergeCurrExpr :: Named t => Context t -> (Context t, CurrExpr)
+mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {curr_expr = ce2}) })
     | (CurrExpr evalOrRet1 e1) <- ce1
     , (CurrExpr evalOrRet2 e2) <- ce2
     , evalOrRet1 == evalOrRet2 =
-        let (ctxt', ce') = mergeExprInline (emptyContext s1 s2 ng newId) e1 e2
+        let (ctxt', ce') = mergeExprInline ctxt e1 e2
         in (ctxt', CurrExpr evalOrRet1 ce')
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
@@ -135,7 +135,7 @@ mergeExprInline ctxt (App e1 e2) (App e3 e4) =
         e2' = renames (new_names1_ ctxt') e2
         e4' = renames (new_names2_ ctxt') e4
         -- move names from newNames to renamed
-        ctxt'' = updateContext ctxt'
+        ctxt'' = moveNewNames ctxt'
         (ctxt''', e2'') = mergeExprInline ctxt'' e2' e4'
         ctxt'''' = ctxt''' { new_names1_ = HM.union (new_names1_ ctxt') (new_names1_ ctxt''')
                            , new_names2_ = HM.union (new_names2_ ctxt') (new_names2_ ctxt''') }
@@ -348,14 +348,6 @@ addClause' kv clause (ExtCond e b) =
     in ExtCond e' b
 addClause' _ _ pc = error $ "Can only add clause to ExtCond. Got: " ++ (show pc)
 
-cnf :: KnownValues -> [Expr] -> Expr
-cnf kv (x:y:xs) = dnf kv $ (mkAndExpr kv x y):xs
-cnf _ [x] = x
-
-dnf :: KnownValues -> [Expr] -> Expr
-dnf kv (x:y:xs) = dnf kv $ (mkOrExpr kv x y):xs
-dnf _ [x] = x
-
 -- | Merges 2 Exprs without inlining Vars from the expr_env or combining symbolic variables
 -- Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
 -- "D NonDet[(Assume (x == 1) in e_1), (Assume (x == 2) in e_1')],..., NonDet[(Assume (x == 1) in e_n), (Assume (x == 2) in e_n')]" 
@@ -383,21 +375,19 @@ createCaseExprs newId es@(_:_) =
 createCaseExprs _ [] = error "No exprs"
 
 
-mergeSymbolicIds :: HM.HashMap Id Id -> Context t-> SymbolicIds
-mergeSymbolicIds changedSyms (Context {s1_ = (State {symbolic_ids = syms1}), s2_ = (State {symbolic_ids = syms2}), newSyms_ = syms3, newId_ = newId}) =
-    let syms' = HS.unions [syms1, syms2, syms3]
+mergeSymbolicIds :: Context t -> SymbolicIds
+mergeSymbolicIds (Context { s1_ = (State {symbolic_ids = syms1}), s2_ = (State {symbolic_ids = syms2})
+                          , newSyms_ = syms3, newId_ = newId}) =
+    let
+        syms' = HS.unions [syms1, syms2, syms3]
         syms'' = HS.insert newId syms'
-        oldSyms = HM.keys changedSyms
-        newSyms = HM.elems changedSyms
-        syms''' = HS.difference syms'' (HS.fromList oldSyms)
-    in HS.union syms''' $ HS.fromList newSyms
+    in syms''
 
 
 -- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
-mergeExprEnv :: Context t -> (E.ExprEnv, (HM.HashMap Id Id, HM.HashMap Id Id), Context t)
-mergeExprEnv c@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2}), newId_ = newId, ng_ = ngen}) =
-    (E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem], (changedSyms1, changedSyms2), c {ng_ = ngen'})
-    where
+mergeExprEnv :: Context t -> (Context t, E.ExprEnv)
+mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2}), newId_ = newId, ng_ = ngen}) =
+    let
         eenv1_map = E.unwrapExprEnv eenv1
         eenv2_map = E.unwrapExprEnv eenv2
         zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
@@ -406,6 +396,13 @@ mergeExprEnv c@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_en
         merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms
         eenv1_rem = (M.difference eenv1_map eenv2_map)
         eenv2_rem = (M.difference eenv2_map eenv1_map)
+        eenv' = E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem]
+
+        ctxt' = ctxt {ng_ = ngen'}
+        -- rename any old Syms in PathConds in each state to their new Names, based on list of pairs in changedSyms1_ and changedSyms2_
+        ctxt'' = updatePCs ctxt' changedSyms1 changedSyms2
+        ctxt''' = updateSymbolicIds ctxt'' changedSyms1 changedSyms2
+    in (ctxt''', eenv')
 
 mergeEnvObj :: Id -> E.ExprEnv -> E.ExprEnv -> (HM.HashMap Id Id, HM.HashMap Id Id, NameGen) -> (E.EnvObj, E.EnvObj)
             -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
@@ -481,7 +478,6 @@ mergeTwoSymbObjs ngen changedSyms1 changedSyms2 newId i1@(Id _ t1) i2@(Id _ t2) 
             mergedExprObj = E.ExprObj (mergeExpr newId (Var newSymId1) (Var newSymId2))
         in ((changedSyms1', changedSyms2', ngen''), mergedExprObj)
 
-
 updatePCs :: Context t -> HM.HashMap Id Id -> HM.HashMap Id Id -> Context t
 updatePCs ctxt@(Context { s1_ = s1@(State {path_conds = pc1}), s2_ = s2@(State {path_conds = pc2}) }) changedSyms1 changedSyms2 =
     let pc1' = subIdNamesPCs pc1 changedSyms1 -- update PathConds with new SymbolicIds from merging the expr_env
@@ -489,6 +485,17 @@ updatePCs ctxt@(Context { s1_ = s1@(State {path_conds = pc1}), s2_ = s2@(State {
         s1' = s1 {path_conds = pc1'}
         s2' = s2 {path_conds = pc2'}
     in ctxt {s1_ = s1', s2_ = s2'}
+
+updateSymbolicIds :: Context t -> HM.HashMap Id Id -> HM.HashMap Id Id -> Context t
+updateSymbolicIds ctxt@(Context { s1_ = s1@(State {symbolic_ids = syms1}), s2_ = s2@(State {symbolic_ids = syms2}) }) changedSyms1 changedSyms2 =
+    let
+        oldSyms1 = HM.keys changedSyms1
+        newSyms1 = HM.elems changedSyms1
+        syms1' = HS.union (HS.fromList newSyms1) $ HS.difference syms1 (HS.fromList oldSyms1)
+        oldSyms2 = HM.keys changedSyms2
+        newSyms2 = HM.elems changedSyms2
+        syms2' = HS.union (HS.fromList newSyms2) $ HS.difference syms2 (HS.fromList oldSyms2)
+    in ctxt { s1_ = s1 { symbolic_ids = syms1' }, s2_ = s2 { symbolic_ids = syms2' } }
 
 -- | Simpler version of mergePathConds, may not be very efficient for large numbers of PCs, but suffices for simple cases
 mergePathCondsSimple :: Context t -> PathConds
