@@ -46,7 +46,7 @@ isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
     , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2 = True
 isMergeableExpr _ _ _ _ = False
 
--- | Values that are passed around and updated while merging 2 States
+-- | Values that are passed around and updated while merging individual fields in 2 States
 data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Names in State `s1_` to new Names
                          , renamed2_ :: HM.HashMap Name Name
                          , new_names1_ :: HM.HashMap Name Name -- Newly renamed Names in State `s1_`, not yet added to `renamed1_`
@@ -264,16 +264,23 @@ sameDataCon _ _ = False
 mergeCase :: Named t
           => Context t -> Expr -> Expr
           -> (Context t, Expr)
-mergeCase ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ = ng, newId_ = newId, newPCs_ = newPCs, newSyms_ = syms }) e1 e2 =
+mergeCase ctxt@(Context { newId_ = newId}) e1 e2 =
     let choices = (getChoices e1 newId 1) ++ (getChoices e2 newId 2)
-        groupedChoices = groupChoices choices
-        (ctxt', mergedChoices) = L.mapAccumR mergeChoices (emptyContext s1 s2 ng newId) groupedChoices
-        newPCs' = newPCs_ ctxt'
+    in mergeCase' ctxt choices
+
+mergeCase' :: Named t
+          => Context t -> [(Conds, Expr)]
+          -> (Context t, Expr)
+mergeCase' ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ = ng, newId_ = newId, newPCs_ = newPCs, newSyms_ = syms }) choices =
+    let groupedChoices = groupChoices choices
+        (ctxt', merged) = L.mapAccumR mergeChoices (emptyContext s1 s2 ng newId) groupedChoices
         newSyms = newSyms_ ctxt'
         ng' = ng_ ctxt'
         (newSymId, ng'') = freshId TyLitInt ng'
         newSyms' = HS.insert newSymId newSyms
-        mergedExpr = createCaseExprs newSymId mergedChoices
+        mergedExprs = map fst merged
+        mergedExpr = createCaseExprs newSymId mergedExprs
+        newPCs' = map snd merged
         (upper, newPCs'') = L.mapAccumR (\num pc -> (num + 1, addClause kv newSymId num pc)) 1 newPCs'
         -- add PC restricting range of values for newSymId
         lower = 1
@@ -282,27 +289,31 @@ mergeCase ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ = 
         ctxt'' = ctxt {newPCs_ = newPCs''' ++ newPCs, newSyms_ = HS.union newSyms' syms, ng_ = ng''}
     in (ctxt'', mergedExpr)
 
-mergeChoices :: Context t -> [(Conds, Expr)] -> (Context t, Expr)
-mergeChoices ctxt@(Context { ng_ = ng, newPCs_ = newPCs, newSyms_ = newSyms, s1_ = s1 }) choices@(_:_) =
-    let apps = map (unApp . snd) choices -- [[Expr]]
-        -- maybe parition, taking common apps as long as all are equal
-        commonDC = head . head $ apps
-        rest = map tail apps -- [[Expr]]
-        cases = L.transpose rest -- [[Expr]], where each [Expr] is a list of choices at that pos in the merged Expr
-        (newSymId, ng') = freshId TyLitInt ng
-        apps' = commonDC:map (createCaseExprs newSymId) cases -- [Expr], where each Expr is a Case Expr of various choices
+mergeChoices :: Named t => Context t -> [(Conds, Expr)] -> (Context t, (Expr, PathCond))
+mergeChoices ctxt@(Context {s1_ = (State { known_values = kv }) }) [choice] =
+    let pc = ExtCond (condsToExpr kv (fst choice)) True
+    in (ctxt , (snd choice, pc))
+mergeChoices ctxt@(Context { s1_ = s1 }) choices@(_:_) =
+    let apps = map (\(cs, e) -> (cs, unApp e)) choices
+        -- maybe partition, taking common apps as long as all are equal
+        commonDC = head . snd . head $ apps
+        -- [(Conds, [Expr])], where each [Expr] is list of arguments that composed the original Expr, minus the common DataCon
+        rest = map (\(cs, e) -> (cs, tail e)) apps
+        --- [[(Conds, Expr)]], for each [Expr], copy Conds to each Expr
+        restWConds = map (\(cs, e) -> map (\x -> (cs, x)) e) rest
+        -- [[(Conds, Expr)]], where each [(Conds, Expr)] is a list of choices for that subExpr in the merged Expr
+        cases = L.transpose restWConds
+        -- [Expr], where each Expr is a subExpr of the mergedExpr, consisting of a Case Expr (Expr) of the various choices (choice)
+        (ctxt', tailApps) = L.mapAccumR  mergeCase' ctxt cases
+        apps' = commonDC:tailApps
         mergedExpr = mkApp apps'
 
-        -- Add to each Conds the (newSymId, Int) pair corresponding to its position in the Case Expr created earlier
         kv = known_values s1
-        vals = [(newSymId, x) | x <- [1..(toInteger . length $ choices)]]
-        conds = map fst choices
-        conds' = zipWith (\c v -> v:c) conds vals
-        condsExprs = map (condsToExpr kv) conds'
-        -- 'OR' all Exprs in condsExprs together
-        cond = dnf kv condsExprs
-        extCond = ExtCond cond True
-    in (ctxt { ng_ = ng', newPCs_ = extCond:newPCs, newSyms_ = HS.insert newSymId newSyms }, mergedExpr)
+        newPCs = newPCs_ ctxt'
+        newPCExprs = map (\(ExtCond e _) -> e) newPCs
+        newPC = ExtCond (cnf kv newPCExprs) True
+        ctxt'' = ctxt {newPCs_ = []}
+    in (ctxt'' , (mergedExpr, newPC))
 mergeChoices _ [] = error $ "Choices must be non empty"
 
 -- Given list of (Id, Int) pairs, creates Expr equivalent to Conjunctive Normal Form of (Id == Int) values
