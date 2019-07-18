@@ -285,6 +285,7 @@ evalLet s@(State { expr_env = eenv })
 -------------------------------------------------------------
 --  evalCase that makes use of Symbolic Merged Normal Form --
 -------------------------------------------------------------
+type Cond = (Id, Integer)
 type Assumption = Expr
 
 data Matches = Matches { symbolic_vars :: [(Expr, [Assumption])]
@@ -337,22 +338,25 @@ evalCaseSMNF solver s@(State { expr_env = eenv
 -- e.g. NonDet [Assume (x == 1) A, Assume (x == 2) (NonDet [Assume (y == 1) C, Assume (y == 2) D])]
 -- returns [(A, [(x == 1)]), (C, [(x == 2), (y == 1)]), (D, [(x == 2), (y == 1)])
 getChoices :: Solver solver => solver -> State t -> Expr -> IO ([(Expr, [Assumption])])
-getChoices solver s (NonDet xs) = do
-    let choices = getTopLevelExprs xs  -- [(expr, assumed expr)]
-    -- filter choices based on `assum`
-    choices' <- mapMaybeM (\(e, assum) -> checkNewPC solver s (ExtCond assum True) e assum) choices
-    concatMapM (\(e, assum, s') ->
+getChoices solver s@(State {known_values = kv}) e@(Case _ _ _) = do
+    let choices = getTopLevelExprs e -- [(Expr, Cond)]
+    -- filter choices based on `Cond`
+    choices' <- mapMaybeM (\(expr, (i, num)) ->
+        let assum = mkEqIntExpr kv (Var i) num
+        in checkNewPC solver s (ExtCond assum True) expr assum) choices
+    concatMapM (\(expr, assum, s') ->
         -- extract Exprs and Assumptions in any nested NonDets
-        getChoices solver s' e
+        getChoices solver s' expr
         -- add top level assumed expr to each of these. ORDER MATTERS for LitAlts
-        >>= mapM (\(e', assums) -> return (e', assum:assums))) choices'
+        >>= mapM (\(exp', assums) -> return (exp', assum:assums))) choices'
 getChoices _ _ e = return [(e, [])]
 
-getTopLevelExprs :: [Expr] -> [(Expr, Assumption)]
-getTopLevelExprs (x:xs)
-    | (Assume _ e1 e2) <- x = (e2, e1):(getTopLevelExprs xs)
-    | otherwise = error "getTopLevelExprs called with [Expr] not from result of merging states. "
-getTopLevelExprs [] = []
+getTopLevelExprs :: Expr -> [(Expr, Cond)]
+getTopLevelExprs (Case (Var i) b (a:as))
+    | (Alt (LitAlt (LitInt num)) e) <- a = (e, (i, num)):getTopLevelExprs (Case (Var i) b as)
+    | otherwise = error "getTopLevelExprs called with Expr not from result of merging states. "
+getTopLevelExprs (Case _ _ []) = []
+getTopLevelExprs _ = []
 
 checkNewPC :: Solver solver => solver -> State t -> PathCond -> Expr -> Assumption -> IO (Maybe (Expr, Assumption, State t))
 checkNewPC solver s@(State { path_conds = spc }) pc e assum
@@ -398,7 +402,7 @@ evalCaseSMNF' s@(State { expr_env = eenv }) ng choices bind alts =
         (dsts_cs, ng') = handleDaltMatches s ng daltMatches bind
         lsts_cs = handleLaltMatches s laltMatches bind 
         def_sts = handleDefMatches s defMatches bind alts
-    in (RuleEvalCaseDefault, def_sts ++ dsts_cs ++ lsts_cs, ng') -- TODO: new rule
+    in (RuleEvalCaseSym, def_sts ++ dsts_cs ++ lsts_cs, ng') -- TODO: new rule
 
 dataAltsSMNF :: [Alt] -> [Alt]
 dataAltsSMNF alts = [a | a @ (Alt (DataAlt _ _) _) <- alts]
@@ -497,16 +501,23 @@ matchDefault :: (Alt, Matches) -> [(Expr, [Assumption])] -> ((Alt, Matches), [(E
 matchDefault (alt, matches@(Matches {defaults = d})) choices = ((alt, matches {defaults = choices ++ d}), [])
 
 handleLaltMatches :: State t -> [(Alt, Matches)] -> Id -> [NewPC t]
-handleLaltMatches s ((alt, matches):alts) bind
+handleLaltMatches s@(State {known_values = kv}) ((alt, matches):alts) bind
     | (Alt (LitAlt lit) aexpr) <- alt 
     , (not $ null (symbolic_vars matches)) || (not $ null (lits matches)) || (not $ null (prims matches)) =
         let 
             -- for all SymbolicVars @(Var i), add the PathCond: `AssumePC _ _ (.... (AltCond lit (Var i))..)` True
             conds = map (makePCEqLit lit) $ (symbolic_vars matches ++ prims matches)
+            assums = assumes matches
+            conds' = case assums of
+                [] -> conds
+                _ -> let
+                        assumsE = (mkAssumExpr kv) <$> assums
+                        cond = ExtCond (dnf kv assumsE) True
+                    in cond:conds
             binds = [(bind, Lit lit)]
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
-            newPC = NewPC {state = s', new_pcs = conds}
+            newPC = NewPC {state = s', new_pcs = conds'}
 
             pcs = handleLaltMatches s alts bind
         in newPC:pcs
@@ -695,7 +706,18 @@ handleDefMatches s@(State {known_values = kv}) ((alt, matches):_) bind alts
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
             conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch alts)
-        in [NewPC {state = s', new_pcs = conds}]
+            assums = assumes matches
+            conds' = concatMap (\assum ->
+                let wrappedConds = map (wrapPC assum) conds
+                in wrappedConds) assums
+
+            extConds = case assums of
+                [] -> []
+                _ -> let
+                        assumsE = (mkAssumExpr kv) <$> assums
+                        cond = ExtCond (dnf kv assumsE) True
+                    in [cond]
+        in [NewPC {state = s', new_pcs = conds' ++ extConds}]
     | otherwise = error $ "Alt is not a Default: " ++ show alt
 handleDefMatches _ [] _ _ = []
 
