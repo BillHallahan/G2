@@ -606,16 +606,18 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                 [e] -> e
                 _ -> NonDet a) . L.transpose $ tyApps'
 
-            -- Replace all occurrences of the `params` in aexpr with the corresponding arg
-            pbinds = zip params apps'''
-            aexpr' = liftCaseBinds pbinds aexpr
-
             -- Replace any occurrences of bind with the matched expr
             -- need to apply cast to dcon first
             binds = case cast' of
                 Nothing -> [(bind, mkApp $ (Data dcon):(tyApps''++apps'''))]
                 (Just (t1 :~ t2)) -> [(bind, Cast (mkApp $ (Data dcon):(tyApps''++apps''')) (t2 :~ t1))]
-            aexpr'' = trace ("aexpr: " ++ (show aexpr) ++ "\n aexpr': " ++ (show aexpr')) $ liftCaseBinds binds aexpr'
+            aexpr' = liftCaseBinds binds aexpr
+
+            -- Replace all occurrences of the `params` in aexpr with the corresponding app
+            pBinds = zip params apps'''
+            s'@(State {expr_env = eenv}) = state newPC''
+            (eenv', aexpr'', ng'''', _) = liftBinds pBinds eenv aexpr' ng'''
+            s'' = s' {expr_env = eenv'}
 
             -- Add PathConds representing constraints from Assume-d Exprs for each possible match
             newPCs = new_pcs newPC''
@@ -627,9 +629,9 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                         cond = ExtCond (dnf kv assumsE) True
                     in cond:newPCs
 
-            newPC''' = newPC'' {state = (state newPC'') { curr_expr = CurrExpr Evaluate aexpr'' }, new_pcs = newPCs' }
-            (pcs, ng'''') = handleDaltMatches s ng''' alts bind
-        in (newPC''':pcs, ng'''')
+            newPC''' = newPC'' {state = s'' { curr_expr = CurrExpr Evaluate aexpr'' }, new_pcs = newPCs' }
+            (pcs, ng''''') = handleDaltMatches s ng'''' alts bind
+        in (newPC''':pcs, ng''''')
     | otherwise = error $ "Alt is not a DataAlt"
 handleDaltMatches _ ng [] _ = ([], ng)
 
@@ -669,16 +671,12 @@ handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     in (apps, tyApps, newPCEmpty $ s {expr_env = eenv'', symbolic_ids = syms'}, ngen'')
 
 handleDaltDconMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> ([Expr], [Expr], NewPC t, NameGen)
-handleDaltDconMatch s@(State {expr_env = eenv}) ngen (_, params) (mexpr, _) =
+handleDaltDconMatch s@(State {expr_env = eenv}) ngen (_, _) (mexpr, _) =
     let
         (Data _):ar = unApp $ exprInCasts mexpr
         ar' = removeTypes ar eenv
-        olds = map idName params
-        (news, ngen') = freshSeededNames olds ngen
-        eenv' = E.insertExprs (zip news ar') eenv
-        newParams = renameExprs (zip olds news) $ map Var params
         tyApps = getTypes ar eenv
-    in (newParams, tyApps, newPCEmpty $ s {expr_env = eenv'}, ngen')
+    in (ar', tyApps, newPCEmpty s, ngen)
 
 -- The only Data Alts that match a `Prim` contain `Bool` DataCons
 handleDaltPrimMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> ([Expr], NewPC t, NameGen)
