@@ -334,9 +334,9 @@ evalCaseSMNF solver s@(State { expr_env = eenv
         choices <- getChoices solver s mexpr
         return $ evalCaseSMNF' s ng choices bind alts
 
--- | Given a `NonDet [xs]` expr, returns a list of pairs of the nested Exprs and their associated Assume-d Exprs
--- e.g. NonDet [Assume (x == 1) A, Assume (x == 2) (NonDet [Assume (y == 1) C, Assume (y == 2) D])]
--- returns [(A, [(x == 1)]), (C, [(x == 2), (y == 1)]), (D, [(x == 2), (y == 1)])
+-- | Given a `Case` expr in SMNF, returns a list of pairs of the nested Exprs and their associated Assume-d Exprs
+-- e.g. getChoices Case (Var x) of 1 -> A, 2 -> (Case y of 1-> C, 2-> D) =
+-- [(A, [(x == 1)]), (C, [(x == 2), (y == 1)]), (D, [(x == 2), (y == 1)])
 getChoices :: Solver solver => solver -> State t -> Expr -> IO ([(Expr, [Assumption])])
 getChoices solver s@(State {known_values = kv}) e@(Case _ _ _) = do
     let choices = getTopLevelExprs e -- [(Expr, Cond)]
@@ -347,7 +347,7 @@ getChoices solver s@(State {known_values = kv}) e@(Case _ _ _) = do
     concatMapM (\(expr, assum, s') ->
         -- extract Exprs and Assumptions in any nested NonDets
         getChoices solver s' expr
-        -- add top level assumed expr to each of these. ORDER MATTERS for LitAlts
+        -- add top level assumed expr to each of these. Order of Assumptions matters if we want to wrap them in AssumePCs later
         >>= mapM (\(exp', assums) -> return (exp', assum:assums))) choices'
 getChoices _ _ e = return [(e, [])]
 
@@ -402,7 +402,9 @@ evalCaseSMNF' s@(State { expr_env = eenv }) ng choices bind alts =
         (dsts_cs, ng') = handleDaltMatches s ng daltMatches bind
         lsts_cs = handleLaltMatches s laltMatches bind 
         def_sts = handleDefMatches s defMatches bind alts
-    in (RuleEvalCaseSym, def_sts ++ dsts_cs ++ lsts_cs, ng') -- TODO: new rule
+        newPCs = def_sts ++ dsts_cs ++ lsts_cs
+        newPCs' = map (\p@(NewPC {state = st}) -> p {state = st {exec_stack = S.push MergePtFrame (exec_stack st)} }) newPCs
+    in (RuleEvalCaseSym, newPCs', ng') -- TODO: new rule
 
 dataAltsSMNF :: [Alt] -> [Alt]
 dataAltsSMNF alts = [a | a @ (Alt (DataAlt _ _) _) <- alts]
@@ -519,8 +521,8 @@ handleLaltMatches s@(State {known_values = kv}) ((alt, matches):alts) bind
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
             newPC = NewPC {state = s', new_pcs = conds'}
 
-            pcs = handleLaltMatches s alts bind
-        in newPC:pcs
+            newPCs = handleLaltMatches s alts bind
+        in newPC:newPCs
     | otherwise = handleLaltMatches s alts bind
 handleLaltMatches _ [] _ = []
 
@@ -533,18 +535,18 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
     | (Alt (DataAlt dcon params) aexpr) <- alt =
         let
             -- TODO: refactor & combine all 3 into one
-            (apps, tyApps, newPC, ng') = L.foldr (\(mexpr, assum) (asL, tyAsL, _newPC, ngen) ->
+            (apps, tyApps, newPC, ng', cast) = L.foldr (\(mexpr, assum) (asL, tyAsL, _newPC, ngen, _) ->
                 let st = state _newPC
                     -- TODO deal with cast
-                    (cast, expr) = case mexpr of
+                    (cast_', expr) = case mexpr of
                         (Cast e c) -> (Just c, e)
                         _ -> (Nothing, mexpr)
 
-                    mexpr_id = case unApp $ unsafeElimOuterCast mexpr of
+                    expr_id = case unApp $ unsafeElimOuterCast expr of
                         (Var i@(Id _ _)):_ -> i
-                        _ -> error $ "Non Var expr:" ++ show mexpr
+                        _ -> error $ "Non Var expr:" ++ show expr
 
-                    (as, tyAs, _newPC', ngen') = handleDaltSymMatch st ngen (dcon, params) (mexpr_id, assum)
+                    (as, tyAs, _newPC', ngen') = handleDaltSymMatch st ngen (dcon, params) (expr_id, assum) cast_'
                     -- Take a list of arguments `as`, and an Expr equiv. to AND-ing together `assum`, wraps each argument in
                     -- the Assum-ed expr
                     as' = case assum of
@@ -556,11 +558,11 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
 
                     _oldPCs = new_pcs _newPC
                     _newPC'' = _newPC' {new_pcs = _oldPCs ++ (new_pcs _newPC')}
-                in (as':asL, tyAs:tyAsL, _newPC'', ngen')) ([], [], newPCEmpty s, ng) (symbolic_vars matches)
+                in (as':asL, tyAs:tyAsL, _newPC'', ngen', cast_')) ([], [], newPCEmpty s, ng, Nothing) (symbolic_vars matches)
 
-            (apps', newPC', ng'') = L.foldr (\(mexpr, assum) (asL, _newPC, ngen) ->
+            (apps', newPC', ng'', cast') = L.foldr (\(mexpr, assum) (asL, _newPC, ngen, _) ->
                 let st = state _newPC
-                    (cast, expr) = case mexpr of
+                    (cast_, expr) = case mexpr of
                         (Cast e c) -> (Just c, e)
                         _ -> (Nothing, mexpr)
 
@@ -574,7 +576,7 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
 
                     _oldPCs = new_pcs _newPC
                     _newPC'' = _newPC' {new_pcs = _oldPCs ++ (new_pcs _newPC')}
-                in (as':asL, _newPC'', ngen')) (apps, newPC, ng') (prims matches)
+                in (as':asL, _newPC'', ngen', cast_)) (apps, newPC, ng', cast) (prims matches)
 
             (apps'', tyApps', newPC'', ng''') = L.foldr (\(mexpr, assum) (asL, tyAsL, _newPC, ngen) -> 
                 let st = state _newPC
@@ -609,8 +611,11 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
             aexpr' = liftCaseBinds pbinds aexpr
 
             -- Replace any occurrences of bind with the matched expr
-            binds = [(bind, mkApp $ (Data dcon):(tyApps''++apps'''))]
-            aexpr'' = liftCaseBinds binds aexpr'
+            -- need to apply cast to dcon first
+            binds = case cast' of
+                Nothing -> [(bind, mkApp $ (Data dcon):(tyApps''++apps'''))]
+                (Just (t1 :~ t2)) -> [(bind, Cast (mkApp $ (Data dcon):(tyApps''++apps''')) (t2 :~ t1))]
+            aexpr'' = trace ("aexpr: " ++ (show aexpr) ++ "\n aexpr': " ++ (show aexpr')) $ liftCaseBinds binds aexpr'
 
             -- Add PathConds representing constraints from Assume-d Exprs for each possible match
             newPCs = new_pcs newPC''
@@ -628,8 +633,8 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
     | otherwise = error $ "Alt is not a DataAlt"
 handleDaltMatches _ ng [] _ = ([], ng)
 
-handleDaltSymMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Id, [Assumption]) -> ([Expr],[Expr],NewPC t, NameGen)
-handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms, known_values = kv}) ngen (dcon, params) (mexprId, assum) =
+handleDaltSymMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Id, [Assumption]) -> Maybe Coercion -> ([Expr],[Expr],NewPC t, NameGen)
+handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms, known_values = kv}) ngen (dcon, params) (mexprId, assum) maybeC =
     let
         -- rename the params and insert into expr_env
         olds = map idName params
@@ -646,14 +651,19 @@ handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
 
         dConArgs = tyApps ++ apps
         mexpr' = mkApp (Data dcon:dConArgs)
+        -- Apply cast, in opposite direction of unsafeElimOuterCast
+        mexpr'' = case maybeC of
+                (Just (t1 :~ t2)) -> Cast mexpr' (t2 :~ t1)
+                Nothing -> mexpr'
         -- Concretize mexpr to dcon depending on the Assumption-s
-        (newId, ngen'') = freshId mexprT ngen'
-        eenv'' = case assum of
-            [] -> E.insert mexprN mexpr' eenv'
-            _ -> E.insert mexprN (NonDet [Assume Nothing (mkAssumExpr kv assum) mexpr'
+        (eenv'', newParams', ngen'') = case assum of
+            [] -> (E.insert mexprN mexpr'' eenv', newParams, ngen')
+            _ -> let (newId, ngen_'') = freshId mexprT ngen'
+                in (E.insert mexprN (NonDet [Assume Nothing (mkAssumExpr kv assum) mexpr''
                 , Assume Nothing (mkNotExpr kv (mkAssumExpr kv assum)) (Var newId)]) eenv'
+                , newId:newParams
+                , ngen_'')
         -- Add new symbolic vars, and delete mexprId because it has been concretized
-        newParams' = newId:newParams
         syms' = HS.union (HS.fromList newParams') (HS.delete mexprId syms)
 
     in (apps, tyApps, newPCEmpty $ s {expr_env = eenv'', symbolic_ids = syms'}, ngen'')
