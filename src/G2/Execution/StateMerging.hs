@@ -291,7 +291,10 @@ mergeChoices ctxt@(Context { s1_ = (State { known_values = kv}) }) choices@(_:_)
         apps' = commonDC:tailApps
         mergedExpr = mkApp apps'
 
-        newPCs = newPCs_ ctxt'
+        newPCs = case tailApps of
+            -- 'AND' all `Conds` for each Expr and `OR` these combined Conds together
+            [] -> (\e -> [ExtCond e True]) . dnf kv $ map (condsToExpr kv . fst) choices
+            _ -> newPCs_ ctxt' -- PCs would have been added when merging tailApps
         newPCExprs = map (\(ExtCond e _) -> e) newPCs
         newPC = ExtCond (cnf kv newPCExprs) True
         ctxt'' = ctxt {newPCs_ = []}

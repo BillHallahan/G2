@@ -33,6 +33,7 @@ import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashSet as HS
 import qualified Data.List as L
+import Debug.Trace
 
 stdReduce :: Solver solver => Sharing -> solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce sharing solver s b@(Bindings {name_gen = ng}) = do
@@ -49,8 +50,8 @@ stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | App e1 e2 <- ce = return $ evalApp s ng e1 e2
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i a <- ce = do
-        -- (r, xs, ng') <- evalCaseSMNF solver s ng e i a
-        let (r, xs, ng') = evalCase s ng e i a
+        (r, xs, ng') <- evalCaseSMNF solver s ng e i a
+        -- let (r, xs, ng') = evalCase s ng e i a
         xs' <- mapMaybeM (reduceNewPC solver) xs
         return (r, xs', ng')
     | Cast e c <- ce = return $ evalCast s ng e c
@@ -473,7 +474,7 @@ matchLitAlt eenv alt (x@(mexpr, _):xs)
             ((_, matches'@(Matches {lits = l})), choices') = matchLitAlt eenv alt xs
         in ((alt, matches' {lits = x:l}), choices') -- delete x from choices
     | (Var (Id n _)):_ <- unApp $ unsafeElimOuterCast mexpr
-    , E.isSymbolic n eenv =
+    , E.lookup n eenv == Nothing || E.isSymbolic n eenv =
         let
             ((_, matches'@(Matches {symbolic_vars = syms})), choices') = matchLitAlt eenv alt xs
         in ((alt, matches' {symbolic_vars = x:syms}), x:choices') -- keep x in choices
