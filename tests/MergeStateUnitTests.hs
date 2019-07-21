@@ -2,9 +2,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module MergeStateUnitTests ( mergeCurrExprTests
-                 , checkRelAssumeTests
-                 , solveRelAssumeTests) where
+module MergeStateUnitTests (
+                 mergeCurrExprTests
+                 , checkADTNumericalTests
+                 , solveADTNumericalTests) where
 
 import G2.Interface
 import G2.Language as G2
@@ -33,52 +34,50 @@ mergeCurrExprTests = if not (null errs)
             else Right True
         where
             errs = filter selectErrors $ zipWith (compareWithErrMsg "Error merging CurrExprs. Expected: ")
-                [(1, expectedVal1), (2, expectedVal2), (3, expectedVal3), (4, expectedVal4), (5, expectedVal5), (6, expectedVal6)]
-                [g2Val1, g2Val2, g2Val3, g2Val4, g2Val5, g2Val6]
+                [(1, expectedVal1)]
+                [g2Val1]
 
-checkRelAssumeTests :: IO (Either String Bool)
-checkRelAssumeTests = do
-        let kv = simpleKV
-            numTests = 10
-            statePCs = createStatePCs numTests kv --list of PathConds from which to create new states
-            checkPCs = createTestPCs kv -- list of NewPCs to check with the corresponding state
-            expected = checkRelAssumeExpected -- list of (test number, expected result) tuples
-            states = createTestStates kv statePCs
+checkADTNumericalTests :: IO (Either String Bool)
+checkADTNumericalTests = do
+    let kv = simpleKV
+        numTests = 10
+        statePCs = createStatePCs numTests --list of PathConds from which to create new states
+        checkPCs = createTestPCs kv -- list of NewPCs to check with the corresponding state
+        expected = checkADTNumExpected -- list of (test number, expected result) tuples
+        states = createTestStates kv statePCs
 
-        let avf = arbValue
-        SomeSMTSolver con <- getSMTAV avf (createConfig {smt = ConZ3}) 
-        let assPCSol = AssumePCSolver avf (Tr {unTr = (ADTSolver avf :?> con)})
+    let avf = arbValue
+    SomeSMTSolver con <- getSMTAV avf (createConfig {smt = ConZ3})
+    let adtNumSol = GroupRelated avf (ADTNumericalSolver avf con)
 
-        results <- sequence $ zipWith (\s pc -> do (r, _) <- checkTr assPCSol s pc
-                                                   return r) states checkPCs
-            
-        let errs = filter selectErrors $ zipWith (compareWithErrMsg "Error in AssumePCSolver.") expected results
-        if not (null errs)
-           then return $ Left (foldr concatErrMsgs " " errs)
-           else return $ Right True
-
-solveRelAssumeTests :: IO (Either String Bool)
-solveRelAssumeTests = do
-        let kv = simpleKV
-            b = createTestBindings
-            numTests = 10
-            statePCs = createStatePCs numTests kv --list of PathConds from which to create new states
-            checkPCs = createTestPCs kv -- list of NewPCs to check with the corresponding state
-            is = createTestIds -- list of list of Ids for each test
-            expected = solveRelAssumeExpected -- list of (test number, expected result) tuples
-            states = createTestStates kv statePCs
-
-        let avf = arbValue
-        SomeSMTSolver con <- getSMTAV avf (createConfig {smt = ConZ3})
-        let assPCSol = AssumePCSolver avf (Tr {unTr = (ADTSolver avf :?> con)})
+    results <- sequence $ zipWith (\s pc -> check adtNumSol s pc) states checkPCs
         
-        results <- sequence $ zipWith3 (\s i pc -> do (r, m, _) <- solveTr assPCSol s b i pc
-                                                      return (r, m)) states is checkPCs
-            
-        let errs = filter selectErrors $ zipWith (compareWithErrMsg "Error in AssumePCSolver. ") expected results
-        if not (null errs)
-           then return $ Left (foldr concatErrMsgs " " errs)
-           else return $ Right True
+    let errs = filter selectErrors $ zipWith (compareWithErrMsg "Error in Solving.") expected results
+    if not (null errs)
+       then return $ Left (foldr concatErrMsgs " " errs)
+       else return $ Right True
+
+solveADTNumericalTests :: IO (Either String Bool)
+solveADTNumericalTests = do
+    let kv = simpleKV
+        b = createTestBindings
+        numTests = 10
+        statePCs = createStatePCs numTests --list of PathConds from which to create new states
+        checkPCs = createTestPCs kv -- list of NewPCs to check with the corresponding state
+        is = createTestIds -- list of list of Ids for each test
+        expected = solveADTNumExpected -- list of (test number, expected result) tuples
+        states = createTestStates kv statePCs
+
+    let avf = arbValue
+    SomeSMTSolver con <- getSMTAV avf (createConfig {smt = ConZ3})
+    let adtNumSol = GroupRelated avf (ADTNumericalSolver avf con)
+
+    results <- sequence $ zipWith3 (\s i pc -> solve adtNumSol s b i pc) states is checkPCs
+
+    let errs = filter selectErrors $ zipWith (compareWithErrMsg "Error in AssumePCSolver. ") expected results
+    if not (null errs)
+       then return $ Left (foldr concatErrMsgs " " errs)
+       else return $ Right True
 
 selectErrors :: Either String Bool -> Bool
 selectErrors (Left _) = True
@@ -97,49 +96,51 @@ compareWithErrMsg errMsg (i, expected) actual =  if expected == actual
 
 -- mergeCurrExpr Tests
 g2Val1 :: CurrExpr -- simple test
-g2Val1 = SM.mergeCurrExpr kv idX (CurrExpr Evaluate (App e1 e2)) (CurrExpr Evaluate (App e1 e2'))
+g2Val1 = snd $ SM.mergeCurrExpr ctxt
     where
-        kv = simpleKV
+        ce1 = (CurrExpr Evaluate (App e1 e2))
+        ce2 = (CurrExpr Evaluate (App e1 e2'))
+        ctxt = createContext ce1 ce2
 
-g2Val2 :: CurrExpr
-g2Val2 = SM.mergeCurrExpr kv idX
-    (CurrExpr Evaluate (App e1 (App e2 e3)))
-    (CurrExpr Evaluate (App e1 (App e2' e3')))
-    where
-        kv = simpleKV
+-- g2Val2 :: CurrExpr
+-- g2Val2 = SM.mergeCurrExpr kv idX
+-- (CurrExpr Evaluate (App e1 (App e2 e3)))
+-- (CurrExpr Evaluate (App e1 (App e2' e3')))
+--     where
+--         kv = simpleKV
 
-g2Val3 :: CurrExpr -- force NonDet further down
-g2Val3 = SM.mergeCurrExpr kv idX 
-    (CurrExpr Evaluate (App e1 (App e2 e3))) 
-    (CurrExpr Evaluate (App e1 (App e2 e3')))
-    where
-        kv = simpleKV
+-- g2Val3 :: CurrExpr -- force NonDet further down
+-- g2Val3 = SM.mergeCurrExpr kv idX
+--     (CurrExpr Evaluate (App e1 (App e2 e3)))
+--     (CurrExpr Evaluate (App e1 (App e2 e3')))
+--     where
+--         kv = simpleKV
 
-g2Val4 :: CurrExpr -- identical expressions
-g2Val4 = SM.mergeCurrExpr kv idX
-    (CurrExpr Evaluate (App e1 (App e2 e3)))
-    (CurrExpr Evaluate (App e1 (App e2 e3)))
-    where
-        kv = simpleKV
+-- g2Val4 :: CurrExpr -- identical expressions
+-- g2Val4 = SM.mergeCurrExpr kv idX
+--     (CurrExpr Evaluate (App e1 (App e2 e3)))
+--     (CurrExpr Evaluate (App e1 (App e2 e3)))
+--     where
+--         kv = simpleKV
 
-g2Val5 :: CurrExpr -- identical expressions 2
-g2Val5 = SM.mergeCurrExpr kv idX
-    (CurrExpr Evaluate (App e1 (App e4 e3)))
-    (CurrExpr Evaluate (App e1 (App e4 e3')))
-    where
-        kv = simpleKV
+-- g2Val5 :: CurrExpr -- identical expressions 2
+-- g2Val5 = SM.mergeCurrExpr kv idX
+--     (CurrExpr Evaluate (App e1 (App e4 e3)))
+--     (CurrExpr Evaluate (App e1 (App e4 e3')))
+--     where
+--         kv = simpleKV
 
-g2Val6 :: CurrExpr -- Nested (App ...) in first argument
-g2Val6 = SM.mergeCurrExpr kv idX
-    (CurrExpr Evaluate (App (App e1 e2) (App e4 e3)))
-    (CurrExpr Evaluate (App (App e1 e2') (App e4 e3')))
-    where
-        kv = simpleKV
+-- g2Val6 :: CurrExpr -- Nested (App ...) in first argument
+-- g2Val6 = SM.mergeCurrExpr kv idX
+--     (CurrExpr Evaluate (App (App e1 e2) (App e4 e3)))
+--     (CurrExpr Evaluate (App (App e1 e2') (App e4 e3')))
+--     where
+ --        kv = simpleKV
 
 expectedVal1 :: CurrExpr
 expectedVal1 = CurrExpr Evaluate
     (App e1
-        (NonDet [(Assume Nothing xEq1 e2), (Assume Nothing xEq2 e2')])
+        (Case (Var idX) idX [Alt (LitAlt (LitInt 1)) e2, Alt (LitAlt (LitInt 2)) e2'])
     )
 
 expectedVal2 :: CurrExpr
@@ -181,6 +182,8 @@ expectedVal6 = CurrExpr Evaluate
         )
     )
 
+-- mergeCurrExpr helpers
+
 e1 :: Expr
 e1 = (Data (DataCon (Name "$I" Nothing 0 Nothing) TYPE))
 
@@ -217,9 +220,18 @@ xEq1 = (App (App eqTo varX) (Lit (LitInt 1)))
 xEq2 :: Expr
 xEq2 = (App (App eqTo varX) (Lit (LitInt 2)))
 
--- checkRelAssume Tests
-createStatePCs :: Int -> KV.KnownValues -> [PathConds]
-createStatePCs numTests kv = take numTests (repeat (PC.fromList kv []))
+createContext :: CurrExpr -> CurrExpr -> Context ()
+createContext ce1 ce2 = emptyContext s1 s2 ng idX
+    where
+        kv = simpleKV
+        s1 = createTestState kv (M.fromList []) ce1 (PC.fromList [])
+        s2 = createTestState kv (M.fromList []) ce2 (PC.fromList [])
+        ng = mkNameGen [s1, s2]
+
+
+-- checkADTNumericalTests helpers
+createStatePCs :: Int -> [PathConds]
+createStatePCs numTests = take numTests (repeat (PC.fromList []))
 
 yN :: Name
 yN = (Name "Y" Nothing 0 Nothing)
@@ -258,99 +270,120 @@ ty2 :: AlgDataTy
 ty2 = DataTyCon {bound_ids = [], data_cons = [dconC, dconD]}
 
 var1N :: Name
-var1N = (Name "1" Nothing 19 Nothing)
+var1N = (Name "v1" Nothing 19 Nothing)
 
 var1 :: Expr
 var1 = Var (Id var1N ty1T)
 
 var2N :: Name
-var2N = (Name "2" Nothing 26 Nothing)
+var2N = (Name "v2" Nothing 26 Nothing)
 
 var2 :: Expr
 var2 = Var (Id var2N ty2T)
 
-createTestPCs :: KV.KnownValues -> [PathConds]
-createTestPCs kv = [ PC.fromList kv [ -- simple test
-                        AssumePC idX 1 
-                        (ConsCond dconA var1 True)]
-                   , PC.fromList kv [
-                        AssumePC idX 1 
+createTestPCs :: KnownValues -> [PathConds]
+createTestPCs kv = [
+                PC.fromList [ -- simple test
+                    AssumePC idX 1 
+                    (ConsCond dconA var1 True)
+                    , ExtCond (mkEqIntExpr kv (Var idX) 1) True
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True]
+              , PC.fromList [
+                    AssumePC idX 1
+                    (ConsCond dconA var1 False)
+                    , AssumePC idX 1
+                    (ConsCond dconB var1 False)
+                    , ExtCond (mkEqIntExpr kv (Var idX) 1) True
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True]
+               , PC.fromList [ -- combination of AssumePCs and other PathCond-s
+                    ConsCond dconA var1 False
+                    , (ConsCond dconB var1 False)
+                    , AssumePC idX 1
+                    (ConsCond dconA var1 False)
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True]
+               , PC.fromList [ -- Set of (AssumePCs id i pc) with i == 2 should be satisfiable, hence entire PathConds should be satisfiable
+                    AssumePC idX 1
+                    (ConsCond dconA var1 False)
+                    , AssumePC idX 1
+                    (ConsCond dconB var1 False)
+                    , AssumePC idX 2
+                    (ConsCond dconA var1 True)
+                    , AssumePC idX 2
+                    (ConsCond dconB var1 False)
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True]
+               , PC.fromList [
+                    AssumePC idX 1
                         (ConsCond dconA var1 False)
-                        , AssumePC idX 1 
-                        (ConsCond dconB var1 False)]
-                   , PC.fromList kv [ -- combination of AssumePCs and other PathCond-s
-                        ConsCond dconA var1 False
-                        , (ConsCond dconB var1 False)
-                        , AssumePC idX 1 
-                        (ConsCond dconA var1 False)]
-                   , PC.fromList kv [ -- Set of (AssumePCs id i pc) with i == 2 should be satisfiable, hence entire PathConds should be satisfiable
-                        AssumePC idX 1 
-                        (ConsCond dconA var1 False)
-                        , AssumePC idX 1 
+                    , AssumePC idX 1
                         (ConsCond dconB var1 False)
-                        , AssumePC idX 2 
+                    , AssumePC idY 1
                         (ConsCond dconA var1 True)
-                        , AssumePC idX 2 
-                        (ConsCond dconB var1 False)]
-                   , PC.fromList kv [ 
-                        AssumePC idX 1 
-                        (ConsCond dconA var1 False)
-                        , AssumePC idX 1 
-                        (ConsCond dconB var1 False)
-                        , AssumePC idY 1 
-                        (ConsCond dconA var1 True)]
-                   , PC.fromList kv [ -- simple nested AssumePCs 
-                        AssumePC idX 1 
-                        (AssumePC idY 1
-                            (ConsCond dconA var1 True))
-                        , AssumePC idX 1 
-                        (AssumePC idY 1
-                            (ConsCond dconB var1 False))]
-                   , PC.fromList kv [ -- simple nested AssumePCs (negative test)
-                        AssumePC idX 1 
-                        (AssumePC idY 1
-                            (ConsCond dconA var1 False))
-                        , AssumePC idX 1 
-                        (AssumePC idY 1
-                            (ConsCond dconB var1 False))]
-                   , PC.fromList kv [-- more complex nested AssumePCs. Equivalent to (x=1 && ((y=1 && B) || (y=2 && not A && not B))) || (x=2 && ((y=1 && not A && not B))) 
-                        AssumePC idX 1 
-                        (AssumePC idY 1
-                            (ConsCond dconB var1 True))
-                        , AssumePC idX 1 
-                        (AssumePC idY 2
-                            (ConsCond dconB var1 False))
-                        , AssumePC idX 1 
-                        (AssumePC idY 2
-                            (ConsCond dconA var1 False))
-                        , AssumePC idX 2 
-                        (AssumePC idY 1
-                            (ConsCond dconA var1 False))
-                        , AssumePC idX 2 
-                        (AssumePC idY 1
-                            (ConsCond dconB var1 False))]
-                   , PC.fromList kv [ -- Multiple solutions possible
-                        AssumePC idX 1 
+                    , ExtCond (mkEqIntExpr kv (Var idX) 1) True
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idY) 1) (mkEqIntExpr kv (Var idY) 2)) True]
+               , PC.fromList [ -- simple nested AssumePCs
+                    AssumePC idX 1
+                    (AssumePC idY 1
+                        (ConsCond dconA var1 True))
+                    , AssumePC idX 1
+                    (AssumePC idY 1
+                        (ConsCond dconB var1 False))
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idY) 1) (mkEqIntExpr kv (Var idY) 2)) True]
+               , PC.fromList [ -- simple nested AssumePCs (negative test)
+                    AssumePC idX 1
+                    (AssumePC idY 1
+                        (ConsCond dconA var1 False))
+                    , AssumePC idX 1
+                    (AssumePC idY 1
+                        (ConsCond dconB var1 False))
+                    , ExtCond (mkEqIntExpr kv (Var idX) 1) True
+                    , ExtCond (mkEqIntExpr kv (Var idY) 1) True
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idY) 1) (mkEqIntExpr kv (Var idY) 2)) True]
+                -- more complex nested AssumePCs. Equivalent to (x=1 => ((y=1 => B) || (y=2 => not A && not B))) || (x=2 => ((y=1 => not A && not B))) 
+               , PC.fromList [
+                    AssumePC idX 1
+                    (AssumePC idY 1
+                        (ConsCond dconB var1 True))
+                    , AssumePC idX 1
+                    (AssumePC idY 2
+                        (ConsCond dconB var1 False))
+                    , AssumePC idX 1
+                    (AssumePC idY 2
+                        (ConsCond dconA var1 False))
+                    , AssumePC idX 2
+                    (AssumePC idY 1
+                        (ConsCond dconA var1 False))
+                    , AssumePC idX 2
+                    (AssumePC idY 1
+                        (ConsCond dconB var1 False))
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idY) 1) (mkEqIntExpr kv (Var idY) 2)) True]
+               , PC.fromList [ -- Multiple solutions possible
+                    AssumePC idX 1
                         (ConsCond dconB var1 True)
-                        , AssumePC idX 2 
-                        (ConsCond dconA var1 True)]
-                   , PC.fromList kv [ -- Multiple Data types
-                        AssumePC idX 1 
+                    , AssumePC idX 2
+                        (ConsCond dconA var1 True)
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True]
+               , PC.fromList [ -- Multiple Data types
+                    AssumePC idX 1
                         (ConsCond dconB var1 True)
-                        , AssumePC idX 1 
+                    , AssumePC idX 1
                         (ConsCond dconD var2 True)
-                        , AssumePC idX 2 
+                    , AssumePC idX 2
                         (ConsCond dconA var1 False)
-                        , AssumePC idX 2 
-                        (ConsCond dconA var1 True)]
-                   ]
+                    , AssumePC idX 2
+                        (ConsCond dconA var1 True)
+                    , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idX) 1) (mkEqIntExpr kv (Var idX) 2)) True]
+               ]
 
-checkRelAssumeExpected :: [(TestNum, Result)]
-checkRelAssumeExpected = [(1, SAT), (2, UNSAT), (3, UNSAT), (4, SAT), (5, UNSAT), (6, SAT), (7, UNSAT), (8, SAT), (9, SAT), (10, SAT)]
+checkADTNumExpected :: [(TestNum, Result)]
+checkADTNumExpected = [(1, SAT), (2, UNSAT), (3, UNSAT), (4, SAT), (5, UNSAT), (6, SAT), (7, UNSAT), (8, SAT), (9, SAT), (10, SAT)]
 
 -- solveRelAssumeTests
 createTestIds :: [[Id]]
-createTestIds = [[Id var1N ty1T]
+createTestIds = [ [Id var1N ty1T]
                 , [Id var1N ty1T]
                 , [Id var1N ty1T]
                 , [Id var1N ty1T]
@@ -362,20 +395,20 @@ createTestIds = [[Id var1N ty1T]
                 , [Id var1N ty1T, Id var2N ty2T]
                 ]
 
-solveRelAssumeExpected :: [(TestNum, (Result, Maybe Model))]
-solveRelAssumeExpected = [ (1, (SAT, Just (M.fromList [(var1N, Data dconA),(xN, Lit (LitInt 1))])))
-                         , (2, (UNSAT, Nothing))
-                         , (3, (UNSAT, Nothing))
-                         , (4, (SAT, Just (M.fromList [(var1N, Data dconA), (xN, Lit (LitInt 2))])))
-                         , (5, (UNSAT, Nothing))
-                         , (6, (SAT, Just (M.fromList [(var1N, Data dconA), (xN, Lit (LitInt 1)), (yN, Lit (LitInt 1))])))
-                         , (7, (UNSAT, Nothing))
-                         , (8, (SAT, Just (M.fromList [(var1N, Data dconB), (xN, Lit (LitInt 1)), (yN, Lit (LitInt 1))])))
-                        -- For 9, technically multiple solutions possible, but algorithm goes down the list and picks first possible solution
-                         , (9, (SAT, Just (M.fromList [(var1N, Data dconB), (xN, Lit (LitInt 1))])))
-                         , (10, (SAT, Just (M.fromList [(var1N, Data dconB)
-                            , (var2N, Data dconD), (xN, Lit (LitInt 1))])))
-                         ]
+-- TODO: multiple solutions possible, add all of them
+solveADTNumExpected :: [(TestNum, (Result, Maybe Model))]
+solveADTNumExpected = [ (1, (SAT, Just (M.fromList [(var1N, Data dconA),(xN, Lit (LitInt 1))])))
+                      , (2, (UNSAT, Nothing))
+                      , (3, (UNSAT, Nothing))
+                      , (4, (SAT, Just (M.fromList [(var1N, Data dconA), (xN, Lit (LitInt 2))])))
+                      , (5, (UNSAT, Nothing))
+                      , (6, (SAT, Just (M.fromList [(var1N, Data dconB), (xN, Lit (LitInt 2)), (yN, Lit (LitInt 1))])))
+                      , (7, (UNSAT, Nothing))
+                      , (8, (SAT, Just (M.fromList [(var1N, Data dconA), (xN, Lit (LitInt 2)), (yN, Lit (LitInt 2))])))
+                      , (9, (SAT, Just (M.fromList [(var1N, Data dconB), (xN, Lit (LitInt 1))])))
+                      , (10, (SAT, Just (M.fromList [(var1N, Data dconB), (var2N, Data dconD)
+                        , (xN, Lit (LitInt 1))])))
+                      ]
 
 -- Helper Functions
 simpleKV :: KV.KnownValues
@@ -444,11 +477,11 @@ createInitState src entry config = do
     let (init_state, _ , _) = initState exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) config
     return (init_state)
 
-createTestState :: KnownValues -> TypeEnv -> PathConds -> State ()
-createTestState kv tenv pc = State {
+createTestState :: KnownValues -> TypeEnv -> CurrExpr -> PathConds -> State ()
+createTestState kv tenv currExpr pc = State {
       expr_env = EE.empty
     , type_env = tenv
-    , curr_expr = CurrExpr Evaluate (Lit (LitInt 0))
+    , curr_expr = currExpr
     , path_conds = pc
     , non_red_path_conds = []
     , true_assert = True
@@ -465,7 +498,8 @@ createTestState kv tenv pc = State {
     }
 
 createTestStates :: KnownValues -> [PathConds] -> [State ()]
-createTestStates kv pcs = map (createTestState kv (M.fromList [(ty1N, ty1), (ty2N, ty2)])) pcs
+createTestStates kv pcs = map (createTestState kv (M.fromList [(ty1N, ty1), (ty2N, ty2)]) defaultCE) pcs
+    where defaultCE = (CurrExpr Evaluate (Lit (LitInt 0)))
 
 createTestBindings :: Bindings
 createTestBindings = Bindings {
@@ -502,6 +536,7 @@ createConfig = Config {
     , cut_off = 0
     , switch_after = 0
     , strict = False
+    , sharing = Sharing
     , timeLimit = 0
     , validate = False}
 

@@ -14,7 +14,6 @@ import G2.Config
 import G2.Interface
 import G2.Language as G2
 import G2.Liquid.Interface
-import qualified G2.Language.KnownValues as KV
 
 import Control.Exception
 import Data.Maybe
@@ -32,7 +31,7 @@ import DefuncTest
 import CaseTest
 import Expr
 import Typing
--- import MergeStateUnitTests
+import MergeStateUnitTests
 
 import InputOutputTest
 import Reqs
@@ -480,14 +479,14 @@ todoTests =
         ]
 
 -- | Tests for specific functions - mergeExpr, checkRelAssume, solveRelAssume
--- mergeStateUnitTests :: IO TestTree
--- mergeStateUnitTests =
---     return . testGroup "Unit Tests"
---         =<< sequence [
---               checkFn mergeCurrExprTests "mergeCurrExpr Test"
---               , checkFnIO checkRelAssumeTests "checkRelAssume Test"
---               , checkFnIO solveRelAssumeTests "solveRelAssume Test"
---             ]
+mergeStateUnitTests :: IO TestTree
+mergeStateUnitTests =
+    return . testGroup "Unit Tests"
+        =<< sequence [
+               checkFn mergeCurrExprTests "mergeCurrExpr Test"
+               , checkFnIO checkADTNumericalTests "checkADTNumerical Test"
+               , checkFnIO solveADTNumericalTests "solveADTNumerical Test"
+            ]
 
 data ToDo = RunMain
           | RunToDo

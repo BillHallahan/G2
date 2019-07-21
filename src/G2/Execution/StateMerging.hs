@@ -1,10 +1,13 @@
 module G2.Execution.StateMerging
   ( mergeState
+  , mergeCurrExpr
   , mergeExpr
   , mergeExprEnv
   , mergeEnvObj
   , mergePathConds
   , mergePathCondsSimple
+  , emptyContext
+  , Context
   ) where
 
 import G2.Language
