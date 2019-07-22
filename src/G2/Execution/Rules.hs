@@ -33,7 +33,6 @@ import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashSet as HS
 import qualified Data.List as L
-import Debug.Trace
 
 stdReduce :: Solver solver => Sharing -> solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce sharing solver s b@(Bindings {name_gen = ng}) = do

@@ -23,7 +23,8 @@ import G2.Config
 import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.Text as T
-import qualified Data.HashSet as S
+import qualified Data.Set as S
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import System.FilePath
 
@@ -36,7 +37,7 @@ mergeCurrExprTests = if not (null errs)
         where
             errs = filter selectErrors $ zipWith (compareWithErrMsg "Error merging CurrExprs. ")
                 [(1, (== expectedVal1)), (2, (== expectedVal2)), (3, (== expectedVal3)), (4, (== expectedVal4))
-                , (5,(== expectedVal5)), (6, check6)]
+                , (5,(== expectedVal5)), (6, check6), (7, check7)]
                 [g2Val1, g2Val2, g2Val3, g2Val4, g2Val5, g2Val6]
 
 checkADTNumericalTests :: IO (Either String Bool)
@@ -154,6 +155,22 @@ g2Val6 = snd $ SM.mergeCurrExpr ctxt
                 )
               )
 
+-- merge inner case expr in SMNF, where some choices have common data cons
+g2Val7 :: CurrExpr
+g2Val7 = snd $ SM.mergeCurrExpr ctxt
+    where
+        ctxt = createContext ce1 ce2 Nothing Nothing
+        ce1 = (CurrExpr Evaluate
+                (App (App e1 e2)
+                     (Case varfs1 idfs1 [Alt (LitAlt (LitInt 1)) (App e1 e2'), Alt (LitAlt (LitInt 2)) e3'])
+                )
+              )
+        ce2 = (CurrExpr Evaluate
+                (App (App e1 e2')
+                     (Case varfs2 idfs2 [Alt (LitAlt (LitInt 1)) (App e1 e3), Alt (LitAlt (LitInt 2)) e4])
+                )
+              )
+
 expectedVal1 :: CurrExpr
 expectedVal1 = CurrExpr Evaluate
     (App e1
@@ -209,6 +226,18 @@ check6 (CurrExpr Evaluate (App a1 (Case (Var (Id _ TyLitInt)) (Id _ TyLitInt) al
     && (length alts == 4)
     && (S.fromList (map (\(Alt (LitAlt _) e) -> e) alts) == S.fromList [e2', e3', e3, e4])
 check6 _ = False
+
+check7 :: CurrExpr -> Bool
+check7 (CurrExpr Evaluate (App a1 (Case (Var (Id _ TyLitInt)) (Id _ TyLitInt) alts))) =
+    a1 == (App e1
+            (Case (varX) idX
+                [ Alt (LitAlt (LitInt 1)) e2
+                , Alt (LitAlt (LitInt 2)) e2']
+            )
+        )
+    && (length alts == 3)
+    && S.isSubsetOf (S.fromList [e3', e4]) (S.fromList (map (\(Alt (LitAlt _) e) -> e) alts))
+check7 _ = False
 
 -- mergeCurrExpr helpers
 
@@ -527,14 +556,14 @@ createTestState kv tenv currExpr eenv pc = State {
     , true_assert = True
     , assert_ids = Nothing
     , type_classes = TC.initTypeClasses []
-    , symbolic_ids = S.empty
+    , symbolic_ids = HS.empty
     , exec_stack = Stack.empty
     , model = M.empty
     , known_values = kv
     , rules = []
     , num_steps = 0
     , track = ()
-    , tags = S.empty
+    , tags = HS.empty
     }
 
 createTestStates :: KnownValues -> [PathConds] -> [State ()]

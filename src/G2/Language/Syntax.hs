@@ -64,7 +64,7 @@ instance Hashable Id
 -- | Indicates the purpose of the a Lambda binding
 data LamUse = TermL -- ^ Binds at the term level 
             | TypeL -- ^ Binds at the type level
-            deriving (Show, Eq, Read, Generic, Typeable, Data)
+            deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable LamUse
 
@@ -146,7 +146,7 @@ data Expr = Var Id
           | SymGen Type
           | Assume (Maybe FuncCall) Expr Expr
           | Assert (Maybe FuncCall) Expr Expr
-          deriving (Show, Eq, Read, Generic, Typeable, Data)
+          deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable Expr
 
@@ -187,7 +187,7 @@ data Primitive = Ge
                | Error
                | Undefined
                | BindFunc
-               deriving (Show, Eq, Read, Generic, Typeable, Data)
+               deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable Primitive
 
@@ -198,7 +198,7 @@ data Lit = LitInt Integer
          | LitChar Char
          | LitString String
          | LitInteger Integer
-         deriving (Show, Eq, Read, Generic, Typeable, Data)
+         deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable Lit
 
@@ -213,14 +213,14 @@ data AltMatch = DataAlt DataCon [Id] -- ^ Match a datacon. The number of `Id`s
                                      -- for the datacon.
               | LitAlt Lit
               | Default
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable AltMatch
 
 -- | `Alt`s consist of the `AltMatch` that is used to match
 -- them, and the `Expr` that is evaluated provided that the `AltMatch`
 -- successfully matches.
-data Alt = Alt AltMatch Expr deriving (Show, Eq, Read, Generic, Typeable, Data)
+data Alt = Alt AltMatch Expr deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable Alt
 
@@ -234,7 +234,7 @@ data TyBinder = AnonTyBndr Type
 
 instance Hashable TyBinder
 
-data Coercion = Type :~ Type deriving (Eq, Show, Read, Generic, Typeable, Data)
+data Coercion = Type :~ Type deriving (Eq, Show, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable Coercion
 
@@ -270,7 +270,7 @@ data Tickish = Breakpoint Span -- ^ A breakpoint for the GHC Debugger
                              -- in concert with a @`Reducer`@, for domain
                              -- specific modifications to a
                              -- @`State`@'s tracking field.
-             deriving (Show, Eq, Read, Generic, Typeable, Data)
+             deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable Tickish
 
@@ -280,13 +280,13 @@ data RewriteRule = RewriteRule { ru_name :: T.Text
                                , ru_rough :: [Maybe Name]
                                , ru_bndrs :: [Id]
                                , ru_args :: [Expr]
-                               , ru_rhs :: Expr } deriving (Show, Eq, Read, Generic, Typeable, Data)
+                               , ru_rhs :: Expr } deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable RewriteRule
 
 -- | Represents a function call, with it's arguments and return value as Expr
 data FuncCall = FuncCall { funcName :: Name
                          , arguments :: [Expr]
-                         , returns :: Expr } deriving (Show, Eq, Read, Generic, Typeable, Data)
+                         , returns :: Expr } deriving (Show, Eq, Ord, Read, Generic, Typeable, Data)
 
 instance Hashable FuncCall
