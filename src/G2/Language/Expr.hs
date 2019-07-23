@@ -158,7 +158,7 @@ mkNotExpr kv e = App notEx e
     where notEx = mkNotPrim kv
 
 cnf :: KnownValues -> [Expr] -> Expr
-cnf kv (x:y:xs) = dnf kv $ (mkAndExpr kv x y):xs
+cnf kv (x:y:xs) = cnf kv $ (mkAndExpr kv x y):xs
 cnf _ [x] = x
 
 dnf :: KnownValues -> [Expr] -> Expr
