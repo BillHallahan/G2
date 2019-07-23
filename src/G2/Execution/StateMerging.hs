@@ -8,7 +8,8 @@ module G2.Execution.StateMerging
   , mergePathCondsSimple
   , emptyContext
   , Context
-  , createCaseExprs
+  , createCaseExpr
+  , bindExprToNum
   , implies
   ) where
 
@@ -162,7 +163,7 @@ mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1 e2@(Case _ _ _)
 mergeExprInline ctxt@(Context { newId_ = newId }) e1 e2
     | e1 == e2 = (ctxt, e1)
     | otherwise =
-        let mergedExpr = createCaseExpr newId e1 e2
+        let mergedExpr = createCaseExpr newId [e1, e2]
         in (ctxt, mergedExpr)
 
 mergeVarInline :: (Named t)
@@ -179,8 +180,8 @@ mergeVarInline ctxt@(Context { s1_ = s1, s2_ = s2, newId_ = newId }) i e@(App _ 
             else mergeExprInline ctxt e e'
         (Just (E.Sym iSym)) ->
             let mergedExpr = if first
-                then createCaseExpr newId (Var iSym) e
-                else createCaseExpr newId e (Var iSym)
+                then createCaseExpr newId [(Var iSym), e]
+                else createCaseExpr newId [e, (Var iSym)]
             in (ctxt, mergedExpr)
         Nothing -> error $ "Unable to find Var in expr_env: " ++ show i
 mergeVarInline _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
@@ -193,11 +194,11 @@ mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed
     , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ctxt e1 e2
     | (Just (E.Conc e1)) <- maybeE1
     , (Just (E.Sym i)) <- maybeE2 =
-        let mergedExpr = createCaseExpr newId e1 (Var i)
+        let mergedExpr = createCaseExpr newId [e1, (Var i)]
         in (ctxt, mergedExpr)
     | (Just (E.Sym i)) <- maybeE1
     , (Just (E.Conc e2)) <- maybeE2 =
-        let mergedExpr = createCaseExpr newId (Var i) e2
+        let mergedExpr = createCaseExpr newId [(Var i), e2]
         in (ctxt, mergedExpr)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2
@@ -229,7 +230,7 @@ mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed
         in (ctxt', Var newSymId)
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2 =
-        let mergedExpr = createCaseExpr newId (Var i1) (Var i2)
+        let mergedExpr = createCaseExpr newId [(Var i1), (Var i2)]
         in (ctxt, mergedExpr)
     | otherwise = error "Unable to find Var(s) in expr_env"
 
@@ -262,11 +263,11 @@ mergeCase' ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ =
         ng' = ng_ ctxt'
         (newSymId, ng'') = freshId TyLitInt ng'
         newSyms' = HS.insert newSymId newSyms
-        mergedExprs = map fst merged
-        mergedExpr = createCaseExprs newSymId mergedExprs
 
+        mergedExprs = map fst merged
+        mergedExpr = createCaseExpr newSymId mergedExprs
         newPCs' = map snd merged
-        (upper, newPCs'') = L.mapAccumR (\num pc -> (num + 1, impliesPC kv newSymId num pc)) 1 newPCs'
+        (upper, newPCs'') = bindExprToNum (\num pc -> impliesPC kv newSymId num pc) newPCs' -- note: binding here is same as in createCaseExpr
 
         -- add PC restricting range of values for newSymId
         lower = 1
@@ -367,25 +368,19 @@ mergeExpr :: Id -> Expr -> Expr -> Expr
 mergeExpr newId (App e1 e2) (App e1' e2') = App (mergeExpr newId e1 e1') (mergeExpr newId e2 e2')
 mergeExpr newId e1 e1' = if (e1 == e1')
     then e1
-    else createCaseExpr newId e1 e1'
+    else createCaseExpr newId [e1, e1']
 
-createCaseExpr :: Id -> Expr -> Expr -> Expr
-createCaseExpr newId e1 e2 =
+createCaseExpr :: Id -> [Expr] -> Expr
+createCaseExpr _ [e] = e
+createCaseExpr newId es@(_:_) =
     let
-        alt1 = Alt (LitAlt (LitInt 1)) e1
-        alt2 = Alt (LitAlt (LitInt 2)) e2
-    -- We assume that PathCond restricting newId to 1 or 2 is added in mergePathConds
-    in Case (Var newId) newId [alt1, alt2]
-
-createCaseExprs :: Id -> [Expr] -> Expr
-createCaseExprs _ [e] = e
-createCaseExprs newId es@(_:_) =
-    let
-        (_, alts) = L.mapAccumR (\num e -> (num + 1, Alt (LitAlt (LitInt num)) e)) 1 es
-    -- We assume that PathCond restricting newId's range is added elsewhere
+        -- We assume that PathCond restricting newId's range is added elsewhere
+        (_, alts) = bindExprToNum (\num e -> Alt (LitAlt (LitInt num)) e) es
     in Case (Var newId) newId alts
-createCaseExprs _ [] = error "No exprs"
+createCaseExpr _ [] = error "No exprs"
 
+bindExprToNum :: (Integer -> a -> b) -> [a] -> (Integer, [b])
+bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
 
 mergeSymbolicIds :: Context t -> SymbolicIds
 mergeSymbolicIds (Context { s1_ = (State {symbolic_ids = syms1}), s2_ = (State {symbolic_ids = syms2})

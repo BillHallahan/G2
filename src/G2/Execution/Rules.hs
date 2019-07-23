@@ -589,14 +589,14 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
             appsT' = map (\a -> case a of
                 [] -> error $ "Empty list "
                 [([],e)] -> e
-                _ -> createCaseExprs newSymId (map snd a)) appsT
+                _ -> createCaseExpr newSymId (map snd a)) appsT
             -- TODO: merge types into one instead of wrapping in NonDet
             -- Do the same for Apps representing types
             tyAppsT = L.transpose tyApps'
             tyAppsT' = map (\a -> case a of
                 [] -> error $ "Empty list "
                 [([], e)] -> e
-                _ -> createCaseExprs newSymId (map snd a)) tyAppsT
+                _ -> createCaseExpr newSymId (map snd a)) tyAppsT
 
             -- Replace any occurrences of bind with the matched expr. Need to apply cast to dcon first
             binds = case cast' of
@@ -623,7 +623,8 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                     (_:_:_) -> let
                         -- Create Exprs representing constraint for each sub-Expr, i.e  [(x = 1 AND ..), (x = 2 AND ..)]
                         assumsE = (cnf kv) <$> fst <$> x
-                        (upper, newMapping) = L.mapAccumR (\num e -> (num + 1, implies kv newSymId num e True)) 1 assumsE
+                        -- note: binding here same as in createCaseExprs
+                        (upper, newMapping) = bindExprToNum (\num e -> implies kv newSymId num e True) assumsE
                         -- add PC restricting range of values for newSymId
                         lower = 1
                         newSymBound = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newSymId) lower) (mkLeIntExpr kv (Var newSymId) (upper - 1))) True
