@@ -514,7 +514,7 @@ handleLaltMatches s@(State {known_values = kv}) ((alt, matches):alts) bind
             conds' = case assums of
                 [] -> conds
                 _ -> let
-                        assumsE = (mkAssumExpr kv) <$> assums
+                        assumsE = (cnf kv) <$> assums
                         cond = ExtCond (dnf kv assumsE) True
                     in cond:conds
             binds = [(bind, Lit lit)]
@@ -613,7 +613,7 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
             choicesPC = case assums of
                 [] -> []
                 _ -> let
-                        assumsE = (mkAssumExpr kv) <$> assums
+                        assumsE = (cnf kv) <$> assums
                     in [ExtCond (dnf kv assumsE) True]
             -- appsT'' :: [[(Assumption, Expr)]], list of choices for each sub-Expr, along with their Assumptions
             appsT'' = tyAppsT ++ appsT
@@ -622,8 +622,8 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                 (x:_) -> case x of
                     (_:_:_) -> let
                         -- Create Exprs representing constraint for each sub-Expr, i.e  [(x = 1 AND ..), (x = 2 AND ..)]
-                        assumsE = (mkAssumExpr kv) <$> fst <$> x
-                        (upper, newMapping) = L.mapAccumR (\num e -> (num + 1, addClause kv newSymId num e)) 1 assumsE
+                        assumsE = (cnf kv) <$> fst <$> x
+                        (upper, newMapping) = L.mapAccumR (\num e -> (num + 1, implies kv newSymId num e True)) 1 assumsE
                         -- add PC restricting range of values for newSymId
                         lower = 1
                         newSymBound = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newSymId) lower) (mkLeIntExpr kv (Var newSymId) (upper - 1))) True
@@ -666,8 +666,8 @@ handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
         (eenv'', newParams', ngen'') = case assum of
             [] -> (E.insert mexprN mexpr'' eenv', newParams, ngen')
             _ -> let (newId, ngen_'') = freshId mexprT ngen'
-                in (E.insert mexprN (NonDet [Assume Nothing (mkAssumExpr kv assum) mexpr''
-                , Assume Nothing (mkNotExpr kv (mkAssumExpr kv assum)) (Var newId)]) eenv'
+                in (E.insert mexprN (NonDet [Assume Nothing (cnf kv assum) mexpr''
+                , Assume Nothing (mkNotExpr kv (cnf kv assum)) (Var newId)]) eenv'
                 , newId:newParams
                 , ngen_'')
         -- Add new symbolic vars, and delete mexprId because it has been concretized
@@ -727,7 +727,7 @@ handleDefMatches s@(State {known_values = kv}) ((alt, matches):_) bind alts
             extConds = case assums of
                 [] -> []
                 _ -> let
-                        assumsE = (mkAssumExpr kv) <$> assums
+                        assumsE = (cnf kv) <$> assums
                         cond = ExtCond (dnf kv assumsE) True
                     in [cond]
         in [NewPC {state = s', new_pcs = conds' ++ extConds}]
@@ -759,21 +759,8 @@ mergeMatches :: KnownValues -> Matches -> Expr
 mergeMatches kv Matches { defaults = d } = NonDet $ mkNonDetOpts kv d
 
 mkNonDetOpts :: KnownValues -> [(Expr, [Assumption])] -> [Expr]
-mkNonDetOpts kv ((e, assum):xs) = (Assume Nothing (mkAssumExpr kv assum) e):(mkNonDetOpts kv xs)
+mkNonDetOpts kv ((e, assum):xs) = (Assume Nothing (cnf kv assum) e):(mkNonDetOpts kv xs)
 mkNonDetOpts _ []               = []
-
-mkAssumExpr :: KnownValues -> [Expr] -> Expr
-mkAssumExpr kv (x:y:xs) = mkAssumExpr kv $ (mkAndExpr kv x y):xs
-mkAssumExpr _ [x] = x
-
--- Given an Expr `e`, and an `Id`, `Int` pair, returns `ExtCond ((NOT (Id == Int)) OR e) True`
-addClause :: KnownValues -> Id -> Integer -> Expr -> PathCond
-addClause kv newId num e = addClause' kv (mkEqIntExpr kv (Var newId) num) e
-
-addClause' :: KnownValues -> Expr -> Expr -> PathCond
-addClause' kv clause e =
-    let e' = mkOrExpr kv (mkNotExpr kv clause) e
-    in ExtCond e' True
 
 --------------------------------------------------------------------------------------
 

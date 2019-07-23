@@ -9,6 +9,7 @@ module G2.Execution.StateMerging
   , emptyContext
   , Context
   , createCaseExprs
+  , implies
   ) where
 
 import G2.Language
@@ -265,7 +266,7 @@ mergeCase' ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ =
         mergedExpr = createCaseExprs newSymId mergedExprs
 
         newPCs' = map snd merged
-        (upper, newPCs'') = L.mapAccumR (\num pc -> (num + 1, addClause kv newSymId num pc)) 1 newPCs'
+        (upper, newPCs'') = L.mapAccumR (\num pc -> (num + 1, impliesPC kv newSymId num pc)) 1 newPCs'
 
         -- add PC restricting range of values for newSymId
         lower = 1
@@ -346,14 +347,18 @@ condsToExpr kv c =
     in cnf kv es
 
 -- Given an `ExtCond e b`, and an `Id`, `Int` pair, modifies `e` to (NOT (Id == Int)) OR e
-addClause :: KnownValues -> Id -> Integer -> PathCond -> PathCond
-addClause kv newId num pc = addClause' kv (mkEqIntExpr kv (Var newId) num) pc
+impliesPC :: KnownValues -> Id -> Integer -> PathCond -> PathCond
+impliesPC kv newId num (ExtCond e b) = implies kv newId num e b
+impliesPC _ _ _ pc = error $ "Can only add clause to ExtCond. Got: " ++ (show pc)
 
-addClause' :: KnownValues -> Expr -> PathCond -> PathCond
-addClause' kv clause (ExtCond e b) =
+-- Given an Expr `e`, and an `Id`, `Int` pair, returns `ExtCond ((NOT (Id == Int)) OR e) True`
+implies :: KnownValues -> Id -> Integer -> Expr -> Bool -> PathCond
+implies kv newId num e b = implies' kv (mkEqIntExpr kv (Var newId) num) e b
+
+implies' :: KnownValues -> Expr -> Expr -> Bool -> PathCond
+implies' kv clause e b =
     let e' = mkOrExpr kv (mkNotExpr kv clause) e
     in ExtCond e' b
-addClause' _ _ pc = error $ "Can only add clause to ExtCond. Got: " ++ (show pc)
 
 -- | Merges 2 Exprs without inlining Vars from the expr_env or combining symbolic variables
 -- Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
