@@ -8,6 +8,7 @@ module G2.Execution.StateMerging
   , mergePathCondsSimple
   , emptyContext
   , Context
+  , createCaseExprs
   ) where
 
 import G2.Language
@@ -280,27 +281,27 @@ mergeChoices ctxt@(Context {s1_ = (State { known_values = kv }) }) [choice] =
     let pc = ExtCond (condsToExpr kv (fst choice)) True
     in (ctxt , (snd choice, pc))
 mergeChoices ctxt@(Context { s1_ = (State { known_values = kv}) }) choices@(_:_) =
+        -- apps :: [(Conds, [Expr])], split up each choice into a sequence of sub-Exprs
     let apps = map (\(cs, e) -> (cs, unApp e)) choices
-        -- maybe partition, taking common apps as long as all are equal
-        commonDC = head . snd . head $ apps
-        -- rest :: [(Conds, [Expr])], where each `[Expr]` is list of arguments that composed the original Expr, minus the common DataCon
-        rest = map (\(cs, e) -> (cs, tail e)) apps
-        --- restWConds :: [[(Conds, Expr)]], for each `[Expr]`, copy the common `Conds` to each `Expr`
-        restWConds = map (\(cs, e) -> map (\x -> (cs, x)) e) rest
-        -- cases :: [[(Conds, Expr)]], where each `[(Conds, Expr)]` is a list of choices for that subExpr in the merged Expr
-        cases = L.transpose restWConds
-        -- tailApps :: [Expr], where each Expr is a subExpr of the mergedExpr, consisting of a Case Expr (Expr) of the various choices (choice)
-        (ctxt', tailApps) = L.mapAccumR  mergeCase' ctxt cases
-        apps' = commonDC:tailApps
+        -- appsWConds :: [[(Conds, Expr)]], for each `[Expr]` in apps, pair the common `Conds` with each `Expr` in the list
+        appsWConds = map (\(cs, e) -> map (\x -> (cs, x)) e) apps
+        -- appsWCondsT :: [[(Conds, Expr)]], where each `[(Conds, Expr)]` is a list of choices for that sub-Expr in the merged Expr
+        appsWCondsT = L.transpose appsWConds
+        -- split the appsWCondsT into 2 lists, where first list contains sub-Exprs that are equal among all the choices
+        (common, rest) = L.span (\ls -> (length . L.nub $ (map snd ls)) == 1) appsWCondsT
+        (ctxt', restMerged) = L.mapAccumR mergeCase' ctxt rest
+        -- get just the Exprs (add PathConds later)
+        common' = map (snd . head) common
+        apps' = common' ++ restMerged
         mergedExpr = mkApp apps'
 
-        newPCs = case tailApps of
+        newPCs = case restMerged of
             -- 'AND' all `Conds` for each Expr and `OR` these combined Conds together
             [] -> (\e -> [ExtCond e True]) . dnf kv $ map (condsToExpr kv . fst) choices
             _ -> newPCs_ ctxt' -- PCs would have been added when merging tailApps
         newPCExprs = map (\(ExtCond e _) -> e) newPCs
         newPC = ExtCond (cnf kv newPCExprs) True
-        ctxt'' = ctxt {newPCs_ = []}
+        ctxt'' = ctxt' {newPCs_ = []}
     in (ctxt'', (mergedExpr, newPC))
 mergeChoices _ [] = error $ "Choices must be non empty"
 
@@ -336,7 +337,7 @@ groupChoices xs = L.groupBy (\(_, e1) (_, e2) -> sameDataCon e1 e2) xs
 sameDataCon :: Expr -> Expr -> Bool
 sameDataCon (App e1 _) (App e1' _) = sameDataCon e1 e1'
 sameDataCon (Data dc1) (Data dc2) = dc1 == dc2
-sameDataCon _ _ = False
+sameDataCon e1 e2 = e1 == e2
 
 -- Given list of (Id, Int) pairs, creates Expr equivalent to Conjunctive Normal Form of (Id == Int) values
 condsToExpr :: KnownValues -> Conds -> Expr

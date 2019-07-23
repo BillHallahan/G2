@@ -7,6 +7,7 @@ module G2.Execution.MergingHelpers
   , matchLitAlts
   , replaceCaseWSym
   , replaceCase
+  , addClause
   ) where
 
 import G2.Language
@@ -15,6 +16,7 @@ import qualified G2.Language.PathConds as PC
 
 import qualified Data.Map as M
 import qualified Data.HashSet as HS
+import Debug.Trace
 
 -- | Removes any Case-s in the expr_env and curr_expr by selecting one choice each time
 -- e.g. Given an Expr `Case x of 1 -> e1, 2 -> e2`, lookups the value of `x`
@@ -110,3 +112,15 @@ matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
 liftCaseBinds :: [(Id, Expr)] -> Expr -> Expr
 liftCaseBinds [] expr = expr
 liftCaseBinds ((b, e):xs) expr = liftCaseBinds xs $ replaceASTs (Var b) e expr
+
+-- Given an `ExtCond e b`, and an `Id`, `Int` pair, modifies `e` to (NOT (Id == Int)) OR e
+addClause :: KnownValues -> Id -> Integer -> PathCond -> PathCond
+addClause kv newId num pc = addClause' kv (mkEqIntExpr kv (Var newId) num) pc
+
+addClause' :: KnownValues -> Expr -> PathCond -> PathCond
+addClause' kv clause (ExtCond e b) =
+    let e' = mkOrExpr kv (mkNotExpr kv clause) e
+    in ExtCond e' b
+addClause' _ _ pc = error $ "Can only add clause to ExtCond. Got: " ++ (show pc)
+
+

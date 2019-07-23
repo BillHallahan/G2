@@ -20,6 +20,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 import G2.Config.Config
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
+import G2.Execution.StateMerging
 import G2.Execution.RuleTypes
 import qualified G2.Execution.MergingHelpers as SM
 import G2.Language
@@ -547,18 +548,12 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                         _ -> error $ "Non Var expr:" ++ show expr
 
                     (as, tyAs, _newPC', ngen') = handleDaltSymMatch st ngen (dcon, params) (expr_id, assum) cast_'
-                    -- Take a list of arguments `as`, and an Expr equiv. to AND-ing together `assum`, wraps each argument in
-                    -- the Assum-ed expr
-                    as' = case assum of
-                        [] -> as
-                        _ -> let
-                            assumE = mkAssumExpr kv assum
-                            wrapAssum = (\a -> Assume Nothing assumE a)
-                            in wrapAssum <$> as
+                    as' = map (\a -> (assum, a)) as
+                    tyAs' = map (\ty -> (assum, ty)) tyAs
 
                     _oldPCs = new_pcs _newPC
                     _newPC'' = _newPC' {new_pcs = _oldPCs ++ (new_pcs _newPC')}
-                in (as':asL, tyAs:tyAsL, _newPC'', ngen', cast_')) ([], [], newPCEmpty s, ng, Nothing) (symbolic_vars matches)
+                in (as':asL, tyAs':tyAsL, _newPC'', ngen', cast_')) ([], [], newPCEmpty s, ng, Nothing) (symbolic_vars matches)
 
             (apps', newPC', ng'', cast') = L.foldr (\(mexpr, assum) (asL, _newPC, ngen, _) ->
                 let st = state _newPC
@@ -567,12 +562,7 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                         _ -> (Nothing, mexpr)
 
                     (as, _newPC', ngen') = handleDaltPrimMatch st ngen (dcon, params) (expr, assum)
-                    as' = case assum of
-                        [] -> as
-                        _ -> let
-                            assumE = mkAssumExpr kv assum
-                            wrapAssum = (\a -> Assume Nothing assumE a)
-                            in wrapAssum <$> as
+                    as' = map (\a -> (assum, a)) as
 
                     _oldPCs = new_pcs _newPC
                     _newPC'' = _newPC' {new_pcs = _oldPCs ++ (new_pcs _newPC')}
@@ -581,30 +571,31 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
             (apps'', tyApps', newPC'', ng''') = L.foldr (\(mexpr, assum) (asL, tyAsL, _newPC, ngen) -> 
                 let st = state _newPC
                     (as, tyAs, _newPC', ngen') = handleDaltDconMatch st ngen (dcon, params) (mexpr, assum)
-                    as' = case assum of
-                        [] -> as
-                        _ -> let
-                            assumE = mkAssumExpr kv assum
-                            wrapAssum = (\a -> Assume Nothing assumE a)
-                            in wrapAssum <$> as
+                    as' = map (\a -> (assum, a)) as
+                    tyAs' =  map (\ty -> (assum, ty)) tyAs
 
                     _oldPCs = new_pcs _newPC
                     _newPC'' = _newPC' {new_pcs = _oldPCs ++ (new_pcs _newPC')}
-                in (as':asL, tyAs:tyAsL, _newPC'', ngen')) (apps', tyApps, newPC', ng'') (constructors matches)
+                in (as':asL, tyAs':tyAsL, _newPC'', ngen')) (apps', tyApps, newPC', ng'') (constructors matches)
+
+            s'@(State {expr_env = eenv, symbolic_ids = syms}) = state newPC''
+            (newSymId, ng'''') = freshId TyLitInt ng'''
+            syms' = HS.insert newSymId syms
 
             -- combine corresponding arguments from different matches into a NonDet Expr
             -- e.g. given [[a, b], [c,d]], results in [NonDet [a,c], NonDet [b,d]]
+            appsT = L.transpose apps''
             apps''' = map (\a -> case a of
                 [] -> error $ "Empty list "
-                [e] -> e
-                _ -> NonDet a) . L.transpose $ apps''
+                [([],e)] -> e
+                _ -> createCaseExprs newSymId (map snd a)) appsT
             -- TODO: merge types into one instead of wrapping in NonDet
-            -- TODO: wrap tyApps in assums as well
             -- Do the same for Apps representing types
+            tyAppsT = L.transpose tyApps'
             tyApps'' = map (\a -> case a of
                 [] -> error $ "Empty list "
-                [e] -> e
-                _ -> NonDet a) . L.transpose $ tyApps'
+                [([], e)] -> e
+                _ -> createCaseExprs newSymId (map snd a)) tyAppsT
 
             -- Replace any occurrences of bind with the matched expr
             -- need to apply cast to dcon first
@@ -615,23 +606,36 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
 
             -- Replace all occurrences of the `params` in aexpr with the corresponding app
             pBinds = zip params apps'''
-            s'@(State {expr_env = eenv}) = state newPC''
-            (eenv', aexpr'', ng'''', _) = liftBinds pBinds eenv aexpr' ng'''
-            s'' = s' {expr_env = eenv'}
+            (eenv', aexpr'', ng''''', _) = liftBinds pBinds eenv aexpr' ng''''
 
             -- Add PathConds representing constraints from Assume-d Exprs for each possible match
-            newPCs = new_pcs newPC''
             assums = assumes matches
-            newPCs' = case assums of
-                [] -> newPCs
+            choicesPC = case assums of
+                [] -> []
                 _ -> let
                         assumsE = (mkAssumExpr kv) <$> assums
-                        cond = ExtCond (dnf kv assumsE) True
-                    in cond:newPCs
+                    in [ExtCond (dnf kv assumsE) True]
+            -- Add PathConds mapping the newSymId used in the new Case Exprs to the old Assumptions
+            -- [[(assum, e1), (assum, e1'),...], [(assum, e2), (assum, e2'),...]]
+            appsT' = tyAppsT ++ appsT
+            newIdPCs = case appsT' of
+                (x:_) -> case x of
+                    (_:_:_) -> let
+                        assumsE = (mkAssumExpr kv) <$> fst <$> x -- Condition for each choice, i.e. [(x = 1 AND ..), (x = 2 AND ..)]
+                        (upper, newMapping) = L.mapAccumR (\num e -> (num + 1, addClause kv newSymId num e)) 1 assumsE
+                        -- add PC restricting range of values for newSymId
+                        lower = 1
+                        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newSymId) lower) (mkLeIntExpr kv (Var newSymId) (upper - 1))) True
+                        in newSymConstraint:newMapping
+                    _ -> []
+                [] -> []
 
-            newPC''' = newPC'' {state = s'' { curr_expr = CurrExpr Evaluate aexpr'' }, new_pcs = newPCs' }
-            (pcs, ng''''') = handleDaltMatches s ng'''' alts bind
-        in (newPC''':pcs, ng''''')
+            newPCs = new_pcs newPC''
+            newPCs' = choicesPC ++ newIdPCs ++ newPCs
+            newPC''' = newPC'' { state = s' { curr_expr = CurrExpr Evaluate aexpr'' , expr_env = eenv', symbolic_ids = syms'}
+                               , new_pcs = newPCs' }
+            (pcs, ng'''''') = handleDaltMatches s ng''''' alts bind
+        in (newPC''':pcs, ng'''''')
     | otherwise = error $ "Alt is not a DataAlt"
 handleDaltMatches _ ng [] _ = ([], ng)
 
@@ -760,6 +764,15 @@ mkNonDetOpts _ []               = []
 mkAssumExpr :: KnownValues -> [Expr] -> Expr
 mkAssumExpr kv (x:y:xs) = mkAssumExpr kv $ (mkAndExpr kv x y):xs
 mkAssumExpr _ [x] = x
+
+-- Given an Expr `e`, and an `Id`, `Int` pair, returns `ExtCond ((NOT (Id == Int)) OR e) True`
+addClause :: KnownValues -> Id -> Integer -> Expr -> PathCond
+addClause kv newId num e = addClause' kv (mkEqIntExpr kv (Var newId) num) e
+
+addClause' :: KnownValues -> Expr -> Expr -> PathCond
+addClause' kv clause e =
+    let e' = mkOrExpr kv (mkNotExpr kv clause) e
+    in ExtCond e' True
 
 --------------------------------------------------------------------------------------
 

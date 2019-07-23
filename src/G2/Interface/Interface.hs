@@ -64,6 +64,8 @@ import Data.Maybe
 import qualified Data.Text as T
 
 import System.Timeout
+import System.Directory
+import G2.Lib.Printers
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
@@ -369,6 +371,7 @@ runG2Solving con bindings mergeStates s@(State { known_values = kv })
         case m of
             Just m' -> do
                 let s' = s { model = m' }
+
                 let s'' = if mergeStates
                             then replaceCase s'
                             else s'
