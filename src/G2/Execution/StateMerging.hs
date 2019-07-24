@@ -334,12 +334,12 @@ getChoices'' (Case (Var i) _ a) = concatMap (getChoices' i) a
 getChoices'' e = [([], e)]
 
 groupChoices :: [(Conds, Expr)] -> [[(Conds, Expr)]]
-groupChoices xs = L.groupBy (\(_, e1) (_, e2) -> sameDataCon e1 e2) xs
+groupChoices xs = L.groupBy (\(_, e1) (_, e2) -> commonSubExpr e1 e2) xs
 
-sameDataCon :: Expr -> Expr -> Bool
-sameDataCon (App e1 _) (App e1' _) = sameDataCon e1 e1'
-sameDataCon (Data dc1) (Data dc2) = dc1 == dc2
-sameDataCon e1 e2 = e1 == e2
+commonSubExpr :: Expr -> Expr -> Bool
+commonSubExpr (App e1 _) (App e1' _) = commonSubExpr e1 e1'
+commonSubExpr (Data dc1) (Data dc2) = dc1 == dc2
+commonSubExpr e1 e2 = e1 == e2
 
 -- Given list of (Id, Int) pairs, creates Expr equivalent to Conjunctive Normal Form of (Id == Int) values
 condsToExpr :: KnownValues -> Conds -> Expr

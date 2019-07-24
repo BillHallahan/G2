@@ -361,9 +361,6 @@ getTopLevelExprs _ = []
 
 checkNewPC :: Solver solver => solver -> State t -> PathCond -> Expr -> Assumption -> IO (Maybe (Expr, Assumption, State t))
 checkNewPC solver s@(State { path_conds = spc }) pc e assum
-    -- In the case of newtypes, the PC exists we get may have the correct name but incorrect type.
-    -- We do not want to add these to the State
-    -- This is a bit ugly, but not a huge deal, since the State already has PCExists
     | (not . PC.isPCExists) pc = do
         -- Replace the path_conds with only those that are directly
         -- affected by the new path constraints
@@ -397,15 +394,14 @@ evalCaseSMNF' s@(State { expr_env = eenv }) ng choices bind alts =
         (laltMatches, choices'') = matchLitAltsSMNF eenv lalts choices'
         -- Match all Symbolic Variables and unmatched Apps with a (Data _) center
         (defMatches, _) = matchDefaults defs choices''
-        --TODO: ensure choices''' is empty
 
         -- split into multiple states on the various Alts appropriately
         (dsts_cs, ng') = handleDaltMatches s ng daltMatches bind
         lsts_cs = handleLaltMatches s laltMatches bind 
-        def_sts = handleDefMatches s defMatches bind alts
+        (def_sts, ng'') = handleDefMatches s ng' defMatches bind alts
         newPCs = def_sts ++ dsts_cs ++ lsts_cs
         newPCs' = map (\p@(NewPC {state = st}) -> p {state = st {exec_stack = S.push MergePtFrame (exec_stack st)} }) newPCs
-    in (RuleEvalCaseSym, newPCs', ng') -- TODO: new rule
+    in (RuleEvalCaseSym, newPCs', ng'') -- TODO: new rule
 
 dataAltsSMNF :: [Alt] -> [Alt]
 dataAltsSMNF alts = [a | a @ (Alt (DataAlt _ _) _) <- alts]
@@ -610,11 +606,8 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
 
             -- Add PathConds representing constraints from the original Case Exprs for each possible match
             assums = assumes matches
-            choicesPC = case assums of
-                [] -> []
-                _ -> let
-                        assumsE = (cnf kv) <$> assums
-                    in [ExtCond (dnf kv assumsE) True]
+            assumsE = (cnf kv) <$> assums
+            choicesPC = createChoicesPC kv assumsE
             -- appsT'' :: [[(Assumption, Expr)]], list of choices for each sub-Expr, along with their Assumptions
             appsT'' = tyAppsT ++ appsT
             -- Add PathConds mapping the newSymId used in the new Case Exprs to the old Assumptions
@@ -622,9 +615,9 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                 (x:_) -> case x of
                     (_:_:_) -> let
                         -- Create Exprs representing constraint for each sub-Expr, i.e  [(x = 1 AND ..), (x = 2 AND ..)]
-                        assumsE = (cnf kv) <$> fst <$> x
+                        assumsE' = (cnf kv) <$> fst <$> x
                         -- note: binding here same as in createCaseExprs
-                        (upper, newMapping) = bindExprToNum (\num e -> implies kv newSymId num e True) assumsE
+                        (upper, newMapping) = bindExprToNum (\num e -> implies kv newSymId num e True) assumsE'
                         -- add PC restricting range of values for newSymId
                         lower = 1
                         newSymBound = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newSymId) lower) (mkLeIntExpr kv (Var newSymId) (upper - 1))) True
@@ -698,8 +691,8 @@ handleDaltPrimMatch s@(State {known_values = kv}) ng (dcon, params) (mexpr, assu
             True -> [] -- Bool DataCon, so no params
     in (apps, (newPCEmpty s) { new_pcs = [cond'] }, ng)
 
-handleDefMatches :: State t -> [(Alt, Matches)] -> Id -> [Alt] -> [NewPC t]
-handleDefMatches s@(State {known_values = kv}) ((alt, matches):_) bind alts
+handleDefMatches :: State t -> NameGen -> [(Alt, Matches)] -> Id -> [Alt] -> ([NewPC t], NameGen)
+handleDefMatches s@(State {known_values = kv, symbolic_ids = syms}) ng ((alt, matches):_) bind alts
     -- Only 1 match, no need to insert NonDet expr
     | (Alt Default aexpr) <- alt
     , (length (defaults matches) == 1)
@@ -709,31 +702,49 @@ handleDefMatches s@(State {known_values = kv}) ((alt, matches):_) bind alts
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
         in case unApp $ unsafeElimOuterCast mexpr of
-            (Data _):_ -> [NewPC {state = s', new_pcs = []}]
+            (Data _):_ -> ([NewPC {state = s', new_pcs = []}], ng)
             -- For all other matches: Add either ConsCond or AltCond False for each unmatched Alt
             _ -> let conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch alts)
-                 in [NewPC {state = s', new_pcs = conds}]
-    | (Alt Default aexpr) <- alt = 
+                 in ([NewPC {state = s', new_pcs = conds}], ng)
+    | (Alt Default aexpr) <- alt
+    , defs <- defaults matches =
         let
-            mexpr = mergeMatches kv matches -- combine all matches into 1 `NonDet` Expr
+            matchExprs = map fst defs
+            assums = map snd defs
+            altMatches = map altMatch alts
+            -- New Symbolic Id to branch on in the Case Exprs to be created for each Sub-Expr
+            (newSymId, ng') = freshId TyLitInt ng
+            syms' = HS.insert newSymId syms
+            mexpr = createCaseExpr newSymId matchExprs
+
+            -- mexpr = NonDet $ mkNonDetOpts kv defs -- combine all matches into 1 `NonDet` Expr
             binds = [(bind, mexpr)]
             aexpr' = liftCaseBinds binds aexpr
-            s' = s {curr_expr = CurrExpr Evaluate aexpr'}
-            conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch alts)
-            assums = assumes matches
-            conds' = concatMap (\assum ->
-                let wrappedConds = map (wrapPC assum) conds
-                in wrappedConds) assums
+            s' = s {curr_expr = CurrExpr Evaluate aexpr', symbolic_ids = syms'}
 
-            extConds = case assums of
-                [] -> []
-                _ -> let
-                        assumsE = (cnf kv) <$> assums
-                        cond = ExtCond (dnf kv assumsE) True
-                    in [cond]
-        in [NewPC {state = s', new_pcs = conds' ++ extConds}]
+            -- Create Exprs representing constraint for each match, i.e  [(x = 1 AND ..), (x = 2 AND ..)]
+            assumsE = (cnf kv) <$> assums
+            -- note: binding here same as in createCaseExpr
+            (upper, newMapping) = bindExprToNum (\num e -> implies kv newSymId num e True) assumsE
+            -- add PC restricting range of values for newSymId
+            lower = 1
+            newSymBound = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newSymId) lower) (mkLeIntExpr kv (Var newSymId) (upper - 1))) True
+
+            -- e.g. [[x != A, x != B], [x' != A, x' != B]]
+            conds = map (\matchExp -> (mapMaybe (liftSymDefAltPCs matchExp) altMatches)) matchExprs
+            -- e.g. [(n = 1 /\ n2 = 2, [x != A, x != B]), (n = 1 /\ n2 = 1,[x' != A, x' != B])]
+            conds' = zip assums conds
+            conds'' = concatMap (\(assum, cs) -> map (wrapPC assum) cs) conds'
+
+            choicesPC = createChoicesPC kv assumsE
+        in ([NewPC {state = s', new_pcs = newSymBound:(newMapping ++ conds'' ++ choicesPC)}], ng')
     | otherwise = error $ "Alt is not a Default: " ++ show alt
-handleDefMatches _ [] _ _ = []
+handleDefMatches _ ng [] _ _ = ([], ng)
+
+createChoicesPC :: KnownValues -> [Expr] -> [PathCond]
+createChoicesPC kv assumsE = case assumsE of
+    [] -> []
+    _ -> [ExtCond (dnf kv assumsE) True]
 
 -- When there are multiple Assumption-s in the list, order in which they are nested in the AssumePC matters.
 -- `getChoices` ensures the original order is preserved
@@ -751,17 +762,6 @@ getTypes (ar@(Var (Id n _)):es) eenv = case E.lookup n eenv of
     _ -> getTypes es eenv
 getTypes (_:es) eenv = getTypes es eenv
 getTypes [] _ = []
-
--- | For each (e@Expr, [Assumption]) pair in `Matches`, AND all `Assumptions` together to form new Assume-d Expr for e,
--- , and add it to a NonDet Expr.
--- e.g. given [(e1, [(Assume1, Assume2)]), (e2,[(Assume3)])]
--- return NonDet [Assume Nothing (App (App And Assume1) Assume2) e1, Assume Nothing Assume3 e2]
-mergeMatches :: KnownValues -> Matches -> Expr
-mergeMatches kv Matches { defaults = d } = NonDet $ mkNonDetOpts kv d
-
-mkNonDetOpts :: KnownValues -> [(Expr, [Assumption])] -> [Expr]
-mkNonDetOpts kv ((e, assum):xs) = (Assume Nothing (cnf kv assum) e):(mkNonDetOpts kv xs)
-mkNonDetOpts _ []               = []
 
 --------------------------------------------------------------------------------------
 
