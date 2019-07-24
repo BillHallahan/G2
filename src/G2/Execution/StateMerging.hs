@@ -193,13 +193,9 @@ mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed
     | (Just (E.Conc e1)) <- maybeE1
     , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ctxt e1 e2
     | (Just (E.Conc e1)) <- maybeE1
-    , (Just (E.Sym i)) <- maybeE2 =
-        let mergedExpr = createCaseExpr newId [e1, (Var i)]
-        in (ctxt, mergedExpr)
+    , (Just (E.Sym i)) <- maybeE2 = mergeExprInline ctxt e1 (Var i)
     | (Just (E.Sym i)) <- maybeE1
-    , (Just (E.Conc e2)) <- maybeE2 =
-        let mergedExpr = createCaseExpr newId [(Var i), e2]
-        in (ctxt, mergedExpr)
+    , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ctxt (Var i) e2
     | (Just (E.Sym i1)) <- maybeE1
     , (Just (E.Sym i2)) <- maybeE2
     , i1 == i2 = (ctxt, Var i1)
