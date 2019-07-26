@@ -32,14 +32,14 @@ import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
 
-stdReduce :: Solver solver => Sharing -> solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
-stdReduce sharing solver s b@(Bindings {name_gen = ng}) = do
-    (r, s', ng') <- stdReduce' sharing solver s ng
+stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
+stdReduce sharing solver simplifier s b@(Bindings {name_gen = ng}) = do
+    (r, s', ng') <- stdReduce' sharing solver simplifier s ng
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
-stdReduce' :: Solver solver => Sharing -> solver -> State t -> NameGen -> IO (Rule, [State t], NameGen)
-stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
+stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
+stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Var i  <- ce
     , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
@@ -48,7 +48,7 @@ stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i a <- ce = do
         let (r, xs, ng') = evalCase s ng e i a
-        xs' <- mapMaybeM (reduceNewPC solver) xs
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
@@ -57,8 +57,8 @@ stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
-stdReduce' _ solver s@(State { curr_expr = CurrExpr Return ce
-                             , exec_stack = stck }) ng
+stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
+                                 , exec_stack = stck }) ng
     | Prim Error _ <- ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
@@ -74,15 +74,15 @@ stdReduce' _ solver s@(State { curr_expr = CurrExpr Return ce
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
-        xs' <- mapMaybeM (reduceNewPC solver) xs
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
-        xs' <- mapMaybeM (reduceNewPC solver) xs
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Just (CurrExprFrame e, stck') <- frstck = do
         let (r, xs) = retCurrExpr s ce e stck'
-        xs' <- mapMaybeM (reduceNewPC solver) xs
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng)
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
@@ -95,8 +95,8 @@ data NewPC t = NewPC { state :: State t
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = NewPC { state = s, new_pcs = []}
 
-reduceNewPC :: Solver solver => solver -> NewPC t -> IO (Maybe (State t))
-reduceNewPC solver
+reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
+reduceNewPC solver simplifier
             (NewPC { state = s@(State { known_values = kv
                                       , path_conds = spc })
                    , new_pcs = pc })
@@ -105,14 +105,16 @@ reduceNewPC solver
         -- but incorrect type.
         -- We do not want to add these to the State
         -- This is a bit ugly, but not a huge deal, since the State already has PCExists
-        let pc' = filter (not . PC.isPCExists) pc
+        let pc' = concatMap (simplifyPC simplifier s) pc
+
+            pc'' = filter (not . PC.isPCExists) pc'
 
         -- Optimization
         -- We replace the path_conds with only those that are directly
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr (PC.insert kv) spc $ pc'
+        let new_pc = foldr (PC.insert kv) spc $ pc''
             s' = s { path_conds = new_pc}
 
         let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant kv pc new_pc

@@ -293,13 +293,13 @@ SomeReducer r1 <~? SomeReducer r2 = SomeReducer (r1 :<~? r2)
 (<~|) :: SomeReducer t -> SomeReducer t -> SomeReducer t
 SomeReducer r1 <~| SomeReducer r2 = SomeReducer (r1 :<~| r2)
 
-data StdRed con = StdRed Sharing con
+data StdRed solver simplifier = StdRed Sharing solver simplifier
 
-instance Solver con => Reducer (StdRed con) () t where
+instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simplifier) () t where
     initReducer _ _ = ()
 
-    redRules stdr@(StdRed share solver) _ s b = do
-        (r, s', b') <- stdReduce share solver s b
+    redRules stdr@(StdRed share solver simplifier) _ s b = do
+        (r, s', b') <- stdReduce share solver simplifier s b
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
 

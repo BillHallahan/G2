@@ -92,6 +92,7 @@ library
 
                        , G2.Solver
                        , G2.Solver.Interface
+                       , G2.Solver.Simplifier
                        , G2.Solver.Solver
 
                        , G2.QuasiQuotes.Internals.G2Rep
