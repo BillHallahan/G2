@@ -10,10 +10,12 @@ module G2.Execution.MergingHelpers
   ) where
 
 import G2.Language
+import G2.Execution.StateMerging
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
 import qualified Data.Map as M
+import qualified Data.List as L
 import qualified Data.HashSet as HS
 
 -- | Removes any Case-s in the expr_env and curr_expr by selecting one choice each time
@@ -50,41 +52,47 @@ subExpr' m tc is v@(Var i@(Id n _))
     | otherwise = v
 subExpr' m tc is e = modifyChildren (subExpr' m tc is) e
 
--- | Given a Case Expr created by merging exprs, replaces it with a symbolic variable. Encodes the choices in the NonDet Expr as Path Constraints
+-- | Given a Case Expr created by merging exprs, replaces it with a symbolic variable. Encodes the choices in the Case Expr as Path Constraints
 -- Called from evalApp when App center is Prim
 replaceCaseWSym :: State t -> NameGen -> Expr -> (State t, NameGen, Expr)
-replaceCaseWSym s@(State {expr_env = eenv, path_conds = pc, known_values = kv, symbolic_ids = syms}) ng (Case (Var i) bindI alts@(a:_)) =
+replaceCaseWSym s@(State {path_conds = pc}) ng e =
+    let ((s', ng'), (e', newPCs)) = replaceCaseWSym' (s, ng) e
+        pc' = foldr PC.insert pc newPCs
+    in (s' {path_conds = pc'}, ng', e')
+
+-- e.g. given App A (Case x of 1 -> App B (Case x' of 1 -> a, 2-> b), 2 -> App B c)
+-- return App A n, with new PathConds:
+-- [x = 1 => n = App B n', x = 2 => n = App B c, x = 1 => x' = 1 => n' = a, x = 1 => x' = 2 => n' = b]
+replaceCaseWSym' :: (State t, NameGen) -> Expr -> ((State t, NameGen), (Expr, [PathCond]))
+replaceCaseWSym' (s@(State {known_values = kv}), ng) (Case (Var i) _ alts@(a:_)) =
     let (Alt _ altE) = a
         newSymT = returnType altE
         (newSym, ng') = freshId newSymT ng -- create new symbolic variable
-        eenv' = E.insertSymbolic (idName newSym) newSym eenv
-        syms' = HS.insert newSym syms
 
-        pcs = concatMap (createPCs kv i bindI newSym) alts
-        pc' = foldr PC.insert pc pcs
+        -- No need to bind Id in Case Expr to `altEs` since it must have been generated only when merging states
+        altEs = map (\(Alt (LitAlt _) e) -> e) alts
+        ((s', ng''), res) = L.mapAccumL replaceCaseWSym' (s, ng') altEs
+        (es, pcsL) = L.unzip res
 
-    in (s {expr_env = eenv', path_conds = pc', symbolic_ids = syms'}, ng', Var newSym)
-replaceCaseWSym s ng (App e1 e2) =
-    let (s', ng', e1') = replaceCaseWSym s ng e1
-        (s'', ng'', e2') = replaceCaseWSym s' ng' e2
-    in (s'', ng'', (App e1' e2'))
-replaceCaseWSym s ng e = (s, ng, e)
+        -- for each modified Alt Expr, add Path Cond
+        es' = map (mkEqPrimExpr newSymT kv (Var newSym)) es
+        (_, newPCs) = bindExprToNum (\num e -> AssumePC i (fromInteger num) (ExtCond e True)) es'
 
--- For each Alt, add Path Constraints equating `newSymId` to the Alt Expr, enclosed in an AssumePC based on the matched Lit
-createPCs :: KnownValues -> Id -> Id -> Id -> Alt -> [PathCond]
-createPCs kv i bindId newSymId (Alt match e)
-    | (LitAlt l@(LitInt val)) <- match =
-        let bind = [(bindId, Lit l)]
-            e' = liftCaseBinds bind e
-            val' = fromInteger val
-        in case e' of
-            (Case (Var i') bindI' as) ->
-                let newPCs = concatMap (createPCs kv i' bindI' newSymId) as
-                in map (\pc -> AssumePC i val' pc) newPCs
-            _ ->
-                let pc = AssumePC i val' $ ExtCond (createEqExpr kv newSymId e') True
-                in [pc]
-    | otherwise = error $ "Unable to pattern match Alt: " ++ show (Alt match e)
+        -- for the PathConds returned from replaceCaseWSym', wrap them in AssumePCs
+        pcsL' = concat . snd $ bindExprToNum (\num pcs -> map (\pc -> AssumePC i (fromInteger num) pc) pcs) pcsL
+        -- we assume PathCond restricting values of `i` has already been added before hand when creating the Case Expr
+
+        eenv' = expr_env s'
+        eenv'' = E.insertSymbolic (idName newSym) newSym eenv'
+        syms' = symbolic_ids s'
+        syms'' = HS.insert newSym syms'
+
+    in ((s' {expr_env = eenv'', symbolic_ids = syms''}, ng''), (Var newSym, newPCs ++ pcsL'))
+replaceCaseWSym' (s, ng) (App e1 e2) =
+    let ((s', ng'), (e1', newPCs1)) = replaceCaseWSym' (s, ng) e1
+        ((s'', ng''), (e2', newPCs2)) = replaceCaseWSym' (s', ng') e2
+    in ((s'', ng''), ((App e1' e2'), newPCs1 ++ newPCs2))
+replaceCaseWSym' (s, ng) e = ((s, ng), (e, []))
 
 getAssumption :: Expr -> (Id, Int)
 getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, fromInteger val)

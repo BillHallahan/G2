@@ -64,8 +64,6 @@ import Data.Maybe
 import qualified Data.Text as T
 
 import System.Timeout
-import System.Directory
-import G2.Lib.Printers
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text

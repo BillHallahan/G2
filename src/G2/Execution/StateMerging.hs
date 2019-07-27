@@ -378,6 +378,7 @@ createCaseExpr _ [] = error "No exprs"
 bindExprToNum :: (Integer -> a -> b) -> [a] -> (Integer, [b])
 bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
 
+
 mergeSymbolicIds :: Context t -> SymbolicIds
 mergeSymbolicIds (Context { s1_ = (State {symbolic_ids = syms1}), s2_ = (State {symbolic_ids = syms2})
                           , newSyms_ = syms3, newId_ = newId}) =
