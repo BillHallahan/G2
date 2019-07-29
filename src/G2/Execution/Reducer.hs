@@ -58,6 +58,7 @@ module G2.Execution.Reducer ( Reducer (..)
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import G2.Language
+import qualified G2.Language.Monad as MD
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
@@ -252,16 +253,6 @@ updateWithAllRC r1 r2 srv =
     in
     map (uncurry RC) $ zip rv1' rv2'
 
--- Applies function to first (State t, rv2), gets new Bindings and recursively applies function to rest of array using new Bindings
-mapMAccumB :: (Bindings -> (State t, rv2) -> IO (Bindings, (ReducerRes, [(State t, RC rv rv2)], r))) -> Bindings -> [(State t, rv2)] 
-        -> IO (Bindings, [(ReducerRes, [(State t, RC rv rv2)], r)])
-mapMAccumB _ b [] = do
-    return (b, [])
-mapMAccumB f b (x:xs) = do
-    (b', res) <- f b x
-    (b'', res2) <- mapMAccumB f b' xs
-    return $ (b'', res:res2)
-
 redRulesToStatesAux :: Reducer r rv t => r -> rv -> Bindings -> (State t, rv2) -> IO (Bindings, (ReducerRes, [(State t, RC rv rv2)], r))
 redRulesToStatesAux r rv1 b (is, rv2) = do
         (rr_, is', b', r') <- redRules r rv1 is b
@@ -270,7 +261,7 @@ redRulesToStatesAux r rv1 b (is, rv2) = do
 redRulesToStates :: Reducer r rv t => r -> rv -> [(State t, rv2)] -> Bindings -> IO (ReducerRes, [(State t, RC rv rv2)], Bindings, r)
 redRulesToStates r rv1 s b = do
     let redRulesToStatesAux' = redRulesToStatesAux r rv1
-    (b', rs) <- mapMAccumB redRulesToStatesAux' b s
+    (b', rs) <- MD.mapMAccumB redRulesToStatesAux' b s
 
     let (rr, s', r') = L.unzip3 rs
 

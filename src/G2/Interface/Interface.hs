@@ -31,6 +31,7 @@ module G2.Interface.Interface ( doTimeout
 import G2.Config.Config
 
 import G2.Language
+import G2.Language.Monad
 
 import G2.Initialization.Interface
 import G2.Initialization.KnownValues
@@ -140,6 +141,8 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
     , symbolic_ids = is
     , exec_stack = Stack.empty
     , model = M.empty
+    , adt_int_maps = M.empty
+    , cast_type = M.empty
     , known_values = kv'
     , rules = []
     , num_steps = 0
@@ -338,9 +341,9 @@ runG2Post :: ( Named t
              solver -> simplifier -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
     (exec_states, bindings') <- runExecution red hal ord is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
+    (bindings'', sol_states) <- mapMAccumB (runG2Solving solver simplifier) bindings' exec_states
 
-    return (catMaybes sol_states, bindings')
+    return (catMaybes sol_states, bindings'')
 
 runG2ThroughExecution ::
     ( Named t
@@ -359,34 +362,34 @@ runG2Solving :: ( Named t
                 , ASTContainer t Type
                 , Solver solver
                 , Simplifier simplifier) =>
-                solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
+                solver -> simplifier -> Bindings -> State t -> IO (Bindings, Maybe (ExecRes t))
 runG2Solving solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
         (_, m) <- solve solver s bindings (symbolic_ids s) (path_conds s)
         case m of
             Just m' -> do
-                let m'' = reverseSimplification simplifier s m'
+                let (bindings', m'') = reverseSimplification simplifier s bindings m'
 
                 let s' = s { model = m'' }
 
-                let (es, e, ais) = subModel s' bindings
+                let (es, e, ais) = subModel s' bindings'
                     sm = ExecRes { final_state = s'
                                  , conc_args = es
                                  , conc_out = e
                                  , violated = ais}
 
-                let sm' = runPostprocessing bindings sm
+                let sm' = runPostprocessing bindings' sm
 
                 let sm'' = ExecRes { final_state = final_state sm'
-                                   , conc_args = fixed_inputs bindings ++ conc_args sm'
+                                   , conc_args = fixed_inputs bindings' ++ conc_args sm'
                                    , conc_out = evalPrims kv (conc_out sm')
                                    , violated = evalPrims kv (violated sm')}
                 
-                return (Just sm'')
+                return (bindings', Just sm'')
             Nothing -> do
-              return Nothing
+              return (bindings, Nothing)
 
-    | otherwise = return Nothing
+    | otherwise = return (bindings, Nothing)
 
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
@@ -401,6 +404,6 @@ runG2 :: ( Named t
          solver -> simplifier -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier pns is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord pns is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
+    (bindings'', sol_states) <- mapMAccumB (runG2Solving solver simplifier) bindings' exec_states
 
-    return (catMaybes sol_states, bindings')
+    return (catMaybes sol_states, bindings'')

@@ -17,7 +17,6 @@ import G2.Solver.Solver
 
 import Data.List
 import qualified Data.Map as M
-import qualified Data.Bimap as B
 import Data.Maybe
 import Data.Tuple
 
@@ -45,17 +44,6 @@ instance TrSolver solver => TrSolver (ADTNumericalSolver solver) where
         return (r, m, ADTNumericalSolver avf sol')
     closeTr (ADTNumericalSolver _ s) = closeTr s
 
--- The Data Constructors of each ADT appearing in the PathConds are mapped to the range [0,`upperB`), where
--- `upperB` equals the number of Data Constructors for that type
-data ADTIntMap = ADTIntMap { upperB :: Integer
-                           , mapping :: B.Bimap DataCon Integer } deriving (Show)
-
-lookupInt :: DataCon -> ADTIntMap -> Maybe Integer
-lookupInt dc ADTIntMap { mapping = m } = B.lookup dc m
-
-lookupDC :: Integer -> ADTIntMap -> Maybe DataCon
-lookupDC n ADTIntMap { mapping = m } = B.lookupR n m
-
 checkConsistency :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
 checkConsistency solver s@(State {known_values = kv}) pc
     | PC.null pc = return (SAT, solver)
@@ -73,19 +61,19 @@ solve' avf sol s@(State {known_values = kv}) b is pc = do
         pcCastTyp = M.fromList $ mapMaybe pcVarNameType pc'
         -- Convert any ConsConds to ExtConds by mapping the respective DataCon to an Int
         -- Also lookup any constraints from the expr_env and add them
-        (pc'', typADTIntMap) = toNumericalPCs s pc'
+        (pc'', adtIntMaps) = toNumericalPCs s pc'
         -- Use other solvers to solve for Ids that have primitive types and new Ids added by converting ConsCond-s to ExtConds
         pcIds = (concatMap PC.varIdsInPC pc'') ++ (filter (not . isADT . (\(Id _ t) -> t)) is)
         is' = nub is
     rm <- solveTr sol s b pcIds (PC.fromList kv pc'')
     case rm of
         (SAT, Just m, sol') ->
-            let (_, m') = foldr (solve'' avf s pcCastTyp typADTIntMap) (b,m) is'
+            let (_, m') = foldr (solve'' avf s pcCastTyp adtIntMaps) (b,m) is'
             in return (SAT, Just $ liftCasts m', sol')
         _ -> return rm
 
-solve'' :: ArbValueFunc -> State t -> (M.Map Name Type) -> (M.Map Type ADTIntMap) -> Id -> (Bindings, Model) -> (Bindings, Model)
-solve'' avf (State {expr_env = eenv, type_env = tenv}) pcCastTyp typADTIntMap (Id n t) (b, m)
+solve'' :: ArbValueFunc -> State t -> (M.Map Name Type) -> (M.Map Type DCNum) -> Id -> (Bindings, Model) -> (Bindings, Model)
+solve'' avf (State {expr_env = eenv, type_env = tenv}) pcCastTyp adtIntMaps (Id n t) (b, m)
     | M.member n m 
     , (Just tCast) <- M.lookup n pcCastTyp -- Type it was cast to
     , isADT tCast = -- `n` is not of a primitive type, need to map back to DataCon
@@ -93,8 +81,8 @@ solve'' avf (State {expr_env = eenv, type_env = tenv}) pcCastTyp typADTIntMap (I
             num = case val of
                 (Lit (LitInt x)) -> x
                 _ -> error "Model should only return LitInts for non-primitive type"
-            adtIntMap = fromJust $ M.lookup tCast typADTIntMap
-            dc = Data $ fromJust $ lookupDC num adtIntMap 
+            dcNumMap = fromJust $ M.lookup tCast adtIntMaps
+            dc = Data $ fromJust $ lookupDC num dcNumMap
 
             dc' = if tCast /= t
                 then simplifyCasts . (castReturnType t) $ dc -- Apply the cast type back
@@ -126,67 +114,67 @@ solve'' avf (State {expr_env = eenv, type_env = tenv}) pcCastTyp typADTIntMap (I
         in (b {arb_value_gen = av}, M.union m' m)
     | otherwise = error $ "Unsolved name: " ++ show n
 
-toNumericalPCs :: State t -> [PathCond] -> ([PathCond], M.Map Type ADTIntMap)
+toNumericalPCs :: State t -> [PathCond] -> ([PathCond], M.Map Type DCNum)
 toNumericalPCs s@(State {known_values = kv, type_env = tenv, expr_env = eenv}) pc =
-    let -- `typADTIntMap` can be thought of as a Map between a Type and [(DataCons, Int)] pairings for that type
-        typADTIntMap = M.empty
-        ((typADTIntMap', extCondIds), pc') = mapAccumR (toExtCond s) (typADTIntMap, []) pc
+    let -- `adtIntMaps` can be thought of as a Map between a Type and [(DataCons, Int)] pairings for that type
+        adtIntMaps = M.empty
+        ((adtIntMaps', extCondIds), pc') = mapAccumR (toExtCond s) (adtIntMaps, []) pc
         -- Add constraints representing upper and lower bound values for each Id in pcIds', depending on the range for its type
-        valLims = (constrainDCVals kv typADTIntMap') <$> extCondIds
+        valLims = (constrainDCVals kv adtIntMaps') <$> extCondIds
         -- Add any constraints from expr_env
-        eenvVals = mapMaybe (addEEnvVals kv tenv eenv typADTIntMap') extCondIds
-    in (eenvVals ++ valLims ++ pc', typADTIntMap')
+        eenvVals = mapMaybe (addEEnvVals kv tenv eenv adtIntMaps') extCondIds
+    in (eenvVals ++ valLims ++ pc', adtIntMaps')
 
-toExtCond :: State t -> (M.Map Type ADTIntMap, [(Id, Id)]) -> PathCond -> ((M.Map Type ADTIntMap, [(Id, Id)]), PathCond)
-toExtCond _ (typADTIntMap, pcIds) p@(AltCond _ _ _) = ((typADTIntMap, pcIds), p)
-toExtCond _ (typADTIntMap, pcIds) p@(ExtCond _ _) = ((typADTIntMap, pcIds), p)
-toExtCond (State {type_env = tenv, known_values = kv}) (typADTIntMap, pcIds) (ConsCond dc@(DataCon _ _) (Var i@(Id n t)) bool) =
+toExtCond :: State t -> (M.Map Type DCNum, [(Id, Id)]) -> PathCond -> ((M.Map Type DCNum, [(Id, Id)]), PathCond)
+toExtCond _ (adtIntMaps, pcIds) p@(AltCond _ _ _) = ((adtIntMaps, pcIds), p)
+toExtCond _ (adtIntMaps, pcIds) p@(ExtCond _ _) = ((adtIntMaps, pcIds), p)
+toExtCond (State {type_env = tenv, known_values = kv}) (adtIntMaps, pcIds) (ConsCond dc@(DataCon _ _) (Var i@(Id n t)) bool) =
     -- Convert `dc` to an Int by looking it up in `dcIntMap`. If `dc` not in `dcIntMap`, lookup the corresponding AlgDataTy
-    -- , establish a mapping between its DataCons and Ints, and add to `typADTIntMap`, before returning the respective Int.
-    let (typeADTIntMap'', maybeNum) = case (M.lookup t typADTIntMap) of
-            Just adtIntMap -> (typADTIntMap, lookupInt dc adtIntMap)
+    -- , establish a mapping between its DataCons and Ints, and add to `adtIntMaps`, before returning the respective Int.
+    let (adtIntMaps'', maybeNum) = case (M.lookup t adtIntMaps) of
+            Just dcNumMap -> (adtIntMaps, lookupInt dc dcNumMap)
             Nothing ->
                 let maybeAdt = case getCastedAlgDataTy t tenv of
                         Just (adt, _) -> Just adt
                         Nothing -> Nothing
-                    maybeAdtIntMap = maybe Nothing mkAdtIntMap maybeAdt
-                    num = maybe Nothing (lookupInt dc) maybeAdtIntMap
-                    typADTIntMap' = maybe typADTIntMap (insertFlipped t typADTIntMap) maybeAdtIntMap
-                in (typADTIntMap', num)
+                    maybeDcNumMap = maybe Nothing mkDCNumMap maybeAdt
+                    num = maybe Nothing (lookupInt dc) maybeDcNumMap
+                    adtIntMaps' = maybe adtIntMaps (insertFlipped t adtIntMaps) maybeDcNumMap
+                in (adtIntMaps', num)
         i' = Id n TyLitInt -- Keep same name to map back to old Id if needed
         e' = Var i'
     in case maybeNum of
-        Just num -> ((typeADTIntMap'', (i, i'):pcIds), ExtCond (mkEqIntExpr kv e' (toInteger num)) bool)
+        Just num -> ((adtIntMaps'', (i, i'):pcIds), ExtCond (mkEqIntExpr kv e' (toInteger num)) bool)
         Nothing -> error $ "Could not map DataCon in ConsCond to Int: " ++ (show dc)
-toExtCond _ (typADTIntMap, pcIds) p = ((typADTIntMap, pcIds), p)
+toExtCond _ (adtIntMaps, pcIds) p = ((adtIntMaps, pcIds), p)
 
 -- Establish mapping between Data Constructors of an ADT and Integers
-mkAdtIntMap :: AlgDataTy -> Maybe ADTIntMap
-mkAdtIntMap (DataTyCon { data_cons = dcs }) =
+mkDCNumMap :: AlgDataTy -> Maybe DCNum
+mkDCNumMap (DataTyCon { data_cons = dcs }) =
     let (num, pairings) = mapAccumR (\count dc -> (count + 1, (dc, count))) 0 dcs
-    in Just $ ADTIntMap {upperB = num - 1, mapping = B.fromList pairings}
-mkAdtIntMap _ = Nothing
+    in Just $ DCNum {upperB = num - 1, dc2Int = M.fromList pairings, int2Dc = M.fromList (swap <$> pairings)}
+mkDCNumMap _ = Nothing
 
 insertFlipped :: Ord a => a -> M.Map a b -> b -> M.Map a b
 insertFlipped k m val = M.insert k val m
 
 -- Given an Id with type `t` whose Data Constructors are mapped to [lower, upper], constrain Id to
 -- lower <= Id <= upper
-constrainDCVals :: KnownValues -> M.Map Type ADTIntMap -> (Id, Id) -> PathCond
+constrainDCVals :: KnownValues -> M.Map Type DCNum -> (Id, Id) -> PathCond
 constrainDCVals kv m ((Id _ t), new) =
     let lower = 0
-        adtIntMap = fromJust $ M.lookup t m
-        upper = upperB adtIntMap
+        dcNumMap = fromJust $ M.lookup t m
+        upper = upperB dcNumMap
     in ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var new) lower) (mkLeIntExpr kv (Var new) upper)) True
 
-addEEnvVals :: KnownValues -> TypeEnv -> ExprEnv -> M.Map Type ADTIntMap -> (Id, Id) -> Maybe PathCond
-addEEnvVals kv tenv eenv typADTIntMap (old, new) =
+addEEnvVals :: KnownValues -> TypeEnv -> ExprEnv -> M.Map Type DCNum -> (Id, Id) -> Maybe PathCond
+addEEnvVals kv tenv eenv adtIntMaps (old, new) =
     let (Id n' t') = (\(Id n t) -> Id n (typeStripCastType tenv t)) old
     in case E.lookup n' eenv of
         Just e
             | Data spec_dc:_ <- unApp e ->
-                let adtIntMap = fromJust $ M.lookup t' typADTIntMap
-                    num = fromJust $ lookupInt spec_dc adtIntMap
+                let dcNumMap = fromJust $ M.lookup t' adtIntMaps
+                    num = fromJust $ lookupInt spec_dc dcNumMap
                 in Just $ ExtCond (mkEqIntExpr kv (Var new) (toInteger num)) True
         _ -> Nothing
 

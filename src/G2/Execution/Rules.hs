@@ -31,6 +31,7 @@ import G2.Solver hiding (Assert)
 
 import Control.Monad.Extra
 import Data.Maybe
+import qualified Data.List as L
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce sharing solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -105,9 +106,9 @@ reduceNewPC solver simplifier
         -- but incorrect type.
         -- We do not want to add these to the State
         -- This is a bit ugly, but not a huge deal, since the State already has PCExists
-        let pc' = concatMap (simplifyPC simplifier s) pc
+        let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
 
-            pc'' = filter (not . PC.isPCExists) pc'
+            pc'' = filter (not . PC.isPCExists) $ concat pc'
 
         -- Optimization
         -- We replace the path_conds with only those that are directly
@@ -115,14 +116,14 @@ reduceNewPC solver simplifier
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
         let new_pc = foldr (PC.insert kv) spc $ pc''
-            s' = s { path_conds = new_pc}
+            s'' = s' {path_conds = new_pc}
 
         let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant kv pc new_pc
 
-        res <- check solver s rel_pc
+        res <- check solver s' rel_pc
 
         if res == SAT then
-            return $ Just s'
+            return $ Just s''
         else
             return Nothing
     | otherwise = return $ Just s
