@@ -2,7 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Solver.Simplifier ( Simplifier (..)
-                            , IdSimplifir (..)) where
+                            , IdSimplifir (..)
+                            , ADTSimplifir (..)) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -100,8 +101,8 @@ fromNum' eenv tenv adtIntMaps castTyp avf b n val
                         Nothing -> swap $ avf t' tenv av_) (arb_value_gen b) $ zip ns ts''
 
             dc'' = mkApp $ dc' : map Type ts2 ++ vs
-        in (b {arb_value_gen = av}, dc'')
-    | otherwise = (b, val) -- Primitive value, keep the current value in model
+        in (b {arb_value_gen = av}, liftCasts dc'')
+    | otherwise = (b, val) -- Primitive value, arbitrarily generated value, or value from ExprEnv. Keep current value
 
 -- Lookup ADT and establish mapping between Data Constructors of an ADT and Integers
 mkDCNumMap :: TypeEnv -> Type -> Maybe DCNum

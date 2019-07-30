@@ -292,7 +292,7 @@ runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
 runG2WithConfig :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig state config bindings = do
     SomeSolver solver <- initSolver config
-    let simplifier = IdSimplifier
+    let simplifier = ADTSimplifier arbValue
 
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
