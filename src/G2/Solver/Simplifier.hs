@@ -27,6 +27,7 @@ instance Simplifier IdSimplifir where
     simplifyPC _ s pc = (s, [pc])
     reverseSimplification _ _ b m = (b, m)
 
+-- | A simplifier that converts any ConsConds to ExtConds by mapping the Data Constructor to an Integer
 data ADTSimplifir = ADTSimplifier ArbValueFunc
 
 instance Simplifier ADTSimplifir where
@@ -47,7 +48,7 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
 
             isMember = M.member t adtIntMaps
             -- Convert `dc` to an Int by looking it up in the respective `dcNumMap`. If not in `dcNumMap`, lookup the corresponding AlgDataTy
-            -- , establish a mapping between its DataCons and Ints, and add to `ADTIntMaps`, before returning the respective Int.
+            -- , establish a mapping between its DataCons and Ints, and add to `adtTIntMaps`, before returning the respective Int.
             (adtIntMaps'', maybeNum) = case (M.lookup t adtIntMaps) of
                 Just dcNumMap -> (adtIntMaps, lookupInt dc dcNumMap)
                 Nothing ->
@@ -56,13 +57,13 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
                         adtIntMaps' = maybe adtIntMaps (insertFlipped t adtIntMaps) maybeDCNumMap
                     in (adtIntMaps', num)
 
+            numericalPC = case maybeNum of
+                Just num -> ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) bool
+                Nothing -> error $ "Could not map DataCon in ConsCond to Int: " ++ (show dc)
             -- Add constraint representing upper and lower bound values for Id in PathCond, depending on the range for its type
             numBoundPC = case isMember of
                 True -> [] -- ADT was already part of map, which means PC representing bounds must have been added already
                 False -> (constrainDCVals kv adtIntMaps'') <$> [(t, Id n TyLitInt)] -- Keep same name to map back to old Id if needed
-            numericalPC = case maybeNum of
-                Just num -> ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) bool
-                Nothing -> error $ "Could not map DataCon in ConsCond to Int: " ++ (show dc)
 
         in (s {adt_int_maps = adtIntMaps'', cast_type = castTyp'}, numericalPC:numBoundPC)
     | otherwise = (s, [p])
@@ -75,7 +76,7 @@ fromNum (ADTSimplifier avf) (State {adt_int_maps = adtIntMaps
 
 fromNum' :: E.ExprEnv -> TypeEnv -> ADTIntMaps -> M.Map Name (Type, Type) -> ArbValueFunc -> Bindings -> Name -> Expr -> (Bindings, Expr)
 fromNum' eenv tenv adtIntMaps castTyp avf b n val
-    | Just (t, tCast) <- M.lookup n castTyp -- Original type, type it was cast to
+    | Just (t, tCast) <- M.lookup n castTyp -- Tuple representing (original type, type it was cast to)
     , isADT tCast = -- `n` is not of a primitive type, need to map back to DataCon
         let num = case val of
                 (Lit (LitInt x)) -> x
@@ -102,7 +103,7 @@ fromNum' eenv tenv adtIntMaps castTyp avf b n val
 
             dc'' = mkApp $ dc' : map Type ts2 ++ vs
         in (b {arb_value_gen = av}, liftCasts dc'')
-    | otherwise = (b, val) -- Primitive value, arbitrarily generated value, or value from ExprEnv. Keep current value
+    | otherwise = (b, val) -- Either primitive value, arbitrary generated value, or value from ExprEnv. Keep current value
 
 -- Lookup ADT and establish mapping between Data Constructors of an ADT and Integers
 mkDCNumMap :: TypeEnv -> Type -> Maybe DCNum

@@ -111,7 +111,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
                                                        , annotations = annm} }
 
     SomeSolver solver <- initSolver config
-    let simplifier = IdSimplifier
+    let simplifier = ADTSimplifier arbValue
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not
