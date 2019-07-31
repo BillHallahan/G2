@@ -42,19 +42,23 @@ instance TrSolver solver => TrSolver (ADTNumericalSolver solver) where
     closeTr (ADTNumericalSolver _ s) = closeTr s
 
 checkConsistency :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
-checkConsistency solver s pc
+checkConsistency solver s@(State {known_values = kv, cast_type = castType, adt_int_maps = adtIntMaps, type_env = tenv, expr_env = eenv}) pc
     | PC.null pc = return (SAT, solver)
-    | otherwise = checkTr solver s pc
+    | otherwise = do
+        let pcN = PC.pcNames pc
+            eenvPCs = mapMaybe (addEEnvVals kv eenv castType adtIntMaps) pcN
+            pc' = foldr (PC.insert kv) pc $ eenvPCs
+        checkTr solver s pc'
 
 solve' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
 solve' avf sol s@(State {known_values = kv, cast_type = castType, adt_int_maps = adtIntMaps, type_env = tenv, expr_env = eenv}) b is pc = do
     -- split into Ids that need to be solved further by solvers, and Ids representing ADTs with no related PathConds
     let (rest, pcIds) = partition (f castType eenv) is
-        -- eenvPCs = mapMaybe (addEEnvVals kv eenv castType adtIntMaps) pcIds
-        -- pc' = foldr (PC.insert kv) pc $ eenvPCs
+        pcN = PC.pcNames pc
+        eenvPCs = mapMaybe (addEEnvVals kv eenv castType adtIntMaps) pcN
+        pc' = foldr (PC.insert kv) pc $ eenvPCs
         pcIdsPrim = map (\i@(Id n t) -> if (isADT t) then (Id n TyLitInt) else i) pcIds
-    rm <- solveTr sol s b pcIdsPrim pc
-    -- rm <- solveTr sol s b pcIdsPrim pc'
+    rm <- solveTr sol s b pcIdsPrim pc'
     case rm of
         (SAT, Just m, sol') -> do
             let (_, restM) = mapAccumL (genArbValue avf tenv eenv) b rest
@@ -80,15 +84,15 @@ genArbValue avf tenv eenv b (Id n t)
 --- Misc Helper Functions ---
 
 -- Add any constraints from the ExprEnv
-addEEnvVals :: KnownValues -> ExprEnv -> M.Map Name (Type, Type) -> ADTIntMaps -> Id -> Maybe PathCond
-addEEnvVals kv eenv castType adtIntMaps i@(Id n _) =
+addEEnvVals :: KnownValues -> ExprEnv -> M.Map Name (Type, Type) -> ADTIntMaps -> Name -> Maybe PathCond
+addEEnvVals kv eenv castType adtIntMaps n =
     let (_, newTyp) = fromJust $ M.lookup n castType
     in case E.lookup n eenv of
         Just e
             | Data (DataCon dcN _):_ <- unApp e ->
                 let dcNumMap = fromJust $ M.lookup newTyp adtIntMaps
                     num = fromJust $ lookupInt dcN dcNumMap
-                in Just $ ExtCond (mkEqIntExpr kv (Var i) (toInteger num)) True
+                in Just $ ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) True
         _ -> Nothing
 
 isADT :: Type -> Bool

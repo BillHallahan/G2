@@ -430,8 +430,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
                  -- It is VERY important that we insert a PCExists with the mexpr_id
                  -- This forces reduceNewPC to check that the concretized data constructor does
                  -- not violate any path constraints from default cases. 
-                 -- ,  new_pcs = [PCExists mexpr_id]
-                 ,  new_pcs = [PCExists mexpr_id, newPC]
+                 ,  new_pcs = [PCExists mexpr_id]
                  }, ngen')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
@@ -470,7 +469,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
 
     -- concretizes the mexpr to have same form as the DataCon specified
     eenv'' = E.insert mexpr_n dcon''' eenv' 
-    newPC = ConsCond dcon (Var mexpr_id) True
+    -- newPC = ConsCond dcon (Var mexpr_id) True
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, (Var mexpr_id))]

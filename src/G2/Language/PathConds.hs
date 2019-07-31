@@ -20,7 +20,8 @@ module G2.Language.PathConds ( PathCond (..)
                                        , scc
                                        , varIdsInPC
                                        , toList
-                                       , isPCExists) where
+                                       , isPCExists
+                                       , pcNames ) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -153,6 +154,8 @@ relatedSets' kv pc ns =
           s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []
 
+pcNames :: PathConds -> [Name]
+pcNames pc = catMaybes $ M.keys $ toMap pc
 
 varIdsInPC :: PathCond -> [Id]
 -- [AltCond]
