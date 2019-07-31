@@ -50,10 +50,11 @@ solve' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> Path
 solve' avf sol s@(State {known_values = kv, cast_type = castType, adt_int_maps = adtIntMaps, type_env = tenv, expr_env = eenv}) b is pc = do
     -- split into Ids that need to be solved further by solvers, and Ids representing ADTs with no related PathConds
     let (rest, pcIds) = partition (f castType eenv) is
-        eenvPCs = mapMaybe (addEEnvVals kv eenv castType adtIntMaps) pcIds
-        pc' = foldr (PC.insert kv) pc $ eenvPCs
+        -- eenvPCs = mapMaybe (addEEnvVals kv eenv castType adtIntMaps) pcIds
+        -- pc' = foldr (PC.insert kv) pc $ eenvPCs
         pcIdsPrim = map (\i@(Id n t) -> if (isADT t) then (Id n TyLitInt) else i) pcIds
-    rm <- solveTr sol s b pcIdsPrim pc'
+    rm <- solveTr sol s b pcIdsPrim pc
+    -- rm <- solveTr sol s b pcIdsPrim pc'
     case rm of
         (SAT, Just m, sol') -> do
             let (_, restM) = mapAccumL (genArbValue avf tenv eenv) b rest
@@ -84,9 +85,9 @@ addEEnvVals kv eenv castType adtIntMaps i@(Id n _) =
     let (_, newTyp) = fromJust $ M.lookup n castType
     in case E.lookup n eenv of
         Just e
-            | Data spec_dc:_ <- unApp e ->
+            | Data (DataCon dcN _):_ <- unApp e ->
                 let dcNumMap = fromJust $ M.lookup newTyp adtIntMaps
-                    num = fromJust $ lookupInt spec_dc dcNumMap
+                    num = fromJust $ lookupInt dcN dcNumMap
                 in Just $ ExtCond (mkEqIntExpr kv (Var i) (toInteger num)) True
         _ -> Nothing
 

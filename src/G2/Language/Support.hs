@@ -130,11 +130,11 @@ type ADTIntMaps = M.Map Type DCNum
 -- The Data Constructors of each ADT appearing in the PathConds are mapped to the range [0,`upperB`), where
 -- `upperB` equals the number of Data Constructors for that type
 data DCNum = DCNum { upperB :: Integer
-                   , dc2Int :: M.Map DataCon Integer
+                   , dc2Int :: M.Map Name Integer
                    , int2Dc :: M.Map Integer DataCon } deriving (Show, Eq, Read, Typeable, Data)
 
-lookupInt :: DataCon -> DCNum -> Maybe Integer
-lookupInt dc DCNum { dc2Int = m } = M.lookup dc m
+lookupInt :: Name -> DCNum -> Maybe Integer
+lookupInt n DCNum { dc2Int = m } = M.lookup n m
 
 lookupDC :: Integer -> DCNum -> Maybe DataCon
 lookupDC n DCNum { int2Dc = m } = M.lookup n m

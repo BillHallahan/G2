@@ -40,32 +40,34 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
                       , known_values = kv
                       , type_env = tenv}) p
     | p' <- unsafeElimCast p
-    , (ConsCond dc@(DataCon _ _) (Var (Id n t)) bool) <- p' =
+    , (ConsCond dc@(DataCon dcN _) (Var (Id n t)) bool) <- p' =
         let ogTyp = fromJust . pcVarType $ p
             -- Store type it is cast to (if any), else original type
+            isMember = M.member n castTyp
             pcCastTyp = fromJust . pcVarType $ p'
             castTyp' = M.insert n (ogTyp, pcCastTyp) castTyp
 
-            isMember = M.member t adtIntMaps
             -- Convert `dc` to an Int by looking it up in the respective `dcNumMap`. If not in `dcNumMap`, lookup the corresponding AlgDataTy
             -- , establish a mapping between its DataCons and Ints, and add to `adtTIntMaps`, before returning the respective Int.
             (adtIntMaps'', maybeNum) = case (M.lookup t adtIntMaps) of
-                Just dcNumMap -> (adtIntMaps, lookupInt dc dcNumMap)
+                Just dcNumMap -> (adtIntMaps, lookupInt dcN dcNumMap)
                 Nothing ->
                     let maybeDCNumMap = mkDCNumMap tenv t
-                        num = maybe Nothing (lookupInt dc) maybeDCNumMap
+                        num = maybe Nothing (lookupInt dcN) maybeDCNumMap
                         adtIntMaps' = maybe adtIntMaps (insertFlipped t adtIntMaps) maybeDCNumMap
                     in (adtIntMaps', num)
 
             numericalPC = case maybeNum of
-                Just num -> ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) bool
-                Nothing -> error $ "Could not map DataCon in ConsCond to Int: " ++ (show dc)
+                Just num -> [ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) bool]
+                Nothing -> []
             -- Add constraint representing upper and lower bound values for Id in PathCond, depending on the range for its type
-            numBoundPC = case isMember of
-                True -> [] -- ADT was already part of map, which means PC representing bounds must have been added already
+            numBoundPC = case (isJust maybeNum) && isMember of
+                True -> [] -- Name was already part of map, which means PC representing bounds must have been added already
                 False -> (constrainDCVals kv adtIntMaps'') <$> [(t, Id n TyLitInt)] -- Keep same name to map back to old Id if needed
 
-        in (s {adt_int_maps = adtIntMaps'', cast_type = castTyp'}, numericalPC:numBoundPC)
+        in case maybeNum of
+            Just _ -> (s {adt_int_maps = adtIntMaps'', cast_type = castTyp'}, numericalPC ++ numBoundPC)
+            Nothing -> (s, [])
     | otherwise = (s, [p])
 
 fromNum :: ADTSimplifir -> State t -> Bindings -> Model -> (Bindings, Model)
@@ -115,8 +117,9 @@ mkDCNumMap tenv t =
 
 mkDCNumMap' :: AlgDataTy -> Maybe DCNum
 mkDCNumMap' (DataTyCon { data_cons = dcs }) =
-    let (num, pairings) = mapAccumR (\count dc -> (count + 1, (dc, count))) 0 dcs
-    in Just $ DCNum {upperB = num - 1, dc2Int = M.fromList pairings, int2Dc = M.fromList (swap <$> pairings)}
+    let (num, pairs) = mapAccumR (\count dc -> (count + 1, (count, dc))) 0 dcs
+        dc2IntPairs = (\(dc, count) -> (dcName dc, count)) <$> swap <$> pairs
+    in Just $ DCNum {upperB = num - 1, dc2Int = M.fromList dc2IntPairs, int2Dc = M.fromList pairs}
 mkDCNumMap' _ = Nothing
 
 insertFlipped :: Ord a => a -> M.Map a b -> b -> M.Map a b
