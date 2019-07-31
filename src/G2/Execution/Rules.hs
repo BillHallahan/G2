@@ -469,7 +469,6 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
 
     -- concretizes the mexpr to have same form as the DataCon specified
     eenv'' = E.insert mexpr_n dcon''' eenv' 
-    -- newPC = ConsCond dcon (Var mexpr_id) True
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, (Var mexpr_id))]

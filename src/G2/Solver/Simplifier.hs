@@ -36,16 +36,16 @@ instance Simplifier ADTSimplifir where
 
 toNum :: ADTSimplifir -> State t -> PathCond -> (State t, [PathCond])
 toNum _ s@(State {adt_int_maps = adtIntMaps
-                      , cast_type = castTyp
+                      , simplified = smplfd
                       , known_values = kv
                       , type_env = tenv}) p
     | p' <- unsafeElimCast p
-    , (ConsCond dc@(DataCon dcN _) (Var (Id n t)) bool) <- p' =
+    , (ConsCond (DataCon dcN _) (Var (Id n t)) bool) <- p' =
         let ogTyp = fromJust . pcVarType $ p
             -- Store type it is cast to (if any), else original type
-            isMember = M.member n castTyp
+            isMember = M.member n smplfd
             pcCastTyp = fromJust . pcVarType $ p'
-            castTyp' = M.insert n (ogTyp, pcCastTyp) castTyp
+            smplfd' = M.insert n (ogTyp, pcCastTyp) smplfd
 
             -- Convert `dc` to an Int by looking it up in the respective `dcNumMap`. If not in `dcNumMap`, lookup the corresponding AlgDataTy
             -- , establish a mapping between its DataCons and Ints, and add to `adtTIntMaps`, before returning the respective Int.
@@ -56,29 +56,26 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
                         num = maybe Nothing (lookupInt dcN) maybeDCNumMap
                         adtIntMaps' = maybe adtIntMaps (insertFlipped t adtIntMaps) maybeDCNumMap
                     in (adtIntMaps', num)
-
-            numericalPC = case maybeNum of
-                Just num -> [ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) bool]
-                Nothing -> []
-            -- Add constraint representing upper and lower bound values for Id in PathCond, depending on the range for its type
-            numBoundPC = case (isJust maybeNum) && isMember of
-                True -> [] -- Name was already part of map, which means PC representing bounds must have been added already
-                False -> (constrainDCVals kv adtIntMaps'') <$> [(t, Id n TyLitInt)] -- Keep same name to map back to old Id if needed
-
         in case maybeNum of
-            Just _ -> (s {adt_int_maps = adtIntMaps'', cast_type = castTyp'}, numericalPC ++ numBoundPC)
-            Nothing -> (s, [])
+            Just num ->
+                let numericalPC = ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) bool
+                -- Add constraint representing upper and lower bound values for Id in PathCond, depending on the range for its type
+                    numBoundPC = case isMember of
+                        True -> [] -- Name was already part of map, which means PC representing bounds must have been added already
+                        False -> (constrainDCVals kv adtIntMaps'') <$> [(t, Id n TyLitInt)] -- Keep same name to map back to old Id if needed
+                in (s {adt_int_maps = adtIntMaps'', simplified = smplfd'}, numericalPC:numBoundPC)
+            Nothing -> error $ "Could not simplify ConsCond. " ++ (show p)
     | otherwise = (s, [p])
 
 fromNum :: ADTSimplifir -> State t -> Bindings -> Model -> (Bindings, Model)
 fromNum (ADTSimplifier avf) (State {adt_int_maps = adtIntMaps
-                       , cast_type = castTyp
+                       , simplified = smplfd
                        , expr_env = eenv
-                       , type_env = tenv}) b m = M.mapAccumWithKey (fromNum' eenv tenv adtIntMaps castTyp avf) b m
+                       , type_env = tenv}) b m = M.mapAccumWithKey (fromNum' eenv tenv adtIntMaps smplfd avf) b m
 
 fromNum' :: E.ExprEnv -> TypeEnv -> ADTIntMaps -> M.Map Name (Type, Type) -> ArbValueFunc -> Bindings -> Name -> Expr -> (Bindings, Expr)
-fromNum' eenv tenv adtIntMaps castTyp avf b n val
-    | Just (t, tCast) <- M.lookup n castTyp -- Tuple representing (original type, type it was cast to)
+fromNum' eenv tenv adtIntMaps smplfd avf b n val
+    | Just (t, tCast) <- M.lookup n smplfd -- Tuple representing (original type, type it was cast to)
     , isADT tCast = -- `n` is not of a primitive type, need to map back to DataCon
         let num = case val of
                 (Lit (LitInt x)) -> x
@@ -156,10 +153,3 @@ replaceReturnType (TyForAll b t) r = TyForAll b $ replaceReturnType t r
 replaceReturnType (TyFun t1 t2@(TyFun _ _)) r = TyFun t1 $ replaceReturnType t2 r
 replaceReturnType (TyFun t _) r = TyFun t r
 replaceReturnType _ r = r
-
-isADT :: Type -> Bool
-isADT t =
-    let tCenter = tyAppCenter t
-    in case tCenter of
-        (TyCon _ _) -> True
-        _ -> False

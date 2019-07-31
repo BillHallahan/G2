@@ -48,8 +48,8 @@ data State t = State { expr_env :: E.ExprEnv
                      , symbolic_ids :: SymbolicIds
                      , exec_stack :: Stack Frame
                      , model :: Model
-                     , adt_int_maps :: ADTIntMaps -- Mapping for each ADT between its Data Constructors and Integers
-                     , cast_type :: M.Map Name (Type, Type) -- Map between Var Name, Type, and Type it is Cast to, used to Cast values in Model back
+                     , adt_int_maps :: ADTIntMaps -- ^ Mapping for each ADT between its Data Constructors and Integers
+                     , simplified :: M.Map Name (Type, Type) -- ^ Names in PathConds that have been simplified, along with their Type and Cast Type
                      , known_values :: KnownValues
                      , rules :: ![Rule]
                      , num_steps :: !Int -- Invariant: The length of the rules list
@@ -157,7 +157,7 @@ renameState old new_seed s b =
              , exec_stack = exec_stack s
              , model = model s
              , adt_int_maps = rename old new (adt_int_maps s)
-             , cast_type = rename old new (cast_type s)
+             , simplified = rename old new (simplified s)
              , known_values = rename old new (known_values s)
              , rules = rules s
              , num_steps = num_steps s
@@ -176,7 +176,7 @@ instance Named t => Named (State t) where
             ++ names (exec_stack s)
             ++ names (model s)
             ++ names (adt_int_maps s)
-            ++ names (cast_type s)
+            ++ names (simplified s)
             ++ names (known_values s)
             ++ names (track s)
 
@@ -195,7 +195,7 @@ instance Named t => Named (State t) where
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
                , adt_int_maps = rename old new (adt_int_maps s)
-               , cast_type = rename old new (cast_type s)
+               , simplified = rename old new (simplified s)
                , known_values = rename old new (known_values s)
                , rules = rules s
                , num_steps = num_steps s
@@ -217,7 +217,7 @@ instance Named t => Named (State t) where
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
                , adt_int_maps = renames hm (adt_int_maps s)
-               , cast_type = renames hm (cast_type s)
+               , simplified = renames hm (simplified s)
                , known_values = renames hm (known_values s)
                , rules = rules s
                , num_steps = num_steps s
@@ -252,7 +252,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . adt_int_maps) s) ++
-                      ((containedASTs . cast_type) s) ++
+                      ((containedASTs . simplified) s) ++
                       ((containedASTs . exec_stack) s) ++
                       (containedASTs $ track s)
 
@@ -264,7 +264,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , adt_int_maps = (modifyContainedASTs f . adt_int_maps) s
-                                , cast_type = (modifyContainedASTs f . cast_type) s
+                                , simplified = (modifyContainedASTs f . simplified) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s }
 

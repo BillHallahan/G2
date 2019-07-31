@@ -55,6 +55,7 @@ module G2.Language.Typing
     , typeToExpr
     , getTyApps
     , tyAppsToExpr
+    , isADT
     ) where
 
 import G2.Language.AST
@@ -543,4 +544,10 @@ tyAppsToExpr (TyApp t1 t2) bindings = exprs ++ newTyExpr
         exprs = tyAppsToExpr t1 bindings
 tyAppsToExpr _ _ = []
  
-
+-- | Returns True if Type represents an ADT
+isADT :: Type -> Bool
+isADT t =
+    let tCenter = tyAppCenter t
+    in case tCenter of
+        (TyCon _ _) -> True
+        _ -> False

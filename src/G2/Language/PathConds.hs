@@ -18,10 +18,10 @@ module G2.Language.PathConds ( PathCond (..)
                                        , relevant
                                        , relatedSets
                                        , scc
+                                       , pcNames
                                        , varIdsInPC
                                        , toList
-                                       , isPCExists
-                                       , pcNames ) where
+                                       , isPCExists ) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -154,8 +154,9 @@ relatedSets' kv pc ns =
           s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []
 
+-- | Returns list of Names of all the nodes in the PathConds
 pcNames :: PathConds -> [Name]
-pcNames pc = catMaybes $ M.keys $ toMap pc
+pcNames pc = catMaybes . M.keys $ toMap pc
 
 varIdsInPC :: PathCond -> [Id]
 -- [AltCond]
