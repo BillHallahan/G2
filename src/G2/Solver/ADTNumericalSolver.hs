@@ -47,7 +47,7 @@ checkConsistency solver s@(State {known_values = kv, simplified = smplfd, adt_in
     | otherwise = do
         let ns = PC.pcNames pc
             eenvPCs = mapMaybe (addEEnvVals kv eenv smplfd adtIntMaps) ns
-            pc' = foldr (PC.insert kv) pc $ eenvPCs
+            pc' = foldr PC.insert pc $ eenvPCs
         checkTr solver s pc'
 
 solve' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
@@ -58,7 +58,7 @@ solve' avf sol s@(State {known_values = kv, simplified = smplfd, adt_int_maps = 
         -- Get constraints from ExprEnv
         ns = PC.pcNames pc
         eenvPCs = mapMaybe (addEEnvVals kv eenv smplfd adtIntMaps) ns
-        pc' = foldr (PC.insert kv) pc $ eenvPCs
+        pc' = foldr PC.insert pc $ eenvPCs
     rm <- solveTr sol s b pcIdsPrim pc'
     case rm of
         (SAT, Just m, sol') -> do

@@ -321,7 +321,6 @@ pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
     in
     Just $ if b then  (:!) $ exprSMT else exprSMT
 pathConsToSMT (ConsCond (DataCon _ _) _ _) = error "Non-bool DataCon in pathConsToSMT"
-pathConsToSMT (PCExists _) = Nothing
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -412,7 +411,6 @@ pcVarDecls = createVarDecls . pcVars
 -- Get's all variable required for a list of `PathCond` 
 pcVars :: [PathCond] -> [(Name, Sort)]
 pcVars [] = []
-pcVars (PCExists i:xs) = idToNameSort i : pcVars xs
 pcVars (AltCond _ e _:xs) = vars e ++ pcVars xs
 pcVars (p:xs)= vars p ++ pcVars xs
 

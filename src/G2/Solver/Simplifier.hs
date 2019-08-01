@@ -2,8 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Solver.Simplifier ( Simplifier (..)
-                            , IdSimplifir (..)
-                            , ADTSimplifir (..)) where
+                            , IdSimplifier (..)
+                            , ADTSimplifier (..)) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -18,23 +18,23 @@ class Simplifier simplifier where
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> (State t, [PathCond])
 
     -- | Reverses the affect of simplification in the model, if needed.
-    reverseSimplification :: forall t . simplifier -> State t -> Bindings -> Model -> (Bindings, Model)
+    reverseSimplification :: forall t . simplifier -> State t -> Bindings -> Model -> Model
 
 -- | A simplifier that does no simplification
-data IdSimplifir = IdSimplifier
+data IdSimplifier = IdSimplifier
 
-instance Simplifier IdSimplifir where
+instance Simplifier IdSimplifier where
     simplifyPC _ s pc = (s, [pc])
-    reverseSimplification _ _ b m = (b, m)
+    reverseSimplification _ _ _ m = m
 
 -- | A simplifier that converts any ConsConds to ExtConds by mapping the Data Constructor to an Integer
-data ADTSimplifir = ADTSimplifier ArbValueFunc
+data ADTSimplifier = ADTSimplifier ArbValueFunc
 
-instance Simplifier ADTSimplifir where
+instance Simplifier ADTSimplifier where
     simplifyPC = toNum
     reverseSimplification = fromNum
 
-toNum :: ADTSimplifir -> State t -> PathCond -> (State t, [PathCond])
+toNum :: ADTSimplifier -> State t -> PathCond -> (State t, [PathCond])
 toNum _ s@(State {adt_int_maps = adtIntMaps
                       , simplified = smplfd
                       , known_values = kv
@@ -67,13 +67,13 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
             Nothing -> error $ "Could not simplify ConsCond. " ++ (show p)
     | otherwise = (s, [p])
 
-fromNum :: ADTSimplifir -> State t -> Bindings -> Model -> (Bindings, Model)
+fromNum :: ADTSimplifier -> State t -> Bindings -> Model -> Model
 fromNum (ADTSimplifier avf) (State {adt_int_maps = adtIntMaps
                        , simplified = smplfd
                        , expr_env = eenv
-                       , type_env = tenv}) b m = M.mapAccumWithKey (fromNum' eenv tenv adtIntMaps smplfd avf) b m
+                       , type_env = tenv}) b m = M.mapWithKey (fromNum' eenv tenv adtIntMaps smplfd avf b) m
 
-fromNum' :: E.ExprEnv -> TypeEnv -> ADTIntMaps -> M.Map Name (Type, Type) -> ArbValueFunc -> Bindings -> Name -> Expr -> (Bindings, Expr)
+fromNum' :: E.ExprEnv -> TypeEnv -> ADTIntMaps -> M.Map Name (Type, Type) -> ArbValueFunc -> Bindings -> Name -> Expr -> Expr
 fromNum' eenv tenv adtIntMaps smplfd avf b n val
     | Just (t, tCast) <- M.lookup n smplfd -- Tuple representing (original type, type it was cast to)
     , isADT tCast = -- `n` is not of a primitive type, need to map back to DataCon
@@ -95,14 +95,14 @@ fromNum' eenv tenv adtIntMaps smplfd avf b n val
 
             (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) ts'') (name_gen b)
 
-            (av, vs) = mapAccumL (\av_ (n', t') ->
+            (_, vs) = mapAccumL (\av_ (n', t') ->
                     case E.lookup n' eenv of
                         Just e -> (av_, e)
                         Nothing -> swap $ avf t' tenv av_) (arb_value_gen b) $ zip ns ts''
 
             dc'' = mkApp $ dc' : map Type ts2 ++ vs
-        in (b {arb_value_gen = av}, liftCasts dc'')
-    | otherwise = (b, val) -- Either primitive value, arbitrary generated value, or value from ExprEnv. Keep current value
+        in liftCasts dc''
+    | otherwise = val -- Either primitive value, arbitrary generated value, or value from ExprEnv. Keep current value
 
 -- Lookup ADT and establish mapping between Data Constructors of an ADT and Integers
 mkDCNumMap :: TypeEnv -> Type -> Maybe DCNum

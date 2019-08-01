@@ -20,8 +20,8 @@ module G2.Language.PathConds ( PathCond (..)
                                        , scc
                                        , pcNames
                                        , varIdsInPC
-                                       , toList
-                                       , isPCExists ) where
+                                       , varNamesInPC
+                                       , toList ) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -60,7 +60,6 @@ newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, [Name]))
 data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
-              | PCExists Id -- ^ Makes sure we find some value for the given name, of the correct type
               deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 type Constraint = PathCond
@@ -77,8 +76,8 @@ toMap = coerce
 empty :: PathConds
 empty = PathConds M.empty
 
-fromList :: KV.KnownValues -> [PathCond] -> PathConds
-fromList kv = coerce . foldr (insert kv) empty
+fromList :: [PathCond] -> PathConds
+fromList = coerce . foldr insert empty
 
 map :: (PathCond -> a) -> PathConds -> [a]
 map f = L.map f . toList
@@ -95,13 +94,13 @@ filter f = PathConds
 -- This is ok, because the PCs can only be externally accessed by toList (which 
 -- returns all PCs anyway) or scc (which forces exploration over all shared names)
 {-# INLINE insert #-}
-insert :: KV.KnownValues -> PathCond -> PathConds -> PathConds
+insert :: PathCond -> PathConds -> PathConds
 insert = insert' varNamesInPC
 
-insert' :: (KV.KnownValues -> PathCond -> [Name]) -> KV.KnownValues -> PathCond -> PathConds -> PathConds
-insert' f kv p (PathConds pcs) =
+insert' :: (PathCond -> [Name]) -> PathCond -> PathConds -> PathConds
+insert' f p (PathConds pcs) =
     let
-        ns = f kv p
+        ns = f p
 
         (hd, insertAt) = case ns of
             [] -> (Nothing, [Nothing])
@@ -124,10 +123,10 @@ null = M.null . toMap
 
 -- | Filters a PathConds to only those PathCond's that potentially impact the
 -- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
-relevant :: KV.KnownValues -> [PathCond] -> PathConds -> PathConds
-relevant kv pc pcs = 
-    case concatMap (varNamesInPC kv) pc of
-        [] -> fromList kv pc
+relevant :: [PathCond] -> PathConds -> PathConds
+relevant pc pcs =
+    case concatMap varNamesInPC pc of
+        [] -> fromList pc
         rel -> scc rel pcs
 
 -- Returns a list of PathConds, where the union of the output PathConds
@@ -149,7 +148,7 @@ relatedSets' kv pc ns =
       k:_ ->
           let
               s = scc [k] pc
-              ns' = concat $ map (varNamesInPC kv) s
+              ns' = concat $ map varNamesInPC s
           in
           s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []
@@ -170,10 +169,9 @@ varIdsInPC :: PathCond -> [Id]
 varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
 varIdsInPC (ConsCond _ e _) = varIds e
-varIdsInPC (PCExists i) = [i]
 
-varNamesInPC :: KV.KnownValues -> PathCond -> [Name]
-varNamesInPC kv = P.map idName . varIdsInPC
+varNamesInPC :: PathCond -> [Name]
+varNamesInPC = P.map idName . varIdsInPC
 
 {-# INLINE scc #-}
 scc :: [Name] -> PathConds -> PathConds
@@ -199,10 +197,6 @@ scc' (n:ns) pc newpc =
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap
 
-isPCExists :: PathCond -> Bool
-isPCExists (PCExists _) = True
-isPCExists _ = False
-
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap
     
@@ -217,20 +211,17 @@ instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
     containedASTs (AltCond _ e _) = [e]
     containedASTs (ConsCond _ e _) = [e]
-    containedASTs (PCExists _) = []
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
     modifyContainedASTs f (AltCond a e b) =
         AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
     modifyContainedASTs f (ConsCond dc e b) =
         ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
-    modifyContainedASTs _ pc = pc
 
 instance ASTContainer PathCond Type where
     containedASTs (ExtCond e _)   = containedASTs e
     containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
     containedASTs (ConsCond dcl e _) = containedASTs dcl ++ containedASTs e
-    containedASTs (PCExists i) = containedASTs i
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
       where e' = modifyContainedASTs f e
@@ -239,7 +230,6 @@ instance ASTContainer PathCond Type where
             a' = modifyContainedASTs f a
     modifyContainedASTs f (ConsCond dc e b) =
         ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
-    modifyContainedASTs f (PCExists i) = PCExists (modifyContainedASTs f i)
 
 instance Named PathConds where
     names (PathConds pc) = (catMaybes $ M.keys pc) ++ concatMap (\(p, n) -> names p ++ n) pc
@@ -256,17 +246,14 @@ instance Named PathCond where
     names (AltCond _ e _) = names e
     names (ExtCond e _) = names e
     names (ConsCond d e _) = names d ++  names e
-    names (PCExists i) = names i
 
     rename old new (AltCond l e b) = AltCond l (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
     rename old new (ConsCond d e b) = ConsCond (rename old new d) (rename old new e) b
-    rename old new (PCExists i) = PCExists (rename old new i)
 
     renames hm (AltCond l e b) = AltCond l (renames hm e) b
     renames hm (ExtCond e b) = ExtCond (renames hm e) b
     renames hm (ConsCond d e b) = ConsCond (renames hm d) (renames hm e) b
-    renames hm (PCExists i) = PCExists (renames hm i)
 
 instance Ided PathConds where
     ids = ids . toMap
@@ -275,4 +262,3 @@ instance Ided PathCond where
     ids (AltCond _ e _) = ids e
     ids (ExtCond e _) = ids e
     ids (ConsCond d e _) = ids d ++  ids e
-    ids (PCExists i) = [i]

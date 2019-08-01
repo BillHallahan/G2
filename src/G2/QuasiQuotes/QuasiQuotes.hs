@@ -415,11 +415,11 @@ solveStates'' :: ( Named t
                  , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates'' _ _ _ [] =return Nothing
 solveStates'' sol simplifier b (s:xs) = do
-    (b', m_ex_res) <- runG2Solving sol simplifier b s
+    m_ex_res <- runG2Solving sol simplifier b s
     case m_ex_res of
         Just _ -> do
             return m_ex_res
-        Nothing -> solveStates'' sol simplifier b' xs
+        Nothing -> solveStates'' sol simplifier b xs
 
 -- | Get the values of the symbolic arguments, and returns them in a tuple
 extractArgs :: InputIds -> CleanedNames -> TypeEnvName -> Q Exp -> Q Exp

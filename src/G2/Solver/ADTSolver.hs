@@ -42,12 +42,10 @@ instance Solver ADTSolver where
 -- Returns Just True if they are, Just False if they are not,
 -- and Nothing if it can't decide.
 checkConsistency :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Result
-checkConsistency kv eenv tenv pc
-    | all PC.isPCExists $ PC.toList pc = SAT
-    | otherwise =
-        maybe (Unknown "Non-ADT path constraints") 
-              (\me -> if not (Pre.null me) then SAT else UNSAT) 
-              $ findConsistent kv eenv tenv $ PC.filter (not . PC.isPCExists) pc
+checkConsistency kv eenv tenv pc =
+    maybe (Unknown "Non-ADT path constraints")
+          (\me -> if not (Pre.null me) then SAT else UNSAT)
+          $ findConsistent kv eenv tenv pc
 
 -- | Attempts to find expressions (Data d) or (Coercion (Data d), (t1 :~ t2)) consistent with the given path
 -- constraints.  Returns Just [...] if it can determine [...] are consistent.
@@ -109,7 +107,6 @@ findConsistent''' dcs ((ConsCond dc _ True):pc) =
     findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
 findConsistent''' dcs ((ConsCond  dc _ False):pc) =
     findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
--- findConsistent''' dcs (PCExists _:pc) = findConsistent''' dcs pc
 findConsistent''' dcs [] = Just dcs
 findConsistent''' _ _ = Nothing
 
@@ -123,7 +120,7 @@ solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
     , ts <- tyAppArgs t
     , t /= tyBool (known_values s)  =
     do
-        let (r, s', _) = addADTs avf n tn ts k s b (PC.filter (not . isPCExists) pc)
+        let (r, s', _) = addADTs avf n tn ts k s b pc
 
         case r of
             SAT -> return (r, Just . liftCasts $ model s')
@@ -189,7 +186,6 @@ pcInCastType :: TypeEnv -> PathCond -> Type
 pcInCastType _ (AltCond _ e _) = typeInCasts e
 pcInCastType _ (ExtCond e _) = typeInCasts e
 pcInCastType _ (ConsCond _ e _) = typeInCasts e
-pcInCastType tenv (PCExists (Id _ t)) = typeStripCastType tenv t
 
 castReturnType :: Type -> Expr -> Expr
 castReturnType t e =

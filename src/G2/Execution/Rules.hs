@@ -91,34 +91,33 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
             frstck = S.pop stck
 
 data NewPC t = NewPC { state :: State t
-                     , new_pcs :: [PathCond] }
+                     , new_pcs :: [PathCond]
+                     , concretized :: [Id] }
 
 newPCEmpty :: State t -> NewPC t
-newPCEmpty s = NewPC { state = s, new_pcs = []}
+newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
 
 reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
 reduceNewPC solver simplifier
-            (NewPC { state = s@(State { known_values = kv
-                                      , path_conds = spc })
-                   , new_pcs = pc })
+            (NewPC { state = s@(State { path_conds = spc })
+                   , new_pcs = pc
+                   , concretized = concIds })
     | not (null pc) = do
-        -- In the case of newtypes, the PC exists we get may have the correct name
-        -- but incorrect type.
-        -- We do not want to add these to the State
-        -- This is a bit ugly, but not a huge deal, since the State already has PCExists
         let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
-
-            pc'' = filter (not . PC.isPCExists) $ concat pc'
+            pc'' = concat pc'
 
         -- Optimization
         -- We replace the path_conds with only those that are directly
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr (PC.insert kv) spc $ pc''
+        let new_pc = foldr PC.insert spc $ pc''
             s'' = s' {path_conds = new_pc}
 
-        let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant kv pc new_pc
+        let ns = (concatMap PC.varNamesInPC pc) ++ (names concIds)
+            rel_pc = case ns of
+                [] -> PC.fromList pc''
+                _ -> PC.scc ns new_pc
 
         res <- check solver s' rel_pc
 
@@ -427,10 +426,11 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
           (NewPC { state =  s { expr_env = eenv''
                               , symbolic_ids = syms'
                               , curr_expr = CurrExpr Evaluate aexpr''}
-                 -- It is VERY important that we insert a PCExists with the mexpr_id
+                 -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
                  -- not violate any path constraints from default cases. 
-                 ,  new_pcs = [PCExists mexpr_id]
+                 , new_pcs = []
+                 , concretized = [mexpr_id]
                  }, ngen')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
@@ -500,7 +500,7 @@ createExtConds s ng mexpr cvar (x:xs) =
 
 createExtCond :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
 createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
-        (NewPC { state = res, new_pcs = [cond] }, ngen)
+        (NewPC { state = res, new_pcs = [cond] , concretized = []}, ngen)
   where
     -- Get the Bool value specified by the matching DataCon
     -- Throws an error if dcon is not a Bool Data Constructor
@@ -528,7 +528,7 @@ liftSymLitAlt s mexpr cvar = map (liftSymLitAlt' s mexpr cvar)
 -- | Lift literal alts found in symbolic case matching.
 liftSymLitAlt' :: State t -> Expr -> Id -> (Lit, Expr) -> NewPC t
 liftSymLitAlt' s mexpr cvar (lit, aexpr) =
-    NewPC { state = res, new_pcs = [cond] }
+    NewPC { state = res, new_pcs = [cond] , concretized = [] }
   where
     -- Condition that was matched.
     cond = AltCond lit mexpr True
@@ -555,7 +555,8 @@ liftSymDefAlt' s mexpr aexpr cvar as =
         aexpr' = liftCaseBinds binds aexpr
     in
     [NewPC { state = s { curr_expr = CurrExpr Evaluate aexpr' }
-           , new_pcs = conds }]
+           , new_pcs = conds
+           , concretized = [] }]
 
 defAltExpr :: [Alt] -> Maybe Expr
 defAltExpr [] = Nothing
@@ -676,7 +677,8 @@ retCurrExpr s e1 e2 stck =
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = e2
                          , exec_stack = stck}
-             , new_pcs = [ExtCond e1 True]}] )
+             , new_pcs = [ExtCond e1 True]
+             , concretized = []}] )
 
 retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
 retAssumeFrame s@(State {known_values = kv
@@ -724,12 +726,14 @@ concretizeExprToBool' s@(State {expr_env = eenv
                         , symbolic_ids = syms
                         , known_values = kv})
                 ngen mexpr_id dcon@(DataCon dconName _) e2 stck = 
-        (newPCEmpty $ s { expr_env = eenv'
+        (NewPC { state = s { expr_env = eenv'
                         , symbolic_ids = syms'
                         , exec_stack = stck
                         , curr_expr = CurrExpr Evaluate e2
                         , true_assert = assertVal}
-                        , ngen)
+               , new_pcs = []
+               , concretized = [] }
+        , ngen)
     where
         mexpr_n = idName mexpr_id
 
@@ -745,7 +749,8 @@ addExtCond :: State t -> NameGen -> Expr -> Expr -> Bool -> S.Stack Frame -> ([N
 addExtCond s ng e1 e2 boolVal stck = 
     ([NewPC { state = s { curr_expr = CurrExpr Evaluate e2
                          , exec_stack = stck}
-             , new_pcs = [ExtCond e1 boolVal]}], ng)
+             , new_pcs = [ExtCond e1 boolVal]
+             , concretized = [] }], ng)
 
 addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
 addExtConds s ng e1 ais e2 stck =
@@ -757,11 +762,13 @@ addExtConds s ng e1 ais e2 stck =
         condf = [ExtCond e1 False]
 
         strue = NewPC { state = s'
-                      , new_pcs = condt }
+                      , new_pcs = condt
+                      , concretized = []}
 
         sfalse = NewPC { state = s' { true_assert = True
                                     , assert_ids = ais }
-                       , new_pcs = condf }
+                       , new_pcs = condf
+                       , concretized = []}
     in
     ([strue, sfalse], ng)
 
