@@ -98,7 +98,7 @@ mergeState ngen simplifier s1 s2 =
                 ctxt = emptyContext s1 s2 ngen' newId
                 (ctxt', curr_expr') = mergeCurrExpr ctxt
                 (ctxt'', eenv') = mergeExprEnv ctxt'
-                (ctxt''', path_conds') = mergePathCondsSimple simplifier ctxt''
+                (ctxt''', path_conds') = mergePathConds simplifier ctxt''
                 syms' = mergeSymbolicIds ctxt'''
                 s1' = s1_ ctxt'''
                 s2' = s2_ ctxt'''
@@ -505,7 +505,7 @@ updateSymbolicIds ctxt@(Context { s1_ = s1@(State {symbolic_ids = syms1}), s2_ =
         syms2' = HS.union (HS.fromList newSyms2) $ HS.difference syms2 (HS.fromList oldSyms2)
     in ctxt { s1_ = s1 { symbolic_ids = syms1' }, s2_ = s2 { symbolic_ids = syms2' } }
 
--- | Simpler version of mergePathConds, may not be very efficient for large numbers of PCs, but suffices for simple cases
+-- | Simpler version of mergePathConds, not very efficient for large numbers of PCs, but suffices for simple cases
 mergePathCondsSimple :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)
 mergePathCondsSimple simplifier ctxt@(Context {s1_ = s1@(State {path_conds = pc1, known_values = kv})
                                               , s2_ = (State {path_conds = pc2})
@@ -526,8 +526,7 @@ mergePathCondsSimple simplifier ctxt@(Context {s1_ = s1@(State {path_conds = pc1
         mergedPC''' = foldr PC.insert mergedPC'' newPCs''
     in (ctxt {s1_ = s1'}, mergedPC''')
 
--- | Does not always work if 2 top level AssumePCs both impose constraints on the same Name -> resulting in model generating conflicting values
--- and one being arbitrarily chosen over the other
+-- | Leaves common PathCond-s as it is, wraps PathCond-s unique to each State in AssumePCs and reinserts them into PathConds
 mergePathConds :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)
 mergePathConds simplifier ctxt@(Context { s1_ = s1@(State {path_conds = pc1, known_values = kv})
                                         , s2_ = (State {path_conds = pc2})
