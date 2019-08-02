@@ -326,8 +326,8 @@ pathConsToSMT (AssumePC i num pc) =
         idSMT = exprToSMT (Var i)
         intSMT = exprToSMT (Lit (LitInt $ toInteger num))
     in case pathConsToSMT pc of
-        (Just pcSMT) -> Just $ (idSMT := intSMT) :=> pcSMT -- TODO
-        Nothing -> Just $ (idSMT := intSMT)
+        (Just pcSMT) -> Just $ (idSMT := intSMT) :=> pcSMT
+        Nothing -> error $ "Unable to convert pc: " ++ (show pc)
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)

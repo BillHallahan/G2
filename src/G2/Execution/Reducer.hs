@@ -955,33 +955,35 @@ data Tree a = CaseSplit [Tree a] -- Node corresponding to point at which executi
 newtype Cxt a = Cxt [(Tree a, [Tree a])]
 type TreeZipper a = (Tree a, Cxt a)
 
-runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t) => r -> h -> State t -> Bindings -> IO ([State t], Bindings)
-runReducerMerge red hal s b = do
+runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier) => r -> h -> simplifier -> State t -> Bindings 
+                -> IO ([State t], Bindings)
+runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
         root = Root [s'] Empty
         zipper = (root, Cxt [])
 
-    (_, b', _, _, pr') <- evalZipper red hal pr zipper b
+    (_, b', _, _, pr') <- evalZipper red hal simplifier pr zipper b
     let exStates = accepted pr'
     states <- mapM (\ExState {state = st} -> return st) exStates
     return (states, b')
 
-evalZipper :: (Eq t, Named t, Reducer r rv t, Halter h hv t)
+evalZipper :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
               => r
               -> h
+              -> simplifier
               -> Processed (ExState rv hv sov t)
               -> TreeZipper (ExState rv hv sov t)
               -> Bindings
               -> IO (TreeZipper (ExState rv hv sov t), Bindings, r, h, Processed (ExState rv hv sov t))
-evalZipper red hal pr zipper b
+evalZipper red hal simplifier pr zipper b
     | Root s _ <- fst zipper = case s of
         [] -> return (zipper, b, red, hal, pr)
         (x:xs) -> do
             let leaf = Leaf x 0
                 root' = Root xs leaf
                 zipper' = (leaf, Cxt [(root', [])])
-            evalZipper red hal pr zipper' b
+            evalZipper red hal simplifier pr zipper' b
     | Leaf x count <- fst zipper = do
         let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = x 
         let ps = processedToState pr
@@ -990,11 +992,11 @@ evalZipper red hal pr zipper b
             Accept -> do
                 let pr' = pr {accepted = rs:accepted pr} -- we do not call updateExStateHalter for now, since we do not deal with any Switch constructors
                     zipper' = deleteNode zipper -- set zipper to sibling, or a sibling of any of its parents, remove this from children of parent
-                evalZipper red hal pr' zipper' b
+                evalZipper red hal simplifier pr' zipper' b
             Discard -> do
                 let pr' = pr {discarded = rs:discarded pr}
                     zipper' = deleteNode zipper
-                evalZipper red hal pr' zipper' b
+                evalZipper red hal simplifier pr' zipper' b
             _ -> do -- ignore switch for now
                 (reducerRes, reduceds, b', red') <- redRules red r_val s b
                 let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
@@ -1008,7 +1010,7 @@ evalZipper red hal pr zipper b
                     MergePoint -> do
                         let tree' = ReadyToMerge (head reduceds'') (count - 1) -- redRules only returns 1 state when reducerRes is MergePoint
                         let zipper' = (tree', snd zipper)
-                        evalZipper red' hal pr zipper' b'
+                        evalZipper red' hal simplifier pr zipper' b'
                     Merge -> do
                         if (count >= 10) -- max depth of tree
                             then
@@ -1017,28 +1019,28 @@ evalZipper red hal pr zipper b
                                 let reduceds''' = map delMergePtFrames reduceds'' -- remove any merge pts
                                     zipper' = floatReducedsToRoot zipper reduceds'''
                                     zipper'' = deleteNode zipper'
-                                in evalZipper red' hal pr zipper'' b'
+                                in evalZipper red' hal simplifier pr zipper'' b'
                             else
                                 let leaves = map (\exS -> Leaf exS (count + 1)) reduceds''
                                     tree' = CaseSplit leaves
                                     zipper' = (tree', snd zipper) -- replace node with CaseSplit node and leaves as children
                                     zipper'' = pickChild zipper'
-                                in evalZipper red' hal pr zipper'' b'
+                                in evalZipper red' hal simplifier pr zipper'' b'
                     _ -> do
                         let leaves = map (\exS -> Leaf exS count) reduceds''
                             zipper' = replaceNode zipper leaves -- replace node with leaves
-                        evalZipper red' hal pr zipper' b'
+                        evalZipper red' hal simplifier pr zipper' b'
     | ReadyToMerge x count <- fst zipper = do
         let siblings = getSiblings zipper
         if allReadyToMerge siblings count
             then
-                let (mergedStates, b') = mergeStatesZipper (x:(map treeVal siblings)) b
+                let (mergedStates, b') = mergeStatesZipper (x:(map treeVal siblings)) b simplifier
                     leaves = map (\exS -> Leaf exS count) mergedStates
                     zipper' = replaceParent zipper leaves
-                in evalZipper red hal pr zipper' b'
+                in evalZipper red hal simplifier pr zipper' b'
             else
                 let zipper' = pickSibling zipper
-                in evalZipper red hal pr zipper' b
+                in evalZipper red hal simplifier pr zipper' b
     | otherwise = error "Should not reach this case"
 
 allReadyToMerge :: [Tree a] -> Counter -> Bool
@@ -1145,36 +1147,38 @@ pickSibling' _ [] = error "pickSibling must be called with at least one Tree tha
 
 -- | Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations
 -- because number of successful merges only seem to increase marginally in such a case
-mergeStatesZipper :: (Eq t, Named t) => [ExState rv hv sov t] -> Bindings -> ([ExState rv hv sov t], Bindings)
-mergeStatesZipper (x1:x2:xs) b =
-    case mergeStates' x1 x2 b of
-        (Just exS, b') -> mergeStatesZipper (exS:xs) b'
-        (Nothing, b') -> let (merged, b'') = mergeStatesZipper (x2:xs) b'
+mergeStatesZipper :: (Eq t, Named t, Simplifier simplifier) => [ExState rv hv sov t] -> Bindings -> simplifier -> ([ExState rv hv sov t], Bindings)
+mergeStatesZipper (x1:x2:xs) b simplifier =
+    case mergeStates' x1 x2 b simplifier of
+        (Just exS, b') -> mergeStatesZipper (exS:xs) b' simplifier
+        (Nothing, b') -> let (merged, b'') = mergeStatesZipper (x2:xs) b' simplifier
                          in (x1:merged, b'')
-mergeStatesZipper ls b = (ls, b)
+mergeStatesZipper ls b _ = (ls, b)
 
-mergeStates' :: (Eq t, Named t) => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> (Maybe (ExState rv hv sov t), Bindings)
-mergeStates' ex1 ex2 b =
+mergeStates' :: (Eq t, Named t, Simplifier simplifier) => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> simplifier 
+             -> (Maybe (ExState rv hv sov t), Bindings)
+mergeStates' ex1 ex2 b simplifier =
     let s1 = state ex1
         s2 = state ex2
         ng = name_gen b
-        res = mergeState ng s1 s2
+        res = mergeState ng simplifier s1 s2
     in case res of
         (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
         (ng', Nothing) -> (Nothing, b {name_gen = ng'})
 
 -- | Similar to mergeStatesZipper, but considers all possible combinations when merging states
-mergeStatesAllZipper :: (Eq t, Named t) => [ExState rv hv sov t] -> Bindings -> ([ExState rv hv sov t], Bindings)
-mergeStatesAllZipper (x:xs) b =
-    let (done, rest, b') = mergeStatesAllZipper' x [] xs b
-        (mergedStates, b'') = mergeStatesAllZipper rest b'
+mergeStatesAllZipper :: (Eq t, Named t, Simplifier simplifier) => [ExState rv hv sov t] -> Bindings -> simplifier -> ([ExState rv hv sov t], Bindings)
+mergeStatesAllZipper (x:xs) b simplifier =
+    let (done, rest, b') = mergeStatesAllZipper' x [] xs b simplifier
+        (mergedStates, b'') = mergeStatesAllZipper rest b' simplifier
     in (done:mergedStates, b'')
-mergeStatesAllZipper [] b = ([], b)
+mergeStatesAllZipper [] b _ = ([], b)
 
-mergeStatesAllZipper' :: (Eq t, Named t) => (ExState rv hv sov t) -> [ExState rv hv sov t] -> [ExState rv hv sov t] -> Bindings 
-                   -> ((ExState rv hv sov t), [ExState rv hv sov t], Bindings)
-mergeStatesAllZipper' x1 checked (x2:xs) b =
-    case mergeStates' x1 x2 b of
-        (Just exS, b') -> mergeStatesAllZipper' exS checked xs b'
-        (Nothing, b') -> mergeStatesAllZipper' x1 (x2:checked) xs b'
-mergeStatesAllZipper' x1 checked [] b = (x1, checked, b)
+mergeStatesAllZipper' :: (Eq t, Named t, Simplifier simplifier)
+                      => (ExState rv hv sov t) -> [ExState rv hv sov t] -> [ExState rv hv sov t] -> Bindings -> simplifier
+                      -> ((ExState rv hv sov t), [ExState rv hv sov t], Bindings)
+mergeStatesAllZipper' x1 checked (x2:xs) b simplifier =
+    case mergeStates' x1 x2 b simplifier of
+        (Just exS, b') -> mergeStatesAllZipper' exS checked xs b' simplifier
+        (Nothing, b') -> mergeStatesAllZipper' x1 (x2:checked) xs b' simplifier
+mergeStatesAllZipper' x1 checked [] b _ = (x1, checked, b)

@@ -344,7 +344,7 @@ runG2Post :: ( Named t
              , Simplifier simplifier) => r -> h -> or ->
              solver -> simplifier -> State t -> Bindings -> Bool -> IO ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings mergeStates = do
-    (exec_states, bindings') <- runExecution red hal ord mergeStates is bindings
+    (exec_states, bindings') <- runExecution red hal ord simplifier mergeStates is bindings
     sol_states <- mapM (runG2Solving solver simplifier bindings' mergeStates) exec_states
 
     return (catMaybes sol_states, bindings')
@@ -356,11 +356,12 @@ runG2ThroughExecution ::
     , ASTContainer t Type
     , Reducer r rv t
     , Halter h hv t
-    , Orderer or sov b t) => r -> h -> or ->
+    , Orderer or sov b t
+    , Simplifier simplifier) => r -> h -> or -> simplifier ->
     Bool -> [Name] -> State t -> Bindings -> IO ([State t], Bindings)
-runG2ThroughExecution red hal ord mergeStates pns is bindings = do
+runG2ThroughExecution red hal ord simplifier mergeStates pns is bindings = do
     let (is', bindings') = runG2Pre pns is bindings
-    runExecution red hal ord mergeStates is' bindings'
+    runExecution red hal ord simplifier mergeStates is' bindings'
 
 runG2Solving :: ( Named t
                 , ASTContainer t Expr
@@ -412,7 +413,7 @@ runG2 :: ( Named t
          , Simplifier simplifier) => r -> h -> or ->
          solver -> simplifier -> Bool -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mergeStates pns is bindings = do
-    (exec_states, bindings') <- runG2ThroughExecution red hal ord mergeStates pns is bindings
+    (exec_states, bindings') <- runG2ThroughExecution red hal ord simplifier mergeStates pns is bindings
     sol_states <- mapM (runG2Solving solver simplifier bindings' mergeStates) exec_states
 
     return (catMaybes sol_states, bindings')

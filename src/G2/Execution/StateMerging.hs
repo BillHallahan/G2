@@ -15,6 +15,7 @@ module G2.Execution.StateMerging
 
 import G2.Language
 import G2.Execution.NormalForms
+import G2.Solver.Simplifier
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
@@ -89,18 +90,19 @@ emptyContext s1 s2 ng newId = Context { renamed1_ = HM.empty
                                       , newPCs_ = []
                                       , newSyms_ = HS.empty}
 
-mergeState :: (Eq t, Named t) => NameGen -> State t -> State t -> (NameGen, Maybe (State t))
-mergeState ngen s1 s2 = 
+mergeState :: (Eq t, Named t, Simplifier simplifier) => NameGen -> simplifier -> State t -> State t -> (NameGen, Maybe (State t))
+mergeState ngen simplifier s1 s2 =
     if isMergeable s1 s2
         then 
             let (newId, ngen') = freshId TyLitInt ngen
                 ctxt = emptyContext s1 s2 ngen' newId
                 (ctxt', curr_expr') = mergeCurrExpr ctxt
                 (ctxt'', eenv') = mergeExprEnv ctxt'
-                path_conds' = mergePathCondsSimple ctxt''
-                syms' = mergeSymbolicIds ctxt''
-                s1' = s1_ ctxt''
-                ngen'' = ng_ ctxt''
+                (ctxt''', path_conds') = mergePathCondsSimple simplifier ctxt''
+                syms' = mergeSymbolicIds ctxt'''
+                s1' = s1_ ctxt'''
+                s2' = s2_ ctxt'''
+                ngen'' = ng_ ctxt'''
             in (ngen''
                , (Just State { expr_env = eenv'
                              , type_env = type_env s1'
@@ -113,6 +115,8 @@ mergeState ngen s1 s2 =
                              , symbolic_ids = syms'
                              , exec_stack = exec_stack s1'
                              , model = model s1'
+                             , adt_int_maps = M.union (adt_int_maps s1') (adt_int_maps s2')
+                             , simplified = M.union (simplified s1') (simplified s2')
                              , known_values = known_values s1'
                              , rules = rules s1'
                              , num_steps = num_steps s1'
@@ -502,8 +506,11 @@ updateSymbolicIds ctxt@(Context { s1_ = s1@(State {symbolic_ids = syms1}), s2_ =
     in ctxt { s1_ = s1 { symbolic_ids = syms1' }, s2_ = s2 { symbolic_ids = syms2' } }
 
 -- | Simpler version of mergePathConds, may not be very efficient for large numbers of PCs, but suffices for simple cases
-mergePathCondsSimple :: Context t -> PathConds
-mergePathCondsSimple (Context {s1_ = (State {path_conds = pc1, known_values = kv}), s2_ = (State {path_conds = pc2}), newId_ = newId, newPCs_ = newPCs}) =
+mergePathCondsSimple :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)
+mergePathCondsSimple simplifier ctxt@(Context {s1_ = s1@(State {path_conds = pc1, known_values = kv})
+                                              , s2_ = (State {path_conds = pc2})
+                                              , newId_ = newId
+                                              , newPCs_ = newPCs}) =
     let pc1HS = HS.fromList (PC.toList pc1)
         pc2HS = HS.fromList (PC.toList pc2)
         common = HS.toList $ HS.intersection pc1HS pc2HS
@@ -514,13 +521,17 @@ mergePathCondsSimple (Context {s1_ = (State {path_conds = pc1, known_values = kv
         mergedPC = PC.fromList common
         mergedPC' = foldr PC.insert mergedPC (pc1Only' ++ pc2Only')
         mergedPC'' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) mergedPC'
-        mergedPC''' = foldr PC.insert mergedPC'' newPCs
-    in mergedPC'''
+        (s1', newPCs') = L.mapAccumL (simplifyPC simplifier) s1 newPCs
+        newPCs'' = concat newPCs'
+        mergedPC''' = foldr PC.insert mergedPC'' newPCs''
+    in (ctxt {s1_ = s1'}, mergedPC''')
 
 -- | Does not always work if 2 top level AssumePCs both impose constraints on the same Name -> resulting in model generating conflicting values
 -- and one being arbitrarily chosen over the other
-mergePathConds :: Context t -> PathConds
-mergePathConds (Context {s1_ = (State {path_conds = pc1, known_values = kv}), s2_ = (State {path_conds = pc2}), newId_ = newId, newPCs_ = newPCs}) =
+mergePathConds :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)
+mergePathConds simplifier ctxt@(Context { s1_ = s1@(State {path_conds = pc1, known_values = kv})
+                                        , s2_ = (State {path_conds = pc2})
+                                        , newId_ = newId, newPCs_ = newPCs}) =
     -- If a key exists in both maps, then the respective values are combined and inserted into pc1_map'. 
     -- Else, all other values in pc1_map are added to pc1_map' as it is.
     -- pc2_map' will only contain values whose keys are not present in pc1_map
@@ -531,7 +542,9 @@ mergePathConds (Context {s1_ = (State {path_conds = pc1, known_values = kv}), s2
         combined_map = PC.PathConds (M.union pc2_map' pc1_map')
         -- Add the following expression to constrain the value newId can take to either 1/2 when solving
         combined_map' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) combined_map
-    in L.foldr PC.insert (HS.foldr PC.insert combined_map' newAssumePCs) newPCs
+        (s1', newPCs') = L.mapAccumL (simplifyPC simplifier) s1 newPCs
+        newPCs'' = concat newPCs'
+    in (ctxt {s1_ = s1'}, L.foldr PC.insert (HS.foldr PC.insert combined_map' newAssumePCs) newPCs'')
 
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
 -- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
