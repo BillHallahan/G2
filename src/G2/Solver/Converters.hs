@@ -98,7 +98,9 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 -- | Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter con ast out io => con -> PathConds -> IO Result
 checkConstraints con pc = do
-    let pc' = unsafeElimCast pc
+    -- Hash, THEN remove the casts... going the other way around results in a lot of re-hashing,
+    -- when the names change
+    let pc' = unsafeElimCast $ PC.toList pc
 
     let headers = toSMTHeaders pc'
     let formula = toSolver con headers
@@ -139,10 +141,12 @@ getModelVal avf con s b (Id n _) pc = do
 
 checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 checkNumericConstraints con pc = do
-    let headers = toSMTHeaders pc
-    let formula = toSolver con headers
+    let pc' = PC.toList pc
+        
+        headers = toSMTHeaders pc'
+        formula = toSolver con headers
 
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ pc'
 
     let io = getIO con
     (_, m) <- checkSatGetModel con io formula headers vs
@@ -159,17 +163,14 @@ checkNumericConstraints con pc = do
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: PathConds -> [SMTHeader]
+toSMTHeaders :: [PathCond] -> [SMTHeader]
 toSMTHeaders = addSetLogic . toSMTHeaders'
 
-toSMTHeaders' :: PathConds -> [SMTHeader]
+toSMTHeaders' :: [PathCond] -> [SMTHeader]
 toSMTHeaders' pc  = 
-    let
-        pc' = PC.toList pc
-    in
-    nub (pcVarDecls pc')
+    nub (pcVarDecls pc)
     ++
-    (pathConsToSMTHeaders pc')
+    (pathConsToSMTHeaders pc)
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]

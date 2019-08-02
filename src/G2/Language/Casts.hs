@@ -18,12 +18,19 @@ import G2.Language.Typing
 -- correctness of the resulting expression.  In particular, the expression
 -- is likely to not actually type correctly if it contains variables that
 -- are mapped in the Expression Environment
+-- unsafeElimCast :: ASTContainer m Expr => m -> m
+-- unsafeElimCast = modifyASTsFix unsafeElimOuterCast
+
+-- unsafeElimOuterCast :: Expr -> Expr
+-- unsafeElimOuterCast (Cast e (t1 :~ t2)) = replaceASTs t1 t2 e
+-- unsafeElimOuterCast e = e
+
 unsafeElimCast :: ASTContainer m Expr => m -> m
-unsafeElimCast = modifyASTsFix unsafeElimOuterCast
+unsafeElimCast = modifyContainedASTs unsafeElimOuterCast
 
 unsafeElimOuterCast :: Expr -> Expr
-unsafeElimOuterCast (Cast e (t1 :~ t2)) = replaceASTs t1 t2 e
-unsafeElimOuterCast e = e
+unsafeElimOuterCast (Cast e (t1 :~ t2)) = unsafeElimOuterCast $ replaceASTs t1 t2 e
+unsafeElimOuterCast e = modifyChildren unsafeElimOuterCast e
 
 -- | Given a function cast from (t1 -> t2) to (t1' -> t2'), decomposes it to two
 -- seperate casts, from t1 to t1', and from t2 to t2'.  Given a cast (t1 ~ t2)
