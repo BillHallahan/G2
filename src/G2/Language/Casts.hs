@@ -18,13 +18,6 @@ import G2.Language.Typing
 -- correctness of the resulting expression.  In particular, the expression
 -- is likely to not actually type correctly if it contains variables that
 -- are mapped in the Expression Environment
--- unsafeElimCast :: ASTContainer m Expr => m -> m
--- unsafeElimCast = modifyASTsFix unsafeElimOuterCast
-
--- unsafeElimOuterCast :: Expr -> Expr
--- unsafeElimOuterCast (Cast e (t1 :~ t2)) = replaceASTs t1 t2 e
--- unsafeElimOuterCast e = e
-
 unsafeElimCast :: ASTContainer m Expr => m -> m
 unsafeElimCast = modifyContainedASTs unsafeElimOuterCast
 
