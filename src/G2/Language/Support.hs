@@ -48,6 +48,8 @@ data State t = State { expr_env :: E.ExprEnv
                      , symbolic_ids :: SymbolicIds
                      , exec_stack :: Stack Frame
                      , model :: Model
+                     , adt_int_maps :: ADTIntMaps -- ^ Mapping for each ADT between its Data Constructors and Integers
+                     , simplified :: M.Map Name (Type, Type) -- ^ Names in PathConds that have been simplified, along with their Type and Cast Type
                      , known_values :: KnownValues
                      , rules :: ![Rule]
                      , num_steps :: !Int -- Invariant: The length of the rules list
@@ -127,6 +129,20 @@ type Model = M.Map Name Expr
 isEmpty :: Model -> Bool
 isEmpty m = M.null m
 
+type ADTIntMaps = M.Map Type DCNum
+
+-- The Data Constructors of each ADT appearing in the PathConds are mapped to the range [0,`upperB`), where
+-- `upperB` equals the number of Data Constructors for that type
+data DCNum = DCNum { upperB :: Integer
+                   , dc2Int :: M.Map Name Integer
+                   , int2Dc :: M.Map Integer DataCon } deriving (Show, Eq, Read, Typeable, Data)
+
+lookupInt :: Name -> DCNum -> Maybe Integer
+lookupInt n DCNum { dc2Int = m } = M.lookup n m
+
+lookupDC :: Integer -> DCNum -> Maybe DataCon
+lookupDC n DCNum { int2Dc = m } = M.lookup n m
+
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
 renameState old new_seed s b =
@@ -144,6 +160,8 @@ renameState old new_seed s b =
              , symbolic_ids = rename old new (symbolic_ids s)
              , exec_stack = exec_stack s
              , model = model s
+             , adt_int_maps = rename old new (adt_int_maps s)
+             , simplified = rename old new (simplified s)
              , known_values = rename old new (known_values s)
              , rules = rules s
              , num_steps = num_steps s
@@ -161,6 +179,8 @@ instance Named t => Named (State t) where
             ++ names (symbolic_ids s)
             ++ names (exec_stack s)
             ++ names (model s)
+            ++ names (adt_int_maps s)
+            ++ names (simplified s)
             ++ names (known_values s)
             ++ names (track s)
 
@@ -178,6 +198,8 @@ instance Named t => Named (State t) where
                , symbolic_ids = rename old new (symbolic_ids s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
+               , adt_int_maps = rename old new (adt_int_maps s)
+               , simplified = rename old new (simplified s)
                , known_values = rename old new (known_values s)
                , rules = rules s
                , num_steps = num_steps s
@@ -198,6 +220,8 @@ instance Named t => Named (State t) where
                , symbolic_ids = renames hm (symbolic_ids s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
+               , adt_int_maps = renames hm (adt_int_maps s)
+               , simplified = renames hm (simplified s)
                , known_values = renames hm (known_values s)
                , rules = rules s
                , num_steps = num_steps s
@@ -231,6 +255,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . symbolic_ids) s) ++
+                      ((containedASTs . adt_int_maps) s) ++
+                      ((containedASTs . simplified) s) ++
                       ((containedASTs . exec_stack) s) ++
                       (containedASTs $ track s)
 
@@ -241,6 +267,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
+                                , adt_int_maps = (modifyContainedASTs f . adt_int_maps) s
+                                , simplified = (modifyContainedASTs f . simplified) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s }
 
@@ -324,6 +352,10 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (AssertFrame is e) = AssertFrame (modifyContainedASTs f is) (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
 
+instance ASTContainer DCNum Type where
+    containedASTs _ = []
+    modifyContainedASTs _ m = m
+
 instance Named CurrExpr where
     names (CurrExpr _ e) = names e
     rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
@@ -356,3 +388,12 @@ instance Named Frame where
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
     renames _ MergePtFrame = MergePtFrame
+
+instance Named DCNum where
+    names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (M.keys m1) ++ names (M.elems m2)
+    rename old new dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
+        where m1' = rename old new m1
+              m2' = rename old new m2
+    renames hm dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
+        where m1' = renames hm m1
+              m2' = renames hm m2

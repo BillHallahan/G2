@@ -19,10 +19,10 @@ module G2.Language.PathConds ( PathCond (..)
                                        , relevant
                                        , relatedSets
                                        , scc
+                                       , pcNames
                                        , varIdsInPC
-                                       , toList
-                                       , isPCExists
-                                       , containsPCExists) where
+                                       , varNamesInPC
+                                       , toList ) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -61,7 +61,6 @@ newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashS
 data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
-              | PCExists Id -- ^ Makes sure we find some value for the given name, of the correct type
               | AssumePC Id Int PathCond
               deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -156,6 +155,9 @@ relatedSets' kv pc ns =
           s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []
 
+-- | Returns list of Names of all the nodes in the PathConds
+pcNames :: PathConds -> [Name]
+pcNames pc = catMaybes . M.keys $ toMap pc
 
 varIdsInPC :: PathCond -> [Id]
 -- [AltCond]
@@ -169,7 +171,6 @@ varIdsInPC :: PathCond -> [Id]
 varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
 varIdsInPC (ConsCond _ e _) = varIds e
-varIdsInPC (PCExists i) = [i]
 varIdsInPC (AssumePC i _ pc) = [i] ++ varIdsInPC pc
 
 varNamesInPC :: PathCond -> [Name]
@@ -199,15 +200,6 @@ scc' (n:ns) pc newpc =
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap
 
-isPCExists :: PathCond -> Bool
-isPCExists (PCExists _) = True
-isPCExists _ = False
-
-containsPCExists :: PathCond -> Bool
-containsPCExists (AssumePC _ _ pc) = containsPCExists pc
-containsPCExists (PCExists _) = True
-containsPCExists _ = False
-
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap
     
@@ -222,7 +214,6 @@ instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
     containedASTs (AltCond _ e _) = [e]
     containedASTs (ConsCond _ e _) = [e]
-    containedASTs (PCExists _) = []
     containedASTs (AssumePC _ _ pc) = containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
@@ -231,13 +222,11 @@ instance ASTContainer PathCond Expr where
     modifyContainedASTs f (ConsCond dc e b) =
         ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
     modifyContainedASTs f (AssumePC i num pc) = AssumePC i num (modifyContainedASTs f pc)
-    modifyContainedASTs _ pc = pc
 
 instance ASTContainer PathCond Type where
     containedASTs (ExtCond e _)   = containedASTs e
     containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
     containedASTs (ConsCond dcl e _) = containedASTs dcl ++ containedASTs e
-    containedASTs (PCExists i) = containedASTs i
     containedASTs (AssumePC i _ pc) = containedASTs i ++ containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
@@ -247,7 +236,6 @@ instance ASTContainer PathCond Type where
             a' = modifyContainedASTs f a
     modifyContainedASTs f (ConsCond dc e b) =
         ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
-    modifyContainedASTs f (PCExists i) = PCExists (modifyContainedASTs f i)
     modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
 
 instance Named PathConds where
@@ -265,19 +253,16 @@ instance Named PathCond where
     names (AltCond _ e _) = names e
     names (ExtCond e _) = names e
     names (ConsCond d e _) = names d ++  names e
-    names (PCExists i) = names i
     names (AssumePC i _ pc) = names i ++ names pc
 
     rename old new (AltCond l e b) = AltCond l (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
     rename old new (ConsCond d e b) = ConsCond (rename old new d) (rename old new e) b
-    rename old new (PCExists i) = PCExists (rename old new i)
     rename old new (AssumePC i num pc) = AssumePC (rename old new i) num (rename old new pc)
 
     renames hm (AltCond l e b) = AltCond l (renames hm e) b
     renames hm (ExtCond e b) = ExtCond (renames hm e) b
     renames hm (ConsCond d e b) = ConsCond (renames hm d) (renames hm e) b
-    renames hm (PCExists i) = PCExists (renames hm i)
     renames hm (AssumePC i num pc) = AssumePC (renames hm i) num (renames hm pc)
 
 instance Ided PathConds where
@@ -287,5 +272,4 @@ instance Ided PathCond where
     ids (AltCond _ e _) = ids e
     ids (ExtCond e _) = ids e
     ids (ConsCond d e _) = ids d ++  ids e
-    ids (PCExists i) = [i]
     ids (AssumePC i _ pc) = ids i ++ ids pc

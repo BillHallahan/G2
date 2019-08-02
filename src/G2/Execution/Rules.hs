@@ -35,14 +35,14 @@ import Data.Maybe
 import qualified Data.HashSet as HS
 import qualified Data.List as L
 
-stdReduce :: Solver solver => Sharing -> solver -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
-stdReduce sharing solver s b@(Bindings {name_gen = ng}) = do
-    (r, s', ng') <- stdReduce' sharing solver s ng
+stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
+stdReduce sharing solver simplifier s b@(Bindings {name_gen = ng}) = do
+    (r, s', ng') <- stdReduce' sharing solver simplifier s ng
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
-stdReduce' :: Solver solver => Sharing -> solver -> State t -> NameGen -> IO (Rule, [State t], NameGen)
-stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
+stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
+stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Var i  <- ce
     , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
@@ -50,9 +50,9 @@ stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | App e1 e2 <- ce = return $ evalApp s ng e1 e2
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i a <- ce = do
-        (r, xs, ng') <- evalCaseSMNF solver s ng e i a
-        -- let (r, xs, ng') = evalCase s ng e i a
-        xs' <- mapMaybeM (reduceNewPC solver) xs
+        -- (r, xs, ng') <- evalCaseSMNF solver s ng e i a
+        let (r, xs, ng') = evalCase s ng e i a
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
@@ -61,8 +61,8 @@ stdReduce' share solver s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
-stdReduce' _ solver s@(State { curr_expr = CurrExpr Return ce
-                             , exec_stack = stck }) ng
+stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
+                                 , exec_stack = stck }) ng
     | Prim Error _ <- ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
@@ -79,15 +79,15 @@ stdReduce' _ solver s@(State { curr_expr = CurrExpr Return ce
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
-        xs' <- mapMaybeM (reduceNewPC solver) xs
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
-        xs' <- mapMaybeM (reduceNewPC solver) xs
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Just (CurrExprFrame e, stck') <- frstck = do
         let (r, xs) = retCurrExpr s ce e stck'
-        xs' <- mapMaybeM (reduceNewPC solver) xs
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng)
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
@@ -95,36 +95,38 @@ stdReduce' _ solver s@(State { curr_expr = CurrExpr Return ce
             frstck = S.pop stck
 
 data NewPC t = NewPC { state :: State t
-                     , new_pcs :: [PathCond] }
+                     , new_pcs :: [PathCond]
+                     , concretized :: [Id] }
 
 newPCEmpty :: State t -> NewPC t
-newPCEmpty s = NewPC { state = s, new_pcs = []}
+newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
 
-reduceNewPC :: Solver solver => solver -> NewPC t -> IO (Maybe (State t))
-reduceNewPC solver
+reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
+reduceNewPC solver simplifier
             (NewPC { state = s@(State { path_conds = spc })
-                   , new_pcs = pc })
+                   , new_pcs = pc
+                   , concretized = concIds })
     | not (null pc) = do
-        -- In the case of newtypes, the PC exists we get may have the correct name
-        -- but incorrect type.
-        -- We do not want to add these to the State
-        -- This is a bit ugly, but not a huge deal, since the State already has PCExists
-        let pc' = filter (not . PC.isPCExists) pc
+        let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
+            pc'' = concat pc'
 
         -- Optimization
         -- We replace the path_conds with only those that are directly
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr PC.insert spc $ pc'
-            s' = s { path_conds = new_pc}
+        let new_pc = foldr PC.insert spc $ pc''
+            s'' = s' {path_conds = new_pc}
 
-        let rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant pc new_pc
+        let ns = (concatMap PC.varNamesInPC pc) ++ (names concIds)
+            rel_pc = case ns of
+                [] -> PC.fromList pc''
+                _ -> PC.scc ns new_pc
 
-        res <- check solver s rel_pc
+        res <- check solver s' rel_pc
 
         if res == SAT then
-            return $ Just s'
+            return $ Just s''
         else
             return Nothing
     | otherwise = return $ Just s
@@ -360,23 +362,21 @@ getTopLevelExprs (Case _ _ []) = []
 getTopLevelExprs _ = []
 
 checkNewPC :: Solver solver => solver -> State t -> PathCond -> Expr -> Assumption -> IO (Maybe (Expr, Assumption, State t))
-checkNewPC solver s@(State { path_conds = spc }) pc e assum
-    | (not . PC.isPCExists) pc = do
-        -- Replace the path_conds with only those that are directly
-        -- affected by the new path constraints
-        -- This allows for more efficient solving, and in some cases may
-        -- change an Unknown into a SAT or UNSAT
-        let new_pc = PC.insert pc spc
-            s' = s { path_conds = new_pc}
-            rel_pc = PC.filter (not . PC.isPCExists) $ PC.relevant [pc] new_pc
+checkNewPC solver s@(State { path_conds = spc }) pc e assum = do
+    -- Replace the path_conds with only those that are directly
+    -- affected by the new path constraints
+    -- This allows for more efficient solving, and in some cases may
+    -- change an Unknown into a SAT or UNSAT
+    let new_pc = PC.insert pc spc
+        s' = s { path_conds = new_pc}
+        rel_pc = PC.relevant [pc] new_pc
 
-        res <- check solver s rel_pc
+    res <- check solver s rel_pc
 
-        if res == SAT then
-            return $ Just (e, assum, s')
-        else
-            return Nothing
-    | otherwise = return $ Just (e, assum, s)
+    if res == SAT then
+        return $ Just (e, assum, s')
+    else
+        return Nothing
 
 -- | Handle the Case forms of Evaluate.
 evalCaseSMNF' :: State t -> NameGen -> [(Expr, [Assumption])] -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
@@ -915,10 +915,11 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
           (NewPC { state =  s { expr_env = eenv''
                               , symbolic_ids = syms'
                               , curr_expr = CurrExpr Evaluate aexpr''}
-                 -- It is VERY important that we insert a PCExists with the mexpr_id
+                 -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
                  -- not violate any path constraints from default cases. 
-                 ,  new_pcs = [PCExists mexpr_id]
+                 , new_pcs = []
+                 , concretized = [mexpr_id]
                  }, ngen')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
@@ -988,7 +989,7 @@ createExtConds s ng mexpr cvar (x:xs) =
 
 createExtCond :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
 createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
-        (NewPC { state = res, new_pcs = [cond] }, ngen)
+        (NewPC { state = res, new_pcs = [cond] , concretized = []}, ngen)
   where
     -- Get the Bool value specified by the matching DataCon
     -- Throws an error if dcon is not a Bool Data Constructor
@@ -1006,7 +1007,7 @@ liftSymLitAlt s mexpr cvar = map (liftSymLitAlt' s mexpr cvar)
 -- | Lift literal alts found in symbolic case matching.
 liftSymLitAlt' :: State t -> Expr -> Id -> (Lit, Expr) -> NewPC t
 liftSymLitAlt' s mexpr cvar (lit, aexpr) =
-    NewPC { state = res, new_pcs = [cond] }
+    NewPC { state = res, new_pcs = [cond] , concretized = [] }
   where
     -- Condition that was matched.
     cond = AltCond lit mexpr True
@@ -1033,7 +1034,8 @@ liftSymDefAlt' s mexpr aexpr cvar as =
         aexpr' = liftCaseBinds binds aexpr
     in
     [NewPC { state = s { curr_expr = CurrExpr Evaluate aexpr' }
-           , new_pcs = conds }]
+           , new_pcs = conds
+           , concretized = [] }]
 
 defAltExpr :: [Alt] -> Maybe Expr
 defAltExpr [] = Nothing
@@ -1154,7 +1156,8 @@ retCurrExpr s e1 e2 stck =
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = e2
                          , exec_stack = stck}
-             , new_pcs = [ExtCond e1 True]}] )
+             , new_pcs = [ExtCond e1 True]
+             , concretized = []}] )
 
 retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
 retAssumeFrame s@(State {known_values = kv
@@ -1202,12 +1205,14 @@ concretizeExprToBool' s@(State {expr_env = eenv
                         , symbolic_ids = syms
                         , known_values = kv})
                 ngen mexpr_id dcon@(DataCon dconName _) e2 stck = 
-        (newPCEmpty $ s { expr_env = eenv'
+        (NewPC { state = s { expr_env = eenv'
                         , symbolic_ids = syms'
                         , exec_stack = stck
                         , curr_expr = CurrExpr Evaluate e2
                         , true_assert = assertVal}
-                        , ngen)
+               , new_pcs = []
+               , concretized = [] }
+        , ngen)
     where
         mexpr_n = idName mexpr_id
 
@@ -1223,7 +1228,8 @@ addExtCond :: State t -> NameGen -> Expr -> Expr -> Bool -> S.Stack Frame -> ([N
 addExtCond s ng e1 e2 boolVal stck = 
     ([NewPC { state = s { curr_expr = CurrExpr Evaluate e2
                          , exec_stack = stck}
-             , new_pcs = [ExtCond e1 boolVal]}], ng)
+             , new_pcs = [ExtCond e1 boolVal]
+             , concretized = [] }], ng)
 
 addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
 addExtConds s ng e1 ais e2 stck =
@@ -1235,11 +1241,13 @@ addExtConds s ng e1 ais e2 stck =
         condf = [ExtCond e1 False]
 
         strue = NewPC { state = s'
-                      , new_pcs = condt }
+                      , new_pcs = condt
+                      , concretized = []}
 
         sfalse = NewPC { state = s' { true_assert = True
                                     , assert_ids = ais }
-                       , new_pcs = condf }
+                       , new_pcs = condf
+                       , concretized = []}
     in
     ([strue, sfalse], ng)
 
@@ -1302,5 +1310,3 @@ retReplaceSymbFunc s@(State { expr_env = eenv
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True
 isApplyFrame _ = False
-
-

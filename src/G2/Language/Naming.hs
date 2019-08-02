@@ -708,6 +708,12 @@ instance Named Int where
     {-# INLINE rename #-}
     rename _ _ = id
 
+instance Named Integer where
+    {-# INLINE names #-}
+    names _ = []
+    {-# INLINE rename #-}
+    rename _ _ = id
+
 instance Named T.Text where
     {-# INLINE names #-}
     names _ = []

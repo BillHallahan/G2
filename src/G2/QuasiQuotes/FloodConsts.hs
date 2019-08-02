@@ -69,4 +69,3 @@ pathCondMaybeSatisfiable kv (ExtCond e b) =
     in
     if (r == tr && not b) || (r == fal && b) then False else True
 pathCondMaybeSatisfiable _ (ConsCond dc1 (Data dc2) b) = (dc1 == dc2) == b
-pathCondMaybeSatisfiable _ (PCExists _) = True

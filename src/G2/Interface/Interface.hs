@@ -133,7 +133,7 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
-    , path_conds = PC.fromList $ map PCExists is
+    , path_conds = PC.fromList []
     , non_red_path_conds = []
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
@@ -141,6 +141,8 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
     , symbolic_ids = S.fromList is
     , exec_stack = Stack.empty
     , model = M.empty
+    , adt_int_maps = M.empty
+    , simplified = M.empty
     , known_values = kv'
     , rules = []
     , num_steps = 0
@@ -193,8 +195,8 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-initRedHaltOrd :: Solver conv => conv -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
-initRedHaltOrd conv config =
+initRedHaltOrd :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+initRedHaltOrd solver simplifier config =
     let
         share = sharing config
 
@@ -204,8 +206,8 @@ initRedHaltOrd conv config =
     if higherOrderSolver config == AllFuncs
         then (SomeReducer (NonRedPCRed)
                  <~| (case logStates config of
-                        Just fp -> SomeReducer (StdRed share conv :<~ Logger fp)
-                        Nothing -> SomeReducer (StdRed share conv))
+                        Just fp -> SomeReducer (StdRed share solver simplifier :<~ Logger fp)
+                        Nothing -> SomeReducer (StdRed share solver simplifier))
              , SomeHalter
                  (SwitchEveryNHalter 20
                  :<~> MaxOutputsHalter (maxOutputs config)
@@ -214,8 +216,8 @@ initRedHaltOrd conv config =
              , SomeOrderer $ PickLeastUsedOrderer)
         else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                  <~| (case logStates config of
-                        Just fp -> SomeReducer (StdRed share conv :<~ Logger fp)
-                        Nothing -> SomeReducer (StdRed share conv))
+                        Just fp -> SomeReducer (StdRed share solver simplifier :<~ Logger fp)
+                        Nothing -> SomeReducer (StdRed share solver simplifier))
              , SomeHalter
                  (DiscardIfAcceptedTag state_name
                  :<~> SwitchEveryNHalter 20
@@ -290,14 +292,14 @@ runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
 
 runG2WithConfig :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig state config bindings = do
-    SomeSolver con <- initSolver config
     let mergeStates = stateMerging config
+    SomeSolver solver <- initSolver config
+    let simplifier = ADTSimplifier arbValue
 
-    (in_out, bindings') <- case initRedHaltOrd con config of
+    (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
-                    runG2WithSomes red hal ord con mergeStates [] state bindings
-
-    close con
+                    runG2WithSomes red hal ord solver simplifier mergeStates [] state bindings
+    close solver
 
     return (in_out, bindings')
 
@@ -305,20 +307,22 @@ runG2WithSomes :: ( Named t
                   , Eq t
                   , ASTContainer t Expr
                   , ASTContainer t Type
-                  , Solver solver)
+                  , Solver solver
+                  , Simplifier simplifier)
                => (SomeReducer t)
                -> (SomeHalter t)
                -> (SomeOrderer t)
                -> solver
+               -> simplifier
                -> Bool
                -> [Name]
                -> State t
                -> Bindings
                -> IO ([ExecRes t], Bindings)
-runG2WithSomes red hal ord con mergeStates pns state bindings =
+runG2WithSomes red hal ord solver simplifier mergeStates pns state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-            runG2 red' hal' ord' con mergeStates pns state bindings
+            runG2 red' hal' ord' solver simplifier mergeStates pns state bindings
 
 runG2Pre :: ( Named t
             , ASTContainer t Expr
@@ -336,12 +340,12 @@ runG2Post :: ( Named t
              , Reducer r rv t
              , Halter h hv t
              , Orderer or sov b t
-             , Solver solver) => r -> h -> or ->
-             solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-runG2Post red hal ord con is bindings = do
-    let mergeStates = False
+             , Solver solver
+             , Simplifier simplifier) => r -> h -> or ->
+             solver -> simplifier -> State t -> Bindings -> Bool -> IO ([ExecRes t], Bindings)
+runG2Post red hal ord solver simplifier is bindings mergeStates = do
     (exec_states, bindings') <- runExecution red hal ord mergeStates is bindings
-    sol_states <- mapM (runG2Solving con bindings' mergeStates) exec_states
+    sol_states <- mapM (runG2Solving solver simplifier bindings' mergeStates) exec_states
 
     return (catMaybes sol_states, bindings')
 
@@ -361,14 +365,17 @@ runG2ThroughExecution red hal ord mergeStates pns is bindings = do
 runG2Solving :: ( Named t
                 , ASTContainer t Expr
                 , ASTContainer t Type
-                , Solver solver) =>
-                solver -> Bindings -> Bool -> State t -> IO (Maybe (ExecRes t))
-runG2Solving con bindings mergeStates s@(State { known_values = kv })
+                , Solver solver
+                , Simplifier simplifier) =>
+                solver -> simplifier -> Bindings -> Bool -> State t -> IO (Maybe (ExecRes t))
+runG2Solving solver simplifier bindings mergeStates s@(State { known_values = kv })
     | true_assert s = do
-        (_, m) <- solve con s bindings (S.toList $ symbolic_ids s) (path_conds s)
+        (_, m) <- solve solver s bindings (S.toList $ symbolic_ids s) (path_conds s)
         case m of
             Just m' -> do
-                let s' = s { model = m' }
+                let m'' = reverseSimplification simplifier s bindings m'
+
+                let s' = s { model = m'' }
 
                 let s'' = if mergeStates
                             then replaceCase s'
@@ -387,9 +394,8 @@ runG2Solving con bindings mergeStates s@(State { known_values = kv })
                                    , conc_out = evalPrims kv (conc_out sm')
                                    , violated = evalPrims kv (violated sm')}
                 
-                return (Just sm'')
-            Nothing -> do
-              return Nothing
+                return $ Just sm''
+            Nothing -> return Nothing
 
     | otherwise = return Nothing
 
@@ -402,9 +408,11 @@ runG2 :: ( Named t
          , Reducer r rv t
          , Halter h hv t
          , Orderer or sov b t
-         , Solver solver) => r -> h -> or ->
-         solver -> Bool -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-runG2 red hal ord con mergeStates pns is bindings = do
+         , Solver solver
+         , Simplifier simplifier) => r -> h -> or ->
+         solver -> simplifier -> Bool -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+runG2 red hal ord solver simplifier mergeStates pns is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mergeStates pns is bindings
-    sol_states <- mapM (runG2Solving con bindings' mergeStates) exec_states
+    sol_states <- mapM (runG2Solving solver simplifier bindings' mergeStates) exec_states
+
     return (catMaybes sol_states, bindings')

@@ -248,7 +248,6 @@ ppPathCond s (ConsCond dc e b) =
         es = mkUnsugaredExprHaskell s e
     in
     if b then es ++ " is " ++ dcs else es ++ " is not " ++ dcs
-ppPathCond _ (PCExists i) = "Exists " ++ mkIdHaskell i
 ppPathCond s (AssumePC i num pc) = "if" ++ mkIdHaskell i ++ " == " ++ (show num) ++ " then (" ++ (ppPathCond s pc) ++ ")"
 
 injNewLine :: [String] -> String
@@ -353,7 +352,6 @@ pprSymbolicIdsStr i = injNewLine id_strs
     id_strs = map show $ HS.toList i
 
 pprPathCondStr :: PathCond -> String
-pprPathCondStr (PCExists p) = show p
 pprPathCondStr pc = injTuple (pprPathCondStr' pc)
 
 pprPathCondStr' :: PathCond -> [String]
@@ -374,7 +372,6 @@ pprPathCondStr' (ConsCond d expr b) = acc_strs
     expr_str = show expr
     b_str = show b
     acc_strs = [d_str, expr_str, b_str]
-pprPathCondStr' (PCExists p) = [show p]
 pprPathCondStr' (AssumePC i num pc) = [show i] ++ [show num] ++ pprPathCondStr' pc
 
 pprCleanedNamesStr :: CleanedNames -> String

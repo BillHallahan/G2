@@ -9,7 +9,8 @@ module G2.Language.Monad.Support ( StateM
                                  , runStateM
                                  , readRecord
                                  , withNG
-                                 , mapCurrExpr ) where
+                                 , mapCurrExpr
+                                 , mapMAccumB ) where
 
 import qualified Control.Monad.State.Lazy as SM
 
@@ -125,3 +126,11 @@ mapCurrExpr f = do
     (CurrExpr er e) <- currExpr
     e' <- f e
     putCurrExpr (CurrExpr er e') 
+
+mapMAccumB :: Monad m => (a -> b -> m (a, c)) -> a -> [b] -> m (a, [c])
+mapMAccumB _ a [] = do
+    return (a, [])
+mapMAccumB f a (x:xs) = do
+    (a', res) <- f a x
+    (a'', res2) <- mapMAccumB f a' xs
+    return $ (a'', res:res2)

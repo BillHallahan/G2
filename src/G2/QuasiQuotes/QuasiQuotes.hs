@@ -220,8 +220,9 @@ runExecutionQ s b config = do
   runIO $ do
     let (s', b') = addAssume s b
     
-    SomeSolver con <- initSolverInfinite config
-    case qqRedHaltOrd config con of
+    SomeSolver solver <- initSolverInfinite config
+    let simplifier = ADTSimplifier arbValueInfinite
+    case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
                 hal' = hal :<~> ZeroHalter 2000 :<~> LemmingsHalter
@@ -257,8 +258,8 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: Solver solver => Config -> solver -> (SomeReducer (), SomeHalter (), SomeOrderer ())
-qqRedHaltOrd config solver =
+qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
 
@@ -267,7 +268,7 @@ qqRedHaltOrd config solver =
     in
     ( SomeReducer
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (SomeReducer (StdRed share solver))
+            <~| (SomeReducer (StdRed share solver simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptHalter)
@@ -373,20 +374,22 @@ executeAndSolveStates s b = do
 executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' b s = do
     config <- qqConfig
-    SomeSolver con <- initSolverInfinite config
-    case qqRedHaltOrd config con of
+    SomeSolver solver <- initSolverInfinite config
+    let simplifier = IdSimplifier
+    let mergeStates = False
+    case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> ErrorHalter
             --                :<~> MaxOutputsHalter (Just 1)
             --                :<~> BranchAdjSwitchEveryNHalter 2000 20
                            -- :<~> SwitchEveryNHalter 2000
             let hal' = hal :<~> ErrorHalter :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
-            -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer con s b
+            -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer solver s b
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' ((IncrAfterN 2000 SymbolicADTOrderer)
-                                          -- :<-> BucketSizeOrderer 6) con s b
+                                          -- :<-> BucketSizeOrderer 6) solver s b
             (res, _) <- runG2Post (red) hal' ((IncrAfterN 2000 ADTHeightOrderer)
-                                          :<-> BucketSizeOrderer 6) con s b
-            -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) con s b
+                                          :<-> BucketSizeOrderer 6) solver simplifier s b mergeStates
+            -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) solver s b
 
             case res of
                 exec_res:_ -> return $ Just exec_res
@@ -402,21 +405,23 @@ solveStates' :: ( Named t
                 , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates' b xs = do
     config <- qqConfig
-    SomeSolver con <- initSolverInfinite config
-    solveStates'' con b xs
+    SomeSolver solver <- initSolverInfinite config
+    let simplifier = IdSimplifier
+    solveStates'' solver simplifier b xs
 
 solveStates'' :: ( Named t
                  , ASTContainer t Expr
                  , ASTContainer t G2.Type
-                 , Solver sol) => sol -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
-solveStates'' _ _ [] =return Nothing
-solveStates'' sol b (s:xs) = do
+                 , Solver solver
+                 , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
+solveStates'' _ _ _ [] =return Nothing
+solveStates'' sol simplifier b (s:xs) = do
     let mergeStates = False
-    m_ex_res <- runG2Solving sol b mergeStates s
+    m_ex_res <- runG2Solving sol simplifier b mergeStates s
     case m_ex_res of
         Just _ -> do
             return m_ex_res
-        Nothing -> solveStates'' sol b xs
+        Nothing -> solveStates'' sol simplifier b xs
 
 -- | Get the values of the symbolic arguments, and returns them in a tuple
 extractArgs :: InputIds -> CleanedNames -> TypeEnvName -> Q Exp -> Q Exp

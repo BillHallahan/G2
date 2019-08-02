@@ -110,7 +110,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
                                                        , last_var = Nothing
                                                        , annotations = annm} }
 
-    SomeSolver con <- initSolver config
+    SomeSolver solver <- initSolver config
+    let simplifier = ADTSimplifier arbValue
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not
@@ -135,8 +136,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
               then runG2WithSomes
                     (SomeReducer NonRedPCRed
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed share con :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed share con :<~| LHRed cfn)))
+                            Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)))
                     (SomeHalter
                       (MaxOutputsHalter (maxOutputs config)
                         :<~> ZeroHalter (steps config)
@@ -145,12 +146,12 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con mergeStates (pres_names ++ names annm) final_st bindings''' 
+                    solver simplifier mergeStates (pres_names ++ names annm) final_st bindings''' 
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed share con :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed share con :<~| LHRed cfn)))
+                            Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)))
                     (SomeHalter
                       (DiscardIfAcceptedTag state_name
                         :<~> MaxOutputsHalter (maxOutputs config)
@@ -160,7 +161,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    con mergeStates (pres_names ++ names annm) final_st bindings'''
+                    solver simplifier mergeStates (pres_names ++ names annm) final_st bindings'''
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -180,7 +181,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
     -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
 
-    close con
+    close solver
 
     return ((exec_res, final_bindings), ifi)
 
