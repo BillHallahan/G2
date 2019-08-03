@@ -22,7 +22,11 @@ module G2.Language.PathConds ( PathCond (..)
                                        , pcNames
                                        , varIdsInPC
                                        , varNamesInPC
-                                       , toList ) where
+                                       , toList
+                                       , toHashSet
+                                       , union
+                                       , intersection
+                                       , difference) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -199,6 +203,28 @@ scc' (n:ns) pc newpc =
 {-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
 toList = concatMap (HS.toList . fst) . M.elems . toMap
+
+{-# INLINE toHashSet #-}
+toHashSet :: PathConds -> HS.HashSet PathCond
+toHashSet = HS.unions . P.map fst . M.elems . toMap
+
+--(HS.HashSet PathCond, HS.HashSet Name)
+
+union :: PathConds -> PathConds -> PathConds
+union (PathConds pc1) (PathConds pc2) = PathConds $ M.unionWith union' pc1 pc2
+    where
+        union' (hpc1, hn1) (hpc2, hn2) = (HS.union hpc1 hpc2, HS.union hn1 hn2)
+
+intersection :: PathConds -> PathConds -> PathConds
+intersection (PathConds pc1) (PathConds pc2) = PathConds $ M.intersectionWith inter pc1 pc2
+    where
+        inter (hpc1, hn1) (hpc2, hn2) = (HS.intersection hpc1 hpc2, HS.intersection hn1 hn2)
+
+difference :: PathConds -> PathConds -> PathConds
+difference (PathConds pc1) (PathConds pc2) =
+    PathConds $ M.differenceWith diff pc1 pc2
+        where
+            diff (hpc1, hn1) (hpc2, hn2) = Just (HS.difference hpc1 hpc2, HS.difference hn1 hn2)
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap

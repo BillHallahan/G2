@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module G2.Execution.StateMerging
   ( mergeState
   , mergeCurrExpr
@@ -98,7 +100,7 @@ mergeState ngen simplifier s1 s2 =
                 ctxt = emptyContext s1 s2 ngen' newId
                 (ctxt', curr_expr') = mergeCurrExpr ctxt
                 (ctxt'', eenv') = mergeExprEnv ctxt'
-                (ctxt''', path_conds') = mergePathConds simplifier ctxt''
+                (ctxt''', path_conds') = mergePathConds2 simplifier ctxt''
                 syms' = mergeSymbolicIds ctxt'''
                 s1' = s1_ ctxt'''
                 s2' = s2_ ctxt'''
@@ -572,6 +574,30 @@ mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
         hs1Minus2' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
         hs2Minus1' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
         unmergedPCs = HS.union hs1Minus2' hs2Minus1'
+
+mergePathConds2 :: Simplifier simplifier => simplifier -> Context t -> (Context t, PathConds)
+mergePathConds2 simplifier ctxt@(Context { s1_ = s1@(State { path_conds = pc1, known_values = kv })
+                                         , s2_ = (State { path_conds = pc2 })
+                                         , newId_ = newId
+                                         , newPCs_ = newPCs}) =
+    let
+        both = PC.intersection pc1 pc2
+        
+        res_newId = ExtCond (mkOrExpr kv
+                                (mkEqIntExpr kv (Var newId) 1)
+                                (mkEqIntExpr kv (Var newId) 2)) True
+
+        pc1' = PC.toHashSet pc1
+        pc2' = PC.toHashSet pc2
+
+        only1 = map (AssumePC newId 1) . HS.toList $ pc1' `HS.difference` pc2'
+        only2 = map (AssumePC newId 2) . HS.toList $ pc2' `HS.difference` pc1'
+
+        (s1', new') = L.mapAccumL (simplifyPC simplifier) s1 (res_newId:newPCs)
+
+        merged' = foldr PC.insert both (only1 ++ only2 ++ concat new')
+    in
+    (ctxt { s1_ = s1' }, merged')
 
 -- | @`changedSyms` is list of tuples, w/ each tuple representing the old symbolic Id and the new replacement Id. @`subIdsPCs` substitutes all
 -- occurrences of the old symbolic Ids' Names in the PathConds with the Name of the corresponding new Id. This assumes Old and New Id have the same type
