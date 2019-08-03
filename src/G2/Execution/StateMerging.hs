@@ -100,7 +100,7 @@ mergeState ngen simplifier s1 s2 =
                 ctxt = emptyContext s1 s2 ngen' newId
                 (ctxt', curr_expr') = mergeCurrExpr ctxt
                 (ctxt'', eenv') = mergeExprEnv ctxt'
-                (ctxt''', path_conds') = mergePathConds2 simplifier ctxt''
+                (ctxt''', path_conds') = mergePathConds simplifier ctxt''
                 syms' = mergeSymbolicIds ctxt'''
                 s1' = s1_ ctxt'''
                 s2' = s2_ ctxt'''
@@ -587,15 +587,14 @@ mergePathConds2 simplifier ctxt@(Context { s1_ = s1@(State { path_conds = pc1, k
                                 (mkEqIntExpr kv (Var newId) 1)
                                 (mkEqIntExpr kv (Var newId) 2)) True
 
-        pc1' = PC.toHashSet pc1
-        pc2' = PC.toHashSet pc2
+        only1 = PC.differenceWithAssumePC newId 1 pc1 pc2
+        only2 = PC.differenceWithAssumePC newId 2 pc2 pc1
 
-        only1 = map (AssumePC newId 1) . HS.toList $ pc1' `HS.difference` pc2'
-        only2 = map (AssumePC newId 2) . HS.toList $ pc2' `HS.difference` pc1'
+        merged = PC.union both (PC.union only1 only2)
 
         (s1', new') = L.mapAccumL (simplifyPC simplifier) s1 (res_newId:newPCs)
 
-        merged' = foldr PC.insert both (only1 ++ only2 ++ concat new')
+        merged' = foldr PC.insert merged (concat new')
     in
     (ctxt { s1_ = s1' }, merged')
 

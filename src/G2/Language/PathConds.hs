@@ -26,7 +26,8 @@ module G2.Language.PathConds ( PathCond (..)
                                        , toHashSet
                                        , union
                                        , intersection
-                                       , difference) where
+                                       , difference
+                                       , differenceWithAssumePC) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -225,6 +226,14 @@ difference (PathConds pc1) (PathConds pc2) =
     PathConds $ M.differenceWith diff pc1 pc2
         where
             diff (hpc1, hn1) (hpc2, hn2) = Just (HS.difference hpc1 hpc2, HS.difference hn1 hn2)
+
+differenceWithAssumePC :: Id -> Int -> PathConds -> PathConds -> PathConds
+differenceWithAssumePC i n (PathConds pc1) (PathConds pc2) =
+    PathConds $ M.differenceWith diff pc1 pc2
+        where
+            diff (hpc1, hn1) (hpc2, hn2) =
+              Just ( HS.map (AssumePC i n) $ HS.difference hpc1 hpc2
+                   , HS.insert (idName i) $ HS.difference hn1 hn2)
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap
