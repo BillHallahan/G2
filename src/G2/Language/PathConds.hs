@@ -4,30 +4,35 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module G2.Language.PathConds ( PathCond (..)
-                                       , Constraint
-                                       , Assertion
-                                       , PathConds(..)
-                                       , toMap
-                                       , empty
-                                       , fromList
-                                       , map
-                                       , filter
-                                       , insert
-                                       , null
-                                       , number
-                                       , relevant
-                                       , relatedSets
-                                       , scc
-                                       , pcNames
-                                       , varIdsInPC
-                                       , varNamesInPC
-                                       , toList
-                                       , toHashSet
-                                       , union
-                                       , intersection
-                                       , difference
-                                       , differenceWithAssumePC) where
+module G2.Language.PathConds ( PathConds(..)
+                             , PathCond (..)
+                             , HashedPathCond
+                             , Constraint
+                             , Assertion
+                             , toMap
+                             , empty
+                             , fromList
+                             , map
+                             , filter
+                             , insert
+                             , null
+                             , number
+                             , relevant
+                             , relatedSets
+                             , scc
+                             , pcNames
+                             , varIdsInPC
+                             , varNamesInPC
+                             , toList
+                             , toHashSet
+                             , union
+                             , intersection
+                             , difference
+                             , differenceWithAssumePC
+
+                             , hashedPC
+                             , unhashedPC
+                             , mapHashedPC) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -57,7 +62,7 @@ import qualified Prelude as P (map)
 -- snd $ M.lookup n (toMap pcs)
 
 -- | You can visualize a PathConds as [PathCond] (accessible via toList)
-newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name))
+newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
                     deriving (Show, Eq, Read, Typeable, Data)
 
 -- | Path conditions represent logical constraints on our current execution
@@ -75,7 +80,7 @@ type Assertion = PathCond
 instance Hashable PathCond
 
 {-# INLINE toMap #-}
-toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name)
+toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)
 toMap = coerce
 
 {-# INLINE empty #-}
@@ -92,7 +97,7 @@ map f = L.map f . toList
 filter :: (PathCond -> Bool) -> PathConds -> PathConds
 filter f = PathConds 
          . M.filter (not . HS.null . fst)
-         . M.map (\(pc, ns) -> (HS.filter f pc, ns))
+         . M.map (\(pc, ns) -> (HS.filter (f . unhashedPC) pc, ns))
          . toMap
 
 -- Each name n maps to all other names that are in any PathCond containing n
@@ -113,10 +118,10 @@ insert' f p (PathConds pcs) =
             [] -> (Nothing, [Nothing])
             (h:_) -> (Just h, P.map Just ns)
     in
-    PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
+    PathConds $ M.adjust (\(p', ns') -> (HS.insert (hashedPC p) p', ns')) hd
               $ foldr (M.alter (insert'' ns)) pcs insertAt
 
-insert'' :: [Name] -> Maybe (HS.HashSet PathCond, HS.HashSet Name) -> Maybe (HS.HashSet PathCond, HS.HashSet Name)
+insert'' :: [Name] -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name) -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name)
 insert'' ns Nothing = Just (HS.empty, HS.fromList ns)
 insert'' ns (Just (p', ns')) = Just (p', HS.union (HS.fromList ns) ns')
 
@@ -186,9 +191,9 @@ scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
 
 scc' :: [Name]
-     -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name))
-     -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name))
-     -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name))
+     -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
+     -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
+     -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
 scc' [] _ pc = pc
 scc' (n:ns) pc newpc =
     -- Check if we already inserted the name information
@@ -203,10 +208,10 @@ scc' (n:ns) pc newpc =
 
 {-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
-toList = concatMap (HS.toList . fst) . M.elems . toMap
+toList = P.map unhashedPC . concatMap (HS.toList . fst) . M.elems . toMap
 
 {-# INLINE toHashSet #-}
-toHashSet :: PathConds -> HS.HashSet PathCond
+toHashSet :: PathConds -> HS.HashSet HashedPathCond
 toHashSet = HS.unions . P.map fst . M.elems . toMap
 
 --(HS.HashSet PathCond, HS.HashSet Name)
@@ -232,7 +237,7 @@ differenceWithAssumePC i n (PathConds pc1) (PathConds pc2) =
     PathConds $ M.differenceWith diff pc1 pc2
         where
             diff (hpc1, hn1) (hpc2, hn2) =
-              Just ( HS.map (AssumePC i n) $ HS.difference hpc1 hpc2
+              Just ( HS.map (mapHashedPC (AssumePC i n)) $ HS.difference hpc1 hpc2
                    , HS.insert (idName i) $ HS.difference hn1 hn2)
 
 instance ASTContainer PathConds Expr where
@@ -308,3 +313,38 @@ instance Ided PathCond where
     ids (ExtCond e _) = ids e
     ids (ConsCond d e _) = ids d ++  ids e
     ids (AssumePC i _ pc) = ids i ++ ids pc
+
+data HashedPathCond = HashedPC PathCond !Int
+              deriving (Show, Read, Typeable, Data)
+
+hashedPC :: PathCond -> HashedPathCond
+hashedPC pc = HashedPC pc (hash pc)
+
+unhashedPC :: HashedPathCond -> PathCond
+unhashedPC (HashedPC pc _) = pc
+
+mapHashedPC :: (PathCond -> PathCond) -> HashedPathCond -> HashedPathCond
+mapHashedPC f (HashedPC pc _) = hashedPC (f pc)
+
+instance Eq HashedPathCond where
+    HashedPC pc h == HashedPC pc' h' = if h /= h' then False else pc == pc'
+
+instance Hashable HashedPathCond where
+    hashWithSalt s (HashedPC _ h) = s `hashWithSalt` h
+    hash (HashedPC _ h) = h
+
+instance ASTContainer HashedPathCond Expr where
+    containedASTs = containedASTs . unhashedPC
+    modifyContainedASTs f = mapHashedPC (modifyContainedASTs f)
+
+instance ASTContainer HashedPathCond Type where
+    containedASTs = containedASTs . unhashedPC
+    modifyContainedASTs f = mapHashedPC (modifyContainedASTs f)
+
+instance Named HashedPathCond where
+    names = names . unhashedPC
+    rename old new = mapHashedPC (rename old new)
+    renames hm = mapHashedPC (renames hm)
+
+instance Ided HashedPathCond where
+  ids = ids . unhashedPC
