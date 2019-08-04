@@ -6,7 +6,7 @@ module G2.Execution.StateMerging
   , mergeExpr
   , mergeExprEnv
   , mergeEnvObj
-  -- , mergePathConds
+  , mergePathConds
   , mergePathCondsSimple
   , emptyContext
   , Context
