@@ -529,68 +529,63 @@ mergePathCondsSimple simplifier ctxt@(Context {s1_ = s1@(State {path_conds = pc1
     in (ctxt {s1_ = s1'}, mergedPC''')
 
 -- | Leaves common PathCond-s as it is, wraps PathCond-s unique to each State in AssumePCs and reinserts them into PathConds
--- mergePathConds :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)
--- mergePathConds simplifier ctxt@(Context { s1_ = s1@(State {path_conds = pc1, known_values = kv})
---                                         , s2_ = (State {path_conds = pc2})
---                                         , newId_ = newId, newPCs_ = newPCs}) =
---     -- If a key exists in both maps, then the respective values are combined and inserted into pc1_map'. 
---     -- Else, all other values in pc1_map are added to pc1_map' as it is.
---     -- pc2_map' will only contain values whose keys are not present in pc1_map
---     let
---         pc2_map = PC.toMap pc2
---         pc1_map = PC.toMap pc1
---         ((pc2_map', newAssumePCs), pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) (pc2_map, HS.empty) pc1_map
---         combined_map = PC.PathConds (M.union pc2_map' pc1_map')
---         -- Add the following expression to constrain the value newId can take to either 1/2 when solving
---         combined_map' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) combined_map
---         (s1', newPCs') = L.mapAccumL (simplifyPC simplifier) s1 newPCs
---         newPCs'' = concat newPCs'
---     in (ctxt {s1_ = s1'}, L.foldr PC.insert (HS.foldr PC.insert combined_map' newAssumePCs) newPCs'')
+mergePathConds :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)
+mergePathConds simplifier ctxt@(Context { s1_ = s1@(State {path_conds = pc1, known_values = kv})
+                                        , s2_ = (State {path_conds = pc2})
+                                        , newId_ = newId, newPCs_ = newPCs}) =
+    -- If a key exists in both maps, then the respective values are combined and inserted into pc1_map'. 
+    -- Else, all other values in pc1_map are added to pc1_map' as it is.
+    -- pc2_map' will only contain values whose keys are not present in pc1_map
+    let
+        pc2_map = PC.toMap pc2
+        pc1_map = PC.toMap pc1
+        ((pc2_map', newAssumePCs), pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) (pc2_map, HS.empty) pc1_map
+        combined_map = PC.PathConds (M.union pc2_map' pc1_map')
+        -- Add the following expression to constrain the value newId can take to either 1/2 when solving
+        combined_map' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) combined_map
+        (s1', newPCs') = L.mapAccumL (simplifyPC simplifier) s1 newPCs
+        newPCs'' = concat newPCs'
+    in (ctxt {s1_ = s1'}, L.foldr PC.insert (HS.foldr PC.insert combined_map' (HS.map PC.unhashedPC newAssumePCs)) newPCs'')
 
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
 -- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
--- mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond)
---                 -> (Maybe Name)
---                 -> (HS.HashSet PC.PathCond, HS.HashSet Name)
---                 -> ((M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond), (HS.HashSet PC.PathCond, HS.HashSet Name))
--- mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
---     case M.lookup key pc2_map of
---         Just (hs2, ns2) -> ((pc2_map', newAssumePCs'), (mergedHS, mergedNS))
---             where
---                 pc2_map' = M.delete key pc2_map
---                 (mergedHS, unmergedPCs) = mergeHashSets newId hs1 hs2
---                 mergedNS = HS.union ns1 ns2 -- names should still be the same even though some PCs are wrapped in AssumePCs and moved to different node
---                 newAssumePCs' = HS.union newAssumePCs unmergedPCs
---         Nothing -> ((pc2_map, newAssumePCs), (hs1, ns1))
+mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PC.HashedPathCond, HS.HashSet Name), HS.HashSet PC.HashedPathCond)
+                -> (Maybe Name)
+                -> (HS.HashSet PC.HashedPathCond, HS.HashSet Name)
+                -> ((M.Map (Maybe Name) (HS.HashSet PC.HashedPathCond, HS.HashSet Name), HS.HashSet PC.HashedPathCond), (HS.HashSet PC.HashedPathCond, HS.HashSet Name))
+mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
+    case M.lookup key pc2_map of
+        Just (hs2, ns2) -> ((pc2_map', newAssumePCs'), (mergedHS, mergedNS))
+            where
+                pc2_map' = M.delete key pc2_map
+                (mergedHS, unmergedPCs) = mergeHashSets newId hs1 hs2
+                mergedNS = HS.union ns1 ns2 -- names should still be the same even though some PCs are wrapped in AssumePCs and moved to different node
+                newAssumePCs' = HS.union newAssumePCs unmergedPCs
+        Nothing -> ((pc2_map, newAssumePCs), (hs1, ns1))
 
 -- Any PathCond present in both HashSets is added as it is to the new HashSet.
 -- A PathCond present in only 1 HashSet is changed to the form 'AssumePC (x == _) PathCond' and added to the new HashSet
--- mergeHashSets :: Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond, HS.HashSet PathCond)
--- mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
---     where
---         common = HS.intersection hs1 hs2
---         hs1Minus2 = HS.difference hs1 hs2
---         hs2Minus1 = HS.difference hs2 hs1
---         hs1Minus2' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
---         hs2Minus1' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
---         unmergedPCs = HS.union hs1Minus2' hs2Minus1'
+mergeHashSets :: Id -> (HS.HashSet PC.HashedPathCond) -> (HS.HashSet PC.HashedPathCond) -> (HS.HashSet PC.HashedPathCond, HS.HashSet PC.HashedPathCond)
+mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
+    where
+        common = HS.intersection hs1 hs2
+        hs1Minus2 = HS.difference hs1 hs2
+        hs2Minus1 = HS.difference hs2 hs1
+        hs1Minus2' = HS.map (PC.mapHashedPC (AssumePC newId 1)) hs1Minus2
+        hs2Minus1' = HS.map (PC.mapHashedPC (AssumePC newId 2)) hs2Minus1
+        unmergedPCs = HS.union hs1Minus2' hs2Minus1'
 
 mergePathConds2 :: Simplifier simplifier => simplifier -> Context t -> (Context t, PathConds)
 mergePathConds2 simplifier ctxt@(Context { s1_ = s1@(State { path_conds = pc1, known_values = kv })
                                          , s2_ = (State { path_conds = pc2 })
                                          , newId_ = newId
                                          , newPCs_ = newPCs}) =
-    let
-        both = PC.intersection pc1 pc2
-        
+    let        
         res_newId = ExtCond (mkOrExpr kv
                                 (mkEqIntExpr kv (Var newId) 1)
                                 (mkEqIntExpr kv (Var newId) 2)) True
 
-        only1 = PC.differenceWithAssumePC newId 1 pc1 pc2
-        only2 = PC.differenceWithAssumePC newId 2 pc2 pc1
-
-        merged = PC.union both (PC.union only1 only2)
+        merged = PC.mergeWithAssumePCs newId pc1 pc2
 
         (s1', new') = L.mapAccumL (simplifyPC simplifier) s1 (res_newId:newPCs)
 

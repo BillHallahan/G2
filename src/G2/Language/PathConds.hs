@@ -28,11 +28,12 @@ module G2.Language.PathConds ( PathConds(..)
                              , union
                              , intersection
                              , difference
-                             , differenceWithAssumePC
+                             , mergeWithAssumePCs
 
                              , hashedPC
                              , unhashedPC
-                             , mapHashedPC) where
+                             , mapHashedPC
+                             , hashedAssumePC) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -47,6 +48,7 @@ import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Map as M
+import Data.Map.Merge.Lazy
 import Data.Maybe
 import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
@@ -77,7 +79,13 @@ data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
 type Constraint = PathCond
 type Assertion = PathCond
 
-instance Hashable PathCond
+instance Hashable PathCond where
+    hashWithSalt s pc = s `hashWithSalt` hash pc
+
+    hash (AltCond l e b) = (1 :: Int) `hashWithSalt` l `hashWithSalt` e `hashWithSalt` b
+    hash (ExtCond e b) = (2 :: Int) `hashWithSalt` e `hashWithSalt` b
+    hash (ConsCond d e b) = (3 :: Int) `hashWithSalt` d `hashWithSalt` e `hashWithSalt` b
+    hash (AssumePC i n pc) = hashAssumePC i n pc
 
 {-# INLINE toMap #-}
 toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)
@@ -214,8 +222,6 @@ toList = P.map unhashedPC . concatMap (HS.toList . fst) . M.elems . toMap
 toHashSet :: PathConds -> HS.HashSet HashedPathCond
 toHashSet = HS.unions . P.map fst . M.elems . toMap
 
---(HS.HashSet PathCond, HS.HashSet Name)
-
 union :: PathConds -> PathConds -> PathConds
 union (PathConds pc1) (PathConds pc2) = PathConds $ M.unionWith union' pc1 pc2
     where
@@ -232,13 +238,25 @@ difference (PathConds pc1) (PathConds pc2) =
         where
             diff (hpc1, hn1) (hpc2, hn2) = Just (HS.difference hpc1 hpc2, HS.difference hn1 hn2)
 
-differenceWithAssumePC :: Id -> Int -> PathConds -> PathConds -> PathConds
-differenceWithAssumePC i n (PathConds pc1) (PathConds pc2) =
-    PathConds $ M.differenceWith diff pc1 pc2
-        where
-            diff (hpc1, hn1) (hpc2, hn2) =
-              Just ( HS.map (mapHashedPC (AssumePC i n)) $ HS.difference hpc1 hpc2
-                   , HS.insert (idName i) $ HS.difference hn1 hn2)
+mergeWithAssumePCs :: Id -> PathConds -> PathConds -> PathConds
+mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = 
+    PathConds $ merge (mapMissing $ mergeOnlyIn i 1) (mapMissing $ mergeOnlyIn i 2) (zipWithMatched $ mergeMatched i) pc1 pc2
+
+mergeOnlyIn :: Id -> Int -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet HashedPathCond, HS.HashSet Name)
+mergeOnlyIn i n _ (hpc, hn) = ( HS.map (hashedAssumePC i n) hpc
+                              , HS.insert (idName i) hn)
+
+mergeMatched :: Id -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet HashedPathCond, HS.HashSet Name)
+mergeMatched i _ (hpc1, hn1) (hpc2, hn2) =
+    let
+        both = HS.intersection hpc1 hpc2
+        onlyIn1 = HS.map (hashedAssumePC i 1) $ HS.difference hpc1 hpc2
+        onlyIn2 = HS.map (hashedAssumePC i 2) $ HS.difference hpc2 hpc1
+
+        union_hn = HS.union hn1 hn2
+    in
+    ( HS.union both (HS.union onlyIn1 onlyIn2)
+    , HS.insert (idName i) union_hn)
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap
@@ -314,7 +332,7 @@ instance Ided PathCond where
     ids (ConsCond d e _) = ids d ++  ids e
     ids (AssumePC i _ pc) = ids i ++ ids pc
 
-data HashedPathCond = HashedPC PathCond !Int
+data HashedPathCond = HashedPC PathCond {-# UNPACK #-} !Int
               deriving (Show, Read, Typeable, Data)
 
 hashedPC :: PathCond -> HashedPathCond
@@ -348,3 +366,17 @@ instance Named HashedPathCond where
 
 instance Ided HashedPathCond where
   ids = ids . unhashedPC
+
+
+hashedAssumePC :: Id -> Int -> HashedPathCond -> HashedPathCond
+hashedAssumePC i n (HashedPC pc h) = HashedPC (AssumePC i n pc) (hashAssumePCFromHash i n h)
+
+-- | Helper functions to compute the hash of an AssumePC in various ways
+hashAssumePC :: Id -> Int -> PathCond -> Int
+hashAssumePC i n pc = hashAssumePCFromHash i n (hash pc)
+
+hashAssumePCFromHash :: Id
+                     -> Int
+                     -> Int -- ^ The hash of the contained PathCond
+                     -> Int
+hashAssumePCFromHash i n h = (4 :: Int) `hashWithSalt` i `hashWithSalt` n `hashWithSalt` h
