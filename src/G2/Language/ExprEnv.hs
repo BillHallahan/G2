@@ -135,10 +135,14 @@ lookupConcOrSym  n (ExprEnv smap) =
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 deepLookup :: Name -> ExprEnv -> Maybe Expr
-deepLookup n eenv =
-    case lookup n eenv of
-        Just (Var (Id n' _)) -> lookup n' eenv
-        r -> r
+deepLookup n eenv@(ExprEnv smap) =
+    case M.lookup n smap of
+        Just (ExprObj expr) -> case expr of
+            (Var (Id n' _)) -> deepLookup n' eenv
+            e -> Just e
+        Just (RedirObj redir) -> deepLookup redir eenv
+        Just (SymbObj i) -> Just $ Var i
+        Nothing -> Nothing
 
 -- | Checks if the given `Name` belongs to a symbolic variable.
 isSymbolic :: Name -> ExprEnv -> Bool

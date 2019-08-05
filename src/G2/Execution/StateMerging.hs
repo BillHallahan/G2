@@ -19,6 +19,7 @@ import G2.Solver.Simplifier
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
+import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.List as L
 import qualified Data.HashSet as HS
@@ -56,8 +57,6 @@ isMergeableExpr _ _ _ _ = False
 -- | Values that are passed around and updated while merging individual fields in 2 States
 data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Names in State `s1_` to new Names
                          , renamed2_ :: HM.HashMap Name Name
-                         , new_names1_ :: HM.HashMap Name Name -- Optimization: Newly renamed Names in State `s1_`, not yet added to `renamed1_`
-                         , new_names2_ :: HM.HashMap Name Name -- so that we can call renames with only new_names*_, not all renamed*_ names
                          , s1_ :: State t
                          , s2_ :: State t
                          , ng_ :: NameGen
@@ -66,23 +65,9 @@ data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Nam
                          , newSyms_ :: SymbolicIds -- Newly added symbolic variables when merging Exprs
                          }
 
--- | Copies values from `new_names*__` to the respective `renamed*_` fields and clears `new_names*_`
-moveNewNames :: Context t -> Context t
-moveNewNames ctxt@(Context { renamed1_ = renamed1
-                            , renamed2_ = renamed2
-                            , new_names1_ = newNames1
-                            , new_names2_ = newNames2 }) =
-    let renamed1' = HM.union renamed1 newNames1
-        renamed2' = HM.union renamed2 newNames2
-        newNames1' = HM.empty
-        newNames2' = HM.empty
-    in ctxt { renamed1_ = renamed1', renamed2_ = renamed2', new_names1_ = newNames1', new_names2_ = newNames2' }
-
 emptyContext :: State t -> State t -> NameGen -> Id -> Context t
 emptyContext s1 s2 ng newId = Context { renamed1_ = HM.empty
                                       , renamed2_ = HM.empty
-                                      , new_names1_ = HM.empty
-                                      , new_names2_ = HM.empty
                                       , s1_ = s1
                                       , s2_ = s2
                                       , ng_ = ng
@@ -129,8 +114,10 @@ mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {cur
     | (CurrExpr evalOrRet1 e1) <- ce1
     , (CurrExpr evalOrRet2 e2) <- ce2
     , evalOrRet1 == evalOrRet2 =
-        let (ctxt', ce') = mergeExprInline ctxt e1 e2
-        in (ctxt', CurrExpr evalOrRet1 ce')
+        let (ctxt'@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2}), ce') = mergeExprInline ctxt e1 e2
+            s1' = if (HM.null renamed1) then s1 else renames renamed1 s1
+            s2' = if (HM.null renamed2) then s2 else renames renamed2 s2
+        in (ctxt' {s1_ = s1', s2_ = s2'} , CurrExpr evalOrRet1 ce')
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
 -- | Merges 2 Exprs, combining 2 corresponding symbolic Vars into 1 if possible, and substituting the full Expr of any concrete Vars
@@ -138,101 +125,74 @@ mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {cur
 mergeExprInline :: Named t
                 => Context t -> Expr -> Expr
                 -> (Context t, Expr)
-mergeExprInline ctxt (App e1 e2) (App e3 e4) =
+mergeExprInline ctxt@(Context { s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2})}) e1 e2 =
+    let e1' = inlineVars eenv1 e1
+        e2' = inlineVars eenv2 e2
+        -- For any symbolic variable pairs merged into new variables previosly, rename occurrences of the old symbolic vars
+        e1'' = case e1' of
+            (Var (Id n t)) -> case HM.lookup n (renamed1_ ctxt) of
+                Just n' -> (Var (Id n' t))
+                Nothing -> e1'
+            _ -> e1'
+        e2'' = case e2' of
+            (Var (Id n t)) -> case HM.lookup n (renamed2_ ctxt) of
+                Just n' -> (Var (Id n' t))
+                Nothing -> e2'
+            _ -> e2'
+    in mergeExprInline' ctxt e1'' e2''
+
+inlineVars :: E.ExprEnv -> Expr -> Expr
+inlineVars eenv e1@(Var (Id n1 _)) = fromMaybe e1 (E.deepLookup n1 eenv)
+inlineVars _ e1 = e1
+
+mergeExprInline' :: Named t
+                => Context t -> Expr -> Expr
+                -> (Context t, Expr)
+mergeExprInline' ctxt (App e1 e2) (App e3 e4) =
     let (ctxt', e1') = mergeExprInline ctxt e1 e3
-        -- For any symbolic variable pairs merged into new variables when merging `e1` and `e3`, rename all occurrences of
-        -- the old symbolic vars in `e2` and `e4`
-        e2' = renames (new_names1_ ctxt') e2
-        e4' = renames (new_names2_ ctxt') e4
-        -- move names from newNames to renamed
-        ctxt'' = moveNewNames ctxt'
-        (ctxt''', e2'') = mergeExprInline ctxt'' e2' e4'
-        ctxt'''' = ctxt''' { new_names1_ = HM.union (new_names1_ ctxt') (new_names1_ ctxt''')
-                           , new_names2_ = HM.union (new_names2_ ctxt') (new_names2_ ctxt''') }
-    in (ctxt'''', App e1' e2'')
-mergeExprInline ctxt e1@(App _ _) (Var i) = mergeVarInline ctxt i e1 False
-mergeExprInline ctxt (Var i) e2@(App _ _) = mergeVarInline ctxt i e2 True
-mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Var i1) e2@(Var i2)
+        (ctxt'', e2'') = mergeExprInline ctxt' e2 e4
+    in (ctxt'', App e1' e2'')
+mergeExprInline' ctxt e1@(Var _) e2@(Var _) -- both are Symbolic Vars, sincle all other vars have been inlined previously
     | e1 == e2 = (ctxt, e1)
-    | otherwise =
-        let maybeE1' = E.lookupConcOrSym (idName i1) (expr_env s1)
-            maybeE2' = E.lookupConcOrSym (idName i2) (expr_env s2)
-        in mergeVarsInline ctxt maybeE1' maybeE2'
-mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
+    | otherwise = mergeVarsInline ctxt e1 e2
+mergeExprInline' ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
     | isSMNF (expr_env s1) e1
     , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
-mergeExprInline ctxt@(Context { s1_ = s1, s2_ = s2 }) e1 e2@(Case _ _ _)
+mergeExprInline' ctxt@(Context { s1_ = s1, s2_ = s2 }) e1 e2@(Case _ _ _)
     | isSMNF (expr_env s1) e1
     , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
-mergeExprInline ctxt@(Context { newId_ = newId }) e1 e2
+mergeExprInline' ctxt@(Context { newId_ = newId }) e1 e2
     | e1 == e2 = (ctxt, e1)
     | otherwise =
         let mergedExpr = createCaseExpr newId [e1, e2]
         in (ctxt, mergedExpr)
 
-mergeVarInline :: (Named t)
-               => Context t -> Id -> Expr -> Bool
-               -> (Context t, Expr)
-mergeVarInline ctxt@(Context { s1_ = s1, s2_ = s2, newId_ = newId }) i e@(App _ _) first =
-    let eenv = if first
-            then expr_env s1
-            else expr_env s2
-        maybeE = E.lookupConcOrSym (idName i) eenv
-    in case maybeE of
-        (Just (E.Conc e')) -> if first
-            then mergeExprInline ctxt e' e
-            else mergeExprInline ctxt e e'
-        (Just (E.Sym iSym)) ->
-            let mergedExpr = if first
-                then createCaseExpr newId [(Var iSym), e]
-                else createCaseExpr newId [e, (Var iSym)]
-            in (ctxt, mergedExpr)
-        Nothing -> error $ "Unable to find Var in expr_env: " ++ show i
-mergeVarInline _ _ _ _ = error "mergeVarInline can only merge an Id with Expr of the form 'App _ _'"
-
 mergeVarsInline :: Named t
-                => Context t -> Maybe E.ConcOrSym -> Maybe E.ConcOrSym
+                => Context t -> Expr -> Expr
                 -> (Context t, Expr)
-mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2, ng_ = ng, newId_ = newId}) maybeE1 maybeE2
-    | (Just (E.Conc e1)) <- maybeE1
-    , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ctxt e1 e2
-    | (Just (E.Conc e1)) <- maybeE1
-    , (Just (E.Sym i)) <- maybeE2 = mergeExprInline ctxt e1 (Var i)
-    | (Just (E.Sym i)) <- maybeE1
-    , (Just (E.Conc e2)) <- maybeE2 = mergeExprInline ctxt (Var i) e2
-    | (Just (E.Sym i1)) <- maybeE1
-    , (Just (E.Sym i2)) <- maybeE2
-    , i1 == i2 = (ctxt, Var i1)
-    | (Just (E.Sym i1)) <- maybeE1
-    , (Just (E.Sym i2)) <- maybeE2
-    , (idType i1 == idType i2)
+mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2, ng_ = ng, newId_ = newId}) (Var i1) (Var i2)
+    | i1 == i2 = (ctxt, Var i1)
+    | (idType i1 == idType i2)
     , not $ HS.member i1 (symbolic_ids s2)
     , not $ HS.member i2 (symbolic_ids s1) = -- if both are symbolic variables unique to their states, replace one of them with the other
-        let s2' = rename (idName i2) (idName i1) s2
-            syms' = HS.insert i1 (HS.delete i2 (symbolic_ids s2))
-            s2'' = s2' {symbolic_ids = syms'}
-            ctxt' = ctxt { s2_ = s2'', new_names2_ = HM.singleton (idName i2) (idName i1) }
+        let syms' = HS.insert i1 (HS.delete i2 (symbolic_ids s2))
+            ctxt' = ctxt { s2_ = s2 {symbolic_ids = syms'} , renamed2_ = HM.insert (idName i2) (idName i1) renamed2 }
         in (ctxt', Var i1)
-    | (Just (E.Sym i1)) <- maybeE1
-    , (Just (E.Sym i2)) <- maybeE2
-    , idType i1 == idType i2
+    | idType i1 == idType i2
     , not $ elem (idName i1) (HM.elems renamed1) -- check if symbolic var is a var that is a result of some previous renaming when merging the Expr
     , not $ elem (idName i2) (HM.elems renamed2) =
         let (newSymId, ng') = freshId (idType i1) ng
-            s1' = rename (idName i1) (idName newSymId) s1
-            s2' = rename (idName i2) (idName newSymId) s2
             syms1' = HS.insert newSymId (HS.delete i1 (symbolic_ids s1))
             syms2' = HS.insert newSymId (HS.delete i2 (symbolic_ids s2))
-            s1'' = s1' {symbolic_ids = syms1'}
-            s2'' = s2' {symbolic_ids = syms2'}
-            ctxt' = ctxt {ng_ = ng', s1_ = s1'', s2_ = s2'', new_names1_ = HM.singleton (idName i1) (idName newSymId)
-                         , new_names2_ = HM.singleton (idName i2) (idName newSymId) }
+            s1' = s1 {symbolic_ids = syms1'}
+            s2' = s2 {symbolic_ids = syms2'}
+            ctxt' = ctxt {ng_ = ng', s1_ = s1', s2_ = s2', renamed1_ = HM.insert (idName i1) (idName newSymId) renamed1
+                         , renamed2_ = HM.insert (idName i2) (idName newSymId) renamed2 }
         in (ctxt', Var newSymId)
-    | (Just (E.Sym i1)) <- maybeE1
-    , (Just (E.Sym i2)) <- maybeE2 =
+    | otherwise =
         let mergedExpr = createCaseExpr newId [(Var i1), (Var i2)]
         in (ctxt, mergedExpr)
-    | otherwise = error "Unable to find Var(s) in expr_env"
+mergeVarsInline _ e1 e2 = error $ "Cannot merge non-Vars. " ++ (show e1) ++ "\n" ++ (show e2)
 
 type Conds = [(Id, Integer)]
 
