@@ -240,13 +240,30 @@ difference (PathConds pc1) (PathConds pc2) =
 
 mergeWithAssumePCs :: Id -> PathConds -> PathConds -> PathConds
 mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = 
-    PathConds $ merge (mapMissing $ mergeOnlyIn i 1) (mapMissing $ mergeOnlyIn i 2) (zipWithMatched $ mergeMatched i) pc1 pc2
+    let
+        (ns, merged) = mergeA 
+                          (traverseMissing $ mergeOnlyIn i 1) 
+                          (traverseMissing $ mergeOnlyIn i 2) 
+                          (zipWithAMatched $ mergeMatched i)
+                          pc1 pc2
+    in
+    PathConds $ M.insert (Just $ idName i) (HS.empty, ns) merged
 
-mergeOnlyIn :: Id -> Int -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet HashedPathCond, HS.HashSet Name)
-mergeOnlyIn i n _ (hpc, hn) = ( HS.map (hashedAssumePC i n) hpc
-                              , HS.insert (idName i) hn)
+mergeOnlyIn :: Id -> Int -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
+mergeOnlyIn i n _ (hpc, hn) =
+    let
+        hn' = HS.insert (idName i) hn
+    in
+    ( hn'
+    , ( HS.map (hashedAssumePC i n) hpc
+      , hn')
+    )
 
-mergeMatched :: Id -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet HashedPathCond, HS.HashSet Name)
+mergeMatched :: Id
+             -> Maybe Name
+             -> (HS.HashSet HashedPathCond, HS.HashSet Name)
+             -> (HS.HashSet HashedPathCond, HS.HashSet Name)
+             -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
 mergeMatched i _ (hpc1, hn1) (hpc2, hn2) =
     let
         both = HS.intersection hpc1 hpc2
@@ -254,9 +271,15 @@ mergeMatched i _ (hpc1, hn1) (hpc2, hn2) =
         onlyIn2 = HS.map (hashedAssumePC i 2) $ HS.difference hpc2 hpc1
 
         union_hn = HS.union hn1 hn2
+
+        hn = if not (HS.null onlyIn1) || not (HS.null onlyIn2)
+                then HS.insert (idName i) union_hn
+                else union_hn
     in
-    ( HS.union both (HS.union onlyIn1 onlyIn2)
-    , HS.insert (idName i) union_hn)
+    ( hn
+    , ( HS.union both (HS.union onlyIn1 onlyIn2)
+      , hn)
+    )
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap
