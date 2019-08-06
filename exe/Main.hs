@@ -86,10 +86,6 @@ runWithArgs as = do
 
     printFuncCalls config entry_f b in_out
 
-    mapM (\(ExecRes { final_state = s }) -> do
-            print . PC.number . path_conds $ s) in_out
-    -- print . M.map (HS.size . fst) . PC.toMap . path_conds . final_state $ in_out !! 4
-
   return ()
 
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
