@@ -20,6 +20,9 @@ import G2.Translation
 
 import G2.Liquid.Interface
 
+import qualified Data.HashSet as HS
+import qualified G2.Language.PathConds as PC
+
 main :: IO ()
 main = do
   as <- getArgs
