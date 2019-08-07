@@ -114,30 +114,31 @@ mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {cur
     | (CurrExpr evalOrRet1 e1) <- ce1
     , (CurrExpr evalOrRet2 e2) <- ce2
     , evalOrRet1 == evalOrRet2 =
-        let (ctxt'@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2}), ce') = mergeExprInline ctxt HS.empty HS.empty e1 e2
+        let (ctxt'@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2}), e1', e2') = inlineExpr ctxt HS.empty HS.empty e1 e2
             s1' = if (HM.null renamed1) then s1 else renames renamed1 s1
             s2' = if (HM.null renamed2) then s2 else renames renamed2 s2
-        in (ctxt' {s1_ = s1', s2_ = s2'} , CurrExpr evalOrRet1 ce')
+            (ctxt'', ce) = mergeInlinedExpr ctxt' {s1_ = s1', s2_ = s2'} e1' e2'
+        in (ctxt'', CurrExpr evalOrRet1 ce)
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
 -- | Merges 2 Exprs, combining 2 corresponding symbolic Vars into 1 if possible, and substituting the full Expr of any concrete Vars
 -- Also returns any newly added Symbolic Variables and Names of renamed Variables
-mergeExprInline :: Named t
-                => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
-                -> (Context t, Expr)
-mergeExprInline ctxt@(Context { s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2})}) inlined1 inlined2 e1 e2 =
-    let (e1', inlined1') = inlineVars eenv1 inlined1 e1
-        (e2', inlined2') = inlineVars eenv2 inlined2 e2
+inlineExpr :: Named t
+           => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
+           -> (Context t, Expr, Expr)
+inlineExpr ctxt@(Context { s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2})}) inlined1 inlined2 e1 e2 =
+    let (e1', inlined1') = inlineVar eenv1 inlined1 e1
+        (e2', inlined2') = inlineVar eenv2 inlined2 e2
         -- For any symbolic variable pairs merged into new variables previously, rename occurrences of the old symbolic vars
         e1'' = replaceVar (renamed1_ ctxt) e1'
         e2'' = replaceVar (renamed2_ ctxt) e2'
-    in mergeExprInline' ctxt inlined1' inlined2' e1'' e2''
+    in inlineExpr' ctxt inlined1' inlined2' e1'' e2''
 
 -- | Replace var with value from ExprEnv if any. Only inline var if it hasn't been inlined till then
 -- , to prevent infinite recursion in the case of merging 2 infinite exprs. e.g. merging x = x:xs and y = y:ys
-{-# INLINE inlineVars #-}
-inlineVars :: E.ExprEnv -> HS.HashSet Name -> Expr -> (Expr, HS.HashSet Name)
-inlineVars eenv inlined e
+{-# INLINE inlineVar #-}
+inlineVar :: E.ExprEnv -> HS.HashSet Name -> Expr -> (Expr, HS.HashSet Name)
+inlineVar eenv inlined e
     | (Var (Id n _)) <- e
     , not $ HS.member n inlined
     , Just e' <- E.deepLookup n eenv = (e', HS.insert n inlined)
@@ -150,33 +151,23 @@ replaceVar renamed (Var (Id n t)) =
     in Var (Id n' t)
 replaceVar _ e = e
 
-mergeExprInline' :: Named t
-                => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
-                -> (Context t, Expr)
-mergeExprInline' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4) =
-    let (ctxt', e1') = mergeExprInline ctxt inlined1 inlined2 e1 e3
-        (ctxt'', e2') = mergeExprInline ctxt' inlined1 inlined2 e2 e4
-    in (ctxt'', App e1' e2')
-mergeExprInline' ctxt _ _ e1@(Var _) e2@(Var _)
-    | e1 == e2 = (ctxt, e1)
-    | otherwise = mergeVarsInline ctxt e1 e2
-mergeExprInline' ctxt@(Context { s1_ = s1, s2_ = s2 }) _ _ e1@(Case _ _ _) e2
-    | isSMNF (expr_env s1) e1
-    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
-mergeExprInline' ctxt@(Context { s1_ = s1, s2_ = s2 }) _ _ e1 e2@(Case _ _ _)
-    | isSMNF (expr_env s1) e1
-    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
-mergeExprInline' ctxt@(Context { newId_ = newId }) _ _ e1 e2
-    | e1 == e2 = (ctxt, e1)
-    | otherwise =
-        let mergedExpr = createCaseExpr newId [e1, e2]
-        in (ctxt, mergedExpr)
+inlineExpr' :: Named t
+            => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
+            -> (Context t, Expr, Expr)
+inlineExpr' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4) =
+    let (ctxt', e1', e3') = inlineExpr ctxt inlined1 inlined2 e1 e3
+        (ctxt'', e2', e4') = inlineExpr ctxt' inlined1 inlined2 e2 e4
+    in (ctxt'', (App e1' e2'), (App e3' e4'))
+inlineExpr' ctxt _ _ e1@(Var _) e2@(Var _)
+    | e1 == e2 = (ctxt, e1, e2)
+    | otherwise = mergeVars ctxt e1 e2
+inlineExpr' ctxt _ _ e1 e2 = (ctxt, e1, e2)
 
-mergeVarsInline :: Named t
-                => Context t -> Expr -> Expr
-                -> (Context t, Expr)
-mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2, ng_ = ng, newId_ = newId}) (Var i1) (Var i2)
-    | i1 == i2 = (ctxt, Var i1)
+mergeVars :: Named t
+           => Context t -> Expr -> Expr
+           -> (Context t, Expr, Expr)
+mergeVars ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2, ng_ = ng}) (Var i1) (Var i2)
+    | i1 == i2 = (ctxt, Var i1, Var i2)
     | (idType i1 == idType i2)
     , not $ HS.member i1 (symbolic_ids s2) -- if both are symbolic variables unique to their states, replace one of them with the other
     , not $ HS.member i2 (symbolic_ids s1)
@@ -184,7 +175,7 @@ mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed
     , HS.member i2 (symbolic_ids s2) =
         let syms' = HS.insert i1 (HS.delete i2 (symbolic_ids s2))
             ctxt' = ctxt { s2_ = s2 {symbolic_ids = syms'} , renamed2_ = HM.insert (idName i2) (idName i1) renamed2 }
-        in (ctxt', Var i1)
+        in (ctxt', Var i1, Var i1)
     | idType i1 == idType i2
     , not $ elem (idName i1) (HM.elems renamed1) -- check if symbolic var is a var that is a result of some previous renaming when merging the Expr
     , not $ elem (idName i2) (HM.elems renamed2)
@@ -197,11 +188,24 @@ mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed
             s2' = s2 {symbolic_ids = syms2'}
             ctxt' = ctxt { ng_ = ng', s1_ = s1', s2_ = s2', renamed1_ = HM.insert (idName i1) (idName newSymId) renamed1
                          , renamed2_ = HM.insert (idName i2) (idName newSymId) renamed2 }
-        in (ctxt', Var newSymId)
-    | otherwise =
-        let mergedExpr = createCaseExpr newId [(Var i1), (Var i2)]
-        in (ctxt, mergedExpr)
-mergeVarsInline _ e1 e2 = error $ "Cannot merge non-Vars. " ++ (show e1) ++ "\n" ++ (show e2)
+        in (ctxt', Var newSymId, Var newSymId)
+    | otherwise = (ctxt, Var i1, Var i2)
+mergeVars _ e1 e2 = error $ "Non-Var Exprs. " ++ (show e1) ++ "\n" ++ (show e2)
+
+mergeInlinedExpr :: Named t => Context t -> Expr -> Expr -> (Context t, Expr)
+mergeInlinedExpr ctxt (App e1 e2) (App e3 e4) = (ctxt'', App e1' e2')
+    where
+        (ctxt', e1') = mergeInlinedExpr ctxt e1 e3
+        (ctxt'', e2') = mergeInlinedExpr ctxt' e2 e4
+mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
+    | isSMNF (expr_env s1) e1
+    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
+mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2 }) e1 e2@(Case _ _ _)
+    | isSMNF (expr_env s1) e1
+    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
+mergeInlinedExpr ctxt@(Context { newId_ = newId }) e1 e2
+    | e1 == e2 = (ctxt, e1)
+    | otherwise = (ctxt, createCaseExpr newId [e1, e2])
 
 type Conds = [(Id, Integer)]
 
