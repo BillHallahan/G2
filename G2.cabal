@@ -177,7 +177,7 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -- -ddump-splices
-                       -- -fprof-auto
+                       -fprof-auto
                        -- -fexternal-interpreter -opti+RTS -opti-p
   hs-source-dirs:      src
 
