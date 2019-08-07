@@ -533,48 +533,10 @@ handleDaltMatches :: State t -> NameGen -> [(Alt, Matches)] -> Id -> ([NewPC t],
 handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
     | (Alt (DataAlt dcon params) aexpr) <- alt =
         let
-            -- TODO: refactor & combine all 3 into one
-            (apps, tyApps, newPC, ng1, cast) = L.foldr (\(mexpr, assum) (_apps, _tyApps, _newPC, _ng, _) ->
-                let _s = state _newPC
-                    -- TODO deal with cast
-                    (_cast, expr) = case mexpr of
-                        (Cast e c) -> (Just c, e)
-                        _ -> (Nothing, mexpr)
-
-                    exprId = case unApp $ unsafeElimOuterCast expr of
-                        (Var i@(Id _ _)):_ -> i
-                        _ -> error $ "Non Var expr:" ++ show expr
-
-                    (as, tyAs, _newPC', _ng') = handleDaltSymMatch _s _ng (dcon, params) (exprId, assum) _cast
-                    as' = map (\a -> (assum, a)) as
-                    tyAs' = map (\ty -> (assum, ty)) tyAs
-
-                    oldPCs = new_pcs _newPC
-                    _newPC'' = _newPC' {new_pcs = oldPCs ++ (new_pcs _newPC'), concretized = (concretized _newPC) ++ (concretized _newPC')}
-                in (as':_apps, tyAs':_tyApps, _newPC'', _ng', _cast)) ([], [], newPCEmpty s, ng, Nothing) (symbolic_vars matches)
-
-            (apps', newPC', ng2, cast') = L.foldr (\(mexpr, assum) (_apps, _newPC, _ng, _) ->
-                let _s = state _newPC
-                    (_cast, expr) = case mexpr of
-                        (Cast e c) -> (Just c, e)
-                        _ -> (Nothing, mexpr)
-
-                    (as, _newPC', _ng') = handleDaltPrimMatch _s _ng (dcon, params) (expr, assum)
-                    as' = map (\a -> (assum, a)) as
-
-                    oldPCs = new_pcs _newPC
-                    _newPC'' = _newPC' {new_pcs = oldPCs ++ (new_pcs _newPC'), concretized = (concretized _newPC) ++ (concretized _newPC')}
-                in (as':_apps, _newPC'', _ng', _cast)) (apps, newPC, ng1, cast) (prims matches)
-
-            (apps'', tyApps', newPC'', ng3) = L.foldr (\(mexpr, assum) (_apps, _tyApps, _newPC, _ng) ->
-                let _s = state _newPC
-                    (as, tyAs, _newPC', _ng') = handleDaltDconMatch _s _ng (dcon, params) (mexpr, assum)
-                    as' = map (\a -> (assum, a)) as
-                    tyAs' =  map (\ty -> (assum, ty)) tyAs
-
-                    oldPCs = new_pcs _newPC
-                    _newPC'' = _newPC' {new_pcs = oldPCs ++ (new_pcs _newPC'), concretized = (concretized _newPC) ++ (concretized _newPC')}
-                in (as':_apps, tyAs':_tyApps, _newPC'', _ng')) (apps', tyApps, newPC', ng2) (constructors matches)
+            (apps, tyApps, newPC, ng1, cast) = L.foldr (accum handleDaltSymMatch dcon params) ([], [], newPCEmpty s, ng, Nothing) (symbolic_vars matches)
+            (apps', tyApps', newPC', ng2, cast') = L.foldr (accum handleDaltPrimMatch dcon params) (apps, tyApps, newPC, ng1, cast) (prims matches)
+            (apps'', tyApps'', newPC'', ng3, cast'') = L.foldr (accum handleDaltDconMatch dcon params)
+                (apps', tyApps', newPC', ng2, cast') (constructors matches)
 
             -- New Symbolic Id to branch on in the Case Exprs to be created for each Sub-Expr
             s'@(State {expr_env = eenv, symbolic_ids = syms}) = state newPC''
@@ -590,14 +552,14 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                 _ -> createCaseExpr newSymId (map snd a)) appsT
             -- TODO: merge types into one instead of wrapping in NonDet
             -- Do the same for Apps representing types
-            tyAppsT = L.transpose tyApps'
+            tyAppsT = L.transpose tyApps''
             tyAppsT' = map (\a -> case a of
                 [] -> error $ "Empty list "
                 [([], e)] -> e
                 _ -> createCaseExpr newSymId (map snd a)) tyAppsT
 
             -- Replace any occurrences of bind with the matched expr. Need to apply cast to dcon first
-            binds = case cast' of
+            binds = case cast'' of
                 Nothing -> [(bind, mkApp $ (Data dcon):(tyAppsT' ++ appsT'))]
                 (Just (t1 :~ t2)) -> [(bind, Cast (mkApp $ (Data dcon):(tyAppsT' ++ appsT')) (t2 :~ t1))]
             aexpr' = liftCaseBinds binds aexpr
@@ -638,9 +600,31 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
     | otherwise = error $ "Alt is not a DataAlt"
 handleDaltMatches _ ng [] _ = ([], ng)
 
-handleDaltSymMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Id, [Assumption]) -> Maybe Coercion -> ([Expr],[Expr],NewPC t, NameGen)
-handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms, known_values = kv}) ngen (dcon, params) (mexprId, assum) maybeC =
+-- Accumulate Exprs and additional PathConds gathered from handling matches
+accum :: (State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> Maybe Coercion -> ([Expr],[Expr],NewPC t, NameGen))
+    -> DataCon -> [Id]
+    -> (Expr, [Assumption]) -> ([[([Assumption], Expr)]], [[([Assumption], Expr)]], NewPC t, NameGen, Maybe Coercion)
+    -> ([[([Assumption], Expr)]], [[([Assumption],Expr)]], NewPC t, NameGen, Maybe Coercion)
+accum f dcon params (mexpr, assum) (apps, tyApps, newPC, ng, _) =
+    let s = state newPC
+        (cast, expr) = case mexpr of
+            (Cast e c) -> (Just c, e)
+            _ -> (Nothing, mexpr)
+
+        (as, tyAs, newPC', ng') = f s ng (dcon, params) (expr, assum) cast
+        as' = map (\a -> (assum, a)) as
+        tyAs' = map (\ty -> (assum, ty)) tyAs
+
+        oldPCs = new_pcs newPC
+        newPC'' = newPC' {new_pcs = oldPCs ++ (new_pcs newPC'), concretized = (concretized newPC) ++ (concretized newPC')}
+    in (as':apps, tyAs':tyApps, newPC'', ng', cast)
+
+handleDaltSymMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> Maybe Coercion -> ([Expr],[Expr],NewPC t, NameGen)
+handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms, known_values = kv}) ngen (dcon, params) (mexpr, assum) maybeC =
     let
+        mexprId = case unApp $ unsafeElimOuterCast mexpr of
+            (Var i):_ -> i
+            _ -> error $ "Non Var expr:" ++ (show mexpr)
         -- rename the params and insert into expr_env
         olds = map idName params
         mexprN = idName mexprId
@@ -673,8 +657,8 @@ handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
 
     in (apps, tyApps, NewPC { state = s {expr_env = eenv'', symbolic_ids = syms'}, new_pcs = [], concretized = [mexprId] }, ngen'')
 
-handleDaltDconMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> ([Expr], [Expr], NewPC t, NameGen)
-handleDaltDconMatch s@(State {expr_env = eenv}) ngen (_, _) (mexpr, _) =
+handleDaltDconMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> Maybe Coercion -> ([Expr], [Expr], NewPC t, NameGen)
+handleDaltDconMatch s@(State {expr_env = eenv}) ngen (_, _) (mexpr, _) _ =
     let
         (Data _):ar = unApp $ exprInCasts mexpr
         ar' = removeTypes ar eenv
@@ -682,8 +666,8 @@ handleDaltDconMatch s@(State {expr_env = eenv}) ngen (_, _) (mexpr, _) =
     in (ar', tyApps, newPCEmpty s, ngen)
 
 -- The only Data Alts that match a `Prim` contain `Bool` DataCons
-handleDaltPrimMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> ([Expr], NewPC t, NameGen)
-handleDaltPrimMatch s@(State {known_values = kv}) ng (dcon, params) (mexpr, assum) =
+handleDaltPrimMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> Maybe Coercion -> ([Expr], [Expr], NewPC t, NameGen)
+handleDaltPrimMatch s@(State {known_values = kv}) ng (dcon, params) (mexpr, assum) _ =
     let
         boolValue = getBoolFromDataCon kv (Data dcon)
         cond = ExtCond mexpr boolValue
@@ -693,7 +677,7 @@ handleDaltPrimMatch s@(State {known_values = kv}) ng (dcon, params) (mexpr, assu
         apps = case (null params) of
             False -> error $ "Prim match should be of type Bool: " ++ show mexpr
             True -> [] -- Bool DataCon, so no params
-    in (apps, (newPCEmpty s) { new_pcs = [cond'] }, ng)
+    in (apps, [], (newPCEmpty s) { new_pcs = [cond'] }, ng)
 
 handleDefMatches :: State t -> NameGen -> [(Alt, Matches)] -> Id -> [Alt] -> ([NewPC t], NameGen)
 handleDefMatches s@(State {known_values = kv, symbolic_ids = syms}) ng ((alt, matches):_) bind alts
@@ -719,9 +703,8 @@ handleDefMatches s@(State {known_values = kv, symbolic_ids = syms}) ng ((alt, ma
             -- New Symbolic Id to branch on in the Case Exprs to be created for each Sub-Expr
             (newSymId, ng') = freshId TyLitInt ng
             syms' = HS.insert newSymId syms
-            mexpr = createCaseExpr newSymId matchExprs
+            mexpr = createCaseExpr newSymId matchExprs -- combine all matches into 1 `Case` Expr
 
-            -- mexpr = NonDet $ mkNonDetOpts kv defs -- combine all matches into 1 `NonDet` Expr
             binds = [(bind, mexpr)]
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr', symbolic_ids = syms'}
