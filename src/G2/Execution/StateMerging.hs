@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module G2.Execution.StateMerging
   ( mergeState
   , mergeCurrExpr
@@ -92,7 +94,7 @@ mergeState ngen simplifier s1 s2 =
                 ctxt = emptyContext s1 s2 ngen' newId
                 (ctxt', curr_expr') = mergeCurrExpr ctxt
                 (ctxt'', eenv') = mergeExprEnv ctxt'
-                (ctxt''', path_conds') = mergePathCondsSimple simplifier ctxt''
+                (ctxt''', path_conds') = mergePathConds2 simplifier ctxt''
                 syms' = mergeSymbolicIds ctxt'''
                 s1' = s1_ ctxt'''
                 s2' = s2_ ctxt'''
@@ -525,14 +527,14 @@ mergePathConds simplifier ctxt@(Context { s1_ = s1@(State {path_conds = pc1, kno
         combined_map' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) combined_map
         (s1', newPCs') = L.mapAccumL (simplifyPC simplifier) s1 newPCs
         newPCs'' = concat newPCs'
-    in (ctxt {s1_ = s1'}, L.foldr PC.insert (HS.foldr PC.insert combined_map' newAssumePCs) newPCs'')
+    in (ctxt {s1_ = s1'}, L.foldr PC.insert (HS.foldr PC.insert combined_map' (HS.map PC.unhashedPC newAssumePCs)) newPCs'')
 
 -- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
 -- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
-mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond)
+mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PC.HashedPathCond, HS.HashSet Name), HS.HashSet PC.HashedPathCond)
                 -> (Maybe Name)
-                -> (HS.HashSet PC.PathCond, HS.HashSet Name)
-                -> ((M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond), (HS.HashSet PC.PathCond, HS.HashSet Name))
+                -> (HS.HashSet PC.HashedPathCond, HS.HashSet Name)
+                -> ((M.Map (Maybe Name) (HS.HashSet PC.HashedPathCond, HS.HashSet Name), HS.HashSet PC.HashedPathCond), (HS.HashSet PC.HashedPathCond, HS.HashSet Name))
 mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
     case M.lookup key pc2_map of
         Just (hs2, ns2) -> ((pc2_map', newAssumePCs'), (mergedHS, mergedNS))
@@ -545,15 +547,33 @@ mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
 
 -- Any PathCond present in both HashSets is added as it is to the new HashSet.
 -- A PathCond present in only 1 HashSet is changed to the form 'AssumePC (x == _) PathCond' and added to the new HashSet
-mergeHashSets :: Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond, HS.HashSet PathCond)
+mergeHashSets :: Id -> (HS.HashSet PC.HashedPathCond) -> (HS.HashSet PC.HashedPathCond) -> (HS.HashSet PC.HashedPathCond, HS.HashSet PC.HashedPathCond)
 mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
     where
         common = HS.intersection hs1 hs2
         hs1Minus2 = HS.difference hs1 hs2
         hs2Minus1 = HS.difference hs2 hs1
-        hs1Minus2' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
-        hs2Minus1' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
+        hs1Minus2' = HS.map (PC.mapHashedPC (AssumePC newId 1)) hs1Minus2
+        hs2Minus1' = HS.map (PC.mapHashedPC (AssumePC newId 2)) hs2Minus1
         unmergedPCs = HS.union hs1Minus2' hs2Minus1'
+
+mergePathConds2 :: Simplifier simplifier => simplifier -> Context t -> (Context t, PathConds)
+mergePathConds2 simplifier ctxt@(Context { s1_ = s1@(State { path_conds = pc1, known_values = kv })
+                                         , s2_ = (State { path_conds = pc2 })
+                                         , newId_ = newId
+                                         , newPCs_ = newPCs}) =
+    let        
+        res_newId = ExtCond (mkOrExpr kv
+                                (mkEqIntExpr kv (Var newId) 1)
+                                (mkEqIntExpr kv (Var newId) 2)) True
+
+        merged = PC.mergeWithAssumePCs newId pc1 pc2
+
+        (s1', new') = L.mapAccumL (simplifyPC simplifier) s1 (res_newId:newPCs)
+
+        merged' = foldr PC.insert merged (concat new')
+    in
+    (ctxt { s1_ = s1' }, merged')
 
 -- | @`changedSyms` is list of tuples, w/ each tuple representing the old symbolic Id and the new replacement Id. @`subIdsPCs` substitutes all
 -- occurrences of the old symbolic Ids' Names in the PathConds with the Name of the corresponding new Id. This assumes Old and New Id have the same type
