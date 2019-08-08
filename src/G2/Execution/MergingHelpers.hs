@@ -30,13 +30,20 @@ replaceCase s@(State {curr_expr = cexpr, expr_env = eenv}) =
 
 replaceCaseExpr :: State t -> Expr -> Expr
 replaceCaseExpr s (App e1 e2) = App (replaceCaseExpr s e1) (replaceCaseExpr s e2)
-replaceCaseExpr s@(State {model = m, type_classes = tc}) (Case e i alts) =
+replaceCaseExpr s@(State {model = m, type_classes = tc}) cse@(Case e i alts@(Alt (LitAlt _) _:_)) =
     let val = subExpr m tc e
     in case val of
         (Lit lit) ->
-            let (Alt (LitAlt _) expr):_ = matchLitAlts lit alts
+            let
                 binds = [(i, Lit lit)]
-            in replaceCaseExpr s $ liftCaseBinds binds expr
+            in
+            case matchLitAlts lit alts of
+                (Alt (LitAlt _) expr):_ -> replaceCaseExpr s $ liftCaseBinds binds expr
+                    -- The above may not match if an expression constraining a variable
+                    -- introduced from merging had an implication added by another merge,
+                    -- and that implication was not satisfied by the model.
+                    -- In this situation, we do not need to replace the case expression
+                _ -> cse
         _ -> error $ "Unable to find Lit value for e. Got: " ++ show val
 replaceCaseExpr _ e = e
 
