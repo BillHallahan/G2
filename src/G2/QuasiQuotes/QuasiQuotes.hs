@@ -5,7 +5,9 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module G2.QuasiQuotes.QuasiQuotes (g2) where
+module G2.QuasiQuotes.QuasiQuotes ( g2
+                                  , g2M
+                                  , parseHaskellQ) where
 
 import G2.Config
 import G2.Execution.Interface
@@ -49,6 +51,12 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quoteType = error "g2: No QuasiQuoter for types."
                  , quoteDec = error "g2: No QuasiQuoter for declarations." }
 
+g2M :: QuasiQuoter
+g2M = QuasiQuoter { quoteExp = parseHaskellMergeQ
+                  , quotePat = error "g2: No QuasiQuoter for patterns."
+                  , quoteType = error "g2: No QuasiQuoter for types."
+                  , quoteDec = error "g2: No QuasiQuoter for declarations." }
+
 -- If we compile multiple G2 quasiquoters at the same time, we can get errors.
 -- This is a hack to prevent that from happening.  The IORef is global, and
 -- aquired/released by each quasiquoter's compilation
@@ -65,8 +73,18 @@ releaseIORefLock = do
     lock <- readIORef oneByOne
     Lock.release lock
 
+parseHaskellMergeQ :: String -> Q Exp
+parseHaskellMergeQ str = do
+    config <- runIO qqConfig
+    parseHaskellConfigQ (config { stateMerging = True }) str
+
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
+    config <- runIO qqConfig
+    parseHaskellConfigQ config str
+
+parseHaskellConfigQ :: Config -> String -> Q Exp
+parseHaskellConfigQ config str = do
     runIO $ acquireIORefLock
     -- runIO $ putStrLn $ "CWD is: " ++ cwd
 
@@ -81,13 +99,12 @@ parseHaskellQ str = do
 
     -- Get names for the lambdas for the regular inputs
     exG2 <- parseHaskellQ' qext
-    config <- runIO qqConfig
     let (init_s, _, init_b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
                                         (mkCurrExpr Nothing Nothing) config
 
     runIO $ releaseIORefLock
 
-    ex_out <- runExecutionQ init_s init_b config
+    ex_out <- runExecutionQ (stateMerging config) init_s init_b config
 
     state_name <- newName "state"
     tenv_name <- newName "tenv_parse"
@@ -156,7 +173,7 @@ liftDataT = dataToExpQ (\a -> case liftText <$> cast a of
         liftLoc (G2.Loc l c f) = conE 'G2.Loc `appE` intE l `appE` intE c `appE` stringE f
         intE i = [| i |]
 
-parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
+parseHaskellQ' :: QuotedExtract -> Q ExtractedG2
 parseHaskellQ' qext = do
   (ModuleInfo mods) <- reifyModule =<< thisModule
   -- runIO $ mapM putStrLn =<< guessModules mods
@@ -215,8 +232,8 @@ parseHaskellIO mods qext = do
 data ExecOut = Completed [State ()] Bindings
              | NonCompleted (State ()) Bindings
 
-runExecutionQ :: State () -> Bindings -> Config -> Q ExecOut
-runExecutionQ s b config = do
+runExecutionQ :: Bool -> State () -> Bindings -> Config -> Q ExecOut
+runExecutionQ mergestates s b config = do
   runIO $ do
     let (s', b') = addAssume s b
     
@@ -225,8 +242,9 @@ runExecutionQ s b config = do
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
-                hal' = hal :<~> ZeroHalter 2000 :<~> LemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
+                hal' = hal :<~> ZeroHalter 20 :<~> LemmingsHalter
+                simp = ADTSimplifier arbValue
+            (xs, b''') <- runExecutionToProcessed red hal' ord simp mergestates s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do

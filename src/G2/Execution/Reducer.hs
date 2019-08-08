@@ -956,7 +956,7 @@ newtype Cxt a = Cxt [(Tree a, [Tree a])]
 type TreeZipper a = (Tree a, Cxt a)
 
 runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier) => r -> h -> simplifier -> State t -> Bindings 
-                -> IO ([State t], Bindings)
+                -> IO (Processed (State t), Bindings)
 runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
@@ -964,8 +964,7 @@ runReducerMerge red hal simplifier s b = do
         zipper = (root, Cxt [])
 
     (_, b', _, _, pr') <- evalZipper red hal simplifier pr zipper b
-    let exStates = accepted pr'
-    states <- mapM (\ExState {state = st} -> return st) exStates
+    let states = mapProcessed state pr'
     return (states, b')
 
 evalZipper :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
