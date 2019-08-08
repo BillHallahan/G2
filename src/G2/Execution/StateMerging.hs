@@ -393,21 +393,16 @@ mergeSymbolicIds (Context { s1_ = (State {symbolic_ids = syms1}), s2_ = (State {
         syms'' = HS.insert newId syms'
     in syms''
 
-
 -- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
 mergeExprEnv :: Context t -> (Context t, E.ExprEnv)
 mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2}), newId_ = newId, ng_ = ngen}) =
     let
-        eenv1_map = E.unwrapExprEnv eenv1
-        eenv2_map = E.unwrapExprEnv eenv2
-        zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
-        ((changedSyms1, changedSyms2, ngen'), merged_map) = M.mapAccum (mergeEnvObj newId eenv1 eenv2) (HM.empty, HM.empty, ngen) zipped_maps
+        ((changedSyms1, changedSyms2, ngen'), mergedEnvs) = E.intersectionAccum (mergeEnvObj newId eenv1 eenv2) (HM.empty, HM.empty, ngen) eenv1 eenv2
         newSyms = (HM.elems changedSyms1) ++ (HM.elems changedSyms2)
-        merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms
-        eenv1_rem = (M.difference eenv1_map eenv2_map)
-        eenv2_rem = (M.difference eenv2_map eenv1_map)
-        eenv' = E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem]
-
+        mergedEnvs' = foldr (\i@(Id n _) m -> E.insertSymbolic n i m) mergedEnvs newSyms
+        eenv1Rem = E.difference eenv1 eenv2
+        eenv2Rem = E.difference eenv2 eenv1
+        eenv' = E.unions [mergedEnvs', eenv1Rem, eenv2Rem]
         ctxt' = ctxt {ng_ = ngen'}
         -- rename any old Syms in PathConds in each state to their new Names, based on list of pairs in changedSyms1_ and changedSyms2_
         ctxt'' = updatePCs ctxt' changedSyms1 changedSyms2
