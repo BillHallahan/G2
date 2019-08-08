@@ -348,7 +348,7 @@ getChoices solver simplifier s@(State {known_values = kv}) e@(Case _ _ _) = do
         let assum = mkEqIntExpr kv (Var i) num
         in checkNewPC solver simplifier s (ExtCond assum True) expr assum) choices
     concatMapM (\(expr, assum, s') ->
-        -- extract Exprs and Assumptions in any nested NonDets
+        -- extract Exprs and Assumptions in any nested Case Exprs
         getChoices solver simplifier s' expr
         -- add top level assumed expr to each of these. Order of Assumptions matters if we want to wrap them in AssumePCs later
         >>= mapM (\(exp', assums) -> return (exp', assum:assums))) choices'
@@ -580,6 +580,7 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
             s'@(State {expr_env = eenv, symbolic_ids = syms}) = state newPC''
             (newSymId, ng4) = freshId TyLitInt ng3
             syms' = HS.insert newSymId syms
+            eenv' = E.insertSymbolic (idName newSymId) newSymId eenv
 
             -- e.g. given a list of the unapp-ed Exprs for each match, [[a, b], [c,d]], group choices for each sub-Expr together, i.e. [[a,c], [b,d]]
             appsT = L.transpose apps''
@@ -588,7 +589,7 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
                 [] -> error $ "Empty list "
                 [([],e)] -> e
                 _ -> createCaseExpr newSymId (map snd a)) appsT
-            -- TODO: merge types into one instead of wrapping in NonDet
+            -- TODO: merge types into one instead of wrapping in Case Expr
             -- Do the same for Apps representing types
             tyAppsT = L.transpose tyApps'
             tyAppsT' = map (\a -> case a of
@@ -604,7 +605,7 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
 
             -- Replace all occurrences of the `params` in aexpr with the corresponding app
             pBinds = zip params appsT'
-            (eenv', aexpr'', ng5, _) = liftBinds pBinds eenv aexpr' ng4
+            (eenv'', aexpr'', ng5, _) = liftBinds pBinds eenv' aexpr' ng4
 
             -- Add PathConds representing constraints from the original Case Exprs for each possible match
             assums = assumes matches
@@ -630,7 +631,7 @@ handleDaltMatches s@(State {known_values = kv}) ng ((alt, matches):alts) bind
             concs = concretized newPC''
             newPCs' = choicesPC ++ newSymPCs ++ newPCs
 
-            newPC''' = newPC'' { state = s' { curr_expr = CurrExpr Evaluate aexpr'' , expr_env = eenv', symbolic_ids = syms'}
+            newPC''' = newPC'' { state = s' { curr_expr = CurrExpr Evaluate aexpr'' , expr_env = eenv'', symbolic_ids = syms'}
                                , new_pcs = newPCs'
                                , concretized = concs }
             (pcs, ng6) = handleDaltMatches s ng5 alts bind
@@ -660,18 +661,27 @@ handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
         mexpr'' = case maybeC of
                 (Just (t1 :~ t2)) -> Cast mexpr' (t2 :~ t1)
                 Nothing -> mexpr'
-        -- Concretize mexpr to dcon depending on the Assumption-s
-        (eenv'', newParams', ngen'') = case assum of
-            [] -> (E.insert mexprN mexpr'' eenv', newParams, ngen')
-            _ -> let (newId, ngen_'') = freshId mexprT ngen'
-                in (E.insert mexprN (NonDet [Assume Nothing (cnf kv assum) mexpr''
-                , Assume Nothing (mkNotExpr kv (cnf kv assum)) (Var newId)]) eenv'
-                , newId:newParams
-                , ngen_'')
+
+        (eenv'', newParams', ngen'', newPCs) = case assum of
+            [] -> (E.insert mexprN mexpr'' eenv', newParams, ngen', [])
+            -- Concretize mexpr to dcon depending on the Assumption-s
+            _ -> let
+                    (newMexprId, ngen_'') = freshId mexprT ngen'
+                    -- New Symbolic Id to branch on in the Case Exprs to be created for each Sub-Expr
+                    (newCaseSym, ngen_''') = freshId TyLitInt ngen_''
+                    mexpr''' = createCaseExpr newCaseSym [mexpr'', Var newMexprId]
+                    assumE = cnf kv assum
+                    (upper, newMapping) = bindExprToNum (\num e -> implies kv newCaseSym num e True) [assumE, mkNotExpr kv assumE]
+                    lower = 1
+                    newSymBound = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newCaseSym) lower) (mkLeIntExpr kv (Var newCaseSym) (upper - 1))) True
+                    eenv_'' = E.insert mexprN mexpr''' $ E.insertSymbolic (idName newMexprId) newMexprId
+                        $ E.insertSymbolic (idName newCaseSym) newCaseSym eenv'
+                 in (eenv_'', newCaseSym:newMexprId:newParams, ngen_''', newSymBound:newMapping)
+
         -- Add new symbolic vars, and delete mexprId because it has been concretized
         syms' = HS.union (HS.fromList newParams') (HS.delete mexprId syms)
 
-    in (apps, tyApps, NewPC { state = s {expr_env = eenv'', symbolic_ids = syms'}, new_pcs = [], concretized = [mexprId] }, ngen'')
+    in (apps, tyApps, NewPC { state = s {expr_env = eenv'', symbolic_ids = syms'}, new_pcs = newPCs, concretized = [mexprId] }, ngen'')
 
 handleDaltDconMatch :: State t -> NameGen -> (DataCon, [Id]) -> (Expr, [Assumption]) -> ([Expr], [Expr], NewPC t, NameGen)
 handleDaltDconMatch s@(State {expr_env = eenv}) ngen (_, _) (mexpr, _) =
@@ -696,8 +706,8 @@ handleDaltPrimMatch s@(State {known_values = kv}) ng (dcon, params) (mexpr, assu
     in (apps, (newPCEmpty s) { new_pcs = [cond'] }, ng)
 
 handleDefMatches :: State t -> NameGen -> [(Alt, Matches)] -> Id -> [Alt] -> ([NewPC t], NameGen)
-handleDefMatches s@(State {known_values = kv, symbolic_ids = syms}) ng ((alt, matches):_) bind alts
-    -- Only 1 match, no need to insert NonDet expr
+handleDefMatches s@(State {known_values = kv, symbolic_ids = syms, expr_env = eenv}) ng ((alt, matches):_) bind alts
+    -- Only 1 match, no need to insert Case expr
     | (Alt Default aexpr) <- alt
     , (length (defaults matches) == 1)
     , mexpr <- fst . head . defaults $ matches =
@@ -719,12 +729,12 @@ handleDefMatches s@(State {known_values = kv, symbolic_ids = syms}) ng ((alt, ma
             -- New Symbolic Id to branch on in the Case Exprs to be created for each Sub-Expr
             (newSymId, ng') = freshId TyLitInt ng
             syms' = HS.insert newSymId syms
-            mexpr = createCaseExpr newSymId matchExprs
+            eenv' = E.insertSymbolic (idName newSymId) newSymId eenv
+            mexpr = createCaseExpr newSymId matchExprs -- combine all matches into 1 `Case` Expr
 
-            -- mexpr = NonDet $ mkNonDetOpts kv defs -- combine all matches into 1 `NonDet` Expr
             binds = [(bind, mexpr)]
             aexpr' = liftCaseBinds binds aexpr
-            s' = s {curr_expr = CurrExpr Evaluate aexpr', symbolic_ids = syms'}
+            s' = s {curr_expr = CurrExpr Evaluate aexpr', symbolic_ids = syms', expr_env = eenv'}
 
             -- Create Exprs representing constraint for each match, i.e  [(x = 1 AND ..), (x = 2 AND ..)]
             assumsE = (cnf kv) <$> assums

@@ -52,6 +52,15 @@ isMergeableExpr _ _ (Data dc1) (Data dc2) = dc1 == dc2
 isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
     | (Just (E.Sym _)) <- E.lookupConcOrSym (idName i1) eenv1
     , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2 = True
+-- isMergeableExpr eenv1 eenv2 e1 e2
+--     | isSMNF eenv1 e1
+--     , isSMNF eenv2 e2 = True
+-- isMergeableExpr eenv1 eenv2 e1@(Case _ _ _) e2
+--     | isSMNF eenv1 e1
+--     , isSMNF eenv2 e2 = True
+-- isMergeableExpr eenv1 eenv2 e1 e2@(Case _ _ _)
+--     | isSMNF eenv1 e1
+--     , isSMNF eenv2 e2 = True
 isMergeableExpr _ _ _ _ = False
 
 -- | Values that are passed around and updated while merging individual fields in 2 States
@@ -83,7 +92,7 @@ mergeState ngen simplifier s1 s2 =
                 ctxt = emptyContext s1 s2 ngen' newId
                 (ctxt', curr_expr') = mergeCurrExpr ctxt
                 (ctxt'', eenv') = mergeExprEnv ctxt'
-                (ctxt''', path_conds') = mergePathConds simplifier ctxt''
+                (ctxt''', path_conds') = mergePathCondsSimple simplifier ctxt''
                 syms' = mergeSymbolicIds ctxt'''
                 s1' = s1_ ctxt'''
                 s2' = s2_ ctxt'''
@@ -367,14 +376,14 @@ mergeSymbolicIds (Context { s1_ = (State {symbolic_ids = syms1}), s2_ = (State {
 
 -- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
 mergeExprEnv :: Context t -> (Context t, E.ExprEnv)
-mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2}), newId_ = newId, ng_ = ngen}) =
+mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2}), newId_ = newId, ng_ = ngen, newSyms_ = newSyms}) =
     let
         eenv1_map = E.unwrapExprEnv eenv1
         eenv2_map = E.unwrapExprEnv eenv2
         zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
         ((changedSyms1, changedSyms2, ngen'), merged_map) = M.mapAccum (mergeEnvObj newId eenv1 eenv2) (HM.empty, HM.empty, ngen) zipped_maps
-        newSyms = (HM.elems changedSyms1) ++ (HM.elems changedSyms2)
-        merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms
+        newSyms' = [newId] ++ (HM.elems changedSyms1) ++ (HM.elems changedSyms2) ++ (HS.toList newSyms)
+        merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms'
         eenv1_rem = (M.difference eenv1_map eenv2_map)
         eenv2_rem = (M.difference eenv2_map eenv1_map)
         eenv' = E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem]
@@ -392,12 +401,12 @@ mergeEnvObj newId eenv1 eenv2 (changedSyms1, changedSyms2, ngen) (eObj1, eObj2)
     -- Following cases deal with unequal EnvObjs
     | (E.ExprObj e1) <- eObj1
     , (E.ExprObj e2) <- eObj2 = ((changedSyms1, changedSyms2, ngen), E.ExprObj (mergeExpr newId e1 e2))
-    -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a NonDet expr
+    -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a Case expr
     | (E.SymbObj i) <- eObj1
     , (E.ExprObj e2) <- eObj2 = mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i e2 True
     | (E.ExprObj e1) <- eObj1
     , (E.SymbObj i) <- eObj2 = mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i e1 False
-    -- Lookup RedirObj and create a NonDet Expr combining the lookup result with the expr from the ExprObj
+    -- Lookup RedirObj and create a Case Expr combining the lookup result with the expr from the ExprObj
     | (E.RedirObj n) <- eObj1
     , (E.ExprObj e2) <- eObj2 = mergeRedirExprObjs ngen changedSyms1 changedSyms2 newId eenv1 n e2 True
     | (E.ExprObj e1) <- eObj1
@@ -415,7 +424,7 @@ mergeSymbExprObjs :: NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id
                   -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i@(Id _ t) e first =
         let (newSymId, ngen') = freshId t ngen
-        -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are enclosed under the right `Assume` in the NonDet Exprs
+        -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are enclosed under the right `Assume` in the Case Exprs
         in case first of
             True ->
                 let changedSyms1' = HM.insert i newSymId changedSyms1
