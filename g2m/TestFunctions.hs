@@ -33,7 +33,7 @@ sumEvensTestFixed :: [Int] -> Bool
 sumEvensTestFixed xs = length xs > 4 * 2 && sumEvens xs == 4 * 2
 
 sumEvensTest :: [Int] -> Int -> Bool
-sumEvensTest xs x = length xs > x * 2 && sumEvens xs == x * 2
+sumEvensTest xs x =  sumEvens xs == x - 1 && length xs > x * 2
 
 any' :: [Bool] -> Bool
 any' [] = False

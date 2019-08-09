@@ -229,7 +229,7 @@ executable G2M
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -- -ddump-splices
-                       -fprof-auto "-with-rtsopts=-p" -fexternal-interpreter -opti+RTS -opti-p
+                       -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      g2m
   main-is:             Main.hs
   other-modules:       

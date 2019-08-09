@@ -147,7 +147,7 @@ parseHaskellConfigQ config str = do
 
                 b'' = b' { input_names = drop (length regs) (input_names b') }
 
-                sol = executeAndSolveStates s''' (varE bindings_name)
+                sol = executeAndSolveStates (stateMerging config) s''' (varE bindings_name)
 
                 ars = extractArgs (inputIds s b'') (cleaned_names b'') tenv_name sol
 
@@ -243,8 +243,7 @@ runExecutionQ mergestates s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
                 hal' = hal :<~> ZeroHalter 20 :<~> LemmingsHalter
-                simp = ADTSimplifier arbValue
-            (xs, b''') <- runExecutionToProcessed red hal' ord simp mergestates s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord simplifier mergestates s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -385,16 +384,15 @@ instance Halter ErrorHalter () t where
 
     stepHalter _ _ _ _ _ = ()
 
-executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp
-executeAndSolveStates s b = do
-    varE 'executeAndSolveStates' `appE` b `appE` s 
+executeAndSolveStates :: Bool -> StateExp -> BindingsExp -> Q Exp
+executeAndSolveStates mergeStates s b = do
+    varE 'executeAndSolveStates' `appE` liftData mergeStates `appE` b `appE` s 
 
-executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
-executeAndSolveStates' b s = do
+executeAndSolveStates' :: Bool -> Bindings -> State () -> IO (Maybe (ExecRes ()))
+executeAndSolveStates' mergeStates b s = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
-    let simplifier = IdSimplifier
-    let mergeStates = False
+    let simplifier = ADTSimplifier arbValueInfinite
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> ErrorHalter
@@ -424,7 +422,7 @@ solveStates' :: ( Named t
 solveStates' b xs = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
-    let simplifier = IdSimplifier
+    let simplifier = ADTSimplifier arbValueInfinite
     solveStates'' solver simplifier b xs
 
 solveStates'' :: ( Named t

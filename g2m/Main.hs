@@ -10,13 +10,13 @@ import Data.Time.Clock
 main :: IO ()
 main = do
     -- timeIOActionPrint $ [g2| \(out :: [Int]) -> ?(i :: [Int]) | compressTest i out |] [2, 1, 2, 3]
-    -- timeIOActionPrint $ [g2M| \(out :: [Int]) -> ?(i :: [Int]) | compressTest i out |] [2, 1, 2, 3]
+    timeIOActionPrint $ [g2M| \(out :: [Int]) -> ?(i :: [Int]) | compressTest i out |] [2, 1, 2, 3]
 
     -- timeIOActionPrint $ [g2| \(out :: [Int]) -> ?(i :: [Int]) | compressTest2 i out |] [2, 1, 2, 3]
-    -- timeIOActionPrint $ [g2M| \(out :: [Int]) -> ?(i :: [Int]) | compressTest2 i out |] [2, 1, 2, 3]
+    timeIOActionPrint $ [g2M| \(out :: [Int]) -> ?(i :: [Int]) | compressTest2 i out |] [2, 1, 2, 3]
 
-    timeIOActionPrint $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 4
-    timeIOActionPrint $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 4
+    -- timeIOActionPrint $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 4
+    -- timeIOActionPrint $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 4
 
 timeIOAction :: IO a -> IO (a, NominalDiffTime)
 timeIOAction action = do
