@@ -10,7 +10,7 @@ compressTest :: (Eq a) => [a] -> [a] -> Bool
 compressTest xs ys = compress xs == ys
 
 compressTest2 :: (Eq a) => [a] -> [a] -> Bool
-compressTest2 xs ys =  length xs > length ys + 4 && compress xs == ys
+compressTest2 xs ys = length xs > length ys + 4 && compress xs == ys
 
 last' :: [a] -> a
 last' [x] = x
