@@ -426,6 +426,7 @@ pcVarDecls = createVarDecls . pcVars
 -- Get's all variable required for a list of `PathCond` 
 pcVars :: [PathCond] -> [(Name, Sort)]
 pcVars [] = []
+pcVars (AssumePC (Id n _) e pc:xs) = (n, SortInt):vars e ++ pcVars [pc] ++ pcVars xs
 pcVars (AltCond _ e _:xs) = vars e ++ pcVars xs
 pcVars (p:xs)= vars p ++ pcVars xs
 

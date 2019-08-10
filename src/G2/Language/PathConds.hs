@@ -13,7 +13,9 @@ module G2.Language.PathConds ( PathConds(..)
                              , empty
                              , fromList
                              , map
+                             , map'
                              , filter
+                             , alter
                              , insert
                              , null
                              , number
@@ -99,14 +101,20 @@ empty = PathConds M.empty
 fromList :: [PathCond] -> PathConds
 fromList = coerce . foldr insert empty
 
-map :: (PathCond -> a) -> PathConds -> [a]
-map f = L.map f . toList
+
+map :: (PathCond -> PathCond) -> PathConds -> PathConds
+map f = fromList . L.map f . toList
+
+map' :: (PathCond -> a) -> PathConds -> [a]
+map' f = L.map f . toList
 
 filter :: (PathCond -> Bool) -> PathConds -> PathConds
-filter f = PathConds 
-         . M.filter (not . HS.null . fst)
-         . M.map (\(pc, ns) -> (HS.filter (f . unhashedPC) pc, ns))
-         . toMap
+filter f = fromList 
+         . L.filter f
+         . toList
+
+alter :: (PathCond -> Maybe PathCond) -> PathConds -> PathConds
+alter f = fromList . mapMaybe f . toList
 
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each
@@ -168,7 +176,7 @@ relatedSets' kv pc ns =
       k:_ ->
           let
               s = scc [k] pc
-              ns' = concat $ map varNamesInPC s
+              ns' = concat $ map' varNamesInPC s
           in
           s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []
@@ -189,7 +197,7 @@ varIdsInPC :: PathCond -> [Id]
 varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
 varIdsInPC (ConsCond _ e _) = varIds e
-varIdsInPC (AssumePC i _ pc) = [i] ++ varIdsInPC pc
+varIdsInPC (AssumePC i _ pc) = i:varIdsInPC pc
 
 varNamesInPC :: PathCond -> [Name]
 varNamesInPC = P.map idName . varIdsInPC

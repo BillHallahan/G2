@@ -110,13 +110,16 @@ reduceNewPC solver simplifier
         let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
             pc'' = concat pc'
 
+
         -- Optimization
         -- We replace the path_conds with only those that are directly
         -- affected by the new path constraints
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
         let new_pc = foldr PC.insert spc $ pc''
-            s'' = s' {path_conds = new_pc}
+            new_pc' = foldr (simplifyPCs simplifier s) new_pc pc''
+
+            s'' = s' {path_conds = new_pc'}
 
         let ns = (concatMap PC.varNamesInPC pc) ++ (names concIds)
             rel_pc = case ns of

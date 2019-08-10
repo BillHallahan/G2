@@ -3,19 +3,28 @@
 
 module G2.Solver.Simplifier ( Simplifier (..)
                             , IdSimplifier (..)
-                            , ADTSimplifier (..)) where
+                            , ADTSimplifier (..)
+                            , CombineSimplifiers (..)
+                            , EliminateAssumePCs (..)) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.PathConds as PC
 
 import Data.Maybe
 import Data.List
 import Data.Tuple
 import qualified Data.Map as M
 
+import Debug.Trace
+
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> (State t, [PathCond])
+
+    {-# INLINE simplifyPCs #-}
+    simplifyPCs :: forall t. simplifier -> State t -> PathCond -> PathConds -> PathConds
+    simplifyPCs _ _ _ = id
 
     -- | Reverses the affect of simplification in the model, if needed.
     reverseSimplification :: forall t . simplifier -> State t -> Bindings -> Model -> Model
@@ -26,6 +35,20 @@ data IdSimplifier = IdSimplifier
 instance Simplifier IdSimplifier where
     simplifyPC _ s pc = (s, [pc])
     reverseSimplification _ _ _ m = m
+
+data CombineSimplifiers a b = a :<< b
+
+instance (Simplifier a, Simplifier b) => Simplifier (CombineSimplifiers a b) where
+    simplifyPC (a :<< b) s pc =
+        let
+            (s', pcs) = simplifyPC b s pc
+            (s'', pcs') = mapAccumL (simplifyPC a) s' pcs
+        in
+        (s'', concat pcs')
+
+    simplifyPCs (a :<< b) s pc pcs = simplifyPCs a s pc $ simplifyPCs b s pc pcs
+
+    reverseSimplification (a :<< b) s binds m = reverseSimplification a s binds $ reverseSimplification b s binds m
 
 -- | A simplifier that converts any ConsConds to ExtConds by mapping the Data Constructor to an Integer
 data ADTSimplifier = ADTSimplifier ArbValueFunc
@@ -153,3 +176,24 @@ replaceReturnType (TyForAll b t) r = TyForAll b $ replaceReturnType t r
 replaceReturnType (TyFun t1 t2@(TyFun _ _)) r = TyFun t1 $ replaceReturnType t2 r
 replaceReturnType (TyFun t _) r = TyFun t r
 replaceReturnType _ r = r
+
+-- Eliminates AssumePC's when the Id is set
+data EliminateAssumePCs = EliminateAssumePCs
+
+instance Simplifier EliminateAssumePCs where
+    -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle
+    simplifyPC _ s pc = (s, [pc])
+
+    simplifyPCs _ _ (AltCond (LitInt n) (Var i) True) pcs =
+        PC.alter (simpAssumePC i (fromInteger n)) pcs
+    simplifyPCs _ _ _ pcs = pcs
+
+    -- | Reverses the affect of simplification in the model, if needed.
+    reverseSimplification _ _ _ = id
+
+simpAssumePC :: Id -> Int -> PathCond -> Maybe PathCond
+simpAssumePC i n (AssumePC i' n' pc)
+    | i == i' && n == n' = Just pc
+    | i /= i' || n == n' = fmap (AssumePC i' n') $ simpAssumePC i n pc
+    | otherwise = Nothing
+simpAssumePC _ _ pc = Just pc
