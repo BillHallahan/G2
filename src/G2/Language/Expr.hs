@@ -25,6 +25,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                                   , mkAndExpr
                                   , mkOrExpr
                                   , mkNotExpr
+                                  , mkImpliesExpr
                                   , cnf
                                   , dnf
                                   , getFuncCalls
@@ -152,6 +153,10 @@ mkAndExpr kv e1 e2 = App (App andEx e1) e2
 mkOrExpr :: KnownValues -> Expr -> Expr -> Expr
 mkOrExpr kv e1 e2 = App (App orEx e1) e2
     where orEx = mkOrPrim kv
+
+mkImpliesExpr :: KnownValues -> Expr -> Expr -> Expr
+mkImpliesExpr kv e1 e2 = App (App impEx e1) e2
+    where impEx = mkImpliesPrim kv
 
 mkNotExpr :: KnownValues -> Expr -> Expr
 mkNotExpr kv e = App notEx e

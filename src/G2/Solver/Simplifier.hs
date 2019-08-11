@@ -16,7 +16,7 @@ import Data.List
 import Data.Tuple
 import qualified Data.Map as M
 
-import Debug.Trace
+import qualified Data.HashSet as HS
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle
@@ -185,15 +185,34 @@ instance Simplifier EliminateAssumePCs where
     simplifyPC _ s pc = (s, [pc])
 
     simplifyPCs _ _ (AltCond (LitInt n) (Var i) True) pcs =
-        PC.alter (simpAssumePC i (fromInteger n)) pcs
+        PC.alterHashed (simpAssumePC i n) pcs
+    simplifyPCs _ _ (ExtCond (App (App (Prim Eq _) x) y) True) pcs
+        | Var i <- x
+        , Lit (LitInt n) <- y = PC.alterHashed (simpAssumePC i n) pcs
+    simplifyPCs _ _ (ExtCond (App (App (Prim Eq _) x) y) True) pcs
+        | Var i <- y
+        , Lit (LitInt n) <- x = PC.alterHashed (simpAssumePC i n) pcs
     simplifyPCs _ _ _ pcs = pcs
 
     -- | Reverses the affect of simplification in the model, if needed.
     reverseSimplification _ _ _ = id
 
-simpAssumePC :: Id -> Int -> PathCond -> Maybe PathCond
-simpAssumePC i n (AssumePC i' n' pc)
-    | i == i' && n == n' = Just pc
-    | i /= i' || n == n' = fmap (AssumePC i' n') $ simpAssumePC i n pc
-    | otherwise = Nothing
+simpAssumePC :: Id -> Integer -> PC.HashedPathCond -> Maybe PC.HashedPathCond
+simpAssumePC i n exc
+    | ExtCond (App (App (Prim Implies _) x) y) True <- PC.unhashedPC exc =
+        case x of
+            (App (App (Prim Eq _) e1) e2)
+                | Lit (LitInt n') <- e1
+                , Var i' <- e2 -> simpAssumePC' i n i' n' (PC.hashedPC $ ExtCond y True)
+                | Lit (LitInt n') <- e2
+                , Var i' <- e1 -> simpAssumePC' i n i' n' (PC.hashedPC $ ExtCond y True)
+            _ -> Just exc
+simpAssumePC i n p
+    | AssumePC i' n' pc <- PC.unhashedPC p = simpAssumePC' i n i' n' pc
 simpAssumePC _ _ pc = Just pc
+
+simpAssumePC' :: Id -> Integer -> Id -> Integer -> PC.HashedPathCond -> Maybe PC.HashedPathCond
+simpAssumePC' i n i' n' pc
+    | i == i' && n == n' = Just pc
+    | i == i' && n /= n' = Nothing
+    | otherwise = fmap (PC.hashedAssumePC i' n') $ simpAssumePC i n pc

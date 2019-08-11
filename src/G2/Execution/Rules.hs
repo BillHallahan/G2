@@ -33,6 +33,7 @@ import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -117,14 +118,14 @@ reduceNewPC solver simplifier
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
         let new_pc = foldr PC.insert spc $ pc''
-            new_pc' = foldr (simplifyPCs simplifier s) new_pc pc''
+            new_pc' = foldr (simplifyPCs simplifier s') new_pc pc''
 
             s'' = s' {path_conds = new_pc'}
 
         let ns = (concatMap PC.varNamesInPC pc) ++ (names concIds)
             rel_pc = case ns of
                 [] -> PC.fromList pc''
-                _ -> PC.scc ns new_pc
+                _ -> PC.scc ns new_pc'
 
         res <- check solver s' rel_pc
 
@@ -136,9 +137,10 @@ reduceNewPC solver simplifier
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
-                        , exec_stack = stck })
+                        , exec_stack = stck
+                        , symbolic_ids = symbs })
                ng i
-    | E.isSymbolic (idName i) eenv =
+    | i `elem` symbs =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
     -- need to push additional redirects for updating later on.
@@ -279,8 +281,8 @@ evalLet s@(State { expr_env = eenv })
         olds = map idName binds_lhs
         (news, ng') = freshSeededNames olds ng
 
-        e' = renameExprs (zip olds news) e
-        binds_rhs' = renameExprs (zip olds news) binds_rhs
+        e' = renames (HM.fromList $ zip olds news) e
+        binds_rhs' = renames (HM.fromList $ zip olds news) binds_rhs
 
         eenv' = E.insertExprs (zip news binds_rhs') eenv
     in
@@ -373,7 +375,8 @@ checkNewPC solver simplifier s@(State { path_conds = spc }) pc e assum = do
     -- change an Unknown into a SAT or UNSAT
     let (s', pc') = simplifyPC simplifier s pc
         new_pc = foldr PC.insert spc pc'
-        s'' = s' {path_conds = new_pc}
+        new_pc' = foldr (simplifyPCs simplifier s') new_pc pc'
+        s'' = s' {path_conds = new_pc'}
         rel_pc = PC.relevant pc' new_pc
 
     res <- check solver s' rel_pc
@@ -756,7 +759,7 @@ createChoicesPC kv assumsE = case assumsE of
 -- When there are multiple Assumption-s in the list, order in which they are nested in the AssumePC matters.
 -- `getChoices` ensures the original order is preserved
 wrapPC :: [Assumption] -> PathCond -> PathCond
-wrapPC (x:xs) pc = AssumePC n num pc'
+wrapPC (x:xs) pc = PC.mkAssumePC n num pc'
     where (n, num) = SM.getAssumption x
           pc' = wrapPC xs pc
 wrapPC [] pc = pc -- return pc sans AssumePC if there are no Assume-d Exprs
@@ -945,7 +948,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
     eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
 
-    (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
+    (dcon', aexpr') = renames (HM.fromList $ zip olds news) (Data dcon, aexpr)
 
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
@@ -1268,8 +1271,8 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
 
     olds = map (idName) bindsLHS
     (news, ngen') = freshSeededNames olds ngen
-    expr' = renameExprs (zip olds news) expr
-    bindsLHS' = renameExprs (zip olds news) bindsLHS
+    expr' = renames (HM.fromList $ zip olds news) expr
+    bindsLHS' = renames (HM.fromList $ zip olds news) bindsLHS
 
     binds' = zip bindsLHS' bindsRHS
 

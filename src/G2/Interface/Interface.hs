@@ -294,7 +294,7 @@ runG2WithConfig :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig state config bindings = do
     let mergeStates = stateMerging config
     SomeSolver solver <- initSolver config
-    let simplifier = ADTSimplifier arbValue -- :<< EliminateAssumePCs
+    let simplifier = ADTSimplifier arbValue :<< EliminateAssumePCs
 
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
