@@ -423,12 +423,14 @@ createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
 pcVarDecls :: [PathCond] -> [SMTHeader]
 pcVarDecls = createVarDecls . pcVars
 
--- Get's all variable required for a list of `PathCond` 
+-- Get's all variable required for a list of `PathCond`
 pcVars :: [PathCond] -> [(Name, Sort)]
-pcVars [] = []
-pcVars (AssumePC (Id n _) e pc:xs) = (n, SortInt):pcVars [PC.unhashedPC pc] ++ pcVars xs
-pcVars (AltCond _ e _:xs) = vars e ++ pcVars xs
-pcVars (p:xs)= vars p ++ pcVars xs
+pcVars = concatMap pcVar
+
+pcVar :: PathCond -> [(Name, Sort)]
+pcVar (AssumePC i _ pc) = idToNameSort i:pcVar (PC.unhashedPC pc)
+pcVar (AltCond _ e _) = vars e
+pcVar p = vars p
 
 vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]
 vars = evalASTs vars'

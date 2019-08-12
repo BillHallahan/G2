@@ -276,7 +276,7 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
                           (zipWithAMatched $ mergeMatched i)
                           pc1 pc2
     in
-    PathConds $ M.insert (Just $ idName i) (HS.empty, ns) merged
+    PathConds . adjustNothing (idName i) $ M.insert (Just $ idName i) (HS.empty, ns) merged
 
 mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
 mergeOnlyIn i n _ (hpc, hn) =
@@ -309,6 +309,11 @@ mergeMatched i _ (hpc1, hn1) (hpc2, hn2) =
     , ( HS.union both (HS.union onlyIn1 onlyIn2)
       , hn)
     )
+
+adjustNothing :: Name -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name) -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)
+adjustNothing n hs
+    | Just v <- M.lookup Nothing hs = M.delete Nothing $ M.insert (Just n) v hs
+    | otherwise = hs
 
 instance ASTContainer PathConds Expr where
     containedASTs = containedASTs . toMap
