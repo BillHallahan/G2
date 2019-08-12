@@ -266,8 +266,11 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     estk_str = pprExecStackStr (exec_stack ex_state)
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen b)
-    input_str = pprSymbolicIdsStr (symbolic_ids ex_state)
+    in_names_str = show (input_names b)
+    symb_ids_str = pprSymbolicIdsStr (symbolic_ids ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
+    simp_str = pprSimplifiedStr (simplified ex_state)
+    adt_int_map_str = pprADTIntMapStr (adt_int_maps ex_state)
     non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     walkers_str = show (deepseq_walkers b)
@@ -285,12 +288,18 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , tenv_str
                , "----- [Names] ---------------------"
                , names_str
+               , "----- [Input Names] -----------------"
+               , in_names_str
                , "----- [Symbolic Ids] -----------------"
-               , input_str
+               , symb_ids_str
                , "----- [Walkers] -------------------"
                , walkers_str
                , "----- [Paths] ---------------------"
                , paths_str
+               , "----- [Simplified] ---------------------"
+               , simp_str
+               , "----- [ADT Int Map] ---------------------"
+               , adt_int_map_str
                , "----- [Non Red Paths] ---------------------"
                , non_red_paths_str
                , "----- [True Assert] ---------------------"
@@ -341,6 +350,16 @@ pprPathsStr :: [PathCond] -> String
 pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprPathCondStr paths
+
+pprSimplifiedStr :: M.Map Name (Type, Type) -> String
+pprSimplifiedStr simp = injNewLine kv_strs
+  where
+    kv_strs = map show $ M.toList simp
+
+pprADTIntMapStr :: ADTIntMaps -> String
+pprADTIntMapStr aim = injNewLine kv_strs
+  where
+    kv_strs = map show $ M.toList aim
 
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs

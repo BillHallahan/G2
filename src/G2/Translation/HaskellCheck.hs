@@ -22,8 +22,6 @@ import Control.Exception
 
 import System.Process
 
-import Control.Monad.IO.Class
-
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
 validateStates proj src modN entry chAll ghflags in_out = do
     return . all id =<< mapM (runCheck proj src modN entry chAll ghflags) in_out
@@ -70,8 +68,6 @@ runCheck' proj src modN entry chAll gflags s ars out = do
                         False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                         True -> "try (evaluate (" ++ arsStr ++ " == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
-
-        liftIO $ putStrLn chck
 
         v' <- compileExpr chck
 

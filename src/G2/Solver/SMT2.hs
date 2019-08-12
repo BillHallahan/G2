@@ -55,28 +55,28 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     merge _ = (++)
 
     checkSat _ (h_in, h_out, _) formula = do
-        -- putStrLn "checkSat"
-        -- putStrLn formula
+        putStrLn "checkSat"
+        putStrLn formula
         
         setUpFormulaZ3 h_in formula
         r <- checkSat' h_in h_out
 
-        -- putStrLn $ show r
+        putStrLn $ show r
 
         return r
 
     checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
         setUpFormulaZ3 h_in formula
-        -- putStrLn "\n\n checkSatGetModel"
-        -- putStrLn formula
+        putStrLn "\n\n checkSatGetModel"
+        putStrLn formula
         r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
+        putStrLn $ "r =  " ++ show r
         if r == SAT then do
             mdl <- getModelZ3 h_in h_out vs
             -- putStrLn "======"
             -- putStrLn (show mdl)
             let m = parseModel mdl
-            -- putStrLn $ "m = " ++ show m
+            putStrLn $ "m = " ++ show m
             -- putStrLn "======"
             return (r, Just m)
         else do

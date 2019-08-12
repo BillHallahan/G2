@@ -281,9 +281,9 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
 mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
 mergeOnlyIn i n _ (hpc, hn) =
     let
-        hn' = HS.insert (idName i) hn
+        hn' = if not (HS.null hpc) then HS.insert (idName i) hn else hn
     in
-    ( hn'
+    ( if not (HS.null hpc) then hn' else HS.empty
     , ( HS.map (hashedAssumePC i n) hpc
       , hn')
     )
@@ -305,7 +305,7 @@ mergeMatched i _ (hpc1, hn1) (hpc2, hn2) =
                 then HS.insert (idName i) union_hn
                 else union_hn
     in
-    ( hn
+    ( HS.union (HS.fromList $ names onlyIn1) (HS.fromList $ names onlyIn2)
     , ( HS.union both (HS.union onlyIn1 onlyIn2)
       , hn)
     )

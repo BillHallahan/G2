@@ -27,6 +27,8 @@ import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 
+import Debug.Trace
+
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
     (exec_stack s1 == exec_stack s2)
@@ -90,7 +92,8 @@ mergeState ngen simplifier s1 s2 =
                 s1' = s1_ ctxt'''
                 s2' = s2_ ctxt'''
                 ngen'' = ng_ ctxt'''
-            in (ngen''
+            in -- trace ("pc1 = " ++ show (path_conds s1) ++ "\npc2 = " ++ show (path_conds s2) ++ "\npcm = " ++ show path_conds' ++ "\n-----")
+            (ngen''
                , (Just State { expr_env = eenv'
                              , type_env = type_env s1'
                              , curr_expr = curr_expr'
