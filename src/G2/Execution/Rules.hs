@@ -1158,7 +1158,7 @@ retAssumeFrame s@(State {known_values = kv
         -- If Assume is just a Var, concretize the Expr to a True Bool DataCon. Else add an ExtCond
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalt e2 stck
-            _ -> addExtCond s ng e1 e2 True stck
+            _ -> ([addPathCond s e1 e2 True stck], ng)
     in
     (RuleReturnCAssume, newPCs, ng')
 
@@ -1174,7 +1174,7 @@ retAssertFrame s@(State {known_values = kv
         -- If Assert is just a Var, concretize the Expr to a True or False Bool DataCon, else add an ExtCond
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalts e2 stck
-            _ -> addExtConds s ng e1 ais e2 stck
+            _ -> (addPathConds s e1 ais e2 stck, ng)
             
       in
       (RuleReturnCAssert, newPCs, ng')
@@ -1211,32 +1211,21 @@ concretizeExprToBool' s@(State {expr_env = eenv
                         then False
                         else True
 
-addExtCond :: State t -> NameGen -> Expr -> Expr -> Bool -> S.Stack Frame -> ([NewPC t], NameGen)
-addExtCond s ng e1 e2 boolVal stck = 
-    ([NewPC { state = s { curr_expr = CurrExpr Evaluate e2
-                         , exec_stack = stck}
-             , new_pcs = [ExtCond e1 boolVal]
-             , concretized = [] }], ng)
+addPathCond :: State t -> Expr -> Expr -> Bool -> S.Stack Frame -> NewPC t
+addPathCond s e1 e2 boolVal stck =
+    NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                       , exec_stack = stck }
+          , new_pcs = SM.exprToPCs e1 boolVal
+          , concretized = [] }
 
-addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
-addExtConds s ng e1 ais e2 stck =
+addPathConds :: State t -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> [NewPC t]
+addPathConds s e1 ais e2 stck =
     let
-        s' = s { curr_expr = CurrExpr Evaluate e2
-               , exec_stack = stck}
-
-        condt = [ExtCond e1 True]
-        condf = [ExtCond e1 False]
-
-        strue = NewPC { state = s'
-                      , new_pcs = condt
-                      , concretized = []}
-
-        sfalse = NewPC { state = s' { true_assert = True
-                                    , assert_ids = ais }
-                       , new_pcs = condf
-                       , concretized = []}
-    in
-    ([strue, sfalse], ng)
+        strue = addPathCond s e1 e2 True stck
+        sfalse = addPathCond s e1 e2 False stck
+        sfalse' = sfalse { state = (state sfalse) { true_assert = True
+                                                  , assert_ids = ais } }
+    in [strue, sfalse']
 
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.

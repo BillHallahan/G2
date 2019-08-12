@@ -7,6 +7,7 @@ module G2.Execution.MergingHelpers
   , matchLitAlts
   , replaceCaseWSym
   , replaceCase
+  , exprToPCs
   ) where
 
 import G2.Language
@@ -93,6 +94,14 @@ replaceCaseWSym' (s, ng) (App e1 e2) =
         ((s'', ng''), (e2', newPCs2)) = replaceCaseWSym' (s', ng') e2
     in ((s'', ng''), ((App e1' e2'), newPCs1 ++ newPCs2))
 replaceCaseWSym' (s, ng) e = ((s, ng), (e, []))
+
+exprToPCs :: Expr -> Bool -> [PathCond]
+exprToPCs (Case (Var i) _ alts) boolVal =
+    let altEs = map (\(Alt (LitAlt (LitInt n)) e) -> (n, e)) alts
+        -- wrap Exprs in AssumePCs
+        -- we assume PathCond restricting values of `i` has already been added before hand when creating the Case Expr
+    in map (\(num, e) -> AssumePC i (fromInteger num) (ExtCond e boolVal)) altEs
+exprToPCs e boolVal = [ExtCond e boolVal]
 
 getAssumption :: Expr -> (Id, Int)
 getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, fromInteger val)
