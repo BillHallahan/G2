@@ -23,7 +23,7 @@ function test {
 	if [[ $res == *"Validated"* ]]; then
   		validated+=($1)
   	else
-  		notvalidated+=($1)
+  		not_validated+=($1)
 	fi
 
 	cp G2.prof "$ProfilesDir"/"$Test".prof
