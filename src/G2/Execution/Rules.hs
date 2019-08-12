@@ -629,7 +629,7 @@ handleDaltSymMatch s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
         -- rename the params and insert into expr_env
         olds = map idName params
         mexprN = idName mexprId
-        (news, ngen') = childrenNames mexprN olds ngen
+        (news, ngen') = freshSeededNames olds ngen
         newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
         eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
 
