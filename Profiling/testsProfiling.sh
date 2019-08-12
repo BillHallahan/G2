@@ -1,5 +1,7 @@
 #!/bin/bash 
 
+validate=$1
+
 # edit if needed
 TestsDir="./Profiling/Tests"
 ProfilesDir="./Profiling/Profiles"
@@ -17,13 +19,18 @@ function test {
 	Test=$1
 	echo "-----"
 	echo "$Test"
-	res=$(cabal run G2 $TestsDir/$2 $3 -- --n $4 $5 --merge-states --validate)
-	echo $res
+	
+	if [[ $validate == "validate" ]]; then
+		res=$(cabal run G2 $TestsDir/$2 $3 -- --n $4 $5 --merge-states --validate)
+		echo $res
 
-	if [[ $res == *"Validated"* ]]; then
-  		validated+=($1)
-  	else
-  		not_validated+=($1)
+		if [[ $res == *"Validated"* ]]; then
+	  		validated+=($1)
+	  	else
+	  		not_validated+=($1)
+		fi
+	else
+		cabal run G2 $TestsDir/$2 $3 -- --n $4 $5 --merge-states
 	fi
 
 	cp G2.prof "$ProfilesDir"/"$Test".prof
