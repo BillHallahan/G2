@@ -9,11 +9,18 @@ module G2.Language.PathConds ( PathConds(..)
                              , HashedPathCond
                              , Constraint
                              , Assertion
+                             , mkAssumePC
+
                              , toMap
                              , empty
                              , fromList
+                             , fromHashedList
                              , map
+                             , mapHashedPCs
+                             , map'
                              , filter
+                             , alter
+                             , alterHashed
                              , insert
                              , null
                              , number
@@ -24,6 +31,7 @@ module G2.Language.PathConds ( PathConds(..)
                              , varIdsInPC
                              , varNamesInPC
                              , toList
+                             , toHashedList
                              , toHashSet
                              , union
                              , intersection
@@ -73,7 +81,7 @@ newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS
 data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
-              | AssumePC Id Int PathCond
+              | AssumePC Id Integer HashedPathCond
               deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 type Constraint = PathCond
@@ -99,14 +107,28 @@ empty = PathConds M.empty
 fromList :: [PathCond] -> PathConds
 fromList = coerce . foldr insert empty
 
-map :: (PathCond -> a) -> PathConds -> [a]
-map f = L.map f . toList
+fromHashedList :: [HashedPathCond] -> PathConds
+fromHashedList = coerce . foldr insertHashed empty
+
+map :: (PathCond -> PathCond) -> PathConds -> PathConds
+map f = fromList . L.map f . toList
+
+mapHashedPCs :: (HashedPathCond -> HashedPathCond) -> PathConds -> PathConds
+mapHashedPCs f = fromHashedList . L.map f . toHashedList
+
+map' :: (PathCond -> a) -> PathConds -> [a]
+map' f = L.map f . toList
 
 filter :: (PathCond -> Bool) -> PathConds -> PathConds
-filter f = PathConds 
-         . M.filter (not . HS.null . fst)
-         . M.map (\(pc, ns) -> (HS.filter (f . unhashedPC) pc, ns))
-         . toMap
+filter f = fromHashedList 
+         . L.filter (f . unhashedPC)
+         . toHashedList
+
+alter :: (PathCond -> Maybe PathCond) -> PathConds -> PathConds
+alter f = fromList . mapMaybe f . toList
+
+alterHashed :: (HashedPathCond -> Maybe HashedPathCond) -> PathConds -> PathConds
+alterHashed f = fromHashedList . mapMaybe f . toHashedList
 
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each
@@ -115,18 +137,21 @@ filter f = PathConds
 -- returns all PCs anyway) or scc (which forces exploration over all shared names)
 {-# INLINE insert #-}
 insert :: PathCond -> PathConds -> PathConds
-insert = insert' varNamesInPC
+insert pc = insert' varNamesInPC (hashedPC pc)
 
-insert' :: (PathCond -> [Name]) -> PathCond -> PathConds -> PathConds
+insertHashed :: HashedPathCond -> PathConds -> PathConds
+insertHashed = insert' varNamesInPC
+
+insert' :: (PathCond -> [Name]) -> HashedPathCond -> PathConds -> PathConds
 insert' f p (PathConds pcs) =
     let
-        ns = f p
+        ns = f (unhashedPC p)
 
         (hd, insertAt) = case ns of
             [] -> (Nothing, [Nothing])
             (h:_) -> (Just h, P.map Just ns)
     in
-    PathConds $ M.adjust (\(p', ns') -> (HS.insert (hashedPC p) p', ns')) hd
+    PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
               $ foldr (M.alter (insert'' ns)) pcs insertAt
 
 insert'' :: [Name] -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name) -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name)
@@ -168,7 +193,7 @@ relatedSets' kv pc ns =
       k:_ ->
           let
               s = scc [k] pc
-              ns' = concat $ map varNamesInPC s
+              ns' = concat $ map' varNamesInPC s
           in
           s:relatedSets' kv pc (ns L.\\ (k:ns'))
       [] ->  []
@@ -189,7 +214,7 @@ varIdsInPC :: PathCond -> [Id]
 varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
 varIdsInPC (ConsCond _ e _) = varIds e
-varIdsInPC (AssumePC i _ pc) = [i] ++ varIdsInPC pc
+varIdsInPC (AssumePC i _ pc) = i:varIdsInPC (unhashedPC pc)
 
 varNamesInPC :: PathCond -> [Name]
 varNamesInPC = P.map idName . varIdsInPC
@@ -217,6 +242,10 @@ scc' (n:ns) pc newpc =
 {-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
 toList = P.map unhashedPC . concatMap (HS.toList . fst) . M.elems . toMap
+
+{-# INLINE toHashedList #-}
+toHashedList ::  PathConds -> [HashedPathCond]
+toHashedList = concatMap (HS.toList . fst) . M.elems . toMap
 
 {-# INLINE toHashSet #-}
 toHashSet :: PathConds -> HS.HashSet HashedPathCond
@@ -249,7 +278,7 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
     in
     PathConds $ M.insert (Just $ idName i) (HS.empty, ns) merged
 
-mergeOnlyIn :: Id -> Int -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
+mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
 mergeOnlyIn i n _ (hpc, hn) =
     let
         hn' = HS.insert (idName i) hn
@@ -391,15 +420,18 @@ instance Ided HashedPathCond where
   ids = ids . unhashedPC
 
 
-hashedAssumePC :: Id -> Int -> HashedPathCond -> HashedPathCond
-hashedAssumePC i n (HashedPC pc h) = HashedPC (AssumePC i n pc) (hashAssumePCFromHash i n h)
+mkAssumePC :: Id -> Integer -> PathCond -> PathCond
+mkAssumePC i n pc = AssumePC i n (hashedPC pc)
+
+hashedAssumePC :: Id -> Integer -> HashedPathCond -> HashedPathCond
+hashedAssumePC i n hpc@(HashedPC _ h) = HashedPC (AssumePC i n hpc) (hashAssumePCFromHash i n h)
 
 -- | Helper functions to compute the hash of an AssumePC in various ways
-hashAssumePC :: Id -> Int -> PathCond -> Int
+hashAssumePC :: Id -> Integer -> HashedPathCond -> Int
 hashAssumePC i n pc = hashAssumePCFromHash i n (hash pc)
 
 hashAssumePCFromHash :: Id
-                     -> Int
+                     -> Integer
                      -> Int -- ^ The hash of the contained PathCond
                      -> Int
 hashAssumePCFromHash i n h = (4 :: Int) `hashWithSalt` i `hashWithSalt` n `hashWithSalt` h

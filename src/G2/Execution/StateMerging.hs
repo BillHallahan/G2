@@ -487,8 +487,8 @@ mergePathCondsSimple simplifier ctxt@(Context {s1_ = s1@(State {path_conds = pc1
         common = HS.toList $ HS.intersection pc1HS pc2HS
         pc1Only = HS.toList $ HS.difference pc1HS pc2HS
         pc2Only = HS.toList $ HS.difference pc2HS pc1HS
-        pc1Only' = map (\pc -> AssumePC newId 1 pc) pc1Only
-        pc2Only' = map (\pc -> AssumePC newId 2 pc) pc2Only
+        pc1Only' = map (PC.mkAssumePC newId 1) pc1Only
+        pc2Only' = map (PC.mkAssumePC newId 2) pc2Only
         mergedPC = PC.fromList common
         mergedPC' = foldr PC.insert mergedPC (pc1Only' ++ pc2Only')
         mergedPC'' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) mergedPC'
@@ -540,8 +540,8 @@ mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
         common = HS.intersection hs1 hs2
         hs1Minus2 = HS.difference hs1 hs2
         hs2Minus1 = HS.difference hs2 hs1
-        hs1Minus2' = HS.map (PC.mapHashedPC (AssumePC newId 1)) hs1Minus2
-        hs2Minus1' = HS.map (PC.mapHashedPC (AssumePC newId 2)) hs2Minus1
+        hs1Minus2' = HS.map (PC.hashedPC . AssumePC newId 1) hs1Minus2
+        hs2Minus1' = HS.map (PC.hashedPC . AssumePC newId 2) hs2Minus1
         unmergedPCs = HS.union hs1Minus2' hs2Minus1'
 
 mergePathConds2 :: Simplifier simplifier => simplifier -> Context t -> (Context t, PathConds)

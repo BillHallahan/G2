@@ -326,7 +326,7 @@ pathConsToSMT (AssumePC i num pc) =
     let
         idSMT = exprToSMT (Var i)
         intSMT = exprToSMT (Lit (LitInt $ toInteger num))
-    in case pathConsToSMT pc of
+    in case pathConsToSMT $ PC.unhashedPC pc of
         (Just pcSMT) -> Just $ (idSMT := intSMT) :=> pcSMT
         Nothing -> error $ "Unable to convert pc: " ++ (show pc)
 

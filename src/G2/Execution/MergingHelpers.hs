@@ -76,10 +76,10 @@ replaceCaseWSym' (s@(State {known_values = kv}), ng) (Case (Var i) _ alts@(a:_))
 
         -- for each modified Alt Expr, add Path Cond
         es' = map (mkEqPrimExpr newSymT kv (Var newSym)) es
-        (_, newPCs) = bindExprToNum (\num e -> AssumePC i (fromInteger num) (ExtCond e True)) es'
+        (_, newPCs) = bindExprToNum (\num e -> PC.mkAssumePC i (fromInteger num) (ExtCond e True)) es'
 
         -- for the PathConds returned from replaceCaseWSym', wrap them in AssumePCs
-        pcsL' = concat . snd $ bindExprToNum (\num pcs -> map (\pc -> AssumePC i (fromInteger num) pc) pcs) pcsL
+        pcsL' = concat . snd $ bindExprToNum (\num pcs -> map (PC.mkAssumePC i (fromInteger num)) pcs) pcsL
         -- we assume PathCond restricting values of `i` has already been added before hand when creating the Case Expr
 
         eenv' = expr_env s'
@@ -94,8 +94,8 @@ replaceCaseWSym' (s, ng) (App e1 e2) =
     in ((s'', ng''), ((App e1' e2'), newPCs1 ++ newPCs2))
 replaceCaseWSym' (s, ng) e = ((s, ng), (e, []))
 
-getAssumption :: Expr -> (Id, Int)
-getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, fromInteger val)
+getAssumption :: Expr -> (Id, Integer)
+getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, val)
 getAssumption e = error $ "Unable to extract Id, Int from Assumed Expr: " ++ (show e)
 
 -- | Returns True is Expr can be pattern matched against Assume-d Expr created during state merging

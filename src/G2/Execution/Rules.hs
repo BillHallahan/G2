@@ -753,7 +753,7 @@ createChoicesPC kv assumsE = case assumsE of
 -- When there are multiple Assumption-s in the list, order in which they are nested in the AssumePC matters.
 -- `getChoices` ensures the original order is preserved
 wrapPC :: [Assumption] -> PathCond -> PathCond
-wrapPC (x:xs) pc = AssumePC n num pc'
+wrapPC (x:xs) pc = PC.mkAssumePC n num pc'
     where (n, num) = SM.getAssumption x
           pc' = wrapPC xs pc
 wrapPC [] pc = pc -- return pc sans AssumePC if there are no Assume-d Exprs
