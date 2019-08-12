@@ -352,58 +352,58 @@ var2 = Var (Id var2N ty2T)
 createTestPCs :: KnownValues -> [PathConds]
 createTestPCs kv = [
                 PC.fromList [ -- simple test
-                    AssumePC idX 1 
+                    PC.mkAssumePC idX 1 
                     (ConsCond dconA var1 True)
                     , ExtCond (mkEqIntExpr kv (varX) 1) True
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True]
               , PC.fromList [
-                    AssumePC idX 1
+                    PC.mkAssumePC idX 1
                     (ConsCond dconA var1 False)
-                    , AssumePC idX 1
+                    , PC.mkAssumePC idX 1
                     (ConsCond dconB var1 False)
                     , ExtCond (mkEqIntExpr kv (varX) 1) True
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True]
                , PC.fromList [ -- combination of AssumePCs and other PathCond-s
                     ConsCond dconA var1 False
                     , (ConsCond dconB var1 False)
-                    , AssumePC idX 1
+                    , PC.mkAssumePC idX 1
                     (ConsCond dconA var1 False)
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True]
                , PC.fromList [ -- Set of (AssumePCs id i pc) with i == 2 should be satisfiable, hence entire PathConds should be satisfiable
-                    AssumePC idX 1
+                    PC.mkAssumePC idX 1
                     (ConsCond dconA var1 False)
-                    , AssumePC idX 1
+                    , PC.mkAssumePC idX 1
                     (ConsCond dconB var1 False)
-                    , AssumePC idX 2
+                    , PC.mkAssumePC idX 2
                     (ConsCond dconA var1 True)
-                    , AssumePC idX 2
+                    , PC.mkAssumePC idX 2
                     (ConsCond dconB var1 False)
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True]
                , PC.fromList [
-                    AssumePC idX 1
+                    PC.mkAssumePC idX 1
                         (ConsCond dconA var1 False)
-                    , AssumePC idX 1
+                    , PC.mkAssumePC idX 1
                         (ConsCond dconB var1 False)
-                    , AssumePC idY 1
+                    , PC.mkAssumePC idY 1
                         (ConsCond dconA var1 True)
                     , ExtCond (mkEqIntExpr kv (varX) 1) True
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idY) 1) (mkEqIntExpr kv (Var idY) 2)) True]
                , PC.fromList [ -- simple nested AssumePCs
-                    AssumePC idX 1
-                    (AssumePC idY 1
+                    PC.mkAssumePC idX 1
+                    (PC.mkAssumePC idY 1
                         (ConsCond dconA var1 True))
-                    , AssumePC idX 1
-                    (AssumePC idY 1
+                    , PC.mkAssumePC idX 1
+                    (PC.mkAssumePC idY 1
                         (ConsCond dconB var1 False))
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idY) 1) (mkEqIntExpr kv (Var idY) 2)) True]
                , PC.fromList [ -- simple nested AssumePCs (negative test)
-                    AssumePC idX 1
-                    (AssumePC idY 1
+                    PC.mkAssumePC idX 1
+                    (PC.mkAssumePC idY 1
                         (ConsCond dconA var1 False))
-                    , AssumePC idX 1
-                    (AssumePC idY 1
+                    , PC.mkAssumePC idX 1
+                    (PC.mkAssumePC idY 1
                         (ConsCond dconB var1 False))
                     , ExtCond (mkEqIntExpr kv (varX) 1) True
                     , ExtCond (mkEqIntExpr kv (Var idY) 1) True
@@ -411,37 +411,37 @@ createTestPCs kv = [
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idY) 1) (mkEqIntExpr kv (Var idY) 2)) True]
                 -- more complex nested AssumePCs. Equivalent to (x=1 => ((y=1 => B) || (y=2 => not A && not B))) || (x=2 => ((y=1 => not A && not B))) 
                , PC.fromList [
-                    AssumePC idX 1
-                    (AssumePC idY 1
+                    PC.mkAssumePC idX 1
+                    (PC.mkAssumePC idY 1
                         (ConsCond dconB var1 True))
-                    , AssumePC idX 1
-                    (AssumePC idY 2
+                    , PC.mkAssumePC idX 1
+                    (PC.mkAssumePC idY 2
                         (ConsCond dconB var1 False))
-                    , AssumePC idX 1
-                    (AssumePC idY 2
+                    , PC.mkAssumePC idX 1
+                    (PC.mkAssumePC idY 2
                         (ConsCond dconA var1 False))
-                    , AssumePC idX 2
-                    (AssumePC idY 1
+                    , PC.mkAssumePC idX 2
+                    (PC.mkAssumePC idY 1
                         (ConsCond dconA var1 False))
-                    , AssumePC idX 2
-                    (AssumePC idY 1
+                    , PC.mkAssumePC idX 2
+                    (PC.mkAssumePC idY 1
                         (ConsCond dconB var1 False))
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var idY) 1) (mkEqIntExpr kv (Var idY) 2)) True]
                , PC.fromList [ -- Multiple solutions possible
-                    AssumePC idX 1
+                    PC.mkAssumePC idX 1
                         (ConsCond dconB var1 True)
-                    , AssumePC idX 2
+                    , PC.mkAssumePC idX 2
                         (ConsCond dconA var1 True)
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True]
                , PC.fromList [ -- Multiple Data types
-                    AssumePC idX 1
+                    PC.mkAssumePC idX 1
                         (ConsCond dconB var1 True)
-                    , AssumePC idX 1
+                    , PC.mkAssumePC idX 1
                         (ConsCond dconD var2 True)
-                    , AssumePC idX 2
+                    , PC.mkAssumePC idX 2
                         (ConsCond dconA var1 False)
-                    , AssumePC idX 2
+                    , PC.mkAssumePC idX 2
                         (ConsCond dconA var1 True)
                     , ExtCond (mkOrExpr kv (mkEqIntExpr kv (varX) 1) (mkEqIntExpr kv (varX) 2)) True]
                ]
