@@ -56,6 +56,7 @@ module G2.Language.Typing
     , getTyApps
     , tyAppsToExpr
     , isADT
+    , isPrimType
     ) where
 
 import G2.Language.AST
@@ -551,3 +552,12 @@ isADT t =
     in case tCenter of
         (TyCon _ _) -> True
         _ -> False
+
+isPrimType :: Type -> Bool
+isPrimType TyLitInt = True
+isPrimType TyLitFloat = True
+isPrimType TyLitDouble = True
+isPrimType TyLitChar = True
+isPrimType TyLitString = True
+isPrimType _ = False
+
