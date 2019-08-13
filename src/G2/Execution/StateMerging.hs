@@ -26,8 +26,6 @@ import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 
-import Debug.Trace
-
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
     (exec_stack s1 == exec_stack s2)
@@ -100,7 +98,7 @@ mergeState ngen simplifier s1 s2 =
                 s1' = s1_ ctxt'''
                 s2' = s2_ ctxt'''
                 ngen'' = ng_ ctxt'''
-            in -- trace ("pc1 = " ++ show (path_conds s1) ++ "\npc2 = " ++ show (path_conds s2) ++ "\npcm = " ++ show path_conds' ++ "\n-----")
+            in
             (ngen''
                , (Just State { expr_env = eenv'
                              , type_env = type_env s1'
@@ -210,9 +208,37 @@ mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
 mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2 }) e1 e2@(Case _ _ _)
     | isSMNF (expr_env s1) e1
     , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
+mergeInlinedExpr ctxt (Lit l1) (Lit l2)
+    | l1 == l2 = (ctxt, Lit l1)
+    | (typeOf l1) == (typeOf l2) = mergeLits ctxt l1 l2
+mergeInlinedExpr ctxt (Var i) (Lit l)
+    | (typeOf i) == (typeOf l) = mergeVarLit ctxt i l True
+mergeInlinedExpr ctxt (Lit l) (Var i)
+    | (typeOf i) == (typeOf l) = mergeVarLit ctxt i l False
 mergeInlinedExpr ctxt@(Context { newId_ = newId }) e1 e2
     | e1 == e2 = (ctxt, e1)
     | otherwise = (ctxt, createCaseExpr newId [e1, e2])
+
+-- | Combines 2 Lits `l1` and `l2` into a single new Symbolic Variable and adds new Path Constraints
+mergeLits :: Context t -> Lit -> Lit -> (Context t, Expr)
+mergeLits ctxt@(Context {newId_ = newId, newSyms_ = newSyms, newPCs_ = newPCs, ng_ = ng}) l1 l2 =
+    let (newSymId, ng') = freshId (typeOf l1) ng
+        newSyms' = HS.insert newSymId newSyms
+        pc1 = PC.mkAssumePC newId 1 (AltCond l1 (Var newSymId) True)
+        pc2 = PC.mkAssumePC newId 2 (AltCond l2 (Var newSymId) True)
+    in (ctxt { newSyms_ = newSyms', newPCs_ = pc1:pc2:newPCs, ng_ = ng' }, Var newSymId)
+
+-- | Combines a lit `l` and variable `i` into a single new Symbolic Variable and adds new Path Constraints
+mergeVarLit :: Context t -> Id -> Lit -> Bool -> (Context t, Expr)
+mergeVarLit ctxt@(Context {s1_ = s1, newId_ = newId, newSyms_ = newSyms, newPCs_ = newPCs, ng_ = ng}) i l first =
+    let (newSymId, ng') = freshId (typeOf l) ng
+        newSyms' = HS.insert newSymId newSyms
+        pc1 = AltCond l (Var newSymId) True
+        pc2 = ExtCond (mkEqPrimExpr (typeOf i) (known_values s1) (Var i) (Var newSymId)) True
+        pcs' = case first of
+            True -> [PC.mkAssumePC newId 1 pc2, PC.mkAssumePC newId 2 pc1]
+            False -> [PC.mkAssumePC newId 1 pc1, PC.mkAssumePC newId 2 pc2]
+    in (ctxt { newSyms_ = newSyms', newPCs_ = pcs' ++ newPCs, ng_ = ng' }, Var newSymId)
 
 type Conds = [(Id, Integer)]
 
