@@ -31,7 +31,7 @@ replaceCase s@(State {curr_expr = cexpr, expr_env = eenv}) =
 
 replaceCaseExpr :: State t -> Expr -> Expr
 replaceCaseExpr s (App e1 e2) = App (replaceCaseExpr s e1) (replaceCaseExpr s e2)
-replaceCaseExpr s@(State {model = m, type_classes = tc}) cse@(Case e i alts@(Alt (LitAlt _) _:_)) =
+replaceCaseExpr s@(State {model = m, type_classes = tc}) (Case e i alts@(Alt (LitAlt _) _:_)) =
     let val = subExpr m tc e
     in case val of
         (Lit lit) ->
