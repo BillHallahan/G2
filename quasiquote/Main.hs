@@ -23,6 +23,10 @@ arithmeticsTests = do
   timeIOActionPrint productSumTest
   putStrLn ""
 
+  putStrLn "-- productSumAssertTest"
+  timeIOActionPrint productSumAssertTest
+  putStrLn ""
+
   putStrLn "-- assertViolationTest1"
   timeIOActionPrint assertViolationTest1
   putStrLn ""
