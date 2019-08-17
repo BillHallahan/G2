@@ -16,8 +16,6 @@ import Data.List
 import Data.Tuple
 import qualified Data.Map as M
 
-import qualified Data.HashSet as HS
-
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> (State t, [PathCond])

@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Execution.StateMerging
   ( mergeState
@@ -21,6 +22,7 @@ import G2.Solver.Simplifier
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
+import Data.Maybe
 import qualified Data.Map as M
 import qualified Data.List as L
 import qualified Data.HashSet as HS
@@ -202,6 +204,14 @@ mergeInlinedExpr ctxt (App e1 e2) (App e3 e4) = (ctxt'', App e1' e2')
     where
         (ctxt', e1') = mergeInlinedExpr ctxt e1 e3
         (ctxt'', e2') = mergeInlinedExpr ctxt' e2 e4
+mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2}) e1@(Var i) e2@(Case _ _ _)
+    | isSMNF (expr_env s2) e2
+    , HS.member i (symbolic_ids s1)
+    , not $ isPrimType (idType i) = mergeSymCase ctxt e2 e1 True
+mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2}) e1@(Case _ _ _) e2@(Var i)
+    | isSMNF (expr_env s1) e1
+    , HS.member i (symbolic_ids s2)
+    , not $ isPrimType (idType i) = mergeSymCase ctxt e1 e2 False
 mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
     | isSMNF (expr_env s1) e1
     , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
@@ -218,6 +228,49 @@ mergeInlinedExpr ctxt (Lit l) (Var i)
 mergeInlinedExpr ctxt@(Context { newId_ = newId }) e1 e2
     | e1 == e2 = (ctxt, e1)
     | otherwise = (ctxt, createCaseExpr newId [e1, e2])
+
+mergeSymCase :: Named t => Context t -> Expr -> Expr -> Bool -> (Context t, Expr)
+mergeSymCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) e1@(Case _ _ _) (Var i) first =
+    let s = if first then s1 else s2
+        (adt, bi) = fromJust $ getCastedAlgDataTy (idType i) (type_env s)
+        dcs = case adt of
+            DataTyCon _ _ -> data_cons adt
+            NewTyCon _ _ _ -> [data_con adt]
+            _ -> error "Not a DataTyCon"
+        (newId, ng') = freshId TyLitInt ng
+
+        ((s', ng''), dcs') = L.mapAccumL (concretizeSym bi) (s, ng') dcs
+
+        e2 = createCaseExpr newId dcs'
+        syms' = HS.delete i $ HS.insert newId (symbolic_ids s')
+        eenv' = E.insert (idName i) e2 (expr_env s')
+
+        -- (upper, pcs) = bindExprToNum (\num dc -> PC.mkAssumePC newId num (ConsCond dc (Var i) True)) dcs
+        -- add PC restricting range of values for newSymId
+        kv = known_values s
+        lower = 1
+        upper = toInteger $ length dcs'
+        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+
+        s'' = s' {symbolic_ids = syms', expr_env = eenv'}
+    in if first
+        then mergeCase (ctxt { s1_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:newPCs}) e2 e1
+        else mergeCase (ctxt { s2_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:newPCs}) e1 e2
+--      if any existing consConds with sym -> add new AltConds w/ new
+mergeSymCase _ e1 e2 _ = error $ "Unhandled Exprs: " ++ (show e1) ++ (show e2)
+
+concretizeSym :: [(Id, Type)] -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
+concretizeSym bi (s, ng) dc@(DataCon n ts') =
+    let dc' = Data dc
+        ts = anonArgumentTypes $ PresType ts'
+        (ns, ng') = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) ts) ng
+        newParams = map (\(n', t) -> Id n' t) (zip ns ts)
+        ts2 = map snd bi
+        dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
+
+        eenv = foldr (uncurry E.insertSymbolic) (expr_env s) $ zip (map idName newParams) newParams
+        syms = foldr HS.insert (symbolic_ids s) newParams
+    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc'')
 
 -- | Combines 2 Lits `l1` and `l2` into a single new Symbolic Variable and adds new Path Constraints
 mergeLits :: Context t -> Lit -> Lit -> (Context t, Expr)
