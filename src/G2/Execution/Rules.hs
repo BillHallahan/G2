@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
-                          , Sharing (..)
                           , stdReduce
                           , evalVarSharing
                           , evalApp
@@ -36,14 +35,15 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
-stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
-stdReduce sharing solver simplifier s b@(Bindings {name_gen = ng}) = do
-    (r, s', ng') <- stdReduce' sharing solver simplifier s ng
+stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings 
+          -> IO (Rule, [(State t, ())], Bindings)
+stdReduce sharing merging solver simplifier s b@(Bindings {name_gen = ng}) = do
+    (r, s', ng') <- stdReduce' sharing merging solver simplifier s ng
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
-stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
-stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
+stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
+stdReduce' share mergeStates solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Var i  <- ce
     , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
@@ -51,7 +51,7 @@ stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }
     | App e1 e2 <- ce = return $ evalApp s ng e1 e2
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i a <- ce = do
-        let (r, xs, ng') = evalCase s ng e i a
+        let (r, xs, ng') = evalCase mergeStates s ng e i a
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Cast e c <- ce = return $ evalCast s ng e c
@@ -61,7 +61,7 @@ stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
-stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
+stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck }) ng
     | Prim Error _ <- ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
@@ -364,12 +364,11 @@ handleDaltMatch s@(State {known_values = kv, expr_env = eenv}) bind ng (alt, mat
             (eenv', aexpr'', ng', _) = liftBinds pbinds eenv aexpr' ng
             -- add PathConds representing the assumptions for that match
             assumsE = cnf kv assums
-        in
-         ( ng'
-         , NewPC { state = s { expr_env = eenv'
-                             , curr_expr = CurrExpr Evaluate aexpr''}
-                 , new_pcs = [ExtCond assumsE True]
-                 , concretized = [] })
+        in ( ng'
+           , NewPC { state = s { expr_env = eenv'
+                               , curr_expr = CurrExpr Evaluate aexpr''}
+                   , new_pcs = [ExtCond assumsE True]
+                   , concretized = [] })
     | otherwise = error $ "Alt is not a DataAlt"
 
 handleDefMatches :: State t -> NameGen -> Maybe (Alt, Match) -> Id -> (NameGen, [NewPC t])
@@ -415,9 +414,9 @@ handleDefMatches _ ng _ _ = (ng, [])
 
 
 -- | Handle the Case forms of Evaluate.
-evalCase :: State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
-evalCase s@(State { expr_env = eenv
-                  , exec_stack = stck })
+evalCase :: Merging -> State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
+evalCase mergeStates s@(State { expr_env = eenv
+                       , exec_stack = stck })
          ng mexpr bind alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -481,7 +480,7 @@ evalCase s@(State { expr_env = eenv
             _ -> (Nothing, mexpr)
 
         (dsts_cs, ng') = case unApp $ unsafeElimOuterCast expr of
-            (Var i@(Id _ _)):_ -> concretizeVarExpr s ng i bind dalts cast 
+            (Var i@(Id _ _)):_ -> concretizeVarExpr s mergeStates ng i bind dalts cast
             (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
             (Data _):_ -> ([], ng)
@@ -494,7 +493,8 @@ evalCase s@(State { expr_env = eenv
       in
       (RuleEvalCaseSym, newPCs', ng')
 
-  | isSMNF eenv mexpr =
+  | isSMNF eenv mexpr
+  , Merging <- mergeStates =
     -- get list of matches w/ respective assumption
     let choices = getChoices s mexpr
         dalts = dataAltsSMNF alts
@@ -567,17 +567,17 @@ defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
-concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([NewPC t], NameGen)
-concretizeVarExpr _ ng _ _ [] _ = ([], ng)
-concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = 
+concretizeVarExpr :: State t -> Merging -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([NewPC t], NameGen)
+concretizeVarExpr _ _ ng _ _ [] _ = ([], ng)
+concretizeVarExpr s mergeStates ng mexpr_id cvar (x:xs) maybeC =
         (x':newPCs, ng'') 
     where
-        (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x maybeC
-        (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
+        (x', ng') = concretizeVarExpr' s mergeStates ng mexpr_id cvar x maybeC
+        (newPCs, ng'') = concretizeVarExpr s mergeStates ng' mexpr_id cvar xs maybeC
 
-concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
+concretizeVarExpr' :: State t -> Merging -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms})
-                ngen mexpr_id cvar (dcon, params, aexpr) maybeC = 
+    mergeStates ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
           (NewPC { state =  s { expr_env = eenv''
                               , symbolic_ids = syms'
                               , curr_expr = CurrExpr Evaluate aexpr''}
@@ -598,7 +598,9 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     -- Then, in the constraint solver, we can consider fewer constraints at once
     -- (see note [AltCond] in Language/PathConds.hs) 
     mexpr_n = idName mexpr_id
-    (news, ngen') = childrenNames mexpr_n olds ngen
+    (news, ngen') = case mergeStates of
+        Merging -> freshSeededNames olds ngen
+        NoMerging -> childrenNames mexpr_n olds ngen
 
     --Update the expr environment
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)

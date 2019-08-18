@@ -128,7 +128,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
     let state_name = Name "state" Nothing 0 Nothing
 
     let (limHalt, limOrd) = limitByAccepted (cut_off config)
-    let mergeStates = False
+    let mergeStates = NoMerging
 
     let share = sharing config
 
@@ -136,8 +136,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
               then runG2WithSomes
                     (SomeReducer NonRedPCRed
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)))
+                            Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed share mergeStates solver simplifier :<~| LHRed cfn)))
                     (SomeHalter
                       (MaxOutputsHalter (maxOutputs config)
                         :<~> ZeroHalter (steps config)
@@ -150,8 +150,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)))
+                            Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed share mergeStates solver simplifier :<~| LHRed cfn)))
                     (SomeHalter
                       (DiscardIfAcceptedTag state_name
                         :<~> MaxOutputsHalter (maxOutputs config)

@@ -56,6 +56,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , runReducer 
                             , runReducerMerge ) where
 
+import G2.Config.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import G2.Language
@@ -290,13 +291,13 @@ SomeReducer r1 <~? SomeReducer r2 = SomeReducer (r1 :<~? r2)
 (<~|) :: SomeReducer t -> SomeReducer t -> SomeReducer t
 SomeReducer r1 <~| SomeReducer r2 = SomeReducer (r1 :<~| r2)
 
-data StdRed solver simplifier = StdRed Sharing solver simplifier
+data StdRed solver simplifier = StdRed Sharing Merging solver simplifier
 
 instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simplifier) () t where
     initReducer _ _ = ()
 
-    redRules stdr@(StdRed share solver simplifier) _ s b = do
-        (r, s', b') <- stdReduce share solver simplifier s b
+    redRules stdr@(StdRed share mergeStates solver simplifier) _ s b = do
+        (r, s', b') <- stdReduce share mergeStates solver simplifier s b
         let res = case r of
                     RuleHitMergePt -> MergePoint
                     RuleEvalCaseSym -> Merge

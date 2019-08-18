@@ -262,13 +262,14 @@ qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> si
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
+        mergeStates = NoMerging
 
         tr_ng = mkNameGen ()
         state_name = G2.Name "state" Nothing 0 Nothing
     in
     ( SomeReducer
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (SomeReducer (StdRed share solver simplifier))
+            <~| (SomeReducer (StdRed share mergeStates solver simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptHalter)
@@ -376,7 +377,7 @@ executeAndSolveStates' b s = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
     let simplifier = IdSimplifier
-    let mergeStates = False
+    let mergeStates = NoMerging
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> ErrorHalter
@@ -416,7 +417,7 @@ solveStates'' :: ( Named t
                  , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates'' _ _ _ [] =return Nothing
 solveStates'' sol simplifier b (s:xs) = do
-    let mergeStates = False
+    let mergeStates = NoMerging
     m_ex_res <- runG2Solving sol simplifier b mergeStates s
     case m_ex_res of
         Just _ -> do

@@ -1,5 +1,6 @@
 module G2.Config.Config ( Mode (..)
                         , Sharing (..)
+                        , Merging (..)
                         , SMTSolver (..)
                         , HigherOrderSolver (..)
                         , IncludePath
@@ -20,6 +21,8 @@ data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
+
+data Merging = Merging | NoMerging deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
@@ -44,7 +47,7 @@ data Config = Config {
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
-    , stateMerging :: Bool -- ^ If true, attempts to merge states during execution
+    , stateMerging :: Merging -- ^ Controls whether to attempt to merge states during execution
     , steps :: Int -- ^ How many steps to take when running States
     , cut_off :: Int -- ^ How many steps to take after finding an equally good equiv state, in LH mode
     , switch_after :: Int --- ^ How many steps to take in a single step, in LH mode
@@ -80,7 +83,7 @@ mkConfig homedir as m = Config {
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg ConZ3
-    , stateMerging = boolArg "merge-states" as m Off
+    , stateMerging = boolArg' "merge-states" as m NoMerging Merging NoMerging
     , steps = strArg "n" as m read 1000
     , cut_off = strArg "cut-off" as m read 600
     , switch_after = strArg "switch-after" as m read 300

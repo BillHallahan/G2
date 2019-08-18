@@ -155,10 +155,11 @@ inlineVar eenv inlined e
 inlineExpr' :: Named t
             => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
             -> (Context t, Expr, Expr)
-inlineExpr' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4) =
-    let (ctxt', e1', e3') = inlineExpr ctxt inlined1 inlined2 e1 e3
-        (ctxt'', e2', e4') = inlineExpr ctxt' inlined1 inlined2 e2 e4
-    in (ctxt'', (App e1' e2'), (App e3' e4'))
+inlineExpr' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4)
+    | tyAppCenter (typeOf e1) == tyAppCenter (typeOf e3) = --TODO: change
+        let (ctxt', e1', e3') = inlineExpr ctxt inlined1 inlined2 e1 e3
+            (ctxt'', e2', e4') = inlineExpr ctxt' inlined1 inlined2 e2 e4
+        in (ctxt'', (App e1' e2'), (App e3' e4'))
 inlineExpr' ctxt _ _ e1@(Var _) e2@(Var _)
     | e1 == e2 = (ctxt, e1, e2)
     | otherwise = mergeVars ctxt e1 e2
@@ -200,10 +201,12 @@ replaceVar s@(State {known_values = kv, path_conds = pc, symbolic_ids = syms, ex
             , symbolic_ids = HS.insert new (HS.delete old syms)}
 
 mergeInlinedExpr :: Named t => Context t -> Expr -> Expr -> (Context t, Expr)
-mergeInlinedExpr ctxt (App e1 e2) (App e3 e4) = (ctxt'', App e1' e2')
-    where
-        (ctxt', e1') = mergeInlinedExpr ctxt e1 e3
-        (ctxt'', e2') = mergeInlinedExpr ctxt' e2 e4
+mergeInlinedExpr ctxt@(Context {newId_ = newId}) (App e1 e2) (App e3 e4)
+    | tyAppCenter (typeOf e1) == tyAppCenter (typeOf e2) = -- TODO: change
+        let (ctxt', e1') = mergeInlinedExpr ctxt e1 e3
+            (ctxt'', e2') = mergeInlinedExpr ctxt' e2 e4
+        in (ctxt'', App e1' e2')
+    | otherwise = (ctxt, createCaseExpr newId [(App e1 e2), (App e3 e4)])
 mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2}) e1@(Var i) e2@(Case _ _ _)
     | isSMNF (expr_env s2) e2
     , HS.member i (symbolic_ids s1)
@@ -245,25 +248,23 @@ mergeSymCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) e
         syms' = HS.delete i $ HS.insert newId (symbolic_ids s')
         eenv' = E.insert (idName i) e2 (expr_env s')
 
-        -- (upper, pcs) = bindExprToNum (\num dc -> PC.mkAssumePC newId num (ConsCond dc (Var i) True)) dcs
+        (upper, pcs) = bindExprToNum (\num dc -> PC.mkAssumePC newId num (ConsCond dc (Var i) True)) dcs
         -- add PC restricting range of values for newSymId
         kv = known_values s
         lower = 1
-        upper = toInteger $ length dcs'
-        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) (upper - 1))) True
 
         s'' = s' {symbolic_ids = syms', expr_env = eenv'}
     in if first
-        then mergeCase (ctxt { s1_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:newPCs}) e2 e1
-        else mergeCase (ctxt { s2_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:newPCs}) e1 e2
---      if any existing consConds with sym -> add new AltConds w/ new
+        then mergeCase (ctxt { s1_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:pcs ++ newPCs}) e2 e1
+        else mergeCase (ctxt { s2_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:pcs ++ newPCs}) e1 e2
 mergeSymCase _ e1 e2 _ = error $ "Unhandled Exprs: " ++ (show e1) ++ (show e2)
 
 concretizeSym :: [(Id, Type)] -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
 concretizeSym bi (s, ng) dc@(DataCon n ts') =
     let dc' = Data dc
         ts = anonArgumentTypes $ PresType ts'
-        (ns, ng') = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) ts) ng
+        (ns, ng') = freshSeededNames (map (const $ n) ts) ng
         newParams = map (\(n', t) -> Id n' t) (zip ns ts)
         ts2 = map snd bi
         dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
