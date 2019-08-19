@@ -156,7 +156,7 @@ inlineExpr' :: Named t
             => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
             -> (Context t, Expr, Expr)
 inlineExpr' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4)
-    | tyAppCenter (typeOf e1) == tyAppCenter (typeOf e3) = --TODO: change
+    | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) e1 e3 =
         let (ctxt', e1', e3') = inlineExpr ctxt inlined1 inlined2 e1 e3
             (ctxt'', e2', e4') = inlineExpr ctxt' inlined1 inlined2 e2 e4
         in (ctxt'', (App e1' e2'), (App e3' e4'))
@@ -202,7 +202,7 @@ replaceVar s@(State {known_values = kv, path_conds = pc, symbolic_ids = syms, ex
 
 mergeInlinedExpr :: Named t => Context t -> Expr -> Expr -> (Context t, Expr)
 mergeInlinedExpr ctxt@(Context {newId_ = newId}) (App e1 e2) (App e3 e4)
-    | tyAppCenter (typeOf e1) == tyAppCenter (typeOf e2) = -- TODO: change
+    | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) e1 e3 =
         let (ctxt', e1') = mergeInlinedExpr ctxt e1 e3
             (ctxt'', e2') = mergeInlinedExpr ctxt' e2 e4
         in (ctxt'', App e1' e2')

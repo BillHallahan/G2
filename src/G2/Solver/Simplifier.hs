@@ -56,7 +56,12 @@ instance Simplifier ADTSimplifier where
     reverseSimplification = fromNum
 
 toNum :: ADTSimplifier -> State t -> PathCond -> (State t, [PathCond])
-toNum _ s@(State {adt_int_maps = adtIntMaps
+toNum smplfr s p =
+    let (s', numericalPC, numBoundPCs) = toNum' smplfr s p
+    in (s', numericalPC ++ numBoundPCs)
+
+toNum' :: ADTSimplifier -> State t -> PathCond -> (State t, [PathCond], [PathCond])
+toNum' smplfr s@(State {adt_int_maps = adtIntMaps
                       , simplified = smplfd
                       , known_values = kv
                       , type_env = tenv}) p
@@ -84,9 +89,12 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
                     numBoundPC = case isMember of
                         True -> [] -- Name was already part of map, which means PC representing bounds must have been added already
                         False -> (constrainDCVals kv adtIntMaps'') <$> [(t, Id n TyLitInt)] -- Keep same name to map back to old Id if needed
-                in (s {adt_int_maps = adtIntMaps'', simplified = smplfd'}, numericalPC:numBoundPC)
+                in (s {adt_int_maps = adtIntMaps'', simplified = smplfd'}, [numericalPC], numBoundPC)
             Nothing -> error $ "Could not simplify ConsCond. " ++ (show p)
-    | otherwise = (s, [p])
+    | (AssumePC i n pc) <- p =
+        let (s', numericalPC, numBoundPCs) = toNum' smplfr s (PC.unhashedPC pc)
+        in (s', map (PC.mkAssumePC i n) numericalPC, numBoundPCs)
+    | otherwise = (s, [], [p])
 
 fromNum :: ADTSimplifier -> State t -> Bindings -> Model -> Model
 fromNum (ADTSimplifier avf) (State {adt_int_maps = adtIntMaps
