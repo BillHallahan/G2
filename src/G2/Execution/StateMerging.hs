@@ -142,8 +142,11 @@ inlineExpr ctxt@(Context { s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_
         (e2', inlined2') = inlineVar eenv2 inlined2 e2
     in inlineExpr' ctxt inlined1' inlined2' e1' e2'
 
--- | Replace var with value from ExprEnv if any. Only inline var if it hasn't been inlined till then
--- , to prevent infinite recursion in the case of merging 2 infinite exprs. e.g. merging x = x:xs and y = y:ys
+-- | Either (i) Inline var with value from ExprEnv if any
+-- , (ii) Renames corresponding Vars in the 2 Exprs to a new, common Var
+-- , or (iii) Concretizes symbolic var to case expression on its Data Constructors if necessary.
+-- Only do (i) if it hasn't been inlined till then, to prevent infinite recursion in the case of merging 2 infinite exprs.
+-- e.g. merging x = x:xs and y = y:ys
 {-# INLINE inlineVar #-}
 inlineVar :: E.ExprEnv -> HS.HashSet Name -> Expr -> (Expr, HS.HashSet Name)
 inlineVar eenv inlined e
@@ -163,6 +166,18 @@ inlineExpr' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4)
 inlineExpr' ctxt _ _ e1@(Var _) e2@(Var _)
     | e1 == e2 = (ctxt, e1, e2)
     | otherwise = mergeVars ctxt e1 e2
+inlineExpr' ctxt@(Context { s1_ = s1, s2_ = s2}) _ _ e1@(Var i) e2@(Case _ _ _)
+    | isSMNF (expr_env s2) e2
+    , HS.member i (symbolic_ids s1)
+    , not $ isPrimType (idType i) =
+        let (ctxt', e1') = symToCase ctxt e1 True
+        in (ctxt', e1', e2)
+inlineExpr' ctxt@(Context { s1_ = s1, s2_ = s2}) _ _ e1@(Case _ _ _) e2@(Var i)
+    | isSMNF (expr_env s1) e1
+    , HS.member i (symbolic_ids s2)
+    , not $ isPrimType (idType i) =
+        let (ctxt', e2') = symToCase ctxt e2 False
+        in (ctxt', e1, e2')
 inlineExpr' ctxt _ _ e1 e2 = (ctxt, e1, e2)
 
 mergeVars :: Named t
@@ -200,6 +215,51 @@ replaceVar s@(State {known_values = kv, path_conds = pc, symbolic_ids = syms, ex
             { expr_env = E.insertSymbolic (idName new) new $ E.insert (idName old) (Var new) eenv
             , symbolic_ids = HS.insert new (HS.delete old syms)}
 
+-- | Replace Symbolic Variable with a Case Expression, where each Alt is a Data Constructor
+symToCase :: Named t => Context t -> Expr -> Bool -> (Context t, Expr)
+symToCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) (Var i) first =
+    let s = if first then s1 else s2
+        (adt, bi) = fromJust $ getCastedAlgDataTy (idType i) (type_env s)
+        dcs = case adt of
+            DataTyCon _ _ -> data_cons adt
+            NewTyCon _ _ _ -> [data_con adt]
+            _ -> error "Not a DataTyCon"
+        (newId, ng') = freshId TyLitInt ng
+
+        ((s', ng''), dcs') = L.mapAccumL (concretizeSym bi) (s, ng') dcs
+
+        e2 = createCaseExpr newId dcs'
+        syms' = HS.delete i $ HS.insert newId (symbolic_ids s')
+        eenv' = E.insert (idName i) e2 (expr_env s')
+
+        upper = toInteger $ length dcs
+        -- add PC restricting range of values for newSymId
+        kv = known_values s
+        lower = 1
+        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+
+        s'' = s' {symbolic_ids = syms', expr_env = eenv'}
+    in if first
+        then (ctxt { s1_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:newPCs}, e2)
+        else (ctxt { s2_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:newPCs}, e2)
+symToCase _ e1 _ = error $ "Unhandled Expr: " ++ (show e1)
+
+-- | Creates and applies new symbolic variables for arguments of Data Constructor
+concretizeSym :: [(Id, Type)] -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
+concretizeSym bi (s, ng) dc@(DataCon n ts) =
+    let dc' = Data dc
+        ts' = anonArgumentTypes $ PresType ts
+        ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
+        (ns, ng') = freshSeededNames (map (const $ n) ts'') ng
+        newParams = map (\(n', t) -> Id n' t) (zip ns ts'')
+        ts2 = map snd bi
+        dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
+
+        eenv = foldr (uncurry E.insertSymbolic) (expr_env s) $ zip (map idName newParams) newParams
+        syms = foldr HS.insert (symbolic_ids s) newParams
+    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc'')
+
+
 mergeInlinedExpr :: Named t => Context t -> Expr -> Expr -> (Context t, Expr)
 mergeInlinedExpr ctxt@(Context {newId_ = newId}) (App e1 e2) (App e3 e4)
     | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) e1 e3 =
@@ -207,14 +267,6 @@ mergeInlinedExpr ctxt@(Context {newId_ = newId}) (App e1 e2) (App e3 e4)
             (ctxt'', e2') = mergeInlinedExpr ctxt' e2 e4
         in (ctxt'', App e1' e2')
     | otherwise = (ctxt, createCaseExpr newId [(App e1 e2), (App e3 e4)])
-mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2}) e1@(Var i) e2@(Case _ _ _)
-    | isSMNF (expr_env s2) e2
-    , HS.member i (symbolic_ids s1)
-    , not $ isPrimType (idType i) = mergeSymCase ctxt e2 e1 True
-mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2}) e1@(Case _ _ _) e2@(Var i)
-    | isSMNF (expr_env s1) e1
-    , HS.member i (symbolic_ids s2)
-    , not $ isPrimType (idType i) = mergeSymCase ctxt e1 e2 False
 mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
     | isSMNF (expr_env s1) e1
     , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
@@ -231,47 +283,6 @@ mergeInlinedExpr ctxt (Lit l) (Var i)
 mergeInlinedExpr ctxt@(Context { newId_ = newId }) e1 e2
     | e1 == e2 = (ctxt, e1)
     | otherwise = (ctxt, createCaseExpr newId [e1, e2])
-
-mergeSymCase :: Named t => Context t -> Expr -> Expr -> Bool -> (Context t, Expr)
-mergeSymCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) e1@(Case _ _ _) (Var i) first =
-    let s = if first then s1 else s2
-        (adt, bi) = fromJust $ getCastedAlgDataTy (idType i) (type_env s)
-        dcs = case adt of
-            DataTyCon _ _ -> data_cons adt
-            NewTyCon _ _ _ -> [data_con adt]
-            _ -> error "Not a DataTyCon"
-        (newId, ng') = freshId TyLitInt ng
-
-        ((s', ng''), dcs') = L.mapAccumL (concretizeSym bi) (s, ng') dcs
-
-        e2 = createCaseExpr newId dcs'
-        syms' = HS.delete i $ HS.insert newId (symbolic_ids s')
-        eenv' = E.insert (idName i) e2 (expr_env s')
-
-        (upper, pcs) = bindExprToNum (\num dc -> PC.mkAssumePC newId num (ConsCond dc (Var i) True)) dcs
-        -- add PC restricting range of values for newSymId
-        kv = known_values s
-        lower = 1
-        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) (upper - 1))) True
-
-        s'' = s' {symbolic_ids = syms', expr_env = eenv'}
-    in if first
-        then mergeCase (ctxt { s1_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:pcs ++ newPCs}) e2 e1
-        else mergeCase (ctxt { s2_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:pcs ++ newPCs}) e1 e2
-mergeSymCase _ e1 e2 _ = error $ "Unhandled Exprs: " ++ (show e1) ++ (show e2)
-
-concretizeSym :: [(Id, Type)] -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
-concretizeSym bi (s, ng) dc@(DataCon n ts') =
-    let dc' = Data dc
-        ts = anonArgumentTypes $ PresType ts'
-        (ns, ng') = freshSeededNames (map (const $ n) ts) ng
-        newParams = map (\(n', t) -> Id n' t) (zip ns ts)
-        ts2 = map snd bi
-        dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
-
-        eenv = foldr (uncurry E.insertSymbolic) (expr_env s) $ zip (map idName newParams) newParams
-        syms = foldr HS.insert (symbolic_ids s) newParams
-    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc'')
 
 -- | Combines 2 Lits `l1` and `l2` into a single new Symbolic Variable and adds new Path Constraints
 mergeLits :: Context t -> Lit -> Lit -> (Context t, Expr)

@@ -91,7 +91,8 @@ toNum' smplfr s@(State {adt_int_maps = adtIntMaps
                         False -> (constrainDCVals kv adtIntMaps'') <$> [(t, Id n TyLitInt)] -- Keep same name to map back to old Id if needed
                 in (s {adt_int_maps = adtIntMaps'', simplified = smplfd'}, [numericalPC], numBoundPC)
             Nothing -> error $ "Could not simplify ConsCond. " ++ (show p)
-    | (AssumePC i n pc) <- p =
+    | (AssumePC i n pc) <- p
+    , (ConsCond _ _ _) <- PC.unhashedPC pc =
         let (s', numericalPC, numBoundPCs) = toNum' smplfr s (PC.unhashedPC pc)
         in (s', map (PC.mkAssumePC i n) numericalPC, numBoundPCs)
     | otherwise = (s, [], [p])
