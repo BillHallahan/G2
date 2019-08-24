@@ -487,11 +487,11 @@ evalCase mergeStates s@(State { expr_env = eenv
             _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
-        def_sts = liftSymDefAlt s mexpr bind alts
+        (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
         newPCs = dsts_cs ++ lsts_cs ++ def_sts
         newPCs' = map (\p@(NewPC {state = st}) -> p{state = st{exec_stack = S.push MergePtFrame (exec_stack st)}}) newPCs
       in
-      (RuleEvalCaseSym, newPCs', ng')
+      (RuleEvalCaseSym, newPCs', ng'')
 
   | isSMNF eenv mexpr
   , Merging <- mergeStates =
@@ -684,17 +684,57 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
     aexpr' = liftCaseBinds binds aexpr
     res = s { curr_expr = CurrExpr Evaluate aexpr' }
 
-liftSymDefAlt :: State t -> Expr ->  Id -> [Alt] -> [NewPC t]
-liftSymDefAlt s mexpr cvar as =
+liftSymDefAlt :: State t -> NameGen -> Expr ->  Id -> [Alt] -> ([NewPC t], NameGen)
+liftSymDefAlt s ng mexpr cvar as =
     let
-        aexpr = defAltExpr as
+        match = L.find (\alt -> case alt of (Alt Default _) -> True; _ -> False) as
     in
-    case aexpr of
-        Just aexpr' -> liftSymDefAlt' s mexpr aexpr' cvar as
-        _ -> []
+    case match of
+        Just (Alt Default aexpr) -> (liftSymDefAlt'' s mexpr aexpr cvar as, ng) -- liftSymDefAlt' s ng mexpr aexpr cvar as
+        _ -> ([], ng)
 
-liftSymDefAlt' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
-liftSymDefAlt' s mexpr aexpr cvar as =
+liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
+liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+    | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
+    , isADT (idType i)
+    , (Var i'):_ <- unApp mexpr = -- Id with original Type
+        let (adt, bi) = fromJust $ getCastedAlgDataTy (idType i) tenv
+            maybeC = case mexpr of
+                (Cast _ c) -> Just c
+                _ -> Nothing
+            dcs = case adt of
+                DataTyCon _ _ -> data_cons adt
+                NewTyCon _ _ _ -> [data_con adt]
+                _ -> error "Not a DataTyCon"
+            badDCs = mapMaybe (\alt -> case alt of
+                (Alt (DataAlt dc _) _) -> Just dc
+                _ -> Nothing) alts
+            dcs' = dcs L.\\ badDCs
+
+            (newId, ng') = freshId TyLitInt ng
+
+            ((s', ng''), dcs'') = L.mapAccumL (concretizeSym bi maybeC) (s, ng') dcs'
+
+            mexpr' = createCaseExpr newId dcs''
+            binds = [(cvar, mexpr')]
+            aexpr' = liftCaseBinds binds aexpr
+
+            syms' = HS.delete i' $ HS.insert newId (symbolic_ids s')
+            eenv' = E.insert (idName i') mexpr' (expr_env s')
+
+            -- add PC restricting range of values for newSymId
+            upper = toInteger $ length dcs''
+            kv = known_values s'
+            lower = 1
+            newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+
+            s'' = s' {curr_expr = CurrExpr Evaluate aexpr', symbolic_ids = syms', expr_env = eenv'}
+        in
+        ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
+    | otherwise = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+
+liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
+liftSymDefAlt'' s mexpr aexpr cvar as =
     let
         conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch as)
 
@@ -705,13 +745,8 @@ liftSymDefAlt' s mexpr aexpr cvar as =
            , new_pcs = conds
            , concretized = [] }]
 
-defAltExpr :: [Alt] -> Maybe Expr
-defAltExpr [] = Nothing
-defAltExpr (Alt Default e:_) = Just e
-defAltExpr (_:xs) = defAltExpr xs
-
 liftSymDefAltPCs :: Expr -> AltMatch -> Maybe PathCond
-liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
+liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False -- only DataAlts must be True/False
 liftSymDefAltPCs mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ Default = Nothing
 

@@ -12,6 +12,7 @@ module G2.Execution.StateMerging
   , emptyContext
   , Context
   , createCaseExpr
+  , concretizeSym
   , bindExprToNum
   , implies
   ) where
@@ -132,8 +133,11 @@ mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {cur
         in (ctxt'', CurrExpr evalOrRet1 ce)
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
--- | Merges 2 Exprs, combining 2 corresponding symbolic Vars into 1 if possible, and substituting the full Expr of any concrete Vars
--- Also returns any newly added Symbolic Variables and Names of renamed Variables
+-- | Either (i) Inline var with value from ExprEnv (if any)
+-- , (ii) Renames corresponding Vars in the 2 Exprs to a new, common Var
+-- , or (iii) Concretizes symbolic var to case expression on its Data Constructors if necessary.
+-- Only do (i) if it hasn't been inlined till then, to prevent infinite recursion in the case of merging 2 infinite exprs.
+-- e.g. merging x = x:xs and y = y:ys
 inlineExpr :: Named t
            => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
            -> (Context t, Expr, Expr)
@@ -142,11 +146,6 @@ inlineExpr ctxt@(Context { s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_
         (e2', inlined2') = inlineVar eenv2 inlined2 e2
     in inlineExpr' ctxt inlined1' inlined2' e1' e2'
 
--- | Either (i) Inline var with value from ExprEnv if any
--- , (ii) Renames corresponding Vars in the 2 Exprs to a new, common Var
--- , or (iii) Concretizes symbolic var to case expression on its Data Constructors if necessary.
--- Only do (i) if it hasn't been inlined till then, to prevent infinite recursion in the case of merging 2 infinite exprs.
--- e.g. merging x = x:xs and y = y:ys
 {-# INLINE inlineVar #-}
 inlineVar :: E.ExprEnv -> HS.HashSet Name -> Expr -> (Expr, HS.HashSet Name)
 inlineVar eenv inlined e
@@ -226,14 +225,14 @@ symToCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) (Var
             _ -> error "Not a DataTyCon"
         (newId, ng') = freshId TyLitInt ng
 
-        ((s', ng''), dcs') = L.mapAccumL (concretizeSym bi) (s, ng') dcs
+        ((s', ng''), dcs') = L.mapAccumL (concretizeSym bi Nothing) (s, ng') dcs
 
         e2 = createCaseExpr newId dcs'
         syms' = HS.delete i $ HS.insert newId (symbolic_ids s')
         eenv' = E.insert (idName i) e2 (expr_env s')
 
-        upper = toInteger $ length dcs
         -- add PC restricting range of values for newSymId
+        upper = toInteger $ length dcs
         kv = known_values s
         lower = 1
         newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
@@ -245,8 +244,8 @@ symToCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) (Var
 symToCase _ e1 _ = error $ "Unhandled Expr: " ++ (show e1)
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
-concretizeSym :: [(Id, Type)] -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
-concretizeSym bi (s, ng) dc@(DataCon n ts) =
+concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
+concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
     let dc' = Data dc
         ts' = anonArgumentTypes $ PresType ts
         ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
@@ -254,10 +253,12 @@ concretizeSym bi (s, ng) dc@(DataCon n ts) =
         newParams = map (\(n', t) -> Id n' t) (zip ns ts'')
         ts2 = map snd bi
         dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
-
+        dc''' = case maybeC of
+            (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
+            Nothing -> dc''
         eenv = foldr (uncurry E.insertSymbolic) (expr_env s) $ zip (map idName newParams) newParams
         syms = foldr HS.insert (symbolic_ids s) newParams
-    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc'')
+    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc''')
 
 
 mergeInlinedExpr :: Named t => Context t -> Expr -> Expr -> (Context t, Expr)
@@ -476,7 +477,8 @@ mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr
         -- rename any old Syms in PathConds in each state to their new Names, based on list of pairs in changedSyms1_ and changedSyms2_
         ctxt'' = updatePCs ctxt' changedSyms1 changedSyms2
         ctxt''' = updateSymbolicIds ctxt'' changedSyms1 changedSyms2
-    in (ctxt''', eenv')
+        ctxt'''' = updateSimplified ctxt''' changedSyms1 changedSyms2
+    in (ctxt'''', eenv')
 
 mergeEnvObj :: Id -> E.ExprEnv -> E.ExprEnv -> (HM.HashMap Id Id, HM.HashMap Id Id, NameGen) -> (E.EnvObj, E.EnvObj)
             -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
@@ -570,6 +572,14 @@ updateSymbolicIds ctxt@(Context { s1_ = s1@(State {symbolic_ids = syms1}), s2_ =
         newSyms2 = HM.elems changedSyms2
         syms2' = HS.union (HS.fromList newSyms2) $ HS.difference syms2 (HS.fromList oldSyms2)
     in ctxt { s1_ = s1 { symbolic_ids = syms1' }, s2_ = s2 { symbolic_ids = syms2' } }
+
+updateSimplified :: Context t -> HM.HashMap Id Id -> HM.HashMap Id Id -> Context t
+updateSimplified ctxt@(Context { s1_ = s1@(State {simplified = smplfd1}), s2_ = s2@(State {simplified = smplfd2}) }) changedSyms1 changedSyms2 =
+    let names1 = HM.fromList $ map (\((Id n1 _), (Id n2 _)) -> (n1, n2)) $ HM.toList changedSyms1
+        names2 = HM.fromList $ map (\((Id n1 _), (Id n2 _)) -> (n1, n2)) $ HM.toList changedSyms2
+        smplfd1' = renames names1 smplfd1
+        smplfd2' = renames names2 smplfd2
+    in ctxt { s1_ = s1 { simplified = smplfd1' }, s2_ = s2 { simplified = smplfd2' } }
 
 -- | Simpler version of mergePathConds, not very efficient for large numbers of PCs, but suffices for simple cases
 mergePathCondsSimple :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)

@@ -84,12 +84,12 @@ genArbValue avf tenv eenv b (Id n t)
 
 -- Add any constraints from the ExprEnv
 addEEnvVals :: KnownValues -> ExprEnv -> M.Map Name (Type, Type) -> ADTIntMaps -> Name -> Maybe PathCond
-addEEnvVals kv eenv smplfd adtIntMaps n =
-    let (_, newTyp) = fromJust $ M.lookup n smplfd
-    in case E.lookup n eenv of
-        Just e
-            | Data (DataCon dcN _):_ <- unApp e ->
-                let dcNumMap = fromJust $ M.lookup newTyp adtIntMaps
-                    num = fromJust $ lookupInt dcN dcNumMap
-                in Just $ ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) True
+addEEnvVals kv eenv smplfd adtIntMaps n
+    | Just (_, newTyp) <- M.lookup n smplfd
+    , Just e <- E.lookup n eenv = case unApp e of
+        Data (DataCon dcN _):_ ->
+            let dcNumMap = fromJust $ M.lookup newTyp adtIntMaps
+                num = fromJust $ lookupInt dcN dcNumMap
+            in Just $ ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) True
         _ -> Nothing
+    | otherwise = Nothing

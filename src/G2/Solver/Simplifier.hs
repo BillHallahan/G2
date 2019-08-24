@@ -144,7 +144,7 @@ mkDCNumMap tenv t =
 
 mkDCNumMap' :: AlgDataTy -> Maybe DCNum
 mkDCNumMap' (DataTyCon { data_cons = dcs }) =
-    let (num, pairs) = mapAccumR (\count dc -> (count + 1, (count, dc))) 0 dcs
+    let (num, pairs) = mapAccumR (\count dc -> (count + 1, (count, dc))) 1 dcs
         dc2IntPairs = (\(dc, count) -> (dcName dc, count)) <$> swap <$> pairs
     in Just $ DCNum {upperB = num - 1, dc2Int = M.fromList dc2IntPairs, int2Dc = M.fromList pairs}
 mkDCNumMap' _ = Nothing
@@ -156,7 +156,7 @@ insertFlipped k m val = M.insert k val m
 -- lower <= Id <= upper
 constrainDCVals :: KnownValues -> M.Map Type DCNum -> (Type, Id) -> PathCond
 constrainDCVals kv m (t, new) =
-    let lower = 0
+    let lower = 1
         dcNumMap = fromJust $ M.lookup t m
         upper = upperB dcNumMap
     in ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var new) lower) (mkLeIntExpr kv (Var new) upper)) True
