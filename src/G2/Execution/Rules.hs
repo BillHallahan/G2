@@ -176,6 +176,7 @@ evalVarNoSharing s@(State { expr_env = eenv })
 evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [State t], NameGen)
 evalApp s@(State { expr_env = eenv
                  , known_values = kv
+                 , symbolic_ids = syms
                  , exec_stack = stck })
         ng e1 e2
     | (App (Prim BindFunc _) v) <- e1
@@ -183,6 +184,7 @@ evalApp s@(State { expr_env = eenv
     , v2 <- e2 =
         ( RuleBind
         , [s { expr_env = E.insert (idName i1) v2 eenv
+             , symbolic_ids = HS.delete i1 syms
              , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng)
     | isExprValueForm eenv (App e1 e2) =
