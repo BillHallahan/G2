@@ -15,6 +15,7 @@ module G2.Execution.StateMerging
   , concretizeSym
   , bindExprToNum
   , implies
+  , restrictSymVal
   ) where
 
 import G2.Language
@@ -219,10 +220,7 @@ symToCase :: Named t => Context t -> Expr -> Bool -> (Context t, Expr)
 symToCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) (Var i) first =
     let s = if first then s1 else s2
         (adt, bi) = fromJust $ getCastedAlgDataTy (idType i) (type_env s)
-        dcs = case adt of
-            DataTyCon _ _ -> data_cons adt
-            NewTyCon _ _ _ -> [data_con adt]
-            _ -> error "Not a DataTyCon"
+        dcs = dataConsFromADT adt
         (newId, ng') = freshId TyLitInt ng
 
         ((s', ng''), dcs') = L.mapAccumL (concretizeSym bi Nothing) (s, ng') dcs
@@ -232,10 +230,8 @@ symToCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) (Var
         eenv' = E.insert (idName i) e2 (expr_env s')
 
         -- add PC restricting range of values for newSymId
-        upper = toInteger $ length dcs
-        kv = known_values s
         lower = 1
-        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+        newSymConstraint = restrictSymVal (known_values s) lower (toInteger $ length dcs) newId
 
         s'' = s' {symbolic_ids = syms', expr_env = eenv'}
     in if first
@@ -343,8 +339,9 @@ mergeCase' ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ =
 
         -- add PC restricting range of values for newSymId
         lower = 1
-        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newSymId) lower) (mkLeIntExpr kv (Var newSymId) (upper - 1))) True
+        newSymConstraint = restrictSymVal kv lower (upper - 1) newSymId
         newPCs''' = newSymConstraint:newPCs''
+
         ctxt'' = ctxt {newPCs_ = newPCs''' ++ newPCs, newSyms_ = HS.union newSyms' syms, ng_ = ng''}
     in (ctxt'', mergedExpr)
 
@@ -629,3 +626,7 @@ subIdNamesPCs :: PathConds -> HM.HashMap Id Id -> PathConds
 subIdNamesPCs pcs changedSyms =
     let changedSymsNames = HM.foldrWithKey (\k v hm -> HM.insert (idName k) (idName v) hm) HM.empty changedSyms
     in renames changedSymsNames pcs
+
+-- | Return PathCond restricting value of `newId` to [lower, upper]
+restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
+restrictSymVal kv lower upper newId = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
