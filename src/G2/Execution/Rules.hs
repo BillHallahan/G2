@@ -361,7 +361,6 @@ evalCase mergeStates s@(State { expr_env = eenv
             (Var i@(Id _ _)):_ -> concretizeVarExpr s mergeStates ng i bind dalts cast
             (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
-            (Data _):_ -> ([], ng)
             _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
@@ -608,7 +607,7 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
 liftSymDefAlt'' s mexpr aexpr cvar as =
     let
-        conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch as)
+        conds = mapMaybe (liftSymDefAltPCs (known_values s) mexpr) (map altMatch as)
 
         binds = [(cvar, mexpr)]
         aexpr' = liftCaseBinds binds aexpr
@@ -617,10 +616,14 @@ liftSymDefAlt'' s mexpr aexpr cvar as =
            , new_pcs = conds
            , concretized = [] }]
 
-liftSymDefAltPCs :: Expr -> AltMatch -> Maybe PathCond
-liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False -- only DataAlts must be True/False
-liftSymDefAltPCs mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
-liftSymDefAltPCs _ Default = Nothing
+liftSymDefAltPCs :: KnownValues -> Expr -> AltMatch -> Maybe PathCond
+liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
+    let boolVal = getBoolFromDataCon kv (Data dc)
+    in case boolVal of
+        True -> Just $ ExtCond mexpr False
+        False -> Just $ ExtCond mexpr True
+liftSymDefAltPCs _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
+liftSymDefAltPCs _ _ Default = Nothing
 
 -----------------------------------------------------------------------------
 --  Helper functions to deal with Case Expr in Symbolic Merged Normal Form --

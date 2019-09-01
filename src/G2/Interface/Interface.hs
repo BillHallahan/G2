@@ -378,10 +378,7 @@ runG2Solving solver simplifier bindings mergeStates s@(State { known_values = kv
                 let m'' = reverseSimplification simplifier s bindings m'
 
                 let s' = s { model = m'' }
-
-                let s'' = case mergeStates of
-                            Merging -> replaceCase s'
-                            NoMerging -> s'
+                let s'' = replaceCase s'
 
                 let (es, e, ais) = subModel s'' bindings
                     sm = ExecRes { final_state = s''
