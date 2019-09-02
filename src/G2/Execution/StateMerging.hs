@@ -25,7 +25,6 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
 import Data.Maybe
-import qualified Data.Map as M
 import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
@@ -100,7 +99,6 @@ mergeState ngen simplifier s1 s2 =
                 (ctxt''', path_conds') = mergePathConds simplifier ctxt''
                 syms' = mergeSymbolicIds ctxt'''
                 s1' = s1_ ctxt'''
-                s2' = s2_ ctxt'''
                 ngen'' = ng_ ctxt'''
             in
             (ngen''
@@ -115,8 +113,6 @@ mergeState ngen simplifier s1 s2 =
                              , symbolic_ids = syms'
                              , exec_stack = exec_stack s1'
                              , model = model s1'
-                             , adt_int_maps = M.union (adt_int_maps s1') (adt_int_maps s2')
-                             , simplified = M.union (simplified s1') (simplified s2')
                              , known_values = known_values s1'
                              , rules = rules s1'
                              , num_steps = num_steps s1'
@@ -474,8 +470,7 @@ mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr
         -- rename any old Syms in PathConds in each state to their new Names, based on list of pairs in changedSyms1_ and changedSyms2_
         ctxt'' = updatePCs ctxt' changedSyms1 changedSyms2
         ctxt''' = updateSymbolicIds ctxt'' changedSyms1 changedSyms2
-        ctxt'''' = updateSimplified ctxt''' changedSyms1 changedSyms2
-    in (ctxt'''', eenv')
+    in (ctxt''', eenv')
 
 mergeEnvObj :: Id -> E.ExprEnv -> E.ExprEnv -> (HM.HashMap Id Id, HM.HashMap Id Id, NameGen) -> (E.EnvObj, E.EnvObj)
             -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
@@ -569,14 +564,6 @@ updateSymbolicIds ctxt@(Context { s1_ = s1@(State {symbolic_ids = syms1}), s2_ =
         newSyms2 = HM.elems changedSyms2
         syms2' = HS.union (HS.fromList newSyms2) $ HS.difference syms2 (HS.fromList oldSyms2)
     in ctxt { s1_ = s1 { symbolic_ids = syms1' }, s2_ = s2 { symbolic_ids = syms2' } }
-
-updateSimplified :: Context t -> HM.HashMap Id Id -> HM.HashMap Id Id -> Context t
-updateSimplified ctxt@(Context { s1_ = s1@(State {simplified = smplfd1}), s2_ = s2@(State {simplified = smplfd2}) }) changedSyms1 changedSyms2 =
-    let names1 = HM.fromList $ map (\((Id n1 _), (Id n2 _)) -> (n1, n2)) $ HM.toList changedSyms1
-        names2 = HM.fromList $ map (\((Id n1 _), (Id n2 _)) -> (n1, n2)) $ HM.toList changedSyms2
-        smplfd1' = renames names1 smplfd1
-        smplfd2' = renames names2 smplfd2
-    in ctxt { s1_ = s1 { simplified = smplfd1' }, s2_ = s2 { simplified = smplfd2' } }
 
 -- | Simpler version of mergePathConds, not very efficient for large numbers of PCs, but suffices for simple cases
 mergePathCondsSimple :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)

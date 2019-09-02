@@ -80,7 +80,6 @@ newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS
 -- to assertion / assumptions made, or some externally coded factors.
 data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
-              | ConsCond DataCon Expr Bool -- ^ The expression and datacon must match
               | AssumePC Id Integer HashedPathCond
               deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -92,7 +91,6 @@ instance Hashable PathCond where
 
     hash (AltCond l e b) = (1 :: Int) `hashWithSalt` l `hashWithSalt` e `hashWithSalt` b
     hash (ExtCond e b) = (2 :: Int) `hashWithSalt` e `hashWithSalt` b
-    hash (ConsCond d e b) = (3 :: Int) `hashWithSalt` d `hashWithSalt` e `hashWithSalt` b
     hash (AssumePC i n pc) = hashAssumePC i n pc
 
 {-# INLINE toMap #-}
@@ -213,7 +211,6 @@ varIdsInPC :: PathCond -> [Id]
 -- See note [ChildrenNames] in Execution/Rules.hs
 varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
-varIdsInPC (ConsCond _ e _) = varIds e
 varIdsInPC (AssumePC i _ pc) = i:varIdsInPC (unhashedPC pc)
 
 varNamesInPC :: PathCond -> [Name]
@@ -328,20 +325,16 @@ instance ASTContainer PathConds Type where
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
     containedASTs (AltCond _ e _) = [e]
-    containedASTs (ConsCond _ e _) = [e]
     containedASTs (AssumePC _ _ pc) = containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
     modifyContainedASTs f (AltCond a e b) =
         AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
-    modifyContainedASTs f (ConsCond dc e b) =
-        ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
     modifyContainedASTs f (AssumePC i num pc) = AssumePC i num (modifyContainedASTs f pc)
 
 instance ASTContainer PathCond Type where
     containedASTs (ExtCond e _)   = containedASTs e
     containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
-    containedASTs (ConsCond dcl e _) = containedASTs dcl ++ containedASTs e
     containedASTs (AssumePC i _ pc) = containedASTs i ++ containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
@@ -349,8 +342,6 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
       where e' = modifyContainedASTs f e
             a' = modifyContainedASTs f a
-    modifyContainedASTs f (ConsCond dc e b) =
-        ConsCond (modifyContainedASTs f dc) (modifyContainedASTs f e) b
     modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
 
 instance Named PathConds where
@@ -367,17 +358,14 @@ instance Named PathConds where
 instance Named PathCond where
     names (AltCond _ e _) = names e
     names (ExtCond e _) = names e
-    names (ConsCond d e _) = names d ++  names e
     names (AssumePC i _ pc) = names i ++ names pc
 
     rename old new (AltCond l e b) = AltCond l (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
-    rename old new (ConsCond d e b) = ConsCond (rename old new d) (rename old new e) b
     rename old new (AssumePC i num pc) = AssumePC (rename old new i) num (rename old new pc)
 
     renames hm (AltCond l e b) = AltCond l (renames hm e) b
     renames hm (ExtCond e b) = ExtCond (renames hm e) b
-    renames hm (ConsCond d e b) = ConsCond (renames hm d) (renames hm e) b
     renames hm (AssumePC i num pc) = AssumePC (renames hm i) num (renames hm pc)
 
 instance Ided PathConds where
@@ -386,7 +374,6 @@ instance Ided PathConds where
 instance Ided PathCond where
     ids (AltCond _ e _) = ids e
     ids (ExtCond e _) = ids e
-    ids (ConsCond d e _) = ids d ++  ids e
     ids (AssumePC i _ pc) = ids i ++ ids pc
 
 data HashedPathCond = HashedPC PathCond {-# UNPACK #-} !Int

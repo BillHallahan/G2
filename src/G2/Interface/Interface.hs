@@ -141,8 +141,6 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
     , symbolic_ids = S.fromList is
     , exec_stack = Stack.empty
     , model = M.empty
-    , adt_int_maps = M.empty
-    , simplified = M.empty
     , known_values = kv'
     , rules = []
     , num_steps = 0
@@ -236,9 +234,7 @@ initSolverInfinite con = initSolver' arbValueInfinite con
 initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
-    case stateMerging config of
-        Merging -> return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con)))
-        NoMerging -> return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con)))
+    return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> con))
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
@@ -295,7 +291,7 @@ runG2WithConfig :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig state config bindings = do
     let mergeStates = stateMerging config
     SomeSolver solver <- initSolver config
-    let simplifier = ADTSimplifier arbValue -- :<< EliminateAssumePCs
+    let simplifier = IdSimplifier -- :<< EliminateAssumePCs
 
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->

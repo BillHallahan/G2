@@ -221,7 +221,7 @@ runExecutionQ s b config = do
     let (s', b') = addAssume s b
     
     SomeSolver solver <- initSolverInfinite config
-    let simplifier = ADTSimplifier arbValueInfinite
+    let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'

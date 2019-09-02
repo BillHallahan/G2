@@ -484,8 +484,6 @@ mergeStateUnitTests =
     return . testGroup "Unit Tests"
         =<< sequence [
                checkFn mergeCurrExprTests "mergeCurrExpr Test"
-               , checkFnIO checkADTNumericalTests "checkADTNumerical Test"
-               , checkFnIO solveADTNumericalTests "solveADTNumerical Test"
             ]
 
 data ToDo = RunMain
