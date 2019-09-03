@@ -51,7 +51,7 @@ isMergeableCurrExpr _ _ _ _ = False
 
 -- | Returns True if both Exprs are of the form (App ... (App (Data DataCon)) ....) or (App ... (App (Var x)) ...), where (Var x) is a Symbolic variable
 isMergeableExpr :: E.ExprEnv -> E.ExprEnv -> Expr -> Expr -> Bool
-isMergeableExpr eenv1 eenv2 eA@(App e1 _) eB@(App e1' _) = (typeOf eA == typeOf eB) && isMergeableExpr eenv1 eenv2 e1 e1'
+isMergeableExpr eenv1 eenv2 (App e1 _) (App e1' _) = isMergeableExpr eenv1 eenv2 e1 e1'
 isMergeableExpr _ _ (Data dc1) (Data dc2) = dc1 == dc2
 isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
     | (Just (E.Sym _)) <- E.lookupConcOrSym (idName i1) eenv1
@@ -155,8 +155,8 @@ inlineVar eenv inlined e
 inlineExpr' :: Named t
             => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
             -> (Context t, Expr, Expr)
-inlineExpr' ctxt inlined1 inlined2 eA@(App e1 e2) eB@(App e3 e4)
-    | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) eA eB =
+inlineExpr' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4)
+    | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) e1 e3 =
         let (ctxt', e1', e3') = inlineExpr ctxt inlined1 inlined2 e1 e3
             (ctxt'', e2', e4') = inlineExpr ctxt' inlined1 inlined2 e2 e4
         in (ctxt'', (App e1' e2'), (App e3' e4'))
@@ -255,8 +255,8 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
 
 
 mergeInlinedExpr :: Named t => Context t -> Expr -> Expr -> (Context t, Expr)
-mergeInlinedExpr ctxt@(Context {newId_ = newId}) eA@(App e1 e2) eB@(App e3 e4)
-    | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) eA eB =
+mergeInlinedExpr ctxt@(Context {newId_ = newId}) (App e1 e2) (App e3 e4)
+    | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) e1 e3 =
         let (ctxt', e1') = mergeInlinedExpr ctxt e1 e3
             (ctxt'', e2') = mergeInlinedExpr ctxt' e2 e4
         in (ctxt'', App e1' e2')
