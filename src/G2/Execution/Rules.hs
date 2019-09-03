@@ -361,7 +361,8 @@ evalCase mergeStates s@(State { expr_env = eenv
             (Var i@(Id _ _)):_ -> concretizeVarExpr s mergeStates ng i bind dalts cast
             (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
-            _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
+            (Data _):_ -> ([], ng)
+            _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr) ++ " \n " ++ (show alts)
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
         (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
