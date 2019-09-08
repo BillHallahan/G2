@@ -86,3 +86,11 @@ addPeano x y =
         y' = toInt y
     in
         x' + y'
+
+evenMutRecursive :: Peano -> Bool
+evenMutRecursive Zero = True
+evenMutRecursive (Succ p) = oddMutRecursive p
+
+oddMutRecursive :: Peano -> Bool
+oddMutRecursive Zero = False
+oddMutRecursive (Succ p) = evenMutRecursive p

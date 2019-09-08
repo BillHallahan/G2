@@ -41,6 +41,7 @@ isMergeable s1 s2 =
     && (tags s1 == tags s2)
     && (track s1 == track s2)
     && (type_classes s1 == type_classes s2)
+    -- && (cases s1) == (cases s2)
     && (isEmpty $ model s1)
     && (isEmpty $ model s2)
 
@@ -115,6 +116,8 @@ mergeState ngen simplifier s1 s2 =
                              , exec_stack = exec_stack s1'
                              , model = model s1'
                              , known_values = known_values s1'
+                             , cases = cases s1' -- both should be equal
+                             , depth_exceeded = depth_exceeded s1'
                              , rules = rules s1'
                              , num_steps = num_steps s1'
                              , track = track s1'

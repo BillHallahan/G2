@@ -152,4 +152,15 @@ searchTest a b = take (search' (\x -> x `mod` 2 == 0) a) b
 searchTest2 :: [Int] -> Int
 searchTest2 a = (search' (\x -> x `mod` 2 == 0) a)
 
+hofstadterM :: Int -> Int
+hofstadterM n
+    | n == 0 = 0
+    | n > 0 = n - hofstadterF ( hofstadterM $ n - 1)
+    | otherwise = 0
 
+hofstadterF :: Int -> Int
+hofstadterF n
+    | n == 0 = 1
+    | n > 0 = n - hofstadterM ( hofstadterF $ n - 1)
+    | otherwise = 0
+ 

@@ -1013,11 +1013,11 @@ evalZipper red hal simplifier pr zipper b
                         let zipper' = (tree', snd zipper)
                         evalZipper red' hal simplifier pr zipper' b'
                     Merge -> do
-                        if (count >= 10) -- max depth of tree
+                        if any (depth_exceeded . state) reduceds''
                             then
                                 -- do not add reduced states to current tree. Instead add to list of states in root.
                                 -- prevents tree from growing to deep. We do not attempt to merge these states
-                                let reduceds''' = map delMergePtFrames reduceds'' -- remove any merge pts
+                                let reduceds''' = map resetMerging reduceds'' -- remove any merge pts
                                     zipper' = floatReducedsToRoot zipper reduceds'''
                                     zipper'' = deleteNode zipper'
                                 in evalZipper red' hal simplifier pr zipper'' b'
@@ -1057,18 +1057,18 @@ treeVal (Leaf val _) = val
 treeVal _ = error "Tree has no value"
 
 -- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
-delMergePtFrames :: (ExState rv hv sov t) -> (ExState rv hv sov t)
-delMergePtFrames rs@(ExState {state = s}) =
+resetMerging :: (ExState rv hv sov t) -> (ExState rv hv sov t)
+resetMerging rs@(ExState {state = s}) =
     let st = exec_stack s
-        st' = delMergePtFrames' st
-        s' = s {exec_stack = st'}
+        st' = delMergePtFrames st
+        s' = s {exec_stack = st', cases = M.empty, depth_exceeded = False}
     in rs {state = s'}
 
-delMergePtFrames' :: Stck.Stack Frame -> Stck.Stack Frame
-delMergePtFrames' st =
+delMergePtFrames :: Stck.Stack Frame -> Stck.Stack Frame
+delMergePtFrames st =
     let xs = Stck.toList st
         xs' = filter (\fr -> case fr of
-                                MergePtFrame -> False
+                                MergePtFrame _ -> False
                                 _ -> True) xs
     in Stck.fromList xs'
 

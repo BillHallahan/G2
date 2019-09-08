@@ -339,11 +339,6 @@ pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprPathCondStr paths
 
-pprSimplifiedStr :: M.Map Name (Type, Type) -> String
-pprSimplifiedStr simp = injNewLine kv_strs
-  where
-    kv_strs = map show $ M.toList simp
-
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
   where

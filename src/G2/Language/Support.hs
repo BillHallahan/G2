@@ -49,6 +49,8 @@ data State t = State { expr_env :: E.ExprEnv
                      , exec_stack :: Stack Frame
                      , model :: Model
                      , known_values :: KnownValues
+                     , cases :: M.Map Id Int -- ^ Record number of pending merges for each Case Expr
+                     , depth_exceeded :: Bool -- ^ Do we have more pending merges for any Case Expr than the limit?
                      , rules :: ![Rule]
                      , num_steps :: !Int -- Invariant: The length of the rules list
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
@@ -117,7 +119,7 @@ data Frame = CaseFrame Id [Alt]
            | CurrExprFrame CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
-           | MergePtFrame
+           | MergePtFrame Id -- case Id corresponding to the Merge Point
            deriving (Show, Eq, Read, Typeable, Data)
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
@@ -157,6 +159,8 @@ renameState old new_seed s b =
              , exec_stack = exec_stack s
              , model = model s
              , known_values = rename old new (known_values s)
+             , cases = rename old new (cases s)
+             , depth_exceeded = depth_exceeded s
              , rules = rules s
              , num_steps = num_steps s
              , track = rename old new (track s)
@@ -174,6 +178,7 @@ instance Named t => Named (State t) where
             ++ names (exec_stack s)
             ++ names (model s)
             ++ names (known_values s)
+            ++ names (cases s)
             ++ names (track s)
 
     rename old new s =
@@ -191,6 +196,8 @@ instance Named t => Named (State t) where
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
                , known_values = rename old new (known_values s)
+               , cases = M.mapKeys (\k@(Id n t) -> if n == old then (Id new t) else k) (cases s)
+               , depth_exceeded = depth_exceeded s
                , rules = rules s
                , num_steps = num_steps s
                , track = rename old new (track s)
@@ -211,6 +218,8 @@ instance Named t => Named (State t) where
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
                , known_values = renames hm (known_values s)
+               , cases = M.mapKeys (renames hm) (cases s)
+               , depth_exceeded = depth_exceeded s
                , rules = rules s
                , num_steps = num_steps s
                , track = renames hm (track s)
@@ -244,6 +253,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . exec_stack) s) ++
+                      ((containedASTs . cases) s) ++
                       (containedASTs $ track s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
@@ -254,6 +264,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
+                                , cases = (modifyContainedASTs f . cases) s
                                 , track = modifyContainedASTs f $ track s }
 
 instance Named Bindings where
@@ -353,7 +364,7 @@ instance Named Frame where
     names (CurrExprFrame e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is ++ names e
-    names (MergePtFrame) = []
+    names (MergePtFrame i) = names i
 
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
@@ -362,7 +373,7 @@ instance Named Frame where
     rename old new (CurrExprFrame e) = CurrExprFrame (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
-    rename _ _ MergePtFrame = MergePtFrame
+    rename old new (MergePtFrame i) = MergePtFrame (rename old new i)
 
     renames hm (CaseFrame i a) = CaseFrame (renames hm i) (renames hm a)
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
@@ -371,7 +382,7 @@ instance Named Frame where
     renames hm (CurrExprFrame e) = CurrExprFrame (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
-    renames _ MergePtFrame = MergePtFrame
+    renames hm (MergePtFrame i) = MergePtFrame (renames hm i)
 
 instance Named DCNum where
     names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (M.keys m1) ++ names (M.elems m2)

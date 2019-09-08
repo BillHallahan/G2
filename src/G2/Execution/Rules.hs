@@ -34,6 +34,7 @@ import Data.Maybe
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
+import qualified Data.Map as M
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings 
           -> IO (Rule, [(State t, ())], Bindings)
@@ -70,7 +71,11 @@ stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
                               , assert_ids = is }], ng)
     | Prim Error _ <- ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
-    | Just (MergePtFrame, stck') <- frstck = return (RuleHitMergePt, [s {exec_stack = stck'}], ng)
+    | Just (MergePtFrame i, stck') <- frstck = do
+        let c' = M.alter (\count -> case count of
+                Just x -> Just $ x - 1
+                Nothing -> Nothing) i (cases s)
+        return (RuleHitMergePt, [s {exec_stack = stck', cases = c'}], ng)
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | Lam u i e <- ce = return $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
@@ -367,7 +372,7 @@ evalCase mergeStates s@(State { expr_env = eenv
         lsts_cs = liftSymLitAlt s mexpr bind lalts
         (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
         newPCs = dsts_cs ++ lsts_cs ++ def_sts
-        newPCs' = map (\p@(NewPC {state = st}) -> p{state = st{exec_stack = S.push MergePtFrame (exec_stack st)}}) newPCs
+        newPCs' = map (addMergePt bind) newPCs
       in
       (RuleEvalCaseSym, newPCs', ng'')
 
@@ -387,7 +392,7 @@ evalCase mergeStates s@(State { expr_env = eenv
         (ng'', def_sts) = handleDefMatches s ng' defMatches bind
 
         newPCs = def_sts ++ dsts_cs
-        newPCs' = map (\p@(NewPC {state = st}) -> p {state = st {exec_stack = S.push MergePtFrame (exec_stack st)} }) newPCs
+        newPCs' = map (addMergePt bind) newPCs
     in (RuleEvalCaseSym, newPCs', ng'') -- TODO: new rule
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
@@ -625,6 +630,19 @@ liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
         False -> Just $ ExtCond mexpr True
 liftSymDefAltPCs _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ _ Default = Nothing
+
+-- Insert MergePtFrame into stack and increment count of unmerged cases at the case specified by `i`
+addMergePt :: Id -> NewPC t -> NewPC t
+addMergePt i p@(NewPC {state = s@(State { exec_stack = stk, cases = c, depth_exceeded = b })}) =
+    let stk' = S.push (MergePtFrame i) stk
+        count = case (M.lookup i c) of
+            Just x -> x
+            Nothing -> 0
+        count' = count + 1
+        b' = if (count' > 5) then True else b
+        c' = M.insert i count' c
+    in p { state = s { exec_stack = stk', cases = c', depth_exceeded = b' } }
+
 
 -----------------------------------------------------------------------------
 --  Helper functions to deal with Case Expr in Symbolic Merged Normal Form --

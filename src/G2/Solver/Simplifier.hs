@@ -7,13 +7,9 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , EliminateAssumePCs (..)) where
 
 import G2.Language
-import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
-import Data.Maybe
 import Data.List
-import Data.Tuple
-import qualified Data.Map as M
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle

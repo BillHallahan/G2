@@ -142,6 +142,8 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
     , exec_stack = Stack.empty
     , model = M.empty
     , known_values = kv'
+    , cases = M.empty
+    , depth_exceeded = False
     , rules = []
     , num_steps = 0
     , track = ()
@@ -342,7 +344,7 @@ runG2Post :: ( Named t
              solver -> simplifier -> State t -> Bindings -> Merging -> IO ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings mergeStates = do
     (exec_states, bindings') <- runExecution red hal ord simplifier mergeStates is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings' mergeStates) exec_states
+    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
 
     return (catMaybes sol_states, bindings')
 
@@ -365,8 +367,8 @@ runG2Solving :: ( Named t
                 , ASTContainer t Type
                 , Solver solver
                 , Simplifier simplifier) =>
-                solver -> simplifier -> Bindings -> Merging -> State t -> IO (Maybe (ExecRes t))
-runG2Solving solver simplifier bindings mergeStates s@(State { known_values = kv })
+                solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
+runG2Solving solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
         (_, m) <- solve solver s bindings (S.toList $ symbolic_ids s) (path_conds s)
         case m of
@@ -408,6 +410,6 @@ runG2 :: ( Named t
          solver -> simplifier -> Merging -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mergeStates pns is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord simplifier mergeStates pns is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings' mergeStates) exec_states
+    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
 
     return (catMaybes sol_states, bindings')
