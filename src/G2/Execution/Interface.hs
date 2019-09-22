@@ -22,6 +22,6 @@ runExecution :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Orderer or sov b 
                 => r -> h -> or -> simplifier -> Merging -> State t -> Bindings -> IO ([State t], Bindings)
 runExecution red hal ord simplifier mergeStates s b =
     case mergeStates of
-        Merging -> runReducerMerge red hal simplifier s b
+        Merging -> initReducerMerge red hal simplifier s b
         NoMerging -> do (pr, b') <- runReducer red hal ord s b
                         return (accepted pr, b')

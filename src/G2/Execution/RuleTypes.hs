@@ -73,6 +73,7 @@ data Rule = RuleEvalVal
           | RuleTick
           
           | RuleHitMergePt
+          | RuleMaxDepth
           
           | RuleOther
            deriving (Show, Eq, Read, Typeable, Data)

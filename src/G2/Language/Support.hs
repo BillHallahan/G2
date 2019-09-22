@@ -51,6 +51,8 @@ data State t = State { expr_env :: E.ExprEnv
                      , known_values :: KnownValues
                      , cases :: M.Map Id Int -- ^ Record number of pending merges for each Case Expr
                      , depth_exceeded :: Bool -- ^ Do we have more pending merges for any Case Expr than the limit?
+                     , merge_stack :: [Int] -- ^ Indices of all unmerged Merge Points thus far
+                     , ready_to_merge :: Bool
                      , rules :: ![Rule]
                      , num_steps :: !Int -- Invariant: The length of the rules list
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
@@ -129,18 +131,6 @@ type Model = M.Map Name Expr
 isEmpty :: Model -> Bool
 isEmpty m = M.null m
 
--- The Data Constructors of each ADT appearing in the PathConds are mapped to the range [0,`upperB`), where
--- `upperB` equals the number of Data Constructors for that type
-data DCNum = DCNum { upperB :: Integer
-                   , dc2Int :: M.Map Name Integer
-                   , int2Dc :: M.Map Integer DataCon } deriving (Show, Eq, Read, Typeable, Data)
-
-lookupInt :: Name -> DCNum -> Maybe Integer
-lookupInt n DCNum { dc2Int = m } = M.lookup n m
-
-lookupDC :: Integer -> DCNum -> Maybe DataCon
-lookupDC n DCNum { int2Dc = m } = M.lookup n m
-
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
 renameState old new_seed s b =
@@ -161,6 +151,8 @@ renameState old new_seed s b =
              , known_values = rename old new (known_values s)
              , cases = rename old new (cases s)
              , depth_exceeded = depth_exceeded s
+             , merge_stack = merge_stack s
+             , ready_to_merge = ready_to_merge s
              , rules = rules s
              , num_steps = num_steps s
              , track = rename old new (track s)
@@ -198,6 +190,8 @@ instance Named t => Named (State t) where
                , known_values = rename old new (known_values s)
                , cases = M.mapKeys (\k@(Id n t) -> if n == old then (Id new t) else k) (cases s)
                , depth_exceeded = depth_exceeded s
+               , merge_stack = merge_stack s
+               , ready_to_merge = ready_to_merge s
                , rules = rules s
                , num_steps = num_steps s
                , track = rename old new (track s)
@@ -220,6 +214,8 @@ instance Named t => Named (State t) where
                , known_values = renames hm (known_values s)
                , cases = M.mapKeys (renames hm) (cases s)
                , depth_exceeded = depth_exceeded s
+               , merge_stack = merge_stack s
+               , ready_to_merge = ready_to_merge s
                , rules = rules s
                , num_steps = num_steps s
                , track = renames hm (track s)
@@ -347,10 +343,6 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (AssertFrame is e) = AssertFrame (modifyContainedASTs f is) (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
 
-instance ASTContainer DCNum Type where
-    containedASTs _ = []
-    modifyContainedASTs _ m = m
-
 instance Named CurrExpr where
     names (CurrExpr _ e) = names e
     rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
@@ -383,12 +375,3 @@ instance Named Frame where
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
     renames hm (MergePtFrame i) = MergePtFrame (renames hm i)
-
-instance Named DCNum where
-    names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (M.keys m1) ++ names (M.elems m2)
-    rename old new dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
-        where m1' = rename old new m1
-              m2' = rename old new m2
-    renames hm dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
-        where m1' = renames hm m1
-              m2' = renames hm m2
