@@ -139,6 +139,13 @@ f g x y = g (add x y)
 add2 :: Buried Int -> Buried Int -> Int
 add2 x y = (add x y) + 2
 
+data B = B1 B | B2 B | Bot Int
+
+dig2 :: B -> Int
+dig2 (B1 b) = dig2 b
+dig2 (B2 b) = dig2 b
+dig2 (Bot a) = a
+
 -- modest improvement in searchTest by merging all symb vars
 search' :: (a -> Bool) -> [a] -> a
 search' f (x:xs) = case f x of

@@ -642,7 +642,7 @@ addMergePt i p@(NewPC {state = s@(State { exec_stack = stk, cases = c, depth_exc
             Just x -> x
             Nothing -> 0
         count' = count + 1
-        b' = if (count' > 5) then True else b
+        b' = if (count' > 4) then True else b
         c' = M.insert i count' c
     in p { state = s { exec_stack = stk', cases = c', depth_exceeded = b' } }
 
@@ -652,7 +652,7 @@ hitMaxDepth s@(State { cases = c, depth_exceeded = b }) i =
             Just x -> x
             Nothing -> 0
         count' = count + 1
-        b' = (count' > 5) || b
+        b' = (count' > 4) || b
     in (b', s { depth_exceeded = b'})
 
 -----------------------------------------------------------------------------
