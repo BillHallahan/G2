@@ -110,6 +110,7 @@ library
                        , G2.Config.ParseConfig
 
                        , G2.Execution.MergingHelpers
+                       , G2.Execution.WorkGraph
 
                        , G2.Interface.Interface
                        , G2.Interface.OutputTypes

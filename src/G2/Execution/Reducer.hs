@@ -54,11 +54,12 @@ module G2.Execution.Reducer ( Reducer (..)
                             , IncrAfterN (..)
 
                             , runReducer 
-                            , initReducerMerge ) where
+                            , runReducerMerge ) where
 
 import G2.Config.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
+import qualified G2.Execution.WorkGraph as WG
 import G2.Language
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.Stack as Stck
@@ -938,54 +939,33 @@ minState m =
 numStates :: M.Map b [ExState rv hv sov t] -> Int
 numStates = sum . map length . M.elems
 
-------------------------------------------------------------------------------------------------------
-type States a = M.Map Int (S.Seq a, S.Seq a)
+--------------------------------------------------------------------------------------------------------------------------------------
 
-initReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => r -> h -> simplifier -> State t -> Bindings
                  -> IO ([State t], Bindings)
-initReducerMerge red hal simplifier s b = do
+runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s {merge_stack = [0]}, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-        evalSeq = S.singleton 0
-        states = M.singleton 0 (S.singleton s', S.empty)
-        maxIdx = 0
-    (b', _, _, pr') <- runReducerMerge red hal simplifier pr states evalSeq b maxIdx
+        workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph addIdxFunc
+    (_, (_, _, _, b', pr')) <- WG.work workGraph
     res <- mapM (\ExState {state = st} -> return st) (accepted pr')
     return (res, b')
 
--- Pick available state from first possible index in `evalSeq` and begin reduction
-runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-                => r -> h -> simplifier -> Processed (ExState rv hv sov t)
-                -> States (ExState rv hv sov t) -> S.Seq Int -> Bindings -> Int
-                -> IO (Bindings, r, h, Processed (ExState rv hv sov t))
-runReducerMerge red hal simplifier pr states evalSeq b maxIdx
-    | (idx S.:<| _) <- evalSeq
-    , Just (toReduce, toMerge) <- M.lookup idx states
-    , (x S.:<| xs) <- toReduce = do
-        let states' = M.insert idx (xs, toMerge) states -- remove first state from toReduce
-        runReducerMerge' red hal simplifier pr states' evalSeq x b idx maxIdx
-    | (_ S.:<| xs) <- evalSeq = runReducerMerge red hal simplifier pr states xs b maxIdx
-    | otherwise = return (b, red, hal, pr)
-
--- Reduce state `exS` and pick next state appropriately
+-- work_func
 runReducerMerge' :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-                 => r -> h -> simplifier -> Processed (ExState rv hv sov t)
-                 -> States (ExState rv hv sov t) -> S.Seq Int -> ExState rv hv sov t -> Bindings -> Int -> Int
-                 -> IO (Bindings, r, h, Processed (ExState rv hv sov t))
-runReducerMerge' red hal simplifier pr states evalSeq exS b idx maxIdx = do
+                 => ExState rv hv sov t
+                 -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+                 -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), WG.Status)
+runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
     let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = exS
-        ps = processedToState pr
+        ps = processedToState pr -- need to deal with processed
         hc = stopRed hal h_val ps s
     case hc of
-        Accept -> do
-            let pr' = pr {accepted = rs:accepted pr} -- we do not call updateExStateHalter for now, since we do not deal with any Switch constructors
-            runNextState red hal simplifier pr' states evalSeq b idx maxIdx
-        Discard -> do
-            let pr' = pr {discarded = rs:discarded pr}
-            runNextState red hal simplifier pr' states evalSeq b idx maxIdx
+        Accept -> return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), WG.Accept)
+        Discard -> return ([rs], (red, hal, simplifier, bdg, pr {discarded = rs:discarded pr}), WG.Discard)
         _ -> do
-            (reducerRes, reduceds, b', red') <- redRules red r_val s b
+            (reducerRes, reduceds, bdg', red') <- redRules red r_val s bdg
             let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
             let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short.."
             let new_states = map fst reduceds'
@@ -993,93 +973,24 @@ runReducerMerge' red hal simplifier pr states evalSeq exS b idx maxIdx = do
                                                       , reducer_val = r_val'
                                                       , halter_val = stepHalter hal h_val ps new_states s'})
                                                       $ zip new_states r_vals
-            case reducerRes of
-                MergePoint -> do -- state is ready to merge
-                    let states' = addState states idx (head reduceds'')
-                    runNextState red' hal simplifier pr states' evalSeq b' idx maxIdx
-                MaxDepth -> do -- reached max number of unmerged Case Exprs. Pause execution of state
-                    let states' = addState states idx (head reduceds'')
-                    runNextState red' hal simplifier pr states' evalSeq b' idx maxIdx
-                Split -> do -- states split from a Case Expr. Add reduceds to new idx, and new idx to start of evalSeq
-                    let newIdx = maxIdx + 1
-                        reduceds''' = map (\es@(ExState {state = st@(State {merge_stack = ms})})
-                            -> es {state = st { merge_stack = newIdx:ms } }) reduceds''
-                        states' = M.insert newIdx (S.fromList reduceds''', S.empty) states
-                        evalSeq' = newIdx S.<| evalSeq
-                    runReducerMerge red' hal simplifier pr states' evalSeq' b' newIdx
-                _ -> do -- normal reduction
-                    case reduceds'' of
-                        [] -> runNextState red' hal simplifier pr states evalSeq b' idx maxIdx
-                        [x] -> runReducerMerge' red' hal simplifier pr states evalSeq x b' idx maxIdx -- can optimize if only 1 reduced
-                        _ -> do
-                            let states' = addStates states idx (tail reduceds'')
-                            runReducerMerge' red' hal simplifier pr states' evalSeq (head reduceds'') b' idx maxIdx
-
--- Add state to appropriate Seq in the set of states for the specified index `idx`.
-addState :: States (ExState rv hv sov t) -> Int -> ExState rv hv sov t -> States (ExState rv hv sov t)
-addState states idx s
-    | Just (toReduce, toMerge) <- M.lookup idx states =
-        let toReduce' = if not (ready_to_merge $ state s) then toReduce S.|> s else toReduce
-            toMerge' = if (ready_to_merge $ state s) then toMerge S.|> s else toMerge
-        in M.insert idx (toReduce', toMerge') states
-    | otherwise =
-        let (toReduce, toMerge) = if (not . ready_to_merge $ state s) then (S.singleton s, S.empty) else (S.empty, S.singleton s)
-        in M.insert idx (toReduce, toMerge) states
-
--- Add list of ExStates `toAdd` to Sequence of states to reduce, at the specified index `idx`
-addStates :: States (ExState rv hv sov t) -> Int -> [ExState rv hv sov t] -> States (ExState rv hv sov t)
-addStates states idx toAdd =
-    let idxStates = M.lookup idx states
-    in case idxStates of
-        Just (toReduce, toMerge) -> M.insert idx (foldr (\s toReduce' -> s S.<| toReduce') toReduce toAdd, toMerge) states
-        Nothing -> M.insert idx (S.fromList toAdd, S.empty) states
-
--- Search set of states in current index `idx` for next state to reduce. If none available, merge all possible states in current idx,
--- and pick state in new idx to reduce.
-runNextState :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-          => r -> h -> simplifier -> Processed (ExState rv hv sov t)
-          -> States (ExState rv hv sov t) -> S.Seq Int -> Bindings -> Int -> Int
-          -> IO (Bindings, r, h, Processed (ExState rv hv sov t))
-runNextState red hal simplifier pr states evalSeq b idx maxIdx = do
-    let (maybeS, states') = switchStateSameIdx idx states
-    case maybeS of
-        Just next -> runReducerMerge' red hal simplifier pr states' evalSeq next b idx maxIdx
-        Nothing -> do
-            let (states'', evalSeq', b') = switchIdxPrep idx states' evalSeq b simplifier
-            runReducerMerge red hal simplifier pr states'' evalSeq' b' maxIdx
-
--- If a state s that can be reduced with same `idx` exists, returns Just s, else returns Nothing
-switchStateSameIdx :: Int -> States (ExState rv hv sov t) -> (Maybe (ExState rv hv sov t), States (ExState rv hv sov t))
-switchStateSameIdx idx states
-    | Just (toReduce, toMerge) <- M.lookup idx states
-    , x S.:<| xs <- toReduce = if (depth_exceeded (state x))
-        then (Nothing, states)
-        else
-            let states' = M.insert idx (xs, toMerge) states
-            in (Just x, states')
-    | otherwise = (Nothing, states)
-
--- Merges all possible states at the current `idx`, and adds the merged states to the previous idx in their merge_stacks. 
--- For all other states (i.e. those that have reached max depth), resets the unmerged case expr counts.
-switchIdxPrep :: (Eq t, Named t, Simplifier simplifier) =>
-          Int -> States (ExState rv hv sov t) -> S.Seq Int -> Bindings -> simplifier
-          -> (States (ExState rv hv sov t), S.Seq Int, Bindings)
-switchIdxPrep idx states (_ S.:<| evalSeq) b simplifier =
-    let (toReduce, toMerge) = fromJust $ M.lookup idx states
-        toReduce' = resetMerging <$> toReduce
-        (merged, b') = mergeStatesAll toMerge b simplifier
+            let status = case reducerRes of MergePoint -> WG.Mergeable; MaxDepth -> WG.WorkSaturated; Split -> WG.Split; _ -> WG.WorkNeeded
+            return (reduceds'', (red', hal, simplifier, bdg', pr), status)
+ 
+ -- merge_func
+mergeStatesGraph :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+                 => WG.WorkMap (ExState rv hv sov t)
+                 -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+                 -> Int
+                 -> (S.Seq (ExState rv hv sov t), S.Seq (ExState rv hv sov t), Maybe Int,
+                    (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
+mergeStatesGraph workMap (red, hal, simplifier, bdg, pr) idx =
+    let (workNeeded, workSat, toMerge) = fromJust $ M.lookup idx workMap
+        workNeeded' = if (S.null workNeeded) then (resetMerging <$> workSat) else error "workNeeded should be empty when merging"
+        (merged, bdg') = mergeStatesAll toMerge bdg simplifier
         merged' = (\exS@(ExState { state = s@(State {merge_stack = ms }) })
             -> exS { state = s { ready_to_merge = False, merge_stack = tail ms } }) <$> merged
-
-        evalSeq' = if (not $ S.null toReduce) then evalSeq S.|> idx else evalSeq
         maybeNewIdx = if (not $ S.null merged') then getNextIdx (S.viewl merged') else Nothing
-        evalSeq'' = maybe evalSeq' (\newIdx -> evalSeq' S.|> newIdx) maybeNewIdx
-
-        -- add new merged states to set at maybeNewIdx
-        (oldToReduce, oldToMerge) = maybe (S.empty, S.empty) (\newIdx -> maybe (S.empty, S.empty) id (M.lookup newIdx states)) maybeNewIdx
-        oldToReduce' = oldToReduce S.>< merged'
-        states' = maybe states (\newIdx -> M.insert idx (toReduce', S.empty) $ M.insert newIdx (oldToReduce', oldToMerge) states) maybeNewIdx
-    in (states', evalSeq'', b')
+    in (workNeeded', merged', maybeNewIdx, (red, hal, simplifier, bdg', pr))
 
 -- Returns top index in merge_stack of state
 getNextIdx :: S.ViewL (ExState rv hv sov t) -> Maybe Int
@@ -1092,8 +1003,6 @@ resetMerging rs@(ExState {state = s}) =
     let s' = s {cases = M.empty, depth_exceeded = False}
     in rs {state = s'}
 
--------------------------------------------------------------------------------------------------------
-
 -- | Similar to mergeStatesZipper, but considers all possible combinations when merging states
 mergeStatesAll :: (Eq t, Named t, Simplifier simplifier) => S.Seq (ExState rv hv sov t) -> Bindings -> simplifier
                -> (S.Seq (ExState rv hv sov t), Bindings)
@@ -1104,8 +1013,8 @@ mergeStatesAll (x S.:<| xs) b simplifier =
 mergeStatesAll S.Empty b _ = (S.empty, b)
 
 mergeStatesAll' :: (Eq t, Named t, Simplifier simplifier)
-                      => (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t) -> Bindings -> simplifier
-                      -> ((ExState rv hv sov t), S.Seq (ExState rv hv sov t), Bindings)
+                => (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t) -> Bindings -> simplifier
+                -> ((ExState rv hv sov t), S.Seq (ExState rv hv sov t), Bindings)
 mergeStatesAll' x1 unmerged (x2 S.:<| xs) b simplifier =
     case mergeStates' x1 x2 b simplifier of
         (Just exS, b') -> mergeStatesAll' exS unmerged xs b' simplifier
@@ -1115,10 +1024,11 @@ mergeStatesAll' x1 unmerged S.Empty b _ = (x1, unmerged, b)
 mergeStates' :: (Eq t, Named t, Simplifier simplifier) => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> simplifier 
              -> (Maybe (ExState rv hv sov t), Bindings)
 mergeStates' ex1 ex2 b simplifier =
-    let s1 = state ex1
-        s2 = state ex2
-        ng = name_gen b
-        res = mergeState ng simplifier s1 s2
+    let res = mergeState (name_gen b) simplifier (state ex1) (state ex2)
     in case res of
         (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
         (ng', Nothing) -> (Nothing, b {name_gen = ng'})
+
+-- add_idx func
+addIdxFunc :: Int -> ExState rv hv sov t -> ExState rv hv sov t
+addIdxFunc newIdx exS@(ExState {state = st@(State {merge_stack = ms})}) = exS {state = st { merge_stack = newIdx:ms } }
