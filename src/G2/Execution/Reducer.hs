@@ -952,7 +952,7 @@ runReducerMerge red hal simplifier s b = do
     res <- mapM (\ExState {state = st} -> return st) (accepted pr')
     return (res, b')
 
--- work_func
+-- | work_func for WorkGraph. Reduces the ExState `exS` and returns the reduceds along with the appropriate Status
 runReducerMerge' :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => ExState rv hv sov t
                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
@@ -976,7 +976,7 @@ runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
             let status = case reducerRes of MergePoint -> WG.Mergeable; MaxDepth -> WG.WorkSaturated; Split -> WG.Split; _ -> WG.WorkNeeded
             return (reduceds'', (red', hal, simplifier, bdg', pr), status)
  
- -- merge_func
+ -- | merge_func for WorkGraph.
 mergeStatesGraph :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => WG.WorkMap (ExState rv hv sov t)
                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
@@ -985,14 +985,19 @@ mergeStatesGraph :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier si
                     (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
 mergeStatesGraph workMap (red, hal, simplifier, bdg, pr) idx =
     let (workNeeded, workSat, toMerge) = fromJust $ M.lookup idx workMap
-        workNeeded' = if (S.null workNeeded) then (resetMerging <$> workSat) else error "workNeeded should be empty when merging"
+        workNeeded' = if (S.null workNeeded) -- reset states that have reached max depth
+            then (resetMerging <$> workSat)
+            else error "workNeeded should be empty when merging"
+
         (merged, bdg') = mergeStatesAll toMerge bdg simplifier
-        merged' = (\exS@(ExState { state = s@(State {merge_stack = ms }) })
+        merged' = (\exS@(ExState { state = s@(State {merge_stack = ms }) }) -- remove index from top of the merged states' stacks
             -> exS { state = s { ready_to_merge = False, merge_stack = tail ms } }) <$> merged
+        -- get the new top index from the merged states' stacks
+
         maybeNewIdx = if (not $ S.null merged') then getNextIdx (S.viewl merged') else Nothing
     in (workNeeded', merged', maybeNewIdx, (red, hal, simplifier, bdg', pr))
 
--- Returns top index in merge_stack of state
+-- | Returns top index in merge_stack of state
 getNextIdx :: S.ViewL (ExState rv hv sov t) -> Maybe Int
 getNextIdx ((ExState { state = (State {merge_stack = ms}) }) S.:< _) = Just $ head ms
 getNextIdx _ = Nothing
@@ -1003,7 +1008,7 @@ resetMerging rs@(ExState {state = s}) =
     let s' = s {cases = M.empty, depth_exceeded = False}
     in rs {state = s'}
 
--- | Similar to mergeStatesZipper, but considers all possible combinations when merging states
+-- | Considers all possible combinations when merging states
 mergeStatesAll :: (Eq t, Named t, Simplifier simplifier) => S.Seq (ExState rv hv sov t) -> Bindings -> simplifier
                -> (S.Seq (ExState rv hv sov t), Bindings)
 mergeStatesAll (x S.:<| xs) b simplifier =
@@ -1029,6 +1034,6 @@ mergeStates' ex1 ex2 b simplifier =
         (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
         (ng', Nothing) -> (Nothing, b {name_gen = ng'})
 
--- add_idx func
+-- add_idx_func for workGraph
 addIdxFunc :: Int -> ExState rv hv sov t -> ExState rv hv sov t
 addIdxFunc newIdx exS@(ExState {state = st@(State {merge_stack = ms})}) = exS {state = st { merge_stack = newIdx:ms } }

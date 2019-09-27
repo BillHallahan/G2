@@ -9,22 +9,19 @@ import qualified Data.Map as M
 
 data Status = WorkNeeded | WorkSaturated | Split | Mergeable | Accept | Discard
 
--- (WorkNeeded, WorkSaturated, Mergeable)
-type WorkMap a = M.Map Int (S.Seq a, S.Seq a, S.Seq a)
+type WorkMap a = M.Map Int (S.Seq a, S.Seq a, S.Seq a) -- `a` objects with status WorkNeeded, WorkSaturated or Mergeable respectively
 type WorkPlan = S.Seq Int
 
-data WorkGraph a b = WorkGraph { wPlan :: WorkPlan
-                               , wMap :: WorkMap a
-                               , work_func :: a -> b -> IO ([a], b, Status)
-                               , merge_func ::  WorkMap a -> b -> Int -> (S.Seq a, S.Seq a, Maybe Int, b)
-                               , add_idx_func :: Int -> a -> a
+data WorkGraph a b = WorkGraph { wPlan :: WorkPlan -- ^ Sequence of indices that specifies order in which to choose next object to work on
+                               , wMap :: WorkMap a -- ^ Map from index to set of objects belonging to that index
+                               , work_func :: a -> b -> IO ([a], b, Status) -- ^ Function to perform work on an object
+                               , merge_func ::  WorkMap a -> b -> Int -> (S.Seq a, S.Seq a, Maybe Int, b) -- ^ Func to merge objects at specified idx
+                               , add_idx_func :: Int -> a -> a -- ^ Function that adds index of object in the wMap to the object itself
                                , curr_idx :: Int
-                               , max_idx :: Int
-                               , context :: b
-                               }
+                               , max_idx :: Int -- ^ Used to ensure any new index generated is fresh
+                               , context :: b } -- ^ Any additional value that needs to maintain state between calls to merge_func or work_func
 
-initGraph :: a
-          -> b
+initGraph :: a -> b
           -> (a -> b -> IO ([a], b, Status))
           -> (WorkMap a -> b -> Int -> (S.Seq a, S.Seq a, Maybe Int, b))
           -> (Int -> a -> a)
@@ -42,9 +39,11 @@ initGraph fstWork ctxt workFunc mergeFunc addIdxFunc =
         , max_idx = 0
         , context = ctxt }
 
+
+-- | Runs WorkGraph until workMap is empty and all objects have status `Accept` or `Discard`
 work :: WorkGraph a b -> IO ([a], b)
 work wGraph = do
-    let (a, wGraph') = pickWork WorkNeeded wGraph -- what about case where very first state is accepted/discarded
+    let (a, wGraph') = pickWork WorkNeeded wGraph
     case a of
         Just a' -> work' wGraph' a' []
         Nothing -> return ([], context wGraph')
@@ -69,44 +68,43 @@ work' wGraph@(WorkGraph {
             WorkSaturated ->
                 let workMap' = addSaturated workMap idx (head as)
                 in (accepted, wGraph' { wMap = workMap' })
-            Split ->
+            Split -> -- Add reduceds to newIdx, and add newIdx to front of workPlan to evaluate next
                 let newIdx = maxIdx + 1
-                    as' = map (addIdx newIdx) as -- implicit interface (e.g. a stack of indices)
+                    as' = map (addIdx newIdx) as
                     workMap' = M.insert newIdx (S.fromList as', S.empty, S.empty) workMap
                     workPlan' = newIdx S.<| workPlan
                 in (accepted, wGraph' { wMap = workMap', wPlan = workPlan', max_idx = newIdx, curr_idx = newIdx })
             WorkNeeded ->
-                let workMap' = addWorkNeededMany workMap idx as
+                let workMap' = addWorkNeeded workMap idx as
                 in (accepted, wGraph' { wMap = workMap' })
     let (a', wGraph''') = pickWork status wGraph''
     case a' of
         Just a'' -> work' wGraph''' a'' accepted'
         Nothing -> return (accepted', context wGraph''')
 
--- Add state to appropriate Seq in the set of states for the specified index `idx`.
+-- | Add object to the appropriate Seq in the set of objects for the specified index `idx`.
 addMergeable :: WorkMap a -> Int -> a -> WorkMap a
 addMergeable workMap idx a
-    | Just (workNeeded, workSat, toMerge) <- M.lookup idx workMap =
-        let toMerge' = toMerge S.|> a
-        in M.insert idx (workNeeded, workSat, toMerge') workMap
+    | Just (workNeeded, workSat, mergeable) <- M.lookup idx workMap =
+        let mergeable' = mergeable S.|> a
+        in M.insert idx (workNeeded, workSat, mergeable') workMap
     | otherwise = M.insert idx (S.empty, S.empty, S.singleton a) workMap
 
 addSaturated :: WorkMap a -> Int -> a -> WorkMap a
 addSaturated workMap idx a
-    | Just (workNeeded, workSat, toMerge) <- M.lookup idx workMap =
+    | Just (workNeeded, workSat, mergeable) <- M.lookup idx workMap =
         let workSat' = workSat S.|> a
-        in M.insert idx (workNeeded, workSat', toMerge) workMap
+        in M.insert idx (workNeeded, workSat', mergeable) workMap
     | otherwise = M.insert idx (S.empty, S.singleton a, S.empty) workMap
 
--- Add list of ExStates `toAdd` to Sequence of states to reduce, at the specified index `idx`
--- need to change name
-addWorkNeededMany :: WorkMap a -> Int -> [a] -> WorkMap a
-addWorkNeededMany workMap idx as =
-    let idxAs = M.lookup idx workMap
-    in case idxAs of
-        Just (workNeeded, workSat, toMerge) -> M.insert idx (foldr (\s workNeeded' -> s S.<| workNeeded') workNeeded as,  workSat, toMerge) workMap
-        Nothing -> M.insert idx (S.fromList as, S.empty, S.empty) workMap
+-- | Add list of objects `as` to appropriate Seq, at the specified index `idx`
+addWorkNeeded :: WorkMap a -> Int -> [a] -> WorkMap a
+addWorkNeeded workMap idx as
+    | Just (workNeeded, workSat, mergeable) <- M.lookup idx workMap =
+        M.insert idx (foldr (\s workNeeded' -> s S.<| workNeeded') workNeeded as,  workSat, mergeable) workMap
+    | otherwise = M.insert idx (S.fromList as, S.empty, S.empty) workMap
 
+-- | Pick next object to work on, and remove it from the WorkGraph
 pickWork  :: Status -> WorkGraph a b -> (Maybe a, WorkGraph a b)
 pickWork status wGraph =
     case status of
@@ -117,8 +115,8 @@ pickWork status wGraph =
         Split -> switchIdxNoMerge wGraph
         WorkNeeded -> pickWork' wGraph
 
--- Search set of Work items in current index `idx` for next Work. If none available, merge all possible states in current idx,
--- and pick state in new idx to reduce.
+-- | Search set of objects in current index `idx` for next object to work on. If none available, merge all possible objects in current index
+-- and pick object from the next index in wPlan to reduce, if any.
 pickWork' :: WorkGraph a b -> (Maybe a, WorkGraph a b)
 pickWork' wGraph@(WorkGraph { wMap = workMap, curr_idx = idx }) =
     let (maybeW, workMap') = switchWorkSameIdx idx workMap
@@ -129,45 +127,45 @@ pickWork' wGraph@(WorkGraph { wMap = workMap, curr_idx = idx }) =
             let (halt, wGraph'') = switchIdx wGraph'
             in if halt then (Nothing, wGraph'') else pickWork' wGraph''
 
--- If a state s that can be reduced with same `idx` exists, returns Just s, else returns Nothing
+-- | If an object `x` with index `idx` that needs to be worked on exists, returns `Just x`, else returns `Nothing`
 switchWorkSameIdx :: Int -> WorkMap a -> (Maybe a, WorkMap a)
 switchWorkSameIdx idx workMap
-    | Just (workNeeded, workSat, toMerge) <- M.lookup idx workMap
+    | Just (workNeeded, workSat, mergeable) <- M.lookup idx workMap
     , x S.:<| xs <- workNeeded =
-        let workMap' = M.insert idx (xs, workSat, toMerge) workMap
+        let workMap' = M.insert idx (xs, workSat, mergeable) workMap -- Remove `x` from `workMap`
         in (Just x, workMap')
     | otherwise = (Nothing, workMap)
 
--- Merges all possible states at the current `idx`, and adds the merged states to the previous idx in their merge_stacks.
--- For all other states (i.e. those that have reached max depth), resets the unmerged case expr counts.
+-- | Merges all mergeable objects at the current `idx`, and adds the merged objects to the new index returned by merge_func.
+-- (In the runReducerMerge instance, merge_func would return the earlier index in the state's stack)
+-- For all objects with implicit status WorkSaturated, resets them to status `WorkNeeded` by placing them in the appropriate Seq.
 switchIdx :: WorkGraph a b -> (Bool, WorkGraph a b)
 switchIdx wGraph@(WorkGraph { wMap = workMap, wPlan = workPlan, merge_func = mergeFunc , curr_idx = idx, context = ctxt }) =
     let (workNeeded, merged, maybeNewIdx, ctxt') = mergeFunc workMap ctxt idx
 
-        workPlan' = case workPlan of
+        workPlan' = case workPlan of -- delete current index
             (_ S.:<| rest) -> rest
             S.Empty -> S.Empty
         workPlan'' = if (not $ S.null workNeeded) then workPlan' S.|> idx else workPlan'
         workPlan''' = maybe workPlan'' (\newIdx -> workPlan'' S.|> newIdx) maybeNewIdx
 
-        -- add new merged workMap to set at maybeNewIdx
-        (oldToReduce, oldWorkSat, oldToMerge) = maybe (S.empty, S.empty, S.empty) (\newIdx ->
+        (workNeededNew, workSatNew, mergeableNew) = maybe (S.empty, S.empty, S.empty) (\newIdx ->
             maybe (S.empty, S.empty, S.empty) id (M.lookup newIdx workMap)) maybeNewIdx
-        oldToReduce' = oldToReduce S.>< merged -- if merged is not null, it is guaranteed that maybeNewIdx is not Nothing
+        workNeededNew' = workNeededNew S.>< merged -- if merged is not null, it is guaranteed that maybeNewIdx is not Nothing
         workMap' = maybe workMap (\newIdx ->
-            M.insert idx (workNeeded, S.empty, S.empty) $ M.insert newIdx (oldToReduce', oldWorkSat, oldToMerge) workMap) maybeNewIdx
+            M.insert idx (workNeeded, S.empty, S.empty) $ M.insert newIdx (workNeededNew', workSatNew, mergeableNew) workMap) maybeNewIdx
 
-    in case workPlan''' of
+    in case workPlan''' of -- Check if there is an index to switch to
         (i S.:<| _) -> (False, wGraph { wMap = workMap', wPlan = workPlan''', curr_idx = i, context = ctxt' })
         _ -> (True, wGraph { wMap = workMap', wPlan = workPlan''', context = ctxt'})
 
--- Pick available state from first possible index in `evalSeq`
+-- | Pick available object from first possible index in `workMap`. Called when status is `Split` and new index has been added to front of workPlan
 switchIdxNoMerge :: WorkGraph a b -> (Maybe a, WorkGraph a b)
 switchIdxNoMerge wGraph@(WorkGraph { wMap = workMap, wPlan = workPlan })
     | (idx S.:<| _) <- workPlan
-    , Just (workNeeded, workSat, toMerge) <- M.lookup idx workMap
+    , Just (workNeeded, workSat, mergeable) <- M.lookup idx workMap
     , (x S.:<| xs) <- workNeeded =
-        let workMap' = M.insert idx (xs, workSat, toMerge) workMap -- remove first state from toReduce
+        let workMap' = M.insert idx (xs, workSat, mergeable) workMap -- remove first state from toReduce
         in (Just x, wGraph { wMap = workMap' })
     | (_ S.:<| xs@(x S.:<| _)) <- workPlan = pickWork' (wGraph { wPlan = xs, curr_idx = x}) -- result of split has no reduceds,back to parent
     | otherwise = (Nothing, wGraph)
