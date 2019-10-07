@@ -8,6 +8,7 @@ before_install:
   - bash base_setup.sh
 ghc:
   - "8.2.2"
+  - "8.4.4"
 
 script:
   - cabal configure --enable-tests
