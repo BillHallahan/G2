@@ -154,7 +154,7 @@ setIncludePaths :: [FilePath] -> DynFlags -> DynFlags
 #if __GLASGOW_HASKELL__ < 806
 setIncludePaths proj dflags = dflags { includePaths = proj ++ includePaths dflags }
 #else
-setIncludePaths proj dflags = addQuoteInclude (includePaths dflags) proj
+setIncludePaths proj dflags = dflags { includePaths = addQuoteInclude (includePaths dflags) proj }
 #endif
 
 -- Compilation pipeline with CgGuts
