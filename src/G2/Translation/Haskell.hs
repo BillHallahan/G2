@@ -347,28 +347,34 @@ mkModGutsClosuresFromFile hsc proj src tr_con = do
 
       mod_graph <- getModuleGraph
 
-      #if __GLASGOW_HASKELL__ < 806
-      parsed_mods <- mapM parseModule mod_graph
-      #else
-      parsed_mods <- mapM parseModule $ mgModSummaries mod_graph
-      #endif
+      parsed_mods <- mapM parseModule $ convertModuleGraph mod_graph
 
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
       return (env, map coreModule desug_mods)
 
   if G2.simpl tr_con then do
-    #if __GLASGOW_HASKELL__ < 806
     simpls <- mapM (hscSimplify env) modgutss
-    #else
-    simpls <- mapM (hscSimplify env []) modgutss
-    #endif
-
-    closures <- mapM (mkModGutsClosure env) simpls
-    return closures
+    mapM (mkModGutsClosure env) simpls
   else do
-    closures <- mapM (mkModGutsClosure env) modgutss
-    return closures
+    mapM (mkModGutsClosure env) modgutss
+
+{-# INLINE convertModuleGraph #-}
+convertModuleGraph :: ModuleGraph -> [ModSummaries]
+#if __GLASGOW_HASKELL__ < 806
+convertModuleGraph = id
+#else
+convertModuleGraph = mgModSummaries
+#endif
+
+{-# INLINE hscSimplifyC #-}
+hscSimplifyC :: HscEnv -> ModGuts -> IO ModGuts
+#if __GLASGOW_HASKELL__ < 806
+hscSimplifyC = hscSimplify
+#else
+hscSimplifyC env = hscSimplify env []
+#endif
+
 
 -- This one will need to do the Tidy program stuff
 mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
