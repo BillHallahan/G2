@@ -142,7 +142,6 @@ loadProj hsc proj src gflags tr_con = do
                              #else
                              , includePaths = addQuoteInclude (includePaths beta_flags') proj
                              #endif
-                             
 
                              , importPaths = proj ++ importPaths beta_flags'
 

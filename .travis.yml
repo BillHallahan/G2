@@ -6,6 +6,12 @@ before_install:
 
   # Getting base library
   - bash base_setup.sh
+
+addons:
+  apt:
+    packages:
+      - libgmp-dev
+
 ghc:
   - "8.2.2"
   - "8.6.5"
