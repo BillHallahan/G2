@@ -137,25 +137,25 @@ loadProj hsc proj src gflags tr_con = do
                              , ghcLink = LinkInMemory
                              , ghcMode = CompManager
 
-                             #if __GLASGOW_HASKELL__ < 806
-                             , includePaths = proj ++ includePaths beta_flags'
-                             #else
-                             , includePaths = addQuoteInclude (includePaths beta_flags') proj
-                             #endif
-
                              , importPaths = proj ++ importPaths beta_flags'
 
                              , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
                              , hpcDir = head proj}    
+        dflags' = setIncludePaths proj dflags
 
-    _ <- setSessionDynFlags dflags
+    _ <- setSessionDynFlags dflags'
     targets <- mapM (flip guessTarget Nothing) src
     _ <- setTargets targets
     load LoadAllTargets
 
-
+setIncludePaths :: [FilePath] -> DynFlags -> DynFlags
+#if __GLASGOW_HASKELL__ < 806
+setIncludePaths proj dflags = dflags { includePaths = proj ++ includePaths dflags }
+#else
+setIncludePaths proj dflags = addQuoteInclude (includePaths dflags) proj
+#endif
 
 -- Compilation pipeline with CgGuts
 hskToG2ViaCgGutsFromFile :: Maybe HscTarget
