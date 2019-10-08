@@ -7,16 +7,13 @@ before_install:
   # Getting base library
   - bash base_setup.sh
 
-addons:
-  apt:
-    packages:
-      - libgmp-dev
-
 ghc:
   - "8.2.2"
   - "8.6.5"
 
 script:
+  - gcc -v
+
   - cabal configure --enable-tests
   - cabal build
   # - cabal test -j2
