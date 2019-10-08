@@ -185,6 +185,7 @@ library
                        -- -ddump-splices
                        -- -fprof-auto
                        -- -fexternal-interpreter -opti+RTS -opti-p
+  other-extensions:    CPP
   hs-source-dirs:      src
 
 executable G2
