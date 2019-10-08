@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -235,11 +236,20 @@ getGHCInfos' config ghci = do
     return (LHOutput {ghcI = ghci, cgI = undefined {- cgi -}, solution = undefined {- sol -} })
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+funcSpecs fs = concatMap (gsTySigs . gsSig . giSpec) fs -- Functions asserted in LH
+            ++ concatMap (gsAsmSigs . gsSig . giSpec) fs -- Functions assumed in LH
+#else
 funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
             ++ concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
+#endif
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+measureSpecs = concatMap (gsMeasures . gsData . giSpec)
+#else
 measureSpecs = concatMap (gsMeasures . spec)
+#endif
 
 reqNames :: State t -> [Name]
 reqNames (State { expr_env = eenv

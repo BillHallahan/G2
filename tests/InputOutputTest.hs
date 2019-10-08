@@ -54,7 +54,6 @@ checkInputOutput'' src md entry i req config = do
     (mb_modname, exg2) <- translateLoaded proj src [] simplTranslationConfig config
 
     let (init_state, _, bindings) = initState exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) config
-    putStrLn "test"
     
     (r, _) <- runG2WithConfig init_state config bindings
 

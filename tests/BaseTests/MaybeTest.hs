@@ -10,6 +10,13 @@ head :: [a] -> a
 head (x:xs) = x
 head _ = error "head"
 
+headMaybeInt :: [Int] -> Maybe Int
+headMaybeInt = headMaybe
+
+headMaybe :: [a] -> Maybe a
+headMaybe (x:_) = Just x
+headMaybe [] = Nothing
+
 sumN :: Num a => [a] -> a
 sumN (x:xs) = x + sumN xs
 sumN _ = 0

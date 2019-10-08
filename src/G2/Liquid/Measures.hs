@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -36,12 +37,20 @@ createMeasures meas = do
     return ()
 
 allTypesKnown :: Measure SpecType GHC.DataCon -> LHStateM Bool
+#if MIN_VERSION_liquidhaskell(0,8,6)
+allTypesKnown (M {msSort = srt}) = do
+#else
 allTypesKnown (M {sort = srt}) = do
+#endif
     st <- specTypeToType srt
     return $ isJust st
 
 measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Type))
+#if MIN_VERSION_liquidhaskell(0,8,6)
+measureTypeMappings (M {msName = n, msSort = srt}) = do
+#else
 measureTypeMappings (M {name = n, sort = srt}) = do
+#endif
     st <- specTypeToType srt
     lh <- lhTCM
 
@@ -61,7 +70,11 @@ addLHDictToType lh t =
     mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
 convertMeasure :: BoundTypes -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
+#if MIN_VERSION_liquidhaskell(0,8,6)
+convertMeasure bt (M {msName = n, msSort = srt, msEqns = eq}) = do
+#else
 convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
+#endif
     let n' = symbolName $ val n
 
     st <- specTypeToType srt

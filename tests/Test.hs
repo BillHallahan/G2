@@ -507,6 +507,7 @@ baseTests = return . testGroup "Base" =<< sequence
     , checkInputOutput "tests/BaseTests/ListTests.hs" "ListTests" "foldrTest2" 1000 2 [AtLeast 1]
     , checkInputOutput "tests/BaseTests/Tuples.hs" "Tuples" "addTupleElems" 1000 2 [AtLeast 2]
 
+    , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "headMaybeInt" 1000 2 [AtLeast 2]
     , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "sumN" 1000 4 [AtLeast 6]
     , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "lengthN" 1000 5 [AtLeast 6]
 

@@ -72,7 +72,7 @@ import G2.Language.Monad
 
 import G2.Liquid.TCValues
 
-import Language.Haskell.Liquid.Types
+import Language.Haskell.Liquid.Types (GhcInfo)
 import Language.Haskell.Liquid.Constraint.Types
 import Language.Fixpoint.Types.Constraints
 
