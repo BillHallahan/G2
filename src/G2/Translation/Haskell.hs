@@ -354,13 +354,13 @@ mkModGutsClosuresFromFile hsc proj src tr_con = do
       return (env, map coreModule desug_mods)
 
   if G2.simpl tr_con then do
-    simpls <- mapM (hscSimplify env) modgutss
+    simpls <- mapM (hscSimplifyC env) modgutss
     mapM (mkModGutsClosure env) simpls
   else do
     mapM (mkModGutsClosure env) modgutss
 
 {-# INLINE convertModuleGraph #-}
-convertModuleGraph :: ModuleGraph -> [ModSummaries]
+convertModuleGraph :: ModuleGraph -> [ModSummary]
 #if __GLASGOW_HASKELL__ < 806
 convertModuleGraph = id
 #else
