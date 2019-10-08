@@ -11,7 +11,7 @@ before_install:
 
 ghc:
   - "8.2.2"
-  - "8.6.5"
+  # - "8.6.5"
 
 script:
   - cabal configure --enable-tests
