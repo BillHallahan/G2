@@ -441,4 +441,5 @@ toSymbArgsTuple in_ids cleaned tenv_name = do
 qqConfig :: IO Config
 qqConfig = do
   homedir <- getHomeDirectory
-  return $ mkConfig homedir [] M.empty
+  let config = mkConfig homedir [] M.empty
+  return $ config { extraDefaultMods = [homedir ++ "/.g2/G2Stubs/src/G2/QuasiQuotes/G2Rep.hs"] }

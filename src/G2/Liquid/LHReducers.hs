@@ -181,7 +181,7 @@ instance Halter LHAbsHalter Int LHTracker where
         let 
             fe = case E.occLookup entry modn eenv of
                 Just e -> e
-                Nothing -> error $ "initOrder: Bad function passed\n" ++ show entry ++ show modn
+                Nothing -> error $ "initOrder: Bad function passed\n" ++ show entry ++ " " ++ show modn
         in
         initialTrack eenv fe
 

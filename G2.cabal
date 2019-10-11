@@ -83,7 +83,9 @@ library
                        , G2.Lib.Printers
 
                        , G2.Liquid.Interface
+                       , G2.Liquid.Inference.FuncConstraint
                        , G2.Liquid.Inference.Interface
+                       , G2.Liquid.Inference.RefSynth
                        , G2.Liquid.Inference.Verify
 
                        , G2.Postprocessing.Interface
@@ -158,6 +160,7 @@ library
                        , hashable >= 1.2.6.0 && <= 1.3.0.0
                        , hpc >= 0.6.0.0 && < 0.6.1
                        , HTTP >= 4000.3.0 && < 4001.0
+                       , language-sygus >= 0.1.1.1 && < 0.2
                        , liquidhaskell >= 0.8.2.2 && <= 8.6.2
                        , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , MissingH >= 1.4.0.0 && < 1.5

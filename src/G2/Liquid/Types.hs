@@ -3,60 +3,61 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Liquid.Types ( LHOutput (..)
-                                 , Measures
-                                 , LHState (..)
-                                 , LHStateM (..)
-                                 , ExState (..)
-                                 , AnnotMap (..)
-                                 , consLHState
-                                 , deconsLHState
-                                 , measuresM
-                                 , assumptionsM
-                                 , annotsM
-                                 , runLHStateM
-                                 , evalLHStateM
-                                 , execLHStateM
-                                 , lookupMeasure
-                                 , lookupMeasureM
-                                 , insertMeasureM
-                                 , mapMeasuresM
-                                 , lookupAssumptionM
-                                 , insertAssumptionM
-                                 , mapAssumptionsM
-                                 , lookupAnnotM
-                                 , insertAnnotM
-                                 , mapAnnotsExpr
-                                 , andM
-                                 , orM
-                                 , notM
-                                 , iffM
-                                 , lhTCM
-                                 , lhOrdTCM
-                                 , lhEqM
-                                 , lhNeM
-                                 , lhLtM
-                                 , lhLeM
-                                 , lhGtM
-                                 , lhGeM
-                                 , lhLtE
-                                 , lhLeE
-                                 , lhGtE
-                                 , lhGeE
+                       , CounterExample (..)
+                       , Measures
+                       , LHState (..)
+                       , LHStateM (..)
+                       , ExState (..)
+                       , AnnotMap (..)
+                       , consLHState
+                       , deconsLHState
+                       , measuresM
+                       , assumptionsM
+                       , annotsM
+                       , runLHStateM
+                       , evalLHStateM
+                       , execLHStateM
+                       , lookupMeasure
+                       , lookupMeasureM
+                       , insertMeasureM
+                       , mapMeasuresM
+                       , lookupAssumptionM
+                       , insertAssumptionM
+                       , mapAssumptionsM
+                       , lookupAnnotM
+                       , insertAnnotM
+                       , mapAnnotsExpr
+                       , andM
+                       , orM
+                       , notM
+                       , iffM
+                       , lhTCM
+                       , lhOrdTCM
+                       , lhEqM
+                       , lhNeM
+                       , lhLtM
+                       , lhLeM
+                       , lhGtM
+                       , lhGeM
+                       , lhLtE
+                       , lhLeE
+                       , lhGtE
+                       , lhGeE
 
-                                 , lhPlusM
-                                 , lhMinusM
-                                 , lhTimesM
-                                 , lhDivM
-                                 , lhNegateM
-                                 , lhModM
-                                 , lhFromIntegerM
-                                 , lhToIntegerM
-                                 , lhNumOrdM
+                       , lhPlusM
+                       , lhMinusM
+                       , lhTimesM
+                       , lhDivM
+                       , lhNegateM
+                       , lhModM
+                       , lhFromIntegerM
+                       , lhToIntegerM
+                       , lhNumOrdM
 
-                                 , lhAndE
-                                 , lhOrE
-                                 
-                                 , lhPPM ) where
+                       , lhAndE
+                       , lhOrE
+                       
+                       , lhPPM ) where
 
 import Data.Coerce
 import qualified Data.HashMap.Lazy as HM
@@ -79,6 +80,10 @@ import Language.Fixpoint.Types.Constraints
 data LHOutput = LHOutput { ghcI :: GhcInfo
                          , cgI :: CGInfo
                          , solution :: FixSolution }
+
+data CounterExample = PostCounter L.FuncCall [L.FuncCall]
+                    | PreCounter L.FuncCall L.FuncCall [L.FuncCall]
+                    deriving (Eq, Show, Read)
 
 type Measures = L.ExprEnv
 

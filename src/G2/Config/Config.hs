@@ -110,7 +110,7 @@ extraDefaultIncludePaths root =
 
 extraDefaultPaths :: FilePath -> [FilePath]
 extraDefaultPaths root =
-    [ root ++ "/.g2/G2Stubs/src/G2/QuasiQuotes/G2Rep.hs" ] 
+    [ ] 
 
 smtSolverArg :: String -> SMTSolver
 smtSolverArg = smtSolverArg' . map toLower
