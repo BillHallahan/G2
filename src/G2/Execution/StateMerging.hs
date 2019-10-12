@@ -186,8 +186,8 @@ mergeVars :: Named t
 mergeVars ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2, ng_ = ng}) (Var i1) (Var i2)
     | i1 == i2 = (ctxt, Var i1, Var i2)
     | (idType i1 == idType i2)
-    , not $ HS.member i1 (symbolic_ids s2) -- if both are symbolic variables unique to their states, replace one of them with the other
-    , not $ HS.member i2 (symbolic_ids s1)
+    , not $ E.member (idName i1) (expr_env s2) -- if both are symbolic variables unique to their states, replace one of them with the other
+    , not $ E.member (idName i2) (expr_env s1)
     , HS.member i1 (symbolic_ids s1)
     , HS.member i2 (symbolic_ids s2) =
         let s2' = replaceVar s2 i2 i1
