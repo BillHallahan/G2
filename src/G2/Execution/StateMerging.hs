@@ -402,8 +402,9 @@ getChoices'' :: Expr -> [(Conds, Expr)]
 getChoices'' (Case (Var i) _ a) = concatMap (getChoices' i) a
 getChoices'' e = [([], e)]
 
+-- Group Exprs with common inner DataCon together
 groupChoices :: [(Conds, Expr)] -> [[(Conds, Expr)]]
-groupChoices xs = L.groupBy (\(_, e1) (_, e2) -> commonSubExpr e1 e2) xs
+groupChoices xs = L.groupBy (\(_, e1) (_, e2) -> commonSubExpr e1 e2) $ L.sortBy (\(_, e1) (_, e2) -> compare e1 e2) xs
 
 commonSubExpr :: Expr -> Expr -> Bool
 commonSubExpr (App e1 _) (App e1' _) = commonSubExpr e1 e1'
