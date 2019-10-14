@@ -6,22 +6,29 @@ import G2.Language.Naming
 import G2.Language.Syntax as G2
 import G2.Language.Typing
 import G2.Liquid.Inference.FuncConstraint
+
+import Sygus.LexSygus
+import Sygus.ParseSygus
 import Sygus.Print
-import Sygus.Syntax
-import Language.Haskell.Liquid.Types
+import Sygus.Syntax as Sy
+import Language.Haskell.Liquid.Types as LH
+import Language.Fixpoint.Types.Refinements as LH
+import qualified Language.Fixpoint.Types as LH
 
 import Control.Exception
+import Data.Coerce
+import qualified Data.Map as M
 import qualified Data.Text as T
 import System.Directory
 import System.IO
 import System.IO.Temp
 import qualified System.Process as P
 
-refSynth :: [FuncConstraint] -> IO ()
-refSynth fc = do
+refSynth :: SpecType -> [FuncConstraint] -> IO LH.Expr
+refSynth spec fc = do
     let sygus = printSygus $ sygusCall fc
 
-    out <- try (
+    res <- try (
         withSystemTempFile ("cvc4_input.sy")
         (\fp h -> do
             hPutStr h (T.unpack sygus)
@@ -36,12 +43,20 @@ refSynth fc = do
             P.readProcess toCommand ["10", "cvc4", fp, "--lang=sygus2"] "")
         ) :: IO (Either SomeException String)
 
-    case out of
+    case res of
         Left _ -> error "refSynth: Bad call to CVC4"
-        Right out' -> do
+        Right res' -> do
             putStrLn . T.unpack $ sygus
-            putStrLn out'
-            return ()
+            let smt_st = parse . lexSygus $ stripUnsat res'
+                lh_st = refToLHExpr spec smt_st
+
+            print smt_st
+
+            return lh_st
+
+-------------------------------
+-- Calling Sygus
+-------------------------------
 
 sygusCall :: [FuncConstraint] -> [Cmd]
 sygusCall fcs@(fc:_) =
@@ -92,7 +107,7 @@ funcCallTerm :: FuncCall -> Term
 funcCallTerm (FuncCall { arguments = args, returns = r}) =
     TermCall (ISymb "refinement") (map exprToTerm args ++ [exprToTerm r])
 
-exprToTerm :: Expr -> Term
+exprToTerm :: G2.Expr -> Term
 exprToTerm (App _ (Lit l)) = litToTerm l
 exprToTerm _ = error "exprToTerm: Unhandled Expr"
 
@@ -117,3 +132,69 @@ intSort = IdentSort (ISymb "Int")
 
 boolSort :: Sort
 boolSort = IdentSort (ISymb "Bool")
+
+-------------------------------
+-- Converting to refinement
+-------------------------------
+
+stripUnsat :: String -> String
+stripUnsat ('u':'n':'s':'a':'t':xs) = xs
+stripUnsat xs = xs
+
+refToLHExpr :: SpecType -> [Cmd] -> LH.Expr
+refToLHExpr st [SmtCmd cmd] = refToLHExpr' st cmd
+
+refToLHExpr' :: SpecType -> SmtCmd -> LH.Expr
+refToLHExpr' st (DefineFun _ args _ trm) =
+    let
+        args' = map (\(SortedVar sym _) -> sym) args
+
+        symbs = specTypeSymbols st
+        symbsArgs = M.fromList $ zip args' symbs
+    in
+    termToLHExpr symbsArgs trm
+
+termToLHExpr :: M.Map Sy.Symbol LH.Symbol -> Term -> LH.Expr
+termToLHExpr m (TermIdent (ISymb v)) =
+    case M.lookup v m of
+        Just v' -> EVar v'
+        Nothing -> error "termToLHExpr: Variable not found"
+termToLHExpr m (TermCall (ISymb v) ts)
+    -- EBin
+    | "+" <- v
+    , [t1, t2] <- ts = EBin LH.Plus (termToLHExpr m t1) (termToLHExpr m t2)
+    | "-" <- v
+    , [t1, t2] <- ts = EBin LH.Minus (termToLHExpr m t1) (termToLHExpr m t2)
+    | "*" <- v
+    , [t1, t2] <- ts = EBin LH.Times (termToLHExpr m t1) (termToLHExpr m t2)
+    | "mod" <- v
+    , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr m t1) (termToLHExpr m t2)
+    -- More EBin...
+    | "and" <- v = PAnd $ map (termToLHExpr m) ts
+    | "or" <- v = POr $ map (termToLHExpr m) ts
+    | "not" <- v, [t1] <- ts = PNot (termToLHExpr m t1)
+    -- PAtom
+    | "=" <- v
+    , [t1, t2] <- ts = PAtom LH.Eq (termToLHExpr m t1) (termToLHExpr m t2)
+    | ">" <- v 
+    , [t1, t2] <- ts = PAtom LH.Gt (termToLHExpr m t1) (termToLHExpr m t2)
+     | ">=" <- v 
+    , [t1, t2] <- ts = PAtom LH.Ge (termToLHExpr m t1) (termToLHExpr m t2)
+    | "<" <- v 
+    , [t1, t2] <- ts = PAtom LH.Lt (termToLHExpr m t1) (termToLHExpr m t2)
+   | "<=" <- v 
+    , [t1, t2] <- ts = PAtom LH.Le (termToLHExpr m t1) (termToLHExpr m t2)
+    -- More PAtom...
+
+specTypeSymbols :: SpecType -> [LH.Symbol]
+specTypeSymbols (RFun { rt_bind = b, rt_out = out }) = b:specTypeSymbols out
+specTypeSymbols (RApp { rt_reft = ref }) = [reftSymbol $ ur_reft ref]
+specTypeSymbols (RVar {}) = error "RVar"
+specTypeSymbols (RAllT {}) = error "RAllT"
+
+reftSymbol :: Reft -> LH.Symbol
+reftSymbol = fst . unpackReft
+
+unpackReft :: Reft -> (LH.Symbol, LH.Expr) 
+unpackReft = coerce
+

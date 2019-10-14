@@ -21,7 +21,11 @@ emptyFC :: FuncConstraints
 emptyFC = FuncConstraints M.empty
 
 insertFC :: FuncConstraint -> FuncConstraints -> FuncConstraints
-insertFC fc = coerce (M.insertWith (++) (funcName . constraint $ fc) [fc])
+insertFC fc =
+    coerce (M.insertWith (++) (zeroOutUnq . funcName . constraint $ fc) [fc])
 
 lookupFC :: Name -> FuncConstraints -> [FuncConstraint]
-lookupFC n = M.findWithDefault [] n . coerce
+lookupFC n = M.findWithDefault [] (zeroOutUnq n) . coerce
+
+zeroOutUnq :: Name -> Name
+zeroOutUnq (Name n m _ l) = Name n m 0 l

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -20,6 +19,7 @@ import G2.Liquid.AddLHTC
 import G2.Liquid.AddOrdToNum
 import G2.Liquid.Conversion
 import G2.Liquid.ConvertCurrExpr
+import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Liquid.Measures
 import G2.Liquid.Simplify
@@ -30,11 +30,9 @@ import G2.Solver hiding (solve)
 
 import G2.Lib.Printers
 
-import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types hiding (Config, cls, names)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
-import qualified Language.Haskell.Liquid.UX.Config as LHC
 
 import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
@@ -44,7 +42,6 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 
-import qualified GHC as GHC
 import Var
 
 import G2.Language.KnownValues
@@ -81,35 +78,8 @@ runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> Config
                     -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci config = do
-    let (init_state, ifi, bindings) = initState exg2 True entry mb_modname (mkCurrExpr Nothing Nothing) config
-    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state) init_state bindings)
-    let cleaned_state = init_state' { type_env = type_env init_state } 
-
-    let (no_part_state@(State {expr_env = np_eenv})) = cleaned_state
-    let np_ng = name_gen bindings'
-
-    let renme = E.keys np_eenv -- \\ nub (Lang.names (type_classes no_part_state))
-    let ((meenv, mkv, mtc, minst), ng') = doRenames renme np_ng 
-            (np_eenv, known_values no_part_state, type_classes no_part_state, higher_order_inst bindings')
-    
-    let ng_bindings = bindings' {name_gen = ng'}
-
-    let ng_state = no_part_state {track = []}
-
-    let (lh_state, lh_bindings) = createLHState meenv mkv ng_state ng_bindings
-
-    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH ghci ifi lh_bindings) lh_state lh_bindings
-
-    let tcv = tcvalues merged_state
-    let merged_state' = deconsLHState merged_state
-
-    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
-
-    let annm = annots merged_state
-
-    let track_state = merged_state' {track = LHTracker { abstract_calls = []
-                                                       , last_var = Nothing
-                                                       , annotations = annm} }
+    (ifi, cfn, final_st, bindings, pres_names) <- liquidState entry (mb_modname, exg2) ghci config
+    let annm = annotations $ track final_st
 
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
@@ -119,11 +89,6 @@ runLHCore entry (mb_modname, exg2) ghci config = do
     -- need to be passed the LH typeclass, so this ensures use of Names from
     -- these lists will work, without us having to modify all of G2 to account
     -- for the LH typeclass.
-    let final_st = track_state { known_values = mkv
-                               , type_classes = unionTypeClasses mtc (type_classes track_state)}
-    let bindings''' = bindings'' { higher_order_inst = minst }
-    -- let bindings''' = bindings''
-
 
     let tr_ng = mkNameGen ()
     let state_name = Name "state" Nothing 0 Nothing
@@ -141,12 +106,12 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                     (SomeHalter
                       (MaxOutputsHalter (maxOutputs config)
                         :<~> ZeroHalter (steps config)
-                        :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                        :<~> LHAbsHalter entry mb_modname (expr_env final_st)
                         :<~> limHalt
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    solver simplifier (pres_names ++ names annm) final_st bindings''' 
+                    solver simplifier (pres_names ++ names annm) final_st bindings
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -156,12 +121,12 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                       (DiscardIfAcceptedTag state_name
                         :<~> MaxOutputsHalter (maxOutputs config)
                         :<~> ZeroHalter (steps config)
-                        :<~> LHAbsHalter entry mb_modname (expr_env init_state)
+                        :<~> LHAbsHalter entry mb_modname (expr_env final_st)
                         :<~> limHalt
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    solver simplifier (pres_names ++ names annm) final_st bindings'''
+                    solver simplifier (pres_names ++ names annm) final_st bindings
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -189,6 +154,53 @@ runLHCore entry (mb_modname, exg2) ghci config = do
 
     return ((exec_res, final_bindings), ifi)
 
+liquidState :: T.Text -> (Maybe T.Text, ExtractedG2)
+                      -> [GhcInfo]
+                      -> Config
+                      -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, [Name])
+liquidState entry (mb_modname, exg2) ghci config = do
+    let (init_state, ifi, bindings) = initState exg2 True entry mb_modname (mkCurrExpr Nothing Nothing) config
+    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state) init_state bindings)
+    let cleaned_state = init_state' { type_env = type_env init_state } 
+
+    let (no_part_state@(State {expr_env = np_eenv})) = cleaned_state
+    let np_ng = name_gen bindings'
+
+    let renme = E.keys np_eenv -- \\ nub (Lang.names (type_classes no_part_state))
+    let ((meenv, mkv, mtc, minst), ng') = doRenames renme np_ng 
+            (np_eenv, known_values no_part_state, type_classes no_part_state, higher_order_inst bindings')
+    
+    let ng_bindings = bindings' {name_gen = ng'}
+
+    let ng_state = no_part_state {track = []}
+
+    let (lh_state, lh_bindings) = createLHState meenv mkv ng_state ng_bindings
+
+    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH ghci ifi lh_bindings) lh_state lh_bindings
+    let bindings''' = bindings'' { higher_order_inst = minst }
+
+    let tcv = tcvalues merged_state
+    let merged_state' = deconsLHState merged_state
+
+    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
+
+    let annm = annots merged_state
+
+    let track_state = merged_state' {track = LHTracker { abstract_calls = []
+                                                       , last_var = Nothing
+                                                       , annotations = annm} }
+
+    -- We replace certain function name lists in the final State with names
+    -- mapping into the measures from the LHState.  These functions do not
+    -- need to be passed the LH typeclass, so this ensures use of Names from
+    -- these lists will work, without us having to modify all of G2 to account
+    -- for the LH typeclass.
+    let final_st = track_state { known_values = mkv
+                               , type_classes = unionTypeClasses mtc (type_classes track_state)}
+
+    return (ifi, cfn, final_st, bindings''', pres_names)
+
+
 initializeLH :: [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
 initializeLH ghcInfos ifi bindings = do
     addLHTC
@@ -212,33 +224,6 @@ initializeLH ghcInfos ifi bindings = do
     cfn <- addCounterfactualBranch ns
 
     return cfn
-
-getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO [GhcInfo]
-getGHCInfos config proj fp lhlibs = do
-    let config' = config {idirs = idirs config ++ proj ++ lhlibs
-                         , files = files config ++ lhlibs
-                         , ghcOptions = ["-v"]}
-
-    -- GhcInfo
-    (ghci, _) <- LHI.getGhcInfos Nothing config' fp
-
-    return ghci
-    
-funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
-#if MIN_VERSION_liquidhaskell(0,8,6)
-funcSpecs fs = concatMap (gsTySigs . gsSig . giSpec) fs -- Functions asserted in LH
-            ++ concatMap (gsAsmSigs . gsSig . giSpec) fs -- Functions assumed in LH
-#else
-funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
-            ++ concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
-#endif
-
-measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
-#if MIN_VERSION_liquidhaskell(0,8,6)
-measureSpecs = concatMap (gsMeasures . gsData . giSpec)
-#else
-measureSpecs = concatMap (gsMeasures . spec)
-#endif
 
 reqNames :: State t -> [Name]
 reqNames (State { expr_env = eenv

@@ -3,16 +3,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Conversion ( LHDictMap
-                                       , DictMaps (..)
-                                       , BoundTypes
-                                       , mergeLHSpecState
-                                       , convertSpecType
-                                       , dictMapFromIds
-                                       , convertLHExpr
-                                       , specTypeToType
-                                       , unsafeSpecTypeToType
-                                       , symbolName
-                                       , lhTCDict') where
+                            , DictMaps (..)
+                            , BoundTypes
+                            , mergeLHSpecState
+                            , convertSpecType
+                            , dictMapFromIds
+                            , convertLHExpr
+                            , specTypeToType
+                            , unsafeSpecTypeToType
+                            , symbolName
+                            , lhTCDict') where
 
 import G2.Language
 import qualified G2.Language.KnownValues as KV

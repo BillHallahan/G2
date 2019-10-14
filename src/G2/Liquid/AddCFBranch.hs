@@ -1,10 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.AddCFBranch (addCounterfactualBranch) where
+module G2.Liquid.AddCFBranch ( CounterfactualName
+                             , addCounterfactualBranch) where
 
 import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
+
+type CounterfactualName = Name
 
 -- Enables finding abstract counterexamples, by adding counterfactual branches
 -- with two states.
@@ -20,17 +23,17 @@ import G2.Liquid.Types
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-addCounterfactualBranch :: [Name] -> LHStateM Name
+addCounterfactualBranch :: [Name] -> LHStateM CounterfactualName
 addCounterfactualBranch ns = do
     cfn <- freshSeededStringN "cf"
     mapWithKeyME (addCounterfactualBranch' cfn ns)
     return cfn
 
-addCounterfactualBranch' :: Name -> [Name]-> Name -> Expr -> LHStateM Expr
+addCounterfactualBranch' :: CounterfactualName -> [Name]-> Name -> Expr -> LHStateM Expr
 addCounterfactualBranch' cfn ns n =
     if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' cfn) else return
 
-addCounterfactualBranch'' :: Name -> Expr -> LHStateM Expr
+addCounterfactualBranch'' :: CounterfactualName -> Expr -> LHStateM Expr
 addCounterfactualBranch'' cfn
     orig_e@(Let 
         [(b, _)]
