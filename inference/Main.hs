@@ -11,5 +11,8 @@ main = do
     config <- getConfig as
 
     case as of
-        (f:_) -> inference config [] [f] []
+        (f:_) -> do
+            gs <- inference config [] [f] []
+            putStrLn "Safe"
+            print gs
         [] -> error "No path given"

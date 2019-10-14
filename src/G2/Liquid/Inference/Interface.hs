@@ -16,10 +16,12 @@ import G2.Translation
 import Language.Fixpoint.Types.Constraints
 import Language.Haskell.Liquid.Types as LH
 
+import Control.Monad
+import Data.Either
 import Data.Maybe
 import qualified Data.Text as T
 
-inference :: G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO ()
+inference :: G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inference config proj fp lhlibs = do
     -- Initialize LiquidHaskell
     lhconfig <- lhConfig proj lhlibs
@@ -28,11 +30,13 @@ inference config proj fp lhlibs = do
 
     -- Initialize G2
     let g2config = config { mode = Liquid, steps = 2000 }
-    exg2 <- translateLoaded proj fp lhlibs (simplTranslationConfig { simpl = False }) g2config
+        transConfig = simplTranslationConfig { simpl = False }
+    exg2 <- translateLoaded proj fp lhlibs transConfig g2config
 
     inference' g2config lhconfig' ghci exg2 emptyGS emptyFC 
 
-inference' :: G2.Config -> LH.Config -> [GhcInfo] -> (Maybe T.Text, ExtractedG2) -> GeneratedSpecs -> FuncConstraints -> IO ()
+inference' :: G2.Config -> LH.Config -> [GhcInfo] -> (Maybe T.Text, ExtractedG2)
+           -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
 inference' g2config lhconfig ghci exg2 gs fc = do
     print gs
 
@@ -42,50 +46,62 @@ inference' g2config lhconfig ghci exg2 gs fc = do
     res <- verify lhconfig merged_ghci
 
     case res of
-        Safe -> putStrLn "Safe"
-        Crash -> putStrLn "Crash"
+        Safe -> return $ Right gs
+        Crash -> error "Crash"
         Unsafe bad -> do
             -- Generate constraints
             let bad' = map nameOcc bad
 
             putStrLn $ "bad' = " ++ show bad'
 
-            res <- mapM (\n -> do
-                ((exec_res, _), i) <- runLHCore n exg2 merged_ghci g2config
-                return $ map (lhStateToCE i) exec_res) bad'
+            res <- mapM (genNewConstraints merged_ghci exg2 g2config) bad'
 
-            new_fc <- return . concat =<< mapM (cexsToFuncConstraints exg2 ghci g2config) (concat res)
-            let new_fc_funcs = map (funcName . constraint) new_fc
+            new_fc <- checkNewConstraints ghci exg2 g2config (concat res)
+            case new_fc of
+                Left ce -> return . Left $ ce
+                Right new_fc' -> do
+                    let new_fc_funcs = map (funcName . constraint) new_fc'
 
-                fc' = foldr insertFC fc new_fc
+                        fc' = foldr insertFC fc new_fc'
 
-            -- Synthesize
-            new_exprs <- mapM 
-                        (\n -> do
-                            let fc_of_n = lookupFC n fc'
-                                spec = fromJust $ findFuncSpec ghci n
-                            new_spec <- refSynth spec fc_of_n
+                    -- Synthesize
+                    gs' <- foldM (synthesize ghci fc') gs new_fc_funcs
+                    
+                    inference' g2config lhconfig ghci exg2 gs' fc'
 
-                            putStrLn $ "spec = " ++ show spec
-                            putStrLn $ "new_spec = " ++ show new_spec
+genNewConstraints :: [GhcInfo] -> (Maybe T.Text, ExtractedG2) -> G2.Config -> T.Text -> IO [CounterExample]
+genNewConstraints ghci exg2 g2config n = do
+    ((exec_res, _), i) <- runLHCore n exg2 ghci g2config
+    return $ map (lhStateToCE i) exec_res
 
-                            return (n, new_spec)) new_fc_funcs
+checkNewConstraints :: [GhcInfo] -> (Maybe T.Text, ExtractedG2) -> G2.Config -> [CounterExample] -> IO (Either [CounterExample] [FuncConstraint])
+checkNewConstraints ghci exg2 g2config cexs = do
+    res <- mapM (cexsToFuncConstraints exg2 ghci g2config) cexs
+    case lefts res of
+        res'@(_:_) -> return . Left $ res'
+        _ -> return . Right . concat . rights $ res
 
-            let gs' = foldr (uncurry insertGS) gs new_exprs
-            
-            inference' g2config lhconfig ghci exg2 gs' fc'
+synthesize :: [GhcInfo] -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
+synthesize ghci fc gs n = do
+    let fc_of_n = lookupFC n fc
+        spec = fromJust $ findFuncSpec ghci n
+    new_spec <- refSynth spec fc_of_n
 
+    putStrLn $ "spec = " ++ show spec
+    putStrLn $ "new_spec = " ++ show new_spec
 
-cexsToFuncConstraints :: (Maybe T.Text, ExtractedG2) -> [GhcInfo] -> G2.Config -> CounterExample -> IO [FuncConstraint]
-cexsToFuncConstraints _ _ _ (DirectCounter _ fcs@(_:_)) = return $ map Neg fcs
-cexsToFuncConstraints _ _ _ (CallsCounter _ _ fcs@(_:_)) = return $ map Neg fcs
-cexsToFuncConstraints exg2 ghci g2config (DirectCounter fc []) = do
+    return $ insertGS n new_spec gs
+
+cexsToFuncConstraints :: (Maybe T.Text, ExtractedG2) -> [GhcInfo] -> G2.Config -> CounterExample -> IO (Either CounterExample [FuncConstraint])
+cexsToFuncConstraints _ _ _ (DirectCounter _ fcs@(_:_)) = return . Right $ map Neg fcs
+cexsToFuncConstraints _ _ _ (CallsCounter _ _ fcs@(_:_)) = return . Right $ map Neg fcs
+cexsToFuncConstraints exg2 ghci g2config cex@(DirectCounter fc []) = do
     v_cex <- checkCounterexample exg2 ghci g2config fc
     case v_cex of
-        True -> return [Pos fc]
-        False -> error "Counterexample to original Spec"
-cexsToFuncConstraints exg2 ghci g2config (CallsCounter _ fc []) = do
+        True -> return . Right $ [Pos fc]
+        False -> return . Left $ cex
+cexsToFuncConstraints exg2 ghci g2config cex@(CallsCounter _ fc []) = do
     v_cex <- checkCounterexample exg2 ghci g2config fc
     case v_cex of
-        True -> return [Pos fc]
-        False -> error "Counterexample to original Spec"
+        True -> return . Right $ [Pos fc]
+        False -> return . Left $ cex

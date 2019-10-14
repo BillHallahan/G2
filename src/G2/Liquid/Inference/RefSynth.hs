@@ -81,6 +81,7 @@ grammar =
         , SortedVar "I" intSort ]
         [ GroupedRuleList "B" boolSort 
             [ GVariable boolSort
+            , GConstant boolSort
             , GBfTerm $ BfIdentifierBfs (ISymb "=") [intBf, intBf]
             , GBfTerm $ BfIdentifierBfs (ISymb "<") [intBf, intBf]
             , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
@@ -90,10 +91,11 @@ grammar =
             ]
         , GroupedRuleList "I" intSort 
             [ GVariable intSort
+            , GConstant intSort
             , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
             , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
             , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
-            , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, intBf]
+            -- , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, intBf]
             ]
         ]
 
@@ -159,16 +161,19 @@ termToLHExpr m (TermIdent (ISymb v)) =
     case M.lookup v m of
         Just v' -> EVar v'
         Nothing -> error "termToLHExpr: Variable not found"
+termToLHExpr _ (TermLit l) = ECon (litToLHConstant l)
 termToLHExpr m (TermCall (ISymb v) ts)
     -- EBin
     | "+" <- v
     , [t1, t2] <- ts = EBin LH.Plus (termToLHExpr m t1) (termToLHExpr m t2)
     | "-" <- v
+    , [t1] <- ts = ENeg (termToLHExpr m t1)
+    | "-" <- v
     , [t1, t2] <- ts = EBin LH.Minus (termToLHExpr m t1) (termToLHExpr m t2)
     | "*" <- v
     , [t1, t2] <- ts = EBin LH.Times (termToLHExpr m t1) (termToLHExpr m t2)
-    | "mod" <- v
-    , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr m t1) (termToLHExpr m t2)
+    -- | "mod" <- v
+    -- , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr m t1) (termToLHExpr m t2)
     -- More EBin...
     | "and" <- v = PAnd $ map (termToLHExpr m) ts
     | "or" <- v = POr $ map (termToLHExpr m) ts
@@ -185,6 +190,10 @@ termToLHExpr m (TermCall (ISymb v) ts)
    | "<=" <- v 
     , [t1, t2] <- ts = PAtom LH.Le (termToLHExpr m t1) (termToLHExpr m t2)
     -- More PAtom...
+termToLHExpr _ t = error $ "termToLHExpr: unhandled " ++ show t
+
+litToLHConstant :: Sy.Lit -> Constant
+litToLHConstant (LitNum n) = I n
 
 specTypeSymbols :: SpecType -> [LH.Symbol]
 specTypeSymbols (RFun { rt_bind = b, rt_out = out }) = b:specTypeSymbols out
