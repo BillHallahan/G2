@@ -1,5 +1,6 @@
 module G2.Config.Config ( Mode (..)
                         , Sharing (..)
+                        , Counterfactual (..)
                         , SMTSolver (..)
                         , HigherOrderSolver (..)
                         , IncludePath
@@ -21,6 +22,8 @@ data Mode = Regular | Liquid deriving (Eq, Show, Read)
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 
+data Counterfactual = Counterfactual | NotCounterfactual deriving (Eq, Show, Read)
+
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
@@ -36,6 +39,7 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
     , sharing :: Sharing
+    , counterfactual :: Counterfactual
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
     , printExprEnv :: Bool -- ^ Controls whether the expr env is printed
@@ -71,6 +75,7 @@ mkConfig homedir as m = Config {
     , extraDefaultMods = extraDefaultPaths (strArg "extra-base" as m id homedir)
     , logStates = strArg "log-states" as m Just Nothing
     , sharing = boolArg' "sharing" as m Sharing Sharing NoSharing
+    , counterfactual = boolArg' "counterfactual" as m Counterfactual Counterfactual NotCounterfactual
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
     , printExprEnv = boolArg "print-eenv" as m Off

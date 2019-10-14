@@ -20,4 +20,4 @@ g x = h x
 -- {-@ h :: Int -> Even @-}
 {-@ h :: Int -> Int @-}
 h :: Int -> Int
-h x = x + x
+h x = 4 * x

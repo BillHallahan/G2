@@ -32,6 +32,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , (<~|)
 
                             -- Halters
+                            , SWHNFHalter (..)
                             , AcceptHalter (..)
                             , HCombiner (..)
                             , ZeroHalter (..)
@@ -459,7 +460,18 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         C hv1' hv2'
 
--- | Accepts a state when it is in ExecNormalForm
+data  SWHNFHalter = SWHNFHalter
+
+instance Halter SWHNFHalter () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+    stopRed _ _ _ s =
+        case isExecValueForm s of
+            True -> Accept
+            False -> Continue
+    stepHalter _ _ _ _ _ = ()
+
+-- | Accepts a state when it is in ExecNormalForm and true_assert is true
 data AcceptHalter = AcceptHalter
 
 instance Halter AcceptHalter () t where

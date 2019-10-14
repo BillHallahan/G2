@@ -176,7 +176,7 @@ liquidState entry (mb_modname, exg2) ghci config = do
 
     let (lh_state, lh_bindings) = createLHState meenv mkv ng_state ng_bindings
 
-    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH ghci ifi lh_bindings) lh_state lh_bindings
+    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
     let bindings''' = bindings'' { higher_order_inst = minst }
 
     let tcv = tcvalues merged_state
@@ -200,9 +200,8 @@ liquidState entry (mb_modname, exg2) ghci config = do
 
     return (ifi, cfn, final_st, bindings''', pres_names)
 
-
-initializeLH :: [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
-initializeLH ghcInfos ifi bindings = do
+initializeLH :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
+initializeLH counter ghcInfos ifi bindings = do
     addLHTC
     addOrdToNum
 
@@ -221,7 +220,9 @@ initializeLH ghcInfos ifi bindings = do
 
     ns <- convertCurrExpr ifi bindings
 
-    cfn <- addCounterfactualBranch ns
+    cfn <- if counter == Counterfactual
+                then addCounterfactualBranch ns
+                else return (Name "" Nothing 0 Nothing)
 
     return cfn
 
@@ -337,8 +338,8 @@ lhStateToCE i (ExecRes { final_state = s
                        , conc_args = inArg
                        , conc_out = ex
                        , violated = vi})
-    | Nothing <- vi' = PostCounter initCall (track s)
-    | Just c <- vi' = PreCounter initCall c (track s)
+    | Nothing <- vi' = DirectCounter initCall (track s)
+    | Just c <- vi' = CallsCounter initCall c (track s)
     where
         initCall = FuncCall (idName i) inArg ex
         vi' = if initCall `sameFuncCall` vi then Nothing else vi

@@ -81,8 +81,8 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
                          , cgI :: CGInfo
                          , solution :: FixSolution }
 
-data CounterExample = PostCounter L.FuncCall [L.FuncCall]
-                    | PreCounter L.FuncCall L.FuncCall [L.FuncCall]
+data CounterExample = DirectCounter L.FuncCall [L.FuncCall]
+                    | CallsCounter L.FuncCall L.FuncCall [L.FuncCall]
                     deriving (Eq, Show, Read)
 
 type Measures = L.ExprEnv
