@@ -55,6 +55,9 @@ mkCleanExprHaskell' kv tc e
     , t <- typeOf e''
     , isTypeClass tc t = e'
 
+    | (App e' e'') <- e
+    , isTypeClass tc (returnType e'') = e'
+
     | App e' (Type _) <- e = e'
 
     | otherwise = e

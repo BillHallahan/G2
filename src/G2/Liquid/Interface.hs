@@ -22,6 +22,7 @@ import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Liquid.Measures
+import G2.Liquid.ReduceAbstracted
 import G2.Liquid.Simplify
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCGen
@@ -134,6 +135,9 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                   _ -> minimum $ map (\(ExecRes {final_state = s}) -> length $ abstract_calls $ track s) ret
     let ret' = filter (\(ExecRes {final_state = s}) -> mi == (length $ abstract_calls $ track s)) ret
 
+    let ret'' = ret'
+    -- ret'' <- mapM (reduceAbstracted config final_bindings) ret'
+
     let exec_res = 
                 map (\(ExecRes { final_state = s
                                , conc_args = es
@@ -143,7 +147,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                                     s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}
                                , conc_args = es
                                , conc_out = e
-                               , violated = ais})) ret'
+                               , violated = ais})) ret''
 
     -- mapM_ (\er -> do
     --     print . track $ final_state er 
@@ -182,7 +186,7 @@ liquidState entry (mb_modname, exg2) ghci config = do
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
 
-    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv
+    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv ++ names (deepseq_walkers bindings)
 
     let annm = annots merged_state
 

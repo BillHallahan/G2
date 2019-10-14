@@ -82,7 +82,22 @@ library
 
                        , G2.Lib.Printers
 
+                       , G2.Liquid.AddCFBranch
+                       , G2.Liquid.AddLHTC
+                       , G2.Liquid.AddOrdToNum
+                       , G2.Liquid.Annotations
+                       , G2.Liquid.Conversion
+                       , G2.Liquid.ConvertCurrExpr
+                       , G2.Liquid.Helpers
                        , G2.Liquid.Interface
+                       , G2.Liquid.LHReducers
+                       , G2.Liquid.Measures
+                       , G2.Liquid.Simplify
+                       , G2.Liquid.SpecialAsserts
+                       , G2.Liquid.TCGen
+                       , G2.Liquid.TCValues
+                       , G2.Liquid.Types
+                       , G2.Liquid.ReduceAbstracted
                        , G2.Liquid.Inference.CheckCounterexample
                        , G2.Liquid.Inference.FuncConstraint
                        , G2.Liquid.Inference.Interface
@@ -116,21 +131,6 @@ library
 
                        , G2.Interface.Interface
                        , G2.Interface.OutputTypes
-
-                       , G2.Liquid.AddCFBranch
-                       , G2.Liquid.AddLHTC
-                       , G2.Liquid.AddOrdToNum
-                       , G2.Liquid.Annotations
-                       , G2.Liquid.Conversion
-                       , G2.Liquid.ConvertCurrExpr
-                       , G2.Liquid.Helpers
-                       , G2.Liquid.LHReducers
-                       , G2.Liquid.Measures
-                       , G2.Liquid.Simplify
-                       , G2.Liquid.SpecialAsserts
-                       , G2.Liquid.TCGen
-                       , G2.Liquid.TCValues
-                       , G2.Liquid.Types
 
                        , G2.Postprocessing.NameSwitcher
 
