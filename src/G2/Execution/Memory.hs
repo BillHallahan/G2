@@ -40,12 +40,12 @@ markAndSweepPreserving' ns (state@State { expr_env = eenv
                    }
     bindings' = bindings { deepseq_walkers = dsw'}
 
-    active = activeNames tenv eenv S.empty $ names cexpr ++
-                                                   names es ++
-                                                   names pc ++
-                                                   names iids ++
-                                                   higher_ord_rel ++
-                                                   ns
+    active = activeNames tenv (E.redirsToExprs eenv) S.empty $ names cexpr ++
+                                                               names es ++
+                                                               names pc ++
+                                                               names iids ++
+                                                               higher_ord_rel ++
+                                                               ns
 
     isActive :: Name -> Bool
     isActive = (flip S.member) active

@@ -41,6 +41,7 @@ module G2.Language.ExprEnv
     , symbolicKeys
     , elems
     , higherOrderExprs
+    , redirsToExprs
     , toList
     , toExprList
     , fromExprList
@@ -269,6 +270,13 @@ elems = exprObjs . M.elems . unwrapExprEnv
 -- | Returns a list of all argument function types 
 higherOrderExprs :: ExprEnv -> [Type]
 higherOrderExprs = concatMap (higherOrderFuncs) . elems
+
+-- | Converts all RedirObjs in ExprObjs.  Useful for certain kinds of analysis
+redirsToExprs :: ExprEnv -> ExprEnv
+redirsToExprs eenv = coerce . M.map rToE . coerce $ eenv
+    where
+        rToE (RedirObj n) = ExprObj . Var . Id n . typeOf $ eenv ! n
+        rToE e = e
 
 toList :: ExprEnv -> [(Name, EnvObj)]
 toList = M.toList . unwrapExprEnv
