@@ -69,7 +69,7 @@ mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
         mkExprHaskell' (Var ids) _ = mkIdHaskell ids
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
-        mkExprHaskell' (Lam _ ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
+        mkExprHaskell' (Lam _ ids e) i = "(\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i ++ ")"
 
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
             | Data (DataCon n _) <- appCenter a

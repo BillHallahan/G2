@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Language.ArbValueGen ( ArbValueGen
                                , ArbValueFunc
                                , arbValueInit
@@ -51,6 +53,11 @@ arbValueInfinite :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 arbValueInfinite = arbValue' getADT
 
 arbValue' :: GetADT -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValue' getADTF (TyFun t t') tenv av =
+    let
+      (e, av') = arbValue' getADTF t' tenv av
+    in
+    (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, av')
 arbValue' getADTF t tenv av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
