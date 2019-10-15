@@ -50,7 +50,8 @@ module G2.Language.Expr ( module G2.Language.Casts
                                   , alphaReduction
                                   , varBetaReduction
                                   , etaExpandTo
-                                  , mkStrict) where
+                                  , mkStrict
+                                  , mkStrict_maybe) where
 
 import G2.Language.AST
 import G2.Language.Casts
@@ -420,3 +421,25 @@ typeToWalker w t
     Just i -> foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)
     Nothing -> error $ "typeToWalker: failed to find type: " ++ show n
 typeToWalker _ t = mkIdentity t
+
+mkStrict_maybe :: Walkers -> Expr -> Maybe Expr
+mkStrict_maybe w e =
+    let
+        t = tyAppCenter (typeOf e)
+        ts = tyAppArgs (typeOf e)
+    in
+    case t of
+        (TyCon n _) -> case M.lookup n w of
+            Just i -> Just $ App (foldl' (App) (Var i) (map Type ts ++ map (typeToWalker_maybe w) ts)) e
+            Nothing -> Nothing
+        _ -> Nothing
+
+typeToWalker_maybe :: Walkers -> Type -> Expr
+typeToWalker_maybe w t
+  | TyCon n _ <- tyAppCenter t
+  , ts <- tyAppArgs t =
+  case M.lookup n w of
+    Just i -> foldl' (App) (Var i) (map Type ts ++ map (typeToWalker_maybe w) ts)
+    Nothing -> mkIdentity t
+typeToWalker_maybe _ t = mkIdentity t
+

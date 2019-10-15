@@ -23,6 +23,7 @@ module G2.Language.ExprEnv
     , insertExprs
     , redirect
     , union
+    , union'
     , (!)
     , map
     , map'
@@ -179,6 +180,9 @@ redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
+
+union' :: M.Map Name Expr -> ExprEnv -> ExprEnv
+union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,

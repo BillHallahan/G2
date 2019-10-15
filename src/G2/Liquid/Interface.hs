@@ -135,8 +135,8 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                   _ -> minimum $ map (\(ExecRes {final_state = s}) -> length $ abstract_calls $ track s) ret
     let ret' = filter (\(ExecRes {final_state = s}) -> mi == (length $ abstract_calls $ track s)) ret
 
-    let ret'' = ret'
-    -- ret'' <- mapM (reduceAbstracted config final_bindings) ret'
+    -- let ret'' = ret'
+    ret'' <- mapM (reduceAbstracted config final_bindings) ret'
 
     let exec_res = 
                 map (\(ExecRes { final_state = s
@@ -148,7 +148,6 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                                , conc_args = es
                                , conc_out = e
                                , violated = ais})) ret''
-
     -- mapM_ (\er -> do
     --     print . track $ final_state er 
     --     putStrLn . flip pprExecStateStr bindings''' . final_state $ er) exec_res
@@ -164,7 +163,7 @@ liquidState :: T.Text -> (Maybe T.Text, ExtractedG2)
                       -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, [Name])
 liquidState entry (mb_modname, exg2) ghci config = do
     let (init_state, ifi, bindings) = initState exg2 True entry mb_modname (mkCurrExpr Nothing Nothing) config
-    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state) init_state bindings)
+    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state bindings) init_state bindings)
     let cleaned_state = init_state' { type_env = type_env init_state } 
 
     let (no_part_state@(State {expr_env = np_eenv})) = cleaned_state
@@ -186,7 +185,7 @@ liquidState entry (mb_modname, exg2) ghci config = do
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
 
-    let pres_names = reqNames merged_state' ++ names tcv ++ names mkv ++ names (deepseq_walkers bindings)
+    let pres_names = reqNames merged_state' bindings ++ names tcv ++ names mkv
 
     let annm = annots merged_state
 
@@ -230,10 +229,10 @@ initializeLH counter ghcInfos ifi bindings = do
 
     return cfn
 
-reqNames :: State t -> [Name]
+reqNames :: State t -> Bindings -> [Name]
 reqNames (State { expr_env = eenv
                 , type_classes = tc
-                , known_values = kv}) = 
+                , known_values = kv}) b = 
     Lang.names [ mkGe eenv
                , mkGt eenv
                , mkEq eenv
@@ -260,6 +259,7 @@ reqNames (State { expr_env = eenv
           (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == structEqTC kv) 
           (toMap tc)
       )
+    ++ Lang.names (deepseq_walkers b)
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do
