@@ -47,7 +47,7 @@ reduceFuncCall share solver simplifier s bindings fc@(FuncCall { arguments = ars
                                     (SomeReducer (StdRed share solver simplifier))
                                     (SomeHalter SWHNFHalter)
                                     (SomeOrderer NextOrderer)
-                                    solver simplifier [] s' bindings
+                                    solver simplifier emptyMemConfig s' bindings
 
                         case er of
                             [er'] -> do

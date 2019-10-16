@@ -32,7 +32,7 @@ checkCounterexample exg2 ghci config cex@(FuncCall {funcName = n}) = do
     (fsl, b) <- runG2WithSomes (SomeReducer (StdRed share solver simplifier ))
                               (SomeHalter SWHNFHalter)
                               (SomeOrderer NextOrderer)
-                              solver simplifier [] s' bindings
+                              solver simplifier emptyMemConfig s' bindings
 
     close solver
 

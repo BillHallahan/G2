@@ -224,7 +224,7 @@ runExecutionQ s b config = do
     let simplifier = ADTSimplifier arbValueInfinite
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-            let (s'', b'') = runG2Pre [] s' b'
+            let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal :<~> ZeroHalter 2000 :<~> LemmingsHalter
             (xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
 

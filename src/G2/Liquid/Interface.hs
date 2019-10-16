@@ -39,6 +39,7 @@ import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Control.Exception
 import Data.List
+import qualified Data.HashSet as S
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
@@ -112,7 +113,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    solver simplifier (pres_names ++ names annm) final_st bindings
+                    solver simplifier (addSearchNames (names annm) pres_names) final_st bindings
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
@@ -127,7 +128,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                         :<~> SwitchEveryNHalter (switch_after config)
                         :<~> AcceptHalter))
                     (SomeOrderer limOrd)
-                    solver simplifier (pres_names ++ names annm) final_st bindings
+                    solver simplifier (addSearchNames (names annm) pres_names) final_st bindings
     
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -160,7 +161,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
 liquidState :: T.Text -> (Maybe T.Text, ExtractedG2)
                       -> [GhcInfo]
                       -> Config
-                      -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, [Name])
+                      -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, MemConfig)
 liquidState entry (mb_modname, exg2) ghci config = do
     let (init_state, ifi, bindings) = initState exg2 True entry mb_modname (mkCurrExpr Nothing Nothing) config
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state bindings) init_state bindings)
@@ -185,7 +186,7 @@ liquidState entry (mb_modname, exg2) ghci config = do
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
 
-    let pres_names = reqNames merged_state' bindings ++ names tcv ++ names mkv
+    let pres_names = addSearchNames (names tcv ++ names mkv) $ reqNames merged_state' bindings
 
     let annm = annots merged_state
 
@@ -229,37 +230,44 @@ initializeLH counter ghcInfos ifi bindings = do
 
     return cfn
 
-reqNames :: State t -> Bindings -> [Name]
+reqNames :: State t -> Bindings -> MemConfig
 reqNames (State { expr_env = eenv
                 , type_classes = tc
-                , known_values = kv}) b = 
-    Lang.names [ mkGe eenv
-               , mkGt eenv
-               , mkEq eenv
-               , mkNeq eenv
-               , mkLt eenv
-               , mkLe eenv
-               , mkAnd eenv
-               , mkOr eenv
-               , mkNot eenv
-               , mkPlus eenv
-               , mkMinus eenv
-               , mkMult eenv
-               -- , mkDiv eenv
-               , mkMod eenv
-               , mkNegate eenv
-               , mkImplies eenv
-               , mkIff eenv
-               , mkFromInteger eenv
-               -- , mkToInteger eenv
-               ]
-    ++
-    Lang.names 
-      (M.filterWithKey 
-          (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == structEqTC kv) 
-          (toMap tc)
-      )
-    ++ Lang.names (deepseq_walkers b)
+                , known_values = kv}) b =
+    let ns = Lang.names
+                   [ mkGe eenv
+                   , mkGt eenv
+                   , mkEq eenv
+                   , mkNeq eenv
+                   , mkLt eenv
+                   , mkLe eenv
+                   , mkAnd eenv
+                   , mkOr eenv
+                   , mkNot eenv
+                   , mkPlus eenv
+                   , mkMinus eenv
+                   , mkMult eenv
+                   -- , mkDiv eenv
+                   , mkMod eenv
+                   , mkNegate eenv
+                   , mkImplies eenv
+                   , mkIff eenv
+                   , mkFromInteger eenv
+                   -- , mkToInteger eenv
+                   ]
+          ++
+          Lang.names 
+            (M.filterWithKey 
+                (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == structEqTC kv) 
+                (toMap tc)
+            )
+    in
+    MemConfig { search_names = ns
+              , pres_func = pf }
+    where
+        pf e (Bindings { deepseq_walkers = dsw }) a =
+            S.fromList . map idName . M.elems $ M.filterWithKey (\n _ -> n `S.member` a) dsw
+
 
 pprint :: (Var, LocSpecType) -> IO ()
 pprint (v, r) = do

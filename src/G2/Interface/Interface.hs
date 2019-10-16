@@ -297,7 +297,7 @@ runG2WithConfig state config bindings = do
 
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
-                    runG2WithSomes red hal ord solver simplifier [] state bindings
+                    runG2WithSomes red hal ord solver simplifier emptyMemConfig state bindings
 
     close solver
 
@@ -313,21 +313,22 @@ runG2WithSomes :: ( Named t
                -> (SomeOrderer t)
                -> solver
                -> simplifier
-               -> [Name]
+               -> MemConfig
                -> State t
                -> Bindings
                -> IO ([ExecRes t], Bindings)
-runG2WithSomes red hal ord solver simplifier pns state bindings =
+runG2WithSomes red hal ord solver simplifier mem state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-            runG2 red' hal' ord' solver simplifier pns state bindings
+            runG2 red' hal' ord' solver simplifier mem state bindings
 
 runG2Pre :: ( Named t
             , ASTContainer t Expr
-            , ASTContainer t Type) => [Name] -> State t -> Bindings -> (State t, Bindings)
-runG2Pre pns s@(State { known_values = kv, type_classes = tc }) bindings =
+            , ASTContainer t Type) => MemConfig -> State t -> Bindings -> (State t, Bindings)
+runG2Pre mem s@(State { known_values = kv, type_classes = tc }) bindings =
     let
-        (swept, bindings') = markAndSweepPreserving (pns ++ names (lookupStructEqDicts kv tc)) s bindings
+        (swept, bindings') = markAndSweepPreserving
+                              ( names (lookupStructEqDicts kv tc)`addSearchNames` mem) s bindings
     in
     runPreprocessing swept bindings'
 
@@ -353,9 +354,9 @@ runG2ThroughExecution ::
     , Reducer r rv t
     , Halter h hv t
     , Orderer or sov b t) => r -> h -> or ->
-    [Name] -> State t -> Bindings -> IO ([State t], Bindings)
-runG2ThroughExecution red hal ord pns is bindings = do
-    let (is', bindings') = runG2Pre pns is bindings
+    MemConfig -> State t -> Bindings -> IO ([State t], Bindings)
+runG2ThroughExecution red hal ord mem is bindings = do
+    let (is', bindings') = runG2Pre mem is bindings
     runExecution red hal ord is' bindings'
 
 runG2Solving :: ( Named t
@@ -401,9 +402,9 @@ runG2 :: ( Named t
          , Orderer or sov b t
          , Solver solver
          , Simplifier simplifier) => r -> h -> or ->
-         solver -> simplifier -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-runG2 red hal ord solver simplifier pns is bindings = do
-    (exec_states, bindings') <- runG2ThroughExecution red hal ord pns is bindings
+         solver -> simplifier -> MemConfig -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+runG2 red hal ord solver simplifier mem is bindings = do
+    (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
     sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
 
     return (catMaybes sol_states, bindings')
