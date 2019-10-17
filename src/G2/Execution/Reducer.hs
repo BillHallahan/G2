@@ -26,6 +26,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , NonRedPCRed (..)
                             , TaggerRed (..)
                             , Logger (..)
+                            , LimLogger (..)
 
                             , (<~)
                             , (<~?)
@@ -388,6 +389,33 @@ instance Reducer Logger [Int] t where
     
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
+-- | A Reducer to producer limited logging output.
+data LimLogger =
+    LimLogger { every_n :: Int -- Output a state every n steps
+              , down_path :: [Int] -- Output states that have gone down the given path prefix
+              , output_path :: String
+              }
+
+data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
+
+instance Reducer LimLogger LLTracker t where
+    initReducer ll _ =
+        LLTracker { ll_count = every_n ll, ll_offset = []}
+
+    redRules ll@(LimLogger { down_path = down })
+            llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
+        | down `L.isPrefixOf` off = do
+            outputState (output_path ll) off s b
+            return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
+        | otherwise =
+            return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
+    redRules ll llt@(LLTracker {ll_count = n}) s b =
+        return (NoProgress, [(s, llt { ll_count = n - 1 })], b, ll)
+    
+    updateWithAll _ [(_, l)] = [l]
+    updateWithAll _ ss =
+        map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
 
 outputState :: String -> [Int] -> State t -> Bindings -> IO ()
 outputState fdn is s b = do

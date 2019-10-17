@@ -261,6 +261,7 @@ liquidTests = return . testGroup "Liquid" =<< sequence
             -> n == "g"
                 && isInt i (\i' -> i' `mod` 2 == 0  &&
                                     isInt r (\r' -> isInt fcr (\fcr' -> r' == i' + fcr')))]
+    , checkAbsLiquid "tests/Liquid/AddToEven4.hs" "f" 2000 1 [ AtLeast 1]
 
     , checkLiquid "tests/Liquid/ListTests.lhs" "r" 1000 1 [Exactly 0]
     , checkLiquid "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]
