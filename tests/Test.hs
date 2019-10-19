@@ -294,6 +294,8 @@ liquidTests = return . testGroup "Liquid" =<< sequence
         [ AtLeast 1
         , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "f") ]
     , checkAbsLiquid "tests/Liquid/AbsTypeClassVerified.hs" "callF" 10000 1 [ Exactly 0 ]
+
+    , checkLiquid "tests/Liquid/Tree.hs" "sumPosTree" 1000 2 [AtLeast 1]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

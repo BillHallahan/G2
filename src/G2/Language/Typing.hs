@@ -48,6 +48,7 @@ module G2.Language.Typing
     , polyIds
     , splitTyForAlls
     , splitTyFuns
+    , retypeSelective
     , retype
     , mapInTyForAlls
     , inTyForAlls
@@ -239,6 +240,17 @@ newtype PresType = PresType Type deriving (Show, Read)
 instance Typed PresType where
     typeOf' _ (PresType t) = t
 
+-- | Retypes Types in Vars, Type Expr's, Coercions, and Casts
+retypeSelective :: (ASTContainer m Expr, Show m) => Id -> Type -> m -> m
+retypeSelective key new e = modifyASTs (retypeSelective' key new) $ e
+
+retypeSelective' :: Id -> Type -> Expr -> Expr
+retypeSelective' i t (Var v) = Var (retype i t v)
+retypeSelective' i t (Type t') = Type (retype' i t t')
+retypeSelective' i t (Cast e c) = Cast e (retype i t c)
+retypeSelective' i t (Coercion c) = Coercion (retype i t c)
+retypeSelective' _ _ e = e
+
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a
 -- match on the target key that we want to replace.
@@ -247,10 +259,6 @@ retype key new e = modifyContainedASTs (retype' key new) $ e
 
 retype' :: Id -> Type -> Type -> Type
 retype' key new (TyVar test) = if key == test then new else TyVar test
-retype' key new (TyForAll (NamedTyBndr nid) ty) =
-  if key == nid
-    then modifyChildren (retype' key new) ty
-    else TyForAll (NamedTyBndr nid) (modifyChildren (retype' key new) ty)
 retype' key new ty = modifyChildren (retype' key new) ty
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t

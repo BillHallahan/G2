@@ -6,6 +6,7 @@ import G2.Language.Naming
 import G2.Language.Syntax as G2
 import G2.Language.Typing
 import G2.Liquid.Inference.FuncConstraint
+import G2.Liquid.Inference.PolyRef
 
 import Sygus.LexSygus
 import Sygus.ParseSygus
@@ -26,6 +27,8 @@ import qualified System.Process as P
 
 refSynth :: SpecType -> [FuncConstraint] -> IO LH.Expr
 refSynth spec fc = do
+    putStrLn $ "extractPolyBound fc = " ++ show (extractPolyBound fc)
+
     let sygus = printSygus $ sygusCall fc
 
     res <- try (
