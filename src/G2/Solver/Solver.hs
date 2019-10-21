@@ -20,6 +20,8 @@ import qualified G2.Language.PathConds as PC
 import Data.List
 import qualified Data.Map as M
 
+import Debug.Trace
+
 -- | The result of a Solver query
 data Result = SAT
             | UNSAT

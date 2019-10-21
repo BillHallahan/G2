@@ -393,6 +393,7 @@ instance Reducer Logger [Int] t where
 -- | A Reducer to producer limited logging output.
 data LimLogger =
     LimLogger { every_n :: Int -- Output a state every n steps
+              , after_n :: Int -- Only begin outputing after passing a certain n
               , down_path :: [Int] -- Output states that have gone down the given path prefix
               , output_path :: String
               }
@@ -403,9 +404,10 @@ instance Reducer LimLogger LLTracker t where
     initReducer ll _ =
         LLTracker { ll_count = every_n ll, ll_offset = []}
 
-    redRules ll@(LimLogger { down_path = down })
+    redRules ll@(LimLogger { after_n = aft, down_path = down })
             llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
-        | down `L.isPrefixOf` off = do
+        | down `L.isPrefixOf` off
+        , length (rules s) >= aft = do
             outputState (output_path ll) off s b
             return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
         | otherwise =

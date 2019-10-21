@@ -177,6 +177,7 @@ evalApp s@(State { expr_env = eenv
         , [s { expr_env = E.insert (idName i1) v2 eenv
              , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng)
+    | ac@(Prim Error _) <- appCenter e1 = (RuleError, [s { curr_expr = CurrExpr Return ac }], ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
         , [s { curr_expr = CurrExpr Return (App e1 e2) }]
@@ -395,7 +396,7 @@ matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
 
 liftCaseBinds :: [(Id, Expr)] -> Expr -> Expr
 liftCaseBinds [] expr = expr
-liftCaseBinds ((b, e):xs) expr = liftCaseBinds xs $ replaceASTs (Var b) e expr
+liftCaseBinds ((b, e):xs) expr = liftCaseBinds xs $ replaceVar (idName b) e expr
 
 -- | `DataCon` `Alt`s.
 dataAlts :: [Alt] -> [(DataCon, [Id], Expr)]

@@ -22,7 +22,7 @@ import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Liquid.Measures
-import G2.Liquid.ReduceAbstracted
+import G2.Liquid.ReduceCalls
 import G2.Liquid.Simplify
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCGen
@@ -137,7 +137,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
     let ret' = filter (\(ExecRes {final_state = s}) -> mi == (length $ abstract_calls $ track s)) ret
 
     -- let ret'' = ret'
-    ret'' <- mapM (reduceAbstracted config final_bindings) ret'
+    ret'' <- mapM (reduceCalls config final_bindings) ret'
 
     let exec_res = 
                 map (\(ExecRes { final_state = s

@@ -22,6 +22,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                                   , mkGeIntExpr
                                   , mkLeIntExpr
                                   , mkAndExpr
+                                  , replaceVar
                                   , getFuncCalls
                                   , getFuncCallsRHS
                                   , modifyAppTop
@@ -139,6 +140,14 @@ mkLeIntExpr kv e num = App (App le e) (Lit (LitInt num))
 mkAndExpr :: KnownValues -> Expr -> Expr -> Expr
 mkAndExpr kv e1 e2 = App (App andEx e1) e2
     where andEx = mkAndPrim kv
+
+replaceVar :: ASTContainer m Expr => Name -> Expr -> m -> m
+replaceVar n e = modifyASTs (replaceVar' n e)
+
+replaceVar' :: Name -> Expr -> Expr -> Expr
+replaceVar' n e v@(Var (Id n' _)) =
+    if n == n' then e else v
+replaceVar' _ _ e = e
 
 getFuncCalls :: ASTContainer m Expr => m -> [Expr]
 getFuncCalls = evalContainedASTs getFuncCalls'

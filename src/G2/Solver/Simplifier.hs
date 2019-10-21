@@ -88,21 +88,30 @@ fromNum' eenv tenv adtIntMaps smplfd avf b n val
                 else dc
             (_, bi) = fromJust $ getCastedAlgDataTy tCast tenv
             ts2 = map snd bi
+
             -- We map names over the arguments of a DataCon, to make sure we have the correct number of undefined's.
-            ts'' = case exprInCasts dc' of
+            anon_ts = case concTypes (exprInCasts dc') ts2 of
                 Data (DataCon _ ts') -> anonArgumentTypes $ PresType ts'
                 _ -> [] -- [Name "b" Nothing 0 Nothing]
 
-            (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) ts'') (name_gen b)
+            (ns, _) = childrenNames n (map (const $ Name "a" Nothing 0 Nothing) anon_ts) (name_gen b)
 
             (_, vs) = mapAccumL (\av_ (n', t') ->
                     case E.lookup n' eenv of
                         Just e -> (av_, e)
-                        Nothing -> swap $ avf t' tenv av_) (arb_value_gen b) $ zip ns ts''
+                        Nothing -> swap $ avf t' tenv av_) (arb_value_gen b) $ zip ns anon_ts
 
             dc'' = mkApp $ dc' : map Type ts2 ++ vs
-        in liftCasts dc''
+        in
+        liftCasts dc''
     | otherwise = val -- Either primitive value, arbitrary generated value, or value from ExprEnv. Keep current value
+
+concTypes :: Expr -> [Type] -> Expr
+concTypes e ts = concTypes' e (typeOf e) ts
+
+concTypes' :: Expr -> Type -> [Type] -> Expr
+concTypes' e (TyForAll (NamedTyBndr i) t) (ct:ts) = concTypes' (replaceASTs (TyVar i) ct e) t ts
+concTypes' e _ _ = e
 
 -- Lookup ADT and establish mapping between Data Constructors of an ADT and Integers
 mkDCNumMap :: TypeEnv -> Type -> Maybe DCNum

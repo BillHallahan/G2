@@ -97,7 +97,7 @@ library
                        , G2.Liquid.TCGen
                        , G2.Liquid.TCValues
                        , G2.Liquid.Types
-                       , G2.Liquid.ReduceAbstracted
+                       , G2.Liquid.ReduceCalls
                        , G2.Liquid.Inference.CheckCounterexample
                        , G2.Liquid.Inference.FuncConstraint
                        , G2.Liquid.Inference.Interface

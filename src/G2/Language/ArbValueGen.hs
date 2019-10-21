@@ -41,7 +41,7 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue = arbValue' getFiniteADT
+arbValue t = arbValue' getFiniteADT t
 
 -- | arbValue
 -- Allows the generation of arbitrary values of the given type.
@@ -50,7 +50,7 @@ arbValue = arbValue' getFiniteADT
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValueInfinite :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite = arbValue' getADT
+arbValueInfinite t = arbValue' getADT t
 
 arbValue' :: GetADT -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 arbValue' getADTF (TyFun t t') tenv av =

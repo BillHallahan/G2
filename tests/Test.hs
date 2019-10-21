@@ -296,6 +296,7 @@ liquidTests = return . testGroup "Liquid" =<< sequence
     , checkAbsLiquid "tests/Liquid/AbsTypeClassVerified.hs" "callF" 10000 1 [ Exactly 0 ]
 
     , checkLiquid "tests/Liquid/Tree.hs" "sumPosTree" 1000 2 [AtLeast 1]
+    , checkLiquid "tests/Liquid/Error4.hs" "extractRights" 1000 1 [AtLeast 1]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

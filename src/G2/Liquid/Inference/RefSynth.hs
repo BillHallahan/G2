@@ -27,7 +27,8 @@ import qualified System.Process as P
 
 refSynth :: SpecType -> [FuncConstraint] -> IO LH.Expr
 refSynth spec fc = do
-    putStrLn $ "extractPolyBound fc = " ++ show (extractPolyBound fc)
+    putStrLn $ "fc = " ++ show fc
+    putStrLn $ "extractPolyBound fc = " ++ show (map (map extractPolyBound . arguments . constraint) $ fc)
 
     let sygus = printSygus $ sygusCall fc
 
