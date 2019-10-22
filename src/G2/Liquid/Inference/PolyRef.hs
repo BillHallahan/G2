@@ -1,34 +1,74 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.PolyRef (extractPolyBound) where
 
 import G2.Language
 
+import qualified Data.HashMap.Lazy as HM
 import Data.List
-import qualified Data.Map as M
+import Data.Maybe
 import Debug.Trace
 
--- | Given an Apped Data Expr, extracts all arguments bound to polymorphic variables
-extractPolyBound :: Expr -> M.Map Name [Expr]
-extractPolyBound e
+import Debug.Trace
+
+extractPolyBound :: Expr -> HM.HashMap Id [Expr]
+extractPolyBound e = extractPolyBound' e
+
+extractPolyBound' :: Expr -> HM.HashMap Id [Expr]
+extractPolyBound' e
     | Data dc:es <- unApp e =
-        let
-            es' = filter (not . isType) es
-            
-            binds = zip (leadingTyForAllBindings dc) [1..]
-            arg_tys = argumentTypes . PresType . inTyForAlls $ typeOf dc
+    let
+        (tyses, es') = partition (isType) es
+        tyses' = map (\(Type t) -> t) tyses
 
-            (direct, m_indirect) = partition (isTyVar . fst) $ zip arg_tys es'
+        bound = leadingTyForAllBindings dc
+        bound_tyses = zip bound tyses'
+        argtys = argumentTypes . PresType . inTyForAlls $ typeOf dc
 
-            direct' = map (\(TyVar i, e) -> (idName i, [e])) direct
-            indirect = M.unionsWith (++) $ map (uncurry extractPolyBound')  m_indirect
-        in
+        argtys_es = zip argtys es'
 
-        M.unionWith (++) (M.fromListWith (++) direct') indirect
-    | otherwise = M.empty
+        (direct, indirect) = partition fstIsTyVar argtys_es
+        direct' =  mapMaybe fstMapTyVar direct
+        indirect' = map (uncurry substTypes) indirect
+
+        direct_hm = foldr (HM.unionWith (++)) HM.empty
+                        $ map (\(i, e) -> uncurry HM.singleton (i, e:[])) direct'
+    in
+    foldr (HM.unionWith (++)) direct_hm $ map (extractPolyBound' . adjustIndirectTypes) indirect'
+    | otherwise = HM.empty
     where
         isType (Type _) = True
         isType _ = False
 
-extractPolyBound' :: Type -> Expr -> M.Map Name [Expr]
-extractPolyBound' t e = extractPolyBound e
+        fstIsTyVar (TyVar _, _) = True
+        fstIsTyVar _ = False
+
+        fstMapTyVar (TyVar i, x) = Just (i, x)
+        fstMapTyVar _ = Nothing
+
+substTypes :: Type -> Expr -> Expr
+substTypes t e
+    | t':ts <- unTyApp t
+    , e':es <- unApp e =
+        mkApp $ e':substTypes' ts es
+
+substTypes' :: [Type] -> [Expr] -> [Expr]
+substTypes' (t:ts) (Type _:es) = Type t:substTypes' ts es
+substTypes' _ es = es
+
+adjustIndirectTypes :: Expr -> Expr
+adjustIndirectTypes e
+    | Data dc:es <- unApp e =
+        let
+            (tyses, es') = partition (isType) es
+            tyses' = map (\(Type t) -> t) tyses
+
+            bound = leadingTyForAllBindings dc
+            bound_tyses = zip bound tyses'
+        in
+        mkApp $ Data (foldr (uncurry retype) dc $ bound_tyses):es
+    | otherwise = e
+    where
+        isType (Type _) = True
+        isType _ = False
