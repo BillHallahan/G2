@@ -4,7 +4,8 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , FuncConstraints
                                           , emptyFC
                                           , insertFC
-                                          , lookupFC ) where
+                                          , lookupFC
+                                          , allFC ) where
 
 import G2.Language.AST
 import G2.Language.Syntax
@@ -32,6 +33,9 @@ lookupFC n = M.findWithDefault [] (zeroOutUnq n) . coerce
 
 zeroOutUnq :: Name -> Name
 zeroOutUnq (Name n m _ l) = Name n m 0 l
+
+allFC :: FuncConstraints -> [FuncConstraint]
+allFC = concat . M.elems . coerce
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs = containedASTs . constraint

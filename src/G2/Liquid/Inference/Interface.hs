@@ -3,8 +3,8 @@ module G2.Liquid.Inference.Interface (inference) where
 import G2.Config.Config as G2
 import G2.Language.Naming
 import G2.Language.Syntax
-import G2.Liquid.Inference.CheckCounterexample
 import G2.Liquid.Inference.FuncConstraint
+import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Helpers
 import G2.Liquid.Inference.RefSynth
 import G2.Liquid.Inference.GeneratedSpecs
@@ -65,7 +65,8 @@ inference' g2config lhconfig ghci exg2 gs fc = do
                         fc' = foldr insertFC fc new_fc'
 
                     -- Synthesize
-                    gs' <- foldM (synthesize ghci fc') gs new_fc_funcs
+                    meas_ex <- genMeasureExs exg2 merged_ghci g2config fc'
+                    gs' <- foldM (synthesize ghci meas_ex fc') gs new_fc_funcs
                     
                     inference' g2config lhconfig ghci exg2 gs' fc'
 
@@ -81,11 +82,18 @@ checkNewConstraints ghci exg2 g2config cexs = do
         res'@(_:_) -> return . Left $ res'
         _ -> return . Right . concat . rights $ res
 
-synthesize :: [GhcInfo] -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
-synthesize ghci fc gs n = do
+genMeasureExs :: (Maybe T.Text, ExtractedG2) -> [GhcInfo] -> G2.Config -> FuncConstraints -> IO MeasureExs
+genMeasureExs exg2 ghci g2config fcs =
+    let
+        es = concatMap (\fc -> returns (constraint fc):arguments (constraint fc)) (allFC fcs)
+    in
+    evalMeasures exg2 ghci g2config es
+
+synthesize :: [GhcInfo] -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
+synthesize ghci meas_ex fc gs n = do
     let fc_of_n = lookupFC n fc
         spec = fromJust $ findFuncSpec ghci n
-    new_spec <- refSynth spec fc_of_n
+    new_spec <- refSynth spec meas_ex fc_of_n
 
     putStrLn $ "spec = " ++ show spec
     putStrLn $ "new_spec = " ++ show new_spec

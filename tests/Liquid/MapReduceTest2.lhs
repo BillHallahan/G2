@@ -49,3 +49,14 @@ die str = error ("Oops, I died!" ++ str)
 
 \end{code}
 
+\begin{code}
+
+expand2   :: (Int -> List Int) -> List Int
+{-@ expand2  :: (Int -> List Int) -> List Int @-}
+expand2 f = concat2 (f 1 :+: Emp)
+
+concat2    :: List (List Int) -> List Int
+{-@ concat2 ::  x:List (List Int) -> {y:List Int| 0 = si x} @-}
+concat2 _ = Emp
+
+\end{code}

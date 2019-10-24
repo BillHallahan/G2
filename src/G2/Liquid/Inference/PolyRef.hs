@@ -12,10 +12,12 @@ import Debug.Trace
 
 import Debug.Trace
 
+-- | The subexpressions of an expression corresponding to the polymorphic
+-- arguments.  If a polymorphic argument is instantiated with a polymorphic
+-- type, these are nested recursively.
 data PolyBound = PolyBound [Expr] [PolyBound] deriving (Read, Show)
 
-
-extractPolyBound :: Expr -> [PolyBound] -- HM.HashMap Id [Expr]
+extractPolyBound :: Expr -> [PolyBound]
 extractPolyBound e
     | Data dc:_ <- unApp e =
         let
@@ -27,7 +29,6 @@ extractPolyBound e
         map (\es -> PolyBound es (mergePolyBound . transpose $ map extractPolyBound es)) bound_es
     | otherwise = []
 
-
 mergePolyBound :: [[PolyBound]] -> [PolyBound]
 mergePolyBound = mapMaybe (\pb -> case pb of
                                 (p:pbb) -> Just $ foldr mergePolyBound' p pbb
@@ -36,20 +37,6 @@ mergePolyBound = mapMaybe (\pb -> case pb of
 mergePolyBound' :: PolyBound -> PolyBound -> PolyBound
 mergePolyBound' (PolyBound es1 pb1) (PolyBound es2 pb2) =
     PolyBound (es1 ++ es2) (map (uncurry mergePolyBound') $ zip pb1 pb2)
-
--- extractPolyBound :: Expr -> [PolyBound] -- HM.HashMap Id [Expr]
--- extractPolyBound e
---     | Data dc:_ <- unApp e =
---         let
---             bound = leadingTyForAllBindings dc
---             m = extractPolyBound' e
-
---             bound_es = map (\i -> HM.lookupDefault [] i m) bound
---         in
---         map (\es -> PolyBound es (concatMap extractPolyBound es)) bound_es
---     | otherwise = []
-
-
 
 extractPolyBound' :: Expr -> HM.HashMap Id [Expr]
 extractPolyBound' e

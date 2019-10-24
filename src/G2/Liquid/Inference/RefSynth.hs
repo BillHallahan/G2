@@ -6,6 +6,7 @@ import G2.Language.Naming
 import G2.Language.Syntax as G2
 import G2.Language.Typing
 import G2.Liquid.Inference.FuncConstraint
+import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
 
 import Sygus.LexSygus
@@ -25,27 +26,15 @@ import System.IO
 import System.IO.Temp
 import qualified System.Process as P
 
-refSynth :: SpecType -> [FuncConstraint] -> IO LH.Expr
-refSynth spec fc = do
+refSynth :: SpecType -> MeasureExs -> [FuncConstraint] -> IO LH.Expr
+refSynth spec meas_ex fc = do
     putStrLn $ "fc = " ++ show fc
-    putStrLn $ "extractPolyBound fc = " ++ show (map (map extractPolyBound . arguments . constraint) $ fc)
+    putStrLn $ "extractPolyBound fc = "
+                ++ show (map (map extractPolyBound . arguments . constraint) $ fc)
 
     let sygus = printSygus $ sygusCall fc
 
-    res <- try (
-        withSystemTempFile ("cvc4_input.sy")
-        (\fp h -> do
-            hPutStr h (T.unpack sygus)
-            -- We call hFlush to prevent hPutStr from buffering
-            hFlush h
-
-            toCommandOSX <- findExecutable "gtimeout" 
-            let toCommand = case toCommandOSX of
-                    Just c -> c          -- Mac
-                    Nothing -> "timeout" -- Linux
-
-            P.readProcess toCommand ["10", "cvc4", fp, "--lang=sygus2"] "")
-        ) :: IO (Either SomeException String)
+    res <- runCVC4 $ T.unpack sygus
 
     case res of
         Left _ -> error "refSynth: Bad call to CVC4"
@@ -59,7 +48,7 @@ refSynth spec fc = do
             return lh_st
 
 -------------------------------
--- Calling Sygus
+-- Constructing Sygus Formula
 -------------------------------
 
 sygusCall :: [FuncConstraint] -> [Cmd]
@@ -211,3 +200,23 @@ reftSymbol = fst . unpackReft
 unpackReft :: Reft -> (LH.Symbol, LH.Expr) 
 unpackReft = coerce
 
+-------------------------------
+-- Calling SyGuS
+-------------------------------
+
+runCVC4 :: String -> IO (Either SomeException String)
+runCVC4 sygus =
+    try (
+        withSystemTempFile ("cvc4_input.sy")
+        (\fp h -> do
+            hPutStr h sygus
+            -- We call hFlush to prevent hPutStr from buffering
+            hFlush h
+
+            toCommandOSX <- findExecutable "gtimeout" 
+            let toCommand = case toCommandOSX of
+                    Just c -> c          -- Mac
+                    Nothing -> "timeout" -- Linux
+
+            P.readProcess toCommand ["10", "cvc4", fp, "--lang=sygus2"] "")
+        )

@@ -36,6 +36,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
 
@@ -321,7 +323,7 @@ convertLHExpr m bt _ (EApp e e') = do
     
     case (ctArgE, f_ar_ts) of
         (TyCon _ _, Just f_ar_ts') -> do
-            let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry (specializes M.empty)) $ zip ts f_ar_ts'
+            let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry specializes) $ zip ts f_ar_ts'
                 te = map Type specTo
 
             tcs <- mapM (lhTCDict m) ts

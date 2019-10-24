@@ -52,6 +52,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , lhModM
                        , lhFromIntegerM
                        , lhToIntegerM
+                       , lhNumTCM
                        , lhNumOrdM
 
                        , lhAndE

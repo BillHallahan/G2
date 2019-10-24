@@ -40,6 +40,7 @@ import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 import Control.Exception
 import Data.List
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
@@ -80,7 +81,7 @@ runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> Config
                     -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci config = do
-    (ifi, cfn, final_st, bindings, pres_names) <- liquidState entry (mb_modname, exg2) ghci config
+    (ifi, cfn, final_st, bindings, _, pres_names) <- liquidState entry (mb_modname, exg2) ghci config
     let annm = annotations $ track final_st
 
     SomeSolver solver <- initSolver config
@@ -161,7 +162,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
 liquidState :: T.Text -> (Maybe T.Text, ExtractedG2)
                       -> [GhcInfo]
                       -> Config
-                      -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, MemConfig)
+                      -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, MemConfig)
 liquidState entry (mb_modname, exg2) ghci config = do
     let (init_state, ifi, bindings) = initState exg2 True entry mb_modname (mkCurrExpr Nothing Nothing) config
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state bindings) init_state bindings)
@@ -202,7 +203,7 @@ liquidState entry (mb_modname, exg2) ghci config = do
     let final_st = track_state { known_values = mkv
                                , type_classes = unionTypeClasses mtc (type_classes track_state)}
 
-    return (ifi, cfn, final_st, bindings''', pres_names)
+    return (ifi, cfn, final_st, bindings''', measures merged_state, pres_names)
 
 initializeLH :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
 initializeLH counter ghcInfos ifi bindings = do
