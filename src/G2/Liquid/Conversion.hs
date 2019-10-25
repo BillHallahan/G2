@@ -538,11 +538,14 @@ convertEVar nm@(Name n md _ _) bt mt
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyCon n _)) (Ref.I i) = do
-    (TyCon ti _) <- tyIntT
-    dc <- mkDCIntE
-    if n == ti
-        then return $ App dc (Lit . LitInt $ fromIntegral i)
-        else error $ "Unknown Con" ++ show n
+    tyI <- tyIntT
+    case tyI of
+        TyCon ti _ -> do
+            dc <- mkDCIntE
+            if n == ti
+                then return $ App dc (Lit . LitInt $ fromIntegral i)
+                else error $ "Unknown Con" ++ show n
+        _ -> error "convertCon: Non-tyInt"
 convertCon _ (Ref.I i) = do
     dc <- mkDCIntegerE
     return $ App dc (Lit . LitInt $ fromIntegral i)
