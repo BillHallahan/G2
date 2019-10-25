@@ -31,6 +31,19 @@ productSumTest =
                 (Lt (I 0) (Var "x"))
 
 
+productSumAssertTest :: IO (Maybe Env)
+productSumAssertTest = assertViolation
+    [ If (Lt (I 0) (Var "x"))
+      [ Assert (Not
+                 (Eq
+                   (Mul (Var "x") (Var "y"))
+                   (Add (Var "x") (Var "y"))
+                 )
+               )
+      ]
+      []
+    ]
+
 assertViolationTest1 :: IO (Maybe Env)
 assertViolationTest1 = assertViolation
   [ Assert (Lt (I 5) (I 3)) ]
