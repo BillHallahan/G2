@@ -6,3 +6,7 @@ sumNonNeg = sumFst
 
 sumFst :: [(Int, Int)] -> Int
 sumFst = foldr (+) 0 . map fst
+
+{-@ len2 :: { xs:[Int] | len xs == 2 } @-}
+len2 :: [Int]
+len2 = [1, 2]

@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -9,6 +8,7 @@ import G2.Execution
 import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
+import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Solver
 
@@ -74,22 +74,6 @@ reduceFCExpr share reducer solver simplifier s bindings e
                 return ce
             _ -> error "reduceAbstracted: Bad reduction"
     | otherwise = return e 
-
--- The walk function takes lhDict arguments that are not correctly accounted for by mkStrict.
--- The arguments are not actually used, so, here, we fill them in with undefined. 
-fillLHDictArgs :: Walkers -> Expr -> Expr
-fillLHDictArgs w = modifyAppTop (fillLHDictArgs' w)
-
-fillLHDictArgs' :: Walkers -> Expr -> Expr
-fillLHDictArgs' w e
-    | f@(Var i):xs <- unApp e
-    , any (\(_, i') -> i == i') (M.toList w) = mkApp $ f:fillLHDictArgs'' 0 xs
-    | otherwise = e
-
-fillLHDictArgs'' :: Int -> [Expr] -> [Expr]
-fillLHDictArgs'' !n [] = replicate n (Prim Undefined TyBottom)
-fillLHDictArgs'' !n (t@(Type _):xs) = t:fillLHDictArgs'' (n + 1) xs
-fillLHDictArgs'' !n xs = replicate n (Prim Undefined TyBottom) ++ xs
 
 pickHead :: (ASTContainer m Expr) => m -> m
 pickHead = modifyASTs pickHead'

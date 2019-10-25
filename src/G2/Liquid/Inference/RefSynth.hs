@@ -19,6 +19,8 @@ import qualified Language.Fixpoint.Types as LH
 
 import Control.Exception
 import Data.Coerce
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Text as T
 import System.Directory
@@ -31,6 +33,9 @@ refSynth spec meas_ex fc = do
     putStrLn $ "fc = " ++ show fc
     putStrLn $ "extractPolyBound fc = "
                 ++ show (map (map extractPolyBound . arguments . constraint) $ fc)
+
+    putStrLn $ "meas_ex = " ++ show meas_ex
+    putStrLn $ "filtered meas_ex = " ++ show (filterMeasureExs meas_ex)
 
     let sygus = printSygus $ sygusCall fc
 
@@ -127,6 +132,28 @@ intSort = IdentSort (ISymb "Int")
 
 boolSort :: Sort
 boolSort = IdentSort (ISymb "Bool")
+
+-------------------------------
+-- Measures
+-------------------------------
+
+filterMeasureExs :: MeasureExs -> MeasureExs
+filterMeasureExs = filterErrors . filterNonPrimsMeasureExs
+
+filterErrors :: MeasureExs -> MeasureExs
+filterErrors = HM.filter (all (not . isErrorReturns) . HS.toList)
+
+filterNonPrimsMeasureExs :: MeasureExs -> MeasureExs
+filterNonPrimsMeasureExs = HM.filter (not . HS.null) . HM.map (HS.filter isPrimReturns)
+
+isPrimReturns :: MeasureEx -> Bool
+isPrimReturns (MeasureEx { meas_out = App (Data (DataCon n _)) _ }) = nameOcc n == "I#"
+isPrimReturns (MeasureEx { meas_out = Prim Error _ }) = True
+isPrimReturns _ = False
+
+isErrorReturns :: MeasureEx -> Bool
+isErrorReturns (MeasureEx { meas_out = Prim Error _ }) = True
+isErrorReturns _ = False
 
 -------------------------------
 -- Converting to refinement

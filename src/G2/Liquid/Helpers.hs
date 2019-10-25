@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 
 module G2.Liquid.Helpers ( getGHCInfos
@@ -5,9 +6,10 @@ module G2.Liquid.Helpers ( getGHCInfos
 						 , findFuncSpec
 						 , measureSpecs
 						 , varEqName
-						 , namesEq ) where
+						 , namesEq
+						 , fillLHDictArgs ) where
 
-import G2.Language.Syntax as G2
+import G2.Language as G2
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types hiding (Config, cls, names)
@@ -18,6 +20,7 @@ import qualified Language.Haskell.Liquid.UX.Config as LHC
 import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.List
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 import GHC as GHC
@@ -71,3 +74,19 @@ measureSpecs = concatMap (gsMeasures . gsData . giSpec)
 #else
 measureSpecs = concatMap (gsMeasures . spec)
 #endif
+
+-- The walk function takes lhDict arguments that are not correctly accounted for by mkStrict.
+-- The arguments are not actually used, so, here, we fill them in with undefined. 
+fillLHDictArgs :: Walkers -> Expr -> Expr
+fillLHDictArgs w = modifyAppTop (fillLHDictArgs' w)
+
+fillLHDictArgs' :: Walkers -> Expr -> Expr
+fillLHDictArgs' w e
+    | f@(Var i):xs <- unApp e
+    , any (\(_, i') -> i == i') (M.toList w) = mkApp $ f:fillLHDictArgs'' 0 xs
+    | otherwise = e
+
+fillLHDictArgs'' :: Int -> [Expr] -> [Expr]
+fillLHDictArgs'' !n [] = replicate n (Prim Undefined TyBottom)
+fillLHDictArgs'' !n (t@(Type _):xs) = t:fillLHDictArgs'' (n + 1) xs
+fillLHDictArgs'' !n xs = replicate n (Prim Undefined TyBottom) ++ xs
