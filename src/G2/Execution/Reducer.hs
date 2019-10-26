@@ -941,19 +941,19 @@ numStates = sum . map length . M.elems
 
 --------------------------------------------------------------------------------------------------------------------------------------
 
-runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => r -> h -> simplifier -> State t -> Bindings
                  -> IO ([State t], Bindings)
 runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s {merge_stack = [0]}, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-        workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph addIdxFunc
+        workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph addIdxFunc logState
     (_, (_, _, _, b', pr')) <- WG.work workGraph
     res <- mapM (\ExState {state = st} -> return st) (accepted pr')
     return (res, b')
 
 -- | work_func for WorkGraph. Reduces the ExState `exS` and returns the reduceds along with the appropriate Status
-runReducerMerge' :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+runReducerMerge' :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => ExState rv hv sov t
                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
                  -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), WG.Status)
@@ -1033,3 +1033,7 @@ mergeStates' ex1 ex2 b simplifier =
 -- add_idx_func for workGraph
 addIdxFunc :: Int -> ExState rv hv sov t -> ExState rv hv sov t
 addIdxFunc newIdx exS@(ExState {state = st@(State {merge_stack = ms})}) = exS {state = st { merge_stack = newIdx:ms } }
+
+-- function for Logger in workGraph that outputs curr_expr
+logState :: Show t => ExState rv hv sov t -> String
+logState (ExState { state = (State {curr_expr = ce}) }) = show ce

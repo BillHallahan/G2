@@ -30,32 +30,32 @@ function test {
 	  		not_validated+=($1)
 		fi
 	else
-        echo "$Test: " >> ./Profiling/NumStates/"numStatesLog"
-		cabal run G2 $TestsDir/$2 $3 -- --n $4 $5 --merge-states --log-states blahblah | wc -l >> ./Profiling/NumStates/"numStatesLog"
+		cabal run G2 $TestsDir/$2 $3 -- --n $4 $5 --merge-states
+        #echo "$Test: " >> ./Profiling/NumStates/"numStatesLog"
+		#cabal run G2 $TestsDir/$2 $3 -- --n $4 $5 --merge-states --log-states blahblah | wc -l >> ./Profiling/NumStates/"numStatesLog"
 	fi
 
 	cp G2.prof "$ProfilesDir"/"$Test".prof
 
 }
 
-<<COMMENT
+<<COMPRESS
 test "compress" "MiscOrganized.hs" "compress" "100"
 test "compress" "MiscOrganized.hs" "compress" "200"
 test "compress" "MiscOrganized.hs" "compress" "300"
 test "compress" "MiscOrganized.hs" "compress" "350"
 test "compress" "MiscOrganized.hs" "compress" "380"
-COMMENT
+COMPRESS
 
-#<<SUBSEQOFTEST
+<<SUBSEQOFTEST
 test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "100"
 test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "200"
 test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "300"
 test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "350"
 test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "400"
 test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "450"
-#SUBSEQOFTEST
+SUBSEQOFTEST
 
-<<COMMENT
 test "reverse" "MiscOrganized.hs" "reverse'" "1000"
 
 # Test="reverse"
@@ -182,7 +182,6 @@ test "buried_add" "ManyPathsOneDataCon.hs" "add" "3000"
 # echo "$Test"
 # cabal run G2 "$TestsDir"/ManyPathsOneDataCon.hs add -- --n 3000 --merge-states
 # cp G2.prof "$ProfilesDir"/"$Test".prof
-COMMENT
 
 echo "Validated:"
 printf "%s\n" "${validated[@]}"

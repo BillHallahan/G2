@@ -18,7 +18,7 @@ runExecutionToProcessed :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) =
 runExecutionToProcessed = runReducer
 
 {-# INLINE runExecution #-}
-runExecution :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Orderer or sov b t, Simplifier simplifier)
+runExecution :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Orderer or sov b t, Simplifier simplifier)
                 => r -> h -> or -> simplifier -> Merging -> State t -> Bindings -> IO ([State t], Bindings)
 runExecution red hal ord simplifier mergeStates s b =
     case mergeStates of

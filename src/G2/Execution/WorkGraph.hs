@@ -21,25 +21,28 @@ data WorkGraph a b = WorkGraph { wPlan :: WorkPlan -- ^ Sequence of indices that
                                , add_idx_func :: Int -> a -> a -- ^ Function that adds index of object in the wMap to the object itself
                                , curr_idx :: Int
                                , max_idx :: Int -- ^ Used to ensure any new index generated is fresh
-                               , context :: b } -- ^ Any additional value that needs to maintain state between calls to merge_func or work_func
+                               , context :: b -- ^ Any additional value that needs to maintain state between calls to merge_func or work_func
+                               , logger :: Logger a } -- ^ Outputs String representation of Work if needed for debugging
 
 initGraph :: a -> b
           -> (a -> b -> IO ([a], b, Status))
           -> (S.Seq a -> S.Seq a -> b -> (S.Seq a, S.Seq a, Maybe Int, b))
           -> (Int -> a -> a)
+          -> (a -> String)
           -> WorkGraph a b
-initGraph fstWork ctxt workFunc mergeFunc addIdxFunc =
+initGraph fstWork ctxt workFn mergeFn addIdxFn logWorkFn =
     let workMap = HM.singleton 0 (S.singleton fstWork, S.empty, S.empty)
         workPlan = S.singleton 0
     in WorkGraph {
           wPlan = workPlan
         , wMap = workMap
-        , work_func = workFunc
-        , merge_func = mergeFunc
-        , add_idx_func = addIdxFunc
+        , work_func = workFn
+        , merge_func = mergeFn
+        , add_idx_func = addIdxFn
         , curr_idx = 0
         , max_idx = 0
-        , context = ctxt }
+        , context = ctxt
+        , logger = Logger logWorkFn 0 }
 
 
 -- | Runs WorkGraph until workMap is empty and all objects have status `Accept` or `Discard`
@@ -58,9 +61,11 @@ work' wGraph@(WorkGraph {
     , max_idx = maxIdx
     , curr_idx = idx
     , add_idx_func = addIdx
-    , context = ctxt}) a accepted = do
+    , context = ctxt
+    , logger = l }) a accepted = do
+    -- l' <- outputLog l
     (as, ctxt', status) <- workFunc a ctxt
-    let wGraph' = wGraph { context = ctxt' }
+    let wGraph' = wGraph { context = ctxt', logger = l }
     let (accepted', wGraph'') = case status of
             Accept -> (as ++ accepted, wGraph')
             Discard -> (accepted, wGraph')
@@ -156,8 +161,8 @@ switchIdx wGraph@(WorkGraph { wMap = workMap, wPlan = workPlan, merge_func = mer
         (workNeededNew, workSatNew, mergeableNew) = maybe (S.empty, S.empty, S.empty) (\newIdx ->
             maybe (S.empty, S.empty, S.empty) id (HM.lookup newIdx workMap)) maybeNewIdx
         workNeededNew' = workNeededNew S.>< merged -- if merged is not null, it is guaranteed that maybeNewIdx is not Nothing
-        workMap' = maybe workMap (\newIdx ->
-            HM.insert idx (workNeeded, S.empty, S.empty) $ HM.insert newIdx (workNeededNew', workSatNew, mergeableNew) workMap) maybeNewIdx
+        workMap' = HM.insert idx (workNeeded, S.empty, S.empty) $ maybe workMap (\newIdx ->
+            HM.insert newIdx (workNeededNew', workSatNew, mergeableNew) workMap) maybeNewIdx
 
     in case workPlan''' of -- Check if there is an index to switch to
         (i S.:<| _) -> (False, wGraph { wMap = workMap', wPlan = workPlan''', curr_idx = i, context = ctxt' })
@@ -173,3 +178,11 @@ switchIdxNoMerge wGraph@(WorkGraph { wMap = workMap, wPlan = workPlan })
         in (Just x, wGraph { wMap = workMap' })
     | (_ S.:<| xs@(x S.:<| _)) <- workPlan = pickWork' (wGraph { wPlan = xs, curr_idx = x}) -- result of split has no reduceds,back to parent
     | otherwise = (Nothing, wGraph)
+
+-- Prints string representation of work and increments a count when outputLog is called
+data Logger a = Logger (a -> String) Int
+
+outputLog :: Logger a -> a -> IO (Logger a)
+outputLog (Logger logFn i) a = do
+    print $ "Num: " ++ show i ++ (logFn a)
+    return (Logger logFn (i + 1))

@@ -308,6 +308,7 @@ runG2WithConfig state config bindings = do
 
 runG2WithSomes :: ( Named t
                   , Eq t
+                  , Show t
                   , ASTContainer t Expr
                   , ASTContainer t Type
                   , Solver solver
@@ -338,6 +339,7 @@ runG2Pre pns s@(State { known_values = kv, type_classes = tc }) bindings =
 
 runG2Post :: ( Named t
              , Eq t
+             , Show t
              , ASTContainer t Expr
              , ASTContainer t Type
              , Reducer r rv t
@@ -355,6 +357,7 @@ runG2Post red hal ord solver simplifier is bindings mergeStates = do
 runG2ThroughExecution ::
     ( Named t
     , Eq t
+    , Show t
     , ASTContainer t Expr
     , ASTContainer t Type
     , Reducer r rv t
@@ -404,6 +407,7 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
 -- and states that have only been partially executed.
 runG2 :: ( Named t
          , Eq t
+         , Show t
          , ASTContainer t Expr
          , ASTContainer t Type
          , Reducer r rv t
