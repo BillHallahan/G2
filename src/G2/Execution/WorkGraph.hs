@@ -63,7 +63,7 @@ work' wGraph@(WorkGraph {
     , add_idx_func = addIdx
     , context = ctxt
     , logger = l }) a accepted = do
-    -- l' <- outputLog l
+    -- l' <- outputLog l a
     (as, ctxt', status) <- workFunc a ctxt
     let wGraph' = wGraph { context = ctxt', logger = l }
     let (accepted', wGraph'') = case status of

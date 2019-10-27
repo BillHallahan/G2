@@ -64,7 +64,7 @@ test "reverse" "MiscOrganized.hs" "reverse'" "1000"
 # cabal run G2 "$TestsDir"/MiscOrganized.hs reverse\' -- --n 1000 --merge-states --validate
 # cp G2.prof "$ProfilesDir"/"$Test".prof
 
-#test "compress" "MiscOrganized.hs" "compress" "1000"
+test "compress" "MiscOrganized.hs" "compress" "350"
 
 # Test="compress"
 # echo "-----"
@@ -89,6 +89,7 @@ test "Peano_add_assert_equalsFour_assume_multiplyToFour" "Peano.hs" "add" "1500"
 # cp G2.prof "$ProfilesDir"/"$Test".prof
 
 #test "Peano_add_assert_fstIsTwo_assume_fstIsEvenAddToFour" "Peano.hs" "add" "2500" "--assume fstIsEvenAddToFour --assert fstIsTwo"
+test "Peano_add_assert_fstIsTwo_assume_fstIsEvenAddToFour" "Peano.hs" "add" "1000" "--assume fstIsEvenAddToFour --assert fstIsTwo"
 
 # Test="Peano_add_assert_fstIsTwo_assume_fstIsEvenAddToFour"
 # echo "-----"
@@ -130,8 +131,7 @@ test "lastSums" "ManyPathsOneDataCon.hs" "lastSums" "2000"
 # cabal run G2 "$TestsDir"/ManyPathsOneDataCon.hs lastSums -- --n 2000 --merge-states
 # cp G2.prof "$ProfilesDir"/"$Test".prof
 
-#test "maybeLastSnd" "ManyPathsOneDataCon.hs" "maybeLastSnd" "1000"
-# problem even with 100
+test "maybeLastSnd" "ManyPathsOneDataCon.hs" "maybeLastSnd" "1000"
 
 # Test="maybeLastSnd"
 # echo "-----"
@@ -158,7 +158,7 @@ test "foldrTest" "ManyPathsOneDataCon.hs" "foldrTest" "1000"
 # cp G2.prof "$ProfilesDir"/"$Test".prof
 
 #test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "900"
-test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "300"
+test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "500"
 
 # Test="subseqOfTest"
 # echo "-----"
@@ -167,7 +167,7 @@ test "subseqOfTest" "ManyPathsOneDataCon.hs" "subseqOfTest" "300"
 # cp G2.prof "$ProfilesDir"/"$Test".prof
 
 #test "filter_sumEvens" "ManyPathsOneDataCon.hs" "sumEvens" "2000"
-test "filter_sumEvens" "ManyPathsOneDataCon.hs" "sumEvens" "1500"
+test "filter_sumEvens" "ManyPathsOneDataCon.hs" "sumEvens" "2000"
 
 # Test="filter_sumEvens"
 # echo "-----"
