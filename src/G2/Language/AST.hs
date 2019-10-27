@@ -24,6 +24,7 @@ module G2.Language.AST
     , evalASTsMonoid
     , evalContainedASTs
     , replaceASTs
+    , replaceASTsShallow
     ) where
 
 import G2.Language.Syntax
@@ -463,8 +464,7 @@ instance ASTContainer AlgDataTy DataCon where
 -- AST Helper functions
 -- ====== --
 
--- | replaceASTs
--- Replaces all instances of old with new in the ASTContainer
+-- | Replaces all instances of old with new in the ASTContainer
 replaceASTs :: (Eq e, ASTContainer c e) => e -> e -> c -> c
 replaceASTs old new = modifyContainedASTs (replaceASTs' old new)
 
@@ -473,3 +473,8 @@ replaceASTs' old new e = if e == old then new else modifyChildren (replaceASTs' 
 
 
 
+replaceASTsShallow :: (Eq e, ASTContainer c e) => e -> e -> c -> c
+replaceASTsShallow old new = modifyContainedASTs (replaceASTsShallow' old new)
+
+replaceASTsShallow' :: (Eq e, AST e) => e -> e -> e -> e
+replaceASTsShallow' old new e = if e == old then new else e

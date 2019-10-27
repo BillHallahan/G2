@@ -1,10 +1,14 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.G2Calls ( MeasureExs
-                                   , MeasureEx (..)
+                                   , GMeasureExs
+                                   , MeasureEx
+                                   , GMeasureEx (..)
                                    , checkCounterexample
                                    , evalMeasures) where
 
@@ -83,12 +87,21 @@ toJustSpec _ _ _ = error "toJustSpec: ill-formed state"
 -------------------------------
 -- Evaluate all relevant measures on a given expression
 
-type MeasureExs = HM.HashMap Name (HS.HashSet MeasureEx)
-data MeasureEx = MeasureEx { meas_in :: Expr
-                           , meas_out :: Expr }
-                           deriving (Show, Read, Eq, Generic, Typeable, Data)
+type MeasureExs = GMeasureExs Expr
+type GMeasureExs e = HM.HashMap Name (HS.HashSet (GMeasureEx e))
 
-instance Hashable MeasureEx
+
+type MeasureEx = GMeasureEx Expr
+data GMeasureEx e = MeasureEx { meas_in :: e
+                              , meas_out :: e }
+                              deriving (Show, Read, Eq, Generic, Typeable, Data)
+
+instance Hashable e => Hashable (GMeasureEx e)
+
+instance AST e => ASTContainer (GMeasureEx e) e where
+    containedASTs (MeasureEx { meas_in = m_in, meas_out = m_out }) = [m_in, m_out]
+    modifyContainedASTs f (MeasureEx { meas_in = m_in, meas_out = m_out }) =
+        MeasureEx { meas_in = f m_in, meas_out = f m_out }
 
 evalMeasures :: (Maybe T.Text, ExtractedG2) -> [GhcInfo] -> Config -> [Expr] -> IO MeasureExs
 evalMeasures exg2 ghci config es = do

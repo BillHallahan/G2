@@ -92,7 +92,9 @@ genMeasureExs exg2 ghci g2config fcs =
 synthesize :: [GhcInfo] -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
 synthesize ghci meas_ex fc gs n = do
     let fc_of_n = lookupFC n fc
-        spec = fromJust $ findFuncSpec ghci n
+        spec = case findFuncSpec ghci n of
+                Just spec' -> spec'
+                Nothing -> error $ "No spec found for " ++ show n
     new_spec <- refSynth spec meas_ex fc_of_n
 
     putStrLn $ "spec = " ++ show spec
