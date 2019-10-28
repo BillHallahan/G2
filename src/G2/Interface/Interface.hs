@@ -157,7 +157,7 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , input_names = map idName is
-    , higher_order_inst = IT.exports s
+    , higher_order_inst = S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''})
 

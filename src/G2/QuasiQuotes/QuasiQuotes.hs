@@ -28,6 +28,7 @@ import G2.QuasiQuotes.Parser
 import qualified Control.Concurrent.Lock as Lock
 
 import Data.Data
+import qualified Data.HashSet as HS
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -334,7 +335,7 @@ elimUnusedCompleted :: Named t => [State t] -> Bindings -> ([State t], Bindings)
 elimUnusedCompleted xs b =
     let
         b' = b { deepseq_walkers = M.empty
-               , higher_order_inst = [] }
+               , higher_order_inst = HS.empty }
 
         xs' = map (\s -> s { type_classes = initTypeClasses []
                            , rules = [] }) xs
@@ -346,7 +347,7 @@ elimUnusedNonCompleted :: Named t => State t -> Bindings -> (State t, Bindings)
 elimUnusedNonCompleted s b =
     let
         b' = b { deepseq_walkers = M.empty
-               , higher_order_inst = [] }
+               , higher_order_inst = HS.empty }
         s' = s { type_classes = initTypeClasses []
                , rules = [] }
     in

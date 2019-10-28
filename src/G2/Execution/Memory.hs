@@ -81,7 +81,7 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
 
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
-    higher_ord_eenv = E.filterWithKey (\n _ -> n `elem` inst) eenv
+    higher_ord_eenv = E.filterWithKey (\n _ -> n `S.member` inst) eenv
     higher_ord = map PresType $ nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
     higher_ord_rel = E.keys $ E.filter (\e -> any (.:: typeOf e) higher_ord) higher_ord_eenv
 

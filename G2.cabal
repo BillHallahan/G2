@@ -193,7 +193,7 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -- -ddump-splices
-                       -- -fprof-auto
+                       -fprof-auto
                        -- -fexternal-interpreter -opti+RTS -opti-p
   other-extensions:    CPP
   hs-source-dirs:      src
@@ -211,7 +211,7 @@ executable G2
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
+                       -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      exe
   main-is:             Main.hs
 

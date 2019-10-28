@@ -72,7 +72,8 @@ sygusCall meas_ex fcs@(fc:_) =
         ts = map typeOf (arguments $ constraint fc) ++ [typeOf (returns $ constraint fc)]
 
         varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
-        sortVars = map (uncurry SortedVar) . zip varN $ map (typeToSort sort_map) ts
+        sortVars = map (uncurry SortedVar) . zip varN
+                        . map (typeToSort sort_map) $ filter (not . isTYPE) ts
     in
     [ SmtCmd (SetLogic "ALL")]
     ++

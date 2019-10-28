@@ -21,6 +21,7 @@ module G2.Language.Naming
     , typeNames
 
     , renameExprs
+    , renamesExprs
     , renameExpr
     , renameVars
 
@@ -256,7 +257,7 @@ instance Named Expr where
             goAlt (Alt am e) = Alt (renames hm am) e
 
 renameExprs :: ASTContainer m Expr => [(Name, Name)] -> m -> m
-renameExprs n a = foldr (\(old, new) -> renameExpr old new) a n
+renameExprs n = renamesExprs (HM.fromList n)
 
 -- | Rename only the names in an `Expr` that are the `Name` of an `Id`/`Let`/`Data`/`Case` Binding.
 -- Does not change Types.
@@ -309,6 +310,33 @@ renameExprAltIds old new (Alt (DataAlt dc is) e) =
     Alt (DataAlt dc is') e
 renameExprAltIds _ _ a = a
 
+renamesExprs :: ASTContainer m Expr => HM.HashMap Name Name -> m -> m
+renamesExprs hm = modifyASTs (renamesExprs' hm)
+
+renamesExprs' :: HM.HashMap Name Name -> Expr -> Expr
+renamesExprs' hm (Var i) = Var (renamesExprId hm i)
+renamesExprs' hm (Data d) = Data (renamesExprDataCon hm d)
+renamesExprs' hm (Lam u i e) = Lam u (renamesExprId hm i) e
+renamesExprs' hm (Let b e) = Let (map (\(b', e') -> (renamesExprId hm b', e')) b) e
+renamesExprs' hm (Case e i a) = Case e (renamesExprId hm i) $ map (renamesExprAlt hm) a
+renamesExprs' hm (Assume is e e') = Assume (fmap (renames hm) is) e e'
+renamesExprs' hm (Assert is e e') = Assert (fmap (renames hm) is) e e'
+renamesExprs' _ e = e
+
+renamesExprId :: HM.HashMap Name Name -> Id -> Id
+renamesExprId hm (Id n t) = Id (renames hm n) t
+
+renamesExprDataCon :: HM.HashMap Name Name -> DataCon -> DataCon
+renamesExprDataCon hm (DataCon n t) = DataCon (renames hm n) t
+
+renamesExprAlt :: HM.HashMap Name Name -> Alt -> Alt
+renamesExprAlt hm (Alt (DataAlt dc is) e) =
+    let
+        dc' = renamesExprDataCon hm dc
+        is' = map (renamesExprId hm) is
+    in
+    Alt (DataAlt dc' is') e
+renamesExprAlt _ a = a
 
 instance Named Type where
     names = eval go

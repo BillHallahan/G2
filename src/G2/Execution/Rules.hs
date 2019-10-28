@@ -31,6 +31,7 @@ import G2.Solver hiding (Assert)
 
 import Control.Monad.Extra
 import Data.Maybe
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -235,10 +236,9 @@ retLam s@(State { expr_env = eenv
             let
                 e' = retype i t e
 
-                binds = [(i, Type t)]
-                (eenv', e'', ng', news) = liftBinds binds eenv e' ng
+                (eenv', e'', ng', news) = liftBind i (Type t) eenv e' ng
             in
-            ( RuleReturnEApplyLamType news
+            ( RuleReturnEApplyLamType [news]
             , [s { expr_env = eenv'
                  , curr_expr = CurrExpr Evaluate e''
                  , exec_stack = stck' }]
@@ -247,10 +247,9 @@ retLam s@(State { expr_env = eenv
     | TermL <- u
     , Just (ApplyFrame ae, stck') <- S.pop stck =
         let
-            binds = [(i, ae)]
-            (eenv', e', ng', news) = liftBinds binds eenv e ng
+            (eenv', e', ng', news) = liftBind i ae eenv e ng
         in
-        ( RuleReturnEApplyLamExpr news
+        ( RuleReturnEApplyLamExpr [news]
         , [s { expr_env = eenv'
              , curr_expr = CurrExpr Evaluate e'
              , exec_stack = stck' }]
@@ -783,12 +782,22 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
 
     olds = map (idName) bindsLHS
     (news, ngen') = freshSeededNames olds ngen
-    expr' = renameExprs (zip olds news) expr
-    bindsLHS' = renameExprs (zip olds news) bindsLHS
 
-    binds' = zip bindsLHS' bindsRHS
+    olds_news = HM.fromList $ zip olds news
+    expr' = renamesExprs olds_news expr
 
-    eenv' = E.insertExprs (zip news (map snd binds')) eenv
+    eenv' = E.insertExprs (zip news bindsRHS) eenv
+
+liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
+             (E.ExprEnv, Expr, NameGen, Name)
+liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
+  where
+    old = idName bindsLHS
+    (new, ngen') = freshSeededName old ngen
+
+    expr' = renameExpr old new expr
+
+    eenv' = E.insert new bindsRHS eenv
 
 -- If the expression is a symbolic higher order function application, replaces
 -- it with a symbolic variable of the correct type.

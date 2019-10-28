@@ -330,12 +330,12 @@ instance Reducer NonRedPCRed () t where
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-substHigherOrder :: ExprEnv -> Model -> SymbolicIds -> [Name] -> CurrExpr -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
+substHigherOrder :: ExprEnv -> Model -> SymbolicIds -> S.HashSet Name -> CurrExpr -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
 substHigherOrder eenv m si ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of
                                 Just e -> Just $ Id n (typeOf e)
-                                Nothing -> Nothing) ns
+                                Nothing -> Nothing) $ S.toList ns
 
         higherOrd = filter (isTyFun . typeOf) . mapMaybe varId . symbVars eenv $ ce
         higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd

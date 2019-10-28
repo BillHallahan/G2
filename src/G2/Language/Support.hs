@@ -61,7 +61,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , fixed_inputs :: [Expr]
                          , arb_value_gen :: ArbValueGen 
                          , cleaned_names :: CleanedNames
-                         , higher_order_inst :: [Name] -- ^ Functions to try instantiating higher order functions with
+                         , higher_order_inst :: S.HashSet Name -- ^ Functions to try instantiating higher order functions with
                          , input_names :: [Name]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
