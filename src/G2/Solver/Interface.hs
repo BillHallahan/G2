@@ -16,7 +16,7 @@ import G2.Solver.Converters
 import G2.Solver.Solver
 
 import Data.Maybe (mapMaybe)
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 
 subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
@@ -48,7 +48,7 @@ subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc []) . filterTC tc
 subVar' :: Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
 subVar' em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is
-    , Just e <- M.lookup n em =
+    , Just e <- HM.lookup n em =
         subVar' em eenv tc (i:is) $ filterTC tc e
     | i `notElem` is
     , Just e <- E.lookup n eenv

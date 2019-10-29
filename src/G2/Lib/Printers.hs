@@ -216,7 +216,7 @@ duplicate s n = s ++ duplicate s (n - 1)
 ppExprEnv :: State t -> String
 ppExprEnv s@(State {expr_env = eenv}) =
     let
-        eenvs = M.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
+        eenvs = HM.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
     in
     intercalate "\n" $ map (\(n, es) -> mkNameHaskell n ++ " = " ++ es) eenvs
 
@@ -321,7 +321,7 @@ pprTEnvStr tenv = injNewLine kv_strs
 pprModelStr :: Model -> String
 pprModelStr m = injNewLine kv_strs
   where
-    kv_strs = map show $ M.toList m
+    kv_strs = map show $ HM.toList m
 
 pprExecStackStr :: Stack Frame -> String
 pprExecStackStr stk = injNewLine frame_strs

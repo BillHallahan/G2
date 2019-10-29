@@ -29,7 +29,6 @@ module G2.Language.ExprEnv
     , map'
     , mapWithKey
     , mapWithKey'
-    , mapKeys
     , mapM
     , mapWithKeyM
     , filter
@@ -61,7 +60,7 @@ import qualified Prelude as Pre
 import Data.Coerce
 import Data.Data (Data, Typeable)
 import qualified Data.List as L
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -79,10 +78,10 @@ data EnvObj = ExprObj Expr
             | SymbObj Id
             deriving (Show, Eq, Read, Typeable, Data)
 
-newtype ExprEnv = ExprEnv (M.Map Name EnvObj)
+newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
                   deriving (Show, Eq, Read, Typeable, Data)
 
-unwrapExprEnv :: ExprEnv -> M.Map Name EnvObj
+unwrapExprEnv :: ExprEnv -> M.HashMap Name EnvObj
 unwrapExprEnv = coerce
 
 -- | Constructs an empty `ExprEnv`
@@ -182,7 +181,7 @@ redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 
-union' :: M.Map Name Expr -> ExprEnv -> ExprEnv
+union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
 union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
@@ -192,7 +191,7 @@ map :: (Expr -> Expr) -> ExprEnv -> ExprEnv
 map f = mapWithKey (\_ -> f)
 
 -- | Maps a function with an arbitrary return type over all `Expr` in the `ExprEnv`, to get a `Data.Map`.
-map' :: (Expr -> a) -> ExprEnv -> M.Map Name a
+map' :: (Expr -> a) -> ExprEnv -> M.HashMap Name a
 map' f = mapWithKey' (\_ -> f)
 
 -- | Map a function over all `Expr` in the `ExprEnv`, with access to the `Name`.
@@ -209,11 +208,8 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
                 _ -> s
         f' _ n = n
 
-mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.Map Name a
+mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
-
-mapKeys :: (Name -> Name) -> ExprEnv -> ExprEnv
-mapKeys f = coerce . M.mapKeys f . unwrapExprEnv
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
@@ -291,7 +287,7 @@ toExprList env@(ExprEnv env') =
 fromExprList :: [(Name, Expr)] -> ExprEnv
 fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
 
-toExprMap :: ExprEnv -> M.Map Name Expr
+toExprMap :: ExprEnv -> M.HashMap Name Expr
 toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
 
 getIdFromName :: ExprEnv -> Name -> Maybe Id
@@ -338,14 +334,16 @@ instance Named ExprEnv where
 
     rename old new =
         ExprEnv 
-        . M.mapKeys (\k -> if k == old then new else k)
+        . M.fromList
         . rename old new
+        . M.toList
         . unwrapExprEnv
 
     renames hm =
         ExprEnv
-        . M.mapKeys (renames hm)
+        . M.fromList
         . renames hm
+        . M.toList
         . unwrapExprEnv
 
 instance Named EnvObj where

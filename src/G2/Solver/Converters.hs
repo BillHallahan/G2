@@ -22,6 +22,7 @@ module G2.Solver.Converters
     , SMTConverter (..) ) where
 
 import Data.List
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
@@ -116,11 +117,11 @@ checkModel' :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> 
 checkModel' _ _ s _ [] _ = do
     return (SAT, Just $ model s)
 checkModel' avf con s b (i:is) pc
-    | (idName i) `M.member` (model s) = checkModel' avf con s b is pc
+    | (idName i) `HM.member` (model s) = checkModel' avf con s b is pc
     | otherwise =  do
         (m, av) <- getModelVal avf con s b i pc
         case m of
-            Just m' -> checkModel' avf con (s {model = M.union m' (model s)}) (b {arb_value_gen = av}) is pc
+            Just m' -> checkModel' avf con (s {model = HM.union m' (model s)}) (b {arb_value_gen = av}) is pc
             Nothing -> return (UNSAT, Nothing)
 
 getModelVal :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
@@ -132,7 +133,7 @@ getModelVal avf con s b (Id n _) pc = do
                     let
                         (e, av) = avf t (type_env s) (arb_value_gen b)
                     in
-                    return (Just $ M.singleton n' e, av) 
+                    return (Just $ HM.singleton n' e, av) 
                 False -> do
                     m <- checkNumericConstraints con pc
                     return (m, arb_value_gen b)
@@ -514,4 +515,4 @@ sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 
 -- | Coverts an `SMTModel` to a `Model`.
 modelAsExpr :: SMTModel -> Model
-modelAsExpr = M.mapKeys strToName . M.map smtastToExpr
+modelAsExpr = HM.fromList . M.toList . M.mapKeys strToName . M.map smtastToExpr

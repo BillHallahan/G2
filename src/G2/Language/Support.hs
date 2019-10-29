@@ -49,7 +49,7 @@ data State t = State { expr_env :: E.ExprEnv
                      , exec_stack :: Stack Frame
                      , model :: Model
                      , adt_int_maps :: ADTIntMaps -- ^ Mapping for each ADT between its Data Constructors and Integers
-                     , simplified :: M.Map Name (Type, Type) -- ^ Names in PathConds that have been simplified, along with their Type and Cast Type
+                     , simplified :: HM.HashMap Name (Type, Type) -- ^ Names in PathConds that have been simplified, along with their Type and Cast Type
                      , known_values :: KnownValues
                      , rules :: ![Rule]
                      , num_steps :: !Int -- Invariant: The length of the rules list
@@ -123,21 +123,21 @@ data Frame = CaseFrame Id [Alt]
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
-type Model = M.Map Name Expr
+type Model = HM.HashMap Name Expr
 
-type ADTIntMaps = M.Map Type DCNum
+type ADTIntMaps = HM.HashMap Type DCNum
 
 -- The Data Constructors of each ADT appearing in the PathConds are mapped to the range [0,`upperB`), where
 -- `upperB` equals the number of Data Constructors for that type
 data DCNum = DCNum { upperB :: Integer
-                   , dc2Int :: M.Map Name Integer
-                   , int2Dc :: M.Map Integer DataCon } deriving (Show, Eq, Read, Typeable, Data)
+                   , dc2Int :: HM.HashMap Name Integer
+                   , int2Dc :: HM.HashMap Integer DataCon } deriving (Show, Eq, Read, Typeable, Data)
 
 lookupInt :: Name -> DCNum -> Maybe Integer
-lookupInt n DCNum { dc2Int = m } = M.lookup n m
+lookupInt n DCNum { dc2Int = m } = HM.lookup n m
 
 lookupDC :: Integer -> DCNum -> Maybe DataCon
-lookupDC n DCNum { int2Dc = m } = M.lookup n m
+lookupDC n DCNum { int2Dc = m } = HM.lookup n m
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
@@ -383,7 +383,7 @@ instance Named Frame where
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
 
 instance Named DCNum where
-    names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (M.keys m1) ++ names (M.elems m2)
+    names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (HM.keys m1) ++ names (HM.elems m2)
     rename old new dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
         where m1' = rename old new m1
               m2' = rename old new m2

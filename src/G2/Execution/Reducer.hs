@@ -357,7 +357,7 @@ substHigherOrder' eenvsice ((i, es):iss) =
     substHigherOrder'
         (concatMap (\e_rep -> 
                         map (\(eenv, m, si, ce) -> ( E.insert (idName i) e_rep eenv
-                                                   , M.insert (idName i) e_rep m
+                                                   , HM.insert (idName i) e_rep m
                                                    , filter (/= i) si
                                                    , replaceASTs (Var i) e_rep ce)
                             ) eenvsice)

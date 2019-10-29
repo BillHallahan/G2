@@ -8,10 +8,11 @@ module G2.Solver.Simplifier ( Simplifier (..)
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 
-import Data.Maybe
+import Data.Hashable
+import qualified Data.HashMap.Lazy as HM
 import Data.List
+import Data.Maybe
 import Data.Tuple
-import qualified Data.Map as M
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle
@@ -43,13 +44,13 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
     , (ConsCond (DataCon dcN _) (Var (Id n t)) bool) <- p' =
         let ogTyp = fromJust . pcVarType $ p
             -- Store type it is cast to (if any), else original type
-            isMember = M.member n smplfd
+            isMember = HM.member n smplfd
             pcCastTyp = fromJust . pcVarType $ p'
-            smplfd' = M.insert n (ogTyp, pcCastTyp) smplfd
+            smplfd' = HM.insert n (ogTyp, pcCastTyp) smplfd
 
             -- Convert `dc` to an Int by looking it up in the respective `dcNumMap`. If not in `dcNumMap`, lookup the corresponding AlgDataTy
             -- , establish a mapping between its DataCons and Ints, and add to `adtTIntMaps`, before returning the respective Int.
-            (adtIntMaps'', maybeNum) = case (M.lookup t adtIntMaps) of
+            (adtIntMaps'', maybeNum) = case (HM.lookup t adtIntMaps) of
                 Just dcNumMap -> (adtIntMaps, lookupInt dcN dcNumMap)
                 Nothing ->
                     let maybeDCNumMap = mkDCNumMap tenv t
@@ -71,16 +72,16 @@ fromNum :: ADTSimplifier -> State t -> Bindings -> Model -> Model
 fromNum (ADTSimplifier avf) (State {adt_int_maps = adtIntMaps
                        , simplified = smplfd
                        , expr_env = eenv
-                       , type_env = tenv}) b m = M.mapWithKey (fromNum' eenv tenv adtIntMaps smplfd avf b) m
+                       , type_env = tenv}) b m = HM.mapWithKey (fromNum' eenv tenv adtIntMaps smplfd avf b) m
 
-fromNum' :: E.ExprEnv -> TypeEnv -> ADTIntMaps -> M.Map Name (Type, Type) -> ArbValueFunc -> Bindings -> Name -> Expr -> Expr
+fromNum' :: E.ExprEnv -> TypeEnv -> ADTIntMaps -> HM.HashMap Name (Type, Type) -> ArbValueFunc -> Bindings -> Name -> Expr -> Expr
 fromNum' eenv tenv adtIntMaps smplfd avf b n val
-    | Just (t, tCast) <- M.lookup n smplfd -- Tuple representing (original type, type it was cast to)
+    | Just (t, tCast) <- HM.lookup n smplfd -- Tuple representing (original type, type it was cast to)
     , isADT tCast = -- `n` is not of a primitive type, need to map back to DataCon
         let num = case val of
                 (Lit (LitInt x)) -> x
                 _ -> error "Model should only return LitInts for non-primitive type"
-            dcNumMap = fromJust $ M.lookup tCast adtIntMaps
+            dcNumMap = fromJust $ HM.lookup tCast adtIntMaps
             dc = Data $ fromJust $ lookupDC num dcNumMap
 
             dc' = if tCast /= t
@@ -125,18 +126,18 @@ mkDCNumMap' :: AlgDataTy -> Maybe DCNum
 mkDCNumMap' (DataTyCon { data_cons = dcs }) =
     let (num, pairs) = mapAccumR (\count dc -> (count + 1, (count, dc))) 0 dcs
         dc2IntPairs = (\(dc, count) -> (dcName dc, count)) <$> swap <$> pairs
-    in Just $ DCNum {upperB = num - 1, dc2Int = M.fromList dc2IntPairs, int2Dc = M.fromList pairs}
+    in Just $ DCNum {upperB = num - 1, dc2Int = HM.fromList dc2IntPairs, int2Dc = HM.fromList pairs}
 mkDCNumMap' _ = Nothing
 
-insertFlipped :: Ord a => a -> M.Map a b -> b -> M.Map a b
-insertFlipped k m val = M.insert k val m
+insertFlipped :: (Eq a, Hashable a) => a -> HM.HashMap a b -> b -> HM.HashMap a b
+insertFlipped k m val = HM.insert k val m
 
 -- Given an Id with type `t` whose Data Constructors are mapped to [lower, upper], constrain Id to
 -- lower <= Id <= upper
-constrainDCVals :: KnownValues -> M.Map Type DCNum -> (Type, Id) -> PathCond
+constrainDCVals :: KnownValues -> HM.HashMap Type DCNum -> (Type, Id) -> PathCond
 constrainDCVals kv m (t, new) =
     let lower = 0
-        dcNumMap = fromJust $ M.lookup t m
+        dcNumMap = fromJust $ HM.lookup t m
         upper = upperB dcNumMap
     in ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var new) lower) (mkLeIntExpr kv (Var new) upper)) True
 

@@ -14,7 +14,7 @@ import G2.Language.Typing
 import G2.Solver.Solver
 
 import Data.List
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 
 -- | Converts constraints about ADTs to numerical constraints before sending them to other solvers
@@ -63,12 +63,12 @@ solve' avf sol s@(State {known_values = kv, simplified = smplfd, adt_int_maps = 
     case rm of
         (SAT, Just m, sol') -> do
             let (_, restM) = mapAccumL (genArbValue avf tenv eenv) b rest
-            return (SAT, Just $ M.union (M.fromList restM) m, sol')
+            return (SAT, Just $ HM.union (HM.fromList restM) m, sol')
         _ -> return rm
 
 -- If `n` is a member of smplfd, it means a PathCond containing `n` must have been added to PathConds earlier
-f :: M.Map Name (Type, Type) -> Id -> Bool
-f smplfd (Id n t) = ((not $ M.member n smplfd) && (isADT $ t))
+f :: HM.HashMap Name (Type, Type) -> Id -> Bool
+f smplfd (Id n t) = ((not $ HM.member n smplfd) && (isADT $ t))
 
 -- Generate arbitrary value or lookup Name in ExprEnv
 genArbValue :: ArbValueFunc -> TypeEnv -> ExprEnv -> Bindings -> Id -> (Bindings, (Name, Expr))
@@ -83,13 +83,13 @@ genArbValue avf tenv eenv b (Id n t)
     | otherwise = error $ "Unsolved Name of type: " ++ (show t)
 
 -- Add any constraints from the ExprEnv
-addEEnvVals :: KnownValues -> ExprEnv -> M.Map Name (Type, Type) -> ADTIntMaps -> Name -> Maybe PathCond
+addEEnvVals :: KnownValues -> ExprEnv -> HM.HashMap Name (Type, Type) -> ADTIntMaps -> Name -> Maybe PathCond
 addEEnvVals kv eenv smplfd adtIntMaps n =
-    let (_, newTyp) = fromJust $ M.lookup n smplfd
+    let (_, newTyp) = fromJust $ HM.lookup n smplfd
     in case E.lookup n eenv of
         Just e
             | Data (DataCon dcN _):_ <- unApp e ->
-                let dcNumMap = fromJust $ M.lookup newTyp adtIntMaps
+                let dcNumMap = fromJust $ HM.lookup newTyp adtIntMaps
                     num = fromJust $ lookupInt dcN dcNumMap
                 in Just $ ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) True
         _ -> Nothing

@@ -18,7 +18,7 @@ module G2.Solver.Solver ( Solver (..)
 import G2.Language
 import qualified G2.Language.PathConds as PC
 import Data.List
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 
 import Debug.Trace
 
@@ -100,12 +100,12 @@ checkRelated' sol s (p:ps) = do
 
 solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
 solveRelated avf sol s b is pc = do
-    solveRelated' avf sol s b M.empty is $ PC.relatedSets (known_values s) pc
+    solveRelated' avf sol s b HM.empty is $ PC.relatedSets (known_values s) pc
 
 solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
 solveRelated' avf sol s b m is [] =
     let 
-        is' = filter (\i -> idName i `M.notMember` m) is
+        is' = filter (\i -> not $ idName i `HM.member` m) is
 
         (_, nv) = mapAccumL
             (\av_ (Id n t) ->
@@ -115,7 +115,7 @@ solveRelated' avf sol s b m is [] =
                     (v, (n, av_'))
             ) (arb_value_gen b) is'
 
-        m' = foldr (\(n, v) -> M.insert n v) m nv
+        m' = foldr (\(n, v) -> HM.insert n v) m nv
     in
     return (SAT, Just m', sol)
 solveRelated' avf sol s b m is (p:ps) = do
@@ -123,7 +123,7 @@ solveRelated' avf sol s b m is (p:ps) = do
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of
-        (SAT, Just m', sol') -> solveRelated' avf sol' s b (M.union m m') (is ++ is'') ps
+        (SAT, Just m', sol') -> solveRelated' avf sol' s b (HM.union m m') (is ++ is'') ps
         rm' -> return rm'
 
 instance Solver solver => Solver (GroupRelated solver) where
@@ -183,7 +183,7 @@ instance Solver UndefinedHigherOrder where
             _ -> return $ Unknown "UndefinedHigherOrder"
 
     solve _ _ _ [i@(Id _ (TyFun _ _))] _ =
-        return (SAT, Just $ M.singleton (idName i) (Prim Undefined TyBottom))
+        return (SAT, Just $ HM.singleton (idName i) (Prim Undefined TyBottom))
     solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder", Nothing)
 
 instance (Solver a, Solver b) => Solver (CombineSolvers a b) where

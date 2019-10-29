@@ -20,7 +20,7 @@ import G2.Language.Typing
 import G2.Solver.Solver
 
 import Data.List
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 import Prelude hiding (null)
 import qualified Prelude as Pre
@@ -113,7 +113,7 @@ findConsistent''' _ _ = Nothing
 solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
 solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
     | not $ E.isSymbolic n eenv
-    , Just e <- E.lookup n eenv = return (SAT, Just . liftCasts $ M.insert n e m )
+    , Just e <- E.lookup n eenv = return (SAT, Just . liftCasts $ HM.insert n e m )
     -- We can't use the ADT solver when we have a Boolean, because the RHS of the
     -- DataAlt might be a primitive.
     | TyCon tn k <- tyAppCenter t
@@ -134,9 +134,9 @@ addADTs avf n tn ts k s b pc
     | PC.null pc =
         let
             (bse, av) = avf (mkTyApp (TyCon tn k:ts)) (type_env s) (arb_value_gen b)
-            m' = M.singleton n bse
+            m' = HM.singleton n bse
         in
-        (SAT, (s {model = M.union m' (model s)}), (b {arb_value_gen = av}))
+        (SAT, (s {model = HM.union m' (model s)}), (b {arb_value_gen = av}))
     | Just (dcs@(fdc:_), bi) <- findConsistent' (known_values s) (expr_env s) (type_env s) pc =
     let        
         eenv = expr_env s
@@ -156,10 +156,10 @@ addADTs avf n tn ts k s b pc
         
         dc = mkApp $ fdc:map Type ts2 ++ vs
 
-        m = M.insert n dc (model s)
+        m = HM.insert n dc (model s)
     in
     case not . Pre.null $ dcs of
-        True -> (SAT, s { model = M.union m (model s) }, b { arb_value_gen = av })
+        True -> (SAT, s { model = HM.union m (model s) }, b { arb_value_gen = av })
         False -> (UNSAT, s, b)
     | otherwise = (UNSAT, s, b)
 
