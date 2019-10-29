@@ -1,13 +1,17 @@
 language: haskell
 
 before_install:
+  - gcc -v
+
   # Installing Z3
   - bash install_z3.sh
 
   # Getting base library
   - bash base_setup.sh
+
 ghc:
   - "8.2.2"
+  # - "8.6.5"
 
 script:
   - cabal configure --enable-tests

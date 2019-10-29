@@ -1,7 +1,15 @@
+{-# LANGUAGE CPP #-}
+
 module G2.Translation.Cabal.Cabal (cabalSrcDirs) where
 
 import Distribution.PackageDescription
+
+#if MIN_VERSION_Cabal(2,2,0)
+import Distribution.PackageDescription.Parsec
+#else
 import Distribution.PackageDescription.Parse
+#endif
+
 import Distribution.Verbosity
 
 -- | Takes the filepath to a Cabal file, and returns a list of FilePaths to red

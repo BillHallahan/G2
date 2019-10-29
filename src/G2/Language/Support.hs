@@ -48,9 +48,11 @@ data State t = State { expr_env :: E.ExprEnv
                      , symbolic_ids :: SymbolicIds
                      , exec_stack :: Stack Frame
                      , model :: Model
-                     , adt_int_maps :: ADTIntMaps -- ^ Mapping for each ADT between its Data Constructors and Integers
-                     , simplified :: M.Map Name (Type, Type) -- ^ Names in PathConds that have been simplified, along with their Type and Cast Type
                      , known_values :: KnownValues
+                     , cases :: M.Map Id Int -- ^ Record number of pending merges for each Case Expr
+                     , depth_exceeded :: Bool -- ^ Do we have more pending merges for any Case Expr than the limit?
+                     , merge_stack :: [Int] -- ^ Indices of all unmerged Merge Points thus far
+                     , ready_to_merge :: Bool
                      , rules :: ![Rule]
                      , num_steps :: !Int -- Invariant: The length of the rules list
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
@@ -119,7 +121,7 @@ data Frame = CaseFrame Id [Alt]
            | CurrExprFrame CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
-           | MergePtFrame
+           | MergePtFrame Id -- case Id corresponding to the Merge Point
            deriving (Show, Eq, Read, Typeable, Data)
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
@@ -128,20 +130,6 @@ type Model = M.Map Name Expr
 
 isEmpty :: Model -> Bool
 isEmpty m = M.null m
-
-type ADTIntMaps = M.Map Type DCNum
-
--- The Data Constructors of each ADT appearing in the PathConds are mapped to the range [0,`upperB`), where
--- `upperB` equals the number of Data Constructors for that type
-data DCNum = DCNum { upperB :: Integer
-                   , dc2Int :: M.Map Name Integer
-                   , int2Dc :: M.Map Integer DataCon } deriving (Show, Eq, Read, Typeable, Data)
-
-lookupInt :: Name -> DCNum -> Maybe Integer
-lookupInt n DCNum { dc2Int = m } = M.lookup n m
-
-lookupDC :: Integer -> DCNum -> Maybe DataCon
-lookupDC n DCNum { int2Dc = m } = M.lookup n m
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
@@ -160,9 +148,11 @@ renameState old new_seed s b =
              , symbolic_ids = rename old new (symbolic_ids s)
              , exec_stack = exec_stack s
              , model = model s
-             , adt_int_maps = rename old new (adt_int_maps s)
-             , simplified = rename old new (simplified s)
              , known_values = rename old new (known_values s)
+             , cases = rename old new (cases s)
+             , depth_exceeded = depth_exceeded s
+             , merge_stack = merge_stack s
+             , ready_to_merge = ready_to_merge s
              , rules = rules s
              , num_steps = num_steps s
              , track = rename old new (track s)
@@ -179,9 +169,8 @@ instance Named t => Named (State t) where
             ++ names (symbolic_ids s)
             ++ names (exec_stack s)
             ++ names (model s)
-            ++ names (adt_int_maps s)
-            ++ names (simplified s)
             ++ names (known_values s)
+            ++ names (cases s)
             ++ names (track s)
 
     rename old new s =
@@ -198,9 +187,11 @@ instance Named t => Named (State t) where
                , symbolic_ids = rename old new (symbolic_ids s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
-               , adt_int_maps = rename old new (adt_int_maps s)
-               , simplified = rename old new (simplified s)
                , known_values = rename old new (known_values s)
+               , cases = M.mapKeys (\k@(Id n t) -> if n == old then (Id new t) else k) (cases s)
+               , depth_exceeded = depth_exceeded s
+               , merge_stack = merge_stack s
+               , ready_to_merge = ready_to_merge s
                , rules = rules s
                , num_steps = num_steps s
                , track = rename old new (track s)
@@ -220,9 +211,11 @@ instance Named t => Named (State t) where
                , symbolic_ids = renames hm (symbolic_ids s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
-               , adt_int_maps = renames hm (adt_int_maps s)
-               , simplified = renames hm (simplified s)
                , known_values = renames hm (known_values s)
+               , cases = M.mapKeys (renames hm) (cases s)
+               , depth_exceeded = depth_exceeded s
+               , merge_stack = merge_stack s
+               , ready_to_merge = ready_to_merge s
                , rules = rules s
                , num_steps = num_steps s
                , track = renames hm (track s)
@@ -255,9 +248,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . symbolic_ids) s) ++
-                      ((containedASTs . adt_int_maps) s) ++
-                      ((containedASTs . simplified) s) ++
                       ((containedASTs . exec_stack) s) ++
+                      ((containedASTs . cases) s) ++
                       (containedASTs $ track s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
@@ -267,9 +259,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
-                                , adt_int_maps = (modifyContainedASTs f . adt_int_maps) s
-                                , simplified = (modifyContainedASTs f . simplified) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
+                                , cases = (modifyContainedASTs f . cases) s
                                 , track = modifyContainedASTs f $ track s }
 
 instance Named Bindings where
@@ -352,10 +343,6 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (AssertFrame is e) = AssertFrame (modifyContainedASTs f is) (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
 
-instance ASTContainer DCNum Type where
-    containedASTs _ = []
-    modifyContainedASTs _ m = m
-
 instance Named CurrExpr where
     names (CurrExpr _ e) = names e
     rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
@@ -369,7 +356,7 @@ instance Named Frame where
     names (CurrExprFrame e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is ++ names e
-    names (MergePtFrame) = []
+    names (MergePtFrame i) = names i
 
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
@@ -378,7 +365,7 @@ instance Named Frame where
     rename old new (CurrExprFrame e) = CurrExprFrame (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
-    rename _ _ MergePtFrame = MergePtFrame
+    rename old new (MergePtFrame i) = MergePtFrame (rename old new i)
 
     renames hm (CaseFrame i a) = CaseFrame (renames hm i) (renames hm a)
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
@@ -387,13 +374,4 @@ instance Named Frame where
     renames hm (CurrExprFrame e) = CurrExprFrame (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
-    renames _ MergePtFrame = MergePtFrame
-
-instance Named DCNum where
-    names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (M.keys m1) ++ names (M.elems m2)
-    rename old new dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
-        where m1' = rename old new m1
-              m2' = rename old new m2
-    renames hm dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
-        where m1' = renames hm m1
-              m2' = renames hm m2
+    renames hm (MergePtFrame i) = MergePtFrame (renames hm i)

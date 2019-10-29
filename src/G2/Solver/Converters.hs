@@ -311,22 +311,11 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "True" _ _ _) _) e b) =
-    let
-        exprSMT = exprToSMT e
-    in
-    Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
-    let
-        exprSMT = exprToSMT e
-    in
-    Just $ if b then  (:!) $ exprSMT else exprSMT
-pathConsToSMT (ConsCond (DataCon _ _) _ _) = error "Non-bool DataCon in pathConsToSMT"
 pathConsToSMT (AssumePC i num pc) =
     let
         idSMT = exprToSMT (Var i)
         intSMT = exprToSMT (Lit (LitInt $ toInteger num))
-    in case pathConsToSMT pc of
+    in case pathConsToSMT $ PC.unhashedPC pc of
         (Just pcSMT) -> Just $ (idSMT := intSMT) :=> pcSMT
         Nothing -> error $ "Unable to convert pc: " ++ (show pc)
 
@@ -423,11 +412,14 @@ createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
 pcVarDecls :: [PathCond] -> [SMTHeader]
 pcVarDecls = createVarDecls . pcVars
 
--- Get's all variable required for a list of `PathCond` 
+-- Get's all variable required for a list of `PathCond`
 pcVars :: [PathCond] -> [(Name, Sort)]
-pcVars [] = []
-pcVars (AltCond _ e _:xs) = vars e ++ pcVars xs
-pcVars (p:xs)= vars p ++ pcVars xs
+pcVars = concatMap pcVar
+
+pcVar :: PathCond -> [(Name, Sort)]
+pcVar (AssumePC i _ pc) = idToNameSort i:pcVar (PC.unhashedPC pc)
+pcVar (AltCond _ e _) = vars e
+pcVar p = vars p
 
 vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]
 vars = evalASTs vars'

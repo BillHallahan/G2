@@ -48,7 +48,6 @@ runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
-
   let (src:entry:tail_args) = as
 
   proj <- guessProj src

@@ -26,6 +26,9 @@ module G2.Language.ExprEnv
     , insertExprs
     , redirect
     , union
+    , unions
+    , difference
+    , intersectionAccum
     , (!)
     , map
     , map'
@@ -189,6 +192,19 @@ redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
+
+unions :: (Foldable f) => f ExprEnv -> ExprEnv
+unions eenvs = foldl union empty eenvs
+
+difference :: ExprEnv -> ExprEnv -> ExprEnv
+difference (ExprEnv eenv) (ExprEnv eenv') = ExprEnv (M.difference eenv eenv')
+
+-- | Intersection with a combining function that threads an accumulating argument
+intersectionAccum :: (a -> (EnvObj, EnvObj) -> (a, EnvObj)) -> a -> ExprEnv -> ExprEnv -> (a, ExprEnv)
+intersectionAccum f a (ExprEnv eenv) (ExprEnv eenv') =
+    let zippedEnvs = M.intersectionWith (\v1 v2 -> (v1,v2)) eenv eenv'
+        (a', eenv'') = M.mapAccum f a zippedEnvs
+    in (a', ExprEnv eenv'')
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,

@@ -18,6 +18,7 @@ module G2.Language.TypeEnv
   , getCastedAlgDataTy
   , getAlgDataTy
   , getDataCon
+  , dataConsFromADT
   , getDataConNoType
   , getDataConNameMod
   , getDataConNameMod'
@@ -92,6 +93,12 @@ getDataCons n tenv =
         Just (NewTyCon _ dc _) -> Just [dc]
         Just (TypeSynonym _ (TyCon n' _)) -> getDataCons n' tenv
         _ -> Nothing
+
+dataConsFromADT :: AlgDataTy -> [DataCon]
+dataConsFromADT adt = case adt of
+    DataTyCon _ _ -> data_cons adt
+    NewTyCon _ _ _ -> [data_con adt]
+    _ -> error "No DataCons"
 
 baseDataCons :: [DataCon] -> [DataCon]
 baseDataCons = filter baseDataCon

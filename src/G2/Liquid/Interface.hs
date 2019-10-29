@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -111,7 +112,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
                                                        , annotations = annm} }
 
     SomeSolver solver <- initSolver config
-    let simplifier = ADTSimplifier arbValue
+    let simplifier = IdSimplifier
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not
@@ -128,7 +129,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
     let state_name = Name "state" Nothing 0 Nothing
 
     let (limHalt, limOrd) = limitByAccepted (cut_off config)
-    let mergeStates = False
+    let mergeStates = NoMerging
 
     let share = sharing config
 
@@ -136,8 +137,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
               then runG2WithSomes
                     (SomeReducer NonRedPCRed
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)))
+                            Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed share mergeStates solver simplifier :<~| LHRed cfn)))
                     (SomeHalter
                       (MaxOutputsHalter (maxOutputs config)
                         :<~> ZeroHalter (steps config)
@@ -150,8 +151,8 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
               else runG2WithSomes
                     (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                       <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)))
+                            Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                            Nothing -> SomeReducer (StdRed share mergeStates solver simplifier :<~| LHRed cfn)))
                     (SomeHalter
                       (DiscardIfAcceptedTag state_name
                         :<~> MaxOutputsHalter (maxOutputs config)
@@ -236,11 +237,20 @@ getGHCInfos' config ghci = do
     return (LHOutput {ghcI = ghci, cgI = undefined {- cgi -}, solution = undefined {- sol -} })
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+funcSpecs fs = concatMap (gsTySigs . gsSig . giSpec) fs -- Functions asserted in LH
+            ++ concatMap (gsAsmSigs . gsSig . giSpec) fs -- Functions assumed in LH
+#else
 funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
             ++ concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
+#endif
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+measureSpecs = concatMap (gsMeasures . gsData . giSpec)
+#else
 measureSpecs = concatMap (gsMeasures . spec)
+#endif
 
 reqNames :: State t -> [Name]
 reqNames (State { expr_env = eenv

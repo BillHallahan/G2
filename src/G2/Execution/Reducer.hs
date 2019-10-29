@@ -56,8 +56,10 @@ module G2.Execution.Reducer ( Reducer (..)
                             , runReducer 
                             , runReducerMerge ) where
 
+import G2.Config.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
+import qualified G2.Execution.WorkGraph as WG
 import G2.Language
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.Stack as Stck
@@ -66,11 +68,12 @@ import G2.Lib.Printers
 import G2.Execution.StateMerging
 
 import Data.Foldable
-import qualified Data.HashSet as S
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
+import qualified Data.Sequence as S
 import System.Directory
 
 -- | Used when applying execution rules
@@ -93,11 +96,13 @@ mapProcessed f pr = Processed { accepted = map f (accepted pr)
                               , discarded = map f (discarded pr)}
 
 -- | Used by Reducers to indicate their progress reducing.
-data ReducerRes = NoProgress | InProgress | Finished | Merge | MergePoint deriving (Eq, Ord, Show, Read)
+data ReducerRes = NoProgress | InProgress | Finished | Split | MergePoint | MaxDepth deriving (Eq, Ord, Show, Read)
 
 progPrioritizer :: ReducerRes -> ReducerRes -> ReducerRes
-progPrioritizer Merge _ = Merge
-progPrioritizer _ Merge = Merge
+progPrioritizer MaxDepth _ = MaxDepth
+progPrioritizer _ MaxDepth = MaxDepth
+progPrioritizer Split _ = Split
+progPrioritizer _ Split = Split
 progPrioritizer MergePoint _ = MergePoint
 progPrioritizer _ MergePoint = MergePoint
 progPrioritizer InProgress _ = InProgress
@@ -290,16 +295,17 @@ SomeReducer r1 <~? SomeReducer r2 = SomeReducer (r1 :<~? r2)
 (<~|) :: SomeReducer t -> SomeReducer t -> SomeReducer t
 SomeReducer r1 <~| SomeReducer r2 = SomeReducer (r1 :<~| r2)
 
-data StdRed solver simplifier = StdRed Sharing solver simplifier
+data StdRed solver simplifier = StdRed Sharing Merging solver simplifier
 
 instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simplifier) () t where
     initReducer _ _ = ()
 
-    redRules stdr@(StdRed share solver simplifier) _ s b = do
-        (r, s', b') <- stdReduce share solver simplifier s b
+    redRules stdr@(StdRed share mergeStates solver simplifier) _ s b = do
+        (r, s', b') <- stdReduce share mergeStates solver simplifier s b
         let res = case r of
                     RuleHitMergePt -> MergePoint
-                    RuleEvalCaseSym -> Merge
+                    RuleEvalCaseSym -> Split
+                    RuleMaxDepth -> MaxDepth
                     RuleIdentity -> Finished
                     _ -> InProgress
 
@@ -367,7 +373,7 @@ substHigherOrder' eenvsice ((i, es):iss) =
         (concatMap (\e_rep -> 
                         map (\(eenv, m, si, ce) -> ( E.insert (idName i) e_rep eenv
                                                    , M.insert (idName i) e_rep m
-                                                   , S.delete i si
+                                                   , HS.delete i si
                                                    , replaceASTs (Var i) e_rep ce)
                             ) eenvsice)
         es) iss
@@ -381,8 +387,8 @@ instance Reducer TaggerRed () t where
         let
             (n'@(Name n_ m_ _ _), ng') = freshSeededName n ng
         in
-        if null $ S.filter (\(Name n__ m__ _ _) -> n_ == n__ && m_ == m__) ts then
-            return (Finished, [(s {tags = S.insert n' ts}, ())], b, TaggerRed n ng')
+        if null $ HS.filter (\(Name n__ m__ _ _) -> n_ == n__ && m_ == m__) ts then
+            return (Finished, [(s {tags = HS.insert n' ts}, ())], b, TaggerRed n ng')
         else
             return (Finished, [(s, ())], b, tr)
 
@@ -595,8 +601,8 @@ instance Halter RecursiveCutOff (HM.HashMap SpannedName Int) t where
 -- and in the State being evaluated, discard the State
 data DiscardIfAcceptedTag = DiscardIfAcceptedTag Name 
 
-instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
-    initHalt _ _ = S.empty
+instance Halter DiscardIfAcceptedTag (HS.HashSet Name) t where
+    initHalt _ _ = HS.empty
     
     -- updatePerStateHalt gets the intersection of the accepted States Tags,
     -- and the Tags of the State being evaluated.
@@ -606,13 +612,13 @@ instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
                        (Processed {accepted = acc})
                        (State {tags = ts}) =
         let
-            allAccTags = S.unions $ map tags acc
-            matchCurrState = S.intersection ts allAccTags
+            allAccTags = HS.unions $ map tags acc
+            matchCurrState = HS.intersection ts allAccTags
         in
-        S.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
+        HS.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
 
     stopRed _ ns _ _ =
-        if not (S.null ns) then Discard else Continue
+        if not (HS.null ns) then Discard else Continue
 
     stepHalter _ hv _ _ _ = hv
 
@@ -714,26 +720,26 @@ instance Orderer CaseCountOrderer Int Int t where
 -- Orders by the smallest symbolic ADTs
 data SymbolicADTOrderer = SymbolicADTOrderer
 
-instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
-    initPerStateOrder _ = S.map idName . symbolic_ids
-    orderStates _ v _ = S.size v
+instance Orderer SymbolicADTOrderer (HS.HashSet Name) Int t where
+    initPerStateOrder _ = HS.map idName . symbolic_ids
+    orderStates _ v _ = HS.size v
 
     updateSelected _ v _ _ = v
 
     stepOrderer _ v _ _ s =
-        v `S.union` (S.map idName $ symbolic_ids s)
+        v `HS.union` (HS.map idName $ symbolic_ids s)
 
 -- Orders by the largest (in terms of height) (previously) symbolic ADT
 data ADTHeightOrderer = ADTHeightOrderer
 
-instance Orderer ADTHeightOrderer (S.HashSet Name) Int t where
-    initPerStateOrder _ = S.map idName . symbolic_ids
-    orderStates _ v s = maximum . S.toList $ S.map (flip adtHeight s) v
+instance Orderer ADTHeightOrderer (HS.HashSet Name) Int t where
+    initPerStateOrder _ = HS.map idName . symbolic_ids
+    orderStates _ v s = maximum . HS.toList $ HS.map (flip adtHeight s) v
 
     updateSelected _ v _ _ = v
 
     -- stepOrderer _ v _ _ s =
-    --     v `S.union` (S.fromList . map idName . symbolic_ids $ s)
+    --     v `HS.union` (HS.fromList . map idName . symbolic_ids $ s)
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
@@ -933,251 +939,101 @@ minState m =
 numStates :: M.Map b [ExState rv hv sov t] -> Int
 numStates = sum . map length . M.elems
 
-------------
--- Execution is represented by a multiway tree. Initially it is just a `Root` that contains the initial state(s). In each function call, any `Leaf`
--- node (or a state from the `Root`) is picked and reduced, following which either:
---      (i) the node is replaced with new `Leaf` node(s) (new leaf node(s) are added).
---      (ii) if during reduction, execution branches into potentially mergeable states, the node is replaced with a `CaseSplit` node, and the
---      reduceds are added as `Leaf` nodes. A `mergePtFrame` is added to each reduced's exec_stack, and the Counter is incremented.
---      (iii) if during reduction a `mergePtFrame` is encountered on the exec_stack, the node is replaced with a `ReadyToMerge` node
--- A `ReadyToMerge` node may also be picked, in which case it is merged with its siblings if possible, else any sibling that is a `Leaf` node is
--- picked for reduction next.
+--------------------------------------------------------------------------------------------------------------------------------------
 
-type Counter = Int
-data Tree a = CaseSplit [Tree a] -- Node corresponding to point at which execution branches into potentially mergeable states
-            | Leaf a Counter
-            | ReadyToMerge a Counter -- 'a's can be merged if they are all ReadyToMerge nodes with same parent and Counter
-            | Root [a] (Tree a) -- list of a's to process, and 1 child
-            | Empty
-
--- List of (Parent, [sibling]) pairs that represents path from a Node to the Root. Enables traversal from the node to the rest of the tree
--- See: https://wiki.haskell.org/Zipper
-newtype Cxt a = Cxt [(Tree a, [Tree a])]
-type TreeZipper a = (Tree a, Cxt a)
-
-runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier) => r -> h -> simplifier -> State t -> Bindings 
-                -> IO (Processed (State t), Bindings)
+runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+                 => r -> h -> simplifier -> State t -> Bindings
+                 -> IO (Processed (State t), Bindings)
 runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
-        s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-        root = Root [s'] Empty
-        zipper = (root, Cxt [])
+        s' = ExState {state = s {merge_stack = [0]}, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
+        workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph addIdxFunc logState
+    (_, (_, _, _, b', pr')) <- WG.work workGraph
+    let res = mapProcessed state pr'
+    return (res, b')
 
-    (_, b', _, _, pr') <- evalZipper red hal simplifier pr zipper b
-    let states = mapProcessed state pr'
-    return (states, b')
+-- | work_func for WorkGraph. Reduces the ExState `exS` and returns the reduceds along with the appropriate Status
+runReducerMerge' :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+                 => ExState rv hv sov t
+                 -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+                 -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), WG.Status)
+runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
+    let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = exS
+        ps = processedToState pr -- need to deal with processed
+        hc = stopRed hal h_val ps s
+    case hc of
+        Accept -> return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), WG.Accept)
+        Discard -> return ([rs], (red, hal, simplifier, bdg, pr {discarded = rs:discarded pr}), WG.Discard)
+        _ -> do
+            (reducerRes, reduceds, bdg', red') <- redRules red r_val s bdg
+            let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+            let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short.."
+            let new_states = map fst reduceds'
+            let reduceds'' = map (\(s', r_val') -> rs { state = s'
+                                                      , reducer_val = r_val'
+                                                      , halter_val = stepHalter hal h_val ps new_states s'})
+                                                      $ zip new_states r_vals
+            let status = case reducerRes of MergePoint -> WG.Mergeable; MaxDepth -> WG.WorkSaturated; Split -> WG.Split; _ -> WG.WorkNeeded
+            return (reduceds'', (red', hal, simplifier, bdg', pr), status)
+ 
+ -- | merge_func for WorkGraph.
+mergeStatesGraph :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+                 => S.Seq (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t)
+                 -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+                 -> (S.Seq (ExState rv hv sov t), S.Seq (ExState rv hv sov t), Maybe Int,
+                    (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
+mergeStatesGraph workSat toMerge (red, hal, simplifier, bdg, pr) =
+    let workNeeded = resetMerging <$> workSat -- reset states that have reached max depth
 
-evalZipper :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-              => r
-              -> h
-              -> simplifier
-              -> Processed (ExState rv hv sov t)
-              -> TreeZipper (ExState rv hv sov t)
-              -> Bindings
-              -> IO (TreeZipper (ExState rv hv sov t), Bindings, r, h, Processed (ExState rv hv sov t))
-evalZipper red hal simplifier pr zipper b
-    | Root s _ <- fst zipper = case s of
-        [] -> return (zipper, b, red, hal, pr)
-        (x:xs) -> do
-            let leaf = Leaf x 0
-                root' = Root xs leaf
-                zipper' = (leaf, Cxt [(root', [])])
-            evalZipper red hal simplifier pr zipper' b
-    | Leaf x count <- fst zipper = do
-        let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = x 
-        let ps = processedToState pr
-        let hc = stopRed hal h_val ps s
-        case hc of
-            Accept -> do
-                let pr' = pr {accepted = rs:accepted pr} -- we do not call updateExStateHalter for now, since we do not deal with any Switch constructors
-                    zipper' = deleteNode zipper -- set zipper to sibling, or a sibling of any of its parents, remove this from children of parent
-                evalZipper red hal simplifier pr' zipper' b
-            Discard -> do
-                let pr' = pr {discarded = rs:discarded pr}
-                    zipper' = deleteNode zipper
-                evalZipper red hal simplifier pr' zipper' b
-            _ -> do -- ignore switch for now
-                (reducerRes, reduceds, b', red') <- redRules red r_val s b
-                let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
-                let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short.."
-                let new_states = map fst reduceds'
-                let reduceds'' = map (\(s', r_val') -> rs { state = s'
-                                                        , reducer_val = r_val'
-                                                        , halter_val = stepHalter hal h_val ps new_states s'})
-                                                        $ zip new_states r_vals
-                case reducerRes of
-                    MergePoint -> do
-                        let tree' = ReadyToMerge (head reduceds'') (count - 1) -- redRules only returns 1 state when reducerRes is MergePoint
-                        let zipper' = (tree', snd zipper)
-                        evalZipper red' hal simplifier pr zipper' b'
-                    Merge -> do
-                        if (count >= 10) -- max depth of tree
-                            then
-                                -- do not add reduced states to current tree. Instead add to list of states in root.
-                                -- prevents tree from growing to deep. We do not attempt to merge these states
-                                let reduceds''' = map delMergePtFrames reduceds'' -- remove any merge pts
-                                    zipper' = floatReducedsToRoot zipper reduceds'''
-                                    zipper'' = deleteNode zipper'
-                                in evalZipper red' hal simplifier pr zipper'' b'
-                            else
-                                let leaves = map (\exS -> Leaf exS (count + 1)) reduceds''
-                                    tree' = CaseSplit leaves
-                                    zipper' = (tree', snd zipper) -- replace node with CaseSplit node and leaves as children
-                                    zipper'' = pickChild zipper'
-                                in evalZipper red' hal simplifier pr zipper'' b'
-                    _ -> do
-                        let leaves = map (\exS -> Leaf exS count) reduceds''
-                            zipper' = replaceNode zipper leaves -- replace node with leaves
-                        evalZipper red' hal simplifier pr zipper' b'
-    | ReadyToMerge x count <- fst zipper = do
-        let siblings = getSiblings zipper
-        if allReadyToMerge siblings count
-            then
-                let (mergedStates, b') = mergeStatesZipper (x:(map treeVal siblings)) b simplifier
-                    leaves = map (\exS -> Leaf exS count) mergedStates
-                    zipper' = replaceParent zipper leaves
-                in evalZipper red hal simplifier pr zipper' b'
-            else
-                let zipper' = pickSibling zipper
-                in evalZipper red hal simplifier pr zipper' b
-    | otherwise = error "Should not reach this case"
+        (merged, bdg') = mergeStatesAll toMerge bdg simplifier
+        merged' = (\exS@(ExState { state = s@(State {merge_stack = ms }) }) -- remove index from top of the merged states' stacks
+            -> exS { state = s { ready_to_merge = False, merge_stack = tail ms } }) <$> merged
 
-allReadyToMerge :: [Tree a] -> Counter -> Bool
-allReadyToMerge leaves count = all (isReadyToMerge count) leaves
+        -- get the new top index from the merged states' stacks
+        maybeNewIdx = if (not $ S.null merged') then getNextIdx (S.viewl merged') else Nothing
+    in (workNeeded, merged', maybeNewIdx, (red, hal, simplifier, bdg', pr))
 
-isReadyToMerge :: Counter -> Tree a -> Bool
-isReadyToMerge count (ReadyToMerge _ c) = c == count
-isReadyToMerge _ _ = False
+-- | Returns top index in merge_stack of state
+getNextIdx :: S.ViewL (ExState rv hv sov t) -> Maybe Int
+getNextIdx ((ExState { state = (State {merge_stack = ms}) }) S.:< _) = Just $ head ms
+getNextIdx _ = Nothing
 
-treeVal :: Tree a -> a
-treeVal (ReadyToMerge val _) = val
-treeVal (Leaf val _) = val
-treeVal _ = error "Tree has no value"
-
--- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
-delMergePtFrames :: (ExState rv hv sov t) -> (ExState rv hv sov t)
-delMergePtFrames rs@(ExState {state = s}) =
-    let st = exec_stack s
-        st' = delMergePtFrames' st
-        s' = s {exec_stack = st'}
+-- | Reset counts of all unmerged Case Expressions to 0
+resetMerging :: (ExState rv hv sov t) -> (ExState rv hv sov t)
+resetMerging rs@(ExState {state = s}) =
+    let s' = s {cases = M.empty, depth_exceeded = False}
     in rs {state = s'}
 
-delMergePtFrames' :: Stck.Stack Frame -> Stck.Stack Frame
-delMergePtFrames' st =
-    let xs = Stck.toList st
-        xs' = filter (\fr -> case fr of
-                                MergePtFrame -> False
-                                _ -> True) xs
-    in Stck.fromList xs'
+-- | Considers all possible combinations when merging states
+mergeStatesAll :: (Eq t, Named t, Simplifier simplifier) => S.Seq (ExState rv hv sov t) -> Bindings -> simplifier
+               -> (S.Seq (ExState rv hv sov t), Bindings)
+mergeStatesAll (x S.:<| xs) b simplifier =
+    let (done, rest, b') = mergeStatesAll' x S.Empty xs b simplifier
+        (mergedStates, b'') = mergeStatesAll rest b' simplifier
+    in (done S.<| mergedStates, b'')
+mergeStatesAll S.Empty b _ = (S.empty, b)
 
-getSiblings :: TreeZipper a -> [Tree a]
-getSiblings (_, context) = case context of
-    Cxt (x:_) -> snd x
-    _ -> []
-
-getParent :: TreeZipper a -> Tree a
-getParent (_, context) = case context of
-    Cxt (x:_) -> fst x
-    _ -> error "No parent in this Cxt"
-
--- | Add the reduceds to the list of states to be processed in the root of the treeZipper tz
-floatReducedsToRoot :: TreeZipper (ExState rv hv sov t) -> [ExState rv hv sov t] -> TreeZipper (ExState rv hv sov t)
-floatReducedsToRoot tz@(t, (Cxt context)) reduceds =
-    let parent = getParent tz
-        siblings = getSiblings tz
-    in case parent of
-        Root st ch -> let parent' = Root (st ++ reduceds) ch
-                      in (t, Cxt $ (parent', siblings):(drop 1 context))
-        _ -> let parentZipper = (parent, Cxt (drop 1 context))
-                 (parent', Cxt context') = floatReducedsToRoot parentZipper reduceds
-             in (t, Cxt $ (parent', siblings):context')
-
--- | Replace current node with new leaves (if parent is CaseSplit), and focus on a new leaf, if any. If parent is root, add to list
-replaceNode :: TreeZipper a -> [Tree a] -> TreeZipper a
-replaceNode tz@(_, (Cxt context)) leaves =
-    let parent = getParent tz
-        siblings = getSiblings tz
-    in case parent of
-        Root st _ -> let newSt = (map treeVal leaves)
-                     in (Root (newSt ++ st) Empty, Cxt [])
-        CaseSplit _ -> let parent' = CaseSplit (leaves ++ siblings)
-                        in pickChild (parent', Cxt (drop 1 context))
-        _ -> error "No other tree can be parent"
-
--- | Replace parent with new leaves (if parent of parent is CaseSplit). If parent of parent is Root, add to list
-replaceParent :: TreeZipper a -> [Tree a] -> TreeZipper a
-replaceParent tz@(_, (Cxt context)) leaves =
-    let parent = getParent tz
-        zipper' = (parent, Cxt (drop 1 context)) -- losing information about current siblings, if any
-    in replaceNode zipper' leaves
-
--- | Remove current tree from parent's list of children, and progressively move up, pruning any parent that has 0 children. Set zipper to focus on sibling (if any)
-deleteNode :: TreeZipper a -> TreeZipper a
-deleteNode tz@(_, (Cxt context)) =
-    let parent = getParent tz
-        siblings = getSiblings tz
-    in case parent of
-        Root st _ -> (Root st Empty, Cxt [])
-        CaseSplit _ -> case siblings of
-            l:ls -> (l, Cxt $ (parent, ls):(drop 1 context))
-            [] -> deleteNode (parent, Cxt (drop 1 context))
-        _ -> error "No other Tree can be a parent"
-
-pickChild :: TreeZipper a -> TreeZipper a
-pickChild tz@(t, (Cxt context))
-    | CaseSplit leaves <- t = case leaves of
-        l:ls -> (l, Cxt $ (t, ls):context)
-        [] -> deleteNode tz
-    | otherwise = error "No children to choose from"
-
--- | Pick a sibling that is not ReadyToMerge, if any
-pickSibling :: TreeZipper a -> TreeZipper a
-pickSibling tz@(t, (Cxt context)) =
-    let siblings = getSiblings tz
-        parent = getParent tz
-        (siblings', sibling) = pickSibling' [] siblings
-    in (sibling, Cxt $ (parent, t:siblings'):(drop 1 context))
-
-pickSibling' :: [Tree a] -> [Tree a] -> ([Tree a],Tree a)
-pickSibling' seen (x:xs) = case x of
-    (Leaf _ _) -> (seen++xs, x)
-    _ -> pickSibling' (x:seen) xs
-pickSibling' _ [] = error "pickSibling must be called with at least one Tree that is a leaf"
-
--- | Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations
--- because number of successful merges only seem to increase marginally in such a case
-mergeStatesZipper :: (Eq t, Named t, Simplifier simplifier) => [ExState rv hv sov t] -> Bindings -> simplifier -> ([ExState rv hv sov t], Bindings)
-mergeStatesZipper (x1:x2:xs) b simplifier =
+mergeStatesAll' :: (Eq t, Named t, Simplifier simplifier)
+                => (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t) -> Bindings -> simplifier
+                -> ((ExState rv hv sov t), S.Seq (ExState rv hv sov t), Bindings)
+mergeStatesAll' x1 unmerged (x2 S.:<| xs) b simplifier =
     case mergeStates' x1 x2 b simplifier of
-        (Just exS, b') -> mergeStatesZipper (exS:xs) b' simplifier
-        (Nothing, b') -> let (merged, b'') = mergeStatesZipper (x2:xs) b' simplifier
-                         in (x1:merged, b'')
-mergeStatesZipper ls b _ = (ls, b)
+        (Just exS, b') -> mergeStatesAll' exS unmerged xs b' simplifier
+        (Nothing, b') -> mergeStatesAll' x1 (x2 S.<| unmerged) xs b' simplifier
+mergeStatesAll' x1 unmerged S.Empty b _ = (x1, unmerged, b)
 
 mergeStates' :: (Eq t, Named t, Simplifier simplifier) => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> simplifier 
              -> (Maybe (ExState rv hv sov t), Bindings)
 mergeStates' ex1 ex2 b simplifier =
-    let s1 = state ex1
-        s2 = state ex2
-        ng = name_gen b
-        res = mergeState ng simplifier s1 s2
+    let res = mergeState (name_gen b) simplifier (state ex1) (state ex2)
     in case res of
         (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
         (ng', Nothing) -> (Nothing, b {name_gen = ng'})
 
--- | Similar to mergeStatesZipper, but considers all possible combinations when merging states
-mergeStatesAllZipper :: (Eq t, Named t, Simplifier simplifier) => [ExState rv hv sov t] -> Bindings -> simplifier -> ([ExState rv hv sov t], Bindings)
-mergeStatesAllZipper (x:xs) b simplifier =
-    let (done, rest, b') = mergeStatesAllZipper' x [] xs b simplifier
-        (mergedStates, b'') = mergeStatesAllZipper rest b' simplifier
-    in (done:mergedStates, b'')
-mergeStatesAllZipper [] b _ = ([], b)
+-- add_idx_func for workGraph
+addIdxFunc :: Int -> ExState rv hv sov t -> ExState rv hv sov t
+addIdxFunc newIdx exS@(ExState {state = st@(State {merge_stack = ms})}) = exS {state = st { merge_stack = newIdx:ms } }
 
-mergeStatesAllZipper' :: (Eq t, Named t, Simplifier simplifier)
-                      => (ExState rv hv sov t) -> [ExState rv hv sov t] -> [ExState rv hv sov t] -> Bindings -> simplifier
-                      -> ((ExState rv hv sov t), [ExState rv hv sov t], Bindings)
-mergeStatesAllZipper' x1 checked (x2:xs) b simplifier =
-    case mergeStates' x1 x2 b simplifier of
-        (Just exS, b') -> mergeStatesAllZipper' exS checked xs b' simplifier
-        (Nothing, b') -> mergeStatesAllZipper' x1 (x2:checked) xs b' simplifier
-mergeStatesAllZipper' x1 checked [] b _ = (x1, checked, b)
+-- function for Logger in workGraph that outputs curr_expr
+logState :: Show t => ExState rv hv sov t -> String
+logState (ExState { state = (State {curr_expr = ce}) }) = show ce

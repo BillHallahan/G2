@@ -2,6 +2,7 @@
 
 module G2.Lib.Printers ( mkCleanExprHaskell
                        , mkUnsugaredExprHaskell
+                       , mkTypeHaskell
                        , ppExprEnv
                        , ppRelExprEnv
                        , ppCurrExpr
@@ -232,7 +233,7 @@ ppCurrExpr :: State t -> String
 ppCurrExpr s@(State {curr_expr = CurrExpr _ e}) = mkUnsugaredExprHaskell s e
 
 ppPathConds :: State t -> String
-ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map (ppPathCond s) pc
+ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map' (ppPathCond s) pc
 
 ppPathCond :: State t -> PathCond -> String
 ppPathCond s (AltCond l e b) =
@@ -242,13 +243,7 @@ ppPathCond s (ExtCond e b) =
         es = mkUnsugaredExprHaskell s e
     in
     if b then es else "not (" ++ es ++ ")"
-ppPathCond s (ConsCond dc e b) =
-    let
-        dcs = mkDataConHaskell dc
-        es = mkUnsugaredExprHaskell s e
-    in
-    if b then es ++ " is " ++ dcs else es ++ " is not " ++ dcs
-ppPathCond s (AssumePC i num pc) = "if" ++ mkIdHaskell i ++ " == " ++ (show num) ++ " then (" ++ (ppPathCond s pc) ++ ")"
+ppPathCond s (AssumePC i num pc) = "if" ++ mkIdHaskell i ++ " == " ++ (show num) ++ " then (" ++ (ppPathCond s $ PC.unhashedPC pc) ++ ")"
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs
@@ -265,7 +260,8 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     estk_str = pprExecStackStr (exec_stack ex_state)
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen b)
-    input_str = pprSymbolicIdsStr (symbolic_ids ex_state)
+    in_names_str = show (input_names b)
+    symb_ids_str = pprSymbolicIdsStr (symbolic_ids ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
@@ -284,8 +280,10 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , tenv_str
                , "----- [Names] ---------------------"
                , names_str
+               , "----- [Input Names] -----------------"
+               , in_names_str
                , "----- [Symbolic Ids] -----------------"
-               , input_str
+               , symb_ids_str
                , "----- [Walkers] -------------------"
                , walkers_str
                , "----- [Paths] ---------------------"
@@ -366,13 +364,7 @@ pprPathCondStr' (ExtCond am b) = acc_strs
     am_str = show am
     b_str = show b
     acc_strs = [am_str, b_str]
-pprPathCondStr' (ConsCond d expr b) = acc_strs
-  where
-    d_str = show d
-    expr_str = show expr
-    b_str = show b
-    acc_strs = [d_str, expr_str, b_str]
-pprPathCondStr' (AssumePC i num pc) = [show i] ++ [show num] ++ pprPathCondStr' pc
+pprPathCondStr' (AssumePC i num pc) = [show i] ++ [show num] ++ pprPathCondStr' (PC.unhashedPC pc)
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList

@@ -76,7 +76,7 @@ releaseIORefLock = do
 parseHaskellMergeQ :: String -> Q Exp
 parseHaskellMergeQ str = do
     config <- runIO qqConfig
-    parseHaskellConfigQ (config { stateMerging = True }) str
+    parseHaskellConfigQ (config { stateMerging = Merging }) str
 
 parseHaskellQ :: String -> Q Exp
 parseHaskellQ str = do
@@ -232,14 +232,14 @@ parseHaskellIO mods qext = do
 data ExecOut = Completed [State ()] Bindings
              | NonCompleted (State ()) Bindings
 
-runExecutionQ :: Bool -> State () -> Bindings -> Config -> Q ExecOut
+runExecutionQ :: Merging -> State () -> Bindings -> Config -> Q ExecOut
 runExecutionQ mergestates s b config = do
   runIO $ do
     let (s', b') = addAssume s b
     
     SomeSolver solver <- initSolverInfinite config
-    let simplifier = ADTSimplifier arbValueInfinite
-    case qqRedHaltOrd config solver simplifier of
+    let simplifier = IdSimplifier
+    case qqRedHaltOrd config solver simplifier mergestates of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre [] s' b'
                 hal' = hal :<~> ZeroHalter 20 :<~> LemmingsHalter
@@ -275,8 +275,8 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer (), SomeHalter (), SomeOrderer ())
-qqRedHaltOrd config solver simplifier =
+qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> Merging -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+qqRedHaltOrd config solver simplifier mergeStates =
     let
         share = sharing config
 
@@ -285,7 +285,7 @@ qqRedHaltOrd config solver simplifier =
     in
     ( SomeReducer
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (SomeReducer (StdRed share solver simplifier))
+            <~| (SomeReducer (StdRed share mergeStates solver simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptHalter)
@@ -384,16 +384,16 @@ instance Halter ErrorHalter () t where
 
     stepHalter _ _ _ _ _ = ()
 
-executeAndSolveStates :: Bool -> StateExp -> BindingsExp -> Q Exp
+executeAndSolveStates :: Merging -> StateExp -> BindingsExp -> Q Exp
 executeAndSolveStates mergeStates s b = do
     varE 'executeAndSolveStates' `appE` liftData mergeStates `appE` b `appE` s 
 
-executeAndSolveStates' :: Bool -> Bindings -> State () -> IO (Maybe (ExecRes ()))
+executeAndSolveStates' :: Merging -> Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' mergeStates b s = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
-    let simplifier = ADTSimplifier arbValueInfinite
-    case qqRedHaltOrd config solver simplifier of
+    let simplifier = IdSimplifier
+    case qqRedHaltOrd config solver simplifier mergeStates of
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> ErrorHalter
             --                :<~> MaxOutputsHalter (Just 1)
@@ -422,7 +422,7 @@ solveStates' :: ( Named t
 solveStates' b xs = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
-    let simplifier = ADTSimplifier arbValueInfinite
+    let simplifier = IdSimplifier
     solveStates'' solver simplifier b xs
 
 solveStates'' :: ( Named t
@@ -432,8 +432,7 @@ solveStates'' :: ( Named t
                  , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates'' _ _ _ [] =return Nothing
 solveStates'' sol simplifier b (s:xs) = do
-    let mergeStates = False
-    m_ex_res <- runG2Solving sol simplifier b mergeStates s
+    m_ex_res <- runG2Solving sol simplifier b s
     case m_ex_res of
         Just _ -> do
             return m_ex_res

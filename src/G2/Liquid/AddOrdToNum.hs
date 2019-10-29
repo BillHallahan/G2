@@ -133,8 +133,10 @@ ordDictFunc = do
     num <- numTCM
     let numT = TyCon num TYPE
 
-    Just numDC <- lookupT num
-    let [numDC'] = dataCon numDC
+    numDC <- lookupT num
+    let [numDC'] = case numDC of
+                    Just ndc -> dataCon ndc
+                    Nothing -> error "ordDictFunc: No NumDC"
 
     let numA = dataConArgs numDC'
 

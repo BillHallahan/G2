@@ -7,6 +7,7 @@ module G2.Execution.MergingHelpers
   , matchLitAlts
   , replaceCaseWSym
   , replaceCase
+  , exprToPCs
   ) where
 
 import G2.Language
@@ -30,13 +31,20 @@ replaceCase s@(State {curr_expr = cexpr, expr_env = eenv}) =
 
 replaceCaseExpr :: State t -> Expr -> Expr
 replaceCaseExpr s (App e1 e2) = App (replaceCaseExpr s e1) (replaceCaseExpr s e2)
-replaceCaseExpr s@(State {model = m, type_classes = tc}) (Case e i alts) =
+replaceCaseExpr s@(State {model = m, type_classes = tc}) (Case e i alts@(Alt (LitAlt _) _:_)) =
     let val = subExpr m tc e
     in case val of
         (Lit lit) ->
-            let (Alt (LitAlt _) expr):_ = matchLitAlts lit alts
+            let
                 binds = [(i, Lit lit)]
-            in replaceCaseExpr s $ liftCaseBinds binds expr
+            in
+            case matchLitAlts lit alts of
+                (Alt (LitAlt _) expr):_ -> replaceCaseExpr s $ liftCaseBinds binds expr
+                    -- The above may not match if an expression constraining a variable
+                    -- introduced from merging had an implication added by another merge,
+                    -- and that implication was not satisfied by the model.
+                    -- In this situation, we do not need to replace the case expression
+                _ -> error "replaceCaseExpr: No bound value"
         _ -> error $ "Unable to find Lit value for e. Got: " ++ show val
 replaceCaseExpr _ e = e
 
@@ -76,10 +84,10 @@ replaceCaseWSym' (s@(State {known_values = kv}), ng) (Case (Var i) _ alts@(a:_))
 
         -- for each modified Alt Expr, add Path Cond
         es' = map (mkEqPrimExpr newSymT kv (Var newSym)) es
-        (_, newPCs) = bindExprToNum (\num e -> AssumePC i (fromInteger num) (ExtCond e True)) es'
+        (_, newPCs) = bindExprToNum (\num e -> PC.mkAssumePC i (fromInteger num) (ExtCond e True)) es'
 
         -- for the PathConds returned from replaceCaseWSym', wrap them in AssumePCs
-        pcsL' = concat . snd $ bindExprToNum (\num pcs -> map (\pc -> AssumePC i (fromInteger num) pc) pcs) pcsL
+        pcsL' = concat . snd $ bindExprToNum (\num pcs -> map (\pc -> PC.mkAssumePC i (fromInteger num) pc) pcs) pcsL
         -- we assume PathCond restricting values of `i` has already been added before hand when creating the Case Expr
 
         eenv' = expr_env s'
@@ -94,8 +102,17 @@ replaceCaseWSym' (s, ng) (App e1 e2) =
     in ((s'', ng''), ((App e1' e2'), newPCs1 ++ newPCs2))
 replaceCaseWSym' (s, ng) e = ((s, ng), (e, []))
 
-getAssumption :: Expr -> (Id, Int)
-getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, fromInteger val)
+
+exprToPCs :: Expr -> Bool -> [PathCond]
+exprToPCs (Case (Var i) _ alts) boolVal =
+    let altEs = map (\(Alt (LitAlt (LitInt n)) e) -> (n, e)) alts
+        -- wrap Exprs in AssumePCs
+        -- we assume PathCond restricting values of `i` has already been added before hand when creating the Case Expr
+    in map (\(num, e) -> PC.mkAssumePC i num (ExtCond e boolVal)) altEs
+exprToPCs e boolVal = [ExtCond e boolVal]
+
+getAssumption :: Expr -> (Id, Integer)
+getAssumption (App (App (Prim Eq _) (Var i)) (Lit (LitInt val))) = (i, val)
 getAssumption e = error $ "Unable to extract Id, Int from Assumed Expr: " ++ (show e)
 
 -- | Returns True is Expr can be pattern matched against Assume-d Expr created during state merging

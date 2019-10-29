@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Haskell Translation
@@ -135,20 +136,26 @@ loadProj hsc proj src gflags tr_con = do
                                                     _ -> hscTarget beta_flags'
                              , ghcLink = LinkInMemory
                              , ghcMode = CompManager
-                             , includePaths = proj ++ includePaths beta_flags'
+
                              , importPaths = proj ++ importPaths beta_flags'
 
                              , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
                              , hpcDir = head proj}    
+        dflags' = setIncludePaths proj dflags
 
-    _ <- setSessionDynFlags dflags
+    _ <- setSessionDynFlags dflags'
     targets <- mapM (flip guessTarget Nothing) src
     _ <- setTargets targets
     load LoadAllTargets
 
-
+setIncludePaths :: [FilePath] -> DynFlags -> DynFlags
+#if __GLASGOW_HASKELL__ < 806
+setIncludePaths proj dflags = dflags { includePaths = proj ++ includePaths dflags }
+#else
+setIncludePaths proj dflags = dflags { includePaths = addQuoteInclude (includePaths dflags) proj }
+#endif
 
 -- Compilation pipeline with CgGuts
 hskToG2ViaCgGutsFromFile :: Maybe HscTarget
@@ -198,6 +205,7 @@ mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget
   -> [FilePath]
   -> G2.TranslationConfig 
   -> IO [(G2.CgGutsClosure, G2.ModDetailsClosure)]
+#if __GLASGOW_HASKELL__ < 806
 mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
   (env, modgutss) <- runGhc (Just libdir) $ do
       _ <- loadProj hsc proj src [] tr_con
@@ -213,6 +221,24 @@ mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
   tidys <- mapM (tidyProgram env) simplgutss
   let pairs = map (\((cg, md), mg) -> (mkCgGutsClosure (mg_binds mg) cg, mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
+#else
+mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
+  (env, modgutss) <- runGhc (Just libdir) $ do
+      _ <- loadProj hsc proj src [] tr_con
+      env <- getSession
+
+      mod_graph <- getModuleGraph
+      parsed_mods <- mapM parseModule $ mgModSummaries mod_graph
+      typed_mods <- mapM typecheckModule parsed_mods
+      desug_mods <- mapM desugarModule typed_mods
+
+      return (env, map coreModule desug_mods)
+
+  simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
+  tidys <- mapM (tidyProgram env) simplgutss
+  let pairs = map (\((cg, md), mg) -> (mkCgGutsClosure (mg_binds mg) cg, mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
+  return pairs
+#endif
 
 -- | The core program in the CgGuts does not include local rules after tidying.
 -- As such, we pass in the CoreProgram from the ModGuts
@@ -320,18 +346,35 @@ mkModGutsClosuresFromFile hsc proj src tr_con = do
       env <- getSession
 
       mod_graph <- getModuleGraph
-      parsed_mods <- mapM parseModule mod_graph
+
+      parsed_mods <- mapM parseModule $ convertModuleGraph mod_graph
+
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
       return (env, map coreModule desug_mods)
 
   if G2.simpl tr_con then do
-    simpls <- mapM (hscSimplify env) modgutss
-    closures <- mapM (mkModGutsClosure env) simpls
-    return closures
+    simpls <- mapM (hscSimplifyC env) modgutss
+    mapM (mkModGutsClosure env) simpls
   else do
-    closures <- mapM (mkModGutsClosure env) modgutss
-    return closures
+    mapM (mkModGutsClosure env) modgutss
+
+{-# INLINE convertModuleGraph #-}
+convertModuleGraph :: ModuleGraph -> [ModSummary]
+#if __GLASGOW_HASKELL__ < 806
+convertModuleGraph = id
+#else
+convertModuleGraph = mgModSummaries
+#endif
+
+{-# INLINE hscSimplifyC #-}
+hscSimplifyC :: HscEnv -> ModGuts -> IO ModGuts
+#if __GLASGOW_HASKELL__ < 806
+hscSimplifyC = hscSimplify
+#else
+hscSimplifyC env = hscSimplify env []
+#endif
+
 
 -- This one will need to do the Tidy program stuff
 mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
@@ -491,13 +534,24 @@ switchModule m =
 mkLit :: Literal -> G2.Lit
 mkLit (MachChar chr) = G2.LitChar chr
 mkLit (MachStr bstr) = G2.LitString (C.unpack bstr)
+
+#if __GLASGOW_HASKELL__ < 806
 mkLit (MachInt i) = G2.LitInt (fromInteger i)
 mkLit (MachInt64 i) = G2.LitInt (fromInteger i)
 mkLit (MachWord i) = G2.LitInt (fromInteger i)
 mkLit (MachWord64 i) = G2.LitInt (fromInteger i)
+mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
+#else
+mkLit (LitNumber LitNumInteger i _) = G2.LitInteger (fromInteger i)
+mkLit (LitNumber LitNumNatural i _) = G2.LitInteger (fromInteger i)
+mkLit (LitNumber LitNumInt i _) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt64 i _) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord i _) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord64 i _) = G2.LitInt (fromInteger i)
+#endif
+
 mkLit (MachFloat rat) = G2.LitFloat rat
 mkLit (MachDouble rat) = G2.LitDouble rat
-mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
 mkLit _ = error "mkLit: unhandled Lit"
 -- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 -- mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
@@ -783,6 +837,7 @@ guessProj tgt = do
     [] -> return $ takeDirectory absTgt
 
 dirContainsCabal :: FilePath -> IO Bool
+dirContainsCabal "" = return False
 dirContainsCabal dir = do
   exists <- doesDirectoryExist dir
   if exists then do

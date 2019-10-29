@@ -1,3 +1,6 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Execution.StateMerging
   ( mergeState
   , mergeCurrExpr
@@ -9,8 +12,10 @@ module G2.Execution.StateMerging
   , emptyContext
   , Context
   , createCaseExpr
+  , concretizeSym
   , bindExprToNum
   , implies
+  , restrictSymVal
   ) where
 
 import G2.Language
@@ -20,7 +25,6 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
 import Data.Maybe
-import qualified Data.Map as M
 import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
@@ -37,6 +41,7 @@ isMergeable s1 s2 =
     && (tags s1 == tags s2)
     && (track s1 == track s2)
     && (type_classes s1 == type_classes s2)
+    -- && (cases s1) == (cases s2)
     && (isEmpty $ model s1)
     && (isEmpty $ model s2)
 
@@ -51,7 +56,17 @@ isMergeableExpr eenv1 eenv2 (App e1 _) (App e1' _) = isMergeableExpr eenv1 eenv2
 isMergeableExpr _ _ (Data dc1) (Data dc2) = dc1 == dc2
 isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
     | (Just (E.Sym _)) <- E.lookupConcOrSym (idName i1) eenv1
-    , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2 = True
+    , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2
+    , typeOf i1 == typeOf i2 = True
+-- isMergeableExpr eenv1 eenv2 e1 e2
+--     | isSMNF eenv1 e1
+--     , isSMNF eenv2 e2 = True
+-- isMergeableExpr eenv1 eenv2 e1@(Case _ _ _) e2
+--     | isSMNF eenv1 e1
+--     , isSMNF eenv2 e2 = True
+-- isMergeableExpr eenv1 eenv2 e1 e2@(Case _ _ _)
+--     | isSMNF eenv1 e1
+--     , isSMNF eenv2 e2 = True
 isMergeableExpr _ _ _ _ = False
 
 -- | Values that are passed around and updated while merging individual fields in 2 States
@@ -86,9 +101,9 @@ mergeState ngen simplifier s1 s2 =
                 (ctxt''', path_conds') = mergePathConds simplifier ctxt''
                 syms' = mergeSymbolicIds ctxt'''
                 s1' = s1_ ctxt'''
-                s2' = s2_ ctxt'''
                 ngen'' = ng_ ctxt'''
-            in (ngen''
+            in
+            (ngen''
                , (Just State { expr_env = eenv'
                              , type_env = type_env s1'
                              , curr_expr = curr_expr'
@@ -100,9 +115,11 @@ mergeState ngen simplifier s1 s2 =
                              , symbolic_ids = syms'
                              , exec_stack = exec_stack s1'
                              , model = model s1'
-                             , adt_int_maps = M.union (adt_int_maps s1') (adt_int_maps s2')
-                             , simplified = M.union (simplified s1') (simplified s2')
                              , known_values = known_values s1'
+                             , cases = cases s1' -- both should be equal
+                             , depth_exceeded = depth_exceeded s1'
+                             , merge_stack = merge_stack s1'
+                             , ready_to_merge = ready_to_merge s1'
                              , rules = rules s1'
                              , num_steps = num_steps s1'
                              , track = track s1'
@@ -114,94 +131,178 @@ mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {cur
     | (CurrExpr evalOrRet1 e1) <- ce1
     , (CurrExpr evalOrRet2 e2) <- ce2
     , evalOrRet1 == evalOrRet2 =
-        let (ctxt'@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2}), ce') = mergeExprInline ctxt HS.empty HS.empty e1 e2
-            s1' = if (HM.null renamed1) then s1 else renames renamed1 s1
-            s2' = if (HM.null renamed2) then s2 else renames renamed2 s2
-        in (ctxt' {s1_ = s1', s2_ = s2'} , CurrExpr evalOrRet1 ce')
+        let (ctxt', e1', e2') = inlineExpr ctxt HS.empty HS.empty e1 e2
+            (ctxt'', ce) = mergeInlinedExpr ctxt' e1' e2'
+        in (ctxt'', CurrExpr evalOrRet1 ce)
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
--- | Merges 2 Exprs, combining 2 corresponding symbolic Vars into 1 if possible, and substituting the full Expr of any concrete Vars
--- Also returns any newly added Symbolic Variables and Names of renamed Variables
-mergeExprInline :: Named t
-                => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
-                -> (Context t, Expr)
-mergeExprInline ctxt@(Context { s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2})}) inlined1 inlined2 e1 e2 =
-    let (e1', inlined1') = inlineVars eenv1 inlined1 e1
-        (e2', inlined2') = inlineVars eenv2 inlined2 e2
-        -- For any symbolic variable pairs merged into new variables previously, rename occurrences of the old symbolic vars
-        e1'' = replaceVar (renamed1_ ctxt) e1'
-        e2'' = replaceVar (renamed2_ ctxt) e2'
-    in mergeExprInline' ctxt inlined1' inlined2' e1'' e2''
+-- | Either (i) Inline var with value from ExprEnv (if any)
+-- , (ii) Renames corresponding Vars in the 2 Exprs to a new, common Var
+-- , or (iii) Concretizes symbolic var to case expression on its Data Constructors if necessary.
+-- Only do (i) if it hasn't been inlined till then, to prevent infinite recursion in the case of merging 2 infinite exprs.
+-- e.g. merging x = x:xs and y = y:ys
+inlineExpr :: Named t
+           => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
+           -> (Context t, Expr, Expr)
+inlineExpr ctxt@(Context { s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2})}) inlined1 inlined2 e1 e2 =
+    let (e1', inlined1') = inlineVar eenv1 inlined1 e1
+        (e2', inlined2') = inlineVar eenv2 inlined2 e2
+    in inlineExpr' ctxt inlined1' inlined2' e1' e2'
 
--- | Replace var with value from ExprEnv if any. Only inline var if it hasn't been inlined till then
--- , to prevent infinite recursion in the case of merging 2 infinite exprs. e.g. merging x = x:xs and y = y:ys
-{-# INLINE inlineVars #-}
-inlineVars :: E.ExprEnv -> HS.HashSet Name -> Expr -> (Expr, HS.HashSet Name)
-inlineVars eenv inlined e
+{-# INLINE inlineVar #-}
+inlineVar :: E.ExprEnv -> HS.HashSet Name -> Expr -> (Expr, HS.HashSet Name)
+inlineVar eenv inlined e
     | (Var (Id n _)) <- e
     , not $ HS.member n inlined
     , Just e' <- E.deepLookup n eenv = (e', HS.insert n inlined)
     | otherwise = (e, inlined)
 
-{-# INLINE replaceVar #-}
-replaceVar :: HM.HashMap Name Name -> Expr -> Expr
-replaceVar renamed (Var (Id n t)) =
-    let n' = fromMaybe n (HM.lookup n renamed)
-    in Var (Id n' t)
-replaceVar _ e = e
-
-mergeExprInline' :: Named t
-                => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
-                -> (Context t, Expr)
-mergeExprInline' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4) =
-    let (ctxt', e1') = mergeExprInline ctxt inlined1 inlined2 e1 e3
-        (ctxt'', e2') = mergeExprInline ctxt' inlined1 inlined2 e2 e4
-    in (ctxt'', App e1' e2')
-mergeExprInline' ctxt _ _ e1@(Var _) e2@(Var _)
-    | e1 == e2 = (ctxt, e1)
-    | otherwise = mergeVarsInline ctxt e1 e2
-mergeExprInline' ctxt@(Context { s1_ = s1, s2_ = s2 }) _ _ e1@(Case _ _ _) e2
+inlineExpr' :: Named t
+            => Context t -> HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr
+            -> (Context t, Expr, Expr)
+inlineExpr' ctxt inlined1 inlined2 (App e1 e2) (App e3 e4)
+    | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) e1 e3 =
+        let (ctxt', e1', e3') = inlineExpr ctxt inlined1 inlined2 e1 e3
+            (ctxt'', e2', e4') = inlineExpr ctxt' inlined1 inlined2 e2 e4
+        in (ctxt'', (App e1' e2'), (App e3' e4'))
+inlineExpr' ctxt _ _ e1@(Var _) e2@(Var _)
+    | e1 == e2 = (ctxt, e1, e2)
+    | otherwise = mergeVars ctxt e1 e2
+inlineExpr' ctxt@(Context { s1_ = s1, s2_ = s2}) _ _ e1@(Var i) e2@(Case _ _ _)
+    | isSMNF (expr_env s2) e2
+    , HS.member i (symbolic_ids s1)
+    , not $ isPrimType (idType i) =
+        let (ctxt', e1') = symToCase ctxt e1 True
+        in (ctxt', e1', e2)
+inlineExpr' ctxt@(Context { s1_ = s1, s2_ = s2}) _ _ e1@(Case _ _ _) e2@(Var i)
     | isSMNF (expr_env s1) e1
-    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
-mergeExprInline' ctxt@(Context { s1_ = s1, s2_ = s2 }) _ _ e1 e2@(Case _ _ _)
-    | isSMNF (expr_env s1) e1
-    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
-mergeExprInline' ctxt@(Context { newId_ = newId }) _ _ e1 e2
-    | e1 == e2 = (ctxt, e1)
-    | otherwise =
-        let mergedExpr = createCaseExpr newId [e1, e2]
-        in (ctxt, mergedExpr)
+    , HS.member i (symbolic_ids s2)
+    , not $ isPrimType (idType i) =
+        let (ctxt', e2') = symToCase ctxt e2 False
+        in (ctxt', e1, e2')
+inlineExpr' ctxt _ _ e1 e2 = (ctxt, e1, e2)
 
-mergeVarsInline :: Named t
-                => Context t -> Expr -> Expr
-                -> (Context t, Expr)
-mergeVarsInline ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2, ng_ = ng, newId_ = newId}) (Var i1) (Var i2)
-    | i1 == i2 = (ctxt, Var i1)
+mergeVars :: Named t
+           => Context t -> Expr -> Expr
+           -> (Context t, Expr, Expr)
+mergeVars ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = renamed2, ng_ = ng}) (Var i1) (Var i2)
+    | i1 == i2 = (ctxt, Var i1, Var i2)
     | (idType i1 == idType i2)
-    , not $ HS.member i1 (symbolic_ids s2) -- if both are symbolic variables unique to their states, replace one of them with the other
-    , not $ HS.member i2 (symbolic_ids s1)
+    , not $ E.member (idName i1) (expr_env s2) -- if both are symbolic variables unique to their states, replace one of them with the other
+    , not $ E.member (idName i2) (expr_env s1)
     , HS.member i1 (symbolic_ids s1)
     , HS.member i2 (symbolic_ids s2) =
-        let syms' = HS.insert i1 (HS.delete i2 (symbolic_ids s2))
-            ctxt' = ctxt { s2_ = s2 {symbolic_ids = syms'} , renamed2_ = HM.insert (idName i2) (idName i1) renamed2 }
-        in (ctxt', Var i1)
+        let s2' = replaceVar s2 i2 i1
+        in (ctxt {s2_ = s2'}, Var i1, Var i1)
     | idType i1 == idType i2
     , not $ elem (idName i1) (HM.elems renamed1) -- check if symbolic var is a var that is a result of some previous renaming when merging the Expr
     , not $ elem (idName i2) (HM.elems renamed2)
     , HS.member i1 (symbolic_ids s1)
     , HS.member i2 (symbolic_ids s2) =
         let (newSymId, ng') = freshId (idType i1) ng
-            syms1' = HS.insert newSymId (HS.delete i1 (symbolic_ids s1))
-            syms2' = HS.insert newSymId (HS.delete i2 (symbolic_ids s2))
-            s1' = s1 {symbolic_ids = syms1'}
-            s2' = s2 {symbolic_ids = syms2'}
+            s1' = replaceVar s1 i1 newSymId 
+            s2' = replaceVar s2 i2 newSymId
             ctxt' = ctxt { ng_ = ng', s1_ = s1', s2_ = s2', renamed1_ = HM.insert (idName i1) (idName newSymId) renamed1
                          , renamed2_ = HM.insert (idName i2) (idName newSymId) renamed2 }
-        in (ctxt', Var newSymId)
-    | otherwise =
-        let mergedExpr = createCaseExpr newId [(Var i1), (Var i2)]
-        in (ctxt, mergedExpr)
-mergeVarsInline _ e1 e2 = error $ "Cannot merge non-Vars. " ++ (show e1) ++ "\n" ++ (show e2)
+        in (ctxt', Var newSymId, Var newSymId)
+    | otherwise = (ctxt, Var i1, Var i2)
+mergeVars _ e1 e2 = error $ "Non-Var Exprs. " ++ (show e1) ++ "\n" ++ (show e2)
+
+replaceVar :: Named t => State t -> Id -> Id -> State t
+replaceVar s@(State {known_values = kv, path_conds = pc, symbolic_ids = syms, expr_env = eenv}) old new = if isPrimType (idType old)
+    then s { path_conds = PC.insert (ExtCond (mkEqPrimExpr (idType old) kv (Var new) (Var old)) True) pc
+           , symbolic_ids = HS.insert new syms
+           , expr_env = E.insertSymbolic (idName new) new eenv}
+    else (rename (idName old) (idName new) s)
+            { expr_env = E.insertSymbolic (idName new) new $ E.insert (idName old) (Var new) eenv
+            , symbolic_ids = HS.insert new (HS.delete old syms)}
+
+-- | Replace Symbolic Variable with a Case Expression, where each Alt is a Data Constructor
+symToCase :: Named t => Context t -> Expr -> Bool -> (Context t, Expr)
+symToCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) (Var i) first =
+    let s = if first then s1 else s2
+        (adt, bi) = fromJust $ getCastedAlgDataTy (idType i) (type_env s)
+        dcs = dataConsFromADT adt
+        (newId, ng') = freshId TyLitInt ng
+
+        ((s', ng''), dcs') = L.mapAccumL (concretizeSym bi Nothing) (s, ng') dcs
+
+        e2 = createCaseExpr newId dcs'
+        syms' = HS.delete i $ HS.insert newId (symbolic_ids s')
+        eenv' = E.insert (idName i) e2 (expr_env s')
+
+        -- add PC restricting range of values for newSymId
+        lower = 1
+        newSymConstraint = restrictSymVal (known_values s) lower (toInteger $ length dcs) newId
+
+        s'' = s' {symbolic_ids = syms', expr_env = eenv'}
+    in if first
+        then (ctxt { s1_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:newPCs}, e2)
+        else (ctxt { s2_ = s'', ng_ = ng'', newPCs_ = newSymConstraint:newPCs}, e2)
+symToCase _ e1 _ = error $ "Unhandled Expr: " ++ (show e1)
+
+-- | Creates and applies new symbolic variables for arguments of Data Constructor
+concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
+concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
+    let dc' = Data dc
+        ts' = anonArgumentTypes $ PresType ts
+        ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
+        (ns, ng') = freshSeededNames (map (const $ n) ts'') ng
+        newParams = map (\(n', t) -> Id n' t) (zip ns ts'')
+        ts2 = map snd bi
+        dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
+        dc''' = case maybeC of
+            (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
+            Nothing -> dc''
+        eenv = foldr (uncurry E.insertSymbolic) (expr_env s) $ zip (map idName newParams) newParams
+        syms = foldr HS.insert (symbolic_ids s) newParams
+    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc''')
+
+
+mergeInlinedExpr :: Named t => Context t -> Expr -> Expr -> (Context t, Expr)
+mergeInlinedExpr ctxt@(Context {newId_ = newId}) (App e1 e2) (App e3 e4)
+    | isMergeableExpr (expr_env (s1_ ctxt)) (expr_env (s2_ ctxt)) e1 e3 =
+        let (ctxt', e1') = mergeInlinedExpr ctxt e1 e3
+            (ctxt'', e2') = mergeInlinedExpr ctxt' e2 e4
+        in (ctxt'', App e1' e2')
+    | otherwise = (ctxt, createCaseExpr newId [(App e1 e2), (App e3 e4)])
+mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2 }) e1@(Case _ _ _) e2
+    | isSMNF (expr_env s1) e1
+    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
+mergeInlinedExpr ctxt@(Context { s1_ = s1, s2_ = s2 }) e1 e2@(Case _ _ _)
+    | isSMNF (expr_env s1) e1
+    , isSMNF (expr_env s2) e2 = mergeCase ctxt e1 e2
+mergeInlinedExpr ctxt (Lit l1) (Lit l2)
+    | l1 == l2 = (ctxt, Lit l1)
+    | (typeOf l1) == (typeOf l2) = mergeLits ctxt l1 l2
+mergeInlinedExpr ctxt (Var i) (Lit l)
+    | (typeOf i) == (typeOf l) = mergeVarLit ctxt i l True
+mergeInlinedExpr ctxt (Lit l) (Var i)
+    | (typeOf i) == (typeOf l) = mergeVarLit ctxt i l False
+mergeInlinedExpr ctxt@(Context { newId_ = newId }) e1 e2
+    | e1 == e2 = (ctxt, e1)
+    | otherwise = (ctxt, createCaseExpr newId [e1, e2])
+
+-- | Combines 2 Lits `l1` and `l2` into a single new Symbolic Variable and adds new Path Constraints
+mergeLits :: Context t -> Lit -> Lit -> (Context t, Expr)
+mergeLits ctxt@(Context {newId_ = newId, newSyms_ = newSyms, newPCs_ = newPCs, ng_ = ng}) l1 l2 =
+    let (newSymId, ng') = freshId (typeOf l1) ng
+        newSyms' = HS.insert newSymId newSyms
+        pc1 = PC.mkAssumePC newId 1 (AltCond l1 (Var newSymId) True)
+        pc2 = PC.mkAssumePC newId 2 (AltCond l2 (Var newSymId) True)
+    in (ctxt { newSyms_ = newSyms', newPCs_ = pc1:pc2:newPCs, ng_ = ng' }, Var newSymId)
+
+-- | Combines a lit `l` and variable `i` into a single new Symbolic Variable and adds new Path Constraints
+mergeVarLit :: Context t -> Id -> Lit -> Bool -> (Context t, Expr)
+mergeVarLit ctxt@(Context {s1_ = s1, newId_ = newId, newSyms_ = newSyms, newPCs_ = newPCs, ng_ = ng}) i l first =
+    let (newSymId, ng') = freshId (typeOf l) ng
+        newSyms' = HS.insert newSymId newSyms
+        pc1 = AltCond l (Var newSymId) True
+        pc2 = ExtCond (mkEqPrimExpr (typeOf i) (known_values s1) (Var i) (Var newSymId)) True
+        pcs' = case first of
+            True -> [PC.mkAssumePC newId 1 pc2, PC.mkAssumePC newId 2 pc1]
+            False -> [PC.mkAssumePC newId 1 pc1, PC.mkAssumePC newId 2 pc2]
+    in (ctxt { newSyms_ = newSyms', newPCs_ = pcs' ++ newPCs, ng_ = ng' }, Var newSymId)
 
 type Conds = [(Id, Integer)]
 
@@ -240,8 +341,9 @@ mergeCase' ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ =
 
         -- add PC restricting range of values for newSymId
         lower = 1
-        newSymConstraint = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newSymId) lower) (mkLeIntExpr kv (Var newSymId) (upper - 1))) True
+        newSymConstraint = restrictSymVal kv lower (upper - 1) newSymId
         newPCs''' = newSymConstraint:newPCs''
+
         ctxt'' = ctxt {newPCs_ = newPCs''' ++ newPCs, newSyms_ = HS.union newSyms' syms, ng_ = ng''}
     in (ctxt'', mergedExpr)
 
@@ -302,8 +404,9 @@ getChoices'' :: Expr -> [(Conds, Expr)]
 getChoices'' (Case (Var i) _ a) = concatMap (getChoices' i) a
 getChoices'' e = [([], e)]
 
+-- Group Exprs with common inner DataCon together
 groupChoices :: [(Conds, Expr)] -> [[(Conds, Expr)]]
-groupChoices xs = L.groupBy (\(_, e1) (_, e2) -> commonSubExpr e1 e2) xs
+groupChoices xs = L.groupBy (\(_, e1) (_, e2) -> commonSubExpr e1 e2) $ L.sortBy (\(_, e1) (_, e2) -> compare e1 e2) xs
 
 commonSubExpr :: Expr -> Expr -> Bool
 commonSubExpr (App e1 _) (App e1' _) = commonSubExpr e1 e1'
@@ -327,7 +430,7 @@ implies kv newId num e b = implies' kv (mkEqIntExpr kv (Var newId) num) e b
 
 implies' :: KnownValues -> Expr -> Expr -> Bool -> PathCond
 implies' kv clause e b =
-    let e' = mkOrExpr kv (mkNotExpr kv clause) e
+    let e' = mkImpliesExpr kv clause e
     in ExtCond e' b
 
 -- | Merges 2 Exprs without inlining Vars from the expr_env or combining symbolic variables
@@ -360,21 +463,16 @@ mergeSymbolicIds (Context { s1_ = (State {symbolic_ids = syms1}), s2_ = (State {
         syms'' = HS.insert newId syms'
     in syms''
 
-
 -- | Keeps all EnvObjs found in only one ExprEnv, and combines the common (key, value) pairs using the mergeEnvObj function
 mergeExprEnv :: Context t -> (Context t, E.ExprEnv)
-mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2}), newId_ = newId, ng_ = ngen}) =
+mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr_env = eenv2}), newId_ = newId, ng_ = ngen, newSyms_ = newSyms}) =
     let
-        eenv1_map = E.unwrapExprEnv eenv1
-        eenv2_map = E.unwrapExprEnv eenv2
-        zipped_maps = (M.intersectionWith (\a b -> (a,b)) eenv1_map eenv2_map)
-        ((changedSyms1, changedSyms2, ngen'), merged_map) = M.mapAccum (mergeEnvObj newId eenv1 eenv2) (HM.empty, HM.empty, ngen) zipped_maps
-        newSyms = (HM.elems changedSyms1) ++ (HM.elems changedSyms2)
-        merged_map' = foldr (\i@(Id n _) m -> M.insert n (E.SymbObj i) m) merged_map newSyms
-        eenv1_rem = (M.difference eenv1_map eenv2_map)
-        eenv2_rem = (M.difference eenv2_map eenv1_map)
-        eenv' = E.wrapExprEnv $ M.unions [merged_map', eenv1_rem, eenv2_rem]
-
+        ((changedSyms1, changedSyms2, ngen'), mergedEnvs) = E.intersectionAccum (mergeEnvObj newId eenv1 eenv2) (HM.empty, HM.empty, ngen) eenv1 eenv2
+        newSyms' = (HM.elems changedSyms1) ++ (HM.elems changedSyms2) ++ (HS.toList newSyms)
+        mergedEnvs' = foldr (\i@(Id n _) m -> E.insertSymbolic n i m) mergedEnvs newSyms'
+        eenv1Rem = E.difference eenv1 eenv2
+        eenv2Rem = E.difference eenv2 eenv1
+        eenv' = E.unions [mergedEnvs', eenv1Rem, eenv2Rem]
         ctxt' = ctxt {ng_ = ngen'}
         -- rename any old Syms in PathConds in each state to their new Names, based on list of pairs in changedSyms1_ and changedSyms2_
         ctxt'' = updatePCs ctxt' changedSyms1 changedSyms2
@@ -388,12 +486,12 @@ mergeEnvObj newId eenv1 eenv2 (changedSyms1, changedSyms2, ngen) (eObj1, eObj2)
     -- Following cases deal with unequal EnvObjs
     | (E.ExprObj e1) <- eObj1
     , (E.ExprObj e2) <- eObj2 = ((changedSyms1, changedSyms2, ngen), E.ExprObj (mergeExpr newId e1 e2))
-    -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a NonDet expr
+    -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a Case expr
     | (E.SymbObj i) <- eObj1
     , (E.ExprObj e2) <- eObj2 = mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i e2 True
     | (E.ExprObj e1) <- eObj1
     , (E.SymbObj i) <- eObj2 = mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i e1 False
-    -- Lookup RedirObj and create a NonDet Expr combining the lookup result with the expr from the ExprObj
+    -- Lookup RedirObj and create a Case Expr combining the lookup result with the expr from the ExprObj
     | (E.RedirObj n) <- eObj1
     , (E.ExprObj e2) <- eObj2 = mergeRedirExprObjs ngen changedSyms1 changedSyms2 newId eenv1 n e2 True
     | (E.ExprObj e1) <- eObj1
@@ -411,7 +509,7 @@ mergeSymbExprObjs :: NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id
                   -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i@(Id _ t) e first =
         let (newSymId, ngen') = freshId t ngen
-        -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are enclosed under the right `Assume` in the NonDet Exprs
+        -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are enclosed under the right `Assume` in the Case Exprs
         in case first of
             True ->
                 let changedSyms1' = HM.insert i newSymId changedSyms1
@@ -485,8 +583,8 @@ mergePathCondsSimple simplifier ctxt@(Context {s1_ = s1@(State {path_conds = pc1
         common = HS.toList $ HS.intersection pc1HS pc2HS
         pc1Only = HS.toList $ HS.difference pc1HS pc2HS
         pc2Only = HS.toList $ HS.difference pc2HS pc1HS
-        pc1Only' = map (\pc -> AssumePC newId 1 pc) pc1Only
-        pc2Only' = map (\pc -> AssumePC newId 2 pc) pc2Only
+        pc1Only' = map (\pc -> PC.mkAssumePC newId 1 pc) pc1Only
+        pc2Only' = map (\pc -> PC.mkAssumePC newId 2 pc) pc2Only
         mergedPC = PC.fromList common
         mergedPC' = foldr PC.insert mergedPC (pc1Only' ++ pc2Only')
         mergedPC'' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) mergedPC'
@@ -495,52 +593,26 @@ mergePathCondsSimple simplifier ctxt@(Context {s1_ = s1@(State {path_conds = pc1
         mergedPC''' = foldr PC.insert mergedPC'' newPCs''
     in (ctxt {s1_ = s1'}, mergedPC''')
 
--- | Leaves common PathCond-s as it is, wraps PathCond-s unique to each State in AssumePCs and reinserts them into PathConds
-mergePathConds :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)
-mergePathConds simplifier ctxt@(Context { s1_ = s1@(State {path_conds = pc1, known_values = kv})
-                                        , s2_ = (State {path_conds = pc2})
-                                        , newId_ = newId, newPCs_ = newPCs}) =
-    -- If a key exists in both maps, then the respective values are combined and inserted into pc1_map'. 
-    -- Else, all other values in pc1_map are added to pc1_map' as it is.
-    -- pc2_map' will only contain values whose keys are not present in pc1_map
-    let
-        pc2_map = PC.toMap pc2
-        pc1_map = PC.toMap pc1
-        ((pc2_map', newAssumePCs), pc1_map') = M.mapAccumWithKey (mergeMapEntries newId) (pc2_map, HS.empty) pc1_map
-        combined_map = PC.PathConds (M.union pc2_map' pc1_map')
-        -- Add the following expression to constrain the value newId can take to either 1/2 when solving
-        combined_map' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) combined_map
-        (s1', newPCs') = L.mapAccumL (simplifyPC simplifier) s1 newPCs
-        newPCs'' = concat newPCs'
-    in (ctxt {s1_ = s1'}, L.foldr PC.insert (HS.foldr PC.insert combined_map' newAssumePCs) newPCs'')
+mergePathConds :: Simplifier simplifier => simplifier -> Context t -> (Context t, PathConds)
+mergePathConds simplifier ctxt@(Context { s1_ = s1@(State { path_conds = pc1, known_values = kv })
+                                         , s2_ = (State { path_conds = pc2 })
+                                         , newId_ = newId
+                                         , newPCs_ = newPCs}) =
+    let        
+        res_newId = ExtCond (mkOrExpr kv
+                                (mkEqIntExpr kv (Var newId) 1)
+                                (mkEqIntExpr kv (Var newId) 2)) True
 
--- A map and key,value pair are passed as arguments to the function. If the key exists in the map, then both values
--- are combined and the entry deleted from the map. Else the map and value are simply returned as it is.
-mergeMapEntries :: Id -> (M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond)
-                -> (Maybe Name)
-                -> (HS.HashSet PC.PathCond, HS.HashSet Name)
-                -> ((M.Map (Maybe Name) (HS.HashSet PathCond, HS.HashSet Name), HS.HashSet PC.PathCond), (HS.HashSet PC.PathCond, HS.HashSet Name))
-mergeMapEntries newId (pc2_map, newAssumePCs) key (hs1, ns1) =
-    case M.lookup key pc2_map of
-        Just (hs2, ns2) -> ((pc2_map', newAssumePCs'), (mergedHS, mergedNS))
-            where
-                pc2_map' = M.delete key pc2_map
-                (mergedHS, unmergedPCs) = mergeHashSets newId hs1 hs2
-                mergedNS = HS.union ns1 ns2 -- names should still be the same even though some PCs are wrapped in AssumePCs and moved to different node
-                newAssumePCs' = HS.union newAssumePCs unmergedPCs
-        Nothing -> ((pc2_map, newAssumePCs), (hs1, ns1))
+        merged = PC.mergeWithAssumePCs newId pc1 pc2
 
--- Any PathCond present in both HashSets is added as it is to the new HashSet.
--- A PathCond present in only 1 HashSet is changed to the form 'AssumePC (x == _) PathCond' and added to the new HashSet
-mergeHashSets :: Id -> (HS.HashSet PathCond) -> (HS.HashSet PathCond) -> (HS.HashSet PathCond, HS.HashSet PathCond)
-mergeHashSets newId hs1 hs2 = (common, unmergedPCs)
-    where
-        common = HS.intersection hs1 hs2
-        hs1Minus2 = HS.difference hs1 hs2
-        hs2Minus1 = HS.difference hs2 hs1
-        hs1Minus2' = HS.map (\pc -> AssumePC newId 1 pc) hs1Minus2
-        hs2Minus1' = HS.map (\pc -> AssumePC newId 2 pc) hs2Minus1
-        unmergedPCs = HS.union hs1Minus2' hs2Minus1'
+        (s1', new') = L.mapAccumL (simplifyPC simplifier) s1 (res_newId:newPCs)
+        new'' = concat new'
+
+        merged' = foldr PC.insert merged new''
+
+        merged'' = foldr (simplifyPCs simplifier s1') merged' new''
+    in
+    (ctxt { s1_ = s1' }, merged'')
 
 -- | @`changedSyms` is list of tuples, w/ each tuple representing the old symbolic Id and the new replacement Id. @`subIdsPCs` substitutes all
 -- occurrences of the old symbolic Ids' Names in the PathConds with the Name of the corresponding new Id. This assumes Old and New Id have the same type
@@ -548,3 +620,7 @@ subIdNamesPCs :: PathConds -> HM.HashMap Id Id -> PathConds
 subIdNamesPCs pcs changedSyms =
     let changedSymsNames = HM.foldrWithKey (\k v hm -> HM.insert (idName k) (idName v) hm) HM.empty changedSyms
     in renames changedSymsNames pcs
+
+-- | Return PathCond restricting value of `newId` to [lower, upper]
+restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
+restrictSymVal kv lower upper newId = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
