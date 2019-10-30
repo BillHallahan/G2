@@ -194,24 +194,9 @@ data RCombiner r1 r2 = r1 :<~ r2 -- ^ Apply r2, followed by r1.  Takes the leftm
 data RC a b = RC a b
 
 instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC rv1 rv2) t where
-    initReducer (r1 :<~ r2) s =
-        let
-            rv1 = initReducer r1 s
-            rv2 = initReducer r2 s
-        in
-        RC rv1 rv2
-    initReducer (r1 :<~? r2) s =
-        let
-            rv1 = initReducer r1 s
-            rv2 = initReducer r2 s
-        in
-        RC rv1 rv2
-    initReducer (r1 :<~| r2) s =
-        let
-            rv1 = initReducer r1 s
-            rv2 = initReducer r2 s
-        in
-        RC rv1 rv2
+    initReducer (r1 :<~ r2) = initReducerGen r1 r2
+    initReducer (r1 :<~? r2) = initReducerGen r1 r2
+    initReducer (r1 :<~| r2) = initReducerGen r1 r2
 
     redRules (r1 :<~ r2) (RC rv1 rv2) s b = do
         (rr2, srv2, b', r2') <- redRules r2 rv2 s b
@@ -242,6 +227,14 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
     updateWithAll (r1 :<~ r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~? r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~| r2) = updateWithAllRC r1 r2
+
+initReducerGen :: (Reducer r1 rv1 t, Reducer r2 rv2 t) => r1 -> r2 -> State t -> RC rv1 rv2
+initReducerGen r1 r2 s =
+    let
+        rv1 = initReducer r1 s
+        rv2 = initReducer r2 s
+    in
+    RC rv1 rv2
 
 {-# INLINE updateWithAllRC #-}
 updateWithAllRC :: (Reducer r1 rv1 t, Reducer r2 rv2 t) => r1 -> r2 -> [(State t, RC rv1 rv2)] -> [RC rv1 rv2]

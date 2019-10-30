@@ -7,7 +7,12 @@ module G2.Liquid.LHReducers ( LHRed (..)
                             , LHLimitByAcceptedHalter
                             , LHLimitByAcceptedOrderer
                             , LHAbsHalter (..)
+                            , LHMaxOutputsHalter (..)
+                            , SearchedBelowHalter (..)
                             , LHTracker (..)
+                            , abstractCallsNum
+                            , minAbstractCalls
+
                             , lhReduce
                             , initialTrack
 
@@ -71,6 +76,12 @@ initialTrack _ _ = 0
 data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name
                            , annotations :: AnnotMap } deriving (Eq, Show)
+
+minAbstractCalls :: (Foldable f, Functor f) => f (State LHTracker) -> Int
+minAbstractCalls = minimum . fmap abstractCallsNum
+
+abstractCallsNum :: State LHTracker -> Int
+abstractCallsNum = length . abstract_calls . track
 
 instance Named LHTracker where
     names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns}) = 
@@ -188,5 +199,45 @@ instance Halter LHAbsHalter Int LHTracker where
     updatePerStateHalt _ ii (Processed {accepted = acc}) _ = minimum $ ii:map (length . abstract_calls . track) acc
 
     stopRed _ hv _ s = if length (abstract_calls $ track s) > hv then Discard else Continue
+
+    stepHalter _ hv _ _ _ = hv
+
+data LHMaxOutputsHalter = LHMaxOutputsHalter Int
+
+instance Halter LHMaxOutputsHalter Int LHTracker where
+    initHalt (LHMaxOutputsHalter m) _ = m
+
+    updatePerStateHalt _ hv _ _ = hv
+
+    stopRed _ m (Processed { accepted = acc }) _
+        | length acc' >= m = Discard
+        | otherwise = Continue
+        where
+            min_abs = minAbstractCalls acc
+            acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+
+    stepHalter _ hv _ _ _ = hv
+
+-- | Suppose that the minimal number of abstracted calls in an accepted state is m.
+-- This Halter discards all unprocessed states after finding at least found_at_least states with
+-- exactly m abstracted calls, if at least discarded_at_least states with fewer than m accepted
+-- calls have been discarded.
+data SearchedBelowHalter = SearchedBelowHalter { found_at_least :: Int
+                                               , discarded_at_least :: Int }
+
+instance Halter SearchedBelowHalter () LHTracker where
+    initHalt _ _ = ()
+
+    updatePerStateHalt _ hv _ _ = hv
+
+    stopRed sbh m (Processed { accepted = acc, discarded = dis }) _
+        | length acc' >= found_at_least sbh
+        , length dis_less_than_min >= discarded_at_least sbh = Discard
+        | otherwise = Continue
+        where
+            min_abs = minAbstractCalls acc
+            acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+
+            dis_less_than_min = filter (\s -> abstractCallsNum s < min_abs) dis
 
     stepHalter _ hv _ _ _ = hv

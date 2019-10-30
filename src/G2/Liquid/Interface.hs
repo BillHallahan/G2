@@ -135,8 +135,8 @@ runLHCore entry (mb_modname, exg2) ghci config = do
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
                   0 -> 0
-                  _ -> minimum $ map (\(ExecRes {final_state = s}) -> length $ abstract_calls $ track s) ret
-    let ret' = filter (\(ExecRes {final_state = s}) -> mi == (length $ abstract_calls $ track s)) ret
+                  _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) ret
+    let ret' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret
 
     -- let ret'' = ret'
     ret'' <- mapM (reduceCalls config final_bindings) ret'
