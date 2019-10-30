@@ -2,22 +2,18 @@
 {-# LANGUAGE CPP #-}
 
 module G2.Liquid.Helpers ( getGHCInfos
-						 , funcSpecs
-						 , findFuncSpec
-						 , measureSpecs
-						 , varEqName
-						 , namesEq
-						 , fillLHDictArgs ) where
+                         , funcSpecs
+                         , findFuncSpec
+                         , measureSpecs
+                         , varEqName
+                         , namesEq
+                         , fillLHDictArgs ) where
 
 import G2.Language as G2
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Haskell.Liquid.Types hiding (Config, cls, names)
-import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
-import Language.Haskell.Liquid.UX.CmdLine
 import qualified Language.Haskell.Liquid.UX.Config as LHC
-
-import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Data.List
 import qualified Data.Map as M
@@ -50,24 +46,24 @@ funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
 
 findFuncSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType
 findFuncSpec ghci g2_n =
-	let
-		fs = funcSpecs ghci
-		fs' = map (\(v, lst) -> (V.varName v, lst)) fs
-	in
-	case find (\(n, _) -> namesEq n g2_n) fs' of
-		Just st -> Just . val . snd $ st
-		Nothing -> Nothing
+    let
+        fs = funcSpecs ghci
+        fs' = map (\(v, lst) -> (V.varName v, lst)) fs
+    in
+    case find (\(n, _) -> namesEq n g2_n) fs' of
+        Just st -> Just . val . snd $ st
+        Nothing -> Nothing
 
 varEqName :: V.Var -> G2.Name -> Bool
 varEqName v = namesEq (V.varName v)
 
 namesEq :: GHC.Name -> G2.Name -> Bool
 namesEq ghc_n (Name n m _ _) =
-	T.pack (occNameString $ nameOccName ghc_n) == n
-		&& (case nameModule_maybe ghc_n of
-				Just mod ->
-					Just (T.pack . moduleNameString . moduleName $ mod) == m
-				Nothing -> m == Nothing)
+    T.pack (occNameString $ nameOccName ghc_n) == n
+        && (case nameModule_maybe ghc_n of
+                Just mod ->
+                    Just (T.pack . moduleNameString . moduleName $ mod) == m
+                Nothing -> m == Nothing)
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
 #if MIN_VERSION_liquidhaskell(0,8,6)

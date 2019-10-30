@@ -13,12 +13,10 @@ import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Translation
 
-import Language.Fixpoint.Types.Constraints
 import Language.Haskell.Liquid.Types as LH
 
 import Control.Monad
 import Data.Either
-import Data.Maybe
 import qualified Data.Text as T
 
 inference :: G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)

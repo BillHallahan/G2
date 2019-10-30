@@ -19,7 +19,6 @@ import G2.Execution
 import G2.Interface
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import G2.Language.KnownValues
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.Interface
@@ -133,9 +132,9 @@ checkCounterexample exg2 ghci config cex@(FuncCall {funcName = n}) = do
     case fsl of
         [ExecRes
             {
-                final_state = fs@(State { curr_expr = CurrExpr _ (Data (DataCon (Name n _ _ _) _))})
+                final_state = (State { curr_expr = CurrExpr _ (Data (DataCon (Name dcn _ _ _) _))})
             }] ->
-            return $ n == "True"
+            return $ dcn == "True"
         _ -> error $ "checkCounterexample: Bad return from runG2WithSomes" ++ show (curr_expr . final_state . head $ fsl)
 
 checkCounterexample' :: FuncCall -> State t -> State t
@@ -148,7 +147,7 @@ checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv }
       , true_assert = True }
 
 toJustSpec :: FuncCall -> [Id] -> Expr -> Expr
-toJustSpec (FuncCall { funcName = n, arguments = ars, returns = ret }) is (Let [(b, _)] (Assert _ e _)) =
+toJustSpec (FuncCall { arguments = ars, returns = ret }) is (Let [(b, _)] (Assert _ e _)) =
     let
         rep = (Var b, ret):zip (map Var is) ars  
     in
@@ -221,8 +220,6 @@ evalMeasures'' :: [Symbol] -> State t -> Bindings -> Measures -> TCValues -> Exp
 evalMeasures'' meas_names s b m tcv e =
     let
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
-
-        t = typeOf e
 
         filtered_m = E.filterWithKey (\(Name n md _ _) _ -> (n, md) `elem` meas_nameOcc) m
         rel_m = mapMaybe (\(n, me) -> case filter notLH . argumentTypes . PresType . inTyForAlls . typeOf $ me of

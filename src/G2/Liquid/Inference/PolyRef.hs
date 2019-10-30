@@ -10,8 +10,6 @@ import Data.List
 import Data.Maybe
 import Debug.Trace
 
-import Debug.Trace
-
 -- | The subexpressions of an expression corresponding to the polymorphic
 -- arguments.  If a polymorphic argument is instantiated with a polymorphic
 -- type, these are nested recursively.

@@ -22,7 +22,7 @@ import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Liquid.Measures
-import G2.Liquid.ReduceCalls
+import G2.Liquid.G2Calls
 import G2.Liquid.Simplify
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCGen
