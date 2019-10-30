@@ -9,6 +9,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , GMeasureExs
                                    , MeasureEx
                                    , GMeasureEx (..)
+                                   , runLHInferenceCore
                                    , checkCounterexample
                                    , evalMeasures) where
 
@@ -22,6 +23,7 @@ import G2.Language.KnownValues
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.Interface
+import G2.Liquid.LHReducers
 import G2.Liquid.TCValues
 import G2.Liquid.Types
 import G2.Solver hiding (Assert)
@@ -40,6 +42,77 @@ import Data.Maybe
 import qualified Data.Text as T
 
 import Debug.Trace
+
+
+-------------------------------
+-- Generating Counterexamples
+-------------------------------
+runLHInferenceCore :: T.Text
+                   -> (Maybe T.Text, ExtractedG2)
+                   -> [GhcInfo]
+                   -> Config
+                   -> IO (([ExecRes [FuncCall]], Bindings), Id)
+runLHInferenceCore entry (mb_modname, exg2) ghci config = do
+    (ifi, cfn, final_st, bindings, _, _, pres_names) <- liquidState entry (mb_modname, exg2) ghci config mempty
+
+    SomeSolver solver <- initSolver config
+    let simplifier = ADTSimplifier arbValue
+
+    let (red, hal, ord) = inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn final_st
+    (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names final_st bindings
+
+    close solver
+
+    return ((exec_res, final_bindings), ifi)
+
+inferenceReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
+                              => Config
+                              -> solver
+                              -> simplifier
+                              -> T.Text
+                              -> Maybe T.Text
+                              -> Name
+                              -> State t
+                              -> (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
+    let
+        ng = mkNameGen ()
+
+        share = sharing config
+
+        (limHalt, limOrd) = limitByAccepted (cut_off config)
+        state_name = Name "state" Nothing 0 Nothing
+
+        searched_below = SearchedBelowHalter { found_at_least = 5
+                                             , discarded_at_least = 40 }
+    in
+    if higherOrderSolver config == AllFuncs then
+        ( SomeReducer NonRedPCRed
+            <~| (case logStates config of
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
+        , SomeHalter
+                (MaxOutputsHalter (maxOutputs config)
+                  :<~> ZeroHalter (steps config)
+                  :<~> LHAbsHalter entry mb_modname (expr_env st)
+                  :<~> searched_below
+                  :<~> SwitchEveryNHalter (switch_after config)
+                  :<~> AcceptHalter)
+        , SomeOrderer NextOrderer)
+    else
+        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
+            <~| (case logStates config of
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
+        , SomeHalter
+            (DiscardIfAcceptedTag state_name
+              :<~> MaxOutputsHalter (maxOutputs config)
+              :<~> ZeroHalter (steps config)
+              :<~> LHAbsHalter entry mb_modname (expr_env st)
+              :<~> searched_below
+              :<~> SwitchEveryNHalter (switch_after config)
+              :<~> AcceptHalter)
+        , SomeOrderer NextOrderer)
 
 -------------------------------
 -- Checking Counterexamples

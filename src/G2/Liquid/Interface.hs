@@ -41,7 +41,6 @@ import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 import Control.Exception
 import Data.List
 import qualified Data.HashSet as S
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
@@ -83,78 +82,12 @@ runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci config = do
     (ifi, cfn, final_st, bindings, _, _, pres_names) <- liquidState entry (mb_modname, exg2) ghci config mempty
-    let annm = annotations $ track final_st
 
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
 
-    -- We replace certain function name lists in the final State with names
-    -- mapping into the measures from the LHState.  These functions do not
-    -- need to be passed the LH typeclass, so this ensures use of Names from
-    -- these lists will work, without us having to modify all of G2 to account
-    -- for the LH typeclass.
-
-    let tr_ng = mkNameGen ()
-    let state_name = Name "state" Nothing 0 Nothing
-
-    let (limHalt, limOrd) = limitByAccepted (cut_off config)
-
-    let share = sharing config
-
-    (ret, final_bindings) <- if higherOrderSolver config == AllFuncs
-              then runG2WithSomes
-                    (SomeReducer NonRedPCRed
-                      <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)))
-                    (SomeHalter
-                      (MaxOutputsHalter (maxOutputs config)
-                        :<~> ZeroHalter (steps config)
-                        :<~> LHAbsHalter entry mb_modname (expr_env final_st)
-                        :<~> limHalt
-                        :<~> SwitchEveryNHalter (switch_after config)
-                        :<~> AcceptHalter))
-                    (SomeOrderer limOrd)
-                    solver simplifier (addSearchNames (names annm) pres_names) final_st bindings
-              else runG2WithSomes
-                    (SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-                      <~| (case logStates config of
-                            Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                            Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)))
-                    (SomeHalter
-                      (DiscardIfAcceptedTag state_name
-                        :<~> MaxOutputsHalter (maxOutputs config)
-                        :<~> ZeroHalter (steps config)
-                        :<~> LHAbsHalter entry mb_modname (expr_env final_st)
-                        :<~> limHalt
-                        :<~> SwitchEveryNHalter (switch_after config)
-                        :<~> AcceptHalter))
-                    (SomeOrderer limOrd)
-                    solver simplifier (addSearchNames (names annm) pres_names) final_st bindings
-    
-    -- We filter the returned states to only those with the minimal number of abstracted functions
-    let mi = case length ret of
-                  0 -> 0
-                  _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) ret
-    let ret' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret
-
-    -- let ret'' = ret'
-    ret'' <- mapM (reduceCalls config final_bindings) ret'
-
-    let exec_res = 
-                map (\(ExecRes { final_state = s
-                               , conc_args = es
-                               , conc_out = e
-                               , violated = ais}) ->
-                      (ExecRes { final_state =
-                                    s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}
-                               , conc_args = es
-                               , conc_out = e
-                               , violated = ais})) ret''
-    -- mapM_ (\er -> do
-    --     print . track $ final_state er 
-    --     putStrLn . flip pprExecStateStr bindings''' . final_state $ er) exec_res
-    -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
+    let (red, hal, ord) = lhReducerHalterOrderer config solver simplifier entry mb_modname cfn final_st
+    (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names final_st bindings
 
     close solver
 
@@ -167,7 +100,7 @@ liquidState :: T.Text -> (Maybe T.Text, ExtractedG2)
                       -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
 liquidState entry (mb_modname, exg2) ghci config memconfig = do
     let (init_state, ifi, bindings) = initState exg2 True entry mb_modname (mkCurrExpr Nothing Nothing) config
-    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state bindings `mappend` memconfig) init_state bindings)
+    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
     let cleaned_state = init_state' { type_env = type_env init_state } 
 
     let (no_part_state@(State {expr_env = np_eenv})) = cleaned_state
@@ -189,9 +122,9 @@ liquidState entry (mb_modname, exg2) ghci config memconfig = do
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
 
-    let pres_names = addSearchNames (names tcv ++ names mkv) $ reqNames merged_state' bindings
-
     let annm = annots merged_state
+        pres_names = addSearchNames (names tcv ++ names mkv) $ reqNames merged_state'
+        pres_names' = addSearchNames (names annm) pres_names
 
     let track_state = merged_state' {track = LHTracker { abstract_calls = []
                                                        , last_var = Nothing
@@ -205,7 +138,90 @@ liquidState entry (mb_modname, exg2) ghci config memconfig = do
     let final_st = track_state { known_values = mkv
                                , type_classes = unionTypeClasses mtc (type_classes track_state)}
 
-    return (ifi, cfn, final_st, bindings''', measures merged_state, tcv, pres_names `mappend` memconfig)
+    return (ifi, cfn, final_st, bindings''', measures merged_state, tcv, pres_names' `mappend` memconfig)
+
+runLHG2 :: (Solver solver, Simplifier simplifier)
+        => Config
+        -> SomeReducer LHTracker
+        -> SomeHalter LHTracker
+        -> SomeOrderer LHTracker
+        -> solver
+        -> simplifier
+        -> MemConfig
+        -> State LHTracker
+        -> Bindings
+        -> IO ([ExecRes [FuncCall]], Bindings)
+runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
+    (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names final_st bindings
+
+    -- We filter the returned states to only those with the minimal number of abstracted functions
+    let mi = case length ret of
+                  0 -> 0
+                  _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) ret
+    let ret' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret
+
+    ret'' <- mapM (reduceCalls config final_bindings) ret'
+
+    let exec_res = 
+            map (\(ExecRes { final_state = s
+                           , conc_args = es
+                           , conc_out = e
+                           , violated = ais}) ->
+                  (ExecRes { final_state =
+                                s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}
+                           , conc_args = es
+                           , conc_out = e
+                           , violated = ais})) ret''
+
+    return (exec_res, final_bindings)
+
+
+lhReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
+                       => Config
+                       -> solver
+                       -> simplifier
+                       -> T.Text
+                       -> Maybe T.Text
+                       -> CounterfactualName
+                       -> State t
+                       -> (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
+    let
+        ng = mkNameGen ()
+
+        share = sharing config
+
+        (limHalt, limOrd) = limitByAccepted (cut_off config)
+        state_name = Name "state" Nothing 0 Nothing
+    in
+    if higherOrderSolver config == AllFuncs then
+        ( SomeReducer NonRedPCRed
+            <~| (case logStates config of
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
+        , SomeHalter
+                (MaxOutputsHalter (maxOutputs config)
+                  :<~> ZeroHalter (steps config)
+                  :<~> LHAbsHalter entry mb_modname (expr_env st)
+                  :<~> limHalt
+                  :<~> SwitchEveryNHalter (switch_after config)
+                  :<~> AcceptHalter)
+        , SomeOrderer limOrd)
+    else
+        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
+            <~| (case logStates config of
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
+        , SomeHalter
+            (DiscardIfAcceptedTag state_name
+              :<~> MaxOutputsHalter (maxOutputs config)
+              :<~> ZeroHalter (steps config)
+              :<~> LHAbsHalter entry mb_modname (expr_env st)
+              :<~> limHalt
+              :<~> SwitchEveryNHalter (switch_after config)
+              :<~> AcceptHalter)
+        , SomeOrderer limOrd)
+
 
 initializeLH :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
 initializeLH counter ghcInfos ifi bindings = do
@@ -233,10 +249,10 @@ initializeLH counter ghcInfos ifi bindings = do
 
     return cfn
 
-reqNames :: State t -> Bindings -> MemConfig
+reqNames :: State t -> MemConfig
 reqNames (State { expr_env = eenv
                 , type_classes = tc
-                , known_values = kv}) b =
+                , known_values = kv}) =
     let ns = Lang.names
                    [ mkGe eenv
                    , mkGt eenv
@@ -268,7 +284,7 @@ reqNames (State { expr_env = eenv
     MemConfig { search_names = ns
               , pres_func = pf }
     where
-        pf e (Bindings { deepseq_walkers = dsw }) a =
+        pf _ (Bindings { deepseq_walkers = dsw }) a =
             S.fromList . map idName . M.elems $ M.filterWithKey (\n _ -> n `S.member` a) dsw
 
 

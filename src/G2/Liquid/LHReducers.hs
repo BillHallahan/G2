@@ -230,13 +230,15 @@ instance Halter SearchedBelowHalter () LHTracker where
 
     updatePerStateHalt _ hv _ _ = hv
 
-    stopRed sbh m (Processed { accepted = acc, discarded = dis }) _
+    stopRed sbh m (Processed { accepted = acc, discarded = dis }) s
+        | length acc' >= found_at_least sbh
+        , abstractCallsNum s >= min_abs = Discard
         | length acc' >= found_at_least sbh
         , length dis_less_than_min >= discarded_at_least sbh = Discard
         | otherwise = Continue
         where
             min_abs = minAbstractCalls acc
-            acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+            acc' = filter (\acc_s -> abstractCallsNum acc_s == min_abs) acc
 
             dis_less_than_min = filter (\s -> abstractCallsNum s < min_abs) dis
 
